@@ -24,19 +24,53 @@ pub const LEDGER_PATH: &str = "model/ledger.toml";
 
 /// Render every committed projection of the LexLean graph.
 #[must_use]
-pub fn render_all(graph: &AuthorityGraph) -> Vec<(&'static str, String)> {
+pub fn render_all(graph: &AuthorityGraph) -> Vec<(String, String)> {
     let model = graph.model();
-    vec![
-        (IDS_PATH, render_ids(&model)),
-        (AUTHORITIES_PATH, render_authorities(&model)),
-        (LEDGER_PATH, render_ledger(&model)),
-        (CONFORMANCE_PATH, render_conformance(&model)),
-        (README_PATH, render_readme(graph)),
+    let mut out = vec![
+        (IDS_PATH.to_string(), render_ids(&model)),
+        (AUTHORITIES_PATH.to_string(), render_authorities(&model)),
+        (LEDGER_PATH.to_string(), render_ledger(&model)),
+        (CONFORMANCE_PATH.to_string(), render_conformance(&model)),
+        (README_PATH.to_string(), render_readme(graph)),
         (
-            PROJECT_VERIFICATION_PATH,
+            PROJECT_VERIFICATION_PATH.to_string(),
             render_project_verification(graph),
         ),
-    ]
+    ];
+    out.extend(render_feature_suites(graph));
+    out
+}
+
+
+fn render_feature_suites(graph: &AuthorityGraph) -> Vec<(String, String)> {
+    let mut suites = graph
+        .scenarios
+        .iter()
+        .map(|scenario| scenario.suite.as_str())
+        .collect::<Vec<_>>();
+    suites.sort_unstable();
+    suites.dedup();
+
+    suites
+        .into_iter()
+        .map(|suite| {
+            let mut out = String::new();
+            let _ = writeln!(
+                out,
+                "# @generated from src/Uorc/Registry.lex.tex by `cargo xtask check-model --write`."
+            );
+            let _ = writeln!(out, "Feature: {suite}");
+            for scenario in graph.scenarios.iter().filter(|row| row.suite == suite) {
+                let _ = writeln!(out);
+                let _ = writeln!(out, "  @{} @{}", scenario.id, scenario.level);
+                let _ = writeln!(out, "  Scenario: {}", scenario.statement);
+                let _ = writeln!(out, "    Given {}", scenario.given);
+                let _ = writeln!(out, "    When {}", scenario.when);
+                let _ = writeln!(out, "    Then {}", scenario.then);
+            }
+            (format!("features/suites/{suite}.feature"), out)
+        })
+        .collect()
 }
 
 /// Render `model/ids.toml`.
@@ -272,6 +306,10 @@ pub fn render_readme(graph: &AuthorityGraph) -> String {
     let _ = writeln!(out);
     let _ = writeln!(out, "{}", c.purpose);
     let _ = writeln!(out);
+    let _ = writeln!(out, "## Current status");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "{}", c.implementation_status);
+    let _ = writeln!(out);
     let _ = writeln!(out, "## Authority");
     let _ = writeln!(out);
     let _ = writeln!(out, "{}", c.authority_source);
@@ -351,6 +389,11 @@ pub fn render_project_verification(graph: &AuthorityGraph) -> String {
         "authority graph. It does not replace the template-owned `VERIFICATION.md`."
     );
 
+    let _ = writeln!(out);
+    let _ = writeln!(out, "## Current status");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "{}", graph.charter.implementation_status);
+
     render_claim_table(&mut out, graph);
     render_evidence_table(&mut out, graph);
 
@@ -414,6 +457,7 @@ fn render_evidence_table(out: &mut String, graph: &AuthorityGraph) {
     let rows = [
         ("Production dependencies", &e.production_dependencies),
         ("Validation authorities", &e.validation_authorities),
+        ("Authority bindings", &e.authority_bindings),
         ("Measurements", &e.measurements),
         ("Open research claims", &e.open_research_claims),
     ];
@@ -436,7 +480,7 @@ mod tests {
     use crate::{AuthorityGraph, Level};
 
     #[test]
-    fn generated_projections_are_exact_uc_chr_02() {
+    fn generated_projections_are_exact_uc_chr_01() {
         let root = crate::repo_root();
         let graph = AuthorityGraph::load(&root).expect("authority graph loads");
         for (path, expected) in render_all(&graph) {
