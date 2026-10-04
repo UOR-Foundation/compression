@@ -516,7 +516,6 @@ fn validate_registry_declarations(declarations: &[Value]) -> Result<(), ModelErr
     Ok(())
 }
 
-
 fn validate_string_structure(
     declarations: &[Value],
     name: &str,
