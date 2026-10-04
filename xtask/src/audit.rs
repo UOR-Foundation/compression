@@ -520,6 +520,11 @@ mod source_authority_tests {
         ));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(root.join("docs/governance")).expect("creates fixture");
+        std::fs::write(
+            root.join("template-contract.json"),
+            r#"{"universal_policy_paths":[]}"#,
+        )
+        .expect("writes fixture template contract");
 
         std::fs::write(
             root.join("docs/governance/evidence.md"),
