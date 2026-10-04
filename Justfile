@@ -18,9 +18,13 @@ template-check:
     prismpm template check
     prismpm lock check
 
-# Regenerate everything the model owns: CONFORMANCE.md.
+# Regenerate every model/document projection owned by the LexLean authority graph.
 model-write:
     cargo run -q -p xtask -- check-model --write
+
+# Direct R1 report: project prose cannot become a second UORC authority.
+source-authority:
+    cargo run -q -p xtask -- audit-source-authority
 
 fmt:
     cargo fmt --all

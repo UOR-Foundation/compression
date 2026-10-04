@@ -2,24 +2,27 @@
 
 One Gherkin file per suite, one scenario per conformance ID (R3).
 
-A scenario is tagged with its ID and its honesty level:
+For UORC, conformance rows are authored in `src/Uorc/Registry.lex.tex`.
+`model/ids.toml` and `CONFORMANCE.md` are generated projections; they are
+never edited as independent claim sources.
+
+A scenario is tagged with its ID and honesty level:
 
 ```gherkin
 Feature: <suite name>
 
-  <what the suite is about, in a sentence.>
+  <what the suite is about, in a sentence>
 
-  @CX-01 @build
-  Scenario: <the statement, copied from model/ids.toml>
+  @UC-SRC-01 @build
+  Scenario: <the statement projected from the LexLean registry>
     Given <the fixture>
-    When the suite exercises CX-01
-    Then <the assertion, in the register's words>
+    When the suite exercises the registered behavior
+    Then <the assertion, in the registry's words>
 ```
 
-The `suite` field of a row in `model/ids.toml` names the file its scenario
-lives in, and `just bdd` fails if an ID has no scenario, a scenario has no ID,
-or an ID has no test whose name ends in it lowercased with underscores.
+`just bdd` fails if a registered ID has no scenario, a scenario names no
+registered ID, its honesty level differs, or no test name ends in the ID
+lowercased with hyphens replaced by underscores.
 
-Empty. The first capability this repository builds starts with a row in
-`model/ids.toml`, then a scenario here, then a failing test --- in that order,
-because the order is the discipline (`AGENTS.md`).
+The feature-first workflow remains: add the LexLean registry row, add its
+scenario, add the initially failing test, then implement the behavior.

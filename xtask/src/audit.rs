@@ -113,6 +113,139 @@ fn effective_lines(text: &str) -> Vec<(usize, &str)> {
     out
 }
 
+/// R1: project semantics have exactly one project-owned source: the LexLean
+/// authority graph. Generated Markdown is checked by `check-model`; handwritten
+/// project prose may record evidence or planning, but may not introduce a
+/// second UORC specification or BCP-14 semantic rule.
+pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
+    let generated = ["README.md", "CONFORMANCE.md", "UORC-VERIFICATION.md"];
+    let universal = [
+        "AGENTS.md",
+        "TEMPLATE-CONTRACT.md",
+        "TEMPLATE-VERIFICATION.md",
+        "VERIFICATION.md",
+    ];
+    let mut violations = Vec::new();
+
+    for entry in std::fs::read_dir(root)? {
+        let path = entry?.path();
+        if !path.is_file() || path.extension().is_none_or(|ext| ext != "md") {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        if generated.contains(&name) || universal.contains(&name) {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path)?;
+        if let Some(reason) = handwritten_semantic_rule(&text) {
+            violations.push(format!("{name}: {reason}"));
+        }
+        violations.push(format!(
+            "{name}: project-owned root Markdown must be a generated projection; handwritten evidence belongs under docs/governance/"
+        ));
+    }
+
+    let docs = root.join("docs");
+    if docs.exists() {
+        let mut markdown = Vec::new();
+        gather_markdown(&docs, &mut markdown)?;
+        markdown.sort();
+        for path in markdown {
+            let rel = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string()
+                .replace('\\', "/");
+            let allowed_evidence = rel.starts_with("docs/governance/");
+            let allowed_planning_pointer = rel == "docs/planning/README.md";
+            if !allowed_evidence && !allowed_planning_pointer {
+                violations.push(format!(
+                    "{rel}: handwritten project documentation must be generated, governance evidence, or the non-authoritative planning pointer"
+                ));
+                continue;
+            }
+            let text = std::fs::read_to_string(&path)?;
+            if let Some(reason) = handwritten_semantic_rule(&text) {
+                violations.push(format!("{rel}: {reason}"));
+            }
+            let name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if name.starts_with("spec")
+                || name.starts_with("requirements")
+                || name.starts_with("semantics")
+            {
+                violations.push(format!(
+                    "{rel}: specification-shaped project prose is forbidden outside generated projections"
+                ));
+            }
+        }
+    }
+
+    if !violations.is_empty() {
+        return Err(format!(
+            "R1: UORC project semantics are authored only in src/Uorc/Specification.lex.tex \
+             and src/Uorc/Registry.lex.tex. Handwritten prose cannot become a second authority.\n\n{}",
+            violations.join("\n")
+        )
+        .into());
+    }
+
+    println!("audit-source-authority: no handwritten project specification or semantic rule (R1)");
+    Ok(())
+}
+
+fn handwritten_semantic_rule(text: &str) -> Option<&'static str> {
+    const MARKERS: &[(&str, &str)] = &[
+        (
+            "UORC MUST ",
+            "contains a handwritten BCP-14 UORC requirement",
+        ),
+        (
+            "UORC MUST NOT ",
+            "contains a handwritten BCP-14 UORC prohibition",
+        ),
+        (
+            "UORC SHALL ",
+            "contains a handwritten BCP-14 UORC requirement",
+        ),
+        (
+            "UORC REQUIRED ",
+            "contains a handwritten BCP-14 UORC requirement",
+        ),
+        (
+            "# UORC Specification",
+            "declares a handwritten UORC specification",
+        ),
+        ("## UORC Semantics", "declares handwritten UORC semantics"),
+        (
+            "## UORC Requirements",
+            "declares handwritten UORC requirements",
+        ),
+    ];
+    MARKERS
+        .iter()
+        .find_map(|(marker, reason)| text.contains(marker).then_some(*reason))
+}
+
+fn gather_markdown(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            gather_markdown(&path, out)?;
+        } else if path.extension().is_some_and(|ext| ext == "md") {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
 /// R5: no arbitrary limitation. Every bound is a property of the caller's
 /// chosen instantiation, never of the code.
 ///
@@ -264,4 +397,16 @@ fn gather_all(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod source_authority_tests {
+    use super::*;
+
+    #[test]
+    fn handwritten_semantic_rule_is_rejected_uc_src_01() {
+        assert!(handwritten_semantic_rule("UORC MUST decode an archive this way.").is_some());
+        assert!(handwritten_semantic_rule("# UORC Specification\nA second source.").is_some());
+        assert!(handwritten_semantic_rule("This is project-owned governance evidence.").is_none());
+    }
 }

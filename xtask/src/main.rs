@@ -2,13 +2,12 @@
 //!
 //! `cargo xtask <task>`; `just vv` runs the whole normative acceptance gate.
 //! Each task below enforces one of the rules `AGENTS.md` sets out, and each
-//! names the rule it enforces when it fails, so that a red gate says *which
-//! promise* was broken rather than merely that something is wrong.
+//! names the rule it enforces when it fails.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use repo_model::{codegen, Model};
+use repo_model::{codegen, AuthorityGraph, Model};
 
 mod audit;
 mod bootstrap;
@@ -22,6 +21,7 @@ fn main() -> ExitCode {
 
     let result = match task.as_str() {
         "check-model" => check_model(&root, write),
+        "audit-source-authority" => audit::audit_source_authority(&root),
         "audit-limits" => audit::audit_limits(&root),
         "audit-deferral" => audit::audit_deferral(&root),
         "audit-bootstrap" => bootstrap::audit(&root),
@@ -31,14 +31,15 @@ fn main() -> ExitCode {
             eprintln!(
                 "cargo xtask <task>\n\
                  \n\
-                 check-model       R1: model/*.toml is the single source; regenerate and diff\n\
-                 audit-limits      R5:  no bound that cannot be traced to a parameter\n\
+                 check-model       R1: LexLean authority graph is the source; regenerate projections\n\
+                 audit-source-authority   R1: reject a second handwritten UORC specification\n\
+                 audit-limits      R5: no bound that cannot be traced to a parameter\n\
                  audit-deferral    R4: no deferral marker, no stub, no capability behind a flag\n\
                  audit-bootstrap   immutable SDK and least-privilege workflow trust root\n\
                  audit-dependency-updates   SDK ownership and ordinary dependency maintenance\n\
                  validate          run every gate above\n\
                  \n\
-                 --write           check-model only: rewrite the generated file"
+                 --write           check-model only: rewrite generated model/document projections"
             );
             return ExitCode::from(2);
         }
@@ -56,46 +57,64 @@ fn main() -> ExitCode {
 /// A gate failure, reported with the rule it broke.
 type Fail = Box<dyn std::error::Error>;
 
-/// R1, `CM-01`: the generated Rust consts equal the model, numeral for
-/// numeral.
+/// R1: regenerate every committed projection from the LexLean authority graph.
 fn check_model(root: &Path, write: bool) -> Result<(), Fail> {
-    let model = Model::load(&root.join("model"))?;
-    model.check()?;
+    let graph = AuthorityGraph::load(root)?;
+    let projected_model = graph.model();
+    projected_model.check()?;
 
-    let conformance = codegen::render_conformance(&model);
-    let conformance_path: PathBuf = root.join(codegen::CONFORMANCE_PATH);
+    for (relative, expected) in codegen::render_all(&graph) {
+        let path: PathBuf = root.join(relative);
+        if write {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&path, &expected)?;
+            println!("wrote {}", path.display());
+            continue;
+        }
+
+        let committed = std::fs::read_to_string(&path).map_err(|e| {
+            format!(
+                "{}: {e}\nrun `cargo xtask check-model --write`",
+                path.display()
+            )
+        })?;
+        if committed != expected {
+            return Err(format!(
+                "{} is stale: it disagrees with the LexLean authority graph.\n\
+                 R1: generated model/document projections cannot become a second source. \
+                 Run `cargo xtask check-model --write`.",
+                path.display()
+            )
+            .into());
+        }
+    }
+
+    let committed_model = Model::load(&root.join("model"))?;
+    committed_model.check()?;
+    if committed_model.ids.id.len() != projected_model.ids.id.len() {
+        return Err("R1: committed ID projection count differs from LexLean source".into());
+    }
 
     if write {
-        std::fs::write(&conformance_path, &conformance)?;
-        println!("wrote {}", conformance_path.display());
-        return Ok(());
+        println!(
+            "check-model: regenerated {} LexLean-owned projections",
+            codegen::render_all(&graph).len()
+        );
+    } else {
+        println!(
+            "check-model: all projections equal the LexLean authority graph, {} ids (CM-01)",
+            projected_model.ids.id.len()
+        );
     }
-
-    let committed = std::fs::read_to_string(&conformance_path).map_err(|e| {
-        format!(
-            "{}: {e}\nrun `cargo xtask check-model --write`",
-            conformance_path.display()
-        )
-    })?;
-    if committed != conformance {
-        return Err(format!(
-            "{} is stale: it disagrees with model/ids.toml.\n\
-             R2: a claim cannot exist in the documentation without a ledger row. \
-             Run `cargo xtask check-model --write`.",
-            conformance_path.display()
-        )
-        .into());
-    }
-    println!(
-        "check-model: CONFORMANCE.md equals the model, {} ids (CM-01)",
-        model.ids.id.len()
-    );
     Ok(())
 }
 
 /// The whole normative acceptance gate, in one place.
 fn validate(root: &Path) -> Result<(), Fail> {
     check_model(root, false)?;
+    audit::audit_source_authority(root)?;
     audit::audit_limits(root)?;
     audit::audit_deferral(root)?;
     bootstrap::audit(root)?;
