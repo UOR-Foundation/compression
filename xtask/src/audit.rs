@@ -400,9 +400,15 @@ mod source_authority_tests {
     use super::*;
 
     #[test]
-    fn handwritten_semantic_rule_is_rejected_uc_chr_01() {
+    fn handwritten_authority_conflicts_are_rejected_uc_chr_02() {
         assert!(handwritten_semantic_rule("UORC MUST decode an archive this way.").is_some());
         assert!(handwritten_semantic_rule("# UORC Specification\nA second source.").is_some());
+        assert!(specification_shaped_path("docs/SPEC.md"));
+        assert!(specification_shaped_path("notes/requirements-v1.md"));
+        assert!(!specification_shaped_path("docs/governance/evidence.md"));
+        assert!(is_generated_projection(
+            "<!-- @generated from src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. -->\n"
+        ));
         assert!(handwritten_semantic_rule("This is project-owned governance evidence.").is_none());
     }
 }
