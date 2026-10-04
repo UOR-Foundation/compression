@@ -24,6 +24,8 @@ pub struct Charter {
     pub product_name: String,
     /// Product purpose.
     pub purpose: String,
+    /// Current implementation status of this authority slice.
+    pub implementation_status: String,
     /// Which source graph is authoritative.
     pub authority_source: String,
     /// Version-one scope.
@@ -58,6 +60,8 @@ pub struct EvidenceBoundaries {
     pub production_dependencies: String,
     /// Validation-only imported authorities.
     pub validation_authorities: String,
+    /// Whether and where exact external-authority bindings exist.
+    pub authority_bindings: String,
     /// Empirical measurement evidence.
     pub measurements: String,
     /// Claims which remain open research questions.
@@ -77,6 +81,35 @@ pub struct ResearchPosition {
     pub performance_status: String,
 }
 
+
+/// Source-audit policy authored in LexLean rather than in the Rust gate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceAuthorityPolicy {
+    /// Exact first-line marker required on handwritten non-authoritative prose.
+    pub non_authority_marker: String,
+    /// Product subject token used when detecting handwritten normative rules.
+    pub normative_subject: String,
+}
+
+/// One generated conformance scenario owned by the LexLean registry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScenarioProjection {
+    /// Conformance ID.
+    pub id: String,
+    /// Honesty-level token.
+    pub level: String,
+    /// Suite name.
+    pub suite: String,
+    /// Scenario statement.
+    pub statement: String,
+    /// Given step text without the Gherkin keyword.
+    pub given: String,
+    /// When step text without the Gherkin keyword.
+    pub when: String,
+    /// Then step text without the Gherkin keyword.
+    pub then: String,
+}
+
 /// The complete project-owned authority graph needed by the repository model.
 #[derive(Debug, Clone)]
 pub struct AuthorityGraph {
@@ -88,8 +121,12 @@ pub struct AuthorityGraph {
     pub evidence_boundaries: EvidenceBoundaries,
     /// Prior-art/research positioning.
     pub research_position: ResearchPosition,
+    /// Source-authority audit policy.
+    pub source_authority_policy: SourceAuthorityPolicy,
     /// Conformance IDs authored in `Registry.lex.tex`.
     pub ids: Ids,
+    /// Gherkin scenarios authored in `Registry.lex.tex`.
+    pub scenarios: Vec<ScenarioProjection>,
     /// Imported authorities represented by this authority slice.
     pub authorities: Authorities,
     /// Non-ID ledger claims represented by this authority slice.
@@ -113,6 +150,7 @@ impl AuthorityGraph {
             &[
                 "productName",
                 "purpose",
+                "implementationStatus",
                 "authoritySource",
                 "scope",
                 "nonScope",
@@ -139,6 +177,7 @@ impl AuthorityGraph {
             &[
                 "productionDependencies",
                 "validationAuthorities",
+                "authorityBindings",
                 "measurements",
                 "openResearchClaims",
             ],
@@ -154,8 +193,15 @@ impl AuthorityGraph {
                 "performanceStatus",
             ],
         )?;
+        let source_authority_policy = record_strings(
+            &specification,
+            "sourceAuthorityPolicy",
+            "SourceAuthorityPolicy",
+            &["nonAuthorityMarker", "normativeSubject"],
+        )?;
 
         let mut ids = Vec::new();
+        let mut scenarios = Vec::new();
         for declaration in &registry {
             if definition_result_name(declaration) != Some("ConformanceRow") {
                 continue;
@@ -163,13 +209,26 @@ impl AuthorityGraph {
             let fields = definition_string_fields(
                 declaration,
                 "ConformanceRow",
-                &["id", "level", "suite", "statement"],
+                &["id", "level", "suite", "statement", "given", "when", "then"],
             )?;
+            let id = required(&fields, "id")?;
+            let level = required(&fields, "level")?;
+            let suite = required(&fields, "suite")?;
+            let statement = required(&fields, "statement")?;
             ids.push(IdRow {
-                id: required(&fields, "id")?,
-                level: parse_level(&required(&fields, "level")?)?,
-                suite: required(&fields, "suite")?,
-                statement: required(&fields, "statement")?,
+                id: id.clone(),
+                level: parse_level(&level)?,
+                suite: suite.clone(),
+                statement: statement.clone(),
+            });
+            scenarios.push(ScenarioProjection {
+                id,
+                level,
+                suite,
+                statement,
+                given: required(&fields, "given")?,
+                when: required(&fields, "when")?,
+                then: required(&fields, "then")?,
             });
         }
         if ids.is_empty() {
@@ -182,6 +241,7 @@ impl AuthorityGraph {
             charter: Charter {
                 product_name: required(&charter, "productName")?,
                 purpose: required(&charter, "purpose")?,
+                implementation_status: required(&charter, "implementationStatus")?,
                 authority_source: required(&charter, "authoritySource")?,
                 scope: required(&charter, "scope")?,
                 non_scope: required(&charter, "nonScope")?,
@@ -201,6 +261,7 @@ impl AuthorityGraph {
             evidence_boundaries: EvidenceBoundaries {
                 production_dependencies: required(&evidence_boundaries, "productionDependencies")?,
                 validation_authorities: required(&evidence_boundaries, "validationAuthorities")?,
+                authority_bindings: required(&evidence_boundaries, "authorityBindings")?,
                 measurements: required(&evidence_boundaries, "measurements")?,
                 open_research_claims: required(&evidence_boundaries, "openResearchClaims")?,
             },
@@ -210,10 +271,15 @@ impl AuthorityGraph {
                 novelty_status: required(&research_position, "noveltyStatus")?,
                 performance_status: required(&research_position, "performanceStatus")?,
             },
+            source_authority_policy: SourceAuthorityPolicy {
+                non_authority_marker: required(&source_authority_policy, "nonAuthorityMarker")?,
+                normative_subject: required(&source_authority_policy, "normativeSubject")?,
+            },
             ids: Ids {
                 spec: "template/1".to_string(),
                 id: ids,
             },
+            scenarios,
             authorities: Authorities {
                 spec: "template/1".to_string(),
                 authority: Vec::new(),
@@ -305,10 +371,12 @@ fn validate_specification_declarations(declarations: &[Value]) -> Result<(), Mod
         ("structure", "ClaimBoundaries"),
         ("structure", "EvidenceBoundaries"),
         ("structure", "ResearchPosition"),
+        ("structure", "SourceAuthorityPolicy"),
         ("definition", "charter"),
         ("definition", "claimBoundaries"),
         ("definition", "evidenceBoundaries"),
         ("definition", "researchPosition"),
+        ("definition", "sourceAuthorityPolicy"),
     ]
     .into_iter()
     .collect();
@@ -340,6 +408,53 @@ fn validate_specification_declarations(declarations: &[Value]) -> Result<(), Mod
             expected, observed
         )));
     }
+
+    validate_string_structure(
+        declarations,
+        "Charter",
+        &[
+            "productName",
+            "purpose",
+            "implementationStatus",
+            "authoritySource",
+            "scope",
+            "nonScope",
+            "precedence",
+            "sourceOwnership",
+        ],
+    )?;
+    validate_string_structure(
+        declarations,
+        "ClaimBoundaries",
+        &[
+            "implementationAcceptance",
+            "losslessness",
+            "scopedMinimum",
+            "benchmarkImprovement",
+            "externalRecordAcceptance",
+        ],
+    )?;
+    validate_string_structure(
+        declarations,
+        "EvidenceBoundaries",
+        &[
+            "productionDependencies",
+            "validationAuthorities",
+            "authorityBindings",
+            "measurements",
+            "openResearchClaims",
+        ],
+    )?;
+    validate_string_structure(
+        declarations,
+        "ResearchPosition",
+        &["priorArt", "hypothesis", "noveltyStatus", "performanceStatus"],
+    )?;
+    validate_string_structure(
+        declarations,
+        "SourceAuthorityPolicy",
+        &["nonAuthorityMarker", "normativeSubject"],
+    )?;
     Ok(())
 }
 
@@ -389,6 +504,74 @@ fn validate_registry_declarations(declarations: &[Value]) -> Result<(), ModelErr
             "Uorc.Registry contains no ConformanceRow definitions".to_string(),
         ));
     }
+    validate_string_structure(
+        declarations,
+        "ConformanceRow",
+        &["id", "level", "suite", "statement", "given", "when", "then"],
+    )?;
+    Ok(())
+}
+
+
+fn validate_string_structure(
+    declarations: &[Value],
+    name: &str,
+    expected_fields: &[&str],
+) -> Result<(), ModelError> {
+    let declaration = declarations
+        .iter()
+        .find(|value| {
+            value.get("kind").and_then(Value::as_str) == Some("structure")
+                && value.get("name").and_then(Value::as_str) == Some(name)
+        })
+        .ok_or_else(|| {
+            ModelError::Inconsistent(format!("LexLean authority graph is missing structure `{name}`"))
+        })?;
+
+    for key in ["parameters", "type_parameters"] {
+        if declaration
+            .get(key)
+            .and_then(Value::as_array)
+            .is_none_or(|values| !values.is_empty())
+        {
+            return Err(ModelError::Inconsistent(format!(
+                "`{name}` must have no {key}"
+            )));
+        }
+    }
+
+    let fields = declaration
+        .get("fields")
+        .and_then(Value::as_array)
+        .ok_or_else(|| ModelError::Inconsistent(format!("`{name}` has no fields")))?;
+    let mut observed = BTreeSet::new();
+    for field in fields {
+        let field_name = field.get("name").and_then(Value::as_str).ok_or_else(|| {
+            ModelError::Inconsistent(format!("`{name}` has a field without a name"))
+        })?;
+        if field
+            .get("type")
+            .and_then(|value| value.get("kind"))
+            .and_then(Value::as_str)
+            != Some("string")
+        {
+            return Err(ModelError::Inconsistent(format!(
+                "`{name}.{field_name}` must have String type"
+            )));
+        }
+        if !observed.insert(field_name) {
+            return Err(ModelError::Inconsistent(format!(
+                "`{name}` repeats field `{field_name}`"
+            )));
+        }
+    }
+    let expected: BTreeSet<&str> = expected_fields.iter().copied().collect();
+    if observed != expected {
+        return Err(ModelError::Inconsistent(format!(
+            "`{name}` structure fields are not exact: expected {:?}, observed {:?}",
+            expected, observed
+        )));
+    }
     Ok(())
 }
 
@@ -425,6 +608,27 @@ fn definition_string_fields(
     type_name: &str,
     expected_fields: &[&str],
 ) -> Result<BTreeMap<String, String>, ModelError> {
+    if declaration
+        .get("parameters")
+        .and_then(Value::as_array)
+        .is_none_or(|values| !values.is_empty())
+    {
+        return Err(ModelError::Inconsistent(format!(
+            "definition `{}` must have no parameters",
+            declaration.get("name").and_then(Value::as_str).unwrap_or("<unnamed>")
+        )));
+    }
+    if declaration
+        .get("result")
+        .and_then(|value| value.get("arguments"))
+        .and_then(Value::as_array)
+        .is_none_or(|values| !values.is_empty())
+    {
+        return Err(ModelError::Inconsistent(format!(
+            "definition `{}` must return `{type_name}` without type arguments",
+            declaration.get("name").and_then(Value::as_str).unwrap_or("<unnamed>")
+        )));
+    }
     if definition_result_name(declaration) != Some(type_name) {
         return Err(ModelError::Inconsistent(format!(
             "definition `{}` does not return `{type_name}`",
