@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Planning
 
 Implementation planning is tracked in the GitHub issues for
