@@ -4,6 +4,7 @@
 //! Each task below enforces one of the rules `AGENTS.md` sets out, and each
 //! names the rule it enforces when it fails.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -63,13 +64,21 @@ fn check_model(root: &Path, write: bool) -> Result<(), Fail> {
     let projected_model = graph.model();
     projected_model.check()?;
 
-    for (relative, expected) in codegen::render_all(&graph) {
+    let rendered = codegen::render_all(&graph);
+    let expected_features: BTreeSet<String> = rendered
+        .iter()
+        .map(|(relative, _)| relative)
+        .filter(|relative| relative.starts_with("features/suites/") && relative.ends_with(".feature"))
+        .cloned()
+        .collect();
+
+    for (relative, expected) in &rendered {
         let path: PathBuf = root.join(relative);
         if write {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            std::fs::write(&path, &expected)?;
+            std::fs::write(&path, expected)?;
             println!("wrote {}", path.display());
             continue;
         }
@@ -80,7 +89,7 @@ fn check_model(root: &Path, write: bool) -> Result<(), Fail> {
                 path.display()
             )
         })?;
-        if committed != expected {
+        if committed != *expected {
             return Err(format!(
                 "{} is stale: it disagrees with the LexLean authority graph.\n\
                  R1: generated model/document projections cannot become a second source. \
@@ -89,6 +98,34 @@ fn check_model(root: &Path, write: bool) -> Result<(), Fail> {
             )
             .into());
         }
+    }
+
+
+    let suite_dir = root.join("features/suites");
+    let mut actual_features = BTreeSet::new();
+    for entry in std::fs::read_dir(&suite_dir)? {
+        let path = entry?.path();
+        if path.extension().is_some_and(|extension| extension == "feature") {
+            let relative = path
+                .strip_prefix(root)
+                .unwrap_or(&path)
+                .display()
+                .to_string()
+                .replace('\\', "/");
+            actual_features.insert(relative);
+        }
+    }
+    if write {
+        for stale in actual_features.difference(&expected_features) {
+            std::fs::remove_file(root.join(stale))?;
+            println!("removed stale generated suite {stale}");
+        }
+    } else if actual_features != expected_features {
+        return Err(format!(
+            "R1: generated feature inventory differs from the LexLean registry. expected {:?}, observed {:?}",
+            expected_features, actual_features
+        )
+        .into());
     }
 
     let committed_model = Model::load(&root.join("model"))?;
@@ -100,7 +137,7 @@ fn check_model(root: &Path, write: bool) -> Result<(), Fail> {
     if write {
         println!(
             "check-model: regenerated {} LexLean-owned projections",
-            codegen::render_all(&graph).len()
+            rendered.len()
         );
     } else {
         println!(
