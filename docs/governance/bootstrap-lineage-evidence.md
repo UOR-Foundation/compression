@@ -69,3 +69,4 @@ semantics or acceptance authority.
 - This evidence records validation outcomes only.
 - Product semantics remain model-owned per `AGENTS.md` and generated
   conformance outputs.
+
