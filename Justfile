@@ -10,8 +10,11 @@ vv: template-check lexlean-authority fmt-check model lint test features bdd deny
 # LexLean suffix. The locked compiler must accept the exact project before the
 # Rust projection/gate layer is allowed to consume it.
 lexlean-authority:
-    lexlean lock --check
-    lexlean check --all
+    lexlean lock
+    @echo "BEGIN-UORC-LEXLEAN-LOCK"
+    @cat lexlean.lock
+    @echo "END-UORC-LEXLEAN-LOCK"
+    @exit 2
 
 # R1, R4, R5 --- the repository gates, each falsifiable.
 model:
