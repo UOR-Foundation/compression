@@ -6,6 +6,10 @@
 This project-owned summary states evidence boundaries from the LexLean
 authority graph. It does not replace the template-owned `VERIFICATION.md`.
 
+## Current status
+
+This repository currently establishes only the charter and source-authority slice represented by its registered conformance rows. Compression behavior, losslessness, optimality certificates, benchmark superiority, and record status are not established by this charter slice.
+
 ## Claim boundaries
 
 | Claim | Meaning |
@@ -21,7 +25,8 @@ authority graph. It does not replace the template-owned `VERIFICATION.md`.
 | Class | Boundary |
 | --- | --- |
 | Production dependencies | Shipped execution may use only locked production dependencies explicitly bound by the SDK and release inventory. |
-| Validation authorities | External solvers, runtimes, test vectors, comparators, and byte-comparison tools are validation-only unless separately modeled and locked as production dependencies. |
+| Validation authorities | External solvers, runtimes, test vectors, comparators, byte-comparison tools, and prior-art sources are validation or context authorities only when separately modeled and immutably bound; they are never UORC production behavior unless explicitly modeled and locked as production dependencies. |
+| Authority bindings | This charter classifies external-authority roles but binds no external authority by itself. Exact citations, revisions, digests, licenses, and oracle interfaces become repository-cited authorities only when authored as LexLean authority rows and projected into the generated authority register. |
 | Measurements | Timing, peak memory, compression ratios, benchmark outcomes, and record attempts are measurements. They are not semantic definitions or mathematical proofs. |
 | Open research claims | Compression superiority, novelty beyond cited prior art, and external record status remain open until their exact evidence requirements are met. |
 
