@@ -146,6 +146,11 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
             continue;
         }
 
+        if !is_explicitly_non_authoritative(&contents) {
+            violations.push(format!(
+                "{rel}: handwritten project prose must begin with the exact non-authority marker"
+            ));
+        }
         if specification_shaped_path(&rel) {
             violations.push(format!(
                 "{rel}: handwritten specification-shaped project prose is not admitted"
@@ -177,6 +182,10 @@ fn is_generated_projection(relative: &str, contents: &str) -> bool {
             .lines()
             .next()
             .is_some_and(|line| line.starts_with("<!-- @generated from src/Uorc/"))
+}
+
+fn is_explicitly_non_authoritative(contents: &str) -> bool {
+    contents.lines().next() == Some("<!-- uorc:non-authoritative -->")
 }
 
 fn specification_shaped_path(relative: &str) -> bool {
@@ -411,6 +420,10 @@ mod source_authority_tests {
         assert!(specification_shaped_path("notes/requirements-v1.md"));
         assert!(!specification_shaped_path("docs/governance/evidence.md"));
         assert!(!specification_shaped_path("docs/special-notes.md"));
+        assert!(is_explicitly_non_authoritative(
+            "<!-- uorc:non-authoritative -->\n# Evidence\n"
+        ));
+        assert!(!is_explicitly_non_authoritative("# Evidence\n"));
         let generated =
             "<!-- @generated from src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. -->\n";
         assert!(is_generated_projection("README.md", generated));
@@ -429,7 +442,7 @@ mod source_authority_tests {
 
         std::fs::write(
             root.join("docs/governance/evidence.md"),
-            "# Evidence\n\nThis records an observed result without defining UORC semantics.\n",
+            "<!-- uorc:non-authoritative -->\n# Evidence\n\nThis records an observed result without defining UORC semantics.\n",
         )
         .expect("writes positive fixture");
         audit_source_authority(&root).expect("ordinary evidence is permitted");
