@@ -400,7 +400,7 @@ mod source_authority_tests {
     use super::*;
 
     #[test]
-    fn handwritten_semantic_rule_is_rejected_uc_src_01() {
+    fn handwritten_semantic_rule_is_rejected_uc_chr_01() {
         assert!(handwritten_semantic_rule("UORC MUST decode an archive this way.").is_some());
         assert!(handwritten_semantic_rule("# UORC Specification\nA second source.").is_some());
         assert!(handwritten_semantic_rule("This is project-owned governance evidence.").is_none());
