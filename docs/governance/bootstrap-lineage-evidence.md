@@ -36,6 +36,34 @@ semantics or acceptance authority.
   protection state, and workflow/check status.
 - Git transport (`git ls-remote`) for canonical remote resolution.
 
+## Audit trail (adversarial replay)
+
+- Canonical remote identity:
+  - `git ls-remote origin`
+  - Expected authority-boundary result: remote URL resolves to
+    `https://github.com/UOR-Foundation/compression.git`.
+- Repository identity/default branch:
+  - `gh api repos/UOR-Foundation/compression`
+  - Expected result: repository identity matches and `default_branch` is `main`.
+- Universal-policy drift gate:
+  - `prismpm template check`
+  - Expected result: locked universal policy bytes are enforced (drift rejected).
+- Clean-clone baseline entrypoint:
+  - `just vv` from an isolated fresh clone path
+  - Expected result: reaches the same declared baseline gate entrypoint as this
+    checkout, with failures only from declared SDK-environment requirements.
+
+## Acceptance-criteria mapping (Issue #2)
+
+- `git ls-remote origin` resolves to `UOR-Foundation/compression`:
+  - Satisfied by "Repository identity and origin" verification.
+- Clean-clone bootstrap reaches the same declared baseline gate:
+  - Satisfied by "Fresh-clone bootstrap reproducibility" verification.
+- Universal-policy drift is rejected:
+  - Satisfied by lock-lineage + `prismpm template check` verification.
+- README/planning references do not claim absent or uncommitted `SPEC*.md` as repository authority:
+  - Satisfied by "External SPEC file boundary" verification.
+
 ## Notes
 
 - This evidence records validation outcomes only.
