@@ -74,7 +74,7 @@ pub fn render_authorities(model: &Model) -> String {
     );
     let _ = writeln!(
         out,
-        "# Do not edit: imported authorities are authored in LexLean."
+        "# Do not edit: this is the generated authority projection for the current LexLean authority slice."
     );
     let _ = writeln!(out);
     let _ = writeln!(out, "spec = \"template/1\"");
@@ -117,7 +117,7 @@ pub fn render_ledger(model: &Model) -> String {
     );
     let _ = writeln!(
         out,
-        "# Do not edit: claim disposition is authored in LexLean."
+        "# Do not edit: this is the generated non-ID claim projection for the current LexLean authority slice."
     );
     let _ = writeln!(out);
     let _ = writeln!(out, "spec = \"template/1\"");
