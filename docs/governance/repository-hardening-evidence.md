@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Repository Hardening Evidence (Issue #1)
 
 Scope:
