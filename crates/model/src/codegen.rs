@@ -487,7 +487,7 @@ mod tests {
         let root = crate::repo_root();
         let graph = AuthorityGraph::load(&root).expect("authority graph loads");
         for (path, expected) in render_all(&graph) {
-            let actual = std::fs::read_to_string(root.join(path))
+            let actual = std::fs::read_to_string(root.join(&path))
                 .unwrap_or_else(|error| panic!("reading {path}: {error}"));
             assert_eq!(actual, expected, "{path} is not the LexLean projection");
         }
