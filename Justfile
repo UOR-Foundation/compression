@@ -11,6 +11,7 @@ vv: lexlean-authority template-check fmt-check model lint test features bdd deny
 # Rust projection/gate layer is allowed to consume it.
 lexlean-authority:
     lexlean lock --check
+    lexlean fmt --check --all
     lexlean check --all
 
 # R1, R4, R5 --- the repository gates, each falsifiable.
