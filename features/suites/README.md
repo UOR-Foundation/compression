@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Suites
 
 One Gherkin file per suite, one scenario per conformance ID (R3).
