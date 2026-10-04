@@ -141,8 +141,8 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
             continue;
         }
 
-        let text = std::fs::read_to_string(&path)?;
-        if is_generated_projection(&text) {
+        let contents = std::fs::read_to_string(&path)?;
+        if is_generated_projection(&contents) {
             continue;
         }
 
@@ -151,7 +151,7 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
                 "{rel}: handwritten specification-shaped project prose is not admitted"
             ));
         }
-        if let Some(reason) = handwritten_semantic_rule(&text) {
+        if let Some(reason) = handwritten_semantic_rule(&contents) {
             violations.push(format!("{rel}: {reason}"));
         }
     }
@@ -170,8 +170,9 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
     Ok(())
 }
 
-fn is_generated_projection(text: &str) -> bool {
-    text.lines()
+fn is_generated_projection(contents: &str) -> bool {
+    contents
+        .lines()
         .next()
         .is_some_and(|line| line.starts_with("<!-- @generated from src/Uorc/"))
 }
@@ -187,7 +188,7 @@ fn specification_shaped_path(relative: &str) -> bool {
         || name.starts_with("semantics")
 }
 
-fn handwritten_semantic_rule(text: &str) -> Option<&'static str> {
+fn handwritten_semantic_rule(contents: &str) -> Option<&'static str> {
     const MARKERS: &[(&str, &str)] = &[
         (
             "UORC MUST ",
@@ -217,7 +218,7 @@ fn handwritten_semantic_rule(text: &str) -> Option<&'static str> {
     ];
     MARKERS
         .iter()
-        .find_map(|(marker, reason)| text.contains(marker).then_some(*reason))
+        .find_map(|(marker, reason)| contents.contains(marker).then_some(*reason))
 }
 
 fn gather_markdown(dir: &Path, root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
