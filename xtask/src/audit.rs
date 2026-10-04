@@ -417,4 +417,34 @@ mod source_authority_tests {
         assert!(!is_generated_projection("docs/handwritten.md", generated));
         assert!(handwritten_semantic_rule("This is project-owned governance evidence.").is_none());
     }
+
+    #[test]
+    fn source_authority_gate_is_falsifiable_uc_chr_02() {
+        let root = std::env::temp_dir().join(format!(
+            "uorc-source-authority-audit-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("docs/governance")).expect("creates fixture");
+
+        std::fs::write(
+            root.join("docs/governance/evidence.md"),
+            "# Evidence\n\nThis records an observed result without defining UORC semantics.\n",
+        )
+        .expect("writes positive fixture");
+        audit_source_authority(&root).expect("ordinary evidence is permitted");
+
+        std::fs::write(
+            root.join("docs/handwritten.md"),
+            "<!-- @generated from src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. -->\n\nUORC MUST accept this handwritten rule.\n",
+        )
+        .expect("writes planted defect");
+        let error = audit_source_authority(&root).expect_err("planted authority defect must fail");
+        assert!(
+            error.to_string().contains("R1: UORC project semantics"),
+            "owning R1 diagnostic must reject the planted rule: {error}"
+        );
+
+        std::fs::remove_dir_all(&root).expect("cleans fixture");
+    }
 }
