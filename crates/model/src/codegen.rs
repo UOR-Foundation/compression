@@ -406,11 +406,15 @@ pub fn render_project_verification(graph: &AuthorityGraph) -> String {
     );
     let _ = writeln!(
         out,
+        "- `lexlean fmt --check --all` requires the authority source to be canonical before it is projected."
+    );
+    let _ = writeln!(
+        out,
         "- `lexlean check --all` requires the locked LexLean compiler to accept every authority module before repository projection checks run."
     );
     let _ = writeln!(
         out,
-        "- `cargo xtask check-model` extracts the admitted authority records and rejects stale generated projections."
+        "- `cargo xtask check-model` mechanically projects the exact closed semantic-data payload from that canonical source and rejects stale generated projections; this is a projection check, not a claim that the current LexLean CLI exports its semantic snapshot."
     );
     let _ = writeln!(
         out,
