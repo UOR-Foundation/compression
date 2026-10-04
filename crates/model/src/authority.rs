@@ -299,7 +299,6 @@ fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelE
         })
 }
 
-
 fn validate_specification_declarations(declarations: &[Value]) -> Result<(), ModelError> {
     let expected: BTreeSet<(&str, &str)> = [
         ("structure", "Charter"),
@@ -319,11 +318,15 @@ fn validate_specification_declarations(declarations: &[Value]) -> Result<(), Mod
         let kind = declaration
             .get("kind")
             .and_then(Value::as_str)
-            .ok_or_else(|| ModelError::Inconsistent("authority declaration has no kind".to_string()))?;
+            .ok_or_else(|| {
+                ModelError::Inconsistent("authority declaration has no kind".to_string())
+            })?;
         let name = declaration
             .get("name")
             .and_then(Value::as_str)
-            .ok_or_else(|| ModelError::Inconsistent("authority declaration has no name".to_string()))?;
+            .ok_or_else(|| {
+                ModelError::Inconsistent("authority declaration has no name".to_string())
+            })?;
         if !observed.insert((kind, name)) {
             return Err(ModelError::Inconsistent(format!(
                 "Uorc.Specification repeats declaration `{name}`"
@@ -348,11 +351,15 @@ fn validate_registry_declarations(declarations: &[Value]) -> Result<(), ModelErr
         let kind = declaration
             .get("kind")
             .and_then(Value::as_str)
-            .ok_or_else(|| ModelError::Inconsistent("registry declaration has no kind".to_string()))?;
+            .ok_or_else(|| {
+                ModelError::Inconsistent("registry declaration has no kind".to_string())
+            })?;
         let name = declaration
             .get("name")
             .and_then(Value::as_str)
-            .ok_or_else(|| ModelError::Inconsistent("registry declaration has no name".to_string()))?;
+            .ok_or_else(|| {
+                ModelError::Inconsistent("registry declaration has no name".to_string())
+            })?;
         match kind {
             "structure" if name == "ConformanceRow" => {
                 structure_count += 1;
