@@ -41,7 +41,6 @@ pub fn render_all(graph: &AuthorityGraph) -> Vec<(String, String)> {
     out
 }
 
-
 fn render_feature_suites(graph: &AuthorityGraph) -> Vec<(String, String)> {
     let mut suites = graph
         .scenarios
