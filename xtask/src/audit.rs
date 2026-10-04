@@ -121,6 +121,11 @@ fn effective_lines(text: &str) -> Vec<(usize, &str)> {
 /// handwritten prose may carry evidence, rationale, operations, or planning,
 /// but may not introduce a second UORC specification or normative rule.
 pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
+    let graph = AuthorityGraph::load(root)?;
+    audit_source_authority_with_graph(root, &graph)
+}
+
+fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Result<(), Fail> {
     const UNIVERSAL: &[&str] = &[
         "AGENTS.md",
         "TEMPLATE-CONTRACT.md",
@@ -128,8 +133,7 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
         "VERIFICATION.md",
     ];
 
-    let graph = AuthorityGraph::load(root)?;
-    let generated: BTreeMap<String, String> = codegen::render_all(&graph).into_iter().collect();
+    let generated: BTreeMap<String, String> = codegen::render_all(graph).into_iter().collect();
     let marker = graph.source_authority_policy.non_authority_marker.as_str();
     let subject = graph.source_authority_policy.normative_subject.as_str();
 
@@ -496,14 +500,17 @@ mod source_authority_tests {
             "<!-- uorc:non-authoritative -->\n# Evidence\n\nThis records an observed result without defining UORC semantics.\n",
         )
         .expect("writes positive fixture");
-        audit_source_authority(&root).expect("ordinary evidence is permitted");
+        let graph =
+            AuthorityGraph::load(&repo_model::repo_root()).expect("repository authority graph loads");
+        audit_source_authority_with_graph(&root, &graph).expect("ordinary evidence is permitted");
 
         std::fs::write(
             root.join("docs/handwritten.md"),
             "<!-- @generated from src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. -->\n\nUORC MUST accept this handwritten rule.\n",
         )
         .expect("writes planted defect");
-        let error = audit_source_authority(&root).expect_err("planted authority defect must fail");
+        let error = audit_source_authority_with_graph(&root, &graph)
+            .expect_err("planted authority defect must fail");
         assert!(
             error.to_string().contains("R1: UORC project semantics"),
             "owning R1 diagnostic must reject the planted rule: {error}"
