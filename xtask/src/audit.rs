@@ -186,7 +186,6 @@ fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Res
     Ok(())
 }
 
-
 fn inherited_policy_prose(root: &Path) -> Result<BTreeSet<String>, Fail> {
     let contract_path = root.join("template-contract.json");
     let contract: serde_json::Value =
