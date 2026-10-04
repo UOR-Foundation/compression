@@ -90,9 +90,9 @@ pub struct AuthorityGraph {
     pub research_position: ResearchPosition,
     /// Conformance IDs authored in `Registry.lex.tex`.
     pub ids: Ids,
-    /// Imported authorities. Empty until authored in LexLean by their owning work.
+    /// Imported authorities represented by this authority slice.
     pub authorities: Authorities,
-    /// Non-ID ledger claims. Empty until authored in LexLean by their owning work.
+    /// Non-ID ledger claims represented by this authority slice.
     pub ledger: Ledger,
 }
 
