@@ -5,7 +5,7 @@
 //! carries the rule it enforces in its failure message, because the point of a
 //! red gate is to name the promise that was broken.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use repo_model::{codegen, AuthorityGraph};
@@ -126,13 +126,7 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
 }
 
 fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Result<(), Fail> {
-    const UNIVERSAL: &[&str] = &[
-        "AGENTS.md",
-        "TEMPLATE-CONTRACT.md",
-        "TEMPLATE-VERIFICATION.md",
-        "VERIFICATION.md",
-    ];
-
+    let universal = inherited_policy_prose(root)?;
     let generated: BTreeMap<String, String> = codegen::render_all(graph).into_iter().collect();
     let marker = graph.source_authority_policy.non_authority_marker.as_str();
     let subject = graph.source_authority_policy.normative_subject.as_str();
@@ -149,7 +143,7 @@ fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Res
             .display()
             .to_string()
             .replace('\\', "/");
-        if UNIVERSAL.contains(&rel.as_str()) {
+        if universal.contains(&rel) {
             continue;
         }
 
@@ -190,6 +184,43 @@ fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Res
 
     println!("audit-source-authority: no handwritten project specification or semantic rule (R1)");
     Ok(())
+}
+
+
+fn inherited_policy_prose(root: &Path) -> Result<BTreeSet<String>, Fail> {
+    let contract_path = root.join("template-contract.json");
+    let contract: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&contract_path)?)?;
+    let paths = contract
+        .get("universal_policy_paths")
+        .and_then(serde_json::Value::as_array)
+        .ok_or("template-contract.json has no universal_policy_paths array")?;
+
+    let mut out = BTreeSet::new();
+    for value in paths {
+        let path = value
+            .as_str()
+            .ok_or("template-contract.json universal policy path is not a string")?;
+        if prose_extension(Path::new(path)) {
+            out.insert(path.to_string());
+        }
+    }
+
+    // These two inherited explanatory documents are generic template material,
+    // but are not themselves members of the byte-bound universal policy set.
+    for path in ["TEMPLATE-CONTRACT.md", "TEMPLATE-VERIFICATION.md"] {
+        if root.join(path).exists() {
+            out.insert(path.to_string());
+        }
+    }
+    Ok(out)
+}
+
+fn prose_extension(path: &Path) -> bool {
+    const EXTENSIONS: &[&str] = &["md", "mdx", "rst", "adoc", "txt"];
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()))
 }
 
 fn is_explicitly_non_authoritative(contents: &str, marker: &str) -> bool {
@@ -259,7 +290,6 @@ fn prose_without_code(contents: &str) -> String {
 }
 
 fn gather_prose(dir: &Path, root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
-    const EXTENSIONS: &[&str] = &["md", "mdx", "rst", "adoc", "txt"];
     for entry in std::fs::read_dir(dir)? {
         let path = entry?.path();
         if path.is_dir() {
@@ -281,11 +311,7 @@ fn gather_prose(dir: &Path, root: &Path, out: &mut Vec<PathBuf>) -> Result<(), F
             if !skip {
                 gather_prose(&path, root, out)?;
             }
-        } else if path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .is_some_and(|extension| EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()))
-        {
+        } else if prose_extension(&path) {
             out.push(path);
         }
     }
