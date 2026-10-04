@@ -436,7 +436,7 @@ mod tests {
     use crate::{AuthorityGraph, Level};
 
     #[test]
-    fn generated_projections_are_exact_uc_src_02() {
+    fn generated_projections_are_exact_uc_chr_02() {
         let root = crate::repo_root();
         let graph = AuthorityGraph::load(&root).expect("authority graph loads");
         for (path, expected) in render_all(&graph) {
