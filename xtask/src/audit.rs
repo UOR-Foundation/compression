@@ -5,7 +5,10 @@
 //! carries the rule it enforces in its failure message, because the point of a
 //! red gate is to name the promise that was broken.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+
+use repo_model::{codegen, AuthorityGraph};
 
 use crate::Fail;
 
@@ -114,9 +117,9 @@ fn effective_lines(text: &str) -> Vec<(usize, &str)> {
 }
 
 /// R1: project semantics have exactly one project-owned source: the LexLean
-/// authority graph. Generated Markdown is checked by `check-model`; handwritten
-/// project prose may record evidence, rationale, operations, or planning, but it
-/// may not introduce a second UORC specification or BCP-14 semantic rule.
+/// authority graph. Generated projections are compared by exact bytes;
+/// handwritten prose may carry evidence, rationale, operations, or planning,
+/// but may not introduce a second UORC specification or normative rule.
 pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
     const UNIVERSAL: &[&str] = &[
         "AGENTS.md",
@@ -125,12 +128,17 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
         "VERIFICATION.md",
     ];
 
-    let mut markdown = Vec::new();
-    gather_markdown(root, root, &mut markdown)?;
-    markdown.sort();
+    let graph = AuthorityGraph::load(root)?;
+    let generated: BTreeMap<String, String> = codegen::render_all(&graph).into_iter().collect();
+    let marker = graph.source_authority_policy.non_authority_marker.as_str();
+    let subject = graph.source_authority_policy.normative_subject.as_str();
+
+    let mut prose = Vec::new();
+    gather_prose(root, root, &mut prose)?;
+    prose.sort();
 
     let mut violations = Vec::new();
-    for path in markdown {
+    for path in prose {
         let rel = path
             .strip_prefix(root)
             .unwrap_or(&path)
@@ -142,13 +150,18 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
         }
 
         let contents = std::fs::read_to_string(&path)?;
-        if is_generated_projection(&rel, &contents) {
+        if let Some(expected) = generated.get(&rel) {
+            if &contents != expected {
+                violations.push(format!(
+                    "{rel}: generated projection bytes differ from the LexLean authority graph"
+                ));
+            }
             continue;
         }
 
-        if !is_explicitly_non_authoritative(&contents) {
+        if !is_explicitly_non_authoritative(&contents, marker) {
             violations.push(format!(
-                "{rel}: handwritten project prose must begin with the exact non-authority marker"
+                "{rel}: handwritten project prose must begin with the LexLean-authored non-authority marker"
             ));
         }
         if specification_shaped_path(&rel) {
@@ -156,7 +169,7 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
                 "{rel}: handwritten specification-shaped project prose is not admitted"
             ));
         }
-        if let Some(reason) = handwritten_semantic_rule(&contents) {
+        if let Some(reason) = handwritten_semantic_rule(&contents, subject) {
             violations.push(format!("{rel}: {reason}"));
         }
     }
@@ -175,66 +188,74 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
     Ok(())
 }
 
-fn is_generated_projection(relative: &str, contents: &str) -> bool {
-    const GENERATED: &[&str] = &["README.md", "CONFORMANCE.md", "UORC-VERIFICATION.md"];
-    GENERATED.contains(&relative)
-        && contents
-            .lines()
-            .next()
-            .is_some_and(|line| line.starts_with("<!-- @generated from src/Uorc/"))
-}
-
-fn is_explicitly_non_authoritative(contents: &str) -> bool {
-    contents.lines().next() == Some("<!-- uorc:non-authoritative -->")
+fn is_explicitly_non_authoritative(contents: &str, marker: &str) -> bool {
+    contents.lines().next() == Some(marker)
 }
 
 fn specification_shaped_path(relative: &str) -> bool {
-    let name = relative
-        .rsplit('/')
-        .next()
-        .unwrap_or(relative)
-        .to_ascii_lowercase();
-    name == "spec.md"
-        || name.starts_with("spec-")
-        || name.starts_with("specification")
-        || name.starts_with("requirements")
-        || name.starts_with("semantics")
+    let name = relative.rsplit('/').next().unwrap_or(relative);
+    let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+    stem.split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .map(str::to_ascii_lowercase)
+        .any(|token| {
+            matches!(
+                token.as_str(),
+                "spec" | "specification" | "requirements" | "semantics"
+            )
+        })
 }
 
-fn handwritten_semantic_rule(contents: &str) -> Option<&'static str> {
-    const MARKERS: &[(&str, &str)] = &[
-        (
-            "UORC MUST ",
-            "contains a handwritten BCP-14 UORC requirement",
-        ),
-        (
-            "UORC MUST NOT ",
-            "contains a handwritten BCP-14 UORC prohibition",
-        ),
-        (
-            "UORC SHALL ",
-            "contains a handwritten BCP-14 UORC requirement",
-        ),
-        (
-            "UORC REQUIRED ",
-            "contains a handwritten BCP-14 UORC requirement",
-        ),
-        (
-            "# UORC Specification",
-            "declares a handwritten UORC specification",
-        ),
-        ("## UORC Semantics", "declares handwritten UORC semantics"),
-        (
-            "## UORC Requirements",
-            "declares handwritten UORC requirements",
-        ),
-    ];
-    MARKERS
+fn handwritten_semantic_rule(contents: &str, subject: &str) -> Option<&'static str> {
+    let subject = subject.to_ascii_lowercase();
+    let visible = prose_without_code(contents).to_ascii_lowercase();
+    let prefixes = ["must ", "must not ", "shall ", "required "];
+    if prefixes
         .iter()
-        .find_map(|(marker, reason)| contents.contains(marker).then_some(*reason))
+        .any(|modal| visible.contains(&format!("{subject} {modal}")))
+    {
+        return Some("contains a handwritten normative UORC rule");
+    }
+
+    for heading in ["specification", "semantics", "requirements"] {
+        if visible
+            .lines()
+            .any(|line| line.trim_start_matches('#').trim() == format!("{subject} {heading}"))
+        {
+            return Some("declares handwritten UORC specification semantics");
+        }
+    }
+    None
 }
 
-fn gather_markdown(dir: &Path, root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
+fn prose_without_code(contents: &str) -> String {
+    let mut out = String::new();
+    let mut fenced = false;
+    for raw in contents.lines() {
+        let trimmed = raw.trim_start();
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced {
+            continue;
+        }
+
+        let mut in_inline = false;
+        for character in raw.chars() {
+            if character == '`' {
+                in_inline = !in_inline;
+            } else if !in_inline {
+                out.push(character);
+            }
+        }
+        out.push('\n');
+    }
+    out
+}
+
+fn gather_prose(dir: &Path, root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
+    const EXTENSIONS: &[&str] = &["md", "mdx", "rst", "adoc", "txt"];
     for entry in std::fs::read_dir(dir)? {
         let path = entry?.path();
         if path.is_dir() {
@@ -242,13 +263,25 @@ fn gather_markdown(dir: &Path, root: &Path, out: &mut Vec<PathBuf>) -> Result<()
             let skip = rel.components().any(|component| {
                 matches!(
                     component.as_os_str().to_str(),
-                    Some(".git" | ".lake" | ".lexlean" | "target")
+                    Some(
+                        ".git"
+                            | ".lake"
+                            | ".lexlean"
+                            | ".prism"
+                            | "target"
+                            | "vendor"
+                            | "node_modules"
+                    )
                 )
             });
             if !skip {
-                gather_markdown(&path, root, out)?;
+                gather_prose(&path, root, out)?;
             }
-        } else if path.extension().is_some_and(|ext| ext == "md") {
+        } else if path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()))
+        {
             out.push(path);
         }
     }
@@ -414,21 +447,39 @@ mod source_authority_tests {
 
     #[test]
     fn handwritten_authority_conflicts_are_rejected_uc_chr_02() {
-        assert!(handwritten_semantic_rule("UORC MUST decode an archive this way.").is_some());
-        assert!(handwritten_semantic_rule("# UORC Specification\nA second source.").is_some());
+        assert!(
+            handwritten_semantic_rule("UORC MUST decode an archive this way.", "UORC").is_some()
+        );
+        assert!(
+            handwritten_semantic_rule("# UORC Specification\nA second source.", "UORC").is_some()
+        );
         assert!(specification_shaped_path("docs/SPEC.md"));
         assert!(specification_shaped_path("notes/requirements-v1.md"));
         assert!(!specification_shaped_path("docs/governance/evidence.md"));
         assert!(!specification_shaped_path("docs/special-notes.md"));
         assert!(is_explicitly_non_authoritative(
-            "<!-- uorc:non-authoritative -->\n# Evidence\n"
+            "<!-- uorc:non-authoritative -->\n# Evidence\n",
+            "<!-- uorc:non-authoritative -->"
         ));
-        assert!(!is_explicitly_non_authoritative("# Evidence\n"));
-        let generated =
-            "<!-- @generated from src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. -->\n";
-        assert!(is_generated_projection("README.md", generated));
-        assert!(!is_generated_projection("docs/handwritten.md", generated));
-        assert!(handwritten_semantic_rule("This is project-owned governance evidence.").is_none());
+        assert!(!is_explicitly_non_authoritative(
+            "# Evidence\n",
+            "<!-- uorc:non-authoritative -->"
+        ));
+        assert!(
+            handwritten_semantic_rule(
+                "This is project-owned governance evidence.",
+                "UORC"
+            )
+            .is_none()
+        );
+        assert!(
+            handwritten_semantic_rule(
+                "```text\nUORC MUST appear only as quoted test data.\n```",
+                "UORC"
+            )
+            .is_none()
+        );
+        assert!(specification_shaped_path("notes/UORC-SPEC.md"));
     }
 
     #[test]
