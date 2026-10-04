@@ -115,83 +115,52 @@ fn effective_lines(text: &str) -> Vec<(usize, &str)> {
 
 /// R1: project semantics have exactly one project-owned source: the LexLean
 /// authority graph. Generated Markdown is checked by `check-model`; handwritten
-/// project prose may record evidence or planning, but may not introduce a
-/// second UORC specification or BCP-14 semantic rule.
+/// project prose may record evidence, rationale, operations, or planning, but it
+/// may not introduce a second UORC specification or BCP-14 semantic rule.
 pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
-    let generated = ["README.md", "CONFORMANCE.md", "UORC-VERIFICATION.md"];
-    let universal = [
+    const UNIVERSAL: &[&str] = &[
         "AGENTS.md",
         "TEMPLATE-CONTRACT.md",
         "TEMPLATE-VERIFICATION.md",
         "VERIFICATION.md",
     ];
+
+    let mut markdown = Vec::new();
+    gather_markdown(root, root, &mut markdown)?;
+    markdown.sort();
+
     let mut violations = Vec::new();
+    for path in markdown {
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .display()
+            .to_string()
+            .replace('\\', "/");
+        if UNIVERSAL.contains(&rel.as_str()) {
+            continue;
+        }
 
-    for entry in std::fs::read_dir(root)? {
-        let path = entry?.path();
-        if !path.is_file() || path.extension().is_none_or(|ext| ext != "md") {
-            continue;
-        }
-        let name = path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or("");
-        if generated.contains(&name) || universal.contains(&name) {
-            continue;
-        }
         let text = std::fs::read_to_string(&path)?;
-        if let Some(reason) = handwritten_semantic_rule(&text) {
-            violations.push(format!("{name}: {reason}"));
+        if is_generated_projection(&text) {
+            continue;
         }
-        violations.push(format!(
-            "{name}: project-owned root Markdown must be a generated projection; handwritten evidence belongs under docs/governance/"
-        ));
-    }
 
-    let docs = root.join("docs");
-    if docs.exists() {
-        let mut markdown = Vec::new();
-        gather_markdown(&docs, &mut markdown)?;
-        markdown.sort();
-        for path in markdown {
-            let rel = path
-                .strip_prefix(root)
-                .unwrap_or(&path)
-                .display()
-                .to_string()
-                .replace('\\', "/");
-            let allowed_evidence = rel.starts_with("docs/governance/");
-            let allowed_planning_pointer = rel == "docs/planning/README.md";
-            if !allowed_evidence && !allowed_planning_pointer {
-                violations.push(format!(
-                    "{rel}: handwritten project documentation must be generated, governance evidence, or the non-authoritative planning pointer"
-                ));
-                continue;
-            }
-            let text = std::fs::read_to_string(&path)?;
-            if let Some(reason) = handwritten_semantic_rule(&text) {
-                violations.push(format!("{rel}: {reason}"));
-            }
-            let name = path
-                .file_name()
-                .and_then(|value| value.to_str())
-                .unwrap_or("")
-                .to_ascii_lowercase();
-            if name.starts_with("spec")
-                || name.starts_with("requirements")
-                || name.starts_with("semantics")
-            {
-                violations.push(format!(
-                    "{rel}: specification-shaped project prose is forbidden outside generated projections"
-                ));
-            }
+        if specification_shaped_path(&rel) {
+            violations.push(format!(
+                "{rel}: handwritten specification-shaped project prose is not admitted"
+            ));
+        }
+        if let Some(reason) = handwritten_semantic_rule(&text) {
+            violations.push(format!("{rel}: {reason}"));
         }
     }
 
     if !violations.is_empty() {
         return Err(format!(
             "R1: UORC project semantics are authored only in src/Uorc/Specification.lex.tex \
-             and src/Uorc/Registry.lex.tex. Handwritten prose cannot become a second authority.\n\n{}",
+             and src/Uorc/Registry.lex.tex. Handwritten prose may carry evidence or planning, \
+             but cannot become a second authority.\n\n{}",
             violations.join("\n")
         )
         .into());
@@ -199,6 +168,23 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
 
     println!("audit-source-authority: no handwritten project specification or semantic rule (R1)");
     Ok(())
+}
+
+fn is_generated_projection(text: &str) -> bool {
+    text.lines()
+        .next()
+        .is_some_and(|line| line.starts_with("<!-- @generated from src/Uorc/"))
+}
+
+fn specification_shaped_path(relative: &str) -> bool {
+    let name = relative
+        .rsplit('/')
+        .next()
+        .unwrap_or(relative)
+        .to_ascii_lowercase();
+    name.starts_with("spec")
+        || name.starts_with("requirements")
+        || name.starts_with("semantics")
 }
 
 fn handwritten_semantic_rule(text: &str) -> Option<&'static str> {
@@ -234,11 +220,20 @@ fn handwritten_semantic_rule(text: &str) -> Option<&'static str> {
         .find_map(|(marker, reason)| text.contains(marker).then_some(*reason))
 }
 
-fn gather_markdown(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
+fn gather_markdown(dir: &Path, root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
     for entry in std::fs::read_dir(dir)? {
         let path = entry?.path();
         if path.is_dir() {
-            gather_markdown(&path, out)?;
+            let rel = path.strip_prefix(root).unwrap_or(&path);
+            let skip = rel.components().any(|component| {
+                matches!(
+                    component.as_os_str().to_str(),
+                    Some(".git" | ".lake" | ".lexlean" | "target")
+                )
+            });
+            if !skip {
+                gather_markdown(&path, root, out)?;
+            }
         } else if path.extension().is_some_and(|ext| ext == "md") {
             out.push(path);
         }
