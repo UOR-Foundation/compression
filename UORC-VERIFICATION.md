@@ -27,7 +27,9 @@ authority graph. It does not replace the template-owned `VERIFICATION.md`.
 
 ## Source and projection checks
 
-- `cargo xtask check-model` parses the LexLean authority graph and rejects stale generated projections.
+- `lexlean lock --check` binds the authority project to the exact compiler semantics and workspace inputs.
+- `lexlean check --all` requires the locked LexLean compiler to accept every authority module before repository projection checks run.
+- `cargo xtask check-model` extracts the admitted authority records and rejects stale generated projections.
 - `cargo xtask audit-source-authority` rejects a second handwritten UORC specification or BCP-14 semantic rule in project prose.
 - `just bdd` reconciles every registered ID with its scenario, honesty level, and executed test root.
 - `just vv` remains the only complete implementation-acceptance boundary.
