@@ -496,19 +496,14 @@ mod source_authority_tests {
             "<!-- uorc:non-authoritative -->"
         ));
         assert!(
-            handwritten_semantic_rule(
-                "This is project-owned governance evidence.",
-                "UORC"
-            )
-            .is_none()
+            handwritten_semantic_rule("This is project-owned governance evidence.", "UORC")
+                .is_none()
         );
-        assert!(
-            handwritten_semantic_rule(
-                "```text\nUORC MUST appear only as quoted test data.\n```",
-                "UORC"
-            )
-            .is_none()
-        );
+        assert!(handwritten_semantic_rule(
+            "```text\nUORC MUST appear only as quoted test data.\n```",
+            "UORC"
+        )
+        .is_none());
         assert!(specification_shaped_path("notes/UORC-SPEC.md"));
     }
 
@@ -531,8 +526,8 @@ mod source_authority_tests {
             "<!-- uorc:non-authoritative -->\n# Evidence\n\nThis records an observed result without defining UORC semantics.\n",
         )
         .expect("writes positive fixture");
-        let graph =
-            AuthorityGraph::load(&repo_model::repo_root()).expect("repository authority graph loads");
+        let graph = AuthorityGraph::load(&repo_model::repo_root())
+            .expect("repository authority graph loads");
         audit_source_authority_with_graph(&root, &graph).expect("ordinary evidence is permitted");
 
         std::fs::write(
