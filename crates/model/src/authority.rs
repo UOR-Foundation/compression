@@ -81,7 +81,6 @@ pub struct ResearchPosition {
     pub performance_status: String,
 }
 
-
 /// Source-audit policy authored in LexLean rather than in the Rust gate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceAuthorityPolicy {
@@ -448,7 +447,12 @@ fn validate_specification_declarations(declarations: &[Value]) -> Result<(), Mod
     validate_string_structure(
         declarations,
         "ResearchPosition",
-        &["priorArt", "hypothesis", "noveltyStatus", "performanceStatus"],
+        &[
+            "priorArt",
+            "hypothesis",
+            "noveltyStatus",
+            "performanceStatus",
+        ],
     )?;
     validate_string_structure(
         declarations,
@@ -525,7 +529,9 @@ fn validate_string_structure(
                 && value.get("name").and_then(Value::as_str) == Some(name)
         })
         .ok_or_else(|| {
-            ModelError::Inconsistent(format!("LexLean authority graph is missing structure `{name}`"))
+            ModelError::Inconsistent(format!(
+                "LexLean authority graph is missing structure `{name}`"
+            ))
         })?;
 
     for key in ["parameters", "type_parameters"] {
@@ -615,7 +621,10 @@ fn definition_string_fields(
     {
         return Err(ModelError::Inconsistent(format!(
             "definition `{}` must have no parameters",
-            declaration.get("name").and_then(Value::as_str).unwrap_or("<unnamed>")
+            declaration
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("<unnamed>")
         )));
     }
     if declaration
@@ -626,7 +635,10 @@ fn definition_string_fields(
     {
         return Err(ModelError::Inconsistent(format!(
             "definition `{}` must return `{type_name}` without type arguments",
-            declaration.get("name").and_then(Value::as_str).unwrap_or("<unnamed>")
+            declaration
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("<unnamed>")
         )));
     }
     if definition_result_name(declaration) != Some(type_name) {
