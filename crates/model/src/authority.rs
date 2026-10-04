@@ -517,4 +517,37 @@ mod tests {
         assert!(!graph.charter.product_name.is_empty());
         assert!(!graph.ids.id.is_empty());
     }
+
+    #[test]
+    fn projection_schema_is_fail_closed_uc_chr_01() {
+        let declaration = serde_json::json!({
+            "kind": "definition",
+            "name": "row",
+            "result": {
+                "kind": "named",
+                "member": {"module": "Uorc.Registry", "name": "ConformanceRow"},
+                "arguments": []
+            },
+            "body": {
+                "kind": "record",
+                "type": {"module": "Uorc.Registry", "name": "ConformanceRow"},
+                "fields": [
+                    {"field": "id", "value": {"kind": "string", "value": "X"}},
+                    {"field": "level", "value": {"kind": "string", "value": "build"}},
+                    {"field": "suite", "value": {"kind": "string", "value": "x"}},
+                    {"field": "statement", "value": {"kind": "string", "value": "x"}},
+                    {"field": "hidden", "value": {"kind": "string", "value": "unprojected"}}
+                ]
+            }
+        });
+        assert!(
+            definition_string_fields(
+                &declaration,
+                "ConformanceRow",
+                &["id", "level", "suite", "statement"],
+            )
+            .is_err(),
+            "an unprojected LexLean field must fail closed"
+        );
+    }
 }
