@@ -18,10 +18,10 @@ The three honesty levels (R2):
 
 | ID | Level | Statement |
 | --- | --- | --- |
-| `UC-SRC-01` | `build` | Every project-owned UORC semantic, proof, test, report-intent, and documentation-semantic root is authored in the LexLean authority graph, while generated artifacts are derived evidence rather than independent authority. |
-| `UC-SRC-02` | `build` | The LexLean authority graph generates the project model and documentation projections, and the source-authority audit rejects a second handwritten UORC specification or semantic rule. |
-| `UC-PERF-01` | `open` | Public-corpus compression improvement remains an open measurement until the sealed benchmark plan produces the stated result. |
-| `UC-REC-01` | `open` | External compression-record status remains open unless the identified external authority accepts the measured result. |
+| `UC-CHR-01` | `build` | UORC charter, claim-boundary, evidence-boundary, and research-position records are accepted by the locked LexLean project and generate the committed project documentation projections. |
+| `UC-CHR-02` | `build` | Handwritten project prose cannot define a second UORC specification or BCP-14 semantic rule, while non-authoritative evidence and planning prose remain permitted. |
+| `UC-PERF-01` | `open` | measured public-corpus compression improvement, with exact target and scope; open until actually measured |
+| `UC-REC-01` | `open` | externally accepted compression record; open unless the external authority actually accepts it |
 
 ## Cited authorities
 
