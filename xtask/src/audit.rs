@@ -142,7 +142,7 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
         }
 
         let contents = std::fs::read_to_string(&path)?;
-        if is_generated_projection(&contents) {
+        if is_generated_projection(&rel, &contents) {
             continue;
         }
 
@@ -170,11 +170,13 @@ pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
     Ok(())
 }
 
-fn is_generated_projection(contents: &str) -> bool {
-    contents
-        .lines()
-        .next()
-        .is_some_and(|line| line.starts_with("<!-- @generated from src/Uorc/"))
+fn is_generated_projection(relative: &str, contents: &str) -> bool {
+    const GENERATED: &[&str] = &["README.md", "CONFORMANCE.md", "UORC-VERIFICATION.md"];
+    GENERATED.contains(&relative)
+        && contents
+            .lines()
+            .next()
+            .is_some_and(|line| line.starts_with("<!-- @generated from src/Uorc/"))
 }
 
 fn specification_shaped_path(relative: &str) -> bool {
@@ -406,9 +408,10 @@ mod source_authority_tests {
         assert!(specification_shaped_path("docs/SPEC.md"));
         assert!(specification_shaped_path("notes/requirements-v1.md"));
         assert!(!specification_shaped_path("docs/governance/evidence.md"));
-        assert!(is_generated_projection(
-            "<!-- @generated from src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. -->\n"
-        ));
+        let generated =
+            "<!-- @generated from src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. -->\n";
+        assert!(is_generated_projection("README.md", generated));
+        assert!(!is_generated_projection("docs/handwritten.md", generated));
         assert!(handwritten_semantic_rule("This is project-owned governance evidence.").is_none());
     }
 }
