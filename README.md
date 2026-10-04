@@ -42,7 +42,7 @@ Version 1 does not assert a world record, an unrestricted Kolmogorov minimum, un
 
 ## Research position
 
-Grammar-based compression, program-description minimization, anti-unification, and library learning have prior art. UORC does not claim those ideas alone are novel.
+SEQUITUR and Re-Pair are relevant grammar-compression prior art; DreamCoder and Stitch are relevant abstraction and library-learning prior art. UORC does not claim generative programs, shared rules, or anti-unification alone are novel.
 
 The research hypothesis is that joint synthesis of typed address generators, sequential state evolution, shared parameters, and serialized residuals under complete representation accounting can improve lossless compression on declared workloads.
 
