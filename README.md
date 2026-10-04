@@ -5,6 +5,10 @@
 
 A lossless compression system whose compressed object is an exact executable Universal Object Reference synthesized under explicit accounting and evidence.
 
+## Current status
+
+This repository currently establishes only the charter and source-authority slice represented by its registered conformance rows. Compression behavior, losslessness, optimality certificates, benchmark superiority, and record status are not established by this charter slice.
+
 ## Authority
 
 The project-owned semantic and claim authority is the LexLean graph rooted at src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. Generated Markdown and model TOML files are projections, not independent authority.
@@ -36,13 +40,14 @@ Version 1 does not assert a world record, an unrestricted Kolmogorov minimum, un
 | Class | Boundary |
 | --- | --- |
 | Production dependencies | Shipped execution may use only locked production dependencies explicitly bound by the SDK and release inventory. |
-| Validation authorities | External solvers, runtimes, test vectors, comparators, and byte-comparison tools are validation-only unless separately modeled and locked as production dependencies. |
+| Validation authorities | External solvers, runtimes, test vectors, comparators, byte-comparison tools, and prior-art sources are validation or context authorities only when separately modeled and immutably bound; they are never UORC production behavior unless explicitly modeled and locked as production dependencies. |
+| Authority bindings | This charter classifies external-authority roles but binds no external authority by itself. Exact citations, revisions, digests, licenses, and oracle interfaces become repository-cited authorities only when authored as LexLean authority rows and projected into the generated authority register. |
 | Measurements | Timing, peak memory, compression ratios, benchmark outcomes, and record attempts are measurements. They are not semantic definitions or mathematical proofs. |
 | Open research claims | Compression superiority, novelty beyond cited prior art, and external record status remain open until their exact evidence requirements are met. |
 
 ## Research position
 
-SEQUITUR and Re-Pair are relevant grammar-compression prior art; DreamCoder and Stitch are relevant abstraction and library-learning prior art. UORC does not claim generative programs, shared rules, or anti-unification alone are novel.
+SEQUITUR and Re-Pair are the named grammar-compression prior-art context; DreamCoder and Stitch are the named abstraction and library-learning prior-art context. This charter records the novelty boundary only: exact citation and provenance bindings are separate authority rows, and UORC does not claim generative programs, shared rules, or anti-unification alone are novel.
 
 The research hypothesis is that joint synthesis of typed address generators, sequential state evolution, shared parameters, and serialized residuals under complete representation accounting can improve lossless compression on declared workloads.
 
