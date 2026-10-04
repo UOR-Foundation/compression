@@ -33,8 +33,9 @@ This repository currently establishes only the charter and source-authority slic
 ## Source and projection checks
 
 - `lexlean lock --check` binds the authority project to the exact compiler semantics and workspace inputs.
+- `lexlean fmt --check --all` requires the authority source to be canonical before it is projected.
 - `lexlean check --all` requires the locked LexLean compiler to accept every authority module before repository projection checks run.
-- `cargo xtask check-model` extracts the admitted authority records and rejects stale generated projections.
+- `cargo xtask check-model` mechanically projects the exact closed semantic-data payload from that canonical source and rejects stale generated projections; this is a projection check, not a claim that the current LexLean CLI exports its semantic snapshot.
 - `cargo xtask audit-source-authority` rejects a second handwritten UORC specification or BCP-14 semantic rule in project prose.
 - `just bdd` reconciles every registered ID with its scenario, honesty level, and executed test root.
 - `just vv` remains the only complete implementation-acceptance boundary.
