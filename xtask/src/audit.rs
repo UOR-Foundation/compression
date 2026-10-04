@@ -185,7 +185,9 @@ fn specification_shaped_path(relative: &str) -> bool {
         .next()
         .unwrap_or(relative)
         .to_ascii_lowercase();
-    name.starts_with("spec")
+    name == "spec.md"
+        || name.starts_with("spec-")
+        || name.starts_with("specification")
         || name.starts_with("requirements")
         || name.starts_with("semantics")
 }
@@ -408,6 +410,7 @@ mod source_authority_tests {
         assert!(specification_shaped_path("docs/SPEC.md"));
         assert!(specification_shaped_path("notes/requirements-v1.md"));
         assert!(!specification_shaped_path("docs/governance/evidence.md"));
+        assert!(!specification_shaped_path("docs/special-notes.md"));
         let generated =
             "<!-- @generated from src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. -->\n";
         assert!(is_generated_projection("README.md", generated));
