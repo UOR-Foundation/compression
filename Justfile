@@ -3,8 +3,15 @@
 default: vv
 
 # The whole gate.
-vv: template-check fmt-check model lint test features bdd deny
+vv: template-check lexlean-authority fmt-check model lint test features bdd deny
     @echo "vv: the acceptance gate passed"
+
+# The UORC authority files are real LexLean source, not merely files with a
+# LexLean suffix. The locked compiler must accept the exact project before the
+# Rust projection/gate layer is allowed to consume it.
+lexlean-authority:
+    lexlean lock --check
+    lexlean check --all
 
 # R1, R4, R5 --- the repository gates, each falsifiable.
 model:
