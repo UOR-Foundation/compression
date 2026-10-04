@@ -359,7 +359,15 @@ pub fn render_project_verification(graph: &AuthorityGraph) -> String {
     let _ = writeln!(out);
     let _ = writeln!(
         out,
-        "- `cargo xtask check-model` parses the LexLean authority graph and rejects stale generated projections."
+        "- `lexlean lock --check` binds the authority project to the exact compiler semantics and workspace inputs."
+    );
+    let _ = writeln!(
+        out,
+        "- `lexlean check --all` requires the locked LexLean compiler to accept every authority module before repository projection checks run."
+    );
+    let _ = writeln!(
+        out,
+        "- `cargo xtask check-model` extracts the admitted authority records and rejects stale generated projections."
     );
     let _ = writeln!(
         out,
