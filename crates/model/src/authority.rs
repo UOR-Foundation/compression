@@ -734,6 +734,7 @@ mod tests {
         let declaration = serde_json::json!({
             "kind": "definition",
             "name": "row",
+            "parameters": [],
             "result": {
                 "kind": "named",
                 "member": {"module": "Uorc.Registry", "name": "ConformanceRow"},
