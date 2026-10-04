@@ -5,10 +5,15 @@ Purpose: define the complete implementation work as granular GitHub issues for
 criteria for each issue.
 
 Scope baseline:
-- Specification: `SPEC(3).md` (`UORC-IMPLEMENTATION-SPEC-001`, rev `1.0-draft.2`)
+- Specification input brief: `SPEC(3).md` (`UORC-IMPLEMENTATION-SPEC-001`, rev `1.0-draft.2`)
 - Machine profile: `uorc/reference-machine/2` (profile byte `02`)
 - Archive format: `uorc/archive/1`
 - Delivery discipline: PrismPM rigor and template universal policy (`AGENTS.md`)
+
+Authority boundary note:
+- This backlog is planning content only. Repository semantics and acceptance are
+	defined by committed repository authorities and generated evidence, not by an
+	uncommitted external `SPEC*.md` file.
 
 Issue authoring conventions:
 - Labels suggested in each issue body are required for triage consistency.
