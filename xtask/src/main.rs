@@ -68,7 +68,9 @@ fn check_model(root: &Path, write: bool) -> Result<(), Fail> {
     let expected_features: BTreeSet<String> = rendered
         .iter()
         .map(|(relative, _)| relative)
-        .filter(|relative| relative.starts_with("features/suites/") && relative.ends_with(".feature"))
+        .filter(|relative| {
+            relative.starts_with("features/suites/") && relative.ends_with(".feature")
+        })
         .cloned()
         .collect();
 
@@ -100,12 +102,14 @@ fn check_model(root: &Path, write: bool) -> Result<(), Fail> {
         }
     }
 
-
     let suite_dir = root.join("features/suites");
     let mut actual_features = BTreeSet::new();
     for entry in std::fs::read_dir(&suite_dir)? {
         let path = entry?.path();
-        if path.extension().is_some_and(|extension| extension == "feature") {
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "feature")
+        {
             let relative = path
                 .strip_prefix(root)
                 .unwrap_or(&path)
