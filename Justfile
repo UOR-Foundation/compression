@@ -3,7 +3,7 @@
 default: vv
 
 # The whole gate.
-vv: template-check lexlean-authority fmt-check model lint test features bdd deny
+vv: lexlean-authority template-check fmt-check model lint test features bdd deny
     @echo "vv: the acceptance gate passed"
 
 # The UORC authority files are real LexLean source, not merely files with a
@@ -20,7 +20,6 @@ model:
 # The hand-reviewed trust root is checked independently of generated project
 # content. PrismPM then validates the canonical contract and both locks.
 template-check:
-    cargo run -q -p xtask -- check-model
     cargo run -q -p xtask -- audit-bootstrap
     prismpm template check
     prismpm lock check
