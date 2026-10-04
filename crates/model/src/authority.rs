@@ -5,7 +5,7 @@
 //! `model/*.toml` and project Markdown are generated projections of this graph,
 //! never a second source of UORC semantics.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use serde_json::Value;
@@ -103,20 +103,68 @@ impl AuthorityGraph {
             semantic_declarations(&root.join(SPECIFICATION_PATH), "Uorc.Specification")?;
         let registry = semantic_declarations(&root.join(REGISTRY_PATH), "Uorc.Registry")?;
 
-        let charter = record_strings(&specification, "charter", "Charter")?;
-        let claim_boundaries =
-            record_strings(&specification, "claimBoundaries", "ClaimBoundaries")?;
-        let evidence_boundaries =
-            record_strings(&specification, "evidenceBoundaries", "EvidenceBoundaries")?;
-        let research_position =
-            record_strings(&specification, "researchPosition", "ResearchPosition")?;
+        validate_specification_declarations(&specification)?;
+        validate_registry_declarations(&registry)?;
+
+        let charter = record_strings(
+            &specification,
+            "charter",
+            "Charter",
+            &[
+                "productName",
+                "purpose",
+                "authoritySource",
+                "scope",
+                "nonScope",
+                "precedence",
+                "sourceOwnership",
+            ],
+        )?;
+        let claim_boundaries = record_strings(
+            &specification,
+            "claimBoundaries",
+            "ClaimBoundaries",
+            &[
+                "implementationAcceptance",
+                "losslessness",
+                "scopedMinimum",
+                "benchmarkImprovement",
+                "externalRecordAcceptance",
+            ],
+        )?;
+        let evidence_boundaries = record_strings(
+            &specification,
+            "evidenceBoundaries",
+            "EvidenceBoundaries",
+            &[
+                "productionDependencies",
+                "validationAuthorities",
+                "measurements",
+                "openResearchClaims",
+            ],
+        )?;
+        let research_position = record_strings(
+            &specification,
+            "researchPosition",
+            "ResearchPosition",
+            &[
+                "priorArt",
+                "hypothesis",
+                "noveltyStatus",
+                "performanceStatus",
+            ],
+        )?;
 
         let mut ids = Vec::new();
         for declaration in &registry {
             if definition_result_name(declaration) != Some("ConformanceRow") {
                 continue;
             }
-            let fields = definition_string_fields(declaration, "ConformanceRow")?;
+            let fields = definition_string_fields(
+                declaration,
+                "ConformanceRow",
+                &["id", "level", "suite", "statement"],
+            )?;
             ids.push(IdRow {
                 id: required(&fields, "id")?,
                 level: parse_level(&required(&fields, "level")?)?,
@@ -251,10 +299,97 @@ fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelE
         })
 }
 
+
+fn validate_specification_declarations(declarations: &[Value]) -> Result<(), ModelError> {
+    let expected: BTreeSet<(&str, &str)> = [
+        ("structure", "Charter"),
+        ("structure", "ClaimBoundaries"),
+        ("structure", "EvidenceBoundaries"),
+        ("structure", "ResearchPosition"),
+        ("definition", "charter"),
+        ("definition", "claimBoundaries"),
+        ("definition", "evidenceBoundaries"),
+        ("definition", "researchPosition"),
+    ]
+    .into_iter()
+    .collect();
+
+    let mut observed = BTreeSet::new();
+    for declaration in declarations {
+        let kind = declaration
+            .get("kind")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ModelError::Inconsistent("authority declaration has no kind".to_string()))?;
+        let name = declaration
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ModelError::Inconsistent("authority declaration has no name".to_string()))?;
+        if !observed.insert((kind, name)) {
+            return Err(ModelError::Inconsistent(format!(
+                "Uorc.Specification repeats declaration `{name}`"
+            )));
+        }
+    }
+
+    if observed != expected {
+        return Err(ModelError::Inconsistent(format!(
+            "Uorc.Specification projection declaration set is not exact: expected {:?}, observed {:?}",
+            expected, observed
+        )));
+    }
+    Ok(())
+}
+
+fn validate_registry_declarations(declarations: &[Value]) -> Result<(), ModelError> {
+    let mut structure_count = 0usize;
+    let mut definition_names = BTreeSet::new();
+
+    for declaration in declarations {
+        let kind = declaration
+            .get("kind")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ModelError::Inconsistent("registry declaration has no kind".to_string()))?;
+        let name = declaration
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| ModelError::Inconsistent("registry declaration has no name".to_string()))?;
+        match kind {
+            "structure" if name == "ConformanceRow" => {
+                structure_count += 1;
+            }
+            "definition" if definition_result_name(declaration) == Some("ConformanceRow") => {
+                if !definition_names.insert(name) {
+                    return Err(ModelError::Inconsistent(format!(
+                        "Uorc.Registry repeats row definition `{name}`"
+                    )));
+                }
+            }
+            _ => {
+                return Err(ModelError::Inconsistent(format!(
+                    "Uorc.Registry contains unprojected declaration `{kind} {name}`"
+                )));
+            }
+        }
+    }
+
+    if structure_count != 1 {
+        return Err(ModelError::Inconsistent(format!(
+            "Uorc.Registry must contain exactly one ConformanceRow structure, observed {structure_count}"
+        )));
+    }
+    if definition_names.is_empty() {
+        return Err(ModelError::Inconsistent(
+            "Uorc.Registry contains no ConformanceRow definitions".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 fn record_strings(
     declarations: &[Value],
     definition: &str,
     type_name: &str,
+    expected_fields: &[&str],
 ) -> Result<BTreeMap<String, String>, ModelError> {
     let declaration = declarations
         .iter()
@@ -267,7 +402,7 @@ fn record_strings(
                 "LexLean authority graph is missing definition `{definition}`"
             ))
         })?;
-    definition_string_fields(declaration, type_name)
+    definition_string_fields(declaration, type_name, expected_fields)
 }
 
 fn definition_result_name(declaration: &Value) -> Option<&str> {
@@ -281,6 +416,7 @@ fn definition_result_name(declaration: &Value) -> Option<&str> {
 fn definition_string_fields(
     declaration: &Value,
     type_name: &str,
+    expected_fields: &[&str],
 ) -> Result<BTreeMap<String, String>, ModelError> {
     if definition_result_name(declaration) != Some(type_name) {
         return Err(ModelError::Inconsistent(format!(
@@ -335,6 +471,16 @@ fn definition_string_fields(
             )));
         }
     }
+
+    let observed: BTreeSet<&str> = out.keys().map(String::as_str).collect();
+    let expected: BTreeSet<&str> = expected_fields.iter().copied().collect();
+    if observed != expected {
+        return Err(ModelError::Inconsistent(format!(
+            "`{type_name}` projection fields are not exact: expected {:?}, observed {:?}",
+            expected, observed
+        )));
+    }
+
     Ok(out)
 }
 
