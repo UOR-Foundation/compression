@@ -1,7 +1,8 @@
 # UORC (Universal Object Reference Compression)
 
-Reference implementation workspace for UORC, built with LexLean and PrismPM,
-targeting the complete implementation contract in `SPEC(3).md`.
+Reference implementation workspace for UORC, built with LexLean and PrismPM.
+Repository semantics and acceptance are defined only by committed repository
+authorities and generated artifacts.
 
 ## Status
 
@@ -17,10 +18,13 @@ Current phase goals:
 
 ## Working Contract
 
-- External implementation brief: `SPEC(3).md`
 - Universal repository policy: [AGENTS.md](AGENTS.md)
 - Template inheritance/process contract: [TEMPLATE-CONTRACT.md](TEMPLATE-CONTRACT.md)
 - Acceptance boundary: [VERIFICATION.md](VERIFICATION.md)
+
+External planning briefs may inform implementation work, but are not repository
+authority unless committed and modeled through the repository's declared
+authoritative sources.
 
 ## Execution Discipline
 
