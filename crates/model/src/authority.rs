@@ -366,7 +366,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn authority_graph_loads_from_lexlean_uc_src_01() {
+    fn authority_graph_loads_from_lexlean_uc_chr_01() {
         let graph = AuthorityGraph::load(&crate::repo_root()).expect("authority graph loads");
         assert!(!graph.charter.product_name.is_empty());
         assert!(!graph.ids.id.is_empty());
