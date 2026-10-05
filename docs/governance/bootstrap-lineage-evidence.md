@@ -27,9 +27,11 @@ semantics or acceptance authority.
 - No adjacent checkout or external unpublished host tool is required to
   interpret repository semantics.
 
-4. External SPEC file boundary
-- README and planning prose do not claim uncommitted `SPEC*.md` files as
-  repository authority.
+4. Project-documentation authority boundary
+- `README.md` is a generated projection of the LexLean authority graph and is
+  checked for exact projection equality by `cargo xtask check-model`.
+- Handwritten planning and governance prose is explicitly non-authoritative and
+  is checked by the source-authority audit.
 
 ## External validation oracles used
 
@@ -62,12 +64,12 @@ semantics or acceptance authority.
   - Satisfied by "Fresh-clone bootstrap reproducibility" verification.
 - Universal-policy drift is rejected:
   - Satisfied by lock-lineage + `prismpm template check` verification.
-- README/planning references do not claim absent or uncommitted `SPEC*.md` as repository authority:
-  - Satisfied by "External SPEC file boundary" verification.
+- Project documentation does not establish a competing semantic authority:
+  - Satisfied by "Project-documentation authority boundary" verification.
 
 ## Notes
 
 - This evidence records validation outcomes only.
-- Product semantics remain model-owned per `AGENTS.md` and generated
-  conformance outputs.
-
+- Product semantics and claim truth are owned by the LexLean authority graph;
+  committed model and documentation files are generated projections where
+  designated by the repository gates.
