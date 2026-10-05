@@ -1,24 +1,25 @@
-//! Typed registries parsed from `model/*.toml`.
+//! Typed repository-model projections of the UORC LexLean authority graph.
 //!
-//! The model is authored once and has exactly one source (R1): the conformance
-//! ID register, the claim ledger, and the authorities this repository cites.
-//! `CONFORMANCE.md` is generated from it by [`codegen`], so a claim cannot exist
-//! in the documentation without a ledger row, or in the ledger without appearing
-//! in the documentation.
+//! `src/Uorc/Specification.lex.tex` and `src/Uorc/Registry.lex.tex` are the
+//! project-owned source (R1). The TOML registers and project Markdown consumed
+//! by template/conformance tooling are generated projections checked byte for
+//! byte by [`codegen`].
 //!
 //! This crate is build-time and CI infrastructure. It is not a dependency of
 //! any shipped crate, and it may use `std`.
 
 #![deny(missing_docs)]
 
+pub mod authority;
 pub mod codegen;
 pub mod registry;
 
+pub use authority::AuthorityGraph;
 pub use registry::{Authorities, AuthorityRow, Claim, IdRow, Ids, Ledger, Level};
 
 use std::path::{Path, PathBuf};
 
-/// Everything `model/*.toml` says, parsed and cross-checked.
+/// The generated `model/*.toml` projection, parsed and cross-checked.
 #[derive(Debug, Clone)]
 pub struct Model {
     /// `model/ledger.toml`: one row per claim, at exactly one honesty level.
@@ -53,7 +54,7 @@ impl std::fmt::Display for ModelError {
 impl std::error::Error for ModelError {}
 
 impl Model {
-    /// Load every model file from a `model/` directory.
+    /// Load every generated model projection from a `model/` directory.
     pub fn load(dir: &Path) -> Result<Self, ModelError> {
         Ok(Self {
             ledger: read(dir, "ledger.toml")?,

@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Bootstrap Lineage and Clean-Clone Evidence (Issue #2)
 
 Scope:

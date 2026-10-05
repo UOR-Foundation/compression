@@ -5,7 +5,10 @@
 //! carries the rule it enforces in its failure message, because the point of a
 //! red gate is to name the promise that was broken.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+
+use repo_model::{codegen, AuthorityGraph};
 
 use crate::Fail;
 
@@ -111,6 +114,207 @@ fn effective_lines(text: &str) -> Vec<(usize, &str)> {
         }
     }
     out
+}
+
+/// R1: project semantics have exactly one project-owned source: the LexLean
+/// authority graph. Generated projections are compared by exact bytes;
+/// handwritten prose may carry evidence, rationale, operations, or planning,
+/// but may not introduce a second UORC specification or normative rule.
+pub fn audit_source_authority(root: &Path) -> Result<(), Fail> {
+    let graph = AuthorityGraph::load(root)?;
+    audit_source_authority_with_graph(root, &graph)
+}
+
+fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Result<(), Fail> {
+    let universal = inherited_policy_prose(root)?;
+    let generated: BTreeMap<String, String> = codegen::render_all(graph).into_iter().collect();
+    let marker = graph.source_authority_policy.non_authority_marker.as_str();
+    let subject = graph.source_authority_policy.normative_subject.as_str();
+
+    let mut prose = Vec::new();
+    gather_prose(root, root, &mut prose)?;
+    prose.sort();
+
+    let mut violations = Vec::new();
+    for path in prose {
+        let rel = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .display()
+            .to_string()
+            .replace('\\', "/");
+        if universal.contains(&rel) {
+            continue;
+        }
+
+        let contents = std::fs::read_to_string(&path)?;
+        if let Some(expected) = generated.get(&rel) {
+            if &contents != expected {
+                violations.push(format!(
+                    "{rel}: generated projection bytes differ from the LexLean authority graph"
+                ));
+            }
+            continue;
+        }
+
+        if !is_explicitly_non_authoritative(&contents, marker) {
+            violations.push(format!(
+                "{rel}: handwritten project prose must begin with the LexLean-authored non-authority marker"
+            ));
+        }
+        if specification_shaped_path(&rel) {
+            violations.push(format!(
+                "{rel}: handwritten specification-shaped project prose is not admitted"
+            ));
+        }
+        if let Some(reason) = handwritten_semantic_rule(&contents, subject) {
+            violations.push(format!("{rel}: {reason}"));
+        }
+    }
+
+    if !violations.is_empty() {
+        return Err(format!(
+            "R1: UORC project semantics are authored only in src/Uorc/Specification.lex.tex \
+             and src/Uorc/Registry.lex.tex. Handwritten prose may carry evidence or planning, \
+             but cannot become a second authority.\n\n{}",
+            violations.join("\n")
+        )
+        .into());
+    }
+
+    println!("audit-source-authority: no handwritten project specification or semantic rule (R1)");
+    Ok(())
+}
+
+fn inherited_policy_prose(root: &Path) -> Result<BTreeSet<String>, Fail> {
+    let contract_path = root.join("template-contract.json");
+    let contract: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&contract_path)?)?;
+    let paths = contract
+        .get("universal_policy_paths")
+        .and_then(serde_json::Value::as_array)
+        .ok_or("template-contract.json has no universal_policy_paths array")?;
+
+    let mut out = BTreeSet::new();
+    for value in paths {
+        let path = value
+            .as_str()
+            .ok_or("template-contract.json universal policy path is not a string")?;
+        if prose_extension(Path::new(path)) {
+            out.insert(path.to_string());
+        }
+    }
+
+    // These two inherited explanatory documents are generic template material,
+    // but are not themselves members of the byte-bound universal policy set.
+    for path in ["TEMPLATE-CONTRACT.md", "TEMPLATE-VERIFICATION.md"] {
+        if root.join(path).exists() {
+            out.insert(path.to_string());
+        }
+    }
+    Ok(out)
+}
+
+fn prose_extension(path: &Path) -> bool {
+    const EXTENSIONS: &[&str] = &["md", "mdx", "rst", "adoc", "txt"];
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()))
+}
+
+fn is_explicitly_non_authoritative(contents: &str, marker: &str) -> bool {
+    contents.lines().next() == Some(marker)
+}
+
+fn specification_shaped_path(relative: &str) -> bool {
+    let name = relative.rsplit('/').next().unwrap_or(relative);
+    let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
+    stem.split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .map(str::to_ascii_lowercase)
+        .any(|token| {
+            matches!(
+                token.as_str(),
+                "spec" | "specification" | "requirements" | "semantics"
+            )
+        })
+}
+
+fn handwritten_semantic_rule(contents: &str, subject: &str) -> Option<&'static str> {
+    let subject = subject.to_ascii_lowercase();
+    let visible = prose_without_code(contents).to_ascii_lowercase();
+    let prefixes = ["must ", "must not ", "shall ", "required "];
+    if prefixes
+        .iter()
+        .any(|modal| visible.contains(&format!("{subject} {modal}")))
+    {
+        return Some("contains a handwritten normative UORC rule");
+    }
+
+    for heading in ["specification", "semantics", "requirements"] {
+        if visible
+            .lines()
+            .any(|line| line.trim_start_matches('#').trim() == format!("{subject} {heading}"))
+        {
+            return Some("declares handwritten UORC specification semantics");
+        }
+    }
+    None
+}
+
+fn prose_without_code(contents: &str) -> String {
+    let mut out = String::new();
+    let mut fenced = false;
+    for raw in contents.lines() {
+        let trimmed = raw.trim_start();
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            fenced = !fenced;
+            continue;
+        }
+        if fenced {
+            continue;
+        }
+
+        let mut in_inline = false;
+        for character in raw.chars() {
+            if character == '`' {
+                in_inline = !in_inline;
+            } else if !in_inline {
+                out.push(character);
+            }
+        }
+        out.push('\n');
+    }
+    out
+}
+
+fn gather_prose(dir: &Path, root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            let rel = path.strip_prefix(root).unwrap_or(&path);
+            let skip = rel.components().any(|component| {
+                matches!(
+                    component.as_os_str().to_str(),
+                    Some(
+                        ".git"
+                            | ".lake"
+                            | ".lexlean"
+                            | ".prism"
+                            | "target"
+                            | "vendor"
+                            | "node_modules"
+                    )
+                )
+            });
+            if !skip {
+                gather_prose(&path, root, out)?;
+            }
+        } else if prose_extension(&path) {
+            out.push(path);
+        }
+    }
+    Ok(())
 }
 
 /// R5: no arbitrary limitation. Every bound is a property of the caller's
@@ -264,4 +468,79 @@ fn gather_all(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), Fail> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod source_authority_tests {
+    use super::*;
+
+    #[test]
+    fn handwritten_authority_conflicts_are_rejected_uc_chr_02() {
+        assert!(
+            handwritten_semantic_rule("UORC MUST decode an archive this way.", "UORC").is_some()
+        );
+        assert!(
+            handwritten_semantic_rule("# UORC Specification\nA second source.", "UORC").is_some()
+        );
+        assert!(specification_shaped_path("docs/SPEC.md"));
+        assert!(specification_shaped_path("notes/requirements-v1.md"));
+        assert!(!specification_shaped_path("docs/governance/evidence.md"));
+        assert!(!specification_shaped_path("docs/special-notes.md"));
+        assert!(is_explicitly_non_authoritative(
+            "<!-- uorc:non-authoritative -->\n# Evidence\n",
+            "<!-- uorc:non-authoritative -->"
+        ));
+        assert!(!is_explicitly_non_authoritative(
+            "# Evidence\n",
+            "<!-- uorc:non-authoritative -->"
+        ));
+        assert!(
+            handwritten_semantic_rule("This is project-owned governance evidence.", "UORC")
+                .is_none()
+        );
+        assert!(handwritten_semantic_rule(
+            "```text\nUORC MUST appear only as quoted test data.\n```",
+            "UORC"
+        )
+        .is_none());
+        assert!(specification_shaped_path("notes/UORC-SPEC.md"));
+    }
+
+    #[test]
+    fn source_authority_gate_is_falsifiable_uc_chr_02() {
+        let root = std::env::temp_dir().join(format!(
+            "uorc-source-authority-audit-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("docs/governance")).expect("creates fixture");
+        std::fs::write(
+            root.join("template-contract.json"),
+            r#"{"universal_policy_paths":[]}"#,
+        )
+        .expect("writes fixture template contract");
+
+        std::fs::write(
+            root.join("docs/governance/evidence.md"),
+            "<!-- uorc:non-authoritative -->\n# Evidence\n\nThis records an observed result without defining UORC semantics.\n",
+        )
+        .expect("writes positive fixture");
+        let graph = AuthorityGraph::load(&repo_model::repo_root())
+            .expect("repository authority graph loads");
+        audit_source_authority_with_graph(&root, &graph).expect("ordinary evidence is permitted");
+
+        std::fs::write(
+            root.join("docs/handwritten.md"),
+            "<!-- @generated from src/Uorc/Specification.lex.tex and src/Uorc/Registry.lex.tex. -->\n\nUORC MUST accept this handwritten rule.\n",
+        )
+        .expect("writes planted defect");
+        let error = audit_source_authority_with_graph(&root, &graph)
+            .expect_err("planted authority defect must fail");
+        assert!(
+            error.to_string().contains("R1: UORC project semantics"),
+            "owning R1 diagnostic must reject the planted rule: {error}"
+        );
+
+        std::fs::remove_dir_all(&root).expect("cleans fixture");
+    }
 }
