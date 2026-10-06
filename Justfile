@@ -3,8 +3,16 @@
 default: vv
 
 # The whole gate.
-vv: template-check fmt-check model lint test features bdd deny
+vv: lexlean-authority template-check fmt-check model lint test features bdd deny
     @echo "vv: the acceptance gate passed"
+
+# The UORC authority files are real LexLean source, not merely files with a
+# LexLean suffix. The locked compiler must accept the exact project before the
+# Rust projection/gate layer is allowed to consume it.
+lexlean-authority:
+    lexlean lock --check
+    lexlean fmt --check --all
+    lexlean check --all
 
 # R1, R4, R5 --- the repository gates, each falsifiable.
 model:
@@ -13,14 +21,17 @@ model:
 # The hand-reviewed trust root is checked independently of generated project
 # content. PrismPM then validates the canonical contract and both locks.
 template-check:
-    cargo run -q -p xtask -- check-model
     cargo run -q -p xtask -- audit-bootstrap
     prismpm template check
     prismpm lock check
 
-# Regenerate everything the model owns: CONFORMANCE.md.
+# Regenerate every model/document projection owned by the LexLean authority graph.
 model-write:
     cargo run -q -p xtask -- check-model --write
+
+# Direct R1 report: project prose cannot become a second UORC authority.
+source-authority:
+    cargo run -q -p xtask -- audit-source-authority
 
 fmt:
     cargo fmt --all

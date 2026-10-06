@@ -1,25 +1,31 @@
+<!-- uorc:non-authoritative -->
 # Suites
 
 One Gherkin file per suite, one scenario per conformance ID (R3).
 
-A scenario is tagged with its ID and its honesty level:
+For UORC, conformance rows and their Given/When/Then intent are authored in
+`src/Uorc/Registry.lex.tex`. `model/ids.toml`, `CONFORMANCE.md`, and every
+`*.feature` suite are generated projections; they are never edited as
+independent claim or test-intent sources.
+
+A scenario is tagged with its ID and honesty level:
 
 ```gherkin
 Feature: <suite name>
 
-  <what the suite is about, in a sentence.>
+  <what the suite is about, in a sentence>
 
-  @CX-01 @build
-  Scenario: <the statement, copied from model/ids.toml>
-    Given <the fixture>
-    When the suite exercises CX-01
-    Then <the assertion, in the register's words>
+  @UC-CHR-01 @build
+  Scenario: <the statement projected from the LexLean registry>
+    Given <the LexLean-authored precondition>
+    When <the LexLean-authored action>
+    Then <the LexLean-authored expected result>
 ```
 
-The `suite` field of a row in `model/ids.toml` names the file its scenario
-lives in, and `just bdd` fails if an ID has no scenario, a scenario has no ID,
-or an ID has no test whose name ends in it lowercased with underscores.
+`just bdd` fails if a registered ID has no scenario, a scenario names no
+registered ID, its honesty level differs, or no test name ends in the ID
+lowercased with hyphens replaced by underscores.
 
-Empty. The first capability this repository builds starts with a row in
-`model/ids.toml`, then a scenario here, then a failing test --- in that order,
-because the order is the discipline (`AGENTS.md`).
+The feature-first workflow remains: add the LexLean registry row including its
+scenario intent, run `just model-write`, add the initially failing named test,
+then implement the behavior.
