@@ -240,19 +240,52 @@ fn specification_shaped_path(relative: &str) -> bool {
         })
 }
 
+/// BCP-14 keywords that bind in any letter case once they follow the subject.
+const STRONG_MODALS: &[&str] = &["must", "shall", "required"];
+
+/// BCP-14 keywords that bind only in upper case (RFC 8174), anywhere in a
+/// sentence that names the subject. In lower case they are ordinary English.
+const UPPERCASE_KEYWORDS: &[&str] = &[
+    "MUST",
+    "SHALL",
+    "REQUIRED",
+    "SHOULD",
+    "RECOMMENDED",
+    "MAY",
+    "OPTIONAL",
+];
+
 fn handwritten_semantic_rule(contents: &str, subject: &str) -> Option<&'static str> {
-    let subject = subject.to_ascii_lowercase();
-    let visible = prose_without_code(contents).to_ascii_lowercase();
-    let prefixes = ["must ", "must not ", "shall ", "required "];
-    if prefixes
-        .iter()
-        .any(|modal| visible.contains(&format!("{subject} {modal}")))
-    {
-        return Some("contains a handwritten normative UORC rule");
+    let visible = prose_without_code(contents);
+
+    // A rule is a sentence that names the subject and carries a BCP-14 keyword.
+    // Matching whole sentences by word, rather than the literal text
+    // `<subject> must`, is what stops "The UORC encoder MUST", "UORC encoders
+    // MUST NOT", "UORC SHOULD", and a doubled space from walking past the gate.
+    for sentence in sentences(&visible) {
+        let words: Vec<&str> = sentence
+            .split(|character: char| !character.is_ascii_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .collect();
+        let Some(at) = words
+            .iter()
+            .position(|word| word.eq_ignore_ascii_case(subject))
+        else {
+            continue;
+        };
+        let uppercase = words.iter().any(|word| UPPERCASE_KEYWORDS.contains(word));
+        let strong_after_subject = words[at + 1..]
+            .iter()
+            .any(|word| STRONG_MODALS.contains(&word.to_ascii_lowercase().as_str()));
+        if uppercase || strong_after_subject {
+            return Some("contains a handwritten normative UORC rule");
+        }
     }
 
+    let subject = subject.to_ascii_lowercase();
+    let lower = visible.to_ascii_lowercase();
     for heading in ["specification", "semantics", "requirements"] {
-        if visible
+        if lower
             .lines()
             .any(|line| line.trim_start_matches('#').trim() == format!("{subject} {heading}"))
         {
@@ -260,6 +293,58 @@ fn handwritten_semantic_rule(contents: &str, subject: &str) -> Option<&'static s
         }
     }
     None
+}
+
+/// Split prose into sentences.
+///
+/// Wrapped lines of one paragraph are one run of text; a blank line, a heading,
+/// a list item, a table row, or a block quote starts a new one. Inside a run a
+/// sentence ends at `.`, `!`, `?`, or `;` followed by whitespace and then
+/// anything but a lower-case letter, so `e.g. the` and `v1.0` do not split.
+fn sentences(visible: &str) -> Vec<String> {
+    let mut runs: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for raw in visible.lines() {
+        let line = raw.trim();
+        let ordered_item = line
+            .split_once(['.', ')'])
+            .is_some_and(|(n, _)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()));
+        if line.is_empty() || line.starts_with(['#', '-', '*', '+', '|', '>']) || ordered_item {
+            runs.push(std::mem::take(&mut current));
+        }
+        current.push_str(line);
+        current.push(' ');
+        if line.starts_with('#') {
+            runs.push(std::mem::take(&mut current));
+        }
+    }
+    runs.push(current);
+
+    let mut out = Vec::new();
+    for run in runs {
+        let characters: Vec<char> = run.chars().collect();
+        let mut sentence = String::new();
+        for (i, character) in characters.iter().enumerate() {
+            sentence.push(*character);
+            if !matches!(character, '.' | '!' | '?' | ';') {
+                continue;
+            }
+            let mut rest = characters[i + 1..].iter();
+            let boundary = match rest.next() {
+                None => true,
+                Some(next) if next.is_whitespace() => rest
+                    .find(|c| !c.is_whitespace())
+                    .is_none_or(|c| !c.is_lowercase()),
+                Some(_) => false,
+            };
+            if boundary {
+                out.push(std::mem::take(&mut sentence));
+            }
+        }
+        out.push(sentence);
+    }
+    out.retain(|sentence| !sentence.trim().is_empty());
+    out
 }
 
 fn prose_without_code(contents: &str) -> String {
@@ -504,6 +589,43 @@ mod source_authority_tests {
         )
         .is_none());
         assert!(specification_shaped_path("notes/UORC-SPEC.md"));
+    }
+
+    #[test]
+    fn bcp14_keyword_forms_are_rejected_uc_chr_02() {
+        for rule in [
+            "UORC SHOULD emit residuals last.",
+            "The UORC encoder MUST reject empty input.",
+            "The UORC encoder must reject empty input.",
+            "UORC  MUST use big-endian lengths.",
+            "UORC encoders MUST NOT exceed the declared bound.",
+            "UORC is REQUIRED to be deterministic.",
+            "UORC is required to be deterministic.",
+            "UORC MAY skip checksums.",
+            "Checksums are OPTIONAL in UORC.",
+            "A UORC-compliant decoder SHALL\nreject trailing bytes.",
+            "UORC v1.0 MUST use the declared order.",
+            "- UORC streams, e.g. archives, MUST be framed",
+            "| Decoder | UORC decoders SHALL NOT allocate |",
+        ] {
+            assert!(
+                handwritten_semantic_rule(rule, "UORC").is_some(),
+                "must be rejected: {rule}"
+            );
+        }
+        for prose in [
+            "Contributors must run the acceptance gate before changing UORC documents.",
+            "UORC may improve on declared workloads; that is a hypothesis.",
+            "This note should stay short. UORC is described elsewhere.",
+            "UORC is the product name.\n\nReviewers MUST sign off.",
+            "- UORC is the product\n- reviewers MUST sign off",
+            "The word MUST appears in `UORC MUST` only as a quoted example.",
+        ] {
+            assert!(
+                handwritten_semantic_rule(prose, "UORC").is_none(),
+                "must be permitted: {prose}"
+            );
+        }
     }
 
     #[test]
