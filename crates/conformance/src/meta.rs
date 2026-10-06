@@ -36,21 +36,121 @@ impl HonestyReport {
     }
 }
 
-/// Words that assert a claim as established.
+/// Word stems that assert a claim as established.
 ///
 /// A `build` claim may use them --- it *is* evidence, constructed here. An
 /// `open` claim may not, because it is a measurement, and a `some-true` claim
 /// may not, because it belongs to someone else.
-const ASSERTIVE: &[&str] = &[
-    "proves",
-    "proven",
-    "proof that",
-    "guarantees",
-    "establishes",
-    "demonstrates that",
-    "shows that",
-    "confirms",
+///
+/// Stems, matched against the start of a whole word: `prove` covers "proves",
+/// "proved", and "proven" without also matching "improves", which a substring
+/// search does.
+const ASSERTIVE_STEMS: &[&str] = &[
+    "prove",
+    "proof",
+    "guarantee",
+    "establish",
+    "demonstrat",
+    "confirm",
+    "verif",
+    "certif",
+    "validated",
+    "settled",
+    "achieve",
+    "beats",
+    "outperform",
+    "surpass",
+    "superior",
 ];
+
+/// Phrases that assert, where no single word does.
+const ASSERTIVE_PHRASES: &[&str] = &["shows that", "is true", "holds for", "world record"];
+
+/// The assertive word or phrase in `line`, if it has one.
+pub fn assertive_term(line: &str) -> Option<&'static str> {
+    let lower = line.to_lowercase();
+    if let Some(phrase) = ASSERTIVE_PHRASES.iter().find(|p| lower.contains(*p)) {
+        return Some(phrase);
+    }
+    lower
+        .split(|c: char| !c.is_alphanumeric())
+        .find_map(|word| ASSERTIVE_STEMS.iter().find(|s| word.starts_with(*s)))
+        .copied()
+}
+
+/// Every Markdown document in the repository, as root-relative paths.
+///
+/// Discovered rather than listed: a document nobody scans reports nothing, and
+/// a fixed list goes stale the first time one is added.
+fn markdown_documents(root: &Path) -> std::io::Result<Vec<String>> {
+    const SKIPPED: &[&str] = &[
+        ".git",
+        ".lake",
+        ".lexlean",
+        ".prism",
+        "target",
+        "vendor",
+        "node_modules",
+    ];
+    let mut out = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                if !path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| SKIPPED.contains(&n))
+                {
+                    stack.push(path);
+                }
+            } else if path.extension().is_some_and(|e| e == "md") {
+                let relative = path.strip_prefix(root).unwrap_or(&path);
+                out.push(relative.display().to_string().replace('\\', "/"));
+            }
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
+/// The registered-looking ID a test name ends in, if it is not registered.
+///
+/// A registered ID `UC-CHR-01` is discharged by a test whose name ends in
+/// `uc_chr_01`. A name ending in the same shape --- the same leading prefix, the
+/// same number of parts, a numeric last part --- names an ID too, whatever the
+/// register's scheme is: two parts (`CT-04`) or three (`UC-CHR-01`).
+fn unregistered_id_named_by(tail: &str, model: &Model) -> Option<String> {
+    let tokens: Vec<&str> = tail.split('_').collect();
+    let shapes: BTreeSet<(String, usize)> = model
+        .ids
+        .id
+        .iter()
+        .filter_map(|row| {
+            let parts: Vec<&str> = row.id.split('-').collect();
+            let numeric = parts
+                .last()
+                .is_some_and(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()));
+            (parts.len() >= 2 && numeric).then(|| (parts[0].to_lowercase(), parts.len()))
+        })
+        .collect();
+    for (prefix, len) in shapes {
+        if tokens.len() <= len {
+            continue;
+        }
+        let parts = &tokens[tokens.len() - len..];
+        let numeric = parts[len - 1].bytes().all(|b| b.is_ascii_digit());
+        if parts[0] != prefix || parts.iter().any(|p| p.is_empty()) || !numeric {
+            continue;
+        }
+        let id = parts.join("-").to_uppercase();
+        if model.ids.get(&id).is_none() {
+            return Some(id);
+        }
+    }
+    None
+}
 
 /// Run the meta-gate.
 ///
@@ -129,33 +229,15 @@ pub fn check_honesty(root: &Path, tests: &BTreeSet<String>) -> std::io::Result<H
     // `CT-05` --- with passing tests and no register rows, which is a claim made
     // by a name and by nothing else.
     //
-    // Only prefixes the register already uses are checked, so a test whose name
-    // merely happens to end in two letters and two digits is not a claim.
-    let prefixes: BTreeSet<String> = model
-        .ids
-        .id
-        .iter()
-        .filter_map(|r| r.id.split('-').next().map(str::to_lowercase))
-        .collect();
+    // Only shapes the register already uses are checked, so a test whose name
+    // merely happens to end in letters and digits is not a claim.
     for name in tests {
-        let Some(tail) = name.rsplit("::").next() else {
-            continue;
-        };
-        let parts: Vec<&str> = tail.rsplitn(3, '_').collect();
-        if parts.len() < 3 {
-            continue;
-        }
-        let (digits, letters) = (parts[0], parts[1]);
-        if digits.len() != 2 || !digits.bytes().all(|b| b.is_ascii_digit()) {
-            continue;
-        }
-        if letters.len() != 2 || !prefixes.contains(letters) {
-            continue;
-        }
-        let id = format!("{}-{digits}", letters.to_uppercase());
-        if model.ids.get(&id).is_none() {
+        let tail = name.rsplit("::").next().unwrap_or(name);
+        if let Some(id) = unregistered_id_named_by(tail, &model) {
             report.violations.push(format!(
-                "CM-02: test `{name}` names `{id}`, which is not in the register. An ID                  that exists only in a test name has no scenario and no row in                  CONFORMANCE.md."
+                "CM-02: test `{name}` names `{id}`, which is not in the register. An ID \
+                 that exists only in a test name has no scenario and no row in \
+                 CONFORMANCE.md."
             ));
         }
     }
@@ -168,23 +250,17 @@ pub fn check_honesty(root: &Path, tests: &BTreeSet<String>) -> std::io::Result<H
         .filter(|r| r.level == Level::Open)
         .map(|r| r.id.as_str())
         .collect();
-    for doc in [
-        "README.md",
-        "CONFORMANCE.md",
-        "VERIFICATION.md",
-        "ANALYSIS.md",
-    ] {
-        let path = root.join(doc);
-        let Ok(text) = std::fs::read_to_string(&path) else {
+    let documents = markdown_documents(root)?;
+    for doc in &documents {
+        let Ok(text) = std::fs::read_to_string(root.join(doc)) else {
             continue;
         };
         for (i, line) in text.lines().enumerate() {
-            let lower = line.to_lowercase();
             for id in &open_ids {
                 if !line.contains(id) {
                     continue;
                 }
-                if let Some(word) = ASSERTIVE.iter().find(|w| lower.contains(*w)) {
+                if let Some(word) = assertive_term(line) {
                     report.violations.push(format!(
                         "R2: {doc}:{}: `{id}` is an `open` claim --- measured and reported, \
                          never asserted --- but this line says `{word}`.\n    {}",
@@ -198,17 +274,15 @@ pub fn check_honesty(root: &Path, tests: &BTreeSet<String>) -> std::io::Result<H
 
     // R2: a `some-true` authority is reproduced, not established here.
     for authority in &model.authorities.authority {
-        for doc in ["README.md", "CONFORMANCE.md"] {
-            let path = root.join(doc);
-            let Ok(text) = std::fs::read_to_string(&path) else {
+        for doc in &documents {
+            let Ok(text) = std::fs::read_to_string(root.join(doc)) else {
                 continue;
             };
             for (i, line) in text.lines().enumerate() {
                 if !line.contains(&authority.id) {
                     continue;
                 }
-                let lower = line.to_lowercase();
-                if let Some(word) = ASSERTIVE.iter().find(|w| lower.contains(*w)) {
+                if let Some(word) = assertive_term(line) {
                     report.violations.push(format!(
                         "R2: {doc}:{}: `{}` is cited, not established here, but this line \
                          says `{word}`.\n    {}",
@@ -228,19 +302,26 @@ pub fn check_honesty(root: &Path, tests: &BTreeSet<String>) -> std::io::Result<H
 mod tests {
     use super::*;
 
-    /// The gate's own vocabulary check must be able to fire, or every clean
-    /// run above means nothing.
+    /// The vocabulary check must fire on assertion and stay quiet on report.
     #[test]
     fn the_assertive_vocabulary_is_recognised() {
-        for word in ASSERTIVE {
-            let line = format!("CG-01 {word} the exponent is one");
-            assert!(
-                ASSERTIVE.iter().any(|w| line.to_lowercase().contains(*w)),
-                "{word} must be recognised"
-            );
+        for line in [
+            "UC-PERF-01 proves the target",
+            "UC-PERF-01 is proven",
+            "UC-PERF-01 is settled: verified and certified",
+            "UC-PERF-01 Guarantees a smaller archive",
+            "UC-PERF-01 shows that the archive is smaller",
+            "UC-PERF-01 outperforms every comparator",
+            "UC-REC-01 is a world record",
+        ] {
+            assert!(assertive_term(line).is_some(), "must be recognised: {line}");
         }
-        // And an honest sentence about an open claim does not trip it.
-        let honest = "CG-01 reports the fitted exponent with its confidence interval";
-        assert!(!ASSERTIVE.iter().any(|w| honest.to_lowercase().contains(*w)));
+        for line in [
+            "UC-PERF-01 reports the measured ratio with its confidence interval",
+            "UC-PERF-01 measured public-corpus compression improvement; open until measured",
+            "UC-PERF-01 improves nothing by being registered",
+        ] {
+            assert_eq!(assertive_term(line), None, "must be permitted: {line}");
+        }
     }
 }

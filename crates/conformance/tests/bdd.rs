@@ -193,3 +193,85 @@ fn the_meta_gate_is_falsifiable_cm_02() {
     let full = workspace_test_names(&root);
     assert!(check_honesty(&root, &full).expect("runs").is_clean());
 }
+
+/// Copy the register and suites into a scratch root the plants can write to.
+fn scratch_root(tag: &str) -> PathBuf {
+    let scratch = std::env::temp_dir().join(format!("uorc-meta-gate-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    for dir in ["model", "features/suites"] {
+        std::fs::create_dir_all(scratch.join(dir)).expect("creates fixture");
+        for entry in std::fs::read_dir(root().join(dir)).expect("reads source") {
+            let path = entry.expect("reads entry").path();
+            if path.is_file() {
+                let name = path.file_name().expect("a file has a name");
+                std::fs::copy(&path, scratch.join(dir).join(name)).expect("copies fixture");
+            }
+        }
+    }
+    scratch
+}
+
+/// R2: an `open` claim asserted in any Markdown document is reported, in
+/// vocabulary beyond the original eight phrases and outside the root documents.
+#[test]
+fn an_asserted_open_claim_is_reported_cm_02() {
+    let model = Model::load(&root().join("model")).expect("model loads");
+    let Some(open) = model.ids.id.iter().find(|r| r.level == Level::Open) else {
+        eprintln!("CM-02: no open claim is registered, so there is none to assert");
+        return;
+    };
+    let scratch = scratch_root("open");
+    let tests = workspace_test_names(&root());
+    assert!(check_honesty(&scratch, &tests).expect("runs").is_clean());
+
+    std::fs::create_dir_all(scratch.join("docs/notes")).expect("creates fixture");
+    std::fs::write(
+        scratch.join("docs/notes/result.md"),
+        format!(
+            "The benchmark ({}) is settled: verified and certified.\n",
+            open.id
+        ),
+    )
+    .expect("writes planted defect");
+    let report = check_honesty(&scratch, &tests).expect("runs");
+    assert!(
+        report
+            .violations
+            .iter()
+            .any(|v| v.starts_with("R2: docs/notes/result.md:1") && v.contains(&open.id)),
+        "the asserted open claim must be reported: {:?}",
+        report.violations
+    );
+    std::fs::remove_dir_all(&scratch).expect("cleans fixture");
+}
+
+/// `CM-02`: a test name that ends in an unregistered ID of the register's own
+/// shape is reported, whatever that shape is.
+#[test]
+fn a_test_naming_an_unregistered_id_is_reported_cm_02() {
+    let model = Model::load(&root().join("model")).expect("model loads");
+    let Some(row) = model.ids.id.first() else {
+        eprintln!("CM-02: register empty, so no ID shape exists to imitate");
+        return;
+    };
+    // The first registered ID with its number replaced by one nothing uses.
+    let (stem, _) = row.id.rsplit_once('-').expect("an ID has a numeric part");
+    let unregistered = format!("{stem}-9999");
+    assert!(model.ids.get(&unregistered).is_none());
+
+    let root = root();
+    let mut tests = workspace_test_names(&root);
+    tests.insert(format!(
+        "planted::beats_every_comparator_{}",
+        unregistered.to_lowercase().replace('-', "_")
+    ));
+    let report = check_honesty(&root, &tests).expect("runs");
+    assert!(
+        report
+            .violations
+            .iter()
+            .any(|v| v.contains("CM-02") && v.contains(&unregistered)),
+        "the unregistered ID must be reported: {:?}",
+        report.violations
+    );
+}

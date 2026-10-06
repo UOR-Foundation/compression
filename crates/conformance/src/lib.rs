@@ -22,5 +22,5 @@
 pub mod meta;
 pub mod runner;
 
-pub use meta::{check_honesty, HonestyReport};
+pub use meta::{assertive_term, check_honesty, HonestyReport};
 pub use runner::{scenarios_in, Scenario, SuiteReport};
