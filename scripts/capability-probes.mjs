@@ -24,7 +24,8 @@ export function loadContract(path) {
       requireFact(f.value.kind === 'string', 'CAP0001', 'Capability metadata must be a modeled string');
       return [f.field, f.value.value];
     }));
-    requireFact(Object.keys(row).sort().join() === ['fixture','id','intent','language','physical','root','schema','symbol'].sort().join(), 'CAP0001', 'Capability metadata field set changed');
+    requireFact(Object.keys(row).sort().join() === ['application','fixture','id','intent','language','physical','project','root','schema','symbol'].sort().join(), 'CAP0001', 'Capability metadata field set changed');
+    requireFact(/^[a-z][a-z0-9-]*$/.test(row.project)&&[row.fixture,row.application].every(file=>/^[A-Z][A-Za-z0-9]*\.lex\.tex$/.test(file)),'CAP0001','Capability project and fixture bindings must be confined identifiers');
     return row;
   });
   requireFact(rows.length > 0 && new Set(rows.map(r=>r.id)).size === rows.length, 'CAP0001', 'Capability register is empty or duplicated');
@@ -34,7 +35,7 @@ export function makeReport(contract, evidence) {
   const stage = id => evidence.observations.find(o=>o.id === id)?.status ?? 'not_run';
   const passed = id => stage(id) === 'passed';
   const capabilities = contract.map(row => {
-    const project = row.id === 'persistent-u64-store' ? 'store' : 'core';
+    const project = row.project;
     const verified = passed(`${project}.app.evidence`) && passed(`${project}.app.verify`);
     const assertion = row.fixture === 'Core.lex.tex' || row.fixture === 'Store.lex.tex';
     const runtime = verified && (!assertion || passed(`${project}.falsify.${row.id}`)) ? 'passed' : verified ? 'negative_not_passed' : stage(`${project}.app.verify`);
@@ -58,10 +59,24 @@ export function makeReport(contract, evidence) {
   return { schema:'uorc/sdk-capability-report/1', accepted:capabilities.every(c=>c.runtime === 'passed'),
     evidence_kind:'finite SDK execution observations; no compression or large-input acceptance', ...evidence, capabilities };
 }
-export function validateAcceptance(acceptance, manifest, acceptanceBytes) {
-  requireFact(acceptance.schema === 'prismpm/application-acceptance/1' && acceptance.status === 'verified', 'CAP0005', 'Missing complete SDK application acceptance');
+// These receipt fields and process names are imported from the digest-bound
+// SDK application verifier, not a second implementation of its runtime.
+export function validateAcceptance(acceptance, manifest, acceptanceBytes, bundle={}) {
+  const {build,verify,manifestBytes,lexleanBytes,modelBytes}=bundle;
+  const sha=value=>typeof value==='string'&&/^[0-9a-f]{64}$/.test(value);
+  requireFact(acceptance?.schema === 'prismpm/application-acceptance/1' && acceptance.status === 'verified', 'CAP0005', 'Missing complete SDK application acceptance');
   requireFact(acceptance.artifact_closure === 'verified' && acceptance.browser_projection === 'verified' && acceptance.core_wasm?.status === 'verified' && acceptance.hologram_oracle === 'verified' && acceptance.modeled_vectors === 3, 'CAP0005', 'SDK acceptance omitted a required runtime/oracle/vector result');
-  requireFact(typeof acceptance.build_id === 'string' && acceptance.build_id === manifest.build_id && manifest.schema === 'prismpm/application-verification-manifest/1' && manifest.acceptance_sha256 === digest(acceptanceBytes) && Array.isArray(manifest.processes) && manifest.processes.length > 0, 'CAP0005', 'SDK verification manifest does not bind the acceptance bytes and process evidence');
+  requireFact(build?.schema==='prismpm/build-result/1'&&verify?.schema==='prismpm/verify-result/1'&&manifest?.schema==='prismpm/application-verification-manifest/1', 'CAP0005', 'SDK command result or verification manifest schema changed');
+  requireFact(sha(build.build_id)&&build.build_id===verify.build_id&&build.build_id===acceptance.build_id&&build.build_id===manifest.build_id, 'CAP0005', 'SDK runtime receipt belongs to a different or malformed build');
+  requireFact(sha(verify.attestation_id)&&verify.verified_root===`.prism/verified/${verify.attestation_id}`&&Buffer.isBuffer(manifestBytes)&&digest(manifestBytes)===verify.attestation_id, 'CAP0005', 'SDK command result does not bind the exact verification manifest');
+  requireFact(manifest.acceptance_sha256===digest(acceptanceBytes)&&Buffer.isBuffer(lexleanBytes)&&manifest.lexlean_attestation_sha256===digest(lexleanBytes)&&Buffer.isBuffer(modelBytes)&&manifest.model_sha256===digest(modelBytes), 'CAP0005', 'SDK verification manifest does not bind the exact acceptance, kernel attestation and model bytes');
+  let lexlean;try {lexlean=JSON.parse(lexleanBytes);} catch {throw new CapabilityError('CAP0005','SDK kernel attestation is not JSON');}
+  requireFact(lexlean?.status==='verified'&&sha(lexlean.attestation_id)&&lexlean.attestation_id===acceptance.lexlean_attestation_id&&sha(build.source_id)&&build.source_id===acceptance.source_id&&build.source_id===lexlean.source_id&&sha(build.semantic_id)&&build.semantic_id===lexlean.semantic_id, 'CAP0005', 'SDK kernel attestation and runtime receipt belong to different sources');
+  const required=['lean-version','lake-version','rustfmt-version','rustc-version','timeout-version','hologram-oracle-build','hologram-oracle','core-wasm-validate','core-wasm-inspect','application-package-test','application-package-no-std','application-consumer-lock','application-generated-rust-corpus'];
+  requireFact(Array.isArray(manifest.processes)&&manifest.processes.length===required.length&&required.every(name=>manifest.processes.filter(p=>p?.tool===name).length===1), 'CAP0005', 'SDK verification manifest omits or duplicates a required application process');
+  requireFact(manifest.processes.every(p=>p.exit_code===0&&sha(p.executable_sha256)&&Array.isArray(p.argv)&&p.argv.every(arg=>typeof arg==='string')&&typeof p.stdout==='string'&&typeof p.stderr==='string'), 'CAP0005', 'SDK verification manifest has failed or malformed application process evidence');
+  let oracle;try {oracle=JSON.parse(manifest.processes.find(p=>p.tool==='hologram-oracle').stdout);} catch {throw new CapabilityError('CAP0005','SDK oracle process has no JSON result');}
+  requireFact(oracle?.schema==='prismpm/hologram-oracle/1'&&oracle.footer_verified===true, 'CAP0005', 'SDK oracle process omitted its verified footer result');
 }
 export function confined(base, path) {
   requireFact(typeof path === 'string' && path.length > 0 && !isAbsolute(path), 'CAP0005', 'SDK result path is not relative');
@@ -101,7 +116,7 @@ export function run(outputDirectory) {
   mkdirSync(out, {recursive:true});
   const contract = loadContract(join(root,'src/Uorc/CapabilityContract.lex.tex'));
   const evidence = {sdk:null, selected_upstream_sources:null, source_bindings:[], project_bindings:[], observations:[], bindings:[], artifacts:[], blockers:[]};
-  for (const name of ['src/Uorc/CapabilityContract.lex.tex','src/Uorc/Registry.lex.tex','Justfile','lexlean.toml','lexlean.lock','xtask/src/capabilities.rs','scripts/capability-probes.mjs','scripts/capability-probes.test.mjs','.github/workflows/capability-probes.yml','docs/governance/m0-source-selection.json',...new Set(contract.map(c=>`probes/capabilities/${c.fixture}`)), 'probes/capabilities/BinaryResponse.lex.tex','probes/capabilities/RejectedAcceptance.lex.tex','probes/capabilities/StoreApplication.lex.tex']) {
+  for (const name of ['src/Uorc/CapabilityContract.lex.tex','src/Uorc/Registry.lex.tex','Justfile','lexlean.toml','lexlean.lock','xtask/src/capabilities.rs','scripts/capability-probes.mjs','scripts/capability-probes.test.mjs','.github/workflows/capability-probes.yml','docs/governance/m0-source-selection.json',...new Set(contract.flatMap(c=>[c.fixture,c.application]).map(file=>`probes/capabilities/${file}`)), 'probes/capabilities/BinaryResponse.lex.tex','probes/capabilities/RejectedAcceptance.lex.tex','probes/capabilities/StoreApplication.lex.tex']) {
     evidence.source_bindings.push({path:name,sha256:digest(readFileSync(join(root,name)))});
   }
   evidence.selected_upstream_sources = readJson(join(root,'docs/governance/m0-source-selection.json'));
@@ -164,8 +179,10 @@ export function run(outputDirectory) {
     }
     // Record absence honestly; do not invent or exercise an unpublished CLI/FS API.
     evidence.blockers.push({code:'CAP0004',capability:'cli-filesystem',status:'dependency_blocked',binding_status:'binding_missing',reason:'No generated product CLI/filesystem binding is selected by the modeled TextApplication profile; this probe does not claim that no other SDK API can exist.'});
-    for(const [id,language,fixture] of [['core','1.1','Core.lex.tex'],['store','1.2','Store.lex.tex']]) {
-      const project=join(out,id);mkdirSync(join(out,'projects'),{recursive:true});
+    const projects=contract.filter(row=>['Core.lex.tex','Store.lex.tex'].includes(row.fixture));
+    requireFact(new Set(projects.map(row=>row.project)).size===projects.length,'CAP0001','Primitive projects must be independently bound');
+    for(const {project:id,language,fixture,application} of projects) {
+      const project=join(out,id);
       if(!execute(`${id}.init`,'lexlean',['init',project,'--name',`uorc-probe-${id}`,'--module-prefix','UorcProbe','--language',language],out).success)continue;
       copyFileSync(join(root,'probes/capabilities',fixture),join(project,'src/Main.lex.tex'));
       const lex=['--project',join(project,'lexlean.toml'),'--diagnostic-format','json'];
@@ -173,10 +190,10 @@ export function run(outputDirectory) {
       for(const action of ['lock','check','build','verify']) {
         const result=execute(`${id}.${action}`,'lexlean',[...lex,action],project);
         if(!result.success){ready=false;break;}
-        if(action==='build') {
+        if(action==='build'||action==='verify') {
           const build=JSON.parse(result.stdout);
-          requireFact(Array.isArray(build.artifacts)&&build.artifacts.length===1,'CAP0005','LexLean build did not identify exactly one generated root');
-          captureBuild(project,id,build.artifacts[0]);
+          requireFact(Array.isArray(build.artifacts)&&build.artifacts.length===1,'CAP0005','LexLean did not identify exactly one build or verified root');
+          captureBuild(project,action==='build'?id:`${id}-verified`,build.artifacts[0]);
         }
       }
       bindProject(id,project,'language');
@@ -194,20 +211,25 @@ export function run(outputDirectory) {
       const configPath=join(project,'lexlean.toml');let config=readFileSync(configPath,'utf8');
       requireFact(config.includes('entrypoints = ["src/Main.lex.tex"]')&&config.includes('[limits]'),'CAP0005','SDK initialized configuration shape changed');
       config=config.replace('entrypoints = ["src/Main.lex.tex"]','entrypoints = ["src/Application.lex.tex"]').replace('[limits]','[[lexicon_source]]\npackage = "prism.arch"\nkind = "path"\npath = "language/prism.arch"\n\n[limits]');writeFileSync(configPath,config);
-      copyFileSync(join(root,'probes/capabilities',id==='store'?'StoreApplication.lex.tex':'Application.lex.tex'),join(project,'src/Application.lex.tex'));
+      copyFileSync(join(root,'probes/capabilities',application),join(project,'src/Application.lex.tex'));
       writeFileSync(join(project,'prismpm.toml'),'spec = "prismpm/project/1"\nproject = "Uorc Capability Probe"\nlexlean_project = "lexlean.toml"\nbuild_root = ".prism"\n\n[limits]\nmax_holo_bytes = 16777216\nmax_entities = 100000\nmax_diagnostics = 256\n');
       if(!execute(`${id}.app.lock`,'lexlean',[...lex,'lock'],project).success)continue;
       bindProject(id,project,'application');
       const prism=['--project',project,'--json'];
+      let applicationBuild;
       for(const action of ['check','build','verify']) {
         const result=execute(`${id}.app.${action}`,'prismpm',[...prism,action],project);
         if(!result.success){ready=false;break;}
+        if(action==='build') {const response=JSON.parse(result.stdout);applicationBuild=response.result??response;}
         if(action==='verify') {
           const response=JSON.parse(result.stdout); const value=response.result??response;
           confined(project,value.verified_root);
           const acceptanceBytes=readFileSync(confined(project,`${value.verified_root}/application-acceptance.json`));
-          const manifest=readJson(confined(project,`${value.verified_root}/manifest.json`));
-          validateAcceptance(JSON.parse(acceptanceBytes),manifest,acceptanceBytes);
+          const manifestBytes=readFileSync(confined(project,`${value.verified_root}/manifest.json`));
+          const lexleanBytes=readFileSync(confined(project,`${value.verified_root}/lexlean-attestation.json`));
+          const modelBytes=readFileSync(confined(project,applicationBuild?.model_path));
+          validateAcceptance(JSON.parse(acceptanceBytes),JSON.parse(manifestBytes),acceptanceBytes,{build:applicationBuild,verify:value,manifestBytes,lexleanBytes,modelBytes});
+          const modelFile=`artifacts/${id}-model.prism.json`;writeFileSync(join(out,modelFile),modelBytes);evidence.artifacts.push({path:modelFile,sha256:digest(modelBytes)});
           for(const name of ['application-acceptance.json','manifest.json','lexlean-attestation.json']) {
             const bytes=readFileSync(confined(project,`${value.verified_root}/${name}`));const file=`artifacts/${id}-${name}`;mkdirSync(join(out,'artifacts'),{recursive:true});writeFileSync(join(out,file),bytes);evidence.artifacts.push({path:file,sha256:digest(bytes)});
           }
@@ -216,7 +238,7 @@ export function run(outputDirectory) {
       }
       if(ready) {
         const original=readFileSync(join(project,'src/Main.lex.tex'),'utf8');
-        for(const row of contract.filter(c=>c.fixture===fixture)) {
+        for(const row of contract.filter(c=>c.project===id&&c.fixture===fixture)) {
           const mutant=negateRegisteredRoot(original,row.root);
           writeFileSync(join(project,'src/Main.lex.tex'),mutant);
           const mutationPath=`artifacts/${id}-falsify-${row.id}.lex.tex`;

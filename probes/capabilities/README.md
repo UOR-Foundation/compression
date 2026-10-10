@@ -53,7 +53,7 @@ are never counted as large physical allocations.
 ## Falsifiability evidence
 
 Before the runner existed, `node --test scripts/capability-probes.test.mjs`
-failed with `ERR_MODULE_NOT_FOUND`. After implementation, twelve reporting tests
+failed with `ERR_MODULE_NOT_FOUND`. After implementation and receipt hardening, seventeen reporting tests
 passed. They reject empty observations, a check-only report, zero-exit output
 without complete SDK artifacts, and promotion of text-profile acceptance to
 arbitrary binary transport. This is reporting-infrastructure evidence only;
@@ -93,7 +93,7 @@ not establish failure of the executable primitives.
 
 The probe now asks the SDK to kernel-check its definitions and then execute
 its source-authored assertions. It does not claim a kernel equality theorem
-for the observed runtime values. Every core request exercises parameterized
+for the observed runtime values. Across the isolated core projects, requests exercise parameterized
 bytes, checked U64 arithmetic, records/variants, immutable indexing/slicing
 and Scan; the public root list also retains their parameterized operations.
 A separate store profile only names declarations present in the store module.
@@ -142,3 +142,47 @@ the committed CONFORMANCE, ID-register and SDK-capabilities scenario bytes.
 Both full offline architectures rejected the probe workflow's missing
 `fetch-depth: 0` at the existing bootstrap audit; the workflow now supplies
 complete history while still disabling persisted checkout credentials.
+
+## Independent exporter observations
+
+At source `f12db1b5164f25c4dc2f58c51af443fc63c43177`, run `38025277002`
+passed complete core kernel verification, imported the locked public
+TextApplication model, and passed its model check. The binary-response
+negative actually produced PP2009. Export then rejected the checked-U64
+specialization used by `countSteps` with PP5004: the call to
+`LexLeanRuntime.checkedAdd._at_.UorcProbe.Main.addU64.spec_0` remained external.
+Artifact `11659694049`, SHA-256
+`a6ac0c9c15284531de430e0cc1624632b182fd59c3734a10ce9b208c10e2e914`, retains
+the exact observation. This is an exporter failure, not failed kernel
+verification or observed runtime behavior.
+
+Each capability now selects its own authored application and named export
+roots in a separate real SDK project. A checked-U64 export failure therefore
+cannot prevent an independent bytes or record probe from running. Byte-buffer
+assertions use append, length and exact fixture equality without importing
+indexing or U64 arithmetic. Every project still kernel-verifies the complete
+common Core module, and each selected registered assertion has its own
+runtime falsifier. The report attributes each outcome to its modeled project.
+The isolation regression first failed on the old shared project, then passed.
+Both complete build artifacts and successful kernel-verification artifacts
+are now retained and hashed. Execution of these isolated profiles remains
+required; a local reporting test never establishes SDK runtime support.
+
+## Receipt identity and process closure
+
+The reporting validator binds the unchanged application build result to the
+verify result, acceptance and manifest. The returned attestation ID must hash
+the raw manifest bytes, which bind the raw acceptance, LexLean attestation and
+model bytes. Kernel source and semantic identities must match the build.
+Every one of the thirteen processes emitted by the selected SDK application
+verifier must occur once, exit successfully and carry an executable digest.
+The oracle process must also contain its verified-footer result. These are
+checks of imported SDK evidence; the runner does not reproduce verification.
+
+Three synthetic reporting regressions first failed against the earlier
+validator, which admitted unrelated process records and unbound build IDs.
+They passed after identity and process closure checks were added. A fourth
+rejects kernel-source and oracle mismatches even when synthetic receipt hashes
+are recomputed. Seventeen capability/reporting tests and fifteen inherited
+offline-boundary tests pass locally. Synthetic receipts establish only
+validator behavior, never successful SDK execution.
