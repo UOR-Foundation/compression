@@ -58,7 +58,9 @@ proof, wrong source file, syntax error, tool failure, timeout, signal, or succes
 exit cannot qualify. The harness's five executed tests exercise these rejected
 outcomes, omitted/filtered gates, malformed mutation inventories, and precise
 single-field mutation. The harness inspects its own mandatory invocation and
-unfiltered iteration. The Rust test runner invokes all harness tests and rejects
+unfiltered iteration. Review regressions also plant a conditional skip and an
+early return; both failed before the source audit was strengthened and now
+pass by rejecting the altered harness. The Rust test runner invokes all harness tests and rejects
 skips, pending tests, or an empty run.
 
 ## Acceptance and retained evidence
