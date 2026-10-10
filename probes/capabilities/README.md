@@ -186,3 +186,58 @@ rejects kernel-source and oracle mismatches even when synthetic receipt hashes
 are recomputed. Seventeen capability/reporting tests and fifteen inherited
 offline-boundary tests pass locally. Synthetic receipts establish only
 validator behavior, never successful SDK execution.
+
+## Isolated pinned-image results
+
+Run `38027841016` at `b2fbd0661e4b9895add6168aeb72d83f18312b1f`
+passed kernel verification for all five core projects. Records/variants also
+passed export and build. Its verifier then failed while building the genuine
+Hologram oracle: PP5301 reported an unavailable offline `tokio` dependency.
+The old report labeled that observation `failed`; the classifier now retains
+its exact phase and reports `dependency_blocked`. No runtime acceptance was
+established. Artifact `11660233964`, SHA-256
+`acd53ffce55451779aa262f89129b144ef704060977988ab072d04b25f1f8cf0`, retains
+the complete source-bound observations.
+
+Bytes reached generated Rust compilation and failed PP4102 because append
+called `extend_from_slice` on a borrowed byte slice. Indexed bytes failed
+export on specialized index/slice calls; checked-U64 and Scan failed export
+on specialized checked-add calls. Store initialization again rejected
+language 1.2. The text-profile binary-response restriction produced PP2009.
+These are distinct observed boundaries; one failed exporter no longer masks
+another project's result.
+
+The selected PrismPM main and the actual repaired PR129/PR184 bases already
+contain the byte-append ownership correction and SDK-owned oracle acquisition
+step. For `c28f119e69635d7dd50650305619fdb0aa368af4` and
+`b927c2d2b0713ebb34782a90dae040340d805026`, the acquisition script blob is
+`43d33ff8a379989de0f1673c4530ebc099747a9c`; `sdk/Dockerfile` invokes it
+before the immutable cache is copied. This source audit is not an installed
+SDK success. Only qualification and a legitimate immutable dependency update
+can establish those repairs for compression.
+
+Two planted reporting defects initially admitted an oracle build error as a
+negative or mislabeled the missing offline package. Both tests now pass:
+a negative requires the executed oracle's specific modeled-vector disagreement,
+not PP5301 alone. Twenty capability/reporting tests and fifteen inherited
+offline-boundary tests pass locally. The gate still preserves every required
+runtime probe and never enables network access to repair offline acceptance.
+
+## Parameterized persistent-store fixture
+
+A source audit found that the original store profile exported only closed
+constant computations. Its source-owned correction now exports generic
+UInt64-addressed insert, lookup and remove functions, plus the parameterized
+store exercise and request bridge. Incoming request bytes become a stored
+payload. Runtime-selected high addresses, including UInt64 maximum and
+2^32 + 1, coexist with key 1. Original, written, replaced, removed and cleared
+versions remain referenced after subsequent updates, and their old values
+or absence are checked independently.
+
+Two source-shape regressions failed against the closed-only fixture and pass
+after the correction. Twenty-two capability/reporting tests and fifteen
+offline-boundary tests pass locally. The currently pinned SDK still rejects
+language 1.2 before this fixture can execute. These source edits establish no
+new runtime support; actual new-SDK kernel, exporter and runtime results remain
+required. Generic operation signatures are explicit export roots, so a
+constant-folded entry computation cannot establish their exporter support.

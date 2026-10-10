@@ -78,6 +78,17 @@ export function validateAcceptance(acceptance, manifest, acceptanceBytes, bundle
   let oracle;try {oracle=JSON.parse(manifest.processes.find(p=>p.tool==='hologram-oracle').stdout);} catch {throw new CapabilityError('CAP0005','SDK oracle process has no JSON result');}
   requireFact(oracle?.schema==='prismpm/hologram-oracle/1'&&oracle.footer_verified===true, 'CAP0005', 'SDK oracle process omitted its verified footer result');
 }
+export function classifyResult(result,{expectedExit=0,requiredDiagnostic,requiredOracleMismatch=false}={}) {
+  const stdout=result.stdout??'',stderr=result.stderr??'';
+  const codes=[...new Set((stdout+'\n'+stderr).match(/\b(?:LL[A-Z]|PP)[0-9]{4}\b/g)??[])];
+  let diagnostic;try {const value=JSON.parse(stdout);if(value.schema==='prismpm/error-result/1')diagnostic=value.diagnostic;} catch {}
+  const message=typeof diagnostic?.message==='string'?diagnostic.message:'';
+  const oracleDependency=diagnostic?.code==='PP5301'&&/^hologram-oracle-build exited [0-9]+: /.test(message)&&message.includes('no matching package named');
+  const dependencyFailure=!!result.error||oracleDependency||codes.some(c=>['LLV7001','PP1004','PP5001','PP5002','PP9001'].includes(c));
+  const oracleMismatch=!requiredOracleMismatch||(diagnostic?.code==='PP5301'&&message.startsWith('hologram-oracle exited 1: ')&&message.includes('upstream direct execution disagrees with a modeled vector'));
+  const success=result.status===expectedExit&&!result.error&&!dependencyFailure&&(!requiredDiagnostic||codes.includes(requiredDiagnostic))&&oracleMismatch;
+  return {success,codes,status:success?'passed':dependencyFailure?'dependency_blocked':'failed',...(oracleDependency?{failure_phase:'hologram-oracle-build',failure_kind:'offline_dependency_missing'}:{})};
+}
 export function confined(base, path) {
   requireFact(typeof path === 'string' && path.length > 0 && !isAbsolute(path), 'CAP0005', 'SDK result path is not relative');
   const target = resolve(base, path), rel = relative(base, target);
@@ -144,19 +155,17 @@ export function run(outputDirectory) {
   };
   const save = () => {const report=makeReport(contract,evidence);writeFileSync(join(out,'compatibility.json'),encode(report));writeFileSync(join(out,'compatibility.md'),markdown(report));return report;};
   let commands;
-  function execute(id, command, args, cwd, {expectedExit=0, requiredDiagnostic, timeout=1200000}={}) {
+  function execute(id, command, args, cwd, {expectedExit=0, requiredDiagnostic, requiredOracleMismatch=false, timeout=1200000}={}) {
     requireFact(!evidence.observations.some(o=>o.id===id), 'CAP0006', 'Duplicate observation identifier');
     const executable=commands.get(command);
     requireFact(executable, 'CAP0002', `SDK does not bind executable ${command}`);
     const result=spawnSync(executable,args,{cwd,encoding:'utf8',timeout,maxBuffer:32*1024*1024,env:{...process.env,CARGO_NET_OFFLINE:'true'}});
     const stdout=result.stdout??'',stderr=result.stderr??'';
-    const codes=[...new Set((stdout+'\n'+stderr).match(/\b(?:LL[A-Z]|PP)[0-9]{4}\b/g)??[])];
-    const diagnosticMatches=!requiredDiagnostic||codes.includes(requiredDiagnostic);
+    const classification=classifyResult(result,{expectedExit,requiredDiagnostic,requiredOracleMismatch});
+    const {success,codes,status}=classification;
     const logBase=`logs/${id}`; mkdirSync(join(out,'logs'),{recursive:true});
     writeFileSync(join(out,`${logBase}.stdout`),stdout);writeFileSync(join(out,`${logBase}.stderr`),stderr);
-    const success=result.status===expectedExit&&!result.error&&diagnosticMatches;
-    const dependencyFailure=!!result.error||codes.some(c=>['LLV7001','PP1004','PP5001','PP5002','PP9001'].includes(c));
-    const observation={id,command,executable,args:args.map(a=>a.startsWith(out)?`$RUN/${relative(out,a)}`:a),cwd:`$RUN/${relative(out,cwd)}`,status:success?'passed':dependencyFailure?'dependency_blocked':'failed',exit:result.status,signal:result.signal,diagnostic_codes:codes,expected_exit:expectedExit,...(requiredDiagnostic?{required_diagnostic:requiredDiagnostic}:{}),...(result.error?{process_error:result.error.code??String(result.error)}:{}),stdout:{path:`${logBase}.stdout`,sha256:digest(stdout)},stderr:{path:`${logBase}.stderr`,sha256:digest(stderr)}};
+    const observation={id,command,executable,args:args.map(a=>a.startsWith(out)?`$RUN/${relative(out,a)}`:a),cwd:`$RUN/${relative(out,cwd)}`,status,...(classification.failure_phase?{failure_phase:classification.failure_phase,failure_kind:classification.failure_kind}:{}),exit:result.status,signal:result.signal,diagnostic_codes:codes,expected_exit:expectedExit,...(requiredDiagnostic?{required_diagnostic:requiredDiagnostic}:{}),...(requiredOracleMismatch?{required_oracle_mismatch:true}:{}),...(result.error?{process_error:result.error.code??String(result.error)}:{}),stdout:{path:`${logBase}.stdout`,sha256:digest(stdout)},stderr:{path:`${logBase}.stderr`,sha256:digest(stderr)}};
     evidence.observations.push(observation);save();return {success,stdout,stderr,observation};
   }
   try {
@@ -244,7 +253,7 @@ export function run(outputDirectory) {
           const mutationPath=`artifacts/${id}-falsify-${row.id}.lex.tex`;
           writeFileSync(join(out,mutationPath),mutant);
           evidence.artifacts.push({path:mutationPath,sha256:digest(mutant),registered_root:row.root,purpose:'single-root dependency-edge falsification'});
-          execute(`${id}.falsify.${row.id}`,'prismpm',[...prism,'verify'],project,{expectedExit:1,requiredDiagnostic:'PP5301'});
+          execute(`${id}.falsify.${row.id}`,'prismpm',[...prism,'verify'],project,{expectedExit:1,requiredDiagnostic:'PP5301',requiredOracleMismatch:true});
           writeFileSync(join(project,'src/Main.lex.tex'),original);
         }
       }
@@ -254,7 +263,7 @@ export function run(outputDirectory) {
         execute('core.binary-response-rejection','prismpm',[...prism,'check'],project,{expectedExit:1,requiredDiagnostic:'PP2009'});
         if(ready) {
           copyFileSync(join(root,'probes/capabilities/RejectedAcceptance.lex.tex'),join(project,'src/Application.lex.tex'));
-          execute('core.reject','prismpm',[...prism,'verify'],project,{expectedExit:1,requiredDiagnostic:'PP5301'});
+          execute('core.reject','prismpm',[...prism,'verify'],project,{expectedExit:1,requiredDiagnostic:'PP5301',requiredOracleMismatch:true});
         }
         copyFileSync(join(root,'probes/capabilities/Application.lex.tex'),join(project,'src/Application.lex.tex'));
       }

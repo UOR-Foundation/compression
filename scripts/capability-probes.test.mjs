@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadContract, makeReport, validateAcceptance, CapabilityError, confined, negateRegisteredRoot } from './capability-probes.mjs';
+import { loadContract, makeReport, validateAcceptance, CapabilityError, confined, negateRegisteredRoot, classifyResult } from './capability-probes.mjs';
 
 const contract = loadContract(new URL('../src/Uorc/CapabilityContract.lex.tex', import.meta.url));
 test('conformance_uc_sdk_01', () => {
@@ -224,4 +224,53 @@ test('synthetic source or oracle mismatches fail even when receipt digests are u
   for(const stdout of ['', '{}', JSON.stringify({schema:'prismpm/hologram-oracle/1',footer_verified:false})]) {
     const r=syntheticReceipt();r.manifest.processes.find(p=>p.tool==='hologram-oracle').stdout=stdout;resealSynthetic(r);assert.throws(()=>validateSynthetic(r),CapabilityError);
   }
+});
+
+test('offline oracle dependency failure never counts as runtime rejection', () => {
+  const result={status:1,stdout:JSON.stringify({schema:'prismpm/error-result/1',diagnostic:{code:'PP5301',message:'hologram-oracle-build exited 101: stdout=""; stderr="error: no matching package named `tokio` found"'}}),stderr:''};
+  const observed=classifyResult(result,{expectedExit:1,requiredDiagnostic:'PP5301',requiredOracleMismatch:true});
+  assert.equal(observed.status,'dependency_blocked');assert.equal(observed.success,false);
+});
+test('oracle falsifier requires actual modeled-vector disagreement from executed oracle', () => {
+  const result=message=>({status:1,stdout:JSON.stringify({schema:'prismpm/error-result/1',diagnostic:{code:'PP5301',message}}),stderr:''});
+  const expected={expectedExit:1,requiredDiagnostic:'PP5301',requiredOracleMismatch:true};
+  const matched=classifyResult(result('hologram-oracle exited 1: stdout=""; stderr="upstream direct execution disagrees with a modeled vector"'),expected);
+  assert.equal(matched.success,true);assert.equal(matched.status,'passed');
+  for(const message of ['hologram-oracle-build exited 101: upstream direct execution disagrees with a modeled vector','hologram-oracle exited 1: failed to load archive','pinned Hologram oracle did not return complete acceptance'])assert.equal(classifyResult(result(message),expected).success,false);
+});
+test('compiler failure remains distinct from an offline acquisition failure', () => {
+  const result={status:1,stdout:JSON.stringify({schema:'prismpm/error-result/1',diagnostic:{code:'PP4102',message:'application-cargo-check exited 101: error[E0599]: no method named extend_from_slice found'}}),stderr:''};
+  assert.equal(classifyResult(result).status,'failed');
+});
+
+test('persistent store exposes parameterized primitive operations and request-fed version checks', () => {
+  const source=readFileSync(new URL('../probes/capabilities/Store.lex.tex',import.meta.url),'utf8');
+  const module=JSON.parse(source.match(/\\semanticdata\{(.*)\}\n/)[1]);
+  for(const [name,operation,arity] of [['insertStore','map_insert',3],['lookupStore','map_lookup',2],['removeStore','map_remove',2]]) {
+    const definition=module.declarations.find(d=>d.name===name);
+    assert(definition,`${name} must be authored`);assert.equal(definition.parameters.length,arity);
+    assert.equal(definition.body.operation,operation);
+    assert.deepEqual(definition.body.arguments,definition.parameters.map(p=>({kind:'var',name:p.name})));
+  }
+  const exercise=module.declarations.find(d=>d.name==='exerciseStore');
+  assert.deepEqual(exercise.parameters.map(p=>p.name),['address','request']);
+  const body=JSON.stringify(exercise.body);
+  for(const name of ['original','written','replaced','removed'])assert(body.includes(`"name":"${name}"`));
+  assert(body.includes('"name":"request"'));
+  for(const name of ['insertStore','lookupStore','removeStore'])assert(body.includes(`"name":"${name}"`));
+  const calls=[];const walk=value=>{if(!value||typeof value!=='object')return;if(value.kind==='call')calls.push(value);for(const child of Object.values(value))if(Array.isArray(child))child.forEach(walk);else walk(child);};walk(exercise.body);
+  for(const name of ['original','written','replaced','removed','cleared'])assert(calls.filter(c=>c.function.name==='lookupStore'&&c.arguments[0].kind==='var'&&c.arguments[0].name===name).length>=2,`${name} must be read after later operations`);
+  assert(calls.some(c=>c.function.name==='insertStore'&&c.arguments[2].kind==='var'&&c.arguments[2].name==='request'));
+  const runtime=module.declarations.find(d=>d.name==='runtimeStore');
+  assert.deepEqual(runtime.parameters,[{name:'request',type:{kind:'bytes'}}]);
+  assert.equal(runtime.body.function.name,'exerciseStore');assert.deepEqual(runtime.body.arguments[1],{kind:'var',name:'request'});
+
+});
+test('store application executes request-dependent checks and retains all store operation roots', () => {
+  const source=readFileSync(new URL('../probes/capabilities/StoreApplication.lex.tex',import.meta.url),'utf8');
+  const module=JSON.parse(source.match(/\\semanticdata\{(.*)\}\n/)[1]);
+  const run=module.declarations.find(d=>d.name==='run');
+  assert.deepEqual(run.body.condition.right,{arguments:[{kind:'var',name:'request'}],function:{module:'Main',name:'runtimeStore'},kind:'call'});
+  const application=JSON.stringify(module.declarations.find(d=>d.name==='application'));
+  for(const name of ['insertStore','lookupStore','removeStore','exerciseStore','runtimeStore'])assert(application.includes(`UorcProbe.Main.${name}`));
 });
