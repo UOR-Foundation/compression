@@ -21,7 +21,8 @@ absolute roots, copies source without proof/build/acquisition outputs, and runs
 model generation plus LexLean lock/format/check/build/verify in each. It compares
 every renderer-declared projection against the committed original and compares
 every file in the returned build and verified artifact trees. It rejects extra
-content-addressed result trees, missing/wrong artifact paths, differing bytes,
+content-addressed result trees, missing/wrong artifact paths, symlinked artifact
+or projection parents, empty/duplicate projection inventories, differing bytes,
 and embedded checkout paths. It does not invoke `just vv` recursively.
 
 The read-only CI job invokes `node scripts/offline-validation.mjs isolated`
@@ -68,7 +69,7 @@ compared execution record. There are no timing fields to discard.
 | URD002 | Setup source/SDK identity stale; changed receipt is executed in CI |
 | URD003 | Acquisition cache changed or incomplete; extra cache file is executed in CI |
 | URD004 | Offline boundary has non-loopback network or Docker socket |
-| URP001 | Symlink/non-regular source or artifact; adjacent-file unit plant |
+| URP001 | Symlink/non-regular source or artifact, including projection/artifact parent directories; adjacent-file and parent-directory plants |
 | URP002 | Claimed clean root already has build/proof output; unit plants for each output root |
 | URP003 | Canonical inventory/byte mismatch or absolute checkout path; changed, wrong-file and extra-tree unit plants |
 | URP004 | Missing/wrong projection, artifact, result ID or current-build binding; unit plants |
@@ -89,6 +90,23 @@ must fail locked, offline Cargo metadata. The fake tool must never execute;
 then the restored SDK control must pass.
 
 ## Validation status
+
+### Pre-merge confinement review, 2026-10-10
+
+Review found that leaf-file checks followed symlinks in projection and SDK
+artifact parent directories. The inventory also accepted an empty projection
+list when called directly. Two regression tests failed against the original
+implementation with `Missing expected exception`. After checking each path
+component and validating the inventory at its consumption boundary, all 17
+Node tests passed with zero skips or pending tests. The symlink test moves each
+of six real fixture directories into an adjacent root, requires URP001, restores
+the original directory, and requires the original three-file inventory again.
+Empty, duplicate, absolute and traversing projection paths require URP004.
+
+These tests strengthen the existing UC-REP-01/02 scenarios. They are validation
+harness evidence; full SDK acceptance remains the unchanged `just vv` and
+dual-platform offline workflow. The prior revision's results below do not
+qualify this correction or a future SDK reconciliation.
 
 At commit `68054e4cdea921b2a16a176ece6cf4fc98b66c05`, both native platforms
 passed full offline execution in

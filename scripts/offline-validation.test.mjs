@@ -52,6 +52,24 @@ test('artifact inventory includes every projection, generated and verified byte'
 test('missing projections cannot produce vacuous artifact identity', t => {
   const f = fixture(t); fs.unlinkSync(path.join(f.root, 'model/ids.toml')); assert.throws(() => inventory(f), /URP004/);
 });
+test('artifact and projection parent symlinks cannot import adjacent evidence', t => {
+  for (const relative of ['model', '.lexlean', '.lexlean/build', `.lexlean/build/${'a'.repeat(64)}`, '.lexlean/verified', `.lexlean/verified/${'b'.repeat(64)}`]) {
+    const f = fixture(t), adjacent = temporary(t), original = path.join(f.root, relative);
+    const held = path.join(adjacent, 'held');
+    fs.renameSync(original, held);
+    fs.symlinkSync(held, original);
+    assert.throws(() => inventory(f), /URP001/, relative);
+    fs.unlinkSync(original);
+    fs.renameSync(held, original);
+    assert.equal(inventory(f).files.length, 3);
+  }
+});
+test('projection inventories reject omitted, duplicate and escaping paths', t => {
+  for (const paths of [[], ['model/ids.toml', 'model/ids.toml'], ['../outside'], ['/tmp/outside'], ['model/../model/ids.toml'], ['']]) {
+    const f = fixture(t); f.projections = paths;
+    assert.throws(() => inventory(f), /URP004/);
+  }
+});
 test('verification must bind the current build and expected artifact path', t => {
   const f = fixture(t); f.verified.build_id = 'c'.repeat(64); assert.throws(() => inventory(f), /URP004/);
   f.verified.build_id = f.build.build_id; f.verified.artifacts = [f.build.artifacts[0]]; assert.throws(() => inventory(f), /URP004/);
