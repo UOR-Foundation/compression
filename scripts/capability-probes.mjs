@@ -32,13 +32,15 @@ export function loadContract(path) {
   return rows;
 }
 export function makeReport(contract, evidence) {
+  requireFact(Array.isArray(contract) && contract.length > 0 && new Set(contract.map(row=>row.id)).size === contract.length, 'CAP0001', 'Report requires a nonempty unique capability register');
+  requireFact(Array.isArray(evidence.observations) && new Set(evidence.observations.map(row=>row.id)).size === evidence.observations.length, 'CAP0006', 'Report contains duplicate or missing observations');
   const stage = id => evidence.observations.find(o=>o.id === id)?.status ?? 'not_run';
   const passed = id => stage(id) === 'passed';
   const capabilities = contract.map(row => {
     const project = row.project;
     const verified = passed(`${project}.app.evidence`) && passed(`${project}.app.verify`);
     const assertion = row.fixture === 'Core.lex.tex' || row.fixture === 'Store.lex.tex';
-    const runtime = verified && (!assertion || passed(`${project}.falsify.${row.id}`)) ? 'passed' : verified ? 'negative_not_passed' : stage(`${project}.app.verify`);
+    const runtime = verified && (!assertion || passed(`${project}.falsify.${row.id}`)) ? 'passed' : verified ? 'negative_not_passed' : passed(`${project}.app.verify`) ? 'evidence_missing' : stage(`${project}.app.verify`);
     const languageFailure=evidence.observations.find(o=>[`${project}.init`,`${project}.lock`,`${project}.check`,`${project}.build`,`${project}.verify`].includes(o.id)&&o.status!=='passed');
     const result = { ...row, language: languageFailure?.status ?? stage(`${project}.verify`), language_failure_phase:languageFailure?.id??null, exporter: stage(`${project}.app.build`), runtime,
       physical_large_input: { status:'not_measured', boundary:row.physical },

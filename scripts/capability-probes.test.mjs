@@ -26,6 +26,17 @@ test('zero exit without complete SDK acceptance is not runtime evidence', () => 
   assert.throws(() => validateAcceptance({}, {}, ''), CapabilityError);
   assert.throws(() => validateAcceptance({ status: 'verified', schema: 'prismpm/application-acceptance/1' }, {}, ''), CapabilityError);
 });
+test('successful verify without validated receipt never reports runtime support', () => {
+  const observations = ['records.verify', 'records.app.build', 'records.app.verify'].map(id => ({id,status:'passed'}));
+  const report = makeReport(contract, {sdk:null,observations,bindings:[],artifacts:[]});
+  assert.notEqual(report.capabilities.find(row => row.id === 'records-variants').runtime, 'passed');
+});
+test('duplicate observations and an empty contract cannot produce an accepted report', () => {
+  const evidence = {sdk:null,observations:[],bindings:[],artifacts:[]};
+  assert.throws(() => makeReport([], evidence), CapabilityError);
+  evidence.observations = [{id:'records.app.verify',status:'passed'}, {id:'records.app.verify',status:'failed'}];
+  assert.throws(() => makeReport(contract, evidence), CapabilityError);
+});
 test('report cannot promote text response verification to arbitrary binary transport', () => {
   const observations = ['core.check','core.verify','core.app.build','core.app.verify','core.app.evidence','core.reject'].map(id => ({id,status:'passed'}));
   const report = makeReport(contract, {sdk:'test reporting only',observations,bindings:[],artifacts:[]});

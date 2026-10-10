@@ -170,6 +170,16 @@ required; a local reporting test never establishes SDK runtime support.
 
 ## Receipt identity and process closure
 
+Pre-merge review on 2026-10-10 found that a successful `app.verify` observation
+could survive a rejected receipt as `runtime: passed`. A regression with no
+validated receipt reproduced that false support report. The report now emits
+`evidence_missing` until `app.evidence` has also passed. Empty capability
+registers and duplicate observation IDs are rejected rather than being reduced
+to vacuous acceptance or the first matching status. Both new regression tests
+failed against the prior implementation; all 24 capability tests pass after
+the correction, with zero skipped or pending tests. This is report-validator
+evidence and does not resolve any installed SDK capability failure.
+
 The reporting validator binds the unchanged application build result to the
 verify result, acceptance and manifest. The returned attestation ID must hash
 the raw manifest bytes, which bind the raw acceptance, LexLean attestation and
