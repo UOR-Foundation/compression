@@ -11,9 +11,9 @@ function requireFact(value,message){if(!value)throw new Error(`UC-VAR-01: ${mess
 export function auditGate(just,harness){
   requireFact(just.split('\n').filter(line=>/^vv:/.test(line)).length===1&&/^vv:.*\bvarint-proofs\b/m.test(just),'required varint gate omitted');
   requireFact(just.split('\n').filter(line=>/^varint-proofs:/.test(line)).length===1&&/^varint-proofs:\n    node scripts\/varint-validation\.mjs\n(?:\n|$)/m.test(just),'varint command altered or conditional');
-  const body=harness.slice(harness.lastIndexOf('export function run(root)'));
+  const body=harness.slice(harness.lastIndexOf('export function run(root)')).split('\nif(process.argv')[0];
   for(const required of ['for(const mutation of cases)', 'expectedFailure(result,mutation);', "verified.modules.includes('Uorc.Varint')", 'receipts.length===cases.length'])requireFact(body.includes(required),`omitted ${required}`);
-  requireFact(!/\b(continue|break)\b|cases\.(filter|slice|splice)|process\.env/.test(body),'filtered or conditional mutation execution');
+  requireFact(!/\b(if|switch|while|return|continue|break)\b|cases\.(filter|slice|splice)|process\.env/.test(body.replace('return result;','')),'filtered or conditional mutation execution');
 }
 export function parse(source){const rows=[...source.matchAll(/\\coredata\{(.*)\}\n/g)];requireFact(rows.length===1,'expected one core module');return JSON.parse(rows[0][1]);}
 export function plant(source,mutation){

@@ -69,6 +69,9 @@ roots, exit codes, restored build IDs and attestations are retained under
 `.prism/uorc/varint.*` and uploaded with offline CI evidence.
 
 The harness tests also plant wrong-owner diagnostics, omitted/filtered gates,
+conditional mutation omission, and premature return. Both the claim and varint
+harnesses reject these execution bypasses; the new regressions failed before the
+source audits were strengthened. They also exercise
 unknown arguments, and accidental shared-node mutation. The full unfiltered
 harness test file is invoked by the Rust workspace tests. Full `just vv` remains
 the acceptance boundary, including claim-disposition mutations and complete

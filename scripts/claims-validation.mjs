@@ -12,9 +12,9 @@ function requireFact(condition, message) { if (!condition) throw new Error(`UC-H
 export function auditGate(just, harness) {
   requireFact(just.split('\n').filter(line=>/^vv:/.test(line)).length===1 && /^vv:.*\bclaim-dispositions\b/m.test(just), 'required gate omitted');
   requireFact(just.split('\n').filter(line=>/^claim-dispositions:/.test(line)).length===1 && /^claim-dispositions:\n    node scripts\/claims-validation\.mjs\n(?:\n|$)/m.test(just), 'mutation command altered or conditional');
-  const runBody=harness.slice(harness.lastIndexOf('export function run(root)'));
+  const runBody=harness.slice(harness.lastIndexOf('export function run(root)')).split('\nif(process.argv')[0];
   for(const required of ['const cases = mutations(source);', 'for(const mutation of cases)', 'expectedFailure(result,mutation,generated);', "verified.modules.includes('Uorc.Claims')", 'receipts.length===cases.length']) requireFact(runBody.includes(required), `harness omitted ${required}`);
-  requireFact(!/\b(continue|break)\b|cases\.(filter|slice|splice)|process\.env/.test(runBody), 'mutation execution is filtered or conditional');
+  requireFact(!/\b(if|switch|while|return|continue|break)\b|cases\.(filter|slice|splice)|process\.env/.test(runBody.replace('return result;','')), 'mutation execution is filtered or conditional');
 }
 export function mutations(source) {
   const matches = [...source.matchAll(/\\semanticdata\{(.*)\}\n/g)];

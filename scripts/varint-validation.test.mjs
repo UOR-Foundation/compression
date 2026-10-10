@@ -41,7 +41,7 @@ test('the required gate and full execution cannot be filtered or silently omitte
   const just=fs.readFileSync(new URL('../Justfile',import.meta.url),'utf8'),harness=fs.readFileSync(new URL('./varint-validation.mjs',import.meta.url),'utf8');
   auditGate(just,harness);
   for(const altered of [just.replace('claim-dispositions varint-proofs','claim-dispositions'),just.replace('node scripts/varint-validation.mjs','node scripts/varint-validation.mjs || true')])assert.throws(()=>auditGate(altered,harness));
-  for(const altered of [harness.replaceAll('for(const mutation of cases)','for(const mutation of cases.slice(1))'),harness.replaceAll('expectedFailure(result,mutation);',''),harness.replaceAll('receipts.length===cases.length','true')])assert.throws(()=>auditGate(just,altered));
+  for(const altered of [harness.replaceAll('for(const mutation of cases)','for(const mutation of cases.slice(1))'),harness.replaceAll('expectedFailure(result,mutation);',''),harness.replaceAll('receipts.length===cases.length','true'),harness.replaceAll('for(const mutation of cases)','if(false) for(const mutation of cases)'),harness.replaceAll('for(const mutation of cases)','return; for(const mutation of cases)')])assert.throws(()=>auditGate(just,altered));
   const own=fs.readFileSync(new URL('./varint-validation.test.mjs',import.meta.url),'utf8');
   assert.doesNotMatch(own,/test\.(skip|todo|only)\s*\(|\{\s*(skip|todo|only)\s*:/);
   const wrapper=fs.readFileSync(new URL('../xtask/src/varint.rs',import.meta.url),'utf8');

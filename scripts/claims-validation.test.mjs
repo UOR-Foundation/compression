@@ -59,7 +59,7 @@ test('the complete mutation run is mandatory and its own source rejects omission
   const harness=fs.readFileSync(new URL('./claims-validation.mjs',import.meta.url),'utf8');
   auditGate(just,harness);
   for(const changed of [just.replace('lexlean-artifacts claim-dispositions','lexlean-artifacts'),just.replace('node scripts/claims-validation.mjs','node scripts/claims-validation.mjs || true')]) assert.throws(()=>auditGate(changed,harness));
-  for(const changed of [harness.replaceAll('for(const mutation of cases)', 'for(const mutation of cases.slice(1))'),harness.replaceAll('expectedFailure(result,mutation,generated);',''),harness.replaceAll('receipts.length===cases.length','true')]) assert.throws(()=>auditGate(just,changed));
+  for(const changed of [harness.replaceAll('for(const mutation of cases)', 'for(const mutation of cases.slice(1))'),harness.replaceAll('expectedFailure(result,mutation,generated);',''),harness.replaceAll('receipts.length===cases.length','true'),harness.replaceAll('for(const mutation of cases)','if(false) for(const mutation of cases)'),harness.replaceAll('for(const mutation of cases)','return; for(const mutation of cases)')]) assert.throws(()=>auditGate(just,changed));
   const own=fs.readFileSync(new URL('./claims-validation.test.mjs',import.meta.url),'utf8');
   assert.doesNotMatch(own,/test\.(skip|todo|only)\s*\(|\{\s*(skip|todo|only)\s*:/);
   const wrapper=fs.readFileSync(new URL('../xtask/src/claims.rs',import.meta.url),'utf8');
