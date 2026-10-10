@@ -3,7 +3,7 @@
 default: vv
 
 # The whole gate.
-vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts reproducibility
+vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts reproducibility sdk-capabilities
     @echo "vv: the acceptance gate passed"
 
 # The UORC authority files are real LexLean source, not merely files with a
@@ -76,3 +76,13 @@ lexlean-artifacts:
 # This invokes model/build/verify in clean roots, never recursively `just vv`.
 reproducibility:
     node scripts/offline-validation.mjs reproduce
+
+# Real SDK runtime requirements fail closed, including absent public bindings.
+# Each invocation owns a new evidence directory; prior reports cannot be reused.
+sdk-capabilities:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p .prism/uorc
+    run=$(mktemp -d .prism/uorc/capabilities.XXXXXX)
+    node --test scripts/capability-probes.test.mjs
+    node scripts/capability-probes.mjs "$run/observations"
