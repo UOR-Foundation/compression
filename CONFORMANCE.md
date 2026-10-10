@@ -14,6 +14,13 @@ The three honesty levels (R2):
 | `build` | Constructed here and validated against its oracle. Evidence, not a proof. |
 | `open` | Measured and reported. **Never asserted.** |
 
+## reproducibility
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-REP-01` | `build` | Source-derived charter projections and complete LexLean build and verification artifacts are byte-identical across clean absolute roots under the locked SDK. |
+| `UC-REP-02` | `build` | Dependency and execution-boundary failures are explicit and planted SDK-lock, source-lock, adjacent-checkout, and host-PATH fallbacks are rejected. |
+
 ## source-authority
 
 | ID | Level | Statement |
