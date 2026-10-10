@@ -1,9 +1,9 @@
 <!-- uorc:non-authoritative -->
 # SDK offline reproduction evidence (issue #6)
 
-This document describes the validation procedure, not a successful run. Actual
-results come from the exact-commit `SDK offline reproducibility` workflow and
-its uploaded `offline-evidence-*` artifacts. A candidate projection artifact is
+This document describes the validation procedure and the exact-revision results
+recorded below. Actual results come from the `SDK offline reproducibility`
+workflow and its uploaded `offline-evidence-*` artifacts. A candidate projection artifact is
 review material only; the acceptance job never installs it to make a check pass.
 
 ## Declared pipeline
@@ -90,12 +90,47 @@ then the restored SDK control must pass.
 
 ## Validation status
 
-Local Node unit tests exercise artifact/copy/setup comparators and gate wiring.
-Full SDK compilation, proof replay, container isolation and planted execution
-results are pending the workflow result for the final commit. Do not describe
-this issue as complete while those jobs are pending or failing. The generated
-projection job is deliberately separate from acceptance and may provide a
-reviewable correction commit before acceptance is rerun.
+At commit `68054e4cdea921b2a16a176ece6cf4fc98b66c05`, both native platforms
+passed full offline execution in
+[workflow run 38024057953](https://github.com/UOR-Foundation/compression/actions/runs/38024057953):
+[linux/amd64](https://github.com/UOR-Foundation/compression/actions/runs/38024057953/job/114131015606)
+and
+[linux/arm64](https://github.com/UOR-Foundation/compression/actions/runs/38024057953/job/114131015557).
+Both native universal-bootstrap jobs also passed in
+[run 38024057898](https://github.com/UOR-Foundation/compression/actions/runs/38024057898)
+on the same head. The 15 local Node tests passed with zero skips or pending tests.
+
+Downloaded evidence archives were checked against their published SHA-256:
+
+| Platform | Evidence artifact | ZIP SHA-256 |
+| --- | --- | --- |
+| linux/amd64 | [11659632072](https://github.com/UOR-Foundation/compression/actions/runs/38024057953/artifacts/11659632072) | `e1e784c76b5f369a3707ef8aead252cc560a826dc97d371c38715969836ee3ff` |
+| linux/arm64 | [11660022009](https://github.com/UOR-Foundation/compression/actions/runs/38024057953/artifacts/11660022009) | `c51babe49834636c743c9aaa9877aa270435f64c762918d1e6f874193a03946f` |
+
+Each archive contains two complete `just vv` pass logs and two byte-identical
+canonical inventories covering 44 files. Each pair's execution receipts also
+match byte-for-byte: exit 0, network `none`, no Docker socket, the exact image
+from `prismpm.lock`, actual platform inventory, acquisition and source hashes,
+and an empty normalization list. The comparison records distinct roots, no
+shared build outputs, and `status: passed`.
+
+Each full run recorded nine rejected dependency/tool defects with the owning
+diagnostics described above. Each platform additionally recorded the actual
+missing, stale and damaged-cache setup executions with exit 1 and URD001,
+URD002 and URD003 respectively. Both modules were freshly built and verified;
+all verified results bind to build
+`9243ecf49a368ef5d5e8c848ea753b66a9b888ea9a1bddfe49402be914484946`.
+Attestations are platform-specific:
+
+- linux/amd64: `48820793d557926b6ab84c82b4a2b205daafbe5bbe642b4623fbe87ecd0cda34`
+- linux/arm64: `9044c3a432a9f952db2c2d89b221d6ab68d76c81b56fbdb7ddced74f9e3917d3`
+
+The separate SDK projection-regeneration job passed too. Its reviewable output
+had been committed before acceptance ran; acceptance never installs candidate
+projections to repair itself. These observations apply to the named revision
+and SDK, not arbitrary environments or future compression behavior. Later
+source or SDK changes must rerun the same complete checks. Issue #5's
+latest-main dependency reconciliation remains a separate M0 requirement.
 
 ### Initial SDK execution, 2026-10-10
 
