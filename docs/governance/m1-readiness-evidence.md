@@ -25,7 +25,7 @@ event inventory, or product evaluator appears in those modules.
 | #14: StepMachine | Depends on complete reference semantics, resource events, release schedule, and indexed/checked generated runtime operations. The locked SDK's capability PR does not yet pass those runtime obligations. |
 | #15: store and Scan | Needs exact source-owned store/Scan accounting and refinement statements, plus passing generated-runtime store tests at all requested scales. PR #72's required store probe remains unsuccessful. |
 | #16: last-use/heap | Needs the complete operand/capture inventory and allocation/root event model to establish exact release safety and peak accounting. These are not defined in the current graph. |
-| #17: resource ledger | The closed event vocabulary, recipes, costs, and scale-point expected results referenced by the issue are absent from the current graph. Inventing charges would create an unauthorized specification. |
+| #17: resource ledger | The closed event vocabulary, recipes, costs, and scale-point expected results must be authored in LexLean alongside the components they account for. Their implementation and generated-runtime agreement remain outstanding. |
 | #18: envelope/basis | Depends on source-defined raw framing, event costs, limits, cumulative basis accounting, and the checked generated runtime. Those requirements are not yet complete. |
 
 These findings do not classify all remaining M1 work as unsupported by PrismPM
