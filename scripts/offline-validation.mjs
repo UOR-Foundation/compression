@@ -69,14 +69,30 @@ function sdk(root) {
 }
 function projectionPaths(root) {
   const paths = JSON.parse(run(root, 'cargo', ['run', '--locked', '-q', '-p', 'xtask', '--', 'projection-inventory']).stdout);
-  if (!Array.isArray(paths) || !paths.length || new Set(paths).size !== paths.length || paths.some(p => typeof p !== 'string' || path.isAbsolute(p) || p.split('/').includes('..'))) {
-    fail('URP004', 'invalid source-derived projection inventory');
-  }
+  validateProjectionPaths(paths);
   return paths;
 }
+function validateProjectionPaths(paths) {
+  if (!Array.isArray(paths) || !paths.length || new Set(paths).size !== paths.length || paths.some(p => typeof p !== 'string' || path.isAbsolute(p) || p.split('/').some(part => ['', '.', '..'].includes(part)))) {
+    fail('URP004', 'invalid source-derived projection inventory');
+  }
+}
+function confinedArtifact(root, relative) {
+  let full = root;
+  // Inspect every component before traversal: lstat on the leaf alone follows
+  // parent symlinks and can admit an adjacent checkout's old proof tree.
+  for (const part of relative.split('/')) {
+    full = path.join(full, part);
+    const stat = fs.lstatSync(full, { throwIfNoEntry: false });
+    if (!stat) fail('URP004', `missing artifact ${relative}`);
+    if (stat.isSymbolicLink() || (!stat.isFile() && !stat.isDirectory())) fail('URP001', `non-regular artifact: ${full}`);
+  }
+  return full;
+}
 function projections(root, paths) {
+  validateProjectionPaths(paths);
   return paths.map(relative => {
-    const full = path.join(root, relative);
+    const full = confinedArtifact(root, relative);
     if (!fs.existsSync(full) || !fs.lstatSync(full).isFile()) fail('URP004', `missing projection ${relative}`);
     return { path: relative, sha256: sha(fs.readFileSync(full)), bytes: fs.statSync(full).size };
   }).sort((a, b) => a.path.localeCompare(b.path));
@@ -99,7 +115,7 @@ export function artifactInventory(root, projectionList, build, verified) {
   }
   const rows = projections(root, projectionList);
   for (const relative of expected) {
-    const tree = files(path.join(root, relative));
+    const tree = files(confinedArtifact(root, relative));
     if (!tree.length) fail('URP004', `empty artifact tree ${relative}`);
     for (const row of tree) {
       const bytes = fs.readFileSync(path.join(root, relative, row.path));
