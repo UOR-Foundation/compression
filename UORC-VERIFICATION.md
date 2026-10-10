@@ -8,7 +8,7 @@ authority graph. It does not replace the template-owned `VERIFICATION.md`.
 
 ## Current status
 
-This repository establishes the charter, source-authority, and claim-disposition slices represented by its registered conformance rows. Compression behavior, losslessness, optimality certificates, benchmark superiority, and record status are not established by these slices.
+This revision implements the charter, source-authority, claim-disposition, and bounded U64 ULEB128 slices in the LexLean graph. The codec has kernel-checked round-trip, shortest-length, exact-size, and prefix-consumption properties. Full archive, machine, search, and production-product acceptance remain separate registered work; performance and record claims remain open.
 
 ## Claim boundaries
 
@@ -41,6 +41,9 @@ This table classifies evidence within its verified scope. It does not validate a
 
 - `UC-PERF-01`: `not_measured`; evidence `none`; honesty level `open`.
 - `UC-REC-01`: `not_measured`; evidence `none`; honesty level `open`.
+
+The source-owned bounded ULEB128 codec, errors, and proof inventory are projected in [UORC-VARINT.md](UORC-VARINT.md).
+
 
 ## Evidence and dependency boundaries
 

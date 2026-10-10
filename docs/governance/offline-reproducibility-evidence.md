@@ -8,9 +8,9 @@ review material only; the acceptance job never installs it to make a check pass.
 
 ## Declared pipeline
 
-The current product slice is the charter, registry, and claim-disposition
+The current product slice is the charter, registry, claim-disposition, and bounded varint
 authority rooted in `lexlean.toml`.
-There is no root PrismPM product manifest or compression implementation. Its
+There is no root PrismPM product manifest or complete compression implementation. Its
 pipeline is the existing full `just vv`, strengthened by locked Cargo calls,
 `lexlean build --all`, `lexlean verify --all`, and always-executed clean-root
 reproduction and dependency/tool negatives. No TaskScorer example stands in for

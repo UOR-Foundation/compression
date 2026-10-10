@@ -37,6 +37,12 @@ The three honesty levels (R2):
 | `UC-PERF-01` | `open` | measured public-corpus compression improvement, with exact target and scope; open until actually measured |
 | `UC-REC-01` | `open` | externally accepted compression record; open unless the external authority actually accepts it |
 
+## varint
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-VAR-01` | `build` | Shortest U64 ULEB128 encoding and strict decoding have source-owned domain and rejection rules, complete boundary vectors, and kernel-checked round-trip and size theorems. |
+
 ## Cited authorities
 
 | Authority | Citation | Evidence here |
@@ -54,3 +60,4 @@ The three honesty levels (R2):
 | `UC-REP-02` | `build` | `build_evidence` | `not_measured` | Dependency and execution-boundary failures are explicit and planted SDK-lock, source-lock, adjacent-checkout, and host-PATH fallbacks are rejected. |
 | `UC-HON-01` | `build` | `build_evidence` | `not_measured` | Evidence classes and research dispositions remain distinct in the LexLean claim policy. |
 | `UC-HON-02` | `build` | `build_evidence` | `not_measured` | The honesty ledger and claim summaries are exact source projections with open research claims protected against promotion. |
+| `UC-VAR-01` | `build` | `kernel_theorem` | `not_measured` | Shortest U64 ULEB128 encoding and strict decoding have source-owned domain and rejection rules, complete boundary vectors, and kernel-checked round-trip and size theorems. |
