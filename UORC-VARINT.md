@@ -57,4 +57,3 @@ The two public round trips quantify over all domain values or all accepted input
 - `Uorc.Varint.bounded_eq`
 
 236 closed vector theorems are inventoried in `model/varint.toml`.
-

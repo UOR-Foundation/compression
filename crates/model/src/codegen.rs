@@ -80,7 +80,7 @@ fn render_varint(graph: &AuthorityGraph) -> String {
     }
     let _ = writeln!(
         out,
-        "\n{} closed vector theorems are inventoried in `model/varint.toml`.\n",
+        "\n{} closed vector theorems are inventoried in `model/varint.toml`.",
         graph.varint.vector.len()
     );
     out
