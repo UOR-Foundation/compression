@@ -16,6 +16,8 @@ mod bootstrap;
 mod claims;
 #[cfg(test)]
 mod offline;
+#[cfg(test)]
+mod varint;
 
 fn main() -> ExitCode {
     let task = std::env::args()

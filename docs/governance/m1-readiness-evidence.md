@@ -9,7 +9,7 @@ The reviewed `main` revision was
 `28deb1c6f5d14b983e2dc9baaba013d3ba2d7e71`. Its `src/` tree contains
 `Uorc/Specification.lex.tex` and `Uorc/Registry.lex.tex`: charter, evidence
 boundaries, research positioning, and the initial conformance register. PR #71
-adds the offline reproduction obligations. This change adds the claim policy.
+adds the offline reproduction obligations. The subsequent M1 changes add the claim policy and bounded varint codec. Missing semantics are authorized to be authored as new LexLean changes from the issue requirements.
 No profile-02 wire format, opcode definitions, reference semantics, resource
 event inventory, or product evaluator appears in those modules.
 
@@ -18,14 +18,14 @@ event inventory, or product evaluator appears in those modules.
 | #7: complete register | Generation and drift checks already exist. This change adds exact ledger coverage and source-owned dispositions for the current register. The graph does not contain the 59 exact statements required by this issue; this is not completion of #7. |
 | #8: authority bindings | Immutable acquisition and provenance records are feasible with current tools. The graph has no complete artifact inventory or selected versions, role interfaces, licenses, and argument contracts for the requested sources. This change imports no facts or artifacts on their behalf. |
 | #9: honesty ledger | Implemented by this change with source-owned classification, generated summaries, closed kernel cases, and executed promotion negatives. No new SDK primitive is required. |
-| #10: ULEB128 | The graph has no section-7.1 equivalent, exact rejection/error precedence, domain, boundary vectors, or required theorem statements. Generic varint behavior would not establish this issue's exact acceptance criteria. |
+| #10: ULEB128 | Implemented in the new LexLean varint graph: explicit U64 domain, shortest base-128 encoding, bounded prefix/exact decoding, typed errors/offsets, general round trips/size/minimality/prefix proofs, and 236 exact vectors. [Generated contract](../../UORC-VARINT.md). |
 | #11: archive frame | Exact field encoding/order, integrity rules, and C.1–C.6 vectors are absent from the graph. Generated binary transport also remains a separate SDK acceptance concern. |
 | #12: graph encoding/static validation | The issue names value types and an opcode range, but the source lacks the complete opcode operand/signature table and wire layout needed for exact validation. |
 | #13: reference semantics | Pure mathematical authoring is supported. The complete source definitions and theorem inventory needed to establish the requested semantic/resource model are absent. |
 | #14: StepMachine | Depends on complete reference semantics, resource events, release schedule, and indexed/checked generated runtime operations. The locked SDK's capability PR does not yet pass those runtime obligations. |
 | #15: store and Scan | Needs exact source-owned store/Scan accounting and refinement statements, plus passing generated-runtime store tests at all requested scales. PR #72's required store probe remains unsuccessful. |
 | #16: last-use/heap | Needs the complete operand/capture inventory and allocation/root event model to establish exact release safety and peak accounting. These are not defined in the current graph. |
-| #17: resource ledger | The closed event vocabulary, recipes, costs, and scale-point expected results referenced by the issue are absent from the current graph. Inventing charges would create an unauthorized specification. |
+| #17: resource ledger | The closed event vocabulary, recipes, costs, and scale-point expected results must be authored in LexLean alongside the components they account for. Their implementation and generated-runtime agreement remain outstanding. |
 | #18: envelope/basis | Depends on source-defined raw framing, event costs, limits, cumulative basis accounting, and the checked generated runtime. Those requirements are not yet complete. |
 
 These findings do not classify all remaining M1 work as unsupported by PrismPM

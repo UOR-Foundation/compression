@@ -3,7 +3,7 @@
 default: vv
 
 # The whole gate.
-vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts claim-dispositions reproducibility
+vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts claim-dispositions varint-proofs reproducibility
     @echo "vv: the acceptance gate passed"
 
 # The UORC authority files are real LexLean source, not merely files with a
@@ -80,3 +80,7 @@ claim-dispositions:
 # This invokes model/build/verify in clean roots, never recursively `just vv`.
 reproducibility:
     node scripts/offline-validation.mjs reproduce
+
+# Actual core-source defects must fail at their owning kernel declarations.
+varint-proofs:
+    node scripts/varint-validation.mjs

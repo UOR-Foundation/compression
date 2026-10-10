@@ -31,6 +31,14 @@ pub fn render_all(graph: &AuthorityGraph) -> Vec<(String, String)> {
         (AUTHORITIES_PATH.to_string(), render_authorities(&model)),
         (LEDGER_PATH.to_string(), render_ledger(&model)),
         (
+            "model/varint.toml".to_string(),
+            format!(
+                "# @generated from the UORC LexLean varint graph; do not edit.\n{}",
+                toml::to_string_pretty(&graph.varint).expect("serializable varint contract")
+            ),
+        ),
+        ("UORC-VARINT.md".to_string(), render_varint(graph)),
+        (
             "model/claim-policy.toml".to_string(),
             format!(
                 "# @generated from src/Uorc/Claims.lex.tex; do not edit.\n{}",
@@ -45,6 +53,36 @@ pub fn render_all(graph: &AuthorityGraph) -> Vec<(String, String)> {
         ),
     ];
     out.extend(render_feature_suites(graph));
+    out
+}
+
+fn render_varint(graph: &AuthorityGraph) -> String {
+    let mut out = String::from(
+        "<!-- @generated from the UORC LexLean authority graph. -->\n# UORC ULEB128 contract\n\n",
+    );
+    for (name, text) in &graph.varint.contract {
+        let _ = writeln!(out, "## {name}\n\n{text}\n");
+    }
+    let _ = writeln!(
+        out,
+        "## Typed failures\n\n| Variant | Meaning | Negative family |\n| --- | --- | --- |"
+    );
+    for row in &graph.varint.failure {
+        let _ = writeln!(
+            out,
+            "| `{}` | {} | `{}` |",
+            row["variant"], row["meaning"], row["negativeFamily"]
+        );
+    }
+    let _ = writeln!(out, "\n## General kernel roots\n");
+    for name in &graph.varint.theorem {
+        let _ = writeln!(out, "- `{name}`");
+    }
+    let _ = writeln!(
+        out,
+        "\n{} closed vector theorems are inventoried in `model/varint.toml`.",
+        graph.varint.vector.len()
+    );
     out
 }
 
@@ -345,6 +383,7 @@ pub fn render_readme(graph: &AuthorityGraph) -> String {
 
     render_claim_table(&mut out, graph);
     render_dispositions(&mut out, graph);
+    let _ = writeln!(out, "\nThe source-owned bounded ULEB128 codec, errors, and proof inventory are projected in [UORC-VARINT.md](UORC-VARINT.md).\n");
     render_evidence_table(&mut out, graph);
 
     let r = &graph.research_position;
@@ -414,6 +453,7 @@ pub fn render_project_verification(graph: &AuthorityGraph) -> String {
 
     render_claim_table(&mut out, graph);
     render_dispositions(&mut out, graph);
+    let _ = writeln!(out, "\nThe source-owned bounded ULEB128 codec, errors, and proof inventory are projected in [UORC-VARINT.md](UORC-VARINT.md).\n");
     render_evidence_table(&mut out, graph);
 
     let _ = writeln!(out);
