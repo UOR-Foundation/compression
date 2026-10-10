@@ -14,6 +14,13 @@ The three honesty levels (R2):
 | `build` | Constructed here and validated against its oracle. Evidence, not a proof. |
 | `open` | Measured and reported. **Never asserted.** |
 
+## claim-dispositions
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-HON-01` | `build` | Evidence classes and research dispositions remain distinct in the LexLean claim policy. |
+| `UC-HON-02` | `build` | The honesty ledger and claim summaries are exact source projections with open research claims protected against promotion. |
+
 ## reproducibility
 
 | ID | Level | Statement |
@@ -35,7 +42,15 @@ The three honesty levels (R2):
 | Authority | Citation | Evidence here |
 | --- | --- | --- |
 
-## Claims that are not conformance IDs
+## Registered claim dispositions
 
-| ID | Level | Claim |
-| --- | --- | --- |
+| ID | Level | Evidence class | Research disposition | Claim |
+| --- | --- | --- | --- | --- |
+| `UC-CHR-01` | `build` | `build_evidence` | `not_measured` | UORC charter, claim-boundary, evidence-boundary, and research-position records are accepted by the locked LexLean project and generate the committed project documentation projections. |
+| `UC-CHR-02` | `build` | `build_evidence` | `not_measured` | Handwritten project prose cannot define a second UORC specification or BCP-14 semantic rule, while non-authoritative evidence and planning prose remain permitted. |
+| `UC-PERF-01` | `open` | `none` | `not_measured` | measured public-corpus compression improvement, with exact target and scope; open until actually measured |
+| `UC-REC-01` | `open` | `none` | `not_measured` | externally accepted compression record; open unless the external authority actually accepts it |
+| `UC-REP-01` | `build` | `build_evidence` | `not_measured` | Source-derived charter projections and complete LexLean build and verification artifacts are byte-identical across clean absolute roots under the locked SDK. |
+| `UC-REP-02` | `build` | `build_evidence` | `not_measured` | Dependency and execution-boundary failures are explicit and planted SDK-lock, source-lock, adjacent-checkout, and host-PATH fallbacks are rejected. |
+| `UC-HON-01` | `build` | `build_evidence` | `not_measured` | Evidence classes and research dispositions remain distinct in the LexLean claim policy. |
+| `UC-HON-02` | `build` | `build_evidence` | `not_measured` | The honesty ledger and claim summaries are exact source projections with open research claims protected against promotion. |

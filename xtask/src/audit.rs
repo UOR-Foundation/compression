@@ -174,8 +174,8 @@ fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Res
 
     if !violations.is_empty() {
         return Err(format!(
-            "R1: UORC project semantics are authored only in src/Uorc/Specification.lex.tex \
-             and src/Uorc/Registry.lex.tex. Handwritten prose may carry evidence or planning, \
+            "R1: UORC project semantics are authored only in the src/Uorc LexLean graph. \
+             Handwritten prose may carry evidence or planning, \
              but cannot become a second authority.\n\n{}",
             violations.join("\n")
         )
