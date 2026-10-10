@@ -13,6 +13,8 @@ use repo_model::{codegen, AuthorityGraph, Model};
 mod audit;
 mod bootstrap;
 #[cfg(test)]
+mod claims;
+#[cfg(test)]
 mod offline;
 
 fn main() -> ExitCode {

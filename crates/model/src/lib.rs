@@ -11,10 +11,12 @@
 #![deny(missing_docs)]
 
 pub mod authority;
+pub mod claims;
 pub mod codegen;
 pub mod registry;
 
 pub use authority::AuthorityGraph;
+pub use claims::ClaimPolicy;
 pub use registry::{Authorities, AuthorityRow, Claim, IdRow, Ids, Ledger, Level};
 
 use std::path::{Path, PathBuf};
@@ -22,6 +24,8 @@ use std::path::{Path, PathBuf};
 /// The generated `model/*.toml` projection, parsed and cross-checked.
 #[derive(Debug, Clone)]
 pub struct Model {
+    /// Evidence classification projected from the LexLean claim policy.
+    pub claim_policy: ClaimPolicy,
     /// `model/ledger.toml`: one row per claim, at exactly one honesty level.
     pub ledger: Ledger,
     /// `model/ids.toml`: the conformance ID register.
@@ -57,6 +61,7 @@ impl Model {
     /// Load every generated model projection from a `model/` directory.
     pub fn load(dir: &Path) -> Result<Self, ModelError> {
         Ok(Self {
+            claim_policy: read(dir, "claim-policy.toml")?,
             ledger: read(dir, "ledger.toml")?,
             ids: read(dir, "ids.toml")?,
             authorities: read(dir, "authorities.toml")?,
@@ -74,8 +79,57 @@ impl Model {
     /// authority that exists (`CM-01` .. `CM-03`, R2).
     pub fn check(&self) -> Result<(), ModelError> {
         self.ledger.check()?;
+        self.check_claim_dispositions()?;
         self.check_ids()?;
         self.check_authorities()?;
+        Ok(())
+    }
+
+    /// Check complete ledger coverage and prevent cross-class evidence promotion.
+    fn check_claim_dispositions(&self) -> Result<(), ModelError> {
+        self.claim_policy.check()?;
+        let bad = |message: String| ModelError::Inconsistent(format!("UC-HON-02: {message}"));
+        let mut seen = std::collections::BTreeSet::new();
+        for claim in &self.ledger.claim {
+            if !seen.insert(&claim.id) {
+                return Err(bad(format!("{}: duplicate ledger claim", claim.id)));
+            }
+            let row = self
+                .ids
+                .get(&claim.id)
+                .ok_or_else(|| bad(format!("{}: unregistered ledger claim", claim.id)))?;
+            let rule = self.claim_policy.rule(&claim.evidence_kind)?;
+            if claim.level != row.level
+                || claim.statement != row.statement
+                || claim.level.as_str() != rule.level
+                || claim.research_disposition != rule.disposition
+            {
+                return Err(bad(format!(
+                    "{}: ledger, registry and evidence policy disagree",
+                    claim.id
+                )));
+            }
+            if claim.feature.as_deref()
+                != Some(format!("features/suites/{}.feature", row.suite).as_str())
+            {
+                return Err(bad(format!("{}: wrong scenario binding", claim.id)));
+            }
+        }
+        if seen.len() != self.ids.id.len() {
+            return Err(bad("ledger omits registered claims".into()));
+        }
+        for guard in &self.claim_policy.open_claim {
+            let claim = self
+                .ledger
+                .get(&guard.id)
+                .ok_or_else(|| bad(format!("{}: protected claim missing", guard.id)))?;
+            if claim.level.as_str() != guard.level
+                || claim.evidence_kind != guard.evidence
+                || claim.research_disposition != guard.disposition
+            {
+                return Err(bad(format!("{}: unsupported research promotion", guard.id)));
+            }
+        }
         Ok(())
     }
 

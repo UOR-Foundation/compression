@@ -3,7 +3,7 @@
 default: vv
 
 # The whole gate.
-vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts reproducibility
+vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts claim-dispositions reproducibility
     @echo "vv: the acceptance gate passed"
 
 # The UORC authority files are real LexLean source, not merely files with a
@@ -71,6 +71,10 @@ deny:
 lexlean-artifacts:
     lexlean build --all
     lexlean verify --all
+
+# Execute every source-owned promotion and verify every restored control.
+claim-dispositions:
+    node scripts/claims-validation.mjs
 
 # Always executed, including in the two complete offline CI invocations.
 # This invokes model/build/verify in clean roots, never recursively `just vv`.

@@ -2,6 +2,7 @@
 //!
 //! `src/Uorc/Specification.lex.tex` owns the project charter and evidence
 //! boundaries. `src/Uorc/Registry.lex.tex` owns the project claim register.
+//! `src/Uorc/Claims.lex.tex` owns evidence classification and research dispositions.
 //! `model/*.toml` and project Markdown are generated projections of this graph,
 //! never a second source of UORC semantics.
 
@@ -10,7 +11,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::{Authorities, IdRow, Ids, Ledger, Level, Model, ModelError};
+use crate::{Authorities, Claim, ClaimPolicy, IdRow, Ids, Ledger, Level, Model, ModelError};
 
 /// The LexLean module that owns the product charter.
 pub const SPECIFICATION_PATH: &str = "src/Uorc/Specification.lex.tex";
@@ -128,12 +129,14 @@ pub struct AuthorityGraph {
     pub scenarios: Vec<ScenarioProjection>,
     /// Imported authorities represented by this authority slice.
     pub authorities: Authorities,
-    /// Non-ID ledger claims represented by this authority slice.
+    /// Source-owned evidence classification policy.
+    pub claim_policy: ClaimPolicy,
+    /// Generated claim-disposition ledger.
     pub ledger: Ledger,
 }
 
 impl AuthorityGraph {
-    /// Load and structurally validate the two LexLean authority modules.
+    /// Load and structurally validate the LexLean authority modules.
     pub fn load(root: &Path) -> Result<Self, ModelError> {
         let specification =
             semantic_declarations(&root.join(SPECIFICATION_PATH), "Uorc.Specification")?;
@@ -199,6 +202,8 @@ impl AuthorityGraph {
             &["nonAuthorityMarker", "normativeSubject"],
         )?;
 
+        let claim_policy = ClaimPolicy::load_source(root)?;
+        let mut claims = Vec::new();
         let mut ids = Vec::new();
         let mut scenarios = Vec::new();
         for declaration in &registry {
@@ -216,12 +221,25 @@ impl AuthorityGraph {
                     "given",
                     "when",
                     "expected",
+                    "evidenceKind",
+                    "researchDisposition",
                 ],
             )?;
             let id = required(&fields, "id")?;
             let level = required(&fields, "level")?;
             let suite = required(&fields, "suite")?;
             let statement = required(&fields, "statement")?;
+            claims.push(Claim {
+                id: id.clone(),
+                level: parse_level(&level)?,
+                statement: statement.clone(),
+                feature: Some(format!("features/suites/{suite}.feature")),
+                authority: None,
+                sample_size: None,
+                seed: None,
+                evidence_kind: required(&fields, "evidenceKind")?,
+                research_disposition: required(&fields, "researchDisposition")?,
+            });
             ids.push(IdRow {
                 id: id.clone(),
                 level: parse_level(&level)?,
@@ -291,9 +309,10 @@ impl AuthorityGraph {
                 spec: "template/1".to_string(),
                 authority: Vec::new(),
             },
+            claim_policy,
             ledger: Ledger {
                 spec: "template/1".to_string(),
-                claim: Vec::new(),
+                claim: claims,
             },
         };
 
@@ -305,6 +324,7 @@ impl AuthorityGraph {
     #[must_use]
     pub fn model(&self) -> Model {
         Model {
+            claim_policy: self.claim_policy.clone(),
             ledger: self.ledger.clone(),
             ids: self.ids.clone(),
             authorities: self.authorities.clone(),
@@ -312,7 +332,7 @@ impl AuthorityGraph {
     }
 }
 
-fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelError> {
+pub(crate) fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelError> {
     let text = std::fs::read_to_string(path).map_err(|e| ModelError::Io(path.to_path_buf(), e))?;
     let open = format!("\\begin{{lexlean}}{{{module}}}");
     if !text.contains(&open)
@@ -527,6 +547,8 @@ fn validate_registry_declarations(declarations: &[Value]) -> Result<(), ModelErr
             "given",
             "when",
             "expected",
+            "evidenceKind",
+            "researchDisposition",
         ],
     )?;
     Ok(())
@@ -774,6 +796,8 @@ mod tests {
                 "given",
                 "when",
                 "expected",
+                "evidenceKind",
+                "researchDisposition",
             ],
         )
         .expect("the source outcome field is a plain Lean identifier");
