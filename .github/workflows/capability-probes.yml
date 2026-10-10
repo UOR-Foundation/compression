@@ -1,0 +1,62 @@
+name: UORC SDK capability probes
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out the exact revision without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Resolve the committed SDK digest
+        id: sdk
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import {readFileSync} from 'node:fs';
+          const lock=JSON.parse(readFileSync('prismpm.lock','utf8'));
+          if(lock.schema!=='prismpm/sdk-lock/2'||!/^ghcr\.io\/uor-foundation\/[a-z0-9._-]+@sha256:[0-9a-f]{64}$/.test(lock.sdk_image))throw new Error('SDK lock has no immutable image');
+          console.log(`image=${lock.sdk_image}`);
+          NODE
+      - name: Fetch the immutable SDK before entering the offline boundary
+        env:
+          SDK_IMAGE: ${{ steps.sdk.outputs.image }}
+        run: docker pull "$SDK_IMAGE"
+      - name: Check report anti-vacuity and run real SDK probes offline
+        env:
+          SDK_IMAGE: ${{ steps.sdk.outputs.image }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --cap-drop ALL \
+            --tmpfs /tmp:rw,exec,nosuid,size=2g \
+            --env PRISMPM_EPHEMERAL_HOME=1 \
+            --env HOME=/tmp/prismpm-home \
+            --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" \
+            --volume "$PWD:/workspace" --workdir /workspace \
+            "$SDK_IMAGE" /bin/sh -c \
+            'mkdir -p "$HOME" && node --test scripts/capability-probes.test.mjs && node scripts/capability-probes.mjs /workspace/.capability-run'
+      - name: Preserve successful, failed and blocked observations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sdk-capability-observations
+          path: |
+            .capability-run/compatibility.json
+            .capability-run/compatibility.md
+            .capability-run/logs/
+            .capability-run/artifacts/
+          if-no-files-found: error
+          retention-days: 14
