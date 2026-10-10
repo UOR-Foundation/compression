@@ -1,6 +1,6 @@
 // Process/evidence orchestration only. All test behavior is authored in LexLean.
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, realpathSync, statSync, lstatSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync, realpathSync, statSync, lstatSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve, relative, isAbsolute, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -116,6 +116,20 @@ export function run(outputDirectory) {
       evidence.project_bindings.push({project:id,phase,input:name,path:file,sha256:digest(bytes)});
     }
   };
+  const captureBuild = (project,id,path) => {
+    const source=confined(project,path);
+    const walk=(directory,parts=[])=>{
+      for(const name of readdirSync(directory).sort()) {
+        const sourcePath=join(directory,name), info=lstatSync(sourcePath), names=[...parts,name];
+        requireFact(!info.isSymbolicLink(), 'CAP0005', 'Generated SDK evidence contains a symbolic link');
+        if(info.isDirectory()){walk(sourcePath,names);continue;}
+        requireFact(info.isFile(), 'CAP0005', 'Generated SDK evidence is not a regular file');
+        const bytes=readFileSync(sourcePath), file=['artifacts',`${id}-lexlean-build`,...names].join('/');
+        mkdirSync(dirname(join(out,file)),{recursive:true});writeFileSync(join(out,file),bytes);
+        evidence.artifacts.push({path:file,sha256:digest(bytes)});
+      }
+    };walk(source);
+  };
   const save = () => {const report=makeReport(contract,evidence);writeFileSync(join(out,'compatibility.json'),encode(report));writeFileSync(join(out,'compatibility.md'),markdown(report));return report;};
   let commands;
   function execute(id, command, args, cwd, {expectedExit=0, requiredDiagnostic, timeout=1200000}={}) {
@@ -162,6 +176,11 @@ export function run(outputDirectory) {
       for(const action of ['lock','check','build','verify']) {
         const result=execute(`${id}.${action}`,'lexlean',[...lex,action],project);
         if(!result.success){ready=false;break;}
+        if(action==='build') {
+          const build=JSON.parse(result.stdout);
+          requireFact(Array.isArray(build.artifacts)&&build.artifacts.length===1,'CAP0005','LexLean build did not identify exactly one generated root');
+          captureBuild(project,id,build.artifacts[0]);
+        }
       }
       bindProject(id,project,'language');
       if(!ready)continue;
@@ -188,12 +207,12 @@ export function run(outputDirectory) {
         if(!result.success){ready=false;break;}
         if(action==='verify') {
           const response=JSON.parse(result.stdout); const value=response.result??response;
-          const verified=confined(project,value.verified_root);
-          const acceptanceBytes=readFileSync(join(verified,'application-acceptance.json'));
-          const manifest=readJson(join(verified,'manifest.json'));
+          confined(project,value.verified_root);
+          const acceptanceBytes=readFileSync(confined(project,`${value.verified_root}/application-acceptance.json`));
+          const manifest=readJson(confined(project,`${value.verified_root}/manifest.json`));
           validateAcceptance(JSON.parse(acceptanceBytes),manifest,acceptanceBytes);
           for(const name of ['application-acceptance.json','manifest.json','lexlean-attestation.json']) {
-            const bytes=readFileSync(join(verified,name));const file=`artifacts/${id}-${name}`;mkdirSync(join(out,'artifacts'),{recursive:true});writeFileSync(join(out,file),bytes);evidence.artifacts.push({path:file,sha256:digest(bytes)});
+            const bytes=readFileSync(confined(project,`${value.verified_root}/${name}`));const file=`artifacts/${id}-${name}`;mkdirSync(join(out,'artifacts'),{recursive:true});writeFileSync(join(out,file),bytes);evidence.artifacts.push({path:file,sha256:digest(bytes)});
           }
           evidence.observations.push({id:`${id}.app.evidence`,status:'passed',schema:'prismpm/application-acceptance/1',acceptance_sha256:digest(acceptanceBytes)});save();
         }

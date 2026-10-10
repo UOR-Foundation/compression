@@ -63,3 +63,20 @@ The local environment has no `/opt/prismpm/share/inventory.json`. An actual
 runner invocation retained that dependency blocker, returned exit 1 and marked
 no capability supported. Real compiler/runtime results are supplied only by
 the pinned-image workflow, never inferred from these local tests.
+
+## First pinned SDK observation
+
+Actions run `38023397472`, source `4ebae9a8b8e98ed890c288a820e8d04b11ebd550`,
+executed in SDK image `60226bc791d4c0e5613402a6be7e63f4963d3faf7f327befcf56fc0e41d0ce21`.
+Core initialization, lock, check and build succeeded. Verification rejected
+`finiteCases` with LLV7002 because `decide` could not reduce `acceptance = true`.
+The source proof is being checked with the admitted `reflexivity` proof form;
+this is not yet a passing verification result. The store project genuinely
+rejected language 1.2 with LLC0001, advertising only languages 1.0 and 1.1.
+Exporter and runtime stages did not execute in that run.
+
+The preserved artifact is `sdk-capability-observations`, ID `11659925500`,
+SHA-256 `4c77bd61c9041b2497bcbbb8c7c7f6bc6d31849247aa134b0c90727beb73b618`.
+[Workflow run](https://github.com/UOR-Foundation/compression/actions/runs/38023397472)
+records the exact source and uploaded evidence. The runner now retains every
+regular LexLean build artifact before verification, including on failure.
