@@ -34,7 +34,7 @@ test('report cannot promote text response verification to arbitrary binary trans
   assert.equal(binary.arbitrary_binary_round_trip, 'binding_missing');
 });
 test('all probe semantic payloads are canonical authored JSON', () => {
-  for (const file of ['Core','Store','Application','BinaryResponse','RejectedAcceptance']) {
+  for (const file of ['Core','Store','Application','StoreApplication','BinaryResponse','RejectedAcceptance']) {
     const text = readFileSync(new URL(`../probes/capabilities/${file}.lex.tex`, import.meta.url), 'utf8');
     const payload = text.match(/\\semanticdata\{(.*)\}\n/)[1];
     assert.equal(JSON.stringify(JSON.parse(payload)),payload);
@@ -64,7 +64,7 @@ test('each core assertion can be falsified independently without changing other 
     const after=mutant.declarations.find(d=>d.name===name);
     assert.deepEqual(after.body,{kind:'not',value:before.body});
     for(const d of mutant.declarations.filter(d=>d.name!==name))assert.deepEqual(d,original.declarations.find(x=>x.name===d.name));
-    assert(!mutant.declarations.some(d=>d.name==='finiteCases'));
+    assert.equal(mutant.declarations.length,original.declarations.length);
   }
   assert.throws(()=>negateRegisteredRoot(source,'UorcProbe.Main.absent'),CapabilityError);
 });
@@ -73,4 +73,65 @@ test('successful baseline without its per-capability falsifier remains unaccepte
   const report=makeReport(contract,{sdk:'test reporting only',observations,bindings:[],artifacts:[]});
   assert.equal(report.capabilities.find(c=>c.id==='bytes').runtime,'negative_not_passed');
   assert.equal(report.accepted,false);
+});
+
+test('runtime requests reach parameterized source assertions and exported primitives', () => {
+  const parse=file=>JSON.parse(readFileSync(new URL(`../probes/capabilities/${file}.lex.tex`,import.meta.url),'utf8').match(/\\semanticdata\{(.*)\}\n/)[1]);
+  const core=parse('Core'), app=parse('Application');
+  const run=app.declarations.find(d=>d.name==='run');
+  assert.deepEqual(run.body.condition.left,{arguments:[{kind:'var',name:'request'}],function:{module:'Main',name:'runtimeAcceptance'},kind:'call'});
+  assert(!core.declarations.some(d=>d.kind==='theorem'));
+  const runtime=core.declarations.find(d=>d.name==='runtimeAcceptance');
+  for(const name of ['runtimeBytes','runtimeU64','runtimeRecords','runtimeIndexed','runtimeScan'])assert(JSON.stringify(runtime.body).includes(`"name":"${name}"`));
+  let roots=app.declarations.find(d=>d.name==='application').body.fields.find(f=>f.field==='libraryRoots').value;const names=[];
+  while(roots.kind==='cons'){names.push(roots.head.value);roots=roots.tail;}
+  for(const name of ['appendBytes','indexBytes','sliceBytes','addU64','subtractU64','multiplyU64','countSteps','scan','recordVariantValue']) {
+    assert(core.declarations.find(d=>d.name===name).parameters.length>0);
+    assert(names.includes(`UorcProbe.Main.${name}`));
+  }
+});
+
+test('each project profile binds only declarations in its own authored module', () => {
+  const parse=file=>JSON.parse(readFileSync(new URL(`../probes/capabilities/${file}.lex.tex`,import.meta.url),'utf8').match(/\\semanticdata\{(.*)\}\n/)[1]);
+  for(const [source,profile] of [['Core','Application'],['Store','StoreApplication']]) {
+    const main=parse(source), app=parse(profile);let roots=app.declarations.find(d=>d.name==='application').body.fields.find(f=>f.field==='libraryRoots').value;
+    while(roots.kind==='cons') {
+      const name=roots.head.value;
+      assert(name==='UorcProbe.Application.run'||main.declarations.some(d=>`UorcProbe.Main.${d.name}`===name),name);
+      roots=roots.tail;
+    }
+  }
+});
+
+test('profile vectors fit their separate input and response bounds and cover allocation boundary', () => {
+  for(const name of ['Application','StoreApplication','BinaryResponse','RejectedAcceptance']) {
+    const module=JSON.parse(readFileSync(new URL(`../probes/capabilities/${name}.lex.tex`,import.meta.url),'utf8').match(/\\semanticdata\{(.*)\}\n/)[1]);
+    const fields=Object.fromEntries(module.declarations.find(d=>d.name==='application').body.fields.map(f=>[f.field,f.value]));
+    const request=Number(fields.requestMaximum.value), guest=Number(fields.guestAllocationMaximum.value), response=Number(fields.responseMaximum.value);
+    assert(request>0&&response>0&&guest>=request);
+    let vectors=fields.acceptanceVectors,atBoundary=false;
+    while(vectors.kind==='cons') {
+      const vector=Object.fromEntries(vectors.head.fields.map(f=>[f.field,f.value.hex.length/2]));
+      assert(vector.request<=request,`${name} request exceeds browser bound`);
+      assert(vector.request<=guest,`${name} request exceeds guest input bound`);
+      assert(vector.response<=response,`${name} response exceeds response bound`);
+      atBoundary ||= vector.request===guest; vectors=vectors.tail;
+    }
+    assert(atBoundary,`${name} omits the required exact input-allocation boundary`);
+  }
+});
+
+test('complete acceptance gate invokes real probes without weakening the source authority gate', () => {
+  const just=readFileSync(new URL('../Justfile',import.meta.url),'utf8');
+  const prerequisites=just.match(/^vv: (.*)$/m)[1].split(/\s+/);
+  assert(prerequisites.includes('sdk-capabilities'));
+  assert(prerequisites.includes('lexlean-artifacts'));
+  assert(prerequisites.includes('reproducibility'));
+  const recipe=just.split('\nsdk-capabilities:\n')[1];
+  assert(recipe.includes('node scripts/capability-probes.mjs "$run/observations"'));
+  assert(recipe.includes('set -euo pipefail'));
+  assert(!recipe.includes('|| true'));
+  const registry=readFileSync(new URL('../src/Uorc/Registry.lex.tex',import.meta.url),'utf8');
+  assert(registry.includes('\\importmodule{Uorc.CapabilityContract}'));
+  for(const id of ['UC-SDK-01','UC-SDK-02'])assert(registry.includes(`"value":"${id}"`));
 });

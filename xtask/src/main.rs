@@ -12,6 +12,10 @@ use repo_model::{codegen, AuthorityGraph, Model};
 
 mod audit;
 mod bootstrap;
+#[cfg(test)]
+mod capabilities;
+#[cfg(test)]
+mod offline;
 
 fn main() -> ExitCode {
     let task = std::env::args()
@@ -22,6 +26,7 @@ fn main() -> ExitCode {
 
     let result = match task.as_str() {
         "check-model" => check_model(&root, write),
+        "projection-inventory" => projection_inventory(&root),
         "audit-source-authority" => audit::audit_source_authority(&root),
         "audit-limits" => audit::audit_limits(&root),
         "audit-deferral" => audit::audit_deferral(&root),
@@ -57,6 +62,18 @@ fn main() -> ExitCode {
 
 /// A gate failure, reported with the rule it broke.
 type Fail = Box<dyn std::error::Error>;
+
+/// Expose the renderer-owned artifact inventory to validation orchestration.
+fn projection_inventory(root: &Path) -> Result<(), Fail> {
+    let graph = AuthorityGraph::load(root)?;
+    let mut paths: Vec<String> = codegen::render_all(&graph)
+        .into_iter()
+        .map(|(path, _)| path)
+        .collect();
+    paths.sort();
+    println!("{}", serde_json::to_string(&paths)?);
+    Ok(())
+}
 
 /// R1: regenerate every committed projection from the LexLean authority graph.
 fn check_model(root: &Path, write: bool) -> Result<(), Fail> {

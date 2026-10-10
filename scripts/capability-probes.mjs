@@ -84,9 +84,6 @@ export function negateRegisteredRoot(source, rootName) {
   const declarations = module.declarations.filter(d=>d.name===name && d.kind==='definition' && d.result?.kind==='bool' && d.parameters.length===0);
   requireFact(declarations.length===1, 'CAP0001', 'Falsifier must select exactly one registered zero-argument Boolean root');
   declarations[0].body = {kind:'not',value:declarations[0].body};
-  // The intentionally false computation must reach the runtime rather than be
-  // stopped by the positive-case theorem. This is a distinct rejecting input.
-  module.declarations = module.declarations.filter(d=>d.name!=='finiteCases');
   return source.replace(match[1],JSON.stringify(module));
 }
 function readJson(path) { return JSON.parse(readFileSync(path, 'utf8')); }
@@ -104,7 +101,7 @@ export function run(outputDirectory) {
   mkdirSync(out, {recursive:true});
   const contract = loadContract(join(root,'src/Uorc/CapabilityContract.lex.tex'));
   const evidence = {sdk:null, selected_upstream_sources:null, source_bindings:[], project_bindings:[], observations:[], bindings:[], artifacts:[], blockers:[]};
-  for (const name of ['src/Uorc/CapabilityContract.lex.tex','scripts/capability-probes.mjs','scripts/capability-probes.test.mjs','.github/workflows/capability-probes.yml','docs/governance/m0-source-selection.json',...new Set(contract.map(c=>`probes/capabilities/${c.fixture}`)), 'probes/capabilities/BinaryResponse.lex.tex','probes/capabilities/RejectedAcceptance.lex.tex']) {
+  for (const name of ['src/Uorc/CapabilityContract.lex.tex','src/Uorc/Registry.lex.tex','Justfile','lexlean.toml','lexlean.lock','xtask/src/capabilities.rs','scripts/capability-probes.mjs','scripts/capability-probes.test.mjs','.github/workflows/capability-probes.yml','docs/governance/m0-source-selection.json',...new Set(contract.map(c=>`probes/capabilities/${c.fixture}`)), 'probes/capabilities/BinaryResponse.lex.tex','probes/capabilities/RejectedAcceptance.lex.tex','probes/capabilities/StoreApplication.lex.tex']) {
     evidence.source_bindings.push({path:name,sha256:digest(readFileSync(join(root,name)))});
   }
   evidence.selected_upstream_sources = readJson(join(root,'docs/governance/m0-source-selection.json'));
@@ -166,7 +163,7 @@ export function run(outputDirectory) {
       const path=join('/opt/prismpm/share',file);if(existsSync(path))evidence.bindings.push({kind:'public-contract',path,sha256:digest(readFileSync(path))});
     }
     // Record absence honestly; do not invent or exercise an unpublished CLI/FS API.
-    evidence.blockers.push({code:'CAP0004',capability:'cli-filesystem',status:'binding_missing',reason:'No generated product CLI/filesystem binding is selected by the modeled TextApplication profile; this probe does not claim that no other SDK API can exist.'});
+    evidence.blockers.push({code:'CAP0004',capability:'cli-filesystem',status:'dependency_blocked',binding_status:'binding_missing',reason:'No generated product CLI/filesystem binding is selected by the modeled TextApplication profile; this probe does not claim that no other SDK API can exist.'});
     for(const [id,language,fixture] of [['core','1.1','Core.lex.tex'],['store','1.2','Store.lex.tex']]) {
       const project=join(out,id);mkdirSync(join(out,'projects'),{recursive:true});
       if(!execute(`${id}.init`,'lexlean',['init',project,'--name',`uorc-probe-${id}`,'--module-prefix','UorcProbe','--language',language],out).success)continue;
@@ -197,7 +194,7 @@ export function run(outputDirectory) {
       const configPath=join(project,'lexlean.toml');let config=readFileSync(configPath,'utf8');
       requireFact(config.includes('entrypoints = ["src/Main.lex.tex"]')&&config.includes('[limits]'),'CAP0005','SDK initialized configuration shape changed');
       config=config.replace('entrypoints = ["src/Main.lex.tex"]','entrypoints = ["src/Application.lex.tex"]').replace('[limits]','[[lexicon_source]]\npackage = "prism.arch"\nkind = "path"\npath = "language/prism.arch"\n\n[limits]');writeFileSync(configPath,config);
-      copyFileSync(join(root,'probes/capabilities/Application.lex.tex'),join(project,'src/Application.lex.tex'));
+      copyFileSync(join(root,'probes/capabilities',id==='store'?'StoreApplication.lex.tex':'Application.lex.tex'),join(project,'src/Application.lex.tex'));
       writeFileSync(join(project,'prismpm.toml'),'spec = "prismpm/project/1"\nproject = "Uorc Capability Probe"\nlexlean_project = "lexlean.toml"\nbuild_root = ".prism"\n\n[limits]\nmax_holo_bytes = 16777216\nmax_entities = 100000\nmax_diagnostics = 256\n');
       if(!execute(`${id}.app.lock`,'lexlean',[...lex,'lock'],project).success)continue;
       bindProject(id,project,'application');

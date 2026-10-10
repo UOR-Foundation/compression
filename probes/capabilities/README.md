@@ -34,7 +34,9 @@ The arbitrary-binary-response case expects PP2009 from the public text profile.
 It establishes that profile's response restriction, not the absence of every
 possible SDK byte API. Every registered core acceptance root is negated in its own recorded runtime
 fixture; its deliberately false computation is checked by the independent
-oracle after removing only the conflicting positive-case theorem. The
+oracle without removing any declaration. Request-dependent assertions also
+exercise parameterized operations explicitly included in the exported root set.
+The
 corrupted response case reaches the real oracle
 only after its unchanged baseline successfully verifies. Missing API bindings,
 SDK dependency failures, compiler failures and executed negative cases remain
@@ -51,7 +53,7 @@ are never counted as large physical allocations.
 ## Falsifiability evidence
 
 Before the runner existed, `node --test scripts/capability-probes.test.mjs`
-failed with `ERR_MODULE_NOT_FOUND`. After implementation, eight reporting tests
+failed with `ERR_MODULE_NOT_FOUND`. After implementation, twelve reporting tests
 passed. They reject empty observations, a check-only report, zero-exit output
 without complete SDK artifacts, and promotion of text-profile acceptance to
 arbitrary binary transport. This is reporting-infrastructure evidence only;
@@ -70,8 +72,7 @@ Actions run `38023397472`, source `4ebae9a8b8e98ed890c288a820e8d04b11ebd550`,
 executed in SDK image `60226bc791d4c0e5613402a6be7e63f4963d3faf7f327befcf56fc0e41d0ce21`.
 Core initialization, lock, check and build succeeded. Verification rejected
 `finiteCases` with LLV7002 because `decide` could not reduce `acceptance = true`.
-The source proof is being checked with the admitted `reflexivity` proof form;
-this is not yet a passing verification result. The store project genuinely
+The store project genuinely
 rejected language 1.2 with LLC0001, advertising only languages 1.0 and 1.1.
 Exporter and runtime stages did not execute in that run.
 
@@ -80,3 +81,44 @@ SHA-256 `4c77bd61c9041b2497bcbbb8c7c7f6bc6d31849247aa134b0c90727beb73b618`.
 [Workflow run](https://github.com/UOR-Foundation/compression/actions/runs/38023397472)
 records the exact source and uploaded evidence. The runner now retains every
 regular LexLean build artifact before verification, including on failure.
+
+## Kernel-definition and runtime claim boundary
+
+Actions retry `38023861488`, source `eafeeb5a91381e05bc04d29b63de376d61678ad9`,
+also rejected the closed equality theorem with LLV7002: `reflexivity` could not
+establish `acceptance = true`. Artifact `11659871294`, SHA-256
+`7b31ba08bbbb04093b6f5f981a6500b36977b9821a877ceadc527da12de8e210`, preserves
+the emitted Lean and exact diagnostics. These two attempted proof forms do
+not establish failure of the executable primitives.
+
+The probe now asks the SDK to kernel-check its definitions and then execute
+its source-authored assertions. It does not claim a kernel equality theorem
+for the observed runtime values. Every core request exercises parameterized
+bytes, checked U64 arithmetic, records/variants, immutable indexing/slicing
+and Scan; the public root list also retains their parameterized operations.
+A separate store profile only names declarations present in the store module.
+The two new source-shape tests first failed on the extra theorem and missing
+store profile, respectively, and pass after these changes. SDK execution of
+this updated fixture remains required; the local source-shape tests are not
+compiler or runtime evidence.
+
+The TextApplication vectors now also fit the browser request bound of eight
+bytes. The quota regression first rejected the previous four-byte browser
+bound. The installed profile separately binds Core-Wasm input and output
+allocation caps; an exact eight-byte input-allocation vector remains mandatory.
+No summed request-plus-response memory guarantee is inferred from those caps.
+
+## Complete-gate integration
+
+The source Registry imports the capability contract and owns UC-SDK-01/02.
+Their Rust conformance wrappers execute every reporting test; those tests
+never substitute for the separate, mandatory `sdk-capabilities` prerequisite
+of `just vv`. The recipe creates a fresh retained observation directory for
+every invocation and returns the actual probe exit. Missing mandatory public
+bindings remain dependency blockers. A planted omission of this prerequisite
+made the full reporting tests fail; the restored configuration passed.
+
+The separate review-only Actions projection job regenerates Registry
+projections using the exact SDK, even when full acceptance is blocked. Its
+outputs must be imported and checked; no local implementation regenerates
+LexLean or model projections.
