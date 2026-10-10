@@ -109,3 +109,14 @@ Artifact `11658789763` contains the projection candidates; its ZIP SHA-256 is
 `b8f441a620b9814dc5b3941da3268a2e9479814cc2a6d311bc8e240bc4a35b86`.
 The projection files in the subsequent correction are those exact artifact
 bytes. Acceptance must be rerun against that correction.
+
+### Formal verification exposed a source identifier defect
+
+At commit `88969519401e8c283bb045be71e26b96fd8eff09`, the strengthened gate
+reached full `lexlean verify --all` after the Rust gates and LexLean build.
+The locked compiler's generated Registry Lean was rejected with LLV7002 because
+`then` was emitted as an unquoted Lean field name. The project source field is
+renamed to `expected`, and the projection reader maps that field to the unchanged
+Gherkin `Then` step. No compiler, verifier, generated Lean, or SDK implementation
+is replaced. The SDK regeneration job checks the projection bytes again, and
+full formal verification remains mandatory.
