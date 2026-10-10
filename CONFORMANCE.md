@@ -21,6 +21,13 @@ The three honesty levels (R2):
 | `UC-REP-01` | `build` | Source-derived charter projections and complete LexLean build and verification artifacts are byte-identical across clean absolute roots under the locked SDK. |
 | `UC-REP-02` | `build` | Dependency and execution-boundary failures are explicit and planted SDK-lock, source-lock, adjacent-checkout, and host-PATH fallbacks are rejected. |
 
+## sdk-capabilities
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-SDK-01` | `build` | SDK capability probes execute LexLean-authored cases through the locked public SDK and retain typed failures without substituting host implementations. |
+| `UC-SDK-02` | `build` | The compatibility report binds observed commands, source identities and exact public symbols and schemas without promoting finite cases to large-input feasibility. |
+
 ## source-authority
 
 | ID | Level | Statement |

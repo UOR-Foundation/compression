@@ -122,3 +122,23 @@ The separate review-only Actions projection job regenerates Registry
 projections using the exact SDK, even when full acceptance is blocked. Its
 outputs must be imported and checked; no local implementation regenerates
 LexLean or model projections.
+
+The next pinned run, `38024870129` at source
+`85e53329081cd2a436215dac3ad462345b4144fa`, elaborated the definitions but the
+strict axiom audit rejected `UorcProbe.Main.addU64`: LLV7005 reported exactly
+`Quot.sound` and `propext` against its default empty declaration. The source
+now declares that exact dependency set for checked-U64 helpers and their
+transitive callers; verification still requires exact equality with the
+kernel's observed set. No allow-all policy or kernel bypass is introduced.
+Artifact `11659432434`, SHA-256
+`bea22f601139074dcf65ea47b18a5a5aae52c04214c37a04d8c19c023b106063`, retains
+the diagnostics and generated definitions. Confirmation of every declared
+set and all runtime observations remains required in the next real SDK run.
+
+The review-only job in run `38024870117` generated the three new Registry
+projections with the locked SDK. Artifact `11659823271`, SHA-256
+`9425e47421c4ea6f5dae4e7362d145695ae1a0778a18f056b2a4fa0b172ee5af`, supplies
+the committed CONFORMANCE, ID-register and SDK-capabilities scenario bytes.
+Both full offline architectures rejected the probe workflow's missing
+`fetch-depth: 0` at the existing bootstrap audit; the workflow now supplies
+complete history while still disabling persisted checkout credentials.
