@@ -78,11 +78,13 @@ compared execution record. There are no timing fields to discard.
 
 Every inner run removes the local SDK lock while a valid adjacent checkout is
 present, substitutes an adjacent lock symlink, changes a native SDK inventory
-binding, removes and stales `lexlean.lock`, removes `Cargo.lock`, and injects a
+binding, removes and stales `lexlean.lock`, substitutes an adjacent source-directory
+symlink, removes `Cargo.lock`, and injects a
 successful fake Cargo executable both ahead of SDK PATH and as its only entry.
 The SDK command is invoked by its actual SDK path so a fake PrismPM cannot
 answer on its behalf. Expected owning diagnostics are PP5401/PP7601 for SDK
-lock/PATH violations and LLC0102 for LexLean lock violations. Missing Cargo.lock
+lock/PATH violations, LLC0102 for LexLean lock violations, and LLS8001 for
+adjacent source substitution. Missing Cargo.lock
 must fail locked, offline Cargo metadata. The fake tool must never execute;
 then the restored SDK control must pass.
 
@@ -94,3 +96,16 @@ results are pending the workflow result for the final commit. Do not describe
 this issue as complete while those jobs are pending or failing. The generated
 projection job is deliberately separate from acceptance and may provide a
 reviewable correction commit before acceptance is rerun.
+
+### Initial SDK execution, 2026-10-10
+
+At commit `af0e42fde446af2d57932ff0bf75705678238671`, workflow run
+[38023013882](https://github.com/UOR-Foundation/compression/actions/runs/38023013882)
+produced reviewable projections with the locked SDK. Both native architectures
+completed acquisition and entered the no-network acceptance container. Both
+then rejected stale `CONFORMANCE.md` with PP1101, as expected before the generated
+projection correction. This is observed negative evidence, not a full pass.
+Artifact `11658789763` contains the projection candidates; its ZIP SHA-256 is
+`b8f441a620b9814dc5b3941da3268a2e9479814cc2a6d311bc8e240bc4a35b86`.
+The projection files in the subsequent correction are those exact artifact
+bytes. Acceptance must be rerun against that correction.

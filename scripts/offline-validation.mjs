@@ -161,6 +161,12 @@ export function negativeSdk(root, temporary) {
   fs.writeFileSync(path.join(planted, 'lexlean.lock'), lexLock.toString('utf8').replace(/compiler_semantics = "[a-f0-9]{64}"/, `compiler_semantics = "${'0'.repeat(64)}"`));
   calls.push(requireRejected(planted, 'lexlean', ['lock', '--check'], /LLC0102/));
   fs.writeFileSync(path.join(planted, 'lexlean.lock'), lexLock);
+  const heldSource = path.join(temporary, 'held-source');
+  fs.renameSync(path.join(planted, 'src'), heldSource);
+  fs.symlinkSync(path.join(adjacent, 'src'), path.join(planted, 'src'));
+  calls.push(requireRejected(planted, 'lexlean', ['check', '--all'], /LLS8001/));
+  fs.unlinkSync(path.join(planted, 'src'));
+  fs.renameSync(heldSource, path.join(planted, 'src'));
   const cargoLock = fs.readFileSync(path.join(planted, 'Cargo.lock'));
   fs.unlinkSync(path.join(planted, 'Cargo.lock'));
   calls.push(requireRejected(planted, 'cargo', ['metadata', '--locked', '--offline', '--format-version', '1'], /lock file|lockfile|Cargo.lock/));
