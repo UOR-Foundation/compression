@@ -208,7 +208,15 @@ impl AuthorityGraph {
             let fields = definition_string_fields(
                 declaration,
                 "ConformanceRow",
-                &["id", "level", "suite", "statement", "given", "when", "expected"],
+                &[
+                    "id",
+                    "level",
+                    "suite",
+                    "statement",
+                    "given",
+                    "when",
+                    "expected",
+                ],
             )?;
             let id = required(&fields, "id")?;
             let level = required(&fields, "level")?;
@@ -511,7 +519,15 @@ fn validate_registry_declarations(declarations: &[Value]) -> Result<(), ModelErr
     validate_string_structure(
         declarations,
         "ConformanceRow",
-        &["id", "level", "suite", "statement", "given", "when", "expected"],
+        &[
+            "id",
+            "level",
+            "suite",
+            "statement",
+            "given",
+            "when",
+            "expected",
+        ],
     )?;
     Ok(())
 }
@@ -750,7 +766,15 @@ mod tests {
         validate_string_structure(
             &declarations,
             "ConformanceRow",
-            &["id", "level", "suite", "statement", "given", "when", "expected"],
+            &[
+                "id",
+                "level",
+                "suite",
+                "statement",
+                "given",
+                "when",
+                "expected",
+            ],
         )
         .expect("the source outcome field is a plain Lean identifier");
     }
