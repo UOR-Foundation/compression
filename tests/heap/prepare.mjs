@@ -9,7 +9,10 @@ const target = process.argv[2];
 if (!target || !path.isAbsolute(target)) throw Error('pass a new absolute diagnostic output directory');
 await fs.mkdir(target, {recursive: true});
 if ((await fs.readdir(target)).length) throw Error('diagnostic output directory must be empty');
-const names = ['RuntimeValue', 'Heap', 'HeapAudit', 'HeapTests', 'RuntimeTable', 'RuntimeTableTests'];
+const names = ['RuntimeValue', 'Heap', 'HeapAudit', 'RuntimeTable', 'RuntimeSequence',
+  'RuntimeStore', 'RuntimeByteBuilder', 'HeapTests', 'RuntimeTableTests',
+  'RuntimeIndexTests', 'RuntimeTableCursorTests', 'RuntimeSequenceTests',
+  'RuntimeStoreTests', 'RuntimeByteBuilderTests'];
 const sources = [];
 await fs.mkdir(path.join(target, 'src/Uorc/Core'), {recursive: true});
 for (const name of names) {

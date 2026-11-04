@@ -18,7 +18,7 @@ async function manifests(root) {
   }
   return found;
 }
-const expected = new Set(['uorc_heaptests_suite', 'uorc_runtimetabletests_suite']);
+const expected = new Set(['uorc_heaptests_suite', 'uorc_runtimetablecursortests_suite']);
 const receipts=[];
 for (const manifest of await manifests(bundle)) {
   const toml=await fs.readFile(manifest,'utf8');

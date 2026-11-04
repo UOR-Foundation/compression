@@ -7,12 +7,14 @@
 \begin{semanticmodule}
 definition{
   name: appendRoots,
-  parameters: [a : (List Uorc.Core.RuntimeValue::Handle), b : (List Uorc.Core.RuntimeValue::Handle)],
+  parameters: [
+    a : (List Uorc.Core.RuntimeValue::Handle),
+    b : (List Uorc.Core.RuntimeValue::Handle)
+  ],
   result: (List Uorc.Core.RuntimeValue::Handle),
   body: (match a
     | List.nil => b
-    | List.cons hBinder1 tailBinder2 => (cons hBinder1 (appendRoots tailBinder2 b))
-),
+    | List.cons hBinder1 tailBinder2 => (cons hBinder1 (appendRoots tailBinder2 b))),
   axioms: [],
   executable: true,
   recursive_argument: a
@@ -20,43 +22,49 @@ definition{
 
 definition{
   name: stateRoots,
-  parameters: [s : Uorc.Core.RuntimeTable::PutTransition, outside : (List Uorc.Core.RuntimeValue::Handle)],
+  parameters: [
+    s : Uorc.Core.RuntimeTable::PutTransition,
+    outside : (List Uorc.Core.RuntimeValue::Handle)
+  ],
   result: (List Uorc.Core.RuntimeValue::Handle),
   body: (match (project s outcome)
     | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder3 => (Uorc.Core.RuntimeTable::putAddRoot (project tableBinder3 root) outside)
     | Uorc.Core.RuntimeTable::PutOutcome.pending => (appendRoots outside (Uorc.Core.RuntimeTable::ownedRoots s))
     | Uorc.Core.RuntimeTable::PutOutcome.cancelled => outside
-    | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder4 => (appendRoots outside (Uorc.Core.RuntimeTable::ownedRoots s))
-),
+    | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder4 => (appendRoots outside (Uorc.Core.RuntimeTable::ownedRoots s))),
   axioms: [],
   executable: true
 }
 
 definition{
   name: validState,
-  parameters: [s : Uorc.Core.RuntimeTable::PutTransition, outside : (List Uorc.Core.RuntimeValue::Handle)],
+  parameters: [
+    s : Uorc.Core.RuntimeTable::PutTransition,
+    outside : (List Uorc.Core.RuntimeValue::Handle)
+  ],
   result: Bool,
   body: (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project s arena))) then (if (Uorc.Core.HeapAudit::auditRoots (project s arena) (stateRoots s outside)) then (if (match (Uorc.Core.Heap::totalOwnedBytes (project s arena))
     | Result.error failureBinder5 => false
-    | Result.ok ownedBinder6 => (if (Uorc.Core.Heap::less (project s peakOwnedBytes) ownedBinder6) then false else true)
-) then true else false) else false) else false),
+    | Result.ok ownedBinder6 => (if (Uorc.Core.Heap::less (project s peakOwnedBytes) ownedBinder6) then false else true)) then true else false) else false) else false),
   axioms: [Quot.sound, propext],
   executable: true
 }
 
 definition{
   name: run,
-  parameters: [fuel : Nat, outside : (List Uorc.Core.RuntimeValue::Handle), s : Uorc.Core.RuntimeTable::PutTransition],
+  parameters: [
+    fuel : Nat,
+    outside : (List Uorc.Core.RuntimeValue::Handle),
+    s : Uorc.Core.RuntimeTable::PutTransition
+  ],
   result: (Result Uorc.Core.RuntimeTable::PutTransition Uorc.Core.Heap::HeapError),
   body: (match fuel
     | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure))
     | Nat.succ restBinder9 => (if (validState s outside) then (match (project s outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => (let next : Uorc.Core.RuntimeTable::PutTransition := (Uorc.Core.RuntimeTable::step s); (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project (project s delta) allocatedEntries) (1 : UInt64)) (project (project next delta) allocatedEntries)) then (ctor Result.error [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure)) else (run restBinder9 outside next)))
-    | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder7 => (ctor Result.ok [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] s)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder8 => (ctor Result.ok [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] s)
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => (ctor Result.ok [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] s)
-) else (ctor Result.error [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure)))
-),
+      | Uorc.Core.RuntimeTable::PutOutcome.pending => (let next : Uorc.Core.RuntimeTable::PutTransition := (Uorc.Core.RuntimeTable::step s); (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project (project s delta) allocatedEntries) (1 : UInt64)) (project (project next delta) allocatedEntries)) then (ctor Result.error [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure)) else (run restBinder9 outside next)))
+      | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder7 => (ctor Result.ok [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] s)
+      | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder8 => (ctor Result.ok [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] s)
+      | Uorc.Core.RuntimeTable::PutOutcome.cancelled => (ctor Result.ok [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] s)) else (ctor Result.error [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure)))),
   axioms: [Quot.sound, propext],
   executable: true,
   recursive_argument: fuel
@@ -64,7 +72,10 @@ definition{
 
 definition{
   name: cancelRun,
-  parameters: [outside : (List Uorc.Core.RuntimeValue::Handle), s : Uorc.Core.RuntimeTable::PutTransition],
+  parameters: [
+    outside : (List Uorc.Core.RuntimeValue::Handle),
+    s : Uorc.Core.RuntimeTable::PutTransition
+  ],
   result: (Result Uorc.Core.RuntimeTable::PutTransition Uorc.Core.Heap::HeapError),
   body: (run 1024 outside (Uorc.Core.RuntimeTable::cancel s)),
   axioms: [Quot.sound, propext],
@@ -78,54 +89,43 @@ definition{
   body: (match (Uorc.Core.RuntimeTable::beginPut (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame))) (0 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (7 : UInt64))))
     | Result.error failureBinder62 => false
     | Result.ok startedBinder63 => (match (run 1024 (nil Uorc.Core.RuntimeValue::Handle) startedBinder63)
-    | Result.error failureBinder60 => false
-    | Result.ok firstBinder61 => (match (project firstBinder61 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete firstTableBinder58 => (match (Uorc.Core.RuntimeTable::beginPut (project firstBinder61 arena) firstTableBinder58 (1 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (9 : UInt64))))
-    | Result.error failureBinder56 => false
-    | Result.ok nextStartBinder57 => (match (run 1024 (cons (project firstTableBinder58 root) (nil Uorc.Core.RuntimeValue::Handle)) nextStartBinder57)
-    | Result.error failureBinder54 => false
-    | Result.ok secondBinder55 => (match (project secondBinder55 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder52 => (match (Uorc.Core.RuntimeTable::lookup (project secondBinder55 arena) tableBinder52 (0 : UInt64))
-    | Result.error failureBinder50 => false
-    | Result.ok zeroBinder51 => (match (Uorc.Core.RuntimeTable::lookup (project secondBinder55 arena) tableBinder52 (1 : UInt64))
-    | Result.error failureBinder48 => false
-    | Result.ok oneBinder49 => (if (if (Uorc.Core.RuntimeValue::isNull zeroBinder51) then false else true) then (if (if (Uorc.Core.RuntimeValue::isNull oneBinder49) then false else true) then (if (if (Uorc.Core.RuntimeValue::sameHandle zeroBinder51 oneBinder49) then false else true) then (if (match (Uorc.Core.Heap::lookup (project secondBinder55 arena) oneBinder49)
-    | Result.error failureBinder46 => false
-    | Result.ok entryBinder47 => (match (project entryBinder47 node)
-    | Uorc.Core.Heap::Node.image xBinder16 yBinder17 => false
-    | Uorc.Core.Heap::Node.sequenceLeaf xBinder18 yBinder19 zBinder20 => false
-    | Uorc.Core.Heap::Node.sequenceBranch xBinder21 yBinder22 zBinder23 wBinder24 => false
-    | Uorc.Core.Heap::Node.storeLeaf xBinder25 => false
-    | Uorc.Core.Heap::Node.storeBranch xBinder26 yBinder27 => false
-    | Uorc.Core.Heap::Node.slot rBinder28 valueBinder29 => (match valueBinder29
-    | Uorc.Core.RuntimeValue::RuntimeValue.natural nBinder10 => (prim equal nBinder10 (9 : UInt64) : Bool)
-    | Uorc.Core.RuntimeValue::RuntimeValue.byte xBinder11 => false
-    | Uorc.Core.RuntimeValue::RuntimeValue.predicate xBinder12 => false
-    | Uorc.Core.RuntimeValue::RuntimeValue.sequence xBinder13 => false
-    | Uorc.Core.RuntimeValue::RuntimeValue.store xBinder14 yBinder15 => false
-)
-    | Uorc.Core.Heap::Node.rootBranch xBinder30 yBinder31 zBinder32 => false
-    | Uorc.Core.Heap::Node.metadataWord xBinder33 yBinder34 zBinder35 => false
-    | Uorc.Core.Heap::Node.metadataLink xBinder36 yBinder37 zBinder38 => false
-    | Uorc.Core.Heap::Node.metadataBranch xBinder39 yBinder40 zBinder41 => false
-    | Uorc.Core.Heap::Node.ownerRoot xBinder42 yBinder43 => false
-    | Uorc.Core.Heap::Node.imageReservation xBinder44 yBinder45 => false
-)
-) then true else false) else false) else false) else false)
-)
-)
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder53 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-)
-)
-)
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder59 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-)
-)
-),
+      | Result.error failureBinder60 => false
+      | Result.ok firstBinder61 => (match (project firstBinder61 outcome)
+        | Uorc.Core.RuntimeTable::PutOutcome.complete firstTableBinder58 => (match (Uorc.Core.RuntimeTable::beginPut (project firstBinder61 arena) firstTableBinder58 (1 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (9 : UInt64))))
+          | Result.error failureBinder56 => false
+          | Result.ok nextStartBinder57 => (match (run 1024 (cons (project firstTableBinder58 root) (nil Uorc.Core.RuntimeValue::Handle)) nextStartBinder57)
+            | Result.error failureBinder54 => false
+            | Result.ok secondBinder55 => (match (project secondBinder55 outcome)
+              | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder52 => (match (Uorc.Core.RuntimeTable::lookup (project secondBinder55 arena) tableBinder52 (0 : UInt64))
+                | Result.error failureBinder50 => false
+                | Result.ok zeroBinder51 => (match (Uorc.Core.RuntimeTable::lookup (project secondBinder55 arena) tableBinder52 (1 : UInt64))
+                  | Result.error failureBinder48 => false
+                  | Result.ok oneBinder49 => (if (if (Uorc.Core.RuntimeValue::isNull zeroBinder51) then false else true) then (if (if (Uorc.Core.RuntimeValue::isNull oneBinder49) then false else true) then (if (if (Uorc.Core.RuntimeValue::sameHandle zeroBinder51 oneBinder49) then false else true) then (if (match (Uorc.Core.Heap::lookup (project secondBinder55 arena) oneBinder49)
+                    | Result.error failureBinder46 => false
+                    | Result.ok entryBinder47 => (match (project entryBinder47 node)
+                      | Uorc.Core.Heap::Node.image xBinder16 yBinder17 => false
+                      | Uorc.Core.Heap::Node.sequenceLeaf xBinder18 yBinder19 zBinder20 => false
+                      | Uorc.Core.Heap::Node.sequenceBranch xBinder21 yBinder22 zBinder23 wBinder24 => false
+                      | Uorc.Core.Heap::Node.storeLeaf xBinder25 => false
+                      | Uorc.Core.Heap::Node.storeBranch xBinder26 yBinder27 => false
+                      | Uorc.Core.Heap::Node.slot rBinder28 valueBinder29 => (match valueBinder29
+                        | Uorc.Core.RuntimeValue::RuntimeValue.natural nBinder10 => (prim equal nBinder10 (9 : UInt64) : Bool)
+                        | Uorc.Core.RuntimeValue::RuntimeValue.byte xBinder11 => false
+                        | Uorc.Core.RuntimeValue::RuntimeValue.predicate xBinder12 => false
+                        | Uorc.Core.RuntimeValue::RuntimeValue.sequence xBinder13 => false
+                        | Uorc.Core.RuntimeValue::RuntimeValue.store xBinder14 yBinder15 => false)
+                      | Uorc.Core.Heap::Node.rootBranch xBinder30 yBinder31 zBinder32 => false
+                      | Uorc.Core.Heap::Node.metadataWord xBinder33 yBinder34 zBinder35 => false
+                      | Uorc.Core.Heap::Node.metadataLink xBinder36 yBinder37 zBinder38 => false
+                      | Uorc.Core.Heap::Node.metadataBranch xBinder39 yBinder40 zBinder41 => false
+                      | Uorc.Core.Heap::Node.ownerRoot xBinder42 yBinder43 => false
+                      | Uorc.Core.Heap::Node.imageReservation xBinder44 yBinder45 => false)) then true else false) else false) else false) else false)))
+              | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+              | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder53 => false
+              | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false)))
+        | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+        | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder59 => false
+        | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false))),
   axioms: [Quot.sound, propext],
   executable: true
 }
@@ -137,58 +137,45 @@ definition{
   body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataWord (1025 : UInt64) (2 : UInt64) (77 : UInt64)))
     | Result.error failureBinder85 => false
     | Result.ok wordBinder86 => (match (Uorc.Core.RuntimeTable::beginPut (project wordBinder86 arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (1025 : UInt64))) (18446744073709551615 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.metadata (1025 : UInt64) (18446744073709551615 : UInt64) (project wordBinder86 handle)))
-    | Result.error failureBinder83 => false
-    | Result.ok startBinder84 => (match (run 1024 (cons (project wordBinder86 handle) (nil Uorc.Core.RuntimeValue::Handle)) startBinder84)
-    | Result.error failureBinder81 => false
-    | Result.ok firstBinder82 => (match (project firstBinder82 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder79 => (match (Uorc.Core.Heap::retain (project firstBinder82 arena) (project tableBinder79 root))
-    | Result.error failureBinder77 => false
-    | Result.ok aliasBinder78 => (match (Uorc.Core.RuntimeTable::beginPut (record Uorc.Core.Heap::Arena {index := (project (project aliasBinder78 arena) index), nextHandle := (project (project aliasBinder78 arena) nextHandle), exhausted := (project (project aliasBinder78 arena) exhausted), ownedBytes := (project (project aliasBinder78 arena) ownedBytes), liveEntries := (project (project aliasBinder78 arena) liveEntries), maxOwnedBytes := (Uorc.Core.Heap::wordAdd (project (project firstBinder82 arena) ownedBytes) (1296 : UInt64)), cursor := (project (project aliasBinder78 arena) cursor)}) tableBinder79 (0 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.metadata (1025 : UInt64) (0 : UInt64) (project wordBinder86 handle)))
-    | Result.error failureBinder75 => false
-    | Result.ok limitedStartBinder76 => (match (run 1024 (cons (project tableBinder79 root) (cons (project tableBinder79 root) (cons (project wordBinder86 handle) (nil Uorc.Core.RuntimeValue::Handle)))) limitedStartBinder76)
-    | Result.error failureBinder73 => false
-    | Result.ok failedBinder74 => (match (project failedBinder74 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder71 => (match failureBinder71
-    | Uorc.Core.Heap::HeapError.budgetExceeded => (match (project failedBinder74 cursor)
-    | Option.none => false
-    | Option.some cursorBinder70 => (if (if (Uorc.Core.RuntimeValue::isNull (project cursorBinder70 subtree)) then false else true) then (if (prim equal (project (project failedBinder74 delta) allocatedEntries) (5 : UInt64) : Bool) then (if (prim equal (project (project failedBinder74 delta) allocatedBytes) (1296 : UInt64) : Bool) then (if (prim equal (project failedBinder74 peakOwnedBytes) (project (project failedBinder74 arena) maxOwnedBytes) : Bool) then (if (match (cancelRun (cons (project tableBinder79 root) (cons (project tableBinder79 root) (cons (project wordBinder86 handle) (nil Uorc.Core.RuntimeValue::Handle)))) failedBinder74)
-    | Result.error failureBinder68 => false
-    | Result.ok cancelledBinder69 => (if (match (project cancelledBinder69 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => true
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder64 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder65 => false
-) then (if (prim equal (project (project cancelledBinder69 arena) ownedBytes) (project (project firstBinder82 arena) ownedBytes) : Bool) then (if (prim equal (project (project cancelledBinder69 delta) releasedBytes) (1296 : UInt64) : Bool) then (if (match (Uorc.Core.RuntimeTable::lookup (project cancelledBinder69 arena) tableBinder79 (18446744073709551615 : UInt64))
-    | Result.error failureBinder66 => false
-    | Result.ok foundBinder67 => (if (Uorc.Core.RuntimeValue::isNull foundBinder67) then false else true)
-) then true else false) else false) else false) else false)
-) then true else false) else false) else false) else false) else false)
-)
-    | Uorc.Core.Heap::HeapError.malformedHandle => false
-    | Uorc.Core.Heap::HeapError.invalidNode => false
-    | Uorc.Core.Heap::HeapError.countOverflow => false
-    | Uorc.Core.Heap::HeapError.countUnderflow => false
-    | Uorc.Core.Heap::HeapError.handleOverflow => false
-    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
-    | Uorc.Core.Heap::HeapError.releaseInProgress => false
-    | Uorc.Core.Heap::HeapError.releaseNotStarted => false
-    | Uorc.Core.Heap::HeapError.invalidRoot => false
-    | Uorc.Core.Heap::HeapError.protocolFailure => false
-)
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder72 => false
-)
-)
-)
-)
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder80 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-)
-)
-)
-),
+      | Result.error failureBinder83 => false
+      | Result.ok startBinder84 => (match (run 1024 (cons (project wordBinder86 handle) (nil Uorc.Core.RuntimeValue::Handle)) startBinder84)
+        | Result.error failureBinder81 => false
+        | Result.ok firstBinder82 => (match (project firstBinder82 outcome)
+          | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder79 => (match (Uorc.Core.Heap::retain (project firstBinder82 arena) (project tableBinder79 root))
+            | Result.error failureBinder77 => false
+            | Result.ok aliasBinder78 => (match (Uorc.Core.RuntimeTable::beginPut (record Uorc.Core.Heap::Arena {index := (project (project aliasBinder78 arena) index), nextHandle := (project (project aliasBinder78 arena) nextHandle), exhausted := (project (project aliasBinder78 arena) exhausted), ownedBytes := (project (project aliasBinder78 arena) ownedBytes), liveEntries := (project (project aliasBinder78 arena) liveEntries), maxOwnedBytes := (Uorc.Core.Heap::wordAdd (project (project firstBinder82 arena) ownedBytes) (1296 : UInt64)), cursor := (project (project aliasBinder78 arena) cursor)}) tableBinder79 (0 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.metadata (1025 : UInt64) (0 : UInt64) (project wordBinder86 handle)))
+              | Result.error failureBinder75 => false
+              | Result.ok limitedStartBinder76 => (match (run 1024 (cons (project tableBinder79 root) (cons (project tableBinder79 root) (cons (project wordBinder86 handle) (nil Uorc.Core.RuntimeValue::Handle)))) limitedStartBinder76)
+                | Result.error failureBinder73 => false
+                | Result.ok failedBinder74 => (match (project failedBinder74 outcome)
+                  | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder71 => (match failureBinder71
+                    | Uorc.Core.Heap::HeapError.budgetExceeded => (match (project failedBinder74 cursor)
+                      | Option.none => false
+                      | Option.some cursorBinder70 => (if (if (Uorc.Core.RuntimeValue::isNull (project cursorBinder70 subtree)) then false else true) then (if (prim equal (project (project failedBinder74 delta) allocatedEntries) (5 : UInt64) : Bool) then (if (prim equal (project (project failedBinder74 delta) allocatedBytes) (1296 : UInt64) : Bool) then (if (prim equal (project failedBinder74 peakOwnedBytes) (project (project failedBinder74 arena) maxOwnedBytes) : Bool) then (if (match (cancelRun (cons (project tableBinder79 root) (cons (project tableBinder79 root) (cons (project wordBinder86 handle) (nil Uorc.Core.RuntimeValue::Handle)))) failedBinder74)
+                        | Result.error failureBinder68 => false
+                        | Result.ok cancelledBinder69 => (if (match (project cancelledBinder69 outcome)
+                          | Uorc.Core.RuntimeTable::PutOutcome.cancelled => true
+                          | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+                          | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder64 => false
+                          | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder65 => false) then (if (prim equal (project (project cancelledBinder69 arena) ownedBytes) (project (project firstBinder82 arena) ownedBytes) : Bool) then (if (prim equal (project (project cancelledBinder69 delta) releasedBytes) (1296 : UInt64) : Bool) then (if (match (Uorc.Core.RuntimeTable::lookup (project cancelledBinder69 arena) tableBinder79 (18446744073709551615 : UInt64))
+                          | Result.error failureBinder66 => false
+                          | Result.ok foundBinder67 => (if (Uorc.Core.RuntimeValue::isNull foundBinder67) then false else true)) then true else false) else false) else false) else false)) then true else false) else false) else false) else false) else false))
+                    | Uorc.Core.Heap::HeapError.malformedHandle => false
+                    | Uorc.Core.Heap::HeapError.invalidNode => false
+                    | Uorc.Core.Heap::HeapError.countOverflow => false
+                    | Uorc.Core.Heap::HeapError.countUnderflow => false
+                    | Uorc.Core.Heap::HeapError.handleOverflow => false
+                    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+                    | Uorc.Core.Heap::HeapError.releaseInProgress => false
+                    | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+                    | Uorc.Core.Heap::HeapError.invalidRoot => false
+                    | Uorc.Core.Heap::HeapError.protocolFailure => false)
+                  | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+                  | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
+                  | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder72 => false))))
+          | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+          | Uorc.Core.RuntimeTable::PutOutcome.failed failureBinder80 => false
+          | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false)))),
   axioms: [Quot.sound, propext],
   executable: true
 }
@@ -200,19 +187,17 @@ definition{
   body: (match (Uorc.Core.RuntimeTable::beginPut (Uorc.Core.Heap::emptyArena (10000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame))) (0 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.metadata (4 : UInt64) (0 : UInt64) (Uorc.Core.RuntimeValue::nullHandle)))
     | Result.ok sBinder87 => false
     | Result.error failureBinder88 => (match failureBinder88
-    | Uorc.Core.Heap::HeapError.invalidNode => true
-    | Uorc.Core.Heap::HeapError.malformedHandle => false
-    | Uorc.Core.Heap::HeapError.budgetExceeded => false
-    | Uorc.Core.Heap::HeapError.countOverflow => false
-    | Uorc.Core.Heap::HeapError.countUnderflow => false
-    | Uorc.Core.Heap::HeapError.handleOverflow => false
-    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
-    | Uorc.Core.Heap::HeapError.releaseInProgress => false
-    | Uorc.Core.Heap::HeapError.releaseNotStarted => false
-    | Uorc.Core.Heap::HeapError.invalidRoot => false
-    | Uorc.Core.Heap::HeapError.protocolFailure => false
-)
-),
+      | Uorc.Core.Heap::HeapError.invalidNode => true
+      | Uorc.Core.Heap::HeapError.malformedHandle => false
+      | Uorc.Core.Heap::HeapError.budgetExceeded => false
+      | Uorc.Core.Heap::HeapError.countOverflow => false
+      | Uorc.Core.Heap::HeapError.countUnderflow => false
+      | Uorc.Core.Heap::HeapError.handleOverflow => false
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+      | Uorc.Core.Heap::HeapError.invalidRoot => false
+      | Uorc.Core.Heap::HeapError.protocolFailure => false)),
   axioms: [Quot.sound, propext],
   executable: true
 }
@@ -224,21 +209,16 @@ definition{
   body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (10000 : UInt64)) (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (2 : UInt64))))
     | Result.error failureBinder97 => false
     | Result.ok badBinder98 => (match (Uorc.Core.RuntimeTable::beginPut (project badBinder98 arena) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame)), root := (project badBinder98 handle)}) (0 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (8 : UInt64))))
-    | Result.error failureBinder95 => false
-    | Result.ok startBinder96 => (match (run 1024 (cons (project badBinder98 handle) (nil Uorc.Core.RuntimeValue::Handle)) startBinder96)
-    | Result.error failureBinder93 => false
-    | Result.ok failedBinder94 => (if (match (project failedBinder94 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder89 => true
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder90 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-) then (if (match (cancelRun (cons (project badBinder98 handle) (nil Uorc.Core.RuntimeValue::Handle)) failedBinder94)
-    | Result.error failureBinder91 => false
-    | Result.ok cleanBinder92 => (prim equal (project (project cleanBinder92 arena) ownedBytes) (64 : UInt64) : Bool)
-) then true else false) else false)
-)
-)
-),
+      | Result.error failureBinder95 => false
+      | Result.ok startBinder96 => (match (run 1024 (cons (project badBinder98 handle) (nil Uorc.Core.RuntimeValue::Handle)) startBinder96)
+        | Result.error failureBinder93 => false
+        | Result.ok failedBinder94 => (if (match (project failedBinder94 outcome)
+          | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder89 => true
+          | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+          | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder90 => false
+          | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false) then (if (match (cancelRun (cons (project badBinder98 handle) (nil Uorc.Core.RuntimeValue::Handle)) failedBinder94)
+          | Result.error failureBinder91 => false
+          | Result.ok cleanBinder92 => (prim equal (project (project cleanBinder92 arena) ownedBytes) (64 : UInt64) : Bool)) then true else false) else false)))),
   axioms: [Quot.sound, propext],
   executable: true
 }
@@ -250,51 +230,42 @@ definition{
   body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (10000 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataWord (1025 : UInt64) (2 : UInt64) (77 : UInt64)))
     | Result.error failureBinder111 => false
     | Result.ok foreignBinder112 => (match (Uorc.Core.RuntimeTable::beginPut (project foreignBinder112 arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame))) (0 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (2 : UInt64))))
-    | Result.error failureBinder109 => false
-    | Result.ok startBinder110 => (match (Uorc.Core.Heap::release (project startBinder110 arena) (project foreignBinder112 handle))
-    | Result.error failureBinder107 => false
-    | Result.ok releaseBinder108 => (let busy : Uorc.Core.RuntimeTable::PutTransition := (record Uorc.Core.RuntimeTable::PutTransition {arena := (project releaseBinder108 arena), cursor := (project startBinder110 cursor), outcome := (project startBinder110 outcome), delta := (project startBinder110 delta), peakOwnedBytes := (project startBinder110 peakOwnedBytes)}); (let stopped : Uorc.Core.RuntimeTable::PutTransition := (Uorc.Core.RuntimeTable::step busy); (if (validState busy (nil Uorc.Core.RuntimeValue::Handle)) then (if (validState stopped (nil Uorc.Core.RuntimeValue::Handle)) then (if (match (project stopped outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder99 => (match eBinder99
-    | Uorc.Core.Heap::HeapError.releaseInProgress => true
-    | Uorc.Core.Heap::HeapError.malformedHandle => false
-    | Uorc.Core.Heap::HeapError.invalidNode => false
-    | Uorc.Core.Heap::HeapError.budgetExceeded => false
-    | Uorc.Core.Heap::HeapError.countOverflow => false
-    | Uorc.Core.Heap::HeapError.countUnderflow => false
-    | Uorc.Core.Heap::HeapError.handleOverflow => false
-    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
-    | Uorc.Core.Heap::HeapError.releaseNotStarted => false
-    | Uorc.Core.Heap::HeapError.invalidRoot => false
-    | Uorc.Core.Heap::HeapError.protocolFailure => false
-)
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder100 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-) then (if (prim equal (project (project (project stopped arena) cursor) pendingCount) (1 : UInt64) : Bool) then (if (match (Uorc.Core.RuntimeTable::beginPut (project busy arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame))) (0 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (2 : UInt64))))
-    | Result.ok unexpectedBinder101 => false
-    | Result.error eBinder102 => (match eBinder102
-    | Uorc.Core.Heap::HeapError.releaseInProgress => true
-    | Uorc.Core.Heap::HeapError.malformedHandle => false
-    | Uorc.Core.Heap::HeapError.invalidNode => false
-    | Uorc.Core.Heap::HeapError.budgetExceeded => false
-    | Uorc.Core.Heap::HeapError.countOverflow => false
-    | Uorc.Core.Heap::HeapError.countUnderflow => false
-    | Uorc.Core.Heap::HeapError.handleOverflow => false
-    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
-    | Uorc.Core.Heap::HeapError.releaseNotStarted => false
-    | Uorc.Core.Heap::HeapError.invalidRoot => false
-    | Uorc.Core.Heap::HeapError.protocolFailure => false
-)
-) then (if (let cancelledStart : Uorc.Core.RuntimeTable::PutTransition := (Uorc.Core.RuntimeTable::cancel stopped); (let stillBusy : Uorc.Core.RuntimeTable::PutTransition := (Uorc.Core.RuntimeTable::step cancelledStart); (if (validState cancelledStart (nil Uorc.Core.RuntimeValue::Handle)) then (if (validState stillBusy (nil Uorc.Core.RuntimeValue::Handle)) then (if (prim equal (project (project (project stillBusy arena) cursor) pendingCount) (1 : UInt64) : Bool) then (if (match (Uorc.Core.Heap::releaseStep (project stillBusy arena))
-    | Result.error failureBinder105 => false
-    | Result.ok ownerDrainBinder106 => (let resumable : Uorc.Core.RuntimeTable::PutTransition := (record Uorc.Core.RuntimeTable::PutTransition {arena := (project ownerDrainBinder106 arena), cursor := (project cancelledStart cursor), outcome := (project cancelledStart outcome), delta := (project cancelledStart delta), peakOwnedBytes := (project cancelledStart peakOwnedBytes)}); (match (run 1024 (nil Uorc.Core.RuntimeValue::Handle) resumable)
-    | Result.error failureBinder103 => false
-    | Result.ok cleanBinder104 => (prim equal (project (project cleanBinder104 arena) ownedBytes) (0 : UInt64) : Bool)
-))
-) then true else false) else false) else false) else false))) then true else false) else false) else false) else false) else false) else false)))
-)
-)
-),
+      | Result.error failureBinder109 => false
+      | Result.ok startBinder110 => (match (Uorc.Core.Heap::release (project startBinder110 arena) (project foreignBinder112 handle))
+        | Result.error failureBinder107 => false
+        | Result.ok releaseBinder108 => (let busy : Uorc.Core.RuntimeTable::PutTransition := (record Uorc.Core.RuntimeTable::PutTransition {arena := (project releaseBinder108 arena), cursor := (project startBinder110 cursor), outcome := (project startBinder110 outcome), delta := (project startBinder110 delta), peakOwnedBytes := (project startBinder110 peakOwnedBytes)}); (let stopped : Uorc.Core.RuntimeTable::PutTransition := (Uorc.Core.RuntimeTable::step busy); (if (validState busy (nil Uorc.Core.RuntimeValue::Handle)) then (if (validState stopped (nil Uorc.Core.RuntimeValue::Handle)) then (if (match (project stopped outcome)
+          | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder99 => (match eBinder99
+            | Uorc.Core.Heap::HeapError.releaseInProgress => true
+            | Uorc.Core.Heap::HeapError.malformedHandle => false
+            | Uorc.Core.Heap::HeapError.invalidNode => false
+            | Uorc.Core.Heap::HeapError.budgetExceeded => false
+            | Uorc.Core.Heap::HeapError.countOverflow => false
+            | Uorc.Core.Heap::HeapError.countUnderflow => false
+            | Uorc.Core.Heap::HeapError.handleOverflow => false
+            | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+            | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+            | Uorc.Core.Heap::HeapError.invalidRoot => false
+            | Uorc.Core.Heap::HeapError.protocolFailure => false)
+          | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+          | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder100 => false
+          | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false) then (if (prim equal (project (project (project stopped arena) cursor) pendingCount) (1 : UInt64) : Bool) then (if (match (Uorc.Core.RuntimeTable::beginPut (project busy arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame))) (0 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (2 : UInt64))))
+          | Result.ok unexpectedBinder101 => false
+          | Result.error eBinder102 => (match eBinder102
+            | Uorc.Core.Heap::HeapError.releaseInProgress => true
+            | Uorc.Core.Heap::HeapError.malformedHandle => false
+            | Uorc.Core.Heap::HeapError.invalidNode => false
+            | Uorc.Core.Heap::HeapError.budgetExceeded => false
+            | Uorc.Core.Heap::HeapError.countOverflow => false
+            | Uorc.Core.Heap::HeapError.countUnderflow => false
+            | Uorc.Core.Heap::HeapError.handleOverflow => false
+            | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+            | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+            | Uorc.Core.Heap::HeapError.invalidRoot => false
+            | Uorc.Core.Heap::HeapError.protocolFailure => false)) then (if (let cancelledStart : Uorc.Core.RuntimeTable::PutTransition := (Uorc.Core.RuntimeTable::cancel stopped); (let stillBusy : Uorc.Core.RuntimeTable::PutTransition := (Uorc.Core.RuntimeTable::step cancelledStart); (if (validState cancelledStart (nil Uorc.Core.RuntimeValue::Handle)) then (if (validState stillBusy (nil Uorc.Core.RuntimeValue::Handle)) then (if (prim equal (project (project (project stillBusy arena) cursor) pendingCount) (1 : UInt64) : Bool) then (if (match (Uorc.Core.Heap::releaseStep (project stillBusy arena))
+          | Result.error failureBinder105 => false
+          | Result.ok ownerDrainBinder106 => (let resumable : Uorc.Core.RuntimeTable::PutTransition := (record Uorc.Core.RuntimeTable::PutTransition {arena := (project ownerDrainBinder106 arena), cursor := (project cancelledStart cursor), outcome := (project cancelledStart outcome), delta := (project cancelledStart delta), peakOwnedBytes := (project cancelledStart peakOwnedBytes)}); (match (run 1024 (nil Uorc.Core.RuntimeValue::Handle) resumable)
+            | Result.error failureBinder103 => false
+            | Result.ok cleanBinder104 => (prim equal (project (project cleanBinder104 arena) ownedBytes) (0 : UInt64) : Bool)))) then true else false) else false) else false) else false))) then true else false) else false) else false) else false) else false) else false)))))),
   axioms: [Quot.sound, propext],
   executable: true
 }
@@ -306,32 +277,27 @@ definition{
   body: (match (Uorc.Core.RuntimeTable::beginErase (Uorc.Core.Heap::emptyArena (10000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame))) (18446744073709551615 : UInt64))
     | Result.error failureBinder119 => false
     | Result.ok startBinder120 => (match (run 1024 (nil Uorc.Core.RuntimeValue::Handle) startBinder120)
-    | Result.error failureBinder117 => false
-    | Result.ok doneBinder118 => (if (match (project doneBinder118 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder113 => (Uorc.Core.RuntimeValue::isNull (project tableBinder113 root))
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder114 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-) then (if (prim equal (project (project doneBinder118 arena) ownedBytes) (0 : UInt64) : Bool) then (if (prim equal (project (project doneBinder118 delta) allocatedEntries) (1 : UInt64) : Bool) then (if (match (project (Uorc.Core.RuntimeTable::step doneBinder118) outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder115 => (match eBinder115
-    | Uorc.Core.Heap::HeapError.protocolFailure => true
-    | Uorc.Core.Heap::HeapError.malformedHandle => false
-    | Uorc.Core.Heap::HeapError.invalidNode => false
-    | Uorc.Core.Heap::HeapError.budgetExceeded => false
-    | Uorc.Core.Heap::HeapError.countOverflow => false
-    | Uorc.Core.Heap::HeapError.countUnderflow => false
-    | Uorc.Core.Heap::HeapError.handleOverflow => false
-    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
-    | Uorc.Core.Heap::HeapError.releaseInProgress => false
-    | Uorc.Core.Heap::HeapError.releaseNotStarted => false
-    | Uorc.Core.Heap::HeapError.invalidRoot => false
-)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder116 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-) then true else false) else false) else false) else false)
-)
-),
+      | Result.error failureBinder117 => false
+      | Result.ok doneBinder118 => (if (match (project doneBinder118 outcome)
+        | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder113 => (Uorc.Core.RuntimeValue::isNull (project tableBinder113 root))
+        | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+        | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder114 => false
+        | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false) then (if (prim equal (project (project doneBinder118 arena) ownedBytes) (0 : UInt64) : Bool) then (if (prim equal (project (project doneBinder118 delta) allocatedEntries) (1 : UInt64) : Bool) then (if (match (project (Uorc.Core.RuntimeTable::step doneBinder118) outcome)
+        | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder115 => (match eBinder115
+          | Uorc.Core.Heap::HeapError.protocolFailure => true
+          | Uorc.Core.Heap::HeapError.malformedHandle => false
+          | Uorc.Core.Heap::HeapError.invalidNode => false
+          | Uorc.Core.Heap::HeapError.budgetExceeded => false
+          | Uorc.Core.Heap::HeapError.countOverflow => false
+          | Uorc.Core.Heap::HeapError.countUnderflow => false
+          | Uorc.Core.Heap::HeapError.handleOverflow => false
+          | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+          | Uorc.Core.Heap::HeapError.releaseInProgress => false
+          | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+          | Uorc.Core.Heap::HeapError.invalidRoot => false)
+        | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder116 => false
+        | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+        | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false) then true else false) else false) else false) else false))),
   axioms: [Quot.sound, propext],
   executable: true
 }
@@ -343,75 +309,57 @@ definition{
   body: (match (Uorc.Core.RuntimeTable::beginPut (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame))) (0 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (7 : UInt64))))
     | Result.error failureBinder152 => false
     | Result.ok startBinder153 => (match (run 1024 (nil Uorc.Core.RuntimeValue::Handle) startBinder153)
-    | Result.error failureBinder150 => false
-    | Result.ok firstBinder151 => (match (project firstBinder151 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete firstTableBinder148 => (match (Uorc.Core.RuntimeTable::beginPut (project firstBinder151 arena) firstTableBinder148 (1 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (9 : UInt64))))
-    | Result.error failureBinder146 => false
-    | Result.ok secondStartBinder147 => (match (run 1024 (cons (project firstTableBinder148 root) (nil Uorc.Core.RuntimeValue::Handle)) secondStartBinder147)
-    | Result.error failureBinder144 => false
-    | Result.ok secondBinder145 => (match (project secondBinder145 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder142 => (if (match (Uorc.Core.RuntimeTable::beginErase (project secondBinder145 arena) tableBinder142 (1 : UInt64))
-    | Result.error failureBinder136 => false
-    | Result.ok eraseStartBinder137 => (match (run 1024 (cons (project firstTableBinder148 root) (cons (project tableBinder142 root) (nil Uorc.Core.RuntimeValue::Handle))) eraseStartBinder137)
-    | Result.error failureBinder134 => false
-    | Result.ok erasedBinder135 => (match (project erasedBinder135 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete erasedTableBinder132 => (match (Uorc.Core.RuntimeTable::lookup (project erasedBinder135 arena) erasedTableBinder132 (0 : UInt64))
-    | Result.error failureBinder130 => false
-    | Result.ok survivorBinder131 => (match (Uorc.Core.RuntimeTable::lookup (project erasedBinder135 arena) erasedTableBinder132 (1 : UInt64))
-    | Result.error failureBinder128 => false
-    | Result.ok removedBinder129 => (match (Uorc.Core.RuntimeTable::lookup (project erasedBinder135 arena) tableBinder142 (1 : UInt64))
-    | Result.error failureBinder126 => false
-    | Result.ok oldBinder127 => (if (if (Uorc.Core.RuntimeValue::isNull survivorBinder131) then false else true) then (if (Uorc.Core.RuntimeValue::isNull removedBinder129) then (if (if (Uorc.Core.RuntimeValue::isNull oldBinder127) then false else true) then true else false) else false) else false)
-)
-)
-)
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder133 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-)
-)
-) then (if (match (Uorc.Core.RuntimeTable::beginErase (record Uorc.Core.Heap::Arena {index := (project (project secondBinder145 arena) index), nextHandle := (project (project secondBinder145 arena) nextHandle), exhausted := (project (project secondBinder145 arena) exhausted), ownedBytes := (project (project secondBinder145 arena) ownedBytes), liveEntries := (project (project secondBinder145 arena) liveEntries), maxOwnedBytes := (Uorc.Core.Heap::wordAdd (project (project secondBinder145 arena) ownedBytes) (1240 : UInt64)), cursor := (project (project secondBinder145 arena) cursor)}) tableBinder142 (1 : UInt64))
-    | Result.error failureBinder140 => false
-    | Result.ok limitedStartBinder141 => (match (run 1024 (cons (project firstTableBinder148 root) (cons (project tableBinder142 root) (nil Uorc.Core.RuntimeValue::Handle))) limitedStartBinder141)
-    | Result.error failureBinder138 => false
-    | Result.ok failedBinder139 => (if (match (project failedBinder139 outcome)
-    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder121 => (match eBinder121
-    | Uorc.Core.Heap::HeapError.budgetExceeded => true
-    | Uorc.Core.Heap::HeapError.malformedHandle => false
-    | Uorc.Core.Heap::HeapError.invalidNode => false
-    | Uorc.Core.Heap::HeapError.countOverflow => false
-    | Uorc.Core.Heap::HeapError.countUnderflow => false
-    | Uorc.Core.Heap::HeapError.handleOverflow => false
-    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
-    | Uorc.Core.Heap::HeapError.releaseInProgress => false
-    | Uorc.Core.Heap::HeapError.releaseNotStarted => false
-    | Uorc.Core.Heap::HeapError.invalidRoot => false
-    | Uorc.Core.Heap::HeapError.protocolFailure => false
-)
-    | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder122 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-) then (if (prim equal (project (project failedBinder139 delta) allocatedEntries) (4 : UInt64) : Bool) then (if (prim equal (project (project failedBinder139 delta) allocatedBytes) (1240 : UInt64) : Bool) then (if (match (project failedBinder139 cursor)
-    | Option.none => false
-    | Option.some cBinder123 => (if (Uorc.Core.RuntimeValue::isNull (project cBinder123 subtree)) then false else true)
-) then (if (match (cancelRun (cons (project firstTableBinder148 root) (cons (project tableBinder142 root) (nil Uorc.Core.RuntimeValue::Handle))) failedBinder139)
-    | Result.error failureBinder124 => false
-    | Result.ok cleanBinder125 => (prim equal (project (project cleanBinder125 arena) ownedBytes) (project (project secondBinder145 arena) ownedBytes) : Bool)
-) then true else false) else false) else false) else false) else false)
-)
-) then true else false) else false)
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder143 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-)
-)
-)
-    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
-    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder149 => false
-    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false
-)
-)
-),
+      | Result.error failureBinder150 => false
+      | Result.ok firstBinder151 => (match (project firstBinder151 outcome)
+        | Uorc.Core.RuntimeTable::PutOutcome.complete firstTableBinder148 => (match (Uorc.Core.RuntimeTable::beginPut (project firstBinder151 arena) firstTableBinder148 (1 : UInt64) (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (9 : UInt64))))
+          | Result.error failureBinder146 => false
+          | Result.ok secondStartBinder147 => (match (run 1024 (cons (project firstTableBinder148 root) (nil Uorc.Core.RuntimeValue::Handle)) secondStartBinder147)
+            | Result.error failureBinder144 => false
+            | Result.ok secondBinder145 => (match (project secondBinder145 outcome)
+              | Uorc.Core.RuntimeTable::PutOutcome.complete tableBinder142 => (if (match (Uorc.Core.RuntimeTable::beginErase (project secondBinder145 arena) tableBinder142 (1 : UInt64))
+                | Result.error failureBinder136 => false
+                | Result.ok eraseStartBinder137 => (match (run 1024 (cons (project firstTableBinder148 root) (cons (project tableBinder142 root) (nil Uorc.Core.RuntimeValue::Handle))) eraseStartBinder137)
+                  | Result.error failureBinder134 => false
+                  | Result.ok erasedBinder135 => (match (project erasedBinder135 outcome)
+                    | Uorc.Core.RuntimeTable::PutOutcome.complete erasedTableBinder132 => (match (Uorc.Core.RuntimeTable::lookup (project erasedBinder135 arena) erasedTableBinder132 (0 : UInt64))
+                      | Result.error failureBinder130 => false
+                      | Result.ok survivorBinder131 => (match (Uorc.Core.RuntimeTable::lookup (project erasedBinder135 arena) erasedTableBinder132 (1 : UInt64))
+                        | Result.error failureBinder128 => false
+                        | Result.ok removedBinder129 => (match (Uorc.Core.RuntimeTable::lookup (project erasedBinder135 arena) tableBinder142 (1 : UInt64))
+                          | Result.error failureBinder126 => false
+                          | Result.ok oldBinder127 => (if (if (Uorc.Core.RuntimeValue::isNull survivorBinder131) then false else true) then (if (Uorc.Core.RuntimeValue::isNull removedBinder129) then (if (if (Uorc.Core.RuntimeValue::isNull oldBinder127) then false else true) then true else false) else false) else false))))
+                    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+                    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder133 => false
+                    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false))) then (if (match (Uorc.Core.RuntimeTable::beginErase (record Uorc.Core.Heap::Arena {index := (project (project secondBinder145 arena) index), nextHandle := (project (project secondBinder145 arena) nextHandle), exhausted := (project (project secondBinder145 arena) exhausted), ownedBytes := (project (project secondBinder145 arena) ownedBytes), liveEntries := (project (project secondBinder145 arena) liveEntries), maxOwnedBytes := (Uorc.Core.Heap::wordAdd (project (project secondBinder145 arena) ownedBytes) (1240 : UInt64)), cursor := (project (project secondBinder145 arena) cursor)}) tableBinder142 (1 : UInt64))
+                | Result.error failureBinder140 => false
+                | Result.ok limitedStartBinder141 => (match (run 1024 (cons (project firstTableBinder148 root) (cons (project tableBinder142 root) (nil Uorc.Core.RuntimeValue::Handle))) limitedStartBinder141)
+                  | Result.error failureBinder138 => false
+                  | Result.ok failedBinder139 => (if (match (project failedBinder139 outcome)
+                    | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder121 => (match eBinder121
+                      | Uorc.Core.Heap::HeapError.budgetExceeded => true
+                      | Uorc.Core.Heap::HeapError.malformedHandle => false
+                      | Uorc.Core.Heap::HeapError.invalidNode => false
+                      | Uorc.Core.Heap::HeapError.countOverflow => false
+                      | Uorc.Core.Heap::HeapError.countUnderflow => false
+                      | Uorc.Core.Heap::HeapError.handleOverflow => false
+                      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+                      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+                      | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+                      | Uorc.Core.Heap::HeapError.invalidRoot => false
+                      | Uorc.Core.Heap::HeapError.protocolFailure => false)
+                    | Uorc.Core.RuntimeTable::PutOutcome.complete tBinder122 => false
+                    | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+                    | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false) then (if (prim equal (project (project failedBinder139 delta) allocatedEntries) (4 : UInt64) : Bool) then (if (prim equal (project (project failedBinder139 delta) allocatedBytes) (1240 : UInt64) : Bool) then (if (match (project failedBinder139 cursor)
+                    | Option.none => false
+                    | Option.some cBinder123 => (if (Uorc.Core.RuntimeValue::isNull (project cBinder123 subtree)) then false else true)) then (if (match (cancelRun (cons (project firstTableBinder148 root) (cons (project tableBinder142 root) (nil Uorc.Core.RuntimeValue::Handle))) failedBinder139)
+                    | Result.error failureBinder124 => false
+                    | Result.ok cleanBinder125 => (prim equal (project (project cleanBinder125 arena) ownedBytes) (project (project secondBinder145 arena) ownedBytes) : Bool)) then true else false) else false) else false) else false) else false))) then true else false) else false)
+              | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+              | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder143 => false
+              | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false)))
+        | Uorc.Core.RuntimeTable::PutOutcome.pending => false
+        | Uorc.Core.RuntimeTable::PutOutcome.failed eBinder149 => false
+        | Uorc.Core.RuntimeTable::PutOutcome.cancelled => false))),
   axioms: [Quot.sound, propext],
   executable: true
 }
