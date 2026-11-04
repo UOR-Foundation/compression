@@ -167,7 +167,7 @@ Lean files are byte-identical to the compiled and executed control-backed build
 above; executable metadata changed without changing any generated implementation
 bytes. The final receipt is `build-final-cursor.json` in the same fixture.
 
-Final source SHA-256 values:
+Worker snapshot SHA-256 values (before canonical formatting and the composed exact-axiom metadata correction; the current compiler-parsed cache binds the newer source bytes):
 
 - `RuntimeTable.lex.tex`:
   `daef4c6cd618483365ef6bb356d69e6600449568ebc8f8b511f89178a40a0f0b`

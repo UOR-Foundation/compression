@@ -1,12 +1,12 @@
 # Authored runtime integration interfaces
 
-Generated from the current source using official `lexlean::sdk::read_module`. Source remains authoritative. Cursors contain fixed scalar/handle fields; variable continuations are charged arena owners. The builder runtime suite remains in progress; no complete product qualification is claimed.
+Generated from the source using official `lexlean::sdk::read_module`. Source remains authoritative. Cursors contain fixed scalar/handle fields; variable continuations are charged arena owners. The builder's final cancellation correction passes all 35 source-owned scenarios in the native Lean diagnostic; no complete product qualification is claimed.
 
 ## RuntimeSequence
 
 ```text
 Span { image: Uorc.Core.RuntimeValue::Handle, offset: uint64, length: uint64 }
-Outcome = pending | sequence(Uorc.Core.RuntimeValue::Handle) | byte(uint8) | span(::Span)
+Outcome = pending | sequence(Uorc.Core.RuntimeValue::Handle) | byte(uint8) | span(::Span) | cancelled
 SequenceTransition { arena: Uorc.Core.Heap::Arena, cursor: ::Cursor, delta: Uorc.Core.Heap::Delta, work: uint64, outcome: ::Outcome }
 beginConcat(arena: Uorc.Core.Heap::Arena, left: Uorc.Core.RuntimeValue::Handle, right: Uorc.Core.RuntimeValue::Handle) -> Result<::SequenceTransition, ::SequenceFailure>
 length(arena: Uorc.Core.Heap::Arena, root: Uorc.Core.RuntimeValue::Handle) -> Result<uint64, ::SequenceFailure>
@@ -16,8 +16,11 @@ beginSpan(arena: Uorc.Core.Heap::Arena, root: Uorc.Core.RuntimeValue::Handle, st
 resultOwned(cursor: ::Cursor) -> bool
 emptyCursor() -> ::Cursor
 step(arena: Uorc.Core.Heap::Arena, cursor: ::Cursor) -> Result<::SequenceTransition, ::SequenceFailure>
+cancel(arena: Uorc.Core.Heap::Arena, cursor: ::Cursor) -> Result<::SequenceTransition, ::SequenceFailure>
 ownedRoots(cursor: ::Cursor) -> list<Uorc.Core.RuntimeValue::Handle>
 ```
+
+Sequence cancellation preserves the current arena/cursor lineage. Drive `step` until `cancelled`; cancellation covers a fresh allocation prefix, retained result and the operation's already-transferred release ticket. The cursor layout is unchanged. Serialize the arena's single release cursor: phases 6/11 own the release transferred by that exact sequence continuation. Do not independently advance or substitute it while retaining the continuation. A completed sequence/span ticket has already moved to the caller; cancelling the terminal empty cursor is an `invalidCursor` failure.
 
 ## RuntimeStore
 
@@ -64,4 +67,4 @@ beginErase(arena: Uorc.Core.Heap::Arena, table: ::Table, key: uint64) -> Result<
 
 `Heap.allocateControl(arena, bytes)` allocates a retainable fixed-record capacity owner with modeled charge `48 + bytes`; it is not an image and cannot be committed into one. No padding Bytes are created. `preflightImageCommit(arena, reservation, expectedLength)` returns the charged weight after validating every typed commit precondition, before bytes are copied. `withdrawRootRelease(arena)` transfers the still-unprocessed single cursor-root ticket back to its caller; it is rejected after a release step. These helpers return checked `Result` values and do not establish physical RSS equivalence.
 
-Status checkpoint: sequence nine-scenario, store twelve-scenario and table-cursor seven-scenario official Lean runtime checks pass on their recorded fixtures. Builder source/kernel/exact-axiom checks pass; its 32-case runtime command is still running, and cancellation at initial final-control release is being corrected through `withdrawRootRelease`. Known Rust preservation qualification remains owned by LexLean #310/#393. The 30-line reproducer and prior failure receipts are preserved. No release or issue-completion claim is made.
+The final composed snapshot passes canonical formatting, official source check/build, kernel compilation of all fourteen modules, all 406 exact definition/theorem axiom policies and all seven suite predicates in the native Lean diagnostic. This includes sequence cancellation, the twelve store scenarios, seven table-cursor scenarios and all 35 builder scenarios. The superseded builder interpreter was stopped only after its native pass. Actual SDK lowering succeeds for all 21 production roots; the nineteen runtime closures exclude mathematical backing, HeapAudit and atomic table writes. See `runtime-composed-evidence.json` and `runtime-production-closure.json` for source hashes and scoped results. Known Rust preservation qualification remains owned by LexLean #310/#393. The 30-line reproducer and prior failure receipts are preserved. No release or issue-completion claim is made.
