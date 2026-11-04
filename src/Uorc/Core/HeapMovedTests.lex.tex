@@ -1,0 +1,187 @@
+\begin{lexlean}{Uorc.Core.HeapMovedTests}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.HeapMovedReference}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: compare,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    node : Uorc.Core.Heap::Node,
+    moveFirst : Bool,
+    moveSecond : Bool
+  ],
+  result: Bool,
+  body: (Uorc.Core.HeapMovedReference::sameResult (Uorc.Core.Heap::allocateMoved arena node moveFirst moveSecond) (Uorc.Core.HeapMovedReference::oldAllocateMoved arena node moveFirst moveSecond)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: setCounters,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    handle : Uorc.Core.RuntimeValue::Handle,
+    incoming : UInt64,
+    roots : UInt64
+  ],
+  result: Uorc.Core.Heap::Arena,
+  body: (match (Uorc.Core.Heap::lookup arena handle)
+    | Result.error failure => arena
+    | Result.ok entry => (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project arena index) (project handle id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (project entry node), incoming := incoming, roots := roots, weight := (project entry weight)}))), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project arena maxOwnedBytes), cursor := (project arena cursor)})),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: basicScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (1 : UInt64) (18 : UInt64)))
+    | Result.error failureLocal19 => false
+    | Result.ok oneLocal20 => (match (Uorc.Core.Heap::allocate (project oneLocal20 arena) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (2 : UInt64) (19 : UInt64)))
+      | Result.error failureLocal17 => false
+      | Result.ok twoLocal18 => (if (if (compare (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal20 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal20 handle)) true false)
+        | Result.error failureLocal1 => false
+        | Result.ok allocatedLocal2 => (if (Uorc.Core.HeapAudit::auditRoots (project allocatedLocal2 arena) (cons (project allocatedLocal2 handle) (cons (project twoLocal18 handle) (nil Uorc.Core.RuntimeValue::Handle)))) then (if (prim equal (project (project allocatedLocal2 delta) droppedRoots) (1 : UInt64) : Bool) then (if (prim equal (project (project allocatedLocal2 delta) work) (2 : UInt64) : Bool) then true else false) else false) else false)) then true else false) else false) then (if (if (compare (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project twoLocal18 handle)) true true) then (if (match (Uorc.Core.Heap::allocateMoved (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project twoLocal18 handle)) true true)
+        | Result.error failureLocal3 => false
+        | Result.ok allocatedLocal4 => (if (Uorc.Core.HeapAudit::auditRoots (project allocatedLocal4 arena) (cons (project allocatedLocal4 handle) (nil Uorc.Core.RuntimeValue::Handle))) then (if (prim equal (project (project allocatedLocal4 delta) droppedRoots) (2 : UInt64) : Bool) then (if (prim equal (project (project allocatedLocal4 delta) work) (3 : UInt64) : Bool) then true else false) else false) else false)) then true else false) else false) then (if (if (compare (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project oneLocal20 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project oneLocal20 handle)) true false)
+        | Result.error failureLocal5 => false
+        | Result.ok allocatedLocal6 => (if (Uorc.Core.HeapAudit::auditRoots (project allocatedLocal6 arena) (cons (project allocatedLocal6 handle) (cons (project twoLocal18 handle) (nil Uorc.Core.RuntimeValue::Handle)))) then (if (prim equal (project (project allocatedLocal6 delta) droppedRoots) (1 : UInt64) : Bool) then (if (prim equal (project (project allocatedLocal6 delta) work) (2 : UInt64) : Bool) then true else false) else false) else false)) then true else false) else false) then (if (if (compare (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project oneLocal20 handle)) false true) then (if (match (Uorc.Core.Heap::allocateMoved (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project oneLocal20 handle)) false true)
+        | Result.error failureLocal7 => false
+        | Result.ok allocatedLocal8 => (if (Uorc.Core.HeapAudit::auditRoots (project allocatedLocal8 arena) (cons (project allocatedLocal8 handle) (cons (project twoLocal18 handle) (nil Uorc.Core.RuntimeValue::Handle)))) then (if (prim equal (project (project allocatedLocal8 delta) droppedRoots) (1 : UInt64) : Bool) then (if (prim equal (project (project allocatedLocal8 delta) work) (2 : UInt64) : Bool) then true else false) else false) else false)) then true else false) else false) then (if (if (compare (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Core.RuntimeValue::nullHandle)) true true) then (if (match (Uorc.Core.Heap::allocateMoved (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Core.RuntimeValue::nullHandle)) true true)
+        | Result.error failureLocal9 => false
+        | Result.ok allocatedLocal10 => (if (Uorc.Core.HeapAudit::auditRoots (project allocatedLocal10 arena) (cons (project allocatedLocal10 handle) (cons (project oneLocal20 handle) (cons (project twoLocal18 handle) (nil Uorc.Core.RuntimeValue::Handle))))) then (if (prim equal (project (project allocatedLocal10 delta) droppedRoots) (0 : UInt64) : Bool) then (if (prim equal (project (project allocatedLocal10 delta) work) (3 : UInt64) : Bool) then true else false) else false) else false)) then true else false) else false) then (if (if (compare (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project twoLocal18 handle)) false false) then (if (match (Uorc.Core.Heap::allocateMoved (project twoLocal18 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project twoLocal18 handle)) false false)
+        | Result.error failureLocal11 => false
+        | Result.ok allocatedLocal12 => (if (Uorc.Core.HeapAudit::auditRoots (project allocatedLocal12 arena) (cons (project allocatedLocal12 handle) (cons (project oneLocal20 handle) (cons (project twoLocal18 handle) (nil Uorc.Core.RuntimeValue::Handle))))) then (if (prim equal (project (project allocatedLocal12 delta) droppedRoots) (0 : UInt64) : Bool) then (if (prim equal (project (project allocatedLocal12 delta) work) (1 : UInt64) : Bool) then true else false) else false) else false)) then true else false) else false) then (if (match (Uorc.Core.Heap::retain (project twoLocal18 arena) (project oneLocal20 handle))
+        | Result.error failureLocal15 => false
+        | Result.ok aliasLocal16 => (if (compare (project aliasLocal16 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project oneLocal20 handle)) true true) then (if (match (Uorc.Core.Heap::allocateMoved (project aliasLocal16 arena) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal20 handle) (project oneLocal20 handle)) true true)
+          | Result.error failureLocal13 => false
+          | Result.ok allocatedLocal14 => (if (Uorc.Core.HeapAudit::auditRoots (project allocatedLocal14 arena) (cons (project allocatedLocal14 handle) (cons (project twoLocal18 handle) (nil Uorc.Core.RuntimeValue::Handle)))) then (if (prim equal (project (project allocatedLocal14 delta) droppedRoots) (2 : UInt64) : Bool) then (if (prim equal (project (project allocatedLocal14 delta) work) (3 : UInt64) : Bool) then true else false) else false) else false)) then true else false) else false)) then true else false) else false) else false) else false) else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: overflowScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (1 : UInt64) (18 : UInt64)))
+    | Result.error failureLocal37 => false
+    | Result.ok oneLocal38 => (match (Uorc.Core.Heap::allocate (project oneLocal38 arena) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (2 : UInt64) (19 : UInt64)))
+      | Result.error failureLocal35 => false
+      | Result.ok twoLocal36 => (if (if (compare (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (18446744073709551615 : UInt64) (1 : UInt64)) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal38 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (18446744073709551615 : UInt64) (1 : UInt64)) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal38 handle)) true false)
+        | Result.ok allocatedLocal21 => false
+        | Result.error failureLocal22 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal22) (2 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (18446744073709551614 : UInt64) (2 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project oneLocal38 handle)) true true) then (if (match (Uorc.Core.Heap::allocateMoved (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (18446744073709551614 : UInt64) (2 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project oneLocal38 handle)) true true)
+        | Result.ok allocatedLocal23 => false
+        | Result.error failureLocal24 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal24) (2 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (18446744073709551614 : UInt64) (1 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project oneLocal38 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (18446744073709551614 : UInt64) (1 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project oneLocal38 handle)) true false)
+        | Result.ok allocatedLocal25 => false
+        | Result.error failureLocal26 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal26) (2 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (18446744073709551614 : UInt64) (1 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project oneLocal38 handle)) false true) then (if (match (Uorc.Core.Heap::allocateMoved (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (18446744073709551614 : UInt64) (1 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project oneLocal38 handle)) false true)
+        | Result.ok allocatedLocal27 => false
+        | Result.error failureLocal28 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal28) (2 : UInt64) : Bool)) then true else false) else false) then (if (compare (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (18446744073709551613 : UInt64) (2 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project oneLocal38 handle)) true true) then (if (if (compare (setCounters (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (1 : UInt64) (1 : UInt64)) (project twoLocal36 handle) (18446744073709551615 : UInt64) (0 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project twoLocal36 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (setCounters (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (1 : UInt64) (1 : UInt64)) (project twoLocal36 handle) (18446744073709551615 : UInt64) (0 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project twoLocal36 handle)) true false)
+        | Result.ok allocatedLocal29 => false
+        | Result.error failureLocal30 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal30) (2 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (setCounters (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (0 : UInt64) (1 : UInt64)) (project twoLocal36 handle) (18446744073709551615 : UInt64) (0 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project twoLocal36 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (setCounters (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (0 : UInt64) (1 : UInt64)) (project twoLocal36 handle) (18446744073709551615 : UInt64) (0 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project twoLocal36 handle)) true false)
+        | Result.ok allocatedLocal31 => false
+        | Result.error failureLocal32 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal32) (3 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (setCounters (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (1 : UInt64) (1 : UInt64)) (project twoLocal36 handle) (0 : UInt64) (1 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project twoLocal36 handle)) true true) then (if (match (Uorc.Core.Heap::allocateMoved (setCounters (setCounters (project twoLocal36 arena) (project oneLocal38 handle) (1 : UInt64) (1 : UInt64)) (project twoLocal36 handle) (0 : UInt64) (1 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal38 handle) (project twoLocal36 handle)) true true)
+        | Result.ok allocatedLocal33 => false
+        | Result.error failureLocal34 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal34) (3 : UInt64) : Bool)) then true else false) else false) then true else false) else false) else false) else false) else false) else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: preflightScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (1 : UInt64) (18 : UInt64)))
+    | Result.error failureLocal63 => false
+    | Result.ok oneLocal64 => (match (Uorc.Core.Heap::allocate (project oneLocal64 arena) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (2 : UInt64) (19 : UInt64)))
+      | Result.error failureLocal61 => false
+      | Result.ok twoLocal62 => (if (let forged : Uorc.Core.Heap::Arena := (setCounters (project twoLocal62 arena) (project oneLocal64 handle) (1 : UInt64) (0 : UInt64)); (if (compare (record Uorc.Core.Heap::Arena {index := (project forged index), nextHandle := (project forged nextHandle), exhausted := (project forged exhausted), ownedBytes := (project forged ownedBytes), liveEntries := (project forged liveEntries), maxOwnedBytes := (project forged ownedBytes), cursor := (project forged cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (record Uorc.Core.Heap::Arena {index := (project forged index), nextHandle := (project forged nextHandle), exhausted := (project forged exhausted), ownedBytes := (project forged ownedBytes), liveEntries := (project forged liveEntries), maxOwnedBytes := (project forged ownedBytes), cursor := (project forged cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false)
+        | Result.ok allocatedLocal39 => false
+        | Result.error failureLocal40 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal40) (9 : UInt64) : Bool)) then true else false) else false)) then (if (let forged : Uorc.Core.Heap::Arena := (setCounters (project twoLocal62 arena) (project oneLocal64 handle) (18446744073709551615 : UInt64) (1 : UInt64)); (if (compare (record Uorc.Core.Heap::Arena {index := (project forged index), nextHandle := (project forged nextHandle), exhausted := (project forged exhausted), ownedBytes := (project forged ownedBytes), liveEntries := (project forged liveEntries), maxOwnedBytes := (project forged ownedBytes), cursor := (project forged cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (record Uorc.Core.Heap::Arena {index := (project forged index), nextHandle := (project forged nextHandle), exhausted := (project forged exhausted), ownedBytes := (project forged ownedBytes), liveEntries := (project forged liveEntries), maxOwnedBytes := (project forged ownedBytes), cursor := (project forged cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false)
+        | Result.ok allocatedLocal41 => false
+        | Result.error failureLocal42 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal42) (6 : UInt64) : Bool)) then true else false) else false)) then (if (let forged : Uorc.Core.Heap::Arena := (setCounters (project twoLocal62 arena) (project oneLocal64 handle) (2 : UInt64) (1 : UInt64)); (if (compare (record Uorc.Core.Heap::Arena {index := (project forged index), nextHandle := (project forged nextHandle), exhausted := (project forged exhausted), ownedBytes := (project forged ownedBytes), liveEntries := (project forged liveEntries), maxOwnedBytes := (project forged ownedBytes), cursor := (project forged cursor)}) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal64 handle) (project oneLocal64 handle)) true true) then (if (match (Uorc.Core.Heap::allocateMoved (record Uorc.Core.Heap::Arena {index := (project forged index), nextHandle := (project forged nextHandle), exhausted := (project forged exhausted), ownedBytes := (project forged ownedBytes), liveEntries := (project forged liveEntries), maxOwnedBytes := (project forged ownedBytes), cursor := (project forged cursor)}) (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) (project oneLocal64 handle) (project oneLocal64 handle)) true true)
+        | Result.ok allocatedLocal43 => false
+        | Result.error failureLocal44 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal44) (9 : UInt64) : Bool)) then true else false) else false)) then (if (if (compare (project twoLocal62 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project oneLocal64 handle) (0 : UInt64) (1 : UInt64)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (project twoLocal62 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project oneLocal64 handle) (0 : UInt64) (1 : UInt64)) true false)
+        | Result.ok allocatedLocal45 => false
+        | Result.error failureLocal46 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal46) (1 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (project (project twoLocal62 arena) nextHandle), exhausted := true, ownedBytes := (project (project twoLocal62 arena) ownedBytes), liveEntries := (project (project twoLocal62 arena) liveEntries), maxOwnedBytes := (project (project twoLocal62 arena) maxOwnedBytes), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (project (project twoLocal62 arena) nextHandle), exhausted := true, ownedBytes := (project (project twoLocal62 arena) ownedBytes), liveEntries := (project (project twoLocal62 arena) liveEntries), maxOwnedBytes := (project (project twoLocal62 arena) maxOwnedBytes), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false)
+        | Result.ok allocatedLocal47 => false
+        | Result.error failureLocal48 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal48) (4 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (0 : UInt64), exhausted := (project (project twoLocal62 arena) exhausted), ownedBytes := (project (project twoLocal62 arena) ownedBytes), liveEntries := (project (project twoLocal62 arena) liveEntries), maxOwnedBytes := (project (project twoLocal62 arena) maxOwnedBytes), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (0 : UInt64), exhausted := (project (project twoLocal62 arena) exhausted), ownedBytes := (project (project twoLocal62 arena) ownedBytes), liveEntries := (project (project twoLocal62 arena) liveEntries), maxOwnedBytes := (project (project twoLocal62 arena) maxOwnedBytes), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false)
+        | Result.ok allocatedLocal49 => false
+        | Result.error failureLocal50 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal50) (10 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (project (project oneLocal64 handle) id), exhausted := (project (project twoLocal62 arena) exhausted), ownedBytes := (project (project twoLocal62 arena) ownedBytes), liveEntries := (project (project twoLocal62 arena) liveEntries), maxOwnedBytes := (project (project twoLocal62 arena) maxOwnedBytes), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (3 : UInt64) (20 : UInt64)) false false) then (if (match (Uorc.Core.Heap::allocateMoved (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (project (project oneLocal64 handle) id), exhausted := (project (project twoLocal62 arena) exhausted), ownedBytes := (project (project twoLocal62 arena) ownedBytes), liveEntries := (project (project twoLocal62 arena) liveEntries), maxOwnedBytes := (project (project twoLocal62 arena) maxOwnedBytes), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (3 : UInt64) (20 : UInt64)) false false)
+        | Result.ok allocatedLocal51 => false
+        | Result.error failureLocal52 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal52) (10 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (project (project twoLocal62 arena) nextHandle), exhausted := (project (project twoLocal62 arena) exhausted), ownedBytes := (project (project twoLocal62 arena) ownedBytes), liveEntries := (18446744073709551615 : UInt64), maxOwnedBytes := (project (project twoLocal62 arena) maxOwnedBytes), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (project (project twoLocal62 arena) nextHandle), exhausted := (project (project twoLocal62 arena) exhausted), ownedBytes := (project (project twoLocal62 arena) ownedBytes), liveEntries := (18446744073709551615 : UInt64), maxOwnedBytes := (project (project twoLocal62 arena) maxOwnedBytes), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false)
+        | Result.ok allocatedLocal53 => false
+        | Result.error failureLocal54 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal54) (5 : UInt64) : Bool)) then true else false) else false) then (if (if (compare (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (project (project twoLocal62 arena) nextHandle), exhausted := (project (project twoLocal62 arena) exhausted), ownedBytes := (18446744073709551615 : UInt64), liveEntries := (project (project twoLocal62 arena) liveEntries), maxOwnedBytes := (18446744073709551615 : UInt64), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (record Uorc.Core.Heap::Arena {index := (project (project twoLocal62 arena) index), nextHandle := (project (project twoLocal62 arena) nextHandle), exhausted := (project (project twoLocal62 arena) exhausted), ownedBytes := (18446744073709551615 : UInt64), liveEntries := (project (project twoLocal62 arena) liveEntries), maxOwnedBytes := (18446744073709551615 : UInt64), cursor := (project (project twoLocal62 arena) cursor)}) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false)
+        | Result.ok allocatedLocal55 => false
+        | Result.error failureLocal56 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal56) (5 : UInt64) : Bool)) then true else false) else false) then (if (match (Uorc.Core.Heap::release (project twoLocal62 arena) (project twoLocal62 handle))
+        | Result.error failureLocal59 => false
+        | Result.ok releaseLocal60 => (if (compare (project releaseLocal60 arena) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (project releaseLocal60 arena) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project oneLocal64 handle)) true false)
+          | Result.ok allocatedLocal57 => false
+          | Result.error failureLocal58 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal58) (7 : UInt64) : Bool)) then true else false) else false)) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: gridCase,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    a : Uorc.Core.RuntimeValue::Handle,
+    b : Uorc.Core.RuntimeValue::Handle,
+    incoming : UInt64,
+    roots : UInt64
+  ],
+  result: Bool,
+  body: (let forged : Uorc.Core.Heap::Arena := (setCounters arena a incoming roots); (if (compare forged (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) a a) false false) then (if (compare forged (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) a a) true false) then (if (compare forged (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) a a) false true) then (if (compare forged (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) a a) true true) then (if (compare forged (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) a b) false false) then (if (compare forged (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) a b) true false) then (if (compare forged (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) a b) false true) then (if (compare forged (ctor Uorc.Core.Heap::Node.metadataBranch (1152 : UInt64) a b) true true) then true else false) else false) else false) else false) else false) else false) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: counterGridScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (1 : UInt64) (18 : UInt64)))
+    | Result.error failureLocal67 => false
+    | Result.ok oneLocal68 => (match (Uorc.Core.Heap::allocate (project oneLocal68 arena) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (2 : UInt64) (19 : UInt64)))
+      | Result.error failureLocal65 => false
+      | Result.ok twoLocal66 => (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (0 : UInt64) (0 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (0 : UInt64) (1 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (0 : UInt64) (2 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (0 : UInt64) (18446744073709551615 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (1 : UInt64) (0 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (1 : UInt64) (1 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (1 : UInt64) (2 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (1 : UInt64) (18446744073709551615 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (2 : UInt64) (0 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (2 : UInt64) (1 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (2 : UInt64) (2 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (2 : UInt64) (18446744073709551615 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551613 : UInt64) (0 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551613 : UInt64) (1 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551613 : UInt64) (2 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551613 : UInt64) (18446744073709551615 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551614 : UInt64) (0 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551614 : UInt64) (1 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551614 : UInt64) (2 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551614 : UInt64) (18446744073709551615 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551615 : UInt64) (0 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551615 : UInt64) (1 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551615 : UInt64) (2 : UInt64)) then (if (gridCase (project twoLocal66 arena) (project oneLocal68 handle) (project twoLocal66 handle) (18446744073709551615 : UInt64) (18446744073709551615 : UInt64)) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: reservationScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (1 : UInt64) (18 : UInt64)))
+    | Result.error failureLocal79 => false
+    | Result.ok oneLocal80 => (match (Uorc.Core.Heap::allocate (project oneLocal80 arena) (ctor Uorc.Core.Heap::Node.metadataWord (1152 : UInt64) (2 : UInt64) (19 : UInt64)))
+      | Result.error failureLocal77 => false
+      | Result.ok twoLocal78 => (if (match (Uorc.Core.Heap::reserveImage (project twoLocal78 arena) (ctor Uorc.Core.Heap::ImageKind.runtime) (3 : UInt64))
+        | Result.error failureLocal71 => false
+        | Result.ok reservationLocal72 => (if (compare (project reservationLocal72 arena) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project reservationLocal72 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (project reservationLocal72 arena) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project reservationLocal72 handle)) true false)
+          | Result.ok allocatedLocal69 => false
+          | Result.error failureLocal70 => (prim equal (Uorc.Core.HeapMovedReference::errorTag failureLocal70) (10 : UInt64) : Bool)) then true else false) else false)) then (if (match (Uorc.Core.Heap::allocateControl (project twoLocal78 arena) (3 : UInt64))
+        | Result.error failureLocal75 => false
+        | Result.ok controlLocal76 => (if (compare (project controlLocal76 arena) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project controlLocal76 handle)) true false) then (if (match (Uorc.Core.Heap::allocateMoved (project controlLocal76 arena) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (project controlLocal76 handle)) true false)
+          | Result.error failureLocal73 => false
+          | Result.ok allocatedLocal74 => (if (Uorc.Core.HeapAudit::auditRoots (project allocatedLocal74 arena) (cons (project allocatedLocal74 handle) (cons (project oneLocal80 handle) (cons (project twoLocal78 handle) (nil Uorc.Core.RuntimeValue::Handle))))) then (if (prim equal (project (project allocatedLocal74 delta) droppedRoots) (1 : UInt64) : Bool) then (if (prim equal (project (project allocatedLocal74 delta) work) (2 : UInt64) : Bool) then true else false) else false) else false)) then true else false) else false)) then true else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: suite,
+  parameters: [],
+  result: Bool,
+  body: (if (basicScenario) then (if (overflowScenario) then (if (preflightScenario) then (if (counterGridScenario) then (if (reservationScenario) then true else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

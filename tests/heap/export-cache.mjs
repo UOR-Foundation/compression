@@ -21,7 +21,9 @@ if(git(prismRoot,'status','--porcelain')) throw Error('official PrismPM checkout
 const helperRelative='crates/conformance/src/bin/prismpm-semantic-source.rs';
 const names=['RuntimeValue','Heap','HeapAudit','RuntimeTable','RuntimeSequence','RuntimeStore',
   'RuntimeByteBuilder','HeapTests','RuntimeTableTests','RuntimeIndexTests',
-  'RuntimeTableCursorTests','RuntimeSequenceTests','RuntimeStoreTests','RuntimeByteBuilderTests'];
+  'RuntimeTableCursorTests','RuntimeSequenceTests','RuntimeStoreTests','RuntimeByteBuilderTests',
+  'RuntimeOwnershipProofs','RuntimeAuditProofs','RuntimeObservationProofs','RuntimeSequenceProofs',
+  'RuntimeCost','RuntimeSequenceTickets','RuntimeSequenceTicketTests','HeapMovedReference','HeapMovedTests'];
 const modules=[];
 for(const name of names) {
   const sourcePath=`src/Uorc/Core/${name}.lex.tex`;
@@ -42,7 +44,8 @@ for(const name of names) {
   });
   if(source!==await fs.readFile(path.join(repo,sourcePath),'utf8')) throw Error(`${name}: source changed during read`);
   modules.push({module:`Uorc.Core.${name}`,source_path:sourcePath,source_sha256:sha(source),
-    role:name.endsWith('Tests')?'diagnostic_scenarios':'runtime_or_independent_audit',
+    role:name.endsWith('Tests')?'diagnostic_scenarios':name.endsWith('Proofs')?'proof_only':
+      name==='HeapMovedReference'?'diagnostic_reference':name==='HeapAudit'?'independent_audit':'runtime',
     imports:[...source.matchAll(/\\importmodule\{([^}]+)\}/g)].map(x=>x[1]),
     parser_output_sha256:sha(json),repeat_read:'byte_exact',notation_round_trip:'byte_exact',
     definitions,parsed_module:parsed});
@@ -63,7 +66,9 @@ const bundle={schema:'uorc/compiler-parsed-runtime-source/1',
   modules,
   qualification:{semantic_cache_only:true,production_export_accepted:false,
     pinned_sdk_accepted:false,full_release_accepted:false,
-    preservation_blocker:'LexLean #310 / PR #393',physical_memory_measurement:false}};
+    retained_export_failure:'LLV7015 on the pre-fix compiler; candidate #393 consumer qualification is separate',
+    candidate_export_status:'not attempted in this executor; wire executor owns the existing 3fe13b50 compiler',
+    physical_memory_measurement:false}};
 await fs.mkdir(path.dirname(output),{recursive:true});
 const bytes=JSON.stringify(bundle)+'\n';
 await fs.writeFile(output,bytes);

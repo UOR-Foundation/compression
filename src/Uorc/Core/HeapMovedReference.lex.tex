@@ -1,0 +1,362 @@
+\begin{lexlean}{Uorc.Core.HeapMovedReference}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: oldAllocateMoved,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    node : Uorc.Core.Heap::Node,
+    moveFirst : Bool,
+    moveSecond : Bool
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.releaseInProgress)) else (let kids : Uorc.Core.Heap::Children := (Uorc.Core.Heap::nodeChildren node); match{
+    branches: [
+      {
+        body: (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] error),
+        binders: [error],
+        constructor: Result.error
+      },
+      {
+        body: (match (Uorc.Core.Heap::allocate arena node)
+          | Result.error error => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] error)
+          | Result.ok allocated => (match (if moveFirst then (Uorc.Core.Heap::dropRetainedRoot (project allocated arena) (project kids first)) else (ctor Result.ok [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Transition {arena := (project allocated arena), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), complete := true})))
+            | Result.error error => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] error)
+            | Result.ok firstStep => (match (if moveSecond then (Uorc.Core.Heap::dropRetainedRoot (project firstStep arena) (project kids second)) else (ctor Result.ok [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Transition {arena := (project firstStep arena), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), complete := true})))
+              | Result.error error => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] error)
+              | Result.ok secondStep => (ctor Result.ok [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Allocation {arena := (project secondStep arena), handle := (project allocated handle), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (Uorc.Core.Heap::wordAdd (project (project allocated delta) allocatedBytes) (Uorc.Core.Heap::wordAdd (project (project firstStep delta) allocatedBytes) (project (project secondStep delta) allocatedBytes))), releasedBytes := (Uorc.Core.Heap::wordAdd (project (project allocated delta) releasedBytes) (Uorc.Core.Heap::wordAdd (project (project firstStep delta) releasedBytes) (project (project secondStep delta) releasedBytes))), allocatedEntries := (Uorc.Core.Heap::wordAdd (project (project allocated delta) allocatedEntries) (Uorc.Core.Heap::wordAdd (project (project firstStep delta) allocatedEntries) (project (project secondStep delta) allocatedEntries))), releasedEntries := (Uorc.Core.Heap::wordAdd (project (project allocated delta) releasedEntries) (Uorc.Core.Heap::wordAdd (project (project firstStep delta) releasedEntries) (project (project secondStep delta) releasedEntries))), retainedEdges := (Uorc.Core.Heap::wordAdd (project (project allocated delta) retainedEdges) (Uorc.Core.Heap::wordAdd (project (project firstStep delta) retainedEdges) (project (project secondStep delta) retainedEdges))), droppedEdges := (Uorc.Core.Heap::wordAdd (project (project allocated delta) droppedEdges) (Uorc.Core.Heap::wordAdd (project (project firstStep delta) droppedEdges) (project (project secondStep delta) droppedEdges))), retainedRoots := (Uorc.Core.Heap::wordAdd (project (project allocated delta) retainedRoots) (Uorc.Core.Heap::wordAdd (project (project firstStep delta) retainedRoots) (project (project secondStep delta) retainedRoots))), droppedRoots := (Uorc.Core.Heap::wordAdd (project (project allocated delta) droppedRoots) (Uorc.Core.Heap::wordAdd (project (project firstStep delta) droppedRoots) (project (project secondStep delta) droppedRoots))), work := (Uorc.Core.Heap::wordAdd (project (project allocated delta) work) (Uorc.Core.Heap::wordAdd (project (project firstStep delta) work) (project (project secondStep delta) work)))})}))))),
+        binders: [checked],
+        constructor: Result.ok
+      }
+    ],
+    scrutinee: (Uorc.Core.Heap::preflightMovedRoots arena kids moveFirst moveSecond)
+  })),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: errorTag,
+  parameters: [e : Uorc.Core.Heap::HeapError],
+  result: UInt64,
+  body: (match e
+    | Uorc.Core.Heap::HeapError.malformedHandle => (0 : UInt64)
+    | Uorc.Core.Heap::HeapError.invalidNode => (1 : UInt64)
+    | Uorc.Core.Heap::HeapError.countOverflow => (2 : UInt64)
+    | Uorc.Core.Heap::HeapError.countUnderflow => (3 : UInt64)
+    | Uorc.Core.Heap::HeapError.handleOverflow => (4 : UInt64)
+    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => (5 : UInt64)
+    | Uorc.Core.Heap::HeapError.budgetExceeded => (6 : UInt64)
+    | Uorc.Core.Heap::HeapError.releaseInProgress => (7 : UInt64)
+    | Uorc.Core.Heap::HeapError.releaseNotStarted => (8 : UInt64)
+    | Uorc.Core.Heap::HeapError.invalidRoot => (9 : UInt64)
+    | Uorc.Core.Heap::HeapError.protocolFailure => (10 : UInt64)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: imageKindTag,
+  parameters: [k : Uorc.Core.Heap::ImageKind],
+  result: UInt64,
+  body: (match k
+    | Uorc.Core.Heap::ImageKind.input => (0 : UInt64)
+    | Uorc.Core.Heap::ImageKind.archive => (1 : UInt64)
+    | Uorc.Core.Heap::ImageKind.basis => (2 : UInt64)
+    | Uorc.Core.Heap::ImageKind.runtime => (3 : UInt64)
+    | Uorc.Core.Heap::ImageKind.control => (4 : UInt64)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: sameValue,
+  parameters: [a : Uorc.Core.RuntimeValue::RuntimeValue, b : Uorc.Core.RuntimeValue::RuntimeValue],
+  result: Bool,
+  body: (match a
+    | Uorc.Core.RuntimeValue::RuntimeValue.natural a0 => (match b
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural b0 => (if (prim equal a0 b0 : Bool) then true else false)
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.store unused0 unused1 => false)
+    | Uorc.Core.RuntimeValue::RuntimeValue.byte a0 => (match b
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte b0 => (if (prim equal a0 b0 : Bool) then true else false)
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.store unused0 unused1 => false)
+    | Uorc.Core.RuntimeValue::RuntimeValue.predicate a0 => (match b
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate b0 => (if (prim equal a0 b0 : Bool) then true else false)
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.store unused0 unused1 => false)
+    | Uorc.Core.RuntimeValue::RuntimeValue.sequence a0 => (match b
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence b0 => (if (Uorc.Core.RuntimeValue::sameHandle a0 b0) then true else false)
+      | Uorc.Core.RuntimeValue::RuntimeValue.store unused0 unused1 => false)
+    | Uorc.Core.RuntimeValue::RuntimeValue.store a0 a1 => (match b
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence unused0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.store b0 b1 => (if (prim equal a0 b0 : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle a1 b1) then true else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: sameNode,
+  parameters: [a : Uorc.Core.Heap::Node, b : Uorc.Core.Heap::Node],
+  result: Bool,
+  body: (match a
+    | Uorc.Core.Heap::Node.image a0 a1 => (match b
+      | Uorc.Core.Heap::Node.image b0 b1 => (if (prim equal (imageKindTag a0) (imageKindTag b0) : Bool) then (if (prim equal a1 b1 : Bool) then true else false) else false)
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.sequenceLeaf a0 a1 a2 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf b0 b1 b2 => (if (Uorc.Core.RuntimeValue::sameHandle a0 b0) then (if (prim equal a1 b1 : Bool) then (if (prim equal a2 b2 : Bool) then true else false) else false) else false)
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.sequenceBranch a0 a1 a2 a3 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch b0 b1 b2 b3 => (if (prim equal a0 b0 : Bool) then (if (prim equal a1 b1 : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle a2 b2) then (if (Uorc.Core.RuntimeValue::sameHandle a3 b3) then true else false) else false) else false) else false)
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.storeLeaf a0 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf b0 => (if (prim equal a0 b0 : Bool) then true else false)
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.storeBranch a0 a1 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch b0 b1 => (if (Uorc.Core.RuntimeValue::sameHandle a0 b0) then (if (Uorc.Core.RuntimeValue::sameHandle a1 b1) then true else false) else false)
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.slot a0 a1 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot b0 b1 => (if (prim equal (Uorc.Core.RuntimeValue::roleTag a0) (Uorc.Core.RuntimeValue::roleTag b0) : Bool) then (if (sameValue a1 b1) then true else false) else false)
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.rootBranch a0 a1 a2 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch b0 b1 b2 => (if (prim equal (Uorc.Core.RuntimeValue::roleTag a0) (Uorc.Core.RuntimeValue::roleTag b0) : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle a1 b1) then (if (Uorc.Core.RuntimeValue::sameHandle a2 b2) then true else false) else false) else false)
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.metadataWord a0 a1 a2 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord b0 b1 b2 => (if (prim equal a0 b0 : Bool) then (if (prim equal a1 b1 : Bool) then (if (prim equal a2 b2 : Bool) then true else false) else false) else false)
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.metadataLink a0 a1 a2 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink b0 b1 b2 => (if (prim equal a0 b0 : Bool) then (if (prim equal a1 b1 : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle a2 b2) then true else false) else false) else false)
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.metadataBranch a0 a1 a2 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch b0 b1 b2 => (if (prim equal a0 b0 : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle a1 b1) then (if (Uorc.Core.RuntimeValue::sameHandle a2 b2) then true else false) else false) else false)
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.ownerRoot a0 a1 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot b0 b1 => (if (prim equal (Uorc.Core.RuntimeValue::roleTag a0) (Uorc.Core.RuntimeValue::roleTag b0) : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle a1 b1) then true else false) else false)
+      | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false)
+    | Uorc.Core.Heap::Node.imageReservation a0 a1 => (match b
+      | Uorc.Core.Heap::Node.image unused0 unused1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+      | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+      | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+      | Uorc.Core.Heap::Node.slot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+      | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+      | Uorc.Core.Heap::Node.imageReservation b0 b1 => (if (prim equal (imageKindTag a0) (imageKindTag b0) : Bool) then (if (prim equal a1 b1 : Bool) then true else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: sameEntry,
+  parameters: [a : Uorc.Core.Heap::Entry, b : Uorc.Core.Heap::Entry],
+  result: Bool,
+  body: (if (sameNode (project a node) (project b node)) then (if (prim equal (project a incoming) (project b incoming) : Bool) then (if (prim equal (project a roots) (project b roots) : Bool) then (if (prim equal (project a weight) (project b weight) : Bool) then true else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: sameIndex,
+  parameters: [a : Uorc.Core.Heap::Index, b : Uorc.Core.Heap::Index],
+  result: Bool,
+  body: (match a
+    | Uorc.Core.Heap::Index.empty => (match b
+      | Uorc.Core.Heap::Index.empty => true
+      | Uorc.Core.Heap::Index.leaf e => false
+      | Uorc.Core.Heap::Index.branch l r => false)
+    | Uorc.Core.Heap::Index.leaf entry => (match b
+      | Uorc.Core.Heap::Index.empty => false
+      | Uorc.Core.Heap::Index.leaf peer => (sameEntry entry peer)
+      | Uorc.Core.Heap::Index.branch l r => false)
+    | Uorc.Core.Heap::Index.branch left right => (match b
+      | Uorc.Core.Heap::Index.empty => false
+      | Uorc.Core.Heap::Index.leaf e => false
+      | Uorc.Core.Heap::Index.branch peerLeft peerRight => (if (sameIndex left peerLeft) then (if (sameIndex right peerRight) then true else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: a
+}
+
+definition{
+  name: sameHandles,
+  parameters: [
+    a : (List Uorc.Core.RuntimeValue::Handle),
+    b : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: Bool,
+  body: (match a
+    | List.nil => (match b | List.nil => true | List.cons h t => false)
+    | List.cons h tail => (match b
+      | List.nil => false
+      | List.cons peer peerTail => (if (Uorc.Core.RuntimeValue::sameHandle h peer) then (if (sameHandles tail peerTail) then true else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: a
+}
+
+definition{
+  name: sameArena,
+  parameters: [a : Uorc.Core.Heap::Arena, b : Uorc.Core.Heap::Arena],
+  result: Bool,
+  body: (if (sameIndex (project a index) (project b index)) then (if (prim equal (project a nextHandle) (project b nextHandle) : Bool) then (if (prim equal (project a exhausted) (project b exhausted) : Bool) then (if (prim equal (project a ownedBytes) (project b ownedBytes) : Bool) then (if (prim equal (project a liveEntries) (project b liveEntries) : Bool) then (if (prim equal (project a maxOwnedBytes) (project b maxOwnedBytes) : Bool) then (if (prim equal (project (project a cursor) pendingCount) (project (project b cursor) pendingCount) : Bool) then (if (prim equal (project (project a cursor) rootStep) (project (project b cursor) rootStep) : Bool) then (if (sameHandles (project (project a cursor) pending) (project (project b cursor) pending)) then true else false) else false) else false) else false) else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: sameDelta,
+  parameters: [a : Uorc.Core.Heap::Delta, b : Uorc.Core.Heap::Delta],
+  result: Bool,
+  body: (if (prim equal (project a allocatedBytes) (project b allocatedBytes) : Bool) then (if (prim equal (project a releasedBytes) (project b releasedBytes) : Bool) then (if (prim equal (project a allocatedEntries) (project b allocatedEntries) : Bool) then (if (prim equal (project a releasedEntries) (project b releasedEntries) : Bool) then (if (prim equal (project a retainedEdges) (project b retainedEdges) : Bool) then (if (prim equal (project a droppedEdges) (project b droppedEdges) : Bool) then (if (prim equal (project a retainedRoots) (project b retainedRoots) : Bool) then (if (prim equal (project a droppedRoots) (project b droppedRoots) : Bool) then (if (prim equal (project a work) (project b work) : Bool) then true else false) else false) else false) else false) else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: sameResult,
+  parameters: [
+    a : (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError),
+    b : (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError)
+  ],
+  result: Bool,
+  body: (match a
+    | Result.error failure => (match b
+      | Result.error peer => (prim equal (errorTag failure) (errorTag peer) : Bool)
+      | Result.ok allocation => false)
+    | Result.ok allocation => (match b
+      | Result.error peer => false
+      | Result.ok expected => (if (sameArena (project allocation arena) (project expected arena)) then (if (Uorc.Core.RuntimeValue::sameHandle (project allocation handle) (project expected handle)) then (if (sameDelta (project allocation delta) (project expected delta)) then true else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}
