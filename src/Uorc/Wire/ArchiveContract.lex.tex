@@ -1,0 +1,53 @@
+\begin{lexlean}{Uorc.Wire.ArchiveContract}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Scenario,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: given, type: String},
+    {name: when, type: String},
+    {name: then, type: String},
+    {name: owner, type: String}
+  ]
+}
+
+definition{
+  name: uc_archive_parse_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-ARCHIVE-PARSE-01", given := "format2/format3 raw and program archives with charged images", when := "parse every compact split, empty chunks and exact EOF", then := "canonical bounded frame events preserve body/integrity separation and charged length acknowledgments", owner := "Uorc.Wire.ArchiveParseScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_archive_parse_02,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-ARCHIVE-PARSE-02", given := "malformed header, nonminimal/overflow, truncation and trailing bytes", when := "resume after acknowledged prefixes or cancel with a pending span", then := "typed sticky failure retains ownership, usage and resumable cleanup", owner := "Uorc.Wire.ArchiveParseScenarios.runNegatives"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_object_demux_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-OBJECT-DEMUX-01", given := "ordered lengths in charged metadata including empty objects", when := "consume reconstruction spans across every boundary and split", then := "each begin/end boundary is preserved, every byte is compared and exact EOF seals", owner := "Uorc.Wire.ObjectDemuxScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_archive_compose_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-ARCHIVE-COMPOSE-01", given := "one owned archive snapshot and existing source-owned format integrity", when := "compose frame, program events, hashing and ordered reconstruction", then := "one achieved arena is moved between controls, no AST fallback, no ready token before validation", owner := "Uorc.Wire.ArchiveSyntaxScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}
