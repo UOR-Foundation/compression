@@ -8,7 +8,7 @@ authority graph. It does not replace the template-owned `VERIFICATION.md`.
 
 ## Current status
 
-This revision implements the charter, source-authority, claim-disposition, and bounded U64 ULEB128 slices in the LexLean graph. The codec has kernel-checked round-trip, shortest-length, exact-size, and prefix-consumption properties. Full archive, machine, search, and production-product acceptance remain separate registered work; performance and record claims remain open.
+The first product generation is v0.1 and includes the complete compression product. Current development source composes framing, reference and runtime semantics, deterministic synthesis, accounting, evidence, and user operations. Release acceptance requires the complete current graph and generated products to pass their declared checks. Source presence or a partial diagnostic pass is not completed product evidence.
 
 ## Claim boundaries
 

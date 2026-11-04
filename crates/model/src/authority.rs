@@ -113,6 +113,8 @@ pub struct ScenarioProjection {
 /// The complete project-owned authority graph needed by the repository model.
 #[derive(Debug, Clone)]
 pub struct AuthorityGraph {
+    /// Exact immutable imported validation artifacts, including upstream notices.
+    pub imported_validation_artifacts: BTreeMap<String, String>,
     /// Source-owned bounded varint contract and kernel inventory.
     pub varint: crate::varint::VarintContract,
     /// Product charter.
@@ -141,6 +143,8 @@ impl AuthorityGraph {
     /// Load and structurally validate the LexLean authority modules.
     pub fn load(root: &Path) -> Result<Self, ModelError> {
         let varint = crate::varint::VarintContract::load(root)?;
+        let integrity_authorities = integrity_authorities(root)?;
+        let imported_validation_artifacts = imported_validation_artifacts(root)?;
         let specification =
             semantic_declarations(&root.join(SPECIFICATION_PATH), "Uorc.Specification")?;
         let registry = semantic_declarations(&root.join(REGISTRY_PATH), "Uorc.Registry")?;
@@ -237,7 +241,19 @@ impl AuthorityGraph {
                 level: parse_level(&level)?,
                 statement: statement.clone(),
                 feature: Some(format!("features/suites/{suite}.feature")),
-                authority: None,
+                authority: if level == "some-true" {
+                    Some(
+                        id.strip_prefix("AUTH-")
+                            .ok_or_else(|| {
+                                ModelError::Inconsistent(
+                                    "imported claim must carry an AUTH- identity".into(),
+                                )
+                            })?
+                            .to_string(),
+                    )
+                } else {
+                    None
+                },
                 sample_size: None,
                 seed: None,
                 evidence_kind: required(&fields, "evidenceKind")?,
@@ -266,6 +282,7 @@ impl AuthorityGraph {
         }
 
         let graph = Self {
+            imported_validation_artifacts,
             varint,
             charter: Charter {
                 product_name: required(&charter, "productName")?,
@@ -311,7 +328,7 @@ impl AuthorityGraph {
             scenarios,
             authorities: Authorities {
                 spec: "template/1".to_string(),
-                authority: Vec::new(),
+                authority: integrity_authorities,
             },
             claim_policy,
             ledger: Ledger {
@@ -334,6 +351,84 @@ impl AuthorityGraph {
             authorities: self.authorities.clone(),
         }
     }
+}
+
+fn imported_validation_artifacts(root: &Path) -> Result<BTreeMap<String, String>, ModelError> {
+    let declarations = semantic_declarations(
+        &root.join("src/Uorc/Integrity/Contract.lex.tex"),
+        "Uorc.Integrity.Contract",
+    )?;
+    let mut artifacts = BTreeMap::new();
+    for declaration in &declarations {
+        if definition_result_name(declaration) != Some("ImportedArtifact") {
+            continue;
+        }
+        let fields =
+            definition_string_fields(declaration, "ImportedArtifact", &["path", "sha256", "role"])?;
+        let path = required(&fields, "path")?;
+        let digest = required(&fields, "sha256")?;
+        if path.starts_with('/')
+            || path
+                .split('/')
+                .any(|c| c.is_empty() || c == "." || c == "..")
+            || digest.len() != 64
+            || !digest
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            || artifacts.insert(path, digest).is_some()
+        {
+            return Err(ModelError::Inconsistent(
+                "invalid or duplicate imported validation artifact".into(),
+            ));
+        }
+    }
+    if artifacts.is_empty() {
+        return Err(ModelError::Inconsistent(
+            "empty imported artifact inventory".into(),
+        ));
+    }
+    Ok(artifacts)
+}
+
+fn integrity_authorities(root: &Path) -> Result<Vec<crate::AuthorityRow>, ModelError> {
+    let declarations = semantic_declarations(
+        &root.join("src/Uorc/Integrity/Contract.lex.tex"),
+        "Uorc.Integrity.Contract",
+    )?;
+    let mut rows = Vec::new();
+    for declaration in &declarations {
+        if definition_result_name(declaration) != Some("CitedAuthority") {
+            continue;
+        }
+        let fields = definition_string_fields(
+            declaration,
+            "CitedAuthority",
+            &[
+                "id",
+                "name",
+                "citation",
+                "checksum",
+                "checksumReason",
+                "statement",
+                "realizedBy",
+            ],
+        )?;
+        rows.push(crate::AuthorityRow {
+            id: required(&fields, "id")?,
+            name: required(&fields, "name")?,
+            citation: required(&fields, "citation")?,
+            checksum: required(&fields, "checksum")?,
+            checksum_reason: required(&fields, "checksumReason")?,
+            statement: required(&fields, "statement")?,
+            realized_by: vec![required(&fields, "realizedBy")?],
+        });
+    }
+    if rows.len() != 2 {
+        return Err(ModelError::Inconsistent(
+            "integrity authority inventory must contain its two locked response files".into(),
+        ));
+    }
+    Ok(rows)
 }
 
 pub(crate) fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelError> {
