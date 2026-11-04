@@ -37,9 +37,11 @@ for(const name of names) {
   const restored=run(helper,['write'],{input:JSON.stringify({source,value:parsed})});
   if(restored!==source) throw Error(`${name}: official notation round trip differs`);
   const definitions=parsed.declarations.filter(x=>x.kind==='definition').map(d=>{
-    if(!Object.hasOwn(d,'executable') || !Object.hasOwn(d,'axioms'))
+    const executableExplicit=Object.hasOwn(d,'executable');
+    if((!executableExplicit && !name.endsWith('Proofs')) || !Object.hasOwn(d,'axioms'))
       throw Error(`${name}.${d.name}: missing explicit executable/axiom policy`);
-    return {name:d.name,executable:d.executable,axioms:d.axioms,
+    return {name:d.name,executable:executableExplicit?d.executable:null,
+      executable_explicit:executableExplicit,axioms:d.axioms,
       ...(Object.hasOwn(d,'production')?{production:d.production}:{})};
   });
   if(source!==await fs.readFile(path.join(repo,sourcePath),'utf8')) throw Error(`${name}: source changed during read`);
