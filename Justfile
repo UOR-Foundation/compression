@@ -3,7 +3,7 @@
 default: vv
 
 # The whole gate.
-vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts claim-dispositions varint-proofs reproducibility
+vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts claim-dispositions varint-proofs reproducibility integrity
     @echo "vv: the acceptance gate passed"
 
 # The UORC authority files are real LexLean source, not merely files with a
@@ -84,3 +84,12 @@ reproducibility:
 # Actual core-source defects must fail at their owning kernel declarations.
 varint-proofs:
     node scripts/varint-validation.mjs
+
+# Source-owned SHA, streaming identities, independent data and mutation controls.
+integrity:
+    node --test scripts/integrity-vectors.test.mjs
+    node scripts/integrity-validation.mjs
+    node --test scripts/integrity-stream.test.mjs
+    node scripts/integrity-stream.mjs
+    node --test scripts/integrity-binding.test.mjs
+    node scripts/integrity-binding-runtime.mjs

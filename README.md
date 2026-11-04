@@ -7,7 +7,7 @@ A lossless compression system whose compressed object is an exact executable Uni
 
 ## Current status
 
-This revision implements the charter, source-authority, claim-disposition, and bounded U64 ULEB128 slices in the LexLean graph. The codec has kernel-checked round-trip, shortest-length, exact-size, and prefix-consumption properties. Full archive, machine, search, and production-product acceptance remain separate registered work; performance and record claims remain open.
+The first product generation is v0.1 and includes the complete compression product. Current development source composes framing, reference and runtime semantics, deterministic synthesis, accounting, evidence, and user operations. Release acceptance requires the complete current graph and generated products to pass their declared checks. Source presence or a partial diagnostic pass is not completed product evidence.
 
 ## Authority
 
@@ -19,11 +19,11 @@ Product semantics, claim distinctions, test and report intent, and generated pro
 
 ## Scope
 
-Lossless byte-object compression, exact reconstruction, typed reference synthesis, explicit accounting, scoped certification, and reproducible validation.
+Lossless arbitrary byte objects and ordered object collections; exact executable model plus parameters and residuals; explicit self-contained or conditional-basis accounting; deterministic compositional synthesis and resumable search; independent reconstruction, scoped certification, measured frontiers and comparisons; native, library, Wasm, and accessible file-oriented user interfaces. Product generation0.1 does not defer compression capabilities to later generations.
 
 ### Non-scope
 
-Version 1 does not assert a world record, an unrestricted Kolmogorov minimum, universal runtime optimality, learned neural weights, online object lookup, encryption, or a compiler theorem not supplied by the locked upstream toolchain.
+UORC does not assert an unrestricted Kolmogorov minimum, universal runtime or compression-ratio superiority, external record acceptance, transparent uncharged network lookup, encryption, or a compiler theorem not supplied by its locked toolchain. Learned parameters and other models are eligible when their exact decoding semantics, bytes, parameters, residuals, basis dependencies, and work are fully represented and charged.
 
 ## Claim boundaries
 
