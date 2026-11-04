@@ -82,7 +82,7 @@ a reserved output safely. A planted untracked extra root makes three negative
 owners fail; restored observations match byte-for-byte. Digest mismatch and
 excess admission retain the ticket with the correct caller/producer owner.
 
-Current certified diagnostic export is blocked by `LLS8002`: certificate A for
+The earlier factored diagnostic export reports `LLS8002`: certificate A for
 `BindingControls.chargedHashAndCleanup` is 5,107,159 bytes, exceeding the unchanged
 4,194,304-byte limit. Factoring reduced the former 5,203,654-byte individual
 certificate, but did not qualify the export. The saved compiler/lock identities,
@@ -102,3 +102,10 @@ kernel for deep recursion. This is separate from the owned-control export's
 certificate file-size limit. The generated project/runtime modules compile,
 exact axiom traces pass, and the finite runtime controls execute; the complete
 SDK preservation pipeline does not pass this checkpoint.
+
+The size-gate snapshot predates the last exact Profile axiom annotations; its
+failure occurs before axiom audit. A narrower API attempt mistakenly reused
+that stale dependency snapshot and failed the axiom audit; it is discarded as
+current-branch evidence. The exact final source is independently AST-matched to
+the frozen diagnostic copy (apart from semantic-module version), and its full
+verification failure is the `RuntimeSequence.step` kernel rejection above.
