@@ -21,7 +21,10 @@ The Heap API is pure, and all failures use `HeapError`:
 - `sequenceInfo(arena, handle) : Result SequenceInfo HeapError`
 - `totalOwnedBytes(arena) : Result UInt64 HeapError`
 - `reserveImage(arena, kind, length) : Result Allocation HeapError`
+- `preflightImageCommit(arena, reservation, expectedLength) : Result UInt64 HeapError`
 - `commitImage(arena, reservation, bytes) : Result Allocation HeapError`
+- `allocateControl(arena, bytes) : Result Allocation HeapError`
+- `withdrawRootRelease(arena) : Result Allocation HeapError`
 
 `Allocation` contains `arena`, `handle`, and `delta`. `Transition` contains `arena`, `delta`, and `complete`. The returned arena stores the release cursor; the API never accepts a detached, potentially stale cursor. Only the returned state should replace the current state. A failed operation returns no replacement state. Errors distinguish malformed handles, invalid nodes, count overflow/underflow, handle exhaustion, owned-byte overflow, budget exhaustion, busy/missing release, invalid roots and protocol failures.
 
@@ -39,11 +42,13 @@ Arena nodes contain handles, never recursive mathematical ropes/tries. Image ent
 
 `metadataWord(kind, tag, word)`, `metadataLink(kind, tag, target)` and `metadataBranch(kind, left, right)` store indexed graph and cache records. They contain only fixed-width fields and owned handle edges. A metadata link may retain a literal image or another metadata record. Retaining an old reference AST beside these nodes would retain a second owner and is outside this representation.
 
-`RuntimeTable.Table {kind, root}` is a common fixed64 index. Its kind is `slots(role)` or `metadata(kindId)`. `emptyTable`, `lookup(arena, table, UInt64)` and `put(arena, table, UInt64, leaf)` are the public operations. Slot leaves are `Node.slot`; metadata leaves are `Node.metadataLink` whose tag equals the index key. Lookup follows at most 64 arena child IDs. Put allocates at most 65 entries, retains unchanged sibling IDs and moves newly allocated subtree roots into parents. The caller retains the old table root until its last use and releases it explicitly. No value-equality search infers aliasing or frees an owner.
+`RuntimeTable.Table {kind, root}` is a common fixed64 index. Its kind is `slots(role)` or `metadata(kindId)`. Production uses `emptyTable`, `lookup`, `beginPut`, `beginErase`, `step` and `cancel`. The old atomic `put`/`writePath` are explicitly non-executable diagnostic conveniences. Slot leaves are `Node.slot`; metadata leaves are `Node.metadataLink` whose tag equals the index key. Lookup follows at most 64 arena child IDs. A write cursor retains unchanged sibling IDs and moves new subtree roots into parents, with at most one entry allocation per step. Erasure removes the edge and collapses only both-null branches; the caller separately retains logical slot count and maps an erased in-range slot to its typed released-slot failure. The old table root stays caller-owned until replacement is installed and is then released explicitly. Failed cursors retain the achieved arena, cumulative Delta, peak and cleanup tickets. No value-equality search infers aliasing or frees an owner.
 
 The graph, validation and machine workers must assign metadata kind/tag schemas, build these tables during bounded admission, discard the old AST/cache backing at the conversion boundary, and attach every simultaneously live owner to its partition/root. The arena is not a new instruction interpreter or lifetime-plan validator. Its metadata nodes provide the storage for those workers' indexed runtime carriers.
 
 A block builder must call `reserveImage` before allocating/merging its new byte backing. `Node.imageReservation(kind, length)` charges `48 + length` immediately and contains no old payload. Its ticket is a unique external root; the API refuses retain and parent edges to reservation nodes. The pending continuation owns that root ticket. `commitImage` checks the ticket's uniqueness and exact byte length, removes the reservation, and allocates a fresh immutable image ID in one pure transition with the same byte charge. The old inputs stay live until explicitly released after the new builder owner is installed. Cancellation releases the reservation. An append operation must not be started first and charged afterward. This protocol does not assume `Bytes.append` mutates, uniquely owns or reuses either input buffer.
+
+`allocateControl` uses the control-kind capacity-node shape without materializing padding Bytes. It is a retainable/parentable fixed-record owner, is not a byte-image reservation and cannot become sequence backing. `withdrawRootRelease` transfers only the unprocessed single initial root ticket back to its caller; it is rejected after a release step. These two protocols preserve the builder control charge through cancellation of its final output transfer.
 
 ## Invariant and independent checks
 
@@ -53,7 +58,7 @@ For states created through the API from an empty arena:
 2. Each entry's incoming count is its external root count plus all live parent-edge occurrences plus pending edge tokens targeting it. The initial pending root is already one of the external roots and is not counted twice.
 3. Owned entry bytes are exactly the sum of immutable live entry weights. Dynamic charged ownership is those bytes plus 16 bytes per pending edge token. A pending root ticket is transferred, not newly created. A release never needs extra quota to start; removing a parent funds its bounded child scheduling.
 4. A zero entry is removed before child tokens are scheduled. A retained alias or capture keeps the entry live until every corresponding reference is dropped.
-5. Failure returns no replacement arena. Temporary persistent states constructed before a later failed check are not committed to the logical state.
+5. A failed fixed Heap operation returns no replacement arena. In a resumable primitive, earlier successful returned events remain committed: the caller keeps the current arena/cursor, cumulative usage and temporary tickets after a later failure. Resetting to the operation's initial state would discard that achieved prefix and is outside the protocol.
 
 `HeapAudit.auditRoots(arena, outsideRoots)` also checks entry root counts against the explicit caller ticket inventory, adding the transferred cursor root exactly once. Missing, unknown or duplicated external tickets cannot silently substitute for the expected inventory. The machine should supply its independently maintained live root list at qualification checkpoints.
 
