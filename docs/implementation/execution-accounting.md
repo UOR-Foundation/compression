@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Source execution-credit repair and diagnostic boundary
 
 The authoritative behavior remains the semantic modules. This document records source diagnostics, not SDK/Lean acceptance, physical RuntimeProgram.Event ownership qualification, or a native benchmark. The general StepMachine bound proof remains open; its finite charge-callgraph derivation and tested examples are in the core worktree's runtime-admission implementation record.

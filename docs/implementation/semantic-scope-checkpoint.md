@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Canonical semantic scope and operational realization
 
 `Search.SemanticScope` and `Search.SemanticCheckpoint` introduce distinct, explicit source schemas. They do not change the meaning of existing `Identity.Snapshot`, `Replay.Seal`, or `Checkpoint.Record` records, whose resource fields describe the earlier operational diagnostic path.

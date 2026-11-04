@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Owned wire emission evidence
 
 This checkpoint adds `Uorc.Wire.ProgramEmit`, `FrameEmit`, `Output`,

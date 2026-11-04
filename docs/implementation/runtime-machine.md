@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Owned decoder machine implementation evidence
 
 This is scoped implementation evidence. The LexLean source is authoritative.

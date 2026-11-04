@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Runtime decoder engine interface
 
 `src/Uorc/Core/RuntimeMachineEngine.lex.tex` is authored LexLean source. It imports

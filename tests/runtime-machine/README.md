@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Runtime machine diagnostics
 
 The `.lex.tex` scenario definitions own expected behavior. `run.py` invokes the

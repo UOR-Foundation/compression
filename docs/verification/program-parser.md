@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Streaming program parser evidence
 
 The implementation branch starts at integration commit

@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Owned program admission interfaces
 
 The source-owned components in `src/Uorc/Core/Runtime*.lex.tex` separate syntax, typed admission, immutable metadata construction and the eventual admitted-session boundary. The module sources, rather than this integration guide, define their behavior.

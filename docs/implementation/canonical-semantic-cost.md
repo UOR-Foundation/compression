@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Canonical semantic cost profile (provisional)
 
 The source authority is Uorc.Core.CanonicalCost. This is a NEW profile, not an

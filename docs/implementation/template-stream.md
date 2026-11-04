@@ -1,3 +1,5 @@
+<!-- uorc:non-authoritative -->
+
 # Graph-free proposal streams
 
 `Uorc.Search.FixedTemplates` stores a finite template tag, scalar parameters,
