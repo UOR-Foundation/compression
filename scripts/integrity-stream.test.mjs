@@ -7,7 +7,7 @@ test('maximum-frame implementation and distinct diagnostic seam exist',()=>{
 });
 import os from 'node:os';
 import path from 'node:path';
-import {inventory,leanDriver,records,sourcePaths} from './integrity-stream.mjs';
+import {inventory,leanDriver,records,sourcePaths,auditRun,nativeInput} from './integrity-stream.mjs';
 function changedContract(change){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'stream-contract-test-'));
  const target=path.join(root,'src/Uorc/Integrity/StreamContract.lex.tex');fs.mkdirSync(path.dirname(target),{recursive:true});
@@ -35,8 +35,25 @@ test('production profile has no diagnostic capacity or type dependency',()=>{
 });
 test('driver retains every runtime case, all partitions, compression and cancellation owners',()=>{
  const driver=leanDriver('.');
- for(const row of inventory('.').fixtures)assert.ok(driver.includes(`"${row.name}"`));
+ for(const row of inventory('.').fixtures.filter(r=>r.leanRuntime))assert.ok(driver.includes(`"${row.name}"`));
  for(const marker of ['for width in #[max 1 (n/257), max 7 (n/17), max 64 (n/3)]','updateCompressionPending','compressionPending','actual compression-call mismatch','cancelUpdate retained chunk','first capacity bytes','continuation capacity bytes','fixture_000'])assert.ok(driver.includes(marker),marker);
  const just=fs.readFileSync('Justfile','utf8');assert.match(just,/^vv:.*\bintegrity\b/m);
  assert.ok(just.includes('    node --test scripts/integrity-stream.test.mjs\n    node scripts/integrity-stream.mjs\n'));
+});
+
+test('gate self-audit rejects omissions, guards and mutation filters',()=>{
+ const just=fs.readFileSync('Justfile','utf8'),source=fs.readFileSync('scripts/integrity-stream.mjs','utf8');
+ auditRun(just,source);
+ for(const changed of [source.replaceAll("passed(vectors,'stream vectors');",''),source.replaceAll('for(const mutation of mutations){','for(const mutation of mutations.filter(()=>true)){'),source.replace("inventory(root);\n const out=","inventory(root);\n if(false){}\n const out=")])assert.throws(()=>auditRun(just,changed));
+ assert.throws(()=>auditRun(just.replace('    node scripts/integrity-stream.mjs\n',''),source));
+});
+
+import crypto from 'node:crypto';
+test('native artifact input binds all fixtures and exact public evidence',()=>{
+ const input=nativeInput('.'),rows=input.trim().split('\n');assert.equal(rows.length,283);
+ assert.equal(new Set(rows.map(r=>r.split('\t')[0])).size,283);
+ const evidence=JSON.parse(fs.readFileSync('validation/integrity/stream-evidence.json','utf8'));
+ assert.equal(crypto.createHash('sha256').update(input).digest('hex'),evidence.native_input_sha256);
+ for(const [file,digest] of Object.entries(evidence.source_sha256))assert.equal(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'),digest);
+ assert.equal(crypto.createHash('sha256').update(fs.readFileSync('validation/integrity/stream-native-client.rs')).digest('hex'),evidence.native_client_sha256);
 });

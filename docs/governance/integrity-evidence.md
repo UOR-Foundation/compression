@@ -109,10 +109,10 @@ they do not qualify a different immutable SDK or an integrated BinaryProgram.
 
 `src/Uorc/Integrity/SegmentReview.lex.tex` owns the explicitly proposed candidate
 profiles, their exact formulas, domain-bound observations, reference vectors and
-conditional collision-binding argument. They are not wired into the archive or
-substituted for `UORC-SHA256-CHAIN-v1`.
+conditional collision-binding argument. The STREAM-MAX profile is implemented below; none is wired into an archive by
+this source lane or substituted for `UORC-SHA256-CHAIN-v1`.
 
-The preferred candidate is `UORC-SHA256-STREAM-MAX-v1`: first and continuation
+The separately implemented profile is `UORC-SHA256-STREAM-MAX-v1`: first and continuation
 frames have distinct domain prefixes; full and terminal frames have explicit
 role/BE64-length suffixes. The frame size is bounded by SHA-256's own standard
 domain, with no accumulated whole-stream counter or retained segment payload.
@@ -165,8 +165,9 @@ independence is not claimed. These fixtures include full-frame EOF, mandatory
 empty continuations, partial continuations and SHA padding boundaries. The
 source importer checks every frame's byte count, suffix and padded block count.
 
-The generated-model gate executes all 94 cases and 282 adaptive chunk partitions,
-checks actual SHA feed-forward events against independently calculated compression
+The generated-Lean gate executes its source-owned 92 cases through 4 KiB and 276
+adaptive chunk partitions; the certified Rust runtime executes all 94 cases through
+1 MiB and all 282 partitions. Each backend checks actual SHA feed-forward events against independently calculated compression
 counts, and cancels every reachable live stage plus the finished state. It tests
 invalid limits/states/offsets, unfinished digests, late updates, pending work,
 exhausted fuel, nested SHA errors and repeated finalization. It uses Lean's native
@@ -176,7 +177,8 @@ production frame limit. Their independent frame/kernel owners must reject them;
 restored source controls then pass.
 
 General kernel proofs establish framing-size identities for every natural payload
-length and canonical cancellation erasure/idempotence. Closed observations bind
+length, count-guard reflection for every typed ready/finalizing child state,
+and canonical cancellation erasure/idempotence. Closed observations bind
 the domain/prefix sizes, exact production limit and derived standard-domain frame
 bounds. The source transition validator checks bounded child/count/phase shapes.
 A general transition-preservation theorem and a kernel-checked collision reduction
@@ -192,3 +194,26 @@ unambiguous. Security relies on ordinary computational SHA-256 collision resista
 on standard-domain framed messages. No global injectivity axiom is introduced;
 finite digests cannot be injective over arbitrary streams. Hash agreement remains
 integrity evidence, and exact reconstruction comparison remains necessary.
+
+The final STREAM-MAX diagnostic production bundle passes artifact replay; the exact
+exported Rust bytes independently execute all 94 stream fixtures, 282 partitions
+and 189 footer controls. `validation/integrity/stream-evidence.json` binds source,
+producer, package, generated library, validation client, input and stdout digests.
+The library is identical across the initial and final proof-refined exports. The
+source-generated native input is reproducible through
+`scripts/integrity-stream.mjs`'s `nativeInput(root)` export; the infrastructure gate
+checks its exact public evidence digest and complete unique case inventory.
+Function numbers in the native client are local to that bound artifact only.
+The 1 MiB production fixture completes exactly 16,385 SHA compression calls;
+counts are observed at actual completed SHA feed-forwards and are not timing
+measurements. Full pinned-SDK and integrated product acceptance remain separate.
+
+The final generated-Lean diagnostic run passes its complete source-owned 92-case /
+276-partition inventory and both planted/restored source defects. Its driver,
+stdout, source and mutation receipt digests are bound in `stream-evidence.json`.
+The two larger production-profile fixtures (64 KiB and 1 MiB) belong to the full
+certified-Rust 94-case / 282-partition inventory. This division keeps duplicate
+diagnostic execution practical and changes no production size or frame bound.
+General count-guard reflection and the final source model pass exact kernel/axiom
+verification and certified diagnostic export/replay. The separately preserved
+NIST/CHAIN receipts and original release locks remain unchanged.

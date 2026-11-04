@@ -19,6 +19,7 @@ export function inventory(root){
  const all=records(root),fixtures=all.filter(r=>r.type==='StreamFixture'),frames=all.filter(r=>r.type==='FrameFixture');
  required(fixtures.length===94&&new Set(fixtures.map(r=>r.name)).size===94,'complete 94-case stream inventory required');
  required(frames.length===189,'complete 189-frame inventory required');
+ required(fixtures.every(r=>typeof r.leanRuntime==='boolean')&&fixtures.filter(r=>!r.leanRuntime).map(r=>Number(r.inputBytes)).join(',')==='65536,1048576','source-owned diagnostic backend inventory changed');
  required(fixtures.filter(r=>r.frameLimit==='2305843009213693942').length===27,'production fixture inventory missing');
  for(const r of fixtures){
   required(/^[0-9a-f]{64}$/.test(r.expectedHex),'invalid expected digest');
@@ -37,9 +38,16 @@ export function inventory(root){
  }
  return {fixtures,frames};
 }
+export function nativeInput(root){
+ const {fixtures,frames}=inventory(root);
+ const rows=fixtures.map(r=>[r.name,r.frameLimit,r.inputBytes,r.expectedHex,r.compressionCalls].join('\t'));
+ const trailers=frames.map(r=>[r.name,Number(r.frameIndex)===0?'true':'false',String(BigInt(r.payloadBytes)+BigInt(r.prefixBytes)),r.suffixHex.startsWith('01')?'true':'false',r.suffixHex].join('\t'));
+ return [...rows,...trailers].join('\n')+'\n';
+}
 export function leanDriver(root){
  const {fixtures,frames}=inventory(root);
- const rows=fixtures.map(r=>`(${JSON.stringify(r.name)}, ${r.frameLimit}, ${r.inputBytes}, ${JSON.stringify(r.expectedHex)}, ${r.compressionCalls})`).join(',\n');
+ const selected=fixtures.filter(r=>r.leanRuntime);required(selected.length===92,'source-owned Lean runtime inventory');
+ const rows=selected.map(r=>`(${JSON.stringify(r.name)}, ${r.frameLimit}, ${r.inputBytes}, ${JSON.stringify(r.expectedHex)}, ${r.compressionCalls})`).join(',\n');
  const fr=frames.filter(f=>f.messageHex!=='').map(f=>`(${JSON.stringify(f.name)}, ${Number(f.frameIndex)===0?'true':'false'}, ${f.payloadBytes}, ${f.suffixHex.startsWith('01')?'true':'false'}, ${JSON.stringify(f.suffixHex)}, ${JSON.stringify(f.messageHex)}, ${JSON.stringify(f.digestHex)})`).join(',\n');
  return `import Uorc.Uorc.Integrity.StreamMax
 import Uorc.Uorc.Integrity.StreamDiagnostic
@@ -175,7 +183,7 @@ private def main : IO Unit := do
    let .ok partitioned := StreamDiagnostic.digest done | fail name
    check (partitioned==observed && used+extra==calls) (name++" partition/count mismatch")
    partitions := partitions+1
- IO.println s!"94 stream fixtures; {partitions} partitions; actual compression counts; framing and cancellation cases passed"
+ IO.println s!"{cases.size} generated-Lean stream fixtures; {partitions} partitions; actual compression counts; framing and cancellation cases passed"
 end StreamOracle
 #eval StreamOracle.main
 `;
@@ -200,7 +208,19 @@ function runCommand(cmd,args,cwd,out,label,env={},timeout=300000){
  return r;
 }
 function passed(r,label){required(!r.error&&r.status===0&&!r.signal,`${label}: ${r.error??''} ${r.stdout??''} ${r.stderr??''}`);}
+export function auditRun(just,source){
+ required(/^vv:.*\bintegrity\b/m.test(just),'stream gate removed from vv');
+ required(just.includes('    node --test scripts/integrity-stream.test.mjs\n    node scripts/integrity-stream.mjs\n'),'stream gate invocation changed');
+ const body=source.slice(source.lastIndexOf('export function run(root){')).split('\nif(process.argv')[0];
+ for(const marker of ["inventory(root);","for(const mutation of mutations){","plant(engineSource,mutation.id)","wrong limit mutation failure owner","terminal role mutation missed independent owner","'restored stream source'","leanDriver(root)","passed(vectors,'stream vectors');","92 generated-Lean stream fixtures; 276 partitions; actual compression counts; framing and cancellation cases passed"])
+  required(body.includes(marker),'stream gate omitted '+marker);
+ const conditions=body.match(/\bif\s*\(/g)??[];
+ required(conditions.length===2&&body.includes("if(mutation.id==='production_limit'){")&&body.includes("if(/^(@\\[expose\\] )?public (def|theorem|inductive|structure) /.test(generated[i]))"),'conditional stream bypass');
+ const bounded=body.replace("{end=i;break;}","{end=i;}");
+ required(!/\b(switch|while|continue|break)\b|mutations\.(slice|filter|splice)/.test(bounded),'stream inventory filtered or skipped');
+}
 export function run(root){
+ auditRun(fs.readFileSync(path.join(root,'Justfile'),'utf8'),fs.readFileSync(script,'utf8'));
  inventory(root);
  const out=fs.mkdtempSync(path.join(root,'.prism/uorc/stream.')),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'uorc-stream-'));
  try{
@@ -248,9 +268,9 @@ export function run(root){
   const driver=path.join(tmp,'Oracle.lean');fs.writeFileSync(driver,leanDriver(root).replace('#eval StreamOracle.main','def main : IO Unit := StreamOracle.main'));
   passed(runCommand('lean',['-R',tmp,'-c',path.join(tmp,'Oracle.c'),driver],root,out,'oracle-native',{LEAN_PATH:tmp}),'native oracle compile');
   const executable=path.join(tmp,'stream-oracle');passed(runCommand('leanc',['-O3',path.join(tmp,'Oracle.c'),...nativeObjects,'-o',executable],root,out,'oracle-link'),'native oracle link');
-  const vectors=runCommand(executable,[],root,out,'vectors',{},900000);passed(vectors,'stream vectors');
-  required(vectors.stdout.trim()==='94 stream fixtures; 282 partitions; actual compression counts; framing and cancellation cases passed','stream coverage omitted');
-  fs.writeFileSync(path.join(out,'receipt.json'),JSON.stringify({schema:'uorc/stream-max-runtime/1',sources:Object.fromEntries(sourcePaths.map(p=>[p,crypto.createHash('sha256').update(fs.readFileSync(path.join(root,p))).digest('hex')])),build_id:b.build_id,cases:94,partitions:282,mutations:mutations.map(r=>({id:r.id,owner:r.owner})),scope:'source and compiled generated-Lean diagnostic execution; locked full SDK and production BinaryProgram acceptance remain separate'})+'\n');
+  const vectors=runCommand(executable,[],root,out,'vectors');passed(vectors,'stream vectors');
+  required(vectors.stdout.trim()==='92 generated-Lean stream fixtures; 276 partitions; actual compression counts; framing and cancellation cases passed','stream coverage omitted');
+  fs.writeFileSync(path.join(out,'receipt.json'),JSON.stringify({schema:'uorc/stream-max-runtime/1',sources:Object.fromEntries(sourcePaths.map(p=>[p,crypto.createHash('sha256').update(fs.readFileSync(path.join(root,p))).digest('hex')])),build_id:b.build_id,cases:92,partitions:276,mutations:mutations.map(r=>({id:r.id,owner:r.owner})),scope:'source and compiled generated-Lean diagnostic execution; locked full SDK and production BinaryProgram acceptance remain separate'})+'\n');
   console.log(vectors.stdout.trim());console.log("2 stream source defects rejected; restored controls passed.");
  }finally{fs.rmSync(tmp,{recursive:true,force:true});}
 }
