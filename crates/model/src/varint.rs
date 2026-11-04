@@ -48,29 +48,26 @@ fn record(d: &Value, expected: &[&str]) -> Result<BTreeMap<String, String>, Mode
 impl VarintContract {
     /// Project source records and reconcile them with actual kernel declarations.
     pub fn load(root: &Path) -> Result<Self, ModelError> {
-        let declarations = authority::semantic_declarations(
+        Self::load_with_reader(root, &authority::LegacyDataReader)
+    }
+
+    /// Project contracts and native declarations through one explicit reader.
+    pub fn load_with_reader(
+        root: &Path,
+        reader: &dyn authority::ModuleReader,
+    ) -> Result<Self, ModelError> {
+        let declarations = authority::semantic_declarations_with_reader(
             &root.join("src/Uorc/VarintContract.lex.tex"),
             "Uorc.VarintContract",
+            reader,
         )?;
-        let file = root.join("src/Uorc/Varint.lex.tex");
-        let source =
-            std::fs::read_to_string(&file).map_err(|source| ModelError::Io(file, source))?;
-        let payloads: Vec<_> = source
-            .lines()
-            .filter_map(|line| {
-                line.strip_prefix("\\coredata{")
-                    .and_then(|s| s.strip_suffix('}'))
-            })
-            .collect();
-        if payloads.len() != 1 {
-            return Err(bad("expected one native core module"));
-        }
-        let core: Value = serde_json::from_str(payloads[0]).map_err(|e| bad(e.to_string()))?;
-        let rows = core["declarations"]
-            .as_array()
-            .ok_or_else(|| bad("missing core declarations"))?;
+        let rows = authority::core_declarations_with_reader(
+            &root.join("src/Uorc/Varint.lex.tex"),
+            "Uorc.Varint",
+            reader,
+        )?;
         let mut names = BTreeSet::new();
-        for d in rows {
+        for d in &rows {
             let name = d["name"].as_str().ok_or_else(|| bad("missing core name"))?;
             if !names.insert(name) || d["policy"]["kind"] != "exact" {
                 return Err(bad("duplicate core name or non-exact axiom policy"));

@@ -140,14 +140,26 @@ pub struct AuthorityGraph {
 }
 
 impl AuthorityGraph {
-    /// Load and structurally validate the LexLean authority modules.
+    /// Load the legacy data-form authority with the repository's existing reader.
     pub fn load(root: &Path) -> Result<Self, ModelError> {
-        let varint = crate::varint::VarintContract::load(root)?;
-        let integrity_authorities = integrity_authorities(root)?;
-        let imported_validation_artifacts = imported_validation_artifacts(root)?;
-        let specification =
-            semantic_declarations(&root.join(SPECIFICATION_PATH), "Uorc.Specification")?;
-        let registry = semantic_declarations(&root.join(REGISTRY_PATH), "Uorc.Registry")?;
+        Self::load_with_reader(root, &LegacyDataReader)
+    }
+
+    /// Project authority read by an explicitly supplied module reader.
+    ///
+    /// The caller owns the official SDK reader boundary; this method neither
+    /// searches PATH nor selects a host fallback or an upstream source checkout.
+    pub fn load_with_reader(root: &Path, reader: &dyn ModuleReader) -> Result<Self, ModelError> {
+        let varint = crate::varint::VarintContract::load_with_reader(root, reader)?;
+        let integrity_authorities = integrity_authorities(root, reader)?;
+        let imported_validation_artifacts = imported_validation_artifacts(root, reader)?;
+        let specification = semantic_declarations_with_reader(
+            &root.join(SPECIFICATION_PATH),
+            "Uorc.Specification",
+            reader,
+        )?;
+        let registry =
+            semantic_declarations_with_reader(&root.join(REGISTRY_PATH), "Uorc.Registry", reader)?;
 
         validate_specification_declarations(&specification)?;
         validate_registry_declarations(&registry)?;
@@ -209,7 +221,7 @@ impl AuthorityGraph {
             &["nonAuthorityMarker", "normativeSubject"],
         )?;
 
-        let claim_policy = ClaimPolicy::load_source(root)?;
+        let claim_policy = ClaimPolicy::load_source_with_reader(root, reader)?;
         let mut claims = Vec::new();
         let mut ids = Vec::new();
         let mut scenarios = Vec::new();
@@ -353,10 +365,14 @@ impl AuthorityGraph {
     }
 }
 
-fn imported_validation_artifacts(root: &Path) -> Result<BTreeMap<String, String>, ModelError> {
-    let declarations = semantic_declarations(
+fn imported_validation_artifacts(
+    root: &Path,
+    reader: &dyn ModuleReader,
+) -> Result<BTreeMap<String, String>, ModelError> {
+    let declarations = semantic_declarations_with_reader(
         &root.join("src/Uorc/Integrity/Contract.lex.tex"),
         "Uorc.Integrity.Contract",
+        reader,
     )?;
     let mut artifacts = BTreeMap::new();
     for declaration in &declarations {
@@ -390,10 +406,14 @@ fn imported_validation_artifacts(root: &Path) -> Result<BTreeMap<String, String>
     Ok(artifacts)
 }
 
-fn integrity_authorities(root: &Path) -> Result<Vec<crate::AuthorityRow>, ModelError> {
-    let declarations = semantic_declarations(
+fn integrity_authorities(
+    root: &Path,
+    reader: &dyn ModuleReader,
+) -> Result<Vec<crate::AuthorityRow>, ModelError> {
+    let declarations = semantic_declarations_with_reader(
         &root.join("src/Uorc/Integrity/Contract.lex.tex"),
         "Uorc.Integrity.Contract",
+        reader,
     )?;
     let mut rows = Vec::new();
     for declaration in &declarations {
@@ -431,51 +451,111 @@ fn integrity_authorities(root: &Path) -> Result<Vec<crate::AuthorityRow>, ModelE
     Ok(rows)
 }
 
+/// Read the complete official module value without choosing its surface syntax.
+///
+/// Implementations must return the full decoded module, including proof,
+/// axiom and production metadata. Projection validation happens afterwards.
+pub trait ModuleReader {
+    /// Decode source using the caller's explicitly selected reader.
+    fn read_module(&self, source: &str) -> Result<Value, String>;
+}
+
+/// The existing data-form reader, retained for unchanged legacy entry points.
+///
+/// This intentionally does not parse authoring notation. A notation caller
+/// must explicitly supply the official SDK reader; no parser is cloned here.
+pub struct LegacyDataReader;
+
+impl ModuleReader for LegacyDataReader {
+    fn read_module(&self, source: &str) -> Result<Value, String> {
+        let candidates = [
+            ("\\semanticdata{", "\\end{semanticmodule}"),
+            ("\\coredata{", "\\end{coremodule}"),
+        ];
+        let selected: Vec<_> = candidates
+            .iter()
+            .filter(|(marker, _)| source.contains(marker))
+            .collect();
+        if selected.len() != 1 {
+            return Err("expected exactly one legacy data-form module".into());
+        }
+        let (marker, terminator) = *selected[0];
+        if source.matches(marker).count() != 1 {
+            return Err("expected exactly one legacy data value".into());
+        }
+        let start = source.find(marker).ok_or("missing legacy data marker")? + marker.len();
+        let tail = &source[start..];
+        let end = tail
+            .find(terminator)
+            .ok_or("missing module terminator after data")?;
+        let json = tail[..end]
+            .trim()
+            .strip_suffix('}')
+            .ok_or("data macro has no closing brace")?;
+        let value: Value =
+            serde_json::from_str(json).map_err(|error| format!("invalid module JSON: {error}"))?;
+        if !matches!(
+            value.get("spec").and_then(Value::as_str),
+            Some("lexlean/semantic-module/1" | "lexlean/core-module/1")
+        ) {
+            return Err("legacy entry points require a schema-1 data-form module".into());
+        }
+        Ok(value)
+    }
+}
+
+#[cfg(test)]
 pub(crate) fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelError> {
+    semantic_declarations_with_reader(path, module, &LegacyDataReader)
+}
+
+pub(crate) fn semantic_declarations_with_reader(
+    path: &Path,
+    module: &str,
+    reader: &dyn ModuleReader,
+) -> Result<Vec<Value>, ModelError> {
+    declarations_with_reader(path, module, "semantic", reader)
+}
+
+pub(crate) fn core_declarations_with_reader(
+    path: &Path,
+    module: &str,
+    reader: &dyn ModuleReader,
+) -> Result<Vec<Value>, ModelError> {
+    declarations_with_reader(path, module, "core", reader)
+}
+
+fn declarations_with_reader(
+    path: &Path,
+    module: &str,
+    kind: &str,
+    reader: &dyn ModuleReader,
+) -> Result<Vec<Value>, ModelError> {
     let text = std::fs::read_to_string(path).map_err(|e| ModelError::Io(path.to_path_buf(), e))?;
     let open = format!("\\begin{{lexlean}}{{{module}}}");
     if !text.contains(&open)
-        || !text.contains("\\begin{semanticmodule}")
-        || !text.contains("\\end{semanticmodule}")
+        || !text.contains(&format!("\\begin{{{kind}module}}"))
+        || !text.contains(&format!("\\end{{{kind}module}}"))
         || !text.contains("\\end{lexlean}")
     {
         return Err(ModelError::Inconsistent(format!(
-            "{} is not the expected LexLean semantic module `{module}`",
+            "{} is not the expected LexLean {kind} module `{module}`",
             path.display()
         )));
     }
-
-    const MARKER: &str = "\\semanticdata{";
-    if text.matches(MARKER).count() != 1 {
+    let value = reader.read_module(&text).map_err(|error| {
+        ModelError::Inconsistent(format!("{}: module reader failed: {error}", path.display()))
+    })?;
+    let spec = value.get("spec").and_then(Value::as_str);
+    if ![
+        format!("lexlean/{kind}-module/1"),
+        format!("lexlean/{kind}-module/2"),
+    ]
+    .iter()
+    .any(|expected| spec == Some(expected.as_str()))
+    {
         return Err(ModelError::Inconsistent(format!(
-            "{} must contain exactly one semanticdata value",
-            path.display()
-        )));
-    }
-    let start = text.find(MARKER).expect("counted one semanticdata marker") + MARKER.len();
-    let tail = &text[start..];
-    let end = tail.find("\\end{semanticmodule}").ok_or_else(|| {
-        ModelError::Inconsistent(format!(
-            "{} has no semanticmodule terminator after semanticdata",
-            path.display()
-        ))
-    })?;
-    let wrapped = tail[..end].trim();
-    let json = wrapped.strip_suffix('}').ok_or_else(|| {
-        ModelError::Inconsistent(format!(
-            "{} semanticdata macro has no closing brace",
-            path.display()
-        ))
-    })?;
-    let value: Value = serde_json::from_str(json).map_err(|e| {
-        ModelError::Inconsistent(format!(
-            "{} contains invalid semantic JSON: {e}",
-            path.display()
-        ))
-    })?;
-    if value.get("spec").and_then(Value::as_str) != Some("lexlean/semantic-module/1") {
-        return Err(ModelError::Inconsistent(format!(
-            "{} must use lexlean/semantic-module/1",
+            "{} must use a supported lexlean/{kind}-module schema",
             path.display()
         )));
     }
@@ -485,7 +565,7 @@ pub(crate) fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Val
         .cloned()
         .ok_or_else(|| {
             ModelError::Inconsistent(format!(
-                "{} has no semantic declaration array",
+                "{} has no {kind} declaration array",
                 path.display()
             ))
         })
@@ -869,6 +949,61 @@ fn parse_level(token: &str) -> Result<Level, ModelError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_reader_does_not_acquire_schema_two_or_notation_support() {
+        let data = |spec: &str| {
+            format!(
+            "\\begin{{semanticmodule}}\\semanticdata{{{{\"spec\":\"{spec}\",\"declarations\":[]}}}}\\end{{semanticmodule}}"
+        )
+        };
+        assert!(LegacyDataReader
+            .read_module(&data("lexlean/semantic-module/1"))
+            .is_ok());
+        assert!(LegacyDataReader
+            .read_module(&data("lexlean/semantic-module/2"))
+            .is_err());
+        assert!(LegacyDataReader
+            .read_module("\\begin{semanticmodule}definition{}\\end{semanticmodule}")
+            .is_err());
+    }
+
+    #[test]
+    fn default_authority_loader_rejects_schema_two_data() {
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "uorc-authority-schema-{}-{suffix}",
+            std::process::id()
+        ));
+        for relative in [
+            "src/Uorc/Specification.lex.tex",
+            "src/Uorc/Registry.lex.tex",
+            "src/Uorc/Claims.lex.tex",
+            "src/Uorc/Integrity/Contract.lex.tex",
+            "src/Uorc/VarintContract.lex.tex",
+            "src/Uorc/Varint.lex.tex",
+        ] {
+            let target = root.join(relative);
+            std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+            std::fs::copy(crate::repo_root().join(relative), target).unwrap();
+        }
+        let path = root.join(SPECIFICATION_PATH);
+        let source = std::fs::read_to_string(&path).unwrap();
+        let mut value = LegacyDataReader.read_module(&source).unwrap();
+        value["spec"] = serde_json::json!("lexlean/semantic-module/2");
+        std::fs::write(&path, format!(
+            "\\begin{{lexlean}}{{Uorc.Specification}}\\begin{{semanticmodule}}\\semanticdata{{{value}}}\\end{{semanticmodule}}\\end{{lexlean}}"
+        )).unwrap();
+        let failure =
+            AuthorityGraph::load(&root).expect_err("default loader must remain schema-1-only");
+        std::fs::remove_dir_all(&root).unwrap();
+        assert!(failure
+            .to_string()
+            .contains("legacy entry points require a schema-1"));
+    }
 
     #[test]
     fn authority_graph_loads_from_lexlean_uc_chr_01() {

@@ -148,8 +148,19 @@ fn string(value: &Value) -> Result<String, ModelError> {
 impl ClaimPolicy {
     /// Project closed source records without reimplementing classification.
     pub fn load_source(root: &Path) -> Result<Self, ModelError> {
-        let declarations =
-            authority::semantic_declarations(&root.join("src/Uorc/Claims.lex.tex"), "Uorc.Claims")?;
+        Self::load_source_with_reader(root, &authority::LegacyDataReader)
+    }
+
+    /// Project claims through the explicitly supplied complete module reader.
+    pub fn load_source_with_reader(
+        root: &Path,
+        reader: &dyn authority::ModuleReader,
+    ) -> Result<Self, ModelError> {
+        let declarations = authority::semantic_declarations_with_reader(
+            &root.join("src/Uorc/Claims.lex.tex"),
+            "Uorc.Claims",
+            reader,
+        )?;
         let evidence_kinds = enum_values(&declarations, "EvidenceKind")?;
         let claim_kinds = enum_values(&declarations, "ClaimKind")?;
         let research_dispositions = enum_values(&declarations, "ResearchDisposition")?;
