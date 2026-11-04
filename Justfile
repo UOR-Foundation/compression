@@ -91,3 +91,5 @@ integrity:
     node scripts/integrity-validation.mjs
     node --test scripts/integrity-stream.test.mjs
     node scripts/integrity-stream.mjs
+    node --test scripts/integrity-binding.test.mjs
+    node scripts/integrity-binding-runtime.mjs

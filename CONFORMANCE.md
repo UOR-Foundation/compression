@@ -74,6 +74,12 @@ The three honesty levels (R2):
 | --- | --- | --- |
 | `UC-OBJ-01` | `open` | Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects. |
 
+## product-control
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-CTL-01` | `open` | Source-owned asynchronous product transitions preserve run, revision, ordered input and output ownership. |
+
 ## product-interfaces
 
 | ID | Level | Statement |
@@ -85,6 +91,12 @@ The three honesty levels (R2):
 | ID | Level | Statement |
 | --- | --- | --- |
 | `UC-PROD-01` | `open` | The source-owned product lifecycle handles demand, EOF, cancellation, edits, retries, stale completion and publication without exposing unfinished results as completed files. |
+
+## product-view
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-VIW-01` | `open` | Source-owned presentation values govern labels, enabled actions, focus, accessibility and evidence claims. |
 
 ## real-execution
 
@@ -158,6 +170,8 @@ The three honesty levels (R2):
 | `UC-PROD-01` | `open` | `none` | `not_measured` | The source-owned product lifecycle handles demand, EOF, cancellation, edits, retries, stale completion and publication without exposing unfinished results as completed files. |
 | `UC-API-01` | `open` | `none` | `not_measured` | The same product semantics serve native library, CLI and browser interfaces, with explicitly versioned streaming ownership rather than invented compatibility with bounded whole-buffer adapters. |
 | `UC-REAL-01` | `open` | `none` | `not_measured` | A real nonliteral archive is independently parsed, executed and compared against every original byte before encoder publication. |
+| `UC-CTL-01` | `open` | `none` | `not_measured` | Source-owned asynchronous product transitions preserve run, revision, ordered input and output ownership. |
+| `UC-VIW-01` | `open` | `none` | `not_measured` | Source-owned presentation values govern labels, enabled actions, focus, accessibility and evidence claims. |
 | `UC-SHA-01` | `build` | `fixture_result` | `not_measured` | Incremental SHA-256 and the separately named bounded chain have source-owned streaming semantics, typed failures and independently locked byte-oriented CAVP oracle evidence. |
 | `AUTH-NIST-SHA256-SHORT` | `some-true` | `imported_fact` | `not_measured` | The locked NIST CAVP SHA-256 short byte-oriented response data supplies 65 independent expected digests, reproduced as finite oracle checks. |
 | `AUTH-NIST-SHA256-LONG` | `some-true` | `imported_fact` | `not_measured` | The locked NIST CAVP SHA-256 long byte-oriented response data supplies 64 independent expected digests, reproduced as finite oracle checks. |

@@ -15,6 +15,6 @@ Feature: archive-integrity
 
   @UC-INT-03 @build
   Scenario: Finite reverse-trace candidates remain untrusted until actual successful SHA computations independently validate a collision witness; generic acceptance-guard reflection does not claim global SHA injectivity or reduction completeness.
-    Given the explicit integrity profile map, charged ownership transitions and independent byte fixtures
-    When source-generated runtime controls, actual reconstruction and planted integrity defects execute
-    Then profile and ownership mismatches reject, chunking preserves digests, exact bytes reconstruct, and restored controls pass
+    Given finite framed reverse traces, an untrusted candidate extractor and an independent successful-SHA candidate checker
+    When the generated source controls exercise malformed and non-collision candidates and a planted false digest-equality result
+    Then malformed, failed-SHA and unequal-digest candidates reject; the planted equality defect fails its owning observation and restored controls pass; no global SHA injectivity or trace completeness claim follows
