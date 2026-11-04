@@ -680,6 +680,66 @@ definition{
 }
 
 definition{
+  name: concatCursor,
+  parameters: [
+    cursor : Cursor,
+    phase : UInt64,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle,
+    result : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: Cursor,
+  body: (record Cursor {phase := phase, purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := left, right := right, result := result, start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatPending,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := cursor, delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatDescendLeft,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (sequenceChildren arena (project cursor left))
+    | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+    | Result.ok children => (concatPending arena (schedulePlan (concatCursor cursor (project cursor phase) (project children second) (project cursor right) (project cursor result)) (framePlan (project cursor joins) (project children first) (0 : UInt64) (0 : UInt64)) (1 : UInt64) (1 : UInt64)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: concatDescendRight,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (sequenceChildren arena (project cursor right))
+    | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+    | Result.ok children => (concatPending arena (schedulePlan (concatCursor cursor (project cursor phase) (project cursor left) (project children first) (project cursor result)) (framePlan (project cursor joins) (project children second) (1 : UInt64) (0 : UInt64)) (1 : UInt64) (1 : UInt64)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: concatByHeight,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    li : Uorc.Core.Heap::SequenceInfo,
+    ri : Uorc.Core.Heap::SequenceInfo
+  ],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor right))) else (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor left))) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (concatDescendLeft arena cursor) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (concatDescendRight arena cursor) else (concatPending arena (schedulePlan cursor (branchPlan (project cursor left) (project cursor right)) (2 : UInt64) (0 : UInt64))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
   name: concatDown,
   parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
   result: (Result SequenceTransition SequenceFailure),
@@ -687,11 +747,7 @@ definition{
     | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
     | Result.ok li => (match (Uorc.Core.Heap::sequenceInfo arena (project cursor right))
       | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
-      | Result.ok ri => (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (2 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor right), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (2 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor left), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (match (sequenceChildren arena (project cursor left))
-        | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
-        | Result.ok children => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (schedulePlan (record Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project children second), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}) (framePlan (project cursor joins) (project children first) (0 : UInt64) (0 : UInt64)) (1 : UInt64) (1 : UInt64)), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (match (sequenceChildren arena (project cursor right))
-        | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
-        | Result.ok children => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (schedulePlan (record Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project children first), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}) (framePlan (project cursor joins) (project children second) (1 : UInt64) (0 : UInt64)) (1 : UInt64) (1 : UInt64)), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (schedulePlan cursor (branchPlan (project cursor left) (project cursor right)) (2 : UInt64) (0 : UInt64)), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))))))),
+      | Result.ok ri => (concatByHeight arena cursor li ri))),
   axioms: [Quot.sound, propext],
   executable: true
 }

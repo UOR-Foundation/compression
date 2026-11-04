@@ -75,6 +75,14 @@ Inspected source revision: d5cdcb8. Source hashes:
 
 Future fusion that allocates before reclaiming can invalidate endpoint sufficiency. Such an operation must accumulate max(totalOwnedBytes) at each internal ownership boundary and expose that peak on success and failure, or publish each prefix as a separate event. An event-specific peak envelope is sufficient; a broad Delta/layout change is not automatically necessary. Requalify this inventory when the named implementations change.
 
+The subsequent [Sequence structural factoring](runtime-sequence-factoring.md)
+changes that source hash to ce9ae14fc5f4837858d67f2a06287fe502a2481ea65ab67e58c313e803ff89c9.
+Its new helpers perform only the old ordered lookups and pure record/branch
+construction, with no additional ownership operation. General kernel-checked
+concatDown and full-step equalities cover every returned field. This preserves
+the inspected ownership paths; it does not turn the conditional walkthrough
+into a universal internal-peak refinement theorem or extend the old native run.
+
 
 The two added modules passed canonical formatting, official source linking/build, and pinned Lean kernel compilation. Their 24 general theorems include the Nat charge/maximum facts, independent Node reference bounds, and actual UInt64 maxWord/failedEvent bounds. All 30 declaration axiom sets were traced exactly: three empty, four propext only, and 23 Quot.sound plus propext; no custom axiom, Classical.choice or sorry was introduced. The helper is source-owned; proof-only natMax is not a product fallback.
 
