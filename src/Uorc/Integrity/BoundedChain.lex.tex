@@ -2,6 +2,307 @@
 \importmodule{Uorc.Integrity.Sha256}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Sha256","name":"Error"}}],"name":"sha256"},{"fields":[],"name":"invalidState"},{"fields":[],"name":"workPending"},{"fields":[],"name":"updateAfterFinalize"},{"fields":[],"name":"notFinalized"},{"fields":[],"name":"fuelExhausted"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"idle"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Sha256","name":"Update"}}],"name":"updating"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Sha256","name":"State"}}],"name":"finalizing"},{"fields":[],"name":"finished"}],"kind":"inductive","name":"Stage","parameters":[],"type_parameters":[]},{"fields":[{"name":"chain","type":{"kind":"bytes"}},{"name":"buffer","type":{"kind":"bytes"}},{"name":"stage","type":{"arguments":[],"kind":"named","member":{"name":"Stage"}}},{"name":"closing","type":{"kind":"bool"}}],"kind":"structure","name":"State","parameters":[],"type_parameters":[]},{"fields":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"input","type":{"kind":"bytes"}},{"name":"offset","type":{"kind":"nat"}}],"kind":"structure","name":"Update","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Update"}}],"name":"advanced"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"State"}}],"name":"done"}],"kind":"inductive","name":"UpdateEvent","parameters":[],"type_parameters":[]},{"axioms":[],"body":{"hex":"554f52432d5348413235362d434841494e2d763100","kind":"bytes"},"kind":"definition","name":"domain","parameters":[],"result":{"kind":"bytes"}},{"axioms":[],"body":{"kind":"string","value":"UORC-SHA256-CHAIN-v1"},"kind":"definition","name":"constructionName","parameters":[],"result":{"kind":"string"}},{"axioms":[],"body":{"arguments":[{"arguments":[],"function":{"name":"domain"},"kind":"call"},{"hex":"00","kind":"bytes"}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}},"kind":"definition","name":"initialFrame","parameters":[],"result":{"kind":"bytes"}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.sha256"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["initial"],"body":{"arguments":[{"fields":[{"field":"chain","value":{"kind":"var","name":"initial"}},{"field":"buffer","value":{"hex":"","kind":"bytes"}},{"field":"stage","value":{"arguments":[],"constructor":{"name":"Stage.idle"},"kind":"constructor"}},{"field":"closing","value":{"kind":"bool","value":false}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"arguments":[],"function":{"name":"initialFrame"},"kind":"call"}],"function":{"module":"Uorc.Integrity.Sha256","name":"hash"},"kind":"call"}},"kind":"definition","name":"init","parameters":[],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"body":{"branches":[{"binders":[],"body":{"condition":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}},"else_value":{"kind":"bool","value":true},"kind":"if","then_value":{"kind":"bool","value":false}},"constructor":{"name":"Stage.idle"}},{"binders":["job"],"body":{"kind":"beq","left":{"arguments":[{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"kind":"nat","value":"0"}},"constructor":{"name":"Stage.updating"}},{"binders":["hashState"],"body":{"kind":"beq","left":{"arguments":[{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"kind":"nat","value":"0"}},"constructor":{"name":"Stage.finalizing"}},{"binders":[],"body":{"kind":"and","left":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}},"right":{"kind":"beq","left":{"arguments":[{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"kind":"nat","value":"0"}}},"constructor":{"name":"Stage.finished"}}],"kind":"match","scrutinee":{"field":"stage","kind":"project","value":{"kind":"var","name":"state"}}},"kind":"definition","name":"phaseValid","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"kind":"bool"}},{"axioms":[],"body":{"kind":"and","left":{"kind":"beq","left":{"arguments":[{"field":"chain","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"kind":"nat","value":"32"}},"right":{"kind":"and","left":{"kind":"ble","left":{"arguments":[{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"kind":"nat","value":"63"}},"right":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"phaseValid"},"kind":"call"}}},"kind":"definition","name":"valid","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"kind":"bool"}},{"axioms":["Quot.sound","propext"],"body":{"arguments":[{"arguments":[{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"domain"},"kind":"call"},{"hex":"01","kind":"bytes"}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}},{"field":"chain","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}},{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}},{"arguments":[{"kind":"var","name":"lastByte"}],"function":{"module":"Uorc.Integrity.Sha256","name":"byteBytes"},"kind":"call"}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}},"kind":"definition","name":"dataFrame","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"lastByte","type":{"kind":"uint8"}}],"result":{"kind":"bytes"}},{"axioms":[],"body":{"branches":[{"binders":[],"body":{"hex":"","kind":"bytes"},"constructor":{"name":"Option.none"}},{"binders":["unwrapped"],"body":{"kind":"var","name":"unwrapped"},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"hex":"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f","kind":"bytes"},{"arguments":[{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},{"kind":"nat","value":"1"}],"kind":"primitive","operation":"slice","result":{"kind":"option","value":{"kind":"bytes"}}}},"kind":"definition","name":"terminalLength","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"kind":"bytes"}},{"axioms":[],"body":{"arguments":[{"arguments":[{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"domain"},"kind":"call"},{"hex":"02","kind":"bytes"}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}},{"field":"chain","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}},{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"terminalLength"},"kind":"call"}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}},{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}},"kind":"definition","name":"terminalFrame","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"kind":"bytes"}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.sha256"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["job"],"body":{"arguments":[{"fields":[{"field":"chain","value":{"field":"chain","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"buffer","value":{"hex":"","kind":"bytes"}},{"field":"stage","value":{"arguments":[{"kind":"var","name":"job"}],"constructor":{"name":"Stage.updating"},"kind":"constructor"}},{"field":"closing","value":{"kind":"var","name":"closing"}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"arguments":[],"function":{"module":"Uorc.Integrity.Sha256","name":"init"},"kind":"call"},{"kind":"var","name":"frame"}],"function":{"module":"Uorc.Integrity.Sha256","name":"beginUpdate"},"kind":"call"}},"kind":"definition","name":"startFrame","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"frame","type":{"kind":"bytes"}},{"name":"closing","type":{"kind":"bool"}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"valid"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"condition":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}},"else_value":{"branches":[{"binders":[],"body":{"condition":{"kind":"beq","left":{"arguments":[{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"kind":"nat","value":"63"}},"else_value":{"arguments":[{"fields":[{"field":"chain","value":{"field":"chain","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"buffer","value":{"arguments":[{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}},{"arguments":[{"kind":"var","name":"byte"}],"function":{"module":"Uorc.Integrity.Sha256","name":"byteBytes"},"kind":"call"}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}}},{"field":"stage","value":{"field":"stage","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"closing","value":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"kind":"var","name":"state"},{"arguments":[{"kind":"var","name":"state"},{"kind":"var","name":"byte"}],"function":{"name":"dataFrame"},"kind":"call"},{"kind":"bool","value":false}],"function":{"name":"startFrame"},"kind":"call"}},"constructor":{"name":"Stage.idle"}},{"binders":["job"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.workPending"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.updating"}},{"binders":["hashState"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.workPending"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.finalizing"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.updateAfterFinalize"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.finished"}}],"kind":"match","scrutinee":{"field":"stage","kind":"project","value":{"kind":"var","name":"state"}}},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.updateAfterFinalize"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},"kind":"definition","name":"absorbByte","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"byte","type":{"kind":"uint8"}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"valid"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.workPending"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.idle"}},{"binders":["job"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.sha256"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["event"],"body":{"branches":[{"binders":["nextJob"],"body":{"arguments":[{"fields":[{"field":"chain","value":{"field":"chain","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"buffer","value":{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"stage","value":{"arguments":[{"kind":"var","name":"nextJob"}],"constructor":{"name":"Stage.updating"},"kind":"constructor"}},{"field":"closing","value":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"module":"Uorc.Integrity.Sha256","name":"UpdateEvent.advanced"}},{"binders":["hashState"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.sha256"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["started"],"body":{"arguments":[{"fields":[{"field":"chain","value":{"field":"chain","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"buffer","value":{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"stage","value":{"arguments":[{"kind":"var","name":"started"}],"constructor":{"name":"Stage.finalizing"},"kind":"constructor"}},{"field":"closing","value":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"hashState"}],"function":{"module":"Uorc.Integrity.Sha256","name":"finalize"},"kind":"call"}},"constructor":{"module":"Uorc.Integrity.Sha256","name":"UpdateEvent.done"}}],"kind":"match","scrutinee":{"kind":"var","name":"event"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"job"}],"function":{"module":"Uorc.Integrity.Sha256","name":"updateStep"},"kind":"call"}},"constructor":{"name":"Stage.updating"}},{"binders":["hashState"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"module":"Uorc.Integrity.Sha256","name":"Phase.absorbing"}},{"binders":["padding"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.sha256"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["nextState"],"body":{"arguments":[{"fields":[{"field":"chain","value":{"field":"chain","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"buffer","value":{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"stage","value":{"arguments":[{"kind":"var","name":"nextState"}],"constructor":{"name":"Stage.finalizing"},"kind":"constructor"}},{"field":"closing","value":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"hashState"}],"function":{"module":"Uorc.Integrity.Sha256","name":"finalizeStep"},"kind":"call"}},"constructor":{"module":"Uorc.Integrity.Sha256","name":"Phase.finishing"}},{"binders":[],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.sha256"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["localDigest"],"body":{"arguments":[{"fields":[{"field":"chain","value":{"kind":"var","name":"localDigest"}},{"field":"buffer","value":{"field":"buffer","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"stage","value":{"condition":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}},"else_value":{"arguments":[],"constructor":{"name":"Stage.idle"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[],"constructor":{"name":"Stage.finished"},"kind":"constructor"}}},{"field":"closing","value":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"hashState"}],"function":{"module":"Uorc.Integrity.Sha256","name":"digest"},"kind":"call"}},"constructor":{"module":"Uorc.Integrity.Sha256","name":"Phase.finished"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"hashState"}}},"constructor":{"name":"Stage.finalizing"}},{"binders":[],"body":{"arguments":[{"kind":"var","name":"state"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.finished"}}],"kind":"match","scrutinee":{"field":"stage","kind":"project","value":{"kind":"var","name":"state"}}}},"kind":"definition","name":"step","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"valid"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"condition":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}},"else_value":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"var","name":"state"},{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"terminalFrame"},"kind":"call"},{"kind":"bool","value":true}],"function":{"name":"startFrame"},"kind":"call"},"constructor":{"name":"Stage.idle"}},{"binders":["job"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.workPending"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.updating"}},{"binders":["hashState"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.workPending"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.finalizing"}},{"binders":[],"body":{"arguments":[{"kind":"var","name":"state"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.finished"}}],"kind":"match","scrutinee":{"field":"stage","kind":"project","value":{"kind":"var","name":"state"}}},"kind":"if","then_value":{"arguments":[{"kind":"var","name":"state"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},"kind":"definition","name":"finalize","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"axioms":[],"body":{"condition":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"valid"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.notFinalized"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.idle"}},{"binders":["job"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.notFinalized"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.updating"}},{"binders":["hashState"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.notFinalized"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.finalizing"}},{"binders":[],"body":{"condition":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"field":"chain","kind":"project","value":{"kind":"var","name":"state"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}},"constructor":{"name":"Stage.finished"}}],"kind":"match","scrutinee":{"field":"stage","kind":"project","value":{"kind":"var","name":"state"}}}},"kind":"definition","name":"digest","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"kind":"bytes"}}},{"axioms":[],"body":{"condition":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"valid"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Update"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"condition":{"field":"closing","kind":"project","value":{"kind":"var","name":"state"}},"else_value":{"arguments":[{"fields":[{"field":"state","value":{"kind":"var","name":"state"}},{"field":"input","value":{"kind":"var","name":"input"}},{"field":"offset","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Update"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Update"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.updateAfterFinalize"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Update"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},"kind":"definition","name":"beginUpdate","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"input","type":{"kind":"bytes"}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"Update"}}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"field":"state","kind":"project","value":{"kind":"var","name":"localUpdate"}}],"function":{"name":"valid"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"condition":{"field":"closing","kind":"project","value":{"field":"state","kind":"project","value":{"kind":"var","name":"localUpdate"}}},"else_value":{"condition":{"kind":"ble","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"localUpdate"}},"right":{"arguments":[{"field":"input","kind":"project","value":{"kind":"var","name":"localUpdate"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"condition":{"kind":"beq","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"localUpdate"}},"right":{"arguments":[{"field":"input","kind":"project","value":{"kind":"var","name":"localUpdate"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["nextState"],"body":{"arguments":[{"arguments":[{"fields":[{"field":"state","value":{"kind":"var","name":"nextState"}},{"field":"input","value":{"field":"input","kind":"project","value":{"kind":"var","name":"localUpdate"}}},{"field":"offset","value":{"kind":"add","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"localUpdate"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Update"}}],"constructor":{"name":"UpdateEvent.advanced"},"kind":"constructor"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"field":"state","kind":"project","value":{"kind":"var","name":"localUpdate"}},{"branches":[{"binders":[],"body":{"kind":"integer","representation":"uint8","value":"0"},"constructor":{"name":"Option.none"}},{"binders":["unwrapped"],"body":{"kind":"var","name":"unwrapped"},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"input","kind":"project","value":{"kind":"var","name":"localUpdate"}},{"field":"offset","kind":"project","value":{"kind":"var","name":"localUpdate"}}],"kind":"primitive","operation":"index","result":{"kind":"option","value":{"kind":"uint8"}}}}],"function":{"name":"absorbByte"},"kind":"call"}},"kind":"if","then_value":{"arguments":[{"arguments":[{"field":"state","kind":"project","value":{"kind":"var","name":"localUpdate"}}],"constructor":{"name":"UpdateEvent.done"},"kind":"constructor"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}},"constructor":{"name":"Stage.idle"}},{"binders":["job"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["nextState"],"body":{"arguments":[{"arguments":[{"fields":[{"field":"state","value":{"kind":"var","name":"nextState"}},{"field":"input","value":{"field":"input","kind":"project","value":{"kind":"var","name":"localUpdate"}}},{"field":"offset","value":{"field":"offset","kind":"project","value":{"kind":"var","name":"localUpdate"}}}],"kind":"record","type":{"name":"Update"}}],"constructor":{"name":"UpdateEvent.advanced"},"kind":"constructor"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"field":"state","kind":"project","value":{"kind":"var","name":"localUpdate"}}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Stage.updating"}},{"binders":["hashState"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["nextState"],"body":{"arguments":[{"arguments":[{"fields":[{"field":"state","value":{"kind":"var","name":"nextState"}},{"field":"input","value":{"field":"input","kind":"project","value":{"kind":"var","name":"localUpdate"}}},{"field":"offset","value":{"field":"offset","kind":"project","value":{"kind":"var","name":"localUpdate"}}}],"kind":"record","type":{"name":"Update"}}],"constructor":{"name":"UpdateEvent.advanced"},"kind":"constructor"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"field":"state","kind":"project","value":{"kind":"var","name":"localUpdate"}}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Stage.finalizing"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.updateAfterFinalize"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.finished"}}],"kind":"match","scrutinee":{"field":"stage","kind":"project","value":{"field":"state","kind":"project","value":{"kind":"var","name":"localUpdate"}}}}},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.updateAfterFinalize"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},"kind":"definition","name":"updateStep","parameters":[{"name":"localUpdate","type":{"arguments":[],"kind":"named","member":{"name":"Update"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"UpdateEvent"}}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.fuelExhausted"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Nat.zero"}},{"binders":["rest"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["event"],"body":{"branches":[{"binders":["nextUpdate"],"body":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"nextUpdate"}],"function":{"name":"runUpdate"},"kind":"call"},"constructor":{"name":"UpdateEvent.advanced"}},{"binders":["state"],"body":{"arguments":[{"kind":"var","name":"state"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"UpdateEvent.done"}}],"kind":"match","scrutinee":{"kind":"var","name":"event"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"localUpdate"}],"function":{"name":"updateStep"},"kind":"call"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"runUpdate","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"localUpdate","type":{"arguments":[],"kind":"named","member":{"name":"Update"}}}],"recursive_argument":"fuel","result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["job"],"body":{"arguments":[{"kind":"add","left":{"arguments":[{"kind":"nat","value":"12"},{"arguments":[{"kind":"var","name":"input"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}},"right":{"kind":"nat","value":"600"}},{"kind":"var","name":"job"}],"function":{"name":"runUpdate"},"kind":"call"},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"state"},{"kind":"var","name":"input"}],"function":{"name":"beginUpdate"},"kind":"call"}},"kind":"definition","name":"update","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"input","type":{"kind":"bytes"}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.fuelExhausted"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Nat.zero"}},{"binders":["rest"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.notFinalized"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Stage.idle"}},{"binders":["job"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["nextState"],"body":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"nextState"}],"function":{"name":"runFinalize"},"kind":"call"},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Stage.updating"}},{"binders":["hashState"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["nextState"],"body":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"nextState"}],"function":{"name":"runFinalize"},"kind":"call"},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Stage.finalizing"}},{"binders":[],"body":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"digest"},"kind":"call"},"constructor":{"name":"Stage.finished"}}],"kind":"match","scrutinee":{"field":"stage","kind":"project","value":{"kind":"var","name":"state"}}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"runFinalize","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"recursive_argument":"fuel","result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"kind":"bytes"}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["initial"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["updated"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["closing"],"body":{"arguments":[{"kind":"nat","value":"600"},{"kind":"var","name":"closing"}],"function":{"name":"runFinalize"},"kind":"call"},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"updated"}],"function":{"name":"finalize"},"kind":"call"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"initial"},{"kind":"var","name":"input"}],"function":{"name":"update"},"kind":"call"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[],"function":{"name":"init"},"kind":"call"}},"kind":"definition","name":"hash","parameters":[{"name":"input","type":{"kind":"bytes"}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"kind":"bytes"}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: sha256, fields: [Uorc.Integrity.Sha256::Error]},
+    {name: invalidState, fields: []},
+    {name: workPending, fields: []},
+    {name: updateAfterFinalize, fields: []},
+    {name: notFinalized, fields: []},
+    {name: fuelExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: Stage,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: idle, fields: []},
+    {name: updating, fields: [Uorc.Integrity.Sha256::Update]},
+    {name: finalizing, fields: [Uorc.Integrity.Sha256::State]},
+    {name: finished, fields: []}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: chain, type: Bytes},
+    {name: buffer, type: Bytes},
+    {name: stage, type: Stage},
+    {name: closing, type: Bool}
+  ]
+}
+
+structure{
+  name: Update,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: state, type: State}, {name: input, type: Bytes}, {name: offset, type: Nat}]
+}
+
+inductive{
+  name: UpdateEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: advanced, fields: [Update]}, {name: done, fields: [State]}]
+}
+
+definition{
+  name: domain,
+  parameters: [],
+  result: Bytes,
+  body: 0x554f52432d5348413235362d434841494e2d763100,
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: constructionName,
+  parameters: [],
+  result: String,
+  body: "UORC-SHA256-CHAIN-v1",
+  axioms: []
+}
+
+definition{
+  name: initialFrame,
+  parameters: [],
+  result: Bytes,
+  body: (prim append (domain) 0x00 : Bytes),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: init,
+  parameters: [],
+  result: (Result State Error),
+  body: (match (Uorc.Integrity.Sha256::hash (initialFrame))
+    | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+    | Result.ok initial => (ctor Result.ok [State, Error] (record State {chain := initial, buffer := 0x, stage := (ctor Stage.idle), closing := false}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: phaseValid,
+  parameters: [state : State],
+  result: Bool,
+  body: (match (project state stage)
+    | Stage.idle => (if (project state closing) then false else true)
+    | Stage.updating job => ((prim length (project state buffer) : Nat) =? 0)
+    | Stage.finalizing hashState => ((prim length (project state buffer) : Nat) =? 0)
+    | Stage.finished => ((project state closing) && ((prim length (project state buffer) : Nat) =? 0))),
+  executable: true
+}
+
+definition{
+  name: valid,
+  parameters: [state : State],
+  result: Bool,
+  body: (((prim length (project state chain) : Nat) =? 32) && (((prim length (project state buffer) : Nat) <=? 63) && (phaseValid state))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: dataFrame,
+  parameters: [state : State, lastByte : UInt8],
+  result: Bytes,
+  body: (prim append (prim append (prim append (prim append (domain) 0x01 : Bytes) (project state chain) : Bytes) (project state buffer) : Bytes) (Uorc.Integrity.Sha256::byteBytes lastByte) : Bytes),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: terminalLength,
+  parameters: [state : State],
+  result: Bytes,
+  body: (match (prim slice 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f (prim length (project state buffer) : Nat) 1 : (Option Bytes))
+    | Option.none => 0x
+    | Option.some unwrapped => unwrapped),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: terminalFrame,
+  parameters: [state : State],
+  result: Bytes,
+  body: (prim append (prim append (prim append (prim append (domain) 0x02 : Bytes) (project state chain) : Bytes) (terminalLength state) : Bytes) (project state buffer) : Bytes),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: startFrame,
+  parameters: [state : State, frame : Bytes, closing : Bool],
+  result: (Result State Error),
+  body: (match (Uorc.Integrity.Sha256::beginUpdate (Uorc.Integrity.Sha256::init) frame)
+    | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+    | Result.ok job => (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := 0x, stage := (ctor Stage.updating job), closing := closing}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: absorbByte,
+  parameters: [state : State, byte : UInt8],
+  result: (Result State Error),
+  body: (if (valid state) then (if (project state closing) then (ctor Result.error [State, Error] (ctor Error.updateAfterFinalize)) else (match (project state stage)
+    | Stage.idle => (if ((prim length (project state buffer) : Nat) =? 63) then (startFrame state (dataFrame state byte) false) else (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (prim append (project state buffer) (Uorc.Integrity.Sha256::byteBytes byte) : Bytes), stage := (project state stage), closing := (project state closing)})))
+    | Stage.updating job => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.finalizing hashState => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.finished => (ctor Result.error [State, Error] (ctor Error.updateAfterFinalize)))) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: step,
+  parameters: [state : State],
+  result: (Result State Error),
+  body: (if (valid state) then (match (project state stage)
+    | Stage.idle => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.updating job => (match (Uorc.Integrity.Sha256::updateStep job)
+      | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+      | Result.ok event => (match event
+        | Uorc.Integrity.Sha256::UpdateEvent.advanced nextJob => (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (project state buffer), stage := (ctor Stage.updating nextJob), closing := (project state closing)}))
+        | Uorc.Integrity.Sha256::UpdateEvent.done hashState => (match (Uorc.Integrity.Sha256::finalize hashState)
+          | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+          | Result.ok started => (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (project state buffer), stage := (ctor Stage.finalizing started), closing := (project state closing)})))))
+    | Stage.finalizing hashState => (match (project hashState phase)
+      | Uorc.Integrity.Sha256::Phase.absorbing => (ctor Result.error [State, Error] (ctor Error.invalidState))
+      | Uorc.Integrity.Sha256::Phase.finishing padding => (match (Uorc.Integrity.Sha256::finalizeStep hashState)
+        | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+        | Result.ok nextState => (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (project state buffer), stage := (ctor Stage.finalizing nextState), closing := (project state closing)})))
+      | Uorc.Integrity.Sha256::Phase.finished => (match (Uorc.Integrity.Sha256::digest hashState)
+        | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+        | Result.ok localDigest => (ctor Result.ok [State, Error] (record State {chain := localDigest, buffer := (project state buffer), stage := (if (project state closing) then (ctor Stage.finished) else (ctor Stage.idle)), closing := (project state closing)}))))
+    | Stage.finished => (ctor Result.ok [State, Error] state)) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalize,
+  parameters: [state : State],
+  result: (Result State Error),
+  body: (if (valid state) then (if (project state closing) then (ctor Result.ok [State, Error] state) else (match (project state stage)
+    | Stage.idle => (startFrame state (terminalFrame state) true)
+    | Stage.updating job => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.finalizing hashState => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.finished => (ctor Result.ok [State, Error] state))) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: digest,
+  parameters: [state : State],
+  result: (Result Bytes Error),
+  body: (if (valid state) then (match (project state stage)
+    | Stage.idle => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Stage.updating job => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Stage.finalizing hashState => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Stage.finished => (if (project state closing) then (ctor Result.ok [Bytes, Error] (project state chain)) else (ctor Result.error [Bytes, Error] (ctor Error.invalidState)))) else (ctor Result.error [Bytes, Error] (ctor Error.invalidState))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: beginUpdate,
+  parameters: [state : State, input : Bytes],
+  result: (Result Update Error),
+  body: (if (valid state) then (if (project state closing) then (ctor Result.error [Update, Error] (ctor Error.updateAfterFinalize)) else (ctor Result.ok [Update, Error] (record Update {state := state, input := input, offset := 0}))) else (ctor Result.error [Update, Error] (ctor Error.invalidState))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: updateStep,
+  parameters: [localUpdate : Update],
+  result: (Result UpdateEvent Error),
+  body: (if (valid (project localUpdate state)) then (if (project (project localUpdate state) closing) then (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize)) else (if ((project localUpdate offset) <=? (prim length (project localUpdate input) : Nat)) then (match (project (project localUpdate state) stage)
+    | Stage.idle => (if ((project localUpdate offset) =? (prim length (project localUpdate input) : Nat)) then (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.done (project localUpdate state))) else (match (absorbByte (project localUpdate state) (match (prim index (project localUpdate input) (project localUpdate offset) : (Option UInt8))
+        | Option.none => (0 : UInt8)
+        | Option.some unwrapped => unwrapped))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project localUpdate input), offset := ((project localUpdate offset) + 1)})))))
+    | Stage.updating job => (match (step (project localUpdate state))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project localUpdate input), offset := (project localUpdate offset)}))))
+    | Stage.finalizing hashState => (match (step (project localUpdate state))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project localUpdate input), offset := (project localUpdate offset)}))))
+    | Stage.finished => (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidState)))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: runUpdate,
+  parameters: [fuel : Nat, localUpdate : Update],
+  result: (Result State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [State, Error] (ctor Error.fuelExhausted))
+    | Nat.succ rest => (match (updateStep localUpdate)
+      | Result.error failure => (ctor Result.error [State, Error] failure)
+      | Result.ok event => (match event
+        | UpdateEvent.advanced nextUpdate => (runUpdate rest nextUpdate)
+        | UpdateEvent.done state => (ctor Result.ok [State, Error] state)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: update,
+  parameters: [state : State, input : Bytes],
+  result: (Result State Error),
+  body: (match (beginUpdate state input)
+    | Result.error failure => (ctor Result.error [State, Error] failure)
+    | Result.ok job => (runUpdate ((prim multiply 12 (prim length input : Nat) : Nat) + 600) job)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runFinalize,
+  parameters: [fuel : Nat, state : State],
+  result: (Result Bytes Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Bytes, Error] (ctor Error.fuelExhausted))
+    | Nat.succ rest => (match (project state stage)
+      | Stage.idle => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+      | Stage.updating job => (match (step state)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok nextState => (runFinalize rest nextState))
+      | Stage.finalizing hashState => (match (step state)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok nextState => (runFinalize rest nextState))
+      | Stage.finished => (digest state))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: hash,
+  parameters: [input : Bytes],
+  result: (Result Bytes Error),
+  body: (match (init)
+    | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+    | Result.ok initial => (match (update initial input)
+      | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+      | Result.ok updated => (match (finalize updated)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok closing => (runFinalize 600 closing)))),
+  axioms: [Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

@@ -79,10 +79,18 @@ definition{
   parameters: [kind : Kind],
   result: Nat,
   body: (match kind | Kind.format2Chain => 2 | Kind.format3Stream => 3),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
-definition{name: machine, parameters: [kind : Kind], result: Nat, body: 1, axioms: []}
+definition{
+  name: machine,
+  parameters: [kind : Kind],
+  result: Nat,
+  body: 1,
+  axioms: [],
+  executable: true
+}
 
 definition{
   name: hashIdentity,
@@ -91,7 +99,8 @@ definition{
   body: (match kind
     | Kind.format2Chain => "UORC-SHA256-CHAIN-v1"
     | Kind.format3Stream => "UORC-SHA256-STREAM-MAX-v1"),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
 definition{
@@ -109,7 +118,8 @@ definition{
     | Purpose.checkpointBytes => (match kind
       | Kind.format2Chain => 0x554f52432d434845434b504f494e542d46322d4d312d763100
       | Kind.format3Stream => 0x554f52432d434845434b504f494e542d46332d4d312d763100)),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
 definition{
@@ -117,7 +127,8 @@ definition{
   parameters: [kind : Kind],
   result: Bytes,
   body: (match kind | Kind.format2Chain => 0x554f52430201 | Kind.format3Stream => 0x554f52430301),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
 definition{
@@ -129,7 +140,8 @@ definition{
     | Purpose.inputBytes => false
     | Purpose.basisObjects => false
     | Purpose.checkpointBytes => false),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
 definition{
@@ -140,7 +152,8 @@ definition{
     | State.chain hashState => (ctor Kind.format2Chain)
     | State.stream hashState => (ctor Kind.format3Stream)
     | State.canceled profile => profile),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
 definition{
@@ -150,7 +163,8 @@ definition{
   body: (match job
     | Update.chain hashJob => (ctor Kind.format2Chain)
     | Update.stream hashJob => (ctor Kind.format3Stream)),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
 definition{
@@ -164,7 +178,8 @@ definition{
     | Kind.format3Stream => (match (Uorc.Integrity.StreamMax::init)
       | Result.error cause => (ctor Result.error [State, Error] (ctor Error.stream cause))
       | Result.ok hashState => (ctor Result.ok [State, Error] (ctor State.stream hashState)))),
-  axioms: [Quot.sound, propext]
+  axioms: [Quot.sound, propext],
+  executable: true
 }
 
 definition{
@@ -179,7 +194,8 @@ definition{
       | Result.error cause => (ctor Result.error [State, Error] (ctor Error.stream cause))
       | Result.ok nextHash => (ctor Result.ok [State, Error] (ctor State.stream nextHash)))
     | State.canceled profile => (ctor Result.error [State, Error] (ctor Error.canceled))),
-  axioms: [Quot.sound, propext]
+  axioms: [Quot.sound, propext],
+  executable: true
 }
 
 definition{
@@ -194,7 +210,8 @@ definition{
       | Result.error cause => (ctor Result.error [State, Error] (ctor Error.stream cause))
       | Result.ok nextHash => (ctor Result.ok [State, Error] (ctor State.stream nextHash)))
     | State.canceled profile => (ctor Result.error [State, Error] (ctor Error.canceled))),
-  axioms: [Quot.sound, propext]
+  axioms: [Quot.sound, propext],
+  executable: true
 }
 
 definition{
@@ -209,7 +226,8 @@ definition{
       | Result.error cause => (ctor Result.error [Bytes, Error] (ctor Error.stream cause))
       | Result.ok output => (ctor Result.ok [Bytes, Error] output))
     | State.canceled profile => (ctor Result.error [Bytes, Error] (ctor Error.canceled))),
-  axioms: [Quot.sound, propext]
+  axioms: [Quot.sound, propext],
+  executable: true
 }
 
 definition{
@@ -230,7 +248,8 @@ definition{
       | Uorc.Integrity.StreamEngine::Stage.finished output => true
       | Uorc.Integrity.StreamEngine::Stage.canceled => false)
     | State.canceled profile => false),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
 definition{
@@ -245,7 +264,8 @@ definition{
       | Result.error cause => (ctor Result.error [Update, Error] (ctor Error.stream cause))
       | Result.ok hashJob => (ctor Result.ok [Update, Error] (ctor Update.stream hashJob)))
     | State.canceled profile => (ctor Result.error [Update, Error] (ctor Error.canceled))),
-  axioms: [Quot.sound, propext]
+  axioms: [Quot.sound, propext],
+  executable: true
 }
 
 definition{
@@ -263,7 +283,8 @@ definition{
       | Result.ok hashEvent => (match hashEvent
         | Uorc.Integrity.StreamMax::UpdateEvent.advanced nextJob => (ctor Result.ok [Event, Error] (ctor Event.advanced (ctor Update.stream nextJob)))
         | Uorc.Integrity.StreamMax::UpdateEvent.done hashState => (ctor Result.ok [Event, Error] (ctor Event.done (ctor State.stream hashState)))))),
-  axioms: [Quot.sound, propext]
+  axioms: [Quot.sound, propext],
+  executable: true
 }
 
 definition{
@@ -271,7 +292,8 @@ definition{
   parameters: [state : State],
   result: State,
   body: (ctor State.canceled (stateKind state)),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
 definition{
@@ -279,7 +301,8 @@ definition{
   parameters: [job : Update],
   result: State,
   body: (ctor State.canceled (updateKind job)),
-  axioms: []
+  axioms: [],
+  executable: true
 }
 
 definition{
@@ -294,6 +317,7 @@ definition{
         | Event.advanced nextJob => (runUpdate rest nextJob)
         | Event.done state => (ctor Result.ok [State, Error] state)))),
   axioms: [Quot.sound, propext],
+  executable: true,
   recursive_argument: fuel
 }
 
@@ -304,7 +328,8 @@ definition{
   body: (match (beginUpdate state input)
     | Result.error failure => (ctor Result.error [State, Error] failure)
     | Result.ok job => (runUpdate ((prim multiply 600 (prim length input : Nat) : Nat) + 1200) job)),
-  axioms: [Quot.sound, propext]
+  axioms: [Quot.sound, propext],
+  executable: true
 }
 
 definition{
@@ -319,6 +344,7 @@ definition{
         | Result.error failure => (ctor Result.error [Bytes, Error] failure)
         | Result.ok nextState => (runFinalize rest nextState)))),
   axioms: [Quot.sound, propext],
+  executable: true,
   recursive_argument: fuel
 }
 
@@ -335,7 +361,8 @@ definition{
         | Result.ok updated => (match (finalize updated)
           | Result.error failure => (ctor Result.error [Bytes, Error] failure)
           | Result.ok closing => (runFinalize 1200 closing))))),
-  axioms: [Quot.sound, propext]
+  axioms: [Quot.sound, propext],
+  executable: true
 }
 
 theorem{
