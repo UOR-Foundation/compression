@@ -89,3 +89,5 @@ varint-proofs:
 integrity:
     node --test scripts/integrity-vectors.test.mjs
     node scripts/integrity-validation.mjs
+    node --test scripts/integrity-stream.test.mjs
+    node scripts/integrity-stream.mjs

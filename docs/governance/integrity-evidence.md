@@ -130,3 +130,65 @@ evidence. Complete acceptance still uses the immutable SDK in `prismpm.lock`.
 Full pinned-SDK `just vv` and integrated BinaryProgram product acceptance remain
 outstanding. Issue #43 remains open; this branch does not close it or claim the
 complete compression product is release-qualified.
+
+## Implemented maximum-frame stream identity
+
+`StreamEngine.lex.tex`, `StreamMax.lex.tex`, `StreamDiagnostic.lex.tex` and
+`StreamContract.lex.tex` implement and specify the distinct
+`UORC-SHA256-STREAM-MAX-v1` identity. `UORC-SHA256-CHAIN-v1` remains byte-for-byte
+unchanged. This source lane does not change any archive-format identity.
+
+The domain is the 26 bytes of ASCII `UORC-SHA256-STREAM-MAX-v1` followed by NUL.
+A first prefix adds byte 00 (27 bytes total); a continuation adds byte 01 and
+the previous 32-byte digest (59 bytes total). A full suffix is byte 00 followed
+by BE64(payload-byte length); a terminal suffix uses byte 01 instead. Each
+suffix has nine bytes. Payload stops when the current standard SHA count
+reaches 2^61−10. Thus the first/continuation payload capacities are exactly
+2,305,843,009,213,693,915 / 2,305,843,009,213,693,883 bytes, and each full framed
+SHA message is exactly 2^61−1 bytes. EOF always emits a terminal, including an
+empty terminal continuation after an exactly full frame. There is no seed hash.
+
+The stage sum carries one SHA state or child update, or a finished digest.
+Only prefix/suffix bytes and the caller-supplied chunk are retained; no whole
+segment or accumulated total-length/segment-count value is stored. SHA's bounded
+UInt64 count resets for each frame. `cancel` and `cancelUpdate` return a canonical
+canceled state with no pending state/chunk reference; subsequent operations give
+the typed cancellation error. Pure persistent semantics do not erase separately
+retained snapshots.
+
+`StreamDiagnostic` is a separate type with an explicit test frame limit, using
+the same source engine. `StreamMax` has no capacity parameter and always supplies
+the production limit. Ninety-four independent hashlib/OpenSSL fixtures include
+27 production-profile lengths through 1 MiB and seven reduced diagnostic limits.
+All 189 framed-message inputs were independently hashed with both tools; provider
+independence is not claimed. These fixtures include full-frame EOF, mandatory
+empty continuations, partial continuations and SHA padding boundaries. The
+source importer checks every frame's byte count, suffix and padded block count.
+
+The generated-model gate executes all 94 cases and 282 adaptive chunk partitions,
+checks actual SHA feed-forward events against independently calculated compression
+counts, and cancels every reachable live stage plus the finished state. It tests
+invalid limits/states/offsets, unfinished digests, late updates, pending work,
+exhausted fuel, nested SHA errors and repeated finalization. It uses Lean's native
+backend for this test client; it contains no handwritten hash or product adapter.
+The two additional planted source defects change the terminal domain byte and
+production frame limit. Their independent frame/kernel owners must reject them;
+restored source controls then pass.
+
+General kernel proofs establish framing-size identities for every natural payload
+length and canonical cancellation erasure/idempotence. Closed observations bind
+the domain/prefix sizes, exact production limit and derived standard-domain frame
+bounds. The source transition validator checks bounded child/count/phase shapes.
+A general transition-preservation theorem and a kernel-checked collision reduction
+are not claimed by these results.
+
+The collision argument is constructive over two finite execution traces: unequal
+terminal preimages sharing a digest provide a SHA collision witness; equal
+continuation preimages identify equal predecessor digests and tails, so inspect
+the prior full frame. A first/continuation mismatch has distinct prefixes. If no
+distinct preimage is found back through the first frame, the reconstructed streams
+agree. The explicit suffix roles and canonical payload counts make the framing
+unambiguous. Security relies on ordinary computational SHA-256 collision resistance
+on standard-domain framed messages. No global injectivity axiom is introduced;
+finite digests cannot be injective over arbitrary streams. Hash agreement remains
+integrity evidence, and exact reconstruction comparison remains necessary.
