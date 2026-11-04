@@ -1,7 +1,8 @@
 <!-- uorc:non-authoritative -->
 # Scoped integrity proof evidence
 
-The authorities are `Integrity.ByteEquality`, `CollisionLaws` and `StateLaws`.
+The authorities are `Integrity.ByteEquality`, `CollisionLaws`, `StateLaws`,
+`ShaTransitionLaws` and `OwnedLifecycleLaws`.
 They are proof modules; ordinary archive hashing, compression and decompression
 add no proof metadata or dependency on proof completion.
 
@@ -28,6 +29,35 @@ for compression-work constructor shapes, rejection without work, message-count
 preservation by `appendRaw` and `finalize`, and finished stream-state stability.
 Preservation predicates are vacuous on typed errors. These are kernel statements
 over arbitrary typed fields, not finite vectors or a full valid-state theorem.
+
+`ShaTransitionLaws` proves checked-schedule preservation by arbitrary word
+replacement, validity and count preservation after successful compression work,
+and count preservation after every successful finalization step. Its byte
+decoder and low-bit proofs establish the exact count remainder modulo 64 for
+every UInt64 value. A separate four-module diagnostic verification and replay
+passed with attestation
+`f577ab5bceb8c469594c93a30e98cd56ccab615ccd00467f67e0ae94fb510e9f`.
+Dropping a replacement tail, advancing a round twice, resetting a finished
+message count, and corrupting the remainder at 64 each fail their new proof
+owner. Restored source reproduces the same attestation.
+
+`OwnedLifecycleLaws` proves exact ordered root-list preservation, actual
+one-byte read/admission correspondence, retained input during update, and
+canonical cancellation/publication ownership shapes. Its read bridge requires
+the explicit cursor/state profile agreement and actual checked read success.
+At a successful release request, the span ticket transfers to the Heap release
+cursor and the outer input field clears. `spanComplete` waits for actual Heap
+release completion. These structural laws rely on the independently maintained
+Heap ownership invariant for genuine root ownership; they do not infer that
+invariant from list membership or from arbitrary forged cursor records.
+
+The owned lifecycle source compiles from fresh official generated modules,
+passes all 28 exact declaration audits and separate kernel replay, and rejects
+an actual source mutation reporting two copied bytes for its one-byte admission.
+Restoration passes compilation and replay. Its complete scoped SDK verification
+still fails inherited certificate A at `RuntimeSequence.step.__rel_16` with
+`LLV7013` and kernel deep recursion. Those results are recorded separately; no
+owned lifecycle SDK attestation is claimed.
 
 The combined six-module diagnostic verification and kernel replay passed with
 saved official compiler `71defb4c663aaec5b9a3aab04cbc6a03e7106227`, binary SHA-256

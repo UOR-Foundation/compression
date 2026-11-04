@@ -15,3 +15,11 @@ separately. `isolated-soundness-mutant.json` is a negative-attribution diagnosti
 with non-target proof declarations omitted; it is never a substitute for the
 complete scoped or product verification. Other mutant records retain full scopes.
 `evidence.json` states exact source/tool/lock identity and remaining boundaries.
+
+`transition-lifecycle-evidence.json` and the `sha-transition-*` records preserve
+the later four-module verification, replay and four actual source-defect
+controls. `owned-lifecycle-*` records distinguish successful fresh source kernel
+compilation, all-row axiom audit, replay and restored accounting control from
+the inherited `LLV7013` preservation-certificate failure in complete scoped SDK
+verification. Its source metadata and limits were retained. None of these
+records qualifies the original product pinned SDK or the full archive closure.
