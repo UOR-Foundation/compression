@@ -169,7 +169,7 @@ definition{
     | Uorc.Core.Heap::Node.metadataBranch kind left right => 56
     | Uorc.Core.Heap::Node.ownerRoot role target => 48
     | Uorc.Core.Heap::Node.imageReservation kind length => (48 + (wordToNat length))),
-  axioms: [],
+  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -317,6 +317,45 @@ definition{
   axioms: [Quot.sound, propext],
   executable: true,
   recursive_argument: fuel
+}
+
+definition{
+  name: rootRows,
+  parameters: [
+    rows : (List Row),
+    roots : (List Uorc.Core.RuntimeValue::Handle),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  result: Bool,
+  body: (match rows
+    | List.nil => true
+    | List.cons head tail => (if ((wordToNat (project (project head entry) roots)) =? ((occurrences roots (project head handle)) + (if (project (project arena cursor) rootStep) then (occurrences (project (project arena cursor) pending) (project head handle)) else 0))) then (rootRows tail roots arena) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: rows
+}
+
+definition{
+  name: liveRootTickets,
+  parameters: [roots : (List Uorc.Core.RuntimeValue::Handle), arena : Uorc.Core.Heap::Arena],
+  result: Bool,
+  body: (match roots
+    | List.nil => true
+    | List.cons head tail => (if (if (Uorc.Core.RuntimeValue::isNull head) then false else true) then (if (match (Uorc.Core.Heap::lookup arena head)
+      | Result.error error => false
+      | Result.ok entry => true) then (liveRootTickets tail arena) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: roots
+}
+
+definition{
+  name: auditRoots,
+  parameters: [arena : Uorc.Core.Heap::Arena, roots : (List Uorc.Core.RuntimeValue::Handle)],
+  result: Bool,
+  body: (let scan : Scan := (scanIndex 64 (project arena index) (0 : UInt64) (1 : UInt64)); (if (passed (audit arena)) then (if (liveRootTickets roots arena) then (rootRows (project scan rows) roots arena) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true
 }
 \end{semanticmodule}
 \end{lexlean}

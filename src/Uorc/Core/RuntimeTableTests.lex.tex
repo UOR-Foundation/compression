@@ -49,7 +49,13 @@ definition{
                     name: second
                   } handle)) then false else true) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project var{
                     name: second
-                  } arena))) then (if (prim equal (project (project var{
+                  } arena))) then (if (Uorc.Core.HeapAudit::auditRoots (project var{
+                    name: second
+                  } arena) (cons (project var{
+                    name: first
+                  } handle) (cons (project var{
+                    name: second
+                  } handle) (nil Uorc.Core.RuntimeValue::Handle)))) then (if (prim equal (project (project var{
                     name: second
                   } arena) liveEntries) (130 : UInt64) : Bool) then (if (match (Uorc.Core.Heap::release (project var{
                       name: second
@@ -63,7 +69,7 @@ definition{
                         | Result.error failure => false
                         | Result.ok rNew => (match (drain 512 (project rNew arena))
                           | Result.error failure => false
-                          | Result.ok released => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit released)) then (if (prim equal (project released ownedBytes) (0 : UInt64) : Bool) then (if (prim equal (project released liveEntries) (0 : UInt64) : Bool) then true else false) else false) else false))))) then true else false) else false) else false) else false) else false) else false))),
+                          | Result.ok released => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit released)) then (if (prim equal (project released ownedBytes) (0 : UInt64) : Bool) then (if (prim equal (project released liveEntries) (0 : UInt64) : Bool) then true else false) else false) else false))))) then true else false) else false) else false) else false) else false) else false) else false))),
               binders: [second],
               constructor: Result.ok
             }
@@ -98,11 +104,11 @@ definition{
           | Result.error failure => false
           | Result.ok wordDropped => (match (Uorc.Core.RuntimeTable::lookup (project wordDropped arena) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.metadata (4 : UInt64)), root := (project indexed handle)}) (18446744073709551615 : UInt64))
             | Result.error failure => false
-            | Result.ok found => (if (if (Uorc.Core.RuntimeValue::isNull found) then false else true) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project wordDropped arena))) then (if (prim equal (project (project wordDropped arena) ownedBytes) (3744 : UInt64) : Bool) then (if (match (Uorc.Core.Heap::release (project wordDropped arena) (project owner handle))
+            | Result.ok found => (if (if (Uorc.Core.RuntimeValue::isNull found) then false else true) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project wordDropped arena))) then (if (Uorc.Core.HeapAudit::auditRoots (project wordDropped arena) (cons (project owner handle) (nil Uorc.Core.RuntimeValue::Handle))) then (if (prim equal (project (project wordDropped arena) ownedBytes) (3744 : UInt64) : Bool) then (if (match (Uorc.Core.Heap::release (project wordDropped arena) (project owner handle))
               | Result.error failure => false
               | Result.ok started => (match (drain 512 (project started arena))
                 | Result.error failure => false
-                | Result.ok released => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit released)) then (if (prim equal (project released ownedBytes) (0 : UInt64) : Bool) then true else false) else false))) then true else false) else false) else false) else false)))))),
+                | Result.ok released => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit released)) then (if (prim equal (project released ownedBytes) (0 : UInt64) : Bool) then true else false) else false))) then true else false) else false) else false) else false) else false)))))),
   axioms: [Quot.sound, propext],
   executable: true
 }

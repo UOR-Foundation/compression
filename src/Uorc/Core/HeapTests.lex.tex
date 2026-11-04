@@ -49,11 +49,11 @@ definition{
       | Result.error failure => false
       | Result.ok leaf => (match (Uorc.Core.Heap::allocate (project leaf arena) (ctor Uorc.Core.Heap::Node.sequenceBranch (4 : UInt64) (2 : UInt64) (project leaf handle) (project leaf handle)))
         | Result.error failure => false
-        | Result.ok branch => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project branch arena))) then (if (match (Uorc.Core.HeapAudit::interpretSequence 16 (project branch arena) (project branch handle))
+        | Result.ok branch => (if (Uorc.Core.HeapAudit::auditRoots (project branch arena) (cons (project img handle) (cons (project leaf handle) (cons (project branch handle) (nil Uorc.Core.RuntimeValue::Handle))))) then (if (if (Uorc.Core.HeapAudit::auditRoots (project branch arena) (cons (project branch handle) (nil Uorc.Core.RuntimeValue::Handle))) then false else true) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project branch arena))) then (if (match (Uorc.Core.HeapAudit::interpretSequence 16 (project branch arena) (project branch handle))
           | Result.error e => false
           | Result.ok bytes => (prim equal bytes 0xff02ff02 : Bool)) then (if (match (Uorc.Core.Heap::release (project branch arena) (project img handle))
           | Result.error failure => false
-          | Result.ok r0 => (match (drain 16 (project r0 arena))
+          | Result.ok r0 => (if (Uorc.Core.HeapAudit::auditRoots (project r0 arena) (cons (project leaf handle) (cons (project branch handle) (nil Uorc.Core.RuntimeValue::Handle)))) then (if (match (drain 16 (project r0 arena))
             | Result.error failure => false
             | Result.ok s0 => (match (Uorc.Core.Heap::release s0 (project leaf handle))
               | Result.error failure => false
@@ -65,11 +65,11 @@ definition{
                     | Result.error failure => false
                     | Result.ok r2 => (match (drain 16 (project r2 arena))
                       | Result.error failure => false
-                      | Result.ok s2 => (if (prim equal (project s2 ownedBytes) (188 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit s2)) then (if (match (Uorc.Core.Heap::release s2 (project branch handle))
+                      | Result.ok s2 => (if (Uorc.Core.HeapAudit::auditRoots s2 (cons (project branch handle) (nil Uorc.Core.RuntimeValue::Handle))) then (if (prim equal (project s2 ownedBytes) (188 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit s2)) then (if (match (Uorc.Core.Heap::release s2 (project branch handle))
                         | Result.error failure => false
-                        | Result.ok r3 => (match (drain 32 (project r3 arena))
+                        | Result.ok r3 => (if (Uorc.Core.HeapAudit::auditRoots (project r3 arena) (nil Uorc.Core.RuntimeValue::Handle)) then (if (match (drain 32 (project r3 arena))
                           | Result.error failure => false
-                          | Result.ok s3 => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit s3)) then (if (prim equal (project s3 ownedBytes) (0 : UInt64) : Bool) then (if (prim equal (project s3 liveEntries) (0 : UInt64) : Bool) then true else false) else false) else false))) then true else false) else false) else false)))))))) then true else false) else false) else false)))),
+                          | Result.ok s3 => (if (Uorc.Core.HeapAudit::auditRoots s3 (nil Uorc.Core.RuntimeValue::Handle)) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit s3)) then (if (prim equal (project s3 ownedBytes) (0 : UInt64) : Bool) then (if (prim equal (project s3 liveEntries) (0 : UInt64) : Bool) then true else false) else false) else false) else false)) then true else false) else false)) then true else false) else false) else false) else false))))))) then true else false) else false)) then true else false) else false) else false) else false) else false)))),
   axioms: [Quot.sound, propext],
   executable: true
 }

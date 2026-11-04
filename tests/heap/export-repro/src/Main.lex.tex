@@ -1,0 +1,30 @@
+\begin{lexlean}{Main}
+\title{Parameters}
+\begin{semanticmodule}
+structure{name: Entry, type_parameters: [], parameters: [], fields: [{name: word, type: UInt64}]}
+
+inductive{
+  name: Index,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: empty, fields: []},
+    {name: leaf, fields: [Entry]},
+    {name: branch, fields: [Index, Index]}
+  ]
+}
+
+definition{
+  name: left,
+  parameters: [tree : Index],
+  result: Index,
+  body: (match tree
+    | Index.empty => (ctor Index.empty)
+    | Index.leaf item => (ctor Index.empty)
+    | Index.branch childA childB => childA),
+  axioms: [],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+\end{semanticmodule}
+\end{lexlean}
