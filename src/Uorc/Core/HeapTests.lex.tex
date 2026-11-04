@@ -522,10 +522,101 @@ theorem{
 }
 
 definition{
+  name: rejectNonImageBacking,
+  parameters: [node : Uorc.Core.Heap::Node],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) node)
+    | Result.error failure => false
+    | Result.ok seed => (if (match (Uorc.Core.Heap::allocate (project seed arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project seed handle) (0 : UInt64) (1 : UInt64)))
+      | Result.error e => (match e
+        | Uorc.Core.Heap::HeapError.malformedHandle => false
+        | Uorc.Core.Heap::HeapError.invalidNode => true
+        | Uorc.Core.Heap::HeapError.countOverflow => false
+        | Uorc.Core.Heap::HeapError.countUnderflow => false
+        | Uorc.Core.Heap::HeapError.handleOverflow => false
+        | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+        | Uorc.Core.Heap::HeapError.budgetExceeded => false
+        | Uorc.Core.Heap::HeapError.releaseInProgress => false
+        | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+        | Uorc.Core.Heap::HeapError.invalidRoot => false
+        | Uorc.Core.Heap::HeapError.protocolFailure => false)
+      | Result.ok v => false) then (if (Uorc.Core.HeapAudit::auditRoots (project seed arena) (cons (project seed handle) (nil Uorc.Core.RuntimeValue::Handle))) then true else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_backingKinds,
+  parameters: [],
+  result: Bool,
+  body: (if (rejectNonImageBacking (ctor Uorc.Core.Heap::Node.metadataWord (99 : UInt64) (0 : UInt64) (1 : UInt64))) then (if (rejectNonImageBacking (ctor Uorc.Core.Heap::Node.metadataLink (99 : UInt64) (0 : UInt64) (Uorc.Core.RuntimeValue::nullHandle))) then (if (rejectNonImageBacking (ctor Uorc.Core.Heap::Node.metadataBranch (99 : UInt64) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Core.RuntimeValue::nullHandle))) then (if (rejectNonImageBacking (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.continuation) (Uorc.Core.RuntimeValue::nullHandle))) then (if (rejectNonImageBacking (ctor Uorc.Core.Heap::Node.imageReservation (ctor Uorc.Core.Heap::ImageKind.runtime) (1 : UInt64))) then (if (rejectNonImageBacking (ctor Uorc.Core.Heap::Node.imageReservation (ctor Uorc.Core.Heap::ImageKind.control) (128 : UInt64))) then true else false) else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_moveRootPreflight,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (40 : UInt64)) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error failure => false
+    | Result.ok seed => (if (match (Uorc.Core.Heap::allocateMoved (project seed arena) (ctor Uorc.Core.Heap::Node.storeBranch (project seed handle) (project seed handle)) true true)
+      | Result.error e => (match e
+        | Uorc.Core.Heap::HeapError.malformedHandle => false
+        | Uorc.Core.Heap::HeapError.invalidNode => false
+        | Uorc.Core.Heap::HeapError.countOverflow => false
+        | Uorc.Core.Heap::HeapError.countUnderflow => false
+        | Uorc.Core.Heap::HeapError.handleOverflow => false
+        | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+        | Uorc.Core.Heap::HeapError.budgetExceeded => false
+        | Uorc.Core.Heap::HeapError.releaseInProgress => false
+        | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+        | Uorc.Core.Heap::HeapError.invalidRoot => true
+        | Uorc.Core.Heap::HeapError.protocolFailure => false)
+      | Result.ok v => false) then (if (Uorc.Core.HeapAudit::auditRoots (project seed arena) (cons (project seed handle) (nil Uorc.Core.RuntimeValue::Handle))) then true else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: controlOwnerScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocateControl (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (128 : UInt64))
+    | Result.error failure => false
+    | Result.ok control => (match (Uorc.Core.Heap::retain (project control arena) (project control handle))
+      | Result.error failure => false
+      | Result.ok alias => (if (Uorc.Core.HeapAudit::auditRoots (project alias arena) (cons (project control handle) (cons (project control handle) (nil Uorc.Core.RuntimeValue::Handle)))) then (if (match (Uorc.Core.Heap::preflightImageCommit (project alias arena) (project control handle) (128 : UInt64))
+        | Result.error e => (match e
+          | Uorc.Core.Heap::HeapError.malformedHandle => false
+          | Uorc.Core.Heap::HeapError.invalidNode => true
+          | Uorc.Core.Heap::HeapError.countOverflow => false
+          | Uorc.Core.Heap::HeapError.countUnderflow => false
+          | Uorc.Core.Heap::HeapError.handleOverflow => false
+          | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+          | Uorc.Core.Heap::HeapError.budgetExceeded => false
+          | Uorc.Core.Heap::HeapError.releaseInProgress => false
+          | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+          | Uorc.Core.Heap::HeapError.invalidRoot => false
+          | Uorc.Core.Heap::HeapError.protocolFailure => false)
+        | Result.ok v => false) then (if (match (Uorc.Core.Heap::release (project alias arena) (project control handle))
+        | Result.error failure => false
+        | Result.ok dropA => (match (drain 8 (project dropA arena))
+          | Result.error failure => false
+          | Result.ok kept => (if (prim equal (project kept ownedBytes) (176 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots kept (cons (project control handle) (nil Uorc.Core.RuntimeValue::Handle))) then (if (match (Uorc.Core.Heap::release kept (project control handle))
+            | Result.error failure => false
+            | Result.ok dropB => (match (drain 8 (project dropB arena))
+              | Result.error failure => false
+              | Result.ok cleared => (if (prim equal (project cleared ownedBytes) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots cleared (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false))) then true else false) else false) else false))) then true else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
   name: suite,
   parameters: [],
   result: Bool,
-  body: (if (aliasScenario) then (if (negative_malformedHandle) then (if (negative_invalidNode) then (if (negative_budgetExceeded) then (if (negative_releaseNotStarted) then (if (negative_handleOverflow) then (if (negative_protocolFailure) then (if (negative_ownedBytesOverflow) then (if (negative_countOverflow) then (if (negative_invalidRoot) then (if (negative_countUnderflow) then (if (negative_releaseInProgress) then (if (boundaryScenario) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false),
+  body: (if (negative_backingKinds) then (if (negative_moveRootPreflight) then (if (controlOwnerScenario) then (if (if (aliasScenario) then (if (negative_malformedHandle) then (if (negative_invalidNode) then (if (negative_budgetExceeded) then (if (negative_releaseNotStarted) then (if (negative_handleOverflow) then (if (negative_protocolFailure) then (if (negative_ownedBytesOverflow) then (if (negative_countOverflow) then (if (negative_invalidRoot) then (if (negative_countUnderflow) then (if (negative_releaseInProgress) then (if (boundaryScenario) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) then true else false) else false) else false) else false),
   axioms: [Quot.sound, propext],
   executable: true,
   production: {effects: [allocation, overflow, recursion], targets: [rust-std]}

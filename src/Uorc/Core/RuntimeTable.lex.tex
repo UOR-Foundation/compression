@@ -107,7 +107,7 @@ definition{
     | Nat.zero => (if (Uorc.Core.RuntimeValue::isNull handle) then (ctor Result.ok [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] (Uorc.Core.RuntimeValue::nullHandle)) else (if (validLeaf arena handle kind key) then (ctor Result.ok [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] handle) else (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))))
     | Nat.succ remaining => (if (Uorc.Core.RuntimeValue::isNull handle) then (ctor Result.ok [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] (Uorc.Core.RuntimeValue::nullHandle)) else (match (branchChildren arena handle kind)
       | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] failure)
-      | Result.ok children => (readPath remaining arena (if (Uorc.Core.Heap::lowBit remainingKey) then (project children second) else (project children first)) kind (Uorc.Core.Heap::nextKey remainingKey) key)))),
+      | Result.ok children => (readPath remaining arena (if (Uorc.Core.Heap::highBit remainingKey) then (project children second) else (project children first)) kind (Uorc.Core.Heap::advanceKey remainingKey) key)))),
   axioms: [Quot.sound, propext],
   executable: true,
   recursive_argument: depth
@@ -137,15 +137,15 @@ definition{
     | Nat.zero => (Uorc.Core.Heap::allocate arena leaf)
     | Nat.succ remaining => (match (branchChildren arena handle kind)
       | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
-      | Result.ok children => (match (writePath remaining arena (if (Uorc.Core.Heap::lowBit remainingKey) then (project children second) else (project children first)) kind (Uorc.Core.Heap::nextKey remainingKey) leaf)
+      | Result.ok children => (match (writePath remaining arena (if (Uorc.Core.Heap::highBit remainingKey) then (project children second) else (project children first)) kind (Uorc.Core.Heap::advanceKey remainingKey) leaf)
         | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
-        | Result.ok subtree => (let newLeft : Uorc.Core.RuntimeValue::Handle := (if (Uorc.Core.Heap::lowBit remainingKey) then (project children first) else (project subtree handle)); (let newRight : Uorc.Core.RuntimeValue::Handle := (if (Uorc.Core.Heap::lowBit remainingKey) then (project subtree handle) else (project children second)); (match (Uorc.Core.Heap::allocateMoved (project subtree arena) (match kind
+        | Result.ok subtree => (let newLeft : Uorc.Core.RuntimeValue::Handle := (if (Uorc.Core.Heap::highBit remainingKey) then (project children first) else (project subtree handle)); (let newRight : Uorc.Core.RuntimeValue::Handle := (if (Uorc.Core.Heap::highBit remainingKey) then (project subtree handle) else (project children second)); (match (Uorc.Core.Heap::allocateMoved (project subtree arena) (match kind
             | TableKind.slots role => (ctor Uorc.Core.Heap::Node.rootBranch role newLeft newRight)
-            | TableKind.metadata k => (ctor Uorc.Core.Heap::Node.metadataBranch k newLeft newRight)) (if (Uorc.Core.Heap::lowBit remainingKey) then false else true) (Uorc.Core.Heap::lowBit remainingKey))
+            | TableKind.metadata k => (ctor Uorc.Core.Heap::Node.metadataBranch k newLeft newRight)) (if (Uorc.Core.Heap::highBit remainingKey) then false else true) (Uorc.Core.Heap::highBit remainingKey))
           | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
           | Result.ok parent => (ctor Result.ok [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Allocation {arena := (project parent arena), handle := (project parent handle), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (Uorc.Core.Heap::wordAdd (project (project subtree delta) allocatedBytes) (project (project parent delta) allocatedBytes)), releasedBytes := (Uorc.Core.Heap::wordAdd (project (project subtree delta) releasedBytes) (project (project parent delta) releasedBytes)), allocatedEntries := (Uorc.Core.Heap::wordAdd (project (project subtree delta) allocatedEntries) (project (project parent delta) allocatedEntries)), releasedEntries := (Uorc.Core.Heap::wordAdd (project (project subtree delta) releasedEntries) (project (project parent delta) releasedEntries)), retainedEdges := (Uorc.Core.Heap::wordAdd (project (project subtree delta) retainedEdges) (project (project parent delta) retainedEdges)), droppedEdges := (Uorc.Core.Heap::wordAdd (project (project subtree delta) droppedEdges) (project (project parent delta) droppedEdges)), retainedRoots := (Uorc.Core.Heap::wordAdd (project (project subtree delta) retainedRoots) (project (project parent delta) retainedRoots)), droppedRoots := (Uorc.Core.Heap::wordAdd (project (project subtree delta) droppedRoots) (project (project parent delta) droppedRoots)), work := (Uorc.Core.Heap::wordAdd (project (project subtree delta) work) (project (project parent delta) work))})})))))))),
   axioms: [Quot.sound, propext],
-  executable: true,
+  executable: false,
   recursive_argument: depth
 }
 
@@ -175,6 +175,385 @@ definition{
     | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
     | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
     | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false) then (writePath 64 arena (project table root) kind key leaf) else (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+structure{
+  name: PutPath8,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: s0, type: Uorc.Core.RuntimeValue::Handle},
+    {name: s1, type: Uorc.Core.RuntimeValue::Handle},
+    {name: s2, type: Uorc.Core.RuntimeValue::Handle},
+    {name: s3, type: Uorc.Core.RuntimeValue::Handle},
+    {name: s4, type: Uorc.Core.RuntimeValue::Handle},
+    {name: s5, type: Uorc.Core.RuntimeValue::Handle},
+    {name: s6, type: Uorc.Core.RuntimeValue::Handle},
+    {name: s7, type: Uorc.Core.RuntimeValue::Handle}
+  ]
+}
+
+definition{
+  name: emptyPutPath8,
+  parameters: [],
+  result: PutPath8,
+  body: (record PutPath8 {s0 := (Uorc.Core.RuntimeValue::nullHandle), s1 := (Uorc.Core.RuntimeValue::nullHandle), s2 := (Uorc.Core.RuntimeValue::nullHandle), s3 := (Uorc.Core.RuntimeValue::nullHandle), s4 := (Uorc.Core.RuntimeValue::nullHandle), s5 := (Uorc.Core.RuntimeValue::nullHandle), s6 := (Uorc.Core.RuntimeValue::nullHandle), s7 := (Uorc.Core.RuntimeValue::nullHandle)}),
+  axioms: [],
+  executable: true
+}
+
+structure{
+  name: PutPath64,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: s0, type: PutPath8},
+    {name: s1, type: PutPath8},
+    {name: s2, type: PutPath8},
+    {name: s3, type: PutPath8},
+    {name: s4, type: PutPath8},
+    {name: s5, type: PutPath8},
+    {name: s6, type: PutPath8},
+    {name: s7, type: PutPath8}
+  ]
+}
+
+definition{
+  name: emptyPutPath64,
+  parameters: [],
+  result: PutPath64,
+  body: (record PutPath64 {s0 := (emptyPutPath8), s1 := (emptyPutPath8), s2 := (emptyPutPath8), s3 := (emptyPutPath8), s4 := (emptyPutPath8), s5 := (emptyPutPath8), s6 := (emptyPutPath8), s7 := (emptyPutPath8)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: path8Get,
+  parameters: [p : PutPath8, i : UInt64],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (if (prim equal i (0 : UInt64) : Bool) then (project p s0) else (if (prim equal i (1 : UInt64) : Bool) then (project p s1) else (if (prim equal i (2 : UInt64) : Bool) then (project p s2) else (if (prim equal i (3 : UInt64) : Bool) then (project p s3) else (if (prim equal i (4 : UInt64) : Bool) then (project p s4) else (if (prim equal i (5 : UInt64) : Bool) then (project p s5) else (if (prim equal i (6 : UInt64) : Bool) then (project p s6) else (if (prim equal i (7 : UInt64) : Bool) then (project p s7) else (Uorc.Core.RuntimeValue::nullHandle))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: path8Set,
+  parameters: [p : PutPath8, i : UInt64, h : Uorc.Core.RuntimeValue::Handle],
+  result: PutPath8,
+  body: (record PutPath8 {s0 := (if (prim equal i (0 : UInt64) : Bool) then h else (project p s0)), s1 := (if (prim equal i (1 : UInt64) : Bool) then h else (project p s1)), s2 := (if (prim equal i (2 : UInt64) : Bool) then h else (project p s2)), s3 := (if (prim equal i (3 : UInt64) : Bool) then h else (project p s3)), s4 := (if (prim equal i (4 : UInt64) : Bool) then h else (project p s4)), s5 := (if (prim equal i (5 : UInt64) : Bool) then h else (project p s5)), s6 := (if (prim equal i (6 : UInt64) : Bool) then h else (project p s6)), s7 := (if (prim equal i (7 : UInt64) : Bool) then h else (project p s7))}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: pathGet,
+  parameters: [p : PutPath64, i : UInt64],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (if (Uorc.Core.Heap::less i (8 : UInt64)) then (path8Get (project p s0) (Uorc.Core.Heap::wordSub i (0 : UInt64))) else (if (Uorc.Core.Heap::less i (16 : UInt64)) then (path8Get (project p s1) (Uorc.Core.Heap::wordSub i (8 : UInt64))) else (if (Uorc.Core.Heap::less i (24 : UInt64)) then (path8Get (project p s2) (Uorc.Core.Heap::wordSub i (16 : UInt64))) else (if (Uorc.Core.Heap::less i (32 : UInt64)) then (path8Get (project p s3) (Uorc.Core.Heap::wordSub i (24 : UInt64))) else (if (Uorc.Core.Heap::less i (40 : UInt64)) then (path8Get (project p s4) (Uorc.Core.Heap::wordSub i (32 : UInt64))) else (if (Uorc.Core.Heap::less i (48 : UInt64)) then (path8Get (project p s5) (Uorc.Core.Heap::wordSub i (40 : UInt64))) else (if (Uorc.Core.Heap::less i (56 : UInt64)) then (path8Get (project p s6) (Uorc.Core.Heap::wordSub i (48 : UInt64))) else (if (Uorc.Core.Heap::less i (64 : UInt64)) then (path8Get (project p s7) (Uorc.Core.Heap::wordSub i (56 : UInt64))) else (Uorc.Core.RuntimeValue::nullHandle))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: pathSet,
+  parameters: [p : PutPath64, i : UInt64, h : Uorc.Core.RuntimeValue::Handle],
+  result: PutPath64,
+  body: (record PutPath64 {s0 := (if (if (Uorc.Core.Heap::less i (0 : UInt64)) then false else (Uorc.Core.Heap::less i (8 : UInt64))) then (path8Set (project p s0) (Uorc.Core.Heap::wordSub i (0 : UInt64)) h) else (project p s0)), s1 := (if (if (Uorc.Core.Heap::less i (8 : UInt64)) then false else (Uorc.Core.Heap::less i (16 : UInt64))) then (path8Set (project p s1) (Uorc.Core.Heap::wordSub i (8 : UInt64)) h) else (project p s1)), s2 := (if (if (Uorc.Core.Heap::less i (16 : UInt64)) then false else (Uorc.Core.Heap::less i (24 : UInt64))) then (path8Set (project p s2) (Uorc.Core.Heap::wordSub i (16 : UInt64)) h) else (project p s2)), s3 := (if (if (Uorc.Core.Heap::less i (24 : UInt64)) then false else (Uorc.Core.Heap::less i (32 : UInt64))) then (path8Set (project p s3) (Uorc.Core.Heap::wordSub i (24 : UInt64)) h) else (project p s3)), s4 := (if (if (Uorc.Core.Heap::less i (32 : UInt64)) then false else (Uorc.Core.Heap::less i (40 : UInt64))) then (path8Set (project p s4) (Uorc.Core.Heap::wordSub i (32 : UInt64)) h) else (project p s4)), s5 := (if (if (Uorc.Core.Heap::less i (40 : UInt64)) then false else (Uorc.Core.Heap::less i (48 : UInt64))) then (path8Set (project p s5) (Uorc.Core.Heap::wordSub i (40 : UInt64)) h) else (project p s5)), s6 := (if (if (Uorc.Core.Heap::less i (48 : UInt64)) then false else (Uorc.Core.Heap::less i (56 : UInt64))) then (path8Set (project p s6) (Uorc.Core.Heap::wordSub i (48 : UInt64)) h) else (project p s6)), s7 := (if (if (Uorc.Core.Heap::less i (56 : UInt64)) then false else (Uorc.Core.Heap::less i (64 : UInt64))) then (path8Set (project p s7) (Uorc.Core.Heap::wordSub i (56 : UInt64)) h) else (project p s7))}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+inductive{
+  name: PutLeaf,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: slot, fields: [Uorc.Core.RuntimeValue::RootRole, Uorc.Core.RuntimeValue::RuntimeValue]},
+    {name: metadata, fields: [UInt64, UInt64, Uorc.Core.RuntimeValue::Handle]}
+  ]
+}
+
+definition{
+  name: putLeafNode,
+  parameters: [leaf : PutLeaf],
+  result: Uorc.Core.Heap::Node,
+  body: (match leaf
+    | PutLeaf.slot role value => (ctor Uorc.Core.Heap::Node.slot role value)
+    | PutLeaf.metadata kind key target => (ctor Uorc.Core.Heap::Node.metadataLink kind key target)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: putLeafTarget,
+  parameters: [leaf : PutLeaf],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (project (Uorc.Core.Heap::nodeChildren (putLeafNode leaf)) first),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: putLeafMatches,
+  parameters: [leaf : PutLeaf, kind : TableKind, key : UInt64],
+  result: Bool,
+  body: (match leaf
+    | PutLeaf.slot role value => (match kind
+      | TableKind.slots expected => (prim equal (Uorc.Core.RuntimeValue::roleTag role) (Uorc.Core.RuntimeValue::roleTag expected) : Bool)
+      | TableKind.metadata k => false)
+    | PutLeaf.metadata k tag target => (match kind
+      | TableKind.slots role => false
+      | TableKind.metadata expected => (if (prim equal k expected : Bool) then (prim equal tag key : Bool) else false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+inductive{
+  name: PutPhase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: captureTable, fields: []},
+    {name: captureLeaf, fields: []},
+    {name: descend, fields: []},
+    {name: ascend, fields: []},
+    {name: cleanup, fields: []},
+    {name: draining, fields: []}
+  ]
+}
+
+structure{
+  name: PutCursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: kind, type: TableKind},
+    {name: key, type: UInt64},
+    {name: leaf, type: (Option PutLeaf)},
+    {name: path, type: PutPath64},
+    {name: depth, type: UInt64},
+    {name: remainingKey, type: UInt64},
+    {name: borrowed, type: Uorc.Core.RuntimeValue::Handle},
+    {name: original, type: Uorc.Core.RuntimeValue::Handle},
+    {name: subtree, type: Uorc.Core.RuntimeValue::Handle},
+    {name: tableCapture, type: Uorc.Core.RuntimeValue::Handle},
+    {name: leafCapture, type: Uorc.Core.RuntimeValue::Handle},
+    {name: control, type: Uorc.Core.RuntimeValue::Handle},
+    {name: phase, type: PutPhase},
+    {name: cancelling, type: Bool}
+  ]
+}
+
+inductive{
+  name: PutOutcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: complete, fields: [Table]},
+    {name: cancelled, fields: []},
+    {name: failed, fields: [Uorc.Core.Heap::HeapError]}
+  ]
+}
+
+structure{
+  name: PutTransition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: cursor, type: (Option PutCursor)},
+    {name: outcome, type: PutOutcome},
+    {name: delta, type: Uorc.Core.Heap::Delta},
+    {name: peakOwnedBytes, type: UInt64}
+  ]
+}
+
+definition{
+  name: putZeroDelta,
+  parameters: [],
+  result: Uorc.Core.Heap::Delta,
+  body: (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: putAddDelta,
+  parameters: [a : Uorc.Core.Heap::Delta, b : Uorc.Core.Heap::Delta],
+  result: Uorc.Core.Heap::Delta,
+  body: (record Uorc.Core.Heap::Delta {allocatedBytes := (Uorc.Core.Heap::wordAdd (project a allocatedBytes) (project b allocatedBytes)), releasedBytes := (Uorc.Core.Heap::wordAdd (project a releasedBytes) (project b releasedBytes)), allocatedEntries := (Uorc.Core.Heap::wordAdd (project a allocatedEntries) (project b allocatedEntries)), releasedEntries := (Uorc.Core.Heap::wordAdd (project a releasedEntries) (project b releasedEntries)), retainedEdges := (Uorc.Core.Heap::wordAdd (project a retainedEdges) (project b retainedEdges)), droppedEdges := (Uorc.Core.Heap::wordAdd (project a droppedEdges) (project b droppedEdges)), retainedRoots := (Uorc.Core.Heap::wordAdd (project a retainedRoots) (project b retainedRoots)), droppedRoots := (Uorc.Core.Heap::wordAdd (project a droppedRoots) (project b droppedRoots)), work := (Uorc.Core.Heap::wordAdd (project a work) (project b work))}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: putReport,
+  parameters: [
+    s : PutTransition,
+    arena : Uorc.Core.Heap::Arena,
+    cursor : (Option PutCursor),
+    outcome : PutOutcome,
+    delta : Uorc.Core.Heap::Delta
+  ],
+  result: PutTransition,
+  body: (record PutTransition {arena := arena, cursor := cursor, outcome := outcome, delta := (putAddDelta (project s delta) delta), peakOwnedBytes := (match (Uorc.Core.Heap::totalOwnedBytes arena)
+    | Result.error failure => (project s peakOwnedBytes)
+    | Result.ok owned => (if (Uorc.Core.Heap::less (project s peakOwnedBytes) owned) then owned else (project s peakOwnedBytes)))}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: putCursorLeafTarget,
+  parameters: [leaf : (Option PutLeaf)],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (match leaf
+    | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+    | Option.some value => (putLeafTarget value)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: beginPutReserved,
+  parameters: [arena : Uorc.Core.Heap::Arena, table : Table, key : UInt64, leaf : (Option PutLeaf)],
+  result: (Result PutTransition Uorc.Core.Heap::HeapError),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.releaseInProgress)) else (if (match leaf
+    | Option.none => true
+    | Option.some value => (putLeafMatches value (project table kind) key)) then (if (match leaf
+    | Option.none => true
+    | Option.some value => (Uorc.Core.Heap::validNode arena (putLeafNode value))) then (match (Uorc.Core.Heap::allocateControl arena (1024 : UInt64))
+    | Result.error failure => (ctor Result.error [PutTransition, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok reserved => (ctor Result.ok [PutTransition, Uorc.Core.Heap::HeapError] (record PutTransition {arena := (project reserved arena), cursor := (ctor Option.some [PutCursor] (record PutCursor {kind := (project table kind), key := key, leaf := leaf, path := (emptyPutPath64), depth := (0 : UInt64), remainingKey := key, borrowed := (project table root), original := (project table root), subtree := (Uorc.Core.RuntimeValue::nullHandle), tableCapture := (Uorc.Core.RuntimeValue::nullHandle), leafCapture := (Uorc.Core.RuntimeValue::nullHandle), control := (project reserved handle), phase := (ctor PutPhase.captureTable), cancelling := false})), outcome := (ctor PutOutcome.pending), delta := (project reserved delta), peakOwnedBytes := (project (project reserved arena) ownedBytes)}))) else (ctor Result.error [PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))) else (ctor Result.error [PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: putAddRoot,
+  parameters: [h : Uorc.Core.RuntimeValue::Handle, roots : (List Uorc.Core.RuntimeValue::Handle)],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull h) then roots else (cons h roots)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: ownedRoots,
+  parameters: [s : PutTransition],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project s cursor)
+    | Option.none => (nil Uorc.Core.RuntimeValue::Handle)
+    | Option.some c => (putAddRoot (project c control) (putAddRoot (project c tableCapture) (putAddRoot (project c leafCapture) (putAddRoot (project c subtree) (nil Uorc.Core.RuntimeValue::Handle)))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: putAscendingRight,
+  parameters: [key : UInt64, depth : UInt64],
+  result: Bool,
+  body: (if (prim equal depth (1 : UInt64) : Bool) then (prim equal (prim bit_and key (9223372036854775808 : UInt64) : UInt64) (9223372036854775808 : UInt64) : Bool) else (if (prim equal depth (2 : UInt64) : Bool) then (prim equal (prim bit_and key (4611686018427387904 : UInt64) : UInt64) (4611686018427387904 : UInt64) : Bool) else (if (prim equal depth (3 : UInt64) : Bool) then (prim equal (prim bit_and key (2305843009213693952 : UInt64) : UInt64) (2305843009213693952 : UInt64) : Bool) else (if (prim equal depth (4 : UInt64) : Bool) then (prim equal (prim bit_and key (1152921504606846976 : UInt64) : UInt64) (1152921504606846976 : UInt64) : Bool) else (if (prim equal depth (5 : UInt64) : Bool) then (prim equal (prim bit_and key (576460752303423488 : UInt64) : UInt64) (576460752303423488 : UInt64) : Bool) else (if (prim equal depth (6 : UInt64) : Bool) then (prim equal (prim bit_and key (288230376151711744 : UInt64) : UInt64) (288230376151711744 : UInt64) : Bool) else (if (prim equal depth (7 : UInt64) : Bool) then (prim equal (prim bit_and key (144115188075855872 : UInt64) : UInt64) (144115188075855872 : UInt64) : Bool) else (if (prim equal depth (8 : UInt64) : Bool) then (prim equal (prim bit_and key (72057594037927936 : UInt64) : UInt64) (72057594037927936 : UInt64) : Bool) else (if (prim equal depth (9 : UInt64) : Bool) then (prim equal (prim bit_and key (36028797018963968 : UInt64) : UInt64) (36028797018963968 : UInt64) : Bool) else (if (prim equal depth (10 : UInt64) : Bool) then (prim equal (prim bit_and key (18014398509481984 : UInt64) : UInt64) (18014398509481984 : UInt64) : Bool) else (if (prim equal depth (11 : UInt64) : Bool) then (prim equal (prim bit_and key (9007199254740992 : UInt64) : UInt64) (9007199254740992 : UInt64) : Bool) else (if (prim equal depth (12 : UInt64) : Bool) then (prim equal (prim bit_and key (4503599627370496 : UInt64) : UInt64) (4503599627370496 : UInt64) : Bool) else (if (prim equal depth (13 : UInt64) : Bool) then (prim equal (prim bit_and key (2251799813685248 : UInt64) : UInt64) (2251799813685248 : UInt64) : Bool) else (if (prim equal depth (14 : UInt64) : Bool) then (prim equal (prim bit_and key (1125899906842624 : UInt64) : UInt64) (1125899906842624 : UInt64) : Bool) else (if (prim equal depth (15 : UInt64) : Bool) then (prim equal (prim bit_and key (562949953421312 : UInt64) : UInt64) (562949953421312 : UInt64) : Bool) else (if (prim equal depth (16 : UInt64) : Bool) then (prim equal (prim bit_and key (281474976710656 : UInt64) : UInt64) (281474976710656 : UInt64) : Bool) else (if (prim equal depth (17 : UInt64) : Bool) then (prim equal (prim bit_and key (140737488355328 : UInt64) : UInt64) (140737488355328 : UInt64) : Bool) else (if (prim equal depth (18 : UInt64) : Bool) then (prim equal (prim bit_and key (70368744177664 : UInt64) : UInt64) (70368744177664 : UInt64) : Bool) else (if (prim equal depth (19 : UInt64) : Bool) then (prim equal (prim bit_and key (35184372088832 : UInt64) : UInt64) (35184372088832 : UInt64) : Bool) else (if (prim equal depth (20 : UInt64) : Bool) then (prim equal (prim bit_and key (17592186044416 : UInt64) : UInt64) (17592186044416 : UInt64) : Bool) else (if (prim equal depth (21 : UInt64) : Bool) then (prim equal (prim bit_and key (8796093022208 : UInt64) : UInt64) (8796093022208 : UInt64) : Bool) else (if (prim equal depth (22 : UInt64) : Bool) then (prim equal (prim bit_and key (4398046511104 : UInt64) : UInt64) (4398046511104 : UInt64) : Bool) else (if (prim equal depth (23 : UInt64) : Bool) then (prim equal (prim bit_and key (2199023255552 : UInt64) : UInt64) (2199023255552 : UInt64) : Bool) else (if (prim equal depth (24 : UInt64) : Bool) then (prim equal (prim bit_and key (1099511627776 : UInt64) : UInt64) (1099511627776 : UInt64) : Bool) else (if (prim equal depth (25 : UInt64) : Bool) then (prim equal (prim bit_and key (549755813888 : UInt64) : UInt64) (549755813888 : UInt64) : Bool) else (if (prim equal depth (26 : UInt64) : Bool) then (prim equal (prim bit_and key (274877906944 : UInt64) : UInt64) (274877906944 : UInt64) : Bool) else (if (prim equal depth (27 : UInt64) : Bool) then (prim equal (prim bit_and key (137438953472 : UInt64) : UInt64) (137438953472 : UInt64) : Bool) else (if (prim equal depth (28 : UInt64) : Bool) then (prim equal (prim bit_and key (68719476736 : UInt64) : UInt64) (68719476736 : UInt64) : Bool) else (if (prim equal depth (29 : UInt64) : Bool) then (prim equal (prim bit_and key (34359738368 : UInt64) : UInt64) (34359738368 : UInt64) : Bool) else (if (prim equal depth (30 : UInt64) : Bool) then (prim equal (prim bit_and key (17179869184 : UInt64) : UInt64) (17179869184 : UInt64) : Bool) else (if (prim equal depth (31 : UInt64) : Bool) then (prim equal (prim bit_and key (8589934592 : UInt64) : UInt64) (8589934592 : UInt64) : Bool) else (if (prim equal depth (32 : UInt64) : Bool) then (prim equal (prim bit_and key (4294967296 : UInt64) : UInt64) (4294967296 : UInt64) : Bool) else (if (prim equal depth (33 : UInt64) : Bool) then (prim equal (prim bit_and key (2147483648 : UInt64) : UInt64) (2147483648 : UInt64) : Bool) else (if (prim equal depth (34 : UInt64) : Bool) then (prim equal (prim bit_and key (1073741824 : UInt64) : UInt64) (1073741824 : UInt64) : Bool) else (if (prim equal depth (35 : UInt64) : Bool) then (prim equal (prim bit_and key (536870912 : UInt64) : UInt64) (536870912 : UInt64) : Bool) else (if (prim equal depth (36 : UInt64) : Bool) then (prim equal (prim bit_and key (268435456 : UInt64) : UInt64) (268435456 : UInt64) : Bool) else (if (prim equal depth (37 : UInt64) : Bool) then (prim equal (prim bit_and key (134217728 : UInt64) : UInt64) (134217728 : UInt64) : Bool) else (if (prim equal depth (38 : UInt64) : Bool) then (prim equal (prim bit_and key (67108864 : UInt64) : UInt64) (67108864 : UInt64) : Bool) else (if (prim equal depth (39 : UInt64) : Bool) then (prim equal (prim bit_and key (33554432 : UInt64) : UInt64) (33554432 : UInt64) : Bool) else (if (prim equal depth (40 : UInt64) : Bool) then (prim equal (prim bit_and key (16777216 : UInt64) : UInt64) (16777216 : UInt64) : Bool) else (if (prim equal depth (41 : UInt64) : Bool) then (prim equal (prim bit_and key (8388608 : UInt64) : UInt64) (8388608 : UInt64) : Bool) else (if (prim equal depth (42 : UInt64) : Bool) then (prim equal (prim bit_and key (4194304 : UInt64) : UInt64) (4194304 : UInt64) : Bool) else (if (prim equal depth (43 : UInt64) : Bool) then (prim equal (prim bit_and key (2097152 : UInt64) : UInt64) (2097152 : UInt64) : Bool) else (if (prim equal depth (44 : UInt64) : Bool) then (prim equal (prim bit_and key (1048576 : UInt64) : UInt64) (1048576 : UInt64) : Bool) else (if (prim equal depth (45 : UInt64) : Bool) then (prim equal (prim bit_and key (524288 : UInt64) : UInt64) (524288 : UInt64) : Bool) else (if (prim equal depth (46 : UInt64) : Bool) then (prim equal (prim bit_and key (262144 : UInt64) : UInt64) (262144 : UInt64) : Bool) else (if (prim equal depth (47 : UInt64) : Bool) then (prim equal (prim bit_and key (131072 : UInt64) : UInt64) (131072 : UInt64) : Bool) else (if (prim equal depth (48 : UInt64) : Bool) then (prim equal (prim bit_and key (65536 : UInt64) : UInt64) (65536 : UInt64) : Bool) else (if (prim equal depth (49 : UInt64) : Bool) then (prim equal (prim bit_and key (32768 : UInt64) : UInt64) (32768 : UInt64) : Bool) else (if (prim equal depth (50 : UInt64) : Bool) then (prim equal (prim bit_and key (16384 : UInt64) : UInt64) (16384 : UInt64) : Bool) else (if (prim equal depth (51 : UInt64) : Bool) then (prim equal (prim bit_and key (8192 : UInt64) : UInt64) (8192 : UInt64) : Bool) else (if (prim equal depth (52 : UInt64) : Bool) then (prim equal (prim bit_and key (4096 : UInt64) : UInt64) (4096 : UInt64) : Bool) else (if (prim equal depth (53 : UInt64) : Bool) then (prim equal (prim bit_and key (2048 : UInt64) : UInt64) (2048 : UInt64) : Bool) else (if (prim equal depth (54 : UInt64) : Bool) then (prim equal (prim bit_and key (1024 : UInt64) : UInt64) (1024 : UInt64) : Bool) else (if (prim equal depth (55 : UInt64) : Bool) then (prim equal (prim bit_and key (512 : UInt64) : UInt64) (512 : UInt64) : Bool) else (if (prim equal depth (56 : UInt64) : Bool) then (prim equal (prim bit_and key (256 : UInt64) : UInt64) (256 : UInt64) : Bool) else (if (prim equal depth (57 : UInt64) : Bool) then (prim equal (prim bit_and key (128 : UInt64) : UInt64) (128 : UInt64) : Bool) else (if (prim equal depth (58 : UInt64) : Bool) then (prim equal (prim bit_and key (64 : UInt64) : UInt64) (64 : UInt64) : Bool) else (if (prim equal depth (59 : UInt64) : Bool) then (prim equal (prim bit_and key (32 : UInt64) : UInt64) (32 : UInt64) : Bool) else (if (prim equal depth (60 : UInt64) : Bool) then (prim equal (prim bit_and key (16 : UInt64) : UInt64) (16 : UInt64) : Bool) else (if (prim equal depth (61 : UInt64) : Bool) then (prim equal (prim bit_and key (8 : UInt64) : UInt64) (8 : UInt64) : Bool) else (if (prim equal depth (62 : UInt64) : Bool) then (prim equal (prim bit_and key (4 : UInt64) : UInt64) (4 : UInt64) : Bool) else (if (prim equal depth (63 : UInt64) : Bool) then (prim equal (prim bit_and key (2 : UInt64) : UInt64) (2 : UInt64) : Bool) else (if (prim equal depth (64 : UInt64) : Bool) then (prim equal (prim bit_and key (1 : UInt64) : UInt64) (1 : UInt64) : Bool) else false)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: step,
+  parameters: [s : PutTransition],
+  result: PutTransition,
+  body: (match (project s cursor)
+    | Option.none => (putReport s (project s arena) (ctor Option.none [PutCursor]) (ctor PutOutcome.failed (ctor Uorc.Core.Heap::HeapError.protocolFailure)) (putZeroDelta))
+    | Option.some c => (if (match (project c phase)
+      | PutPhase.draining => false
+      | PutPhase.captureTable => (Uorc.Core.Heap::isReleasing (project s arena))
+      | PutPhase.captureLeaf => (Uorc.Core.Heap::isReleasing (project s arena))
+      | PutPhase.descend => (Uorc.Core.Heap::isReleasing (project s arena))
+      | PutPhase.ascend => (Uorc.Core.Heap::isReleasing (project s arena))
+      | PutPhase.cleanup => (Uorc.Core.Heap::isReleasing (project s arena))) then (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed (ctor Uorc.Core.Heap::HeapError.releaseInProgress)) (putZeroDelta)) else (match (project c phase)
+      | PutPhase.captureTable => (match (Uorc.Core.Heap::retain (project s arena) (project c original))
+        | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+        | Result.ok retained => (putReport s (project retained arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c original), leafCapture := (project c leafCapture), control := (project c control), phase := (ctor PutPhase.captureLeaf), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project retained delta)))
+      | PutPhase.captureLeaf => (match (Uorc.Core.Heap::retain (project s arena) (putCursorLeafTarget (project c leaf)))
+        | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+        | Result.ok retained => (putReport s (project retained arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (putCursorLeafTarget (project c leaf)), control := (project c control), phase := (ctor PutPhase.descend), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project retained delta)))
+      | PutPhase.descend => (if (prim equal (project c depth) (64 : UInt64) : Bool) then (if (validLeaf (project s arena) (project c borrowed) (project c kind) (project c key)) then (match (project c leaf)
+        | Option.none => (putReport s (project s arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (Uorc.Core.RuntimeValue::nullHandle), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (ctor PutPhase.ascend), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (putZeroDelta))
+        | Option.some value => (match (Uorc.Core.Heap::allocate (project s arena) (putLeafNode value))
+          | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+          | Result.ok leaf => (putReport s (project leaf arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project leaf handle), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (ctor PutPhase.ascend), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project leaf delta)))) else (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed (ctor Uorc.Core.Heap::HeapError.invalidNode)) (putZeroDelta))) else (match (branchChildren (project s arena) (project c borrowed) (project c kind))
+        | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+        | Result.ok children => (let right : Bool := (Uorc.Core.Heap::highBit (project c remainingKey)); (putReport s (project s arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (pathSet (project c path) (project c depth) (if right then (project children first) else (project children second))), depth := (Uorc.Core.Heap::wordAdd (project c depth) (1 : UInt64)), remainingKey := (Uorc.Core.Heap::advanceKey (project c remainingKey)), borrowed := (if right then (project children second) else (project children first)), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (project c phase), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (putZeroDelta)))))
+      | PutPhase.ascend => (if (prim equal (project c depth) (0 : UInt64) : Bool) then (putReport s (project s arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (ctor PutPhase.cleanup), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (putZeroDelta)) else (let d : UInt64 := (Uorc.Core.Heap::wordSub (project c depth) (1 : UInt64)); (let right : Bool := (putAscendingRight (project c key) (project c depth)); (let sibling : Uorc.Core.RuntimeValue::Handle := (pathGet (project c path) d); (let left : Uorc.Core.RuntimeValue::Handle := (if right then sibling else (project c subtree)); (let rightChild : Uorc.Core.RuntimeValue::Handle := (if right then (project c subtree) else sibling); (if (if (Uorc.Core.RuntimeValue::isNull left) then (Uorc.Core.RuntimeValue::isNull rightChild) else false) then (putReport s (project s arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := d, remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (Uorc.Core.RuntimeValue::nullHandle), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (project c phase), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (putZeroDelta)) else (match (Uorc.Core.Heap::allocateMoved (project s arena) (match (project c kind)
+          | TableKind.slots role => (ctor Uorc.Core.Heap::Node.rootBranch role left rightChild)
+          | TableKind.metadata k => (ctor Uorc.Core.Heap::Node.metadataBranch k left rightChild)) (if right then false else true) right)
+        | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+        | Result.ok parent => (putReport s (project parent arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := d, remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project parent handle), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (project c phase), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project parent delta))))))))))
+      | PutPhase.cleanup => (if (if (project c cancelling) then (Uorc.Core.RuntimeValue::isNull (project c subtree)) else true) then (if (Uorc.Core.RuntimeValue::isNull (project c leafCapture)) then (if (Uorc.Core.RuntimeValue::isNull (project c tableCapture)) then (if (Uorc.Core.RuntimeValue::isNull (project c control)) then (putReport s (project s arena) (ctor Option.none [PutCursor]) (if (project c cancelling) then (ctor PutOutcome.cancelled) else (ctor PutOutcome.complete (record Table {kind := (project c kind), root := (project c subtree)}))) (putZeroDelta)) else (match (Uorc.Core.Heap::release (project s arena) (project c control))
+        | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+        | Result.ok released => (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (Uorc.Core.RuntimeValue::nullHandle), phase := (ctor PutPhase.draining), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta)))) else (match (Uorc.Core.Heap::release (project s arena) (project c tableCapture))
+        | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+        | Result.ok released => (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (Uorc.Core.RuntimeValue::nullHandle), leafCapture := (project c leafCapture), control := (project c control), phase := (ctor PutPhase.draining), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta)))) else (match (Uorc.Core.Heap::release (project s arena) (project c leafCapture))
+        | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+        | Result.ok released => (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (Uorc.Core.RuntimeValue::nullHandle), control := (project c control), phase := (ctor PutPhase.draining), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta)))) else (match (Uorc.Core.Heap::release (project s arena) (project c subtree))
+        | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+        | Result.ok released => (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (Uorc.Core.RuntimeValue::nullHandle), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (ctor PutPhase.draining), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta))))
+      | PutPhase.draining => (match (Uorc.Core.Heap::releaseStep (project s arena))
+        | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+        | Result.ok released => (if (if (project released complete) then (Uorc.Core.RuntimeValue::isNull (project c control)) else false) then (putReport s (project released arena) (ctor Option.none [PutCursor]) (if (project c cancelling) then (ctor PutOutcome.cancelled) else (ctor PutOutcome.complete (record Table {kind := (project c kind), root := (project c subtree)}))) (project released delta)) else (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (if (project released complete) then (ctor PutPhase.cleanup) else (ctor PutPhase.draining)), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta))))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: cancel,
+  parameters: [s : PutTransition],
+  result: PutTransition,
+  body: (match (project s cursor)
+    | Option.none => (putReport s (project s arena) (ctor Option.none [PutCursor]) (ctor PutOutcome.failed (ctor Uorc.Core.Heap::HeapError.protocolFailure)) (putZeroDelta))
+    | Option.some c => (putReport s (project s arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (match (project c phase)
+      | PutPhase.draining => (ctor PutPhase.draining)
+      | PutPhase.captureTable => (ctor PutPhase.cleanup)
+      | PutPhase.captureLeaf => (ctor PutPhase.cleanup)
+      | PutPhase.descend => (ctor PutPhase.cleanup)
+      | PutPhase.ascend => (ctor PutPhase.cleanup)
+      | PutPhase.cleanup => (ctor PutPhase.cleanup)), cancelling := true})) (ctor PutOutcome.pending) (putZeroDelta))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: beginPut,
+  parameters: [arena : Uorc.Core.Heap::Arena, table : Table, key : UInt64, leaf : PutLeaf],
+  result: (Result PutTransition Uorc.Core.Heap::HeapError),
+  body: (match (beginPutReserved arena table key (ctor Option.some [PutLeaf] leaf))
+    | Result.error failure => (ctor Result.error [PutTransition, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok reserved => (let captured : PutTransition := (step reserved); (match (project captured outcome)
+      | PutOutcome.failed failure => (ctor Result.ok [PutTransition, Uorc.Core.Heap::HeapError] captured)
+      | PutOutcome.pending => (ctor Result.ok [PutTransition, Uorc.Core.Heap::HeapError] (step captured))
+      | PutOutcome.complete completedTable => (ctor Result.ok [PutTransition, Uorc.Core.Heap::HeapError] captured)
+      | PutOutcome.cancelled => (ctor Result.ok [PutTransition, Uorc.Core.Heap::HeapError] captured)))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: beginErase,
+  parameters: [arena : Uorc.Core.Heap::Arena, table : Table, key : UInt64],
+  result: (Result PutTransition Uorc.Core.Heap::HeapError),
+  body: (match (beginPutReserved arena table key (ctor Option.none [PutLeaf]))
+    | Result.error failure => (ctor Result.error [PutTransition, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok reserved => (let captured : PutTransition := (step reserved); (match (project captured outcome)
+      | PutOutcome.failed failure => (ctor Result.ok [PutTransition, Uorc.Core.Heap::HeapError] captured)
+      | PutOutcome.pending => (ctor Result.ok [PutTransition, Uorc.Core.Heap::HeapError] (step captured))
+      | PutOutcome.complete completedTable => (ctor Result.ok [PutTransition, Uorc.Core.Heap::HeapError] captured)
+      | PutOutcome.cancelled => (ctor Result.ok [PutTransition, Uorc.Core.Heap::HeapError] captured)))),
   axioms: [Quot.sound, propext],
   executable: true,
   production: {effects: [allocation, overflow, recursion], targets: [rust-std]}

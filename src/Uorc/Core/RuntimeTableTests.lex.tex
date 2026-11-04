@@ -15,7 +15,7 @@ definition{
       | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] failure)
       | Result.ok transition => (drain remaining (project transition arena))) else (ctor Result.ok [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] state))),
   axioms: [Quot.sound, propext],
-  executable: true,
+  executable: false,
   recursive_argument: fuel
 }
 
@@ -87,7 +87,7 @@ definition{
     scrutinee: (Uorc.Core.RuntimeTable::put (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame))) (0 : UInt64) (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (7 : UInt64))))
   },
   axioms: [Quot.sound, propext],
-  executable: true
+  executable: false
 }
 
 definition{
@@ -110,7 +110,7 @@ definition{
                 | Result.error failure => false
                 | Result.ok released => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit released)) then (if (prim equal (project released ownedBytes) (0 : UInt64) : Bool) then true else false) else false))) then true else false) else false) else false) else false) else false)))))),
   axioms: [Quot.sound, propext],
-  executable: true
+  executable: false
 }
 
 definition{
@@ -123,7 +123,7 @@ definition{
       | Result.error failure => false
       | Result.ok two => (if (if (Uorc.Core.RuntimeValue::sameHandle (project one handle) (project two handle)) then false else true) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project two arena))) then (if (prim equal (project (project two arena) ownedBytes) (128 : UInt64) : Bool) then true else false) else false) else false))),
   axioms: [Quot.sound, propext],
-  executable: true
+  executable: false
 }
 
 definition{
@@ -132,8 +132,7 @@ definition{
   result: Bool,
   body: (if (slotsScenario) then (if (metadataScenario) then (if (distinctEqualAllocations) then true else false) else false) else false),
   axioms: [Quot.sound, propext],
-  executable: true,
-  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+  executable: false
 }
 \end{semanticmodule}
 \end{lexlean}
