@@ -31,7 +31,7 @@ sorry was introduced. Changing only concatPending.work from one to two leaves
 the runtime source kernel-valid but makes both equality theorems fail. The
 unchanged control passes. See the [source-bound receipt](runtime-sequence-factoring-evidence.json).
 
-Certificate-A acceptance is separate and remains pending for this structural
+Certificate-A acceptance is separate and remains unqualified for this structural
 source. The exact original step closure on diagnostic compiler71defb4 fails
 its concatDown relation with kernel deep recursion. A first cursor-updater-only
 candidate also failed on the fused Heap and was not published. Its public-Heap
@@ -39,3 +39,19 @@ probe ended with signal9 and no Lean diagnostic; an OOM attribution was not
 established. No certificate limit, proof check, compiler or product lock was
 changed. The completed nine-native-suite/577-policy receipt remains bound to
 the earlier runtime source and is not relabeled as a new native execution.
+
+The one complete certificate-A kernel probe of ce9 source ended with SIGKILL
+after152 seconds, before its unchanged300-second bound, with no Lean diagnostic
+or failed relation. Maximum Lean child RSS was12.24GiB; hierarchy OOM/kill
+counters increased during that run. No PID-specific kernel attribution was
+available. This is an unqualified resource termination, not an established
+source/kernel rejection. The original complete wrapper/source were unchanged;
+recorded certificate source is2,192,156 bytes, below4MiB. No retry was performed.
+
+The earlier narrower prefix extraction omitted implicit generated implementation
+companions. Its code-generation errors and dependency deep-recursion diagnostic
+cannot qualify concatDown or substitute for complete A verification. The
+[bounded outcome receipt](runtime-sequence-certificate-a-evidence.json) preserves
+these distinctions. The [exact three-source ordinary probe](../../tests/heap/sequence-repro.md)
+is available for the existing compiler-owning executor; no compiler build or
+Library materialization is required.
