@@ -1,0 +1,40 @@
+\begin{lexlean}{Main}
+\useglossary{lexlean.std.nat@1.2.0}
+\title{addition}
+\begin{semanticmodule}
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: missing, fields: []}, {name: present, fields: [UInt8]}]
+}
+
+definition{
+  name: toEvent,
+  parameters: [chosen : (Option UInt8)],
+  result: Event,
+  body: (match chosen
+    | Option.none => (ctor Event.missing)
+    | Option.some byteValue => (ctor Event.present byteValue)),
+  axioms: []
+}
+
+definition{
+  name: observe,
+  parameters: [eventValue : Event],
+  result: (Option UInt8),
+  body: (match eventValue
+    | Event.missing => (ctor Option.none [UInt8])
+    | Event.present byteValue => (ctor Option.some [UInt8] byteValue)),
+  axioms: []
+}
+
+theorem{
+  name: observation_round_trip,
+  parameters: [chosen : (Option UInt8)],
+  statement: ((observe (toEvent chosen)) = chosen),
+  proof: term_cases{definitions: [observe, toEvent], scrutinee: chosen},
+  axioms: [propext]
+}
+\end{semanticmodule}
+\end{lexlean}
