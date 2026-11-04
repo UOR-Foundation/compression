@@ -339,5 +339,32 @@ definition{
   axioms: [Quot.sound, propext],
   executable: false
 }
+
+theorem{
+  name: cancellation_preserves_owned_prefix,
+  parameters: [state : Uorc.Core.RuntimeMachineEngine::State],
+  statement: ((ownedPrefix (Uorc.Core.RuntimeMachineEngine::cancel state)) = (ownedPrefix state)),
+  proof: term_cases{
+    definitions: [
+      Uorc.Core.RuntimeMachineEngine::cancel,
+      Uorc.Core.RuntimeMachineEngine::ownedRoots,
+      Uorc.Core.RuntimeMachineEngine::pendingRoots,
+      ownedPrefix
+    ],
+    scrutinee: (project state disposition)
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cancellation_preserves_achieved_prefix,
+  parameters: [state : Uorc.Core.RuntimeMachineEngine::State],
+  statement: (((project (Uorc.Core.RuntimeMachineEngine::cancel state) arena) = (project state arena)) /\ (((project (Uorc.Core.RuntimeMachineEngine::cancel state) usage) = (project state usage)) /\ (((project (Uorc.Core.RuntimeMachineEngine::cancel state) delta) = (project state delta)) /\ (((project (Uorc.Core.RuntimeMachineEngine::cancel state) operationDelta) = (project state operationDelta)) /\ ((project (Uorc.Core.RuntimeMachineEngine::cancel state) overflowEvent) = (project state overflowEvent)))))),
+  proof: term_cases{
+    definitions: [Uorc.Core.RuntimeMachineEngine::cancel],
+    scrutinee: (project state disposition)
+  },
+  axioms: [propext]
+}
 \end{semanticmodule}
 \end{lexlean}

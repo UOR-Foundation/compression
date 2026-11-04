@@ -19,6 +19,7 @@ ROOTS = (
     "conversionScenario", "referenceErrorsScenario", "resourcePrefixScenario",
     "scanFinalUpdateScenario", "invalidReferenceScenario", "eagerChoiceScenario",
     "choiceTypeScenario", "captureArityScenario", "exactBoundaryScenario",
+    "oneBasedReferenceScenario",
 )
 
 

@@ -1,0 +1,248 @@
+\begin{lexlean}{Uorc.Core.RuntimeIndexProofs}
+\importmodule{Uorc.Core.Heap}
+\title{Parameters}
+\begin{semanticmodule}
+theorem{
+  name: compact_left,
+  parameters: [leftTree : Uorc.Core.Heap::Index, rightTree : Uorc.Core.Heap::Index],
+  statement: ((Uorc.Core.Heap::left (Uorc.Core.Heap::compact leftTree rightTree)) = leftTree),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: empty},
+            {proof: reflexivity{}, binders: [e], constructor: leaf},
+            {proof: reflexivity{}, binders: [a, b], constructor: branch}
+          ],
+          scrutinee: rightTree
+        },
+        binders: [],
+        constructor: empty
+      },
+      {proof: reflexivity{}, binders: [e], constructor: leaf},
+      {proof: reflexivity{}, binders: [a, b], constructor: branch}
+    ],
+    scrutinee: leftTree
+  },
+  axioms: []
+}
+
+theorem{
+  name: compact_right,
+  parameters: [leftTree : Uorc.Core.Heap::Index, rightTree : Uorc.Core.Heap::Index],
+  statement: ((Uorc.Core.Heap::right (Uorc.Core.Heap::compact leftTree rightTree)) = rightTree),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: empty},
+            {proof: reflexivity{}, binders: [e], constructor: leaf},
+            {proof: reflexivity{}, binders: [a, b], constructor: branch}
+          ],
+          scrutinee: rightTree
+        },
+        binders: [],
+        constructor: empty
+      },
+      {proof: reflexivity{}, binders: [e], constructor: leaf},
+      {proof: reflexivity{}, binders: [a, b], constructor: branch}
+    ],
+    scrutinee: leftTree
+  },
+  axioms: []
+}
+
+theorem{
+  name: readIndex_empty,
+  parameters: [depth : Nat, key : UInt64],
+  statement: ((Uorc.Core.Heap::readIndex depth (ctor Uorc.Core.Heap::Index.empty) key) = (ctor Option.none [Uorc.Core.Heap::Entry])),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {proof: reflexivity{}, binders: [remaining, ih], constructor: succ}
+    ],
+    generalizing: [key],
+    scrutinee: depth
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: choose_same,
+  parameters: [direction : Bool, tree : Uorc.Core.Heap::Index],
+  statement: ((if direction then tree else tree) = tree),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: direction
+  },
+  axioms: []
+}
+
+theorem{
+  name: choose_same_entry,
+  parameters: [direction : Bool, entry : (Option Uorc.Core.Heap::Entry)],
+  statement: ((if direction then entry else entry) = entry),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: direction
+  },
+  axioms: []
+}
+
+theorem{
+  name: compact_selected,
+  parameters: [
+    direction : Bool,
+    leftTree : Uorc.Core.Heap::Index,
+    rightTree : Uorc.Core.Heap::Index,
+    leftReplacement : Uorc.Core.Heap::Index,
+    rightReplacement : Uorc.Core.Heap::Index
+  ],
+  statement: ((if direction then (Uorc.Core.Heap::right (if direction then (Uorc.Core.Heap::compact leftTree rightReplacement) else (Uorc.Core.Heap::compact leftReplacement rightTree))) else (Uorc.Core.Heap::left (if direction then (Uorc.Core.Heap::compact leftTree rightReplacement) else (Uorc.Core.Heap::compact leftReplacement rightTree)))) = (if direction then rightReplacement else leftReplacement)),
+  proof: cases{
+    branches: [
+      {
+        proof: apply{arguments: [leftReplacement, rightTree], theorem: compact_left},
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: apply{arguments: [leftTree, rightReplacement], theorem: compact_right},
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: direction
+  },
+  axioms: []
+}
+
+theorem{
+  name: readIndex_choice,
+  parameters: [
+    direction : Bool,
+    depth : Nat,
+    leftTree : Uorc.Core.Heap::Index,
+    rightTree : Uorc.Core.Heap::Index,
+    key : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::readIndex depth (if direction then rightTree else leftTree) key) = (if direction then (Uorc.Core.Heap::readIndex depth rightTree key) else (Uorc.Core.Heap::readIndex depth leftTree key))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: direction
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: readIndex_successor,
+  parameters: [depth : Nat, tree : Uorc.Core.Heap::Index, key : UInt64],
+  statement: ((Uorc.Core.Heap::readIndex (ctor Nat.succ depth) tree key) = (Uorc.Core.Heap::readIndex depth (if (Uorc.Core.Heap::highBit key) then (Uorc.Core.Heap::right tree) else (Uorc.Core.Heap::left tree)) (Uorc.Core.Heap::advanceKey key))),
+  proof: cases{
+    branches: [
+      {
+        proof: simplify{
+          definitions: [
+            choose_same,
+            readIndex_empty,
+            Uorc.Core.Heap::left,
+            Uorc.Core.Heap::readIndex,
+            Uorc.Core.Heap::right
+          ]
+        },
+        binders: [],
+        constructor: empty
+      },
+      {
+        proof: simplify{
+          definitions: [
+            choose_same,
+            readIndex_empty,
+            Uorc.Core.Heap::left,
+            Uorc.Core.Heap::readIndex,
+            Uorc.Core.Heap::right
+          ]
+        },
+        binders: [entry],
+        constructor: leaf
+      },
+      {proof: reflexivity{}, binders: [a, b], constructor: branch}
+    ],
+    scrutinee: tree
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: readIndex_writeIndex_none,
+  parameters: [depth : Nat, tree : Uorc.Core.Heap::Index, key : UInt64],
+  statement: ((Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::writeIndex depth tree key (ctor Option.none [Uorc.Core.Heap::Entry])) key) = (ctor Option.none [Uorc.Core.Heap::Entry])),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: simplify{
+          definitions: [
+            choose_same_entry,
+            compact_selected,
+            ih,
+            readIndex_choice,
+            readIndex_successor,
+            Uorc.Core.Heap::writeIndex
+          ]
+        },
+        binders: [remaining, ih],
+        constructor: succ
+      }
+    ],
+    generalizing: [key, tree],
+    scrutinee: depth
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: readIndex_writeIndex_some,
+  parameters: [
+    depth : Nat,
+    tree : Uorc.Core.Heap::Index,
+    key : UInt64,
+    entry : Uorc.Core.Heap::Entry
+  ],
+  statement: ((Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::writeIndex depth tree key (ctor Option.some [Uorc.Core.Heap::Entry] entry)) key) = (ctor Option.some [Uorc.Core.Heap::Entry] entry)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: simplify{
+          definitions: [
+            choose_same_entry,
+            compact_selected,
+            ih,
+            readIndex_choice,
+            readIndex_successor,
+            Uorc.Core.Heap::writeIndex
+          ]
+        },
+        binders: [remaining, ih],
+        constructor: succ
+      }
+    ],
+    generalizing: [entry, key, tree],
+    scrutinee: depth
+  },
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

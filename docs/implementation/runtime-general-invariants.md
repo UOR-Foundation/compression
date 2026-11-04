@@ -56,6 +56,13 @@ the state and the complete caller inventory.
 
 ## Minimal remaining general obligations
 
+The additive RuntimeIndexProofs now proves actual readIndex/writeIndex same-key
+insertion and deletion for every Nat depth, arbitrary Index, UInt64 key and
+Entry, without a shape premise. Its two constructor families exhaust Option
+cases. Ten general theorems and an actual bit-order mutation gate pass; see
+[the exact scope](runtime-index-proofs.md). This closes the same-key bridge,
+while distinct-key frame, bit injectivity and complete enumeration remain open.
+
 The global invariant can be carried by existing `Heap.Arena`/`RuntimeValue`
 and the independent `HeapAudit` roots, with the following obligations composed:
 

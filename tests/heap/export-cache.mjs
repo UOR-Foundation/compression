@@ -24,7 +24,8 @@ const names=['RuntimeValue','Heap','HeapAudit','RuntimeTable','RuntimeSequence',
   'RuntimeTableCursorTests','RuntimeSequenceTests','RuntimeStoreTests','RuntimeByteBuilderTests',
   'RuntimeOwnershipProofs','RuntimeAuditProofs','RuntimeObservationProofs','RuntimeSequenceProofs',
   'RuntimeCost','RuntimeSequenceTickets','RuntimeSequenceTicketTests','HeapMovedReference','HeapMovedTests',
-  'RuntimePeak','RuntimePeakProofs','RuntimePeakTests'];
+  'RuntimePeak','RuntimePeakProofs','RuntimePeakTests','RuntimeSequenceConcatReference',
+  'RuntimeImage','RuntimeIndexProofs'];
 const modules=[];
 for(const name of names) {
   const sourcePath=`src/Uorc/Core/${name}.lex.tex`;
@@ -48,7 +49,7 @@ for(const name of names) {
   if(source!==await fs.readFile(path.join(repo,sourcePath),'utf8')) throw Error(`${name}: source changed during read`);
   modules.push({module:`Uorc.Core.${name}`,source_path:sourcePath,source_sha256:sha(source),
     role:name.endsWith('Tests')?'diagnostic_scenarios':name.endsWith('Proofs')?'proof_only':
-      name==='HeapMovedReference'?'diagnostic_reference':name==='HeapAudit'?'independent_audit':'runtime',
+      name.endsWith('Reference')?'diagnostic_reference':name==='HeapAudit'?'independent_audit':'runtime',
     imports:[...source.matchAll(/\\importmodule\{([^}]+)\}/g)].map(x=>x[1]),
     parser_output_sha256:sha(json),repeat_read:'byte_exact',notation_round_trip:'byte_exact',
     definitions,parsed_module:parsed});
