@@ -108,12 +108,10 @@ with `UC-WIRE-PARSE: the digest-selected SDK is required`.
 ## Remaining qualification and blockers
 
 1. Exact locked-SDK `just model-write`, targeted runtime gate, production export,
-   certificate checks, and `just vv` remain pending. The locked SDK image is not
-   installed. Its amd64 manifest totals 4,162,398,277 compressed bytes; a blind
-   full pull into the VFS executor was avoided after the reported storage
-   exhaustion. No acceptance result was manufactured from the host compiler.
-2. Exact inherited-source checking with the diagnostic compiler failed before
-   this parser at `Core.Resources`, `LLT4001`: `proof.definitions` is outside the
+   certificate checks, and `just vv` remain pending. The locked SDK was not run. No acceptance result was manufactured from
+   the diagnostic compiler.
+2. At the recorded parser integration base, exact inherited-source checking
+   with the diagnostic compiler failed before this parser at `Core.Resources`, `LLT4001`: `proof.definitions` is outside the
    closed JSON schema. The source is unchanged in this lane.
 3. Unpruned native Lean compilation also failed in existing `Core.Bytes.valid`
    and `sliceUnchecked`: generated recursive equations refer to the unbound
@@ -129,14 +127,11 @@ with `UC-WIRE-PARSE: the digest-selected SDK is required`.
    backend measurements, and inclusion of this targeted gate in complete
    product acceptance remain open obligations.
 
-Source publication is blocked. Automatic approval review denied the GitHub
-`create_tree` upload to public `UOR-Foundation/compression`, first citing missing
-trusted destination authorization. The subsequent trusted user-history read
-contained the user's explicit public-progress approval, but the single retry
-was also denied: the reviewer characterized the approval as untrusted assistant
-or “aeon” context rather than verified user content. Neither upload executed;
-no remote branch, commit, or draft PR was created. No alternative upload path
-was attempted. A fresh direct approval is needed before further publication.
+The parser checkpoint was published after fresh direct user approval: commit
+`433fcdbabf583d94e0d70e0027dbb01e8a32c96c`, draft PR #80. Two earlier automatic
+approval-review rejections did not execute. No alternative upload route was
+used; the accepted action followed new direct approval. No merge or release
+operation was performed.
 
-The exact-SDK gate is pending qualification; the observed host checks and their
-failures have known outcomes. This evidence does not set release acceptance.
+The exact-SDK gate remains unrun. The observed diagnostic checks and failures
+have known outcomes; they do not set release acceptance.
