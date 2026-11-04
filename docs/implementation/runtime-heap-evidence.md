@@ -7,8 +7,8 @@ The source was checked with the saved official LexLean 0.4.0 compiler from publi
 ## Observed results
 
 - Source linking and canonical formatting pass for the carrier, arena, auditor, tables and their tests.
-- Eleven closed kernel negative scenarios elaborate, including each public error category. Exact UInt64/UInt8-related dependencies are traced as `Quot.sound` and `propext`; carrier-only definitions retain exact empty sets. No custom axiom or `sorry` was introduced.
-- Both ownership suites execute successfully in the official Lean runtime. They cover aliased child edges, binary slices, distinct equal-image/equal-value allocations, exact-budget release, unique image reservations and fresh-image commitment, persistent slot paths through zero/maximum keys, metadata owners and final reclamation. The explicit caller-root inventory extension was added afterward; its execution remains separately qualified until the next receipt.
+- Eleven closed kernel negative scenarios elaborate, including each public error category. All 102 definition/theorem dependency sets are traced; exact UInt64/UInt8-related dependencies are recorded as `Quot.sound` and `propext`; carrier-only definitions retain exact empty sets. `runtime-heap-axioms.json` records the observed sets. No custom axiom or `sorry` was introduced.
+- Both ownership suites execute successfully in the official Lean runtime. They cover aliased child edges, binary slices, distinct equal-image/equal-value allocations, exact-budget release, unique image reservations and fresh-image commitment, persistent slot paths through zero/maximum keys, metadata owners and final reclamation. This includes the explicit caller-root inventory checks: missing roots are rejected, while cursor-root transfer, retained aliases, persistent tables and metadata captures match their supplied inventories.
 - A planted source defect changes `retainEntry`'s incoming increment from one to zero. The owning `conformance_negative_countOverflow` kernel theorem rejects it with `LLV7002`. The diagnostic copy is restored to the exact control hash. Its sibling root-overflow check cannot mask the planted defect: this scenario has incoming `UInt64.max` and roots `1`.
 - Actual production export is blocked by `LLV7015`, preservation certificate B, in the generated RustStd correspondence proof for `Heap.allocate`. Kernel elaboration, Leanchecker and exact axiom audit precede this failing stage. No generated Rust bundle is accepted, and no generated Rust native execution is claimed.
 
@@ -16,7 +16,7 @@ The normalized product diagnostics and exact mutation hashes are in `runtime-hea
 
 ## Reduced export reproducer
 
-`tests/heap/export-repro/src/Main.lex.tex` reproduces the same certificate-B failure using only one record, one three-constructor recursive index, and the `left` accessor. It does not import the compressor or its arena. The rejection is in `HeapRepro.Main.left`, generated `fun0`, under `LexLeanPreservation.Rust.Corr.mCons`. The full arena failure is generated `fun21`. Both are kernel application-type mismatches in the actual proof; neither is an unsigned-axiom-policy mismatch or an unsupported-source diagnostic.
+`tests/heap/export-repro/src/Main.lex.tex` reproduces the same certificate-B failure using only one record, one three-constructor recursive index, and the `left` accessor. It does not import the compressor or its arena. The rejection is in `HeapRepro.Main.left`, generated `fun0`, under `LexLeanPreservation.Rust.Corr.mCons`. The original full arena failure is generated `fun21`; with the reservation API present it is generated `fun22`. Both are kernel application-type mismatches in the actual proof; neither is an unsigned-axiom-policy mismatch or an unsupported-source diagnostic.
 
 Copy the fixture to a fresh directory and run the official compiler:
 
@@ -35,9 +35,9 @@ node tests/heap/prepare.mjs /absolute/fresh/heap-check
 lexlean --project /absolute/fresh/heap-check/lexlean.toml lock
 lexlean --project /absolute/fresh/heap-check/lexlean.toml fmt --check --all
 lexlean --project /absolute/fresh/heap-check/lexlean.toml check --all
-lexlean production targets --diagnostic-format json > targets.json
-node tests/heap/request.mjs targets.json > request.json
-lexlean --project /absolute/fresh/heap-check/lexlean.toml production build --request request.json --diagnostic-format json
+lexlean production targets --diagnostic-format json > /absolute/fresh/heap-check/targets.json
+node tests/heap/request.mjs /absolute/fresh/heap-check/targets.json > /absolute/fresh/heap-check/request.json
+lexlean --project /absolute/fresh/heap-check/lexlean.toml production build --request /absolute/fresh/heap-check/request.json --diagnostic-format json
 ```
 
 The prepared source inventory records every copied source's hash. The last command currently fails at certificate B. Once a bundle is accepted, replay it with `lexlean production verify-artifact BUNDLE`, then use `node tests/heap/native.mjs /absolute/BUNDLE /absolute/fresh/native-check` to run assertions against byte-identical generated implementation copies. That Rust-native stage remains unvisited while export is blocked.
