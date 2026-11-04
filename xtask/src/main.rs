@@ -15,6 +15,8 @@ mod bootstrap;
 #[cfg(test)]
 mod claims;
 #[cfg(test)]
+mod integrity;
+#[cfg(test)]
 mod offline;
 #[cfg(test)]
 mod product_receipts;

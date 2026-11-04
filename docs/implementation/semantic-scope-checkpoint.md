@@ -17,3 +17,27 @@ The canonical cost schedule and reference-owned event/storage bridge remain requ
 ## Current evidence
 
 There are 31 closed source controls for semantic-budget/storage differences, actual target/basis bytes, empty boundaries, equivalent transport partitions, legacy schema rejection, operational-realization changes, policy changes, and replay-only handling of arbitrary claimed prefixes. A generic semantic-JSON interpreter evaluates all 31 as true. Planted mutations that ignore semantic budgets, ignore operational envelopes, reinterpret legacy schema, or trust a changed-policy prefix are rejected by these controls. These are finite source diagnostics, not official LexLean/Lean proof, generated-native execution, or universal refinement qualification.
+
+
+## Explicit logical-event migration
+
+The current schemas are now `logicalReferenceScope1` and
+`logicalReferenceCheckpoint1`, with presentation identities
+`uorc.logical-reference-scope/1` and `uorc.logical-reference-checkpoint/1`.
+They require the explicitly supported `logicalReferenceEvents1` profile and
+`budgetSupported` storage scope. Its optional storage bound is abstract logical
+live-binding payload units, not host allocation bytes. Fixed 4096-byte leaves,
+Heap layout, parsing, hashing and transport partition belong to realization.
+
+The prior `canonicalSemanticScope1` / `canonicalSemanticCheckpoint1` schemas
+and `canonicalReferenceWork1` profile retain their old identities and are not
+reinterpreted. Old schemas require legacy interpretation; old profiles and
+`liveBindingPayloadBytes` are rejected under the new schema, even if an old
+value is compared with itself. No old claimed prefix or coverage is imported.
+
+The 31 existing scope/checkpoint controls pass after explicit fixture migration.
+Seven additional closed migration controls reject obsolete scope/checkpoint
+schemas, profile identifiers and byte-labelled storage bounds before any
+claimed prefix can become replay authority. They are generic finite source
+diagnostics only. The logical reference event/storage schedule and ordinary
+reference-owned binding bridge are separate required release work.

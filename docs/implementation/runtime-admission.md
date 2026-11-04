@@ -1,5 +1,4 @@
 <!-- uorc:non-authoritative -->
-
 # Owned program admission interfaces
 
 The source-owned components in `src/Uorc/Core/Runtime*.lex.tex` separate syntax, typed admission, immutable metadata construction and the eventual admitted-session boundary. The module sources, rather than this integration guide, define their behavior.
@@ -192,3 +191,37 @@ added after a real empty-template integration exposed a mismatch that the older
 owned-only fixtures had missed. Correcting those fixtures is not a change to
 Graph, ReferenceSemantics or the wire language. General refinement and ordinary
 SDK/kernel qualification remain separate obligations.
+
+### Explicit operational work-policy extension
+
+RuntimeAdmissionPolicy raises only maxWork. It never changes canonical semantic
+scope, owned-byte/output/frame limits, achieved counters or caller root owners.
+A stopped admission resumes only for its actual retained resource(workLimit)
+failure and only after a strict limit increase. Prior admission failure, old/new
+limits and achieved work are returned in fixed WorkChange evidence. Malformed,
+program and funding-counter failures are retained rejections. A completed Ready
+is not turned back into an admission cursor.
+
+extendCreditWork consumes the actual owning Credit.Event, including the failed
+admission cursor and ledger. A failed retry becomes a NEW prepaid operation;
+previous credits and attempts remain spent. Partially paid current operations
+keep their paid credit. Failed initialization retains an explicit initialize
+continuation, so a retry cannot become awaiting without allocating its session
+control owner. Policy controlWork64 is charged internally under the explicitly
+raised operational policy. A scheduler prepays those64 search credits and must
+not charge the usage twice.
+
+extendCancellationWork preserves the original admission failure and only raises
+the cleanup policy. It is not permission to execute malformed input. Exhausted
+cleanup can therefore resume without dropping roots or erasing failure history.
+The fixed evidence record is a latest-stop carrier, not an uncharged append-only
+history. Persisted histories/checkpoints need their own caller-owned inventory.
+Public untrusted inputs still pass actual admission; these internal consuming
+carrier adapters do not authenticate arbitrary caller-constructed snapshots.
+
+RuntimeAdmissionPolicyTests invokes actual failed initialization, malformed
+protocol, funding overflow and exhausted cleanup flows. Its owners cover all
+policy error variants, retain exact root/counter prefixes, and reject planted
+lost-initialization and malformed-failure-clearing mutations. These are finite
+source diagnostics until ordinarily compiled/executed and qualified by the
+pinned SDK; they do not establish a general refinement theorem.
