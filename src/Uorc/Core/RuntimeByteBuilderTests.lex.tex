@@ -50,7 +50,7 @@ definition{
     outside : (List Uorc.Core.RuntimeValue::Handle)
   ],
   result: (List Uorc.Core.RuntimeValue::Handle),
-  body: (if (Uorc.Core.RuntimeSequence::resultOwned (project cursor nested)) then (addRoot (project (project cursor nested) result) (addRoot (project (project cursor nested) fresh) (addRoot (project (project cursor nested) garbage) (addRoot (project (project cursor nested) capture) (addRoot (project cursor nresult) (addRoot (project cursor nfresh) (addRoot (project cursor ngarbage) (addRoot (project cursor ncapture) (addRoot (project cursor leaf) (addRoot (project cursor reservation) (addRoot (project cursor oldRight) (addRoot (project cursor oldLeft) (addRoot (project cursor carry) (builderTickets (project cursor builder) outside)))))))))))))) else (addRoot (project (project cursor nested) fresh) (addRoot (project (project cursor nested) garbage) (addRoot (project (project cursor nested) capture) (addRoot (project cursor nresult) (addRoot (project cursor nfresh) (addRoot (project cursor ngarbage) (addRoot (project cursor ncapture) (addRoot (project cursor leaf) (addRoot (project cursor reservation) (addRoot (project cursor oldRight) (addRoot (project cursor oldLeft) (addRoot (project cursor carry) (builderTickets (project cursor builder) outside)))))))))))))),
+  body: (if (Uorc.Core.RuntimeSequence::resultOwned (project cursor nested)) then (addRoot (project (project cursor nested) result) (addRoot (project (project cursor nested) fresh) (addRoot (project (project cursor nested) garbage) (addRoot (project (project cursor nested) capture) (addRoot (project cursor nresult) (addRoot (project cursor nfresh) (addRoot (project cursor ngarbage) (addRoot (project cursor ncapture) (addRoot (if (prim equal (project cursor phase) (12 : UInt64) : Bool) then (Uorc.Core.RuntimeValue::nullHandle) else (project cursor leaf)) (addRoot (project cursor reservation) (addRoot (project cursor oldRight) (addRoot (project cursor oldLeft) (addRoot (project cursor carry) (builderTickets (project cursor builder) outside)))))))))))))) else (addRoot (project (project cursor nested) fresh) (addRoot (project (project cursor nested) garbage) (addRoot (project (project cursor nested) capture) (addRoot (project cursor nresult) (addRoot (project cursor nfresh) (addRoot (project cursor ngarbage) (addRoot (project cursor ncapture) (addRoot (if (prim equal (project cursor phase) (12 : UInt64) : Bool) then (Uorc.Core.RuntimeValue::nullHandle) else (project cursor leaf)) (addRoot (project cursor reservation) (addRoot (project cursor oldRight) (addRoot (project cursor oldLeft) (addRoot (project cursor carry) (builderTickets (project cursor builder) outside)))))))))))))),
   axioms: [],
   executable: true
 }
@@ -1113,10 +1113,96 @@ definition{
 }
 
 definition{
+  name: cancelBeforeControlRelease,
+  parameters: [],
+  result: Bool,
+  body: (match (initialize (1000000 : UInt64))
+    | Result.error unusedError => false
+    | Result.ok initial => (match (appendInput 3 0x00ff 0 initial (nil Uorc.Core.RuntimeValue::Handle))
+      | Result.error unusedError => false
+      | Result.ok filled => (match (project (project filled state) outcome)
+        | Uorc.Core.RuntimeByteBuilder::Outcome.pending => false
+        | Uorc.Core.RuntimeByteBuilder::Outcome.builder builder => (match (Uorc.Core.RuntimeByteBuilder::beginFinishOwned (project (project filled state) arena) builder)
+          | Result.error unusedError => false
+          | Result.ok started => (match (seek 1000 (12 : UInt64) started (nil Uorc.Core.RuntimeValue::Handle))
+            | Result.error unusedError => false
+            | Result.ok ready => (cancelAndEmpty ready)))
+        | Uorc.Core.RuntimeByteBuilder::Outcome.sequence unusedOutput => false
+        | Uorc.Core.RuntimeByteBuilder::Outcome.cancelled => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelDuringControlRelease,
+  parameters: [],
+  result: Bool,
+  body: (match (initialize (1000000 : UInt64))
+    | Result.error unusedError => false
+    | Result.ok initial => (match (appendInput 3 0x00ff 0 initial (nil Uorc.Core.RuntimeValue::Handle))
+      | Result.error unusedError => false
+      | Result.ok filled => (match (project (project filled state) outcome)
+        | Uorc.Core.RuntimeByteBuilder::Outcome.pending => false
+        | Uorc.Core.RuntimeByteBuilder::Outcome.builder builder => (match (Uorc.Core.RuntimeByteBuilder::beginFinishOwned (project (project filled state) arena) builder)
+          | Result.error unusedError => false
+          | Result.ok started => (match (seek 1000 (12 : UInt64) started (nil Uorc.Core.RuntimeValue::Handle))
+            | Result.error unusedError => false
+            | Result.ok ready => (match (Uorc.Core.RuntimeByteBuilder::step (project ready arena) (project ready cursor))
+              | Result.error unusedError => false
+              | Result.ok releasing => (if (Uorc.Core.Heap::isReleasing (project releasing arena)) then (if (Uorc.Core.RuntimeByteBuilder::ownsControlRelease (project releasing arena) (project releasing cursor)) then (cancelAndEmpty releasing) else false) else false))))
+        | Uorc.Core.RuntimeByteBuilder::Outcome.sequence unusedOutput => false
+        | Uorc.Core.RuntimeByteBuilder::Outcome.cancelled => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: rejectForeignControlWithdrawal,
+  parameters: [],
+  result: Bool,
+  body: (match (initialize (1000000 : UInt64))
+    | Result.error unusedError => false
+    | Result.ok initial => (match (appendInput 3 0x00ff 0 initial (nil Uorc.Core.RuntimeValue::Handle))
+      | Result.error unusedError => false
+      | Result.ok filled => (match (project (project filled state) outcome)
+        | Uorc.Core.RuntimeByteBuilder::Outcome.pending => false
+        | Uorc.Core.RuntimeByteBuilder::Outcome.builder builder => (match (Uorc.Core.RuntimeByteBuilder::beginFinishOwned (project (project filled state) arena) builder)
+          | Result.error unusedError => false
+          | Result.ok started => (match (seek 1000 (12 : UInt64) started (nil Uorc.Core.RuntimeValue::Handle))
+            | Result.error unusedError => false
+            | Result.ok ready => (match (Uorc.Core.RuntimeByteBuilder::step (project ready arena) (project ready cursor))
+              | Result.error unusedError => false
+              | Result.ok releasing => (if (Uorc.Core.Heap::isReleasing (project releasing arena)) then (if (Uorc.Core.RuntimeByteBuilder::ownsControlRelease (project releasing arena) (project releasing cursor)) then (if (match (Uorc.Core.RuntimeByteBuilder::cancel (project releasing arena) (record Uorc.Core.RuntimeByteBuilder::Cursor {phase := (project (project releasing cursor) phase), mode := (project (project releasing cursor) mode), builder := (project (project releasing cursor) builder), carry := (project (project releasing cursor) carry), oldLeft := (project (project releasing cursor) oldLeft), oldRight := (project (project releasing cursor) oldRight), reservation := (project (project releasing cursor) reservation), leaf := (Uorc.Core.RuntimeValue::nullHandle), ncapture := (project (project releasing cursor) ncapture), ngarbage := (project (project releasing cursor) ngarbage), nfresh := (project (project releasing cursor) nfresh), nresult := (project (project releasing cursor) nresult), level := (project (project releasing cursor) level), length := (project (project releasing cursor) length), resume := (project (project releasing cursor) resume), cleanup := (project (project releasing cursor) cleanup), byteValue := (project (project releasing cursor) byteValue), nested := (project (project releasing cursor) nested), active := (project (project releasing cursor) active)}))
+                | Result.ok unexpected => false
+                | Result.error failure => (match failure
+                  | Uorc.Core.RuntimeByteBuilder::BuilderFailure.heap heapFailure => (match heapFailure
+                    | Uorc.Core.Heap::HeapError.malformedHandle => false
+                    | Uorc.Core.Heap::HeapError.invalidNode => false
+                    | Uorc.Core.Heap::HeapError.countOverflow => false
+                    | Uorc.Core.Heap::HeapError.countUnderflow => false
+                    | Uorc.Core.Heap::HeapError.handleOverflow => false
+                    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+                    | Uorc.Core.Heap::HeapError.budgetExceeded => false
+                    | Uorc.Core.Heap::HeapError.releaseInProgress => false
+                    | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+                    | Uorc.Core.Heap::HeapError.invalidRoot => false
+                    | Uorc.Core.Heap::HeapError.protocolFailure => true)
+                  | Uorc.Core.RuntimeByteBuilder::BuilderFailure.sequence sequenceFailure => false
+                  | Uorc.Core.RuntimeByteBuilder::BuilderFailure.invalidBuilder => false
+                  | Uorc.Core.RuntimeByteBuilder::BuilderFailure.invalidCursor => false
+                  | Uorc.Core.RuntimeByteBuilder::BuilderFailure.invalidImage => false
+                  | Uorc.Core.RuntimeByteBuilder::BuilderFailure.lengthOverflow => false)) then (cancelAndEmpty releasing) else false) else false) else false))))
+        | Uorc.Core.RuntimeByteBuilder::Outcome.sequence unusedOutput => false
+        | Uorc.Core.RuntimeByteBuilder::Outcome.cancelled => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
   name: suite,
   parameters: [],
   result: Bool,
-  body: (if (literal0) then (if (literal1) then (if (literal2) then (if (literal3) then (if (literal7) then (if (literal255) then (if (literal256) then (if (literal4095) then (if (literal4096) then (if (literal4097) then (if (literal8193) then (if (allSingletonBytes) then (if (cancelPhase1) then (if (cancelPhase2) then (if (cancelPhase3) then (if (cancelPhase4) then (if (cancelPhase5) then (if (cancelPhase6) then (if (cancelEmptyBuilder) then (if (cancelNestedConcat) then (if (mergeBudget1100) then (if (mergeBudget1099) then (if (checkpointBinIdentity) then (if (negativeinvalidBuilder) then (if (negativeinvalidCursor) then (if (exhaustedCommit2) then (if (exhaustedCommit4) then (if (negativeLengthOverflow) then (if (cancelActiveImageRelease) then (if (cancelAllNestedPrefixes) then (if (negativeInvalidImage) then (if (negativeSequence) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false),
+  body: (if (literal0) then (if (literal1) then (if (literal2) then (if (literal3) then (if (literal7) then (if (literal255) then (if (literal256) then (if (literal4095) then (if (literal4096) then (if (literal4097) then (if (literal8193) then (if (allSingletonBytes) then (if (cancelPhase1) then (if (cancelPhase2) then (if (cancelPhase3) then (if (cancelPhase4) then (if (cancelPhase5) then (if (cancelPhase6) then (if (cancelEmptyBuilder) then (if (cancelNestedConcat) then (if (mergeBudget1100) then (if (mergeBudget1099) then (if (checkpointBinIdentity) then (if (negativeinvalidBuilder) then (if (negativeinvalidCursor) then (if (exhaustedCommit2) then (if (exhaustedCommit4) then (if (negativeLengthOverflow) then (if (cancelActiveImageRelease) then (if (cancelAllNestedPrefixes) then (if (negativeInvalidImage) then (if (negativeSequence) then (if (cancelBeforeControlRelease) then (if (cancelDuringControlRelease) then (if (rejectForeignControlWithdrawal) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false),
   axioms: [Quot.sound, propext],
   executable: true
 }

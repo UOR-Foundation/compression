@@ -179,7 +179,7 @@ definition{
   ],
   result: Uorc.Core.RuntimeProgram::BorrowedInstruction,
   body: (record Uorc.Core.RuntimeProgram::BorrowedInstruction {record := (Uorc.Core.RuntimeValue::nullHandle), opcode := opcode, operand0 := (fixtureOperand (project (Uorc.Core.RuntimeOpcode::spec opcode) operand0) a), operand1 := (fixtureOperand (project (Uorc.Core.RuntimeOpcode::spec opcode) operand1) b), operand2 := (fixtureOperand (project (Uorc.Core.RuntimeOpcode::spec opcode) operand2) c), operand3 := (fixtureOperand (project (Uorc.Core.RuntimeOpcode::spec opcode) operand3) d), captureACount := (0 : UInt64), captureBCount := (0 : UInt64), capturesA := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.checkedGraph))), capturesB := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.checkedGraph))), literal := (Uorc.Core.RuntimeValue::nullHandle)}),
-  axioms: [],
+  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -586,10 +586,73 @@ definition{
 }
 
 definition{
+  name: staticCode,
+  parameters: [failure : Uorc.Core.Types::StaticError],
+  result: UInt8,
+  body: (match failure | Uorc.Core.Types::StaticError.invalidLocalReference => (1 : UInt8) | Uorc.Core.Types::StaticError.invalidBlockReference => (2 : UInt8) | Uorc.Core.Types::StaticError.typeMismatch => (3 : UInt8) | Uorc.Core.Types::StaticError.arityMismatch => (4 : UInt8) | Uorc.Core.Types::StaticError.returnMismatch => (5 : UInt8) | Uorc.Core.Types::StaticError.entrySignatureMismatch => (6 : UInt8) | Uorc.Core.Types::StaticError.emptyGraph => (7 : UInt8) | Uorc.Core.Types::StaticError.invalidTypeTag => (8 : UInt8) | Uorc.Core.Types::StaticError.undefinedOpcode => (9 : UInt8) | Uorc.Core.Types::StaticError.unresolvedWireProfile => (10 : UInt8) | Uorc.Core.Types::StaticError.invalidSequenceRope => (11 : UInt8) | Uorc.Core.Types::StaticError.addressSpaceExhausted => (12 : UInt8)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: isStatic,
+  parameters: [failure : Uorc.Core.RuntimeMachine::Failure, expected : UInt8],
+  result: Bool,
+  body: (match failure | Uorc.Core.RuntimeMachine::Failure.program programFailure => (match programFailure | Uorc.Core.RuntimeProgram::Failure.static staticError => (prim equal (staticCode staticError) expected : Bool) | Uorc.Core.RuntimeProgram::Failure.heap error => false | Uorc.Core.RuntimeProgram::Failure.metadata error => false | Uorc.Core.RuntimeProgram::Failure.operational error => false | Uorc.Core.RuntimeProgram::Failure.resource error => false | Uorc.Core.RuntimeProgram::Failure.releasedSlot index => false) | Uorc.Core.RuntimeMachine::Failure.semantic error => false | Uorc.Core.RuntimeMachine::Failure.resource error => false | Uorc.Core.RuntimeMachine::Failure.heap error => false | Uorc.Core.RuntimeMachine::Failure.cancelled => false | Uorc.Core.RuntimeMachine::Failure.invariant => false),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: invalidReferenceScenario,
+  parameters: [],
+  result: Bool,
+  body: (let arena : Uorc.Core.Heap::Arena := (Uorc.Core.Heap::emptyArena (10000 : UInt64)); (let frame : Uorc.Core.RuntimeMachine::Frame := (record Uorc.Core.RuntimeMachine::Frame {blockIndex := (0 : UInt64), slotCount := (0 : UInt64), nextInstruction := (0 : UInt64), slots := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame)))}); (match (Uorc.Core.RuntimeMachine::local arena frame (0 : UInt64)) | Result.ok value => false | Result.error failure => (isStatic failure (1 : UInt8))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: eagerChoiceScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (makeFixture) | Result.error error => false | Result.ok fixture => (match (Uorc.Core.RuntimeMachine::prepare (project fixture arena) (fixtureProgram) (fixtureFrame fixture) (makeInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.choose) (3 : UInt64) (6 : UInt64) (7 : UInt64) (0 : UInt64))) | Result.ok action => false | Result.error failure => (isStatic failure (1 : UInt8)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: choiceTypeScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (makeFixture) | Result.error error => false | Result.ok fixture => (match (Uorc.Core.RuntimeMachine::prepare (project fixture arena) (fixtureProgram) (fixtureFrame fixture) (makeInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.choose) (3 : UInt64) (6 : UInt64) (2 : UInt64) (0 : UInt64))) | Result.ok action => false | Result.error failure => (isStatic failure (3 : UInt8)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: captureArityScenario,
+  parameters: [],
+  result: Bool,
+  body: (let callee : Uorc.Core.RuntimeProgram::BorrowedBlock := (record Uorc.Core.RuntimeProgram::BorrowedBlock {record := (Uorc.Core.RuntimeValue::nullHandle), parameterCount := (1 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), instructionCount := (0 : UInt64), returnDistance := (0 : UInt64), parameters := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache))), instructions := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (3 : UInt64))), lifetimes := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (5 : UInt64))), initialReleaseRoot := (Uorc.Core.RuntimeValue::nullHandle)}); (match (Uorc.Core.RuntimeMachine::validateCaptureArity callee (2 : UInt64) (0 : UInt64)) | Result.ok unitResult => false | Result.error failure => (if (isStatic failure (4 : UInt8)) then (match (Uorc.Core.RuntimeMachine::validateCaptureArity callee (18446744073709551615 : UInt64) (1 : UInt64)) | Result.ok unitResult => false | Result.error overflow => (isStatic overflow (12 : UInt8))) else false))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: exactBoundaryScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeMachine::preflight (record Uorc.Core.RuntimeResources::Budget {maxWork := (1 : UInt64), maxOwnedBytes := (1000 : UInt64), maxOutputBytes := (1 : UInt64), maxFrames := (1 : UInt64)}) (Uorc.Core.RuntimeResources::zeroUsage) (1 : UInt64) (1 : UInt64) (1 : UInt64) (0 : UInt64)) | Uorc.Core.RuntimeMachine::Permit.refused error usage => false | Uorc.Core.RuntimeMachine::Permit.allowed usage => (if (prim equal (project usage work) (1 : UInt64) : Bool) then (if (prim equal (project usage outputBytes) (1 : UInt64) : Bool) then (prim equal (project usage frames) (1 : UInt64) : Bool) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
   name: suite,
   parameters: [],
   result: Bool,
-  body: (if (dispatchResultsScenario) then (if (conversionScenario) then (if (arithmeticScenario) then (if (allOpcodesScenario) then (if (referenceErrorsScenario) then (if (resourcePrefixScenario) then (scanFinalUpdateScenario) else false) else false) else false) else false) else false) else false),
+  body: (if (invalidReferenceScenario) then (if (eagerChoiceScenario) then (if (choiceTypeScenario) then (if (captureArityScenario) then (if (exactBoundaryScenario) then (if (dispatchResultsScenario) then (if (conversionScenario) then (if (arithmeticScenario) then (if (allOpcodesScenario) then (if (referenceErrorsScenario) then (if (resourcePrefixScenario) then (scanFinalUpdateScenario) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false),
   axioms: [Quot.sound, propext],
   executable: false
 }

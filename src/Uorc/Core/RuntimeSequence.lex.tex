@@ -35,7 +35,8 @@ inductive{
     {name: pending, fields: []},
     {name: sequence, fields: [Uorc.Core.RuntimeValue::Handle]},
     {name: byte, fields: [UInt8]},
-    {name: span, fields: [Span]}
+    {name: span, fields: [Span]},
+    {name: cancelled, fields: []}
   ]
 }
 
@@ -522,7 +523,7 @@ definition{
   name: resultOwned,
   parameters: [cursor : Cursor],
   result: Bool,
-  body: (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then true else (prim equal (project cursor phase) (11 : UInt64) : Bool))))) then (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then false else true) else false),
+  body: (if (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else false))))) then true else (if (prim equal (project cursor phase) (20 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (21 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (22 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (23 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (24 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (25 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (26 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (27 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (28 : UInt64) : Bool) then true else false)))))))))) then (if (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then true else (if (prim equal (project cursor purpose) (6 : UInt64) : Bool) then true else false)) then false else true) else false),
   axioms: [],
   executable: true
 }
@@ -728,10 +729,136 @@ definition{
 }
 
 definition{
+  name: cancelCapture,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor capture))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (26 : UInt64) else (25 : UInt64)), purpose := (project cursor purpose), capture := (Uorc.Core.RuntimeValue::nullHandle), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelPurpose,
+  parameters: [cursor : Cursor],
+  result: UInt64,
+  body: (if (prim equal (project cursor purpose) (0 : UInt64) : Bool) then (4 : UInt64) else (if (prim equal (project cursor purpose) (1 : UInt64) : Bool) then (5 : UInt64) else (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then (6 : UInt64) else (if (prim equal (project cursor purpose) (3 : UInt64) : Bool) then (7 : UInt64) else (project cursor purpose))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: prepareCancel,
+  parameters: [cursor : Cursor],
+  result: Cursor,
+  body: (record Cursor {phase := (20 : UInt64), purpose := (cancelPurpose cursor), capture := (project cursor capture), garbage := (project cursor garbage), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (if (resultOwned cursor) then (project cursor result) else (Uorc.Core.RuntimeValue::nullHandle)), start := (0 : UInt64), count := (0 : UInt64), byteValue := (0 : UInt8), fresh := (project cursor fresh), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: cancelDrainExisting,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then (drainGarbage arena cursor) else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then (drainCapture arena cursor) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))))
+    | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+    | Result.ok drained => (let marked : Cursor := (record Cursor {phase := (project (project drained cursor) phase), purpose := (cancelPurpose cursor), capture := (project (project drained cursor) capture), garbage := (project (project drained cursor) garbage), stack := (project (project drained cursor) stack), joins := (project (project drained cursor) joins), current := (project (project drained cursor) current), left := (project (project drained cursor) left), right := (project (project drained cursor) right), result := (project (project drained cursor) result), start := (project (project drained cursor) start), count := (project (project drained cursor) count), byteValue := (project (project drained cursor) byteValue), fresh := (project (project drained cursor) fresh), slot1 := (project (project drained cursor) slot1), slot2 := (project (project drained cursor) slot2), slot3 := (project (project drained cursor) slot3), slot4 := (project (project drained cursor) slot4), planPosition := (project (project drained cursor) planPosition), planReturn := (project (project drained cursor) planReturn), planDest := (project (project drained cursor) planDest), plan := (project (project drained cursor) plan)}); (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project drained arena), cursor := (if (Uorc.Core.Heap::isReleasing (project drained arena)) then marked else (prepareCancel marked)), delta := (project drained delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelFresh,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor fresh))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (22 : UInt64) else (21 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelGarbage,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor garbage))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (24 : UInt64) else (23 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelResult,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor result))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (28 : UInt64) else (27 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (Uorc.Core.RuntimeValue::nullHandle), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainCancelCapture,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (26 : UInt64) else (25 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainCancelFresh,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (22 : UInt64) else (21 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainCancelGarbage,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (24 : UInt64) else (23 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainCancelResult,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (28 : UInt64) else (27 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: isCancelling,
+  parameters: [cursor : Cursor],
+  result: Bool,
+  body: (if (prim equal (project cursor purpose) (4 : UInt64) : Bool) then true else (if (prim equal (project cursor purpose) (5 : UInt64) : Bool) then true else (if (prim equal (project cursor purpose) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor purpose) (7 : UInt64) : Bool) then true else false)))),
+  axioms: [],
+  executable: true
+}
+
+definition{
   name: step,
   parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
   result: (Result SequenceTransition SequenceFailure),
-  body: (if (if (Uorc.Core.Heap::isReleasing arena) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (prim equal (project cursor phase) (11 : UInt64) : Bool)) then false else true) else false) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (10 : UInt64), purpose := (0 : UInt64), capture := (Uorc.Core.RuntimeValue::nullHandle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (Uorc.Core.RuntimeValue::nullHandle), start := (0 : UInt64), count := (0 : UInt64), byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then (ctor Outcome.byte (project cursor byteValue)) else (if (prim equal (project cursor purpose) (3 : UInt64) : Bool) then (ctor Outcome.span (record Span {image := (project cursor result), offset := (project cursor start), length := (project cursor count)})) else (ctor Outcome.sequence (project cursor result))))})) else (if (prim equal (project cursor phase) (1 : UInt64) : Bool) then (concatDown arena cursor) else (if (prim equal (project cursor phase) (2 : UInt64) : Bool) then (concatUp arena cursor) else (if (prim equal (project cursor phase) (3 : UInt64) : Bool) then (sliceWalk arena cursor) else (if (prim equal (project cursor phase) (4 : UInt64) : Bool) then (sliceNext arena cursor) else (if (prim equal (project cursor phase) (5 : UInt64) : Bool) then (indexWalk arena cursor) else (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then (drainGarbage arena cursor) else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then (cleanupGarbage arena cursor) else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then (cleanupCapture arena cursor) else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then (drainCapture arena cursor) else (if (prim equal (project cursor phase) (12 : UInt64) : Bool) then (allocatePlan arena cursor) else (if (prim equal (project cursor phase) (13 : UInt64) : Bool) then (attachPlan arena cursor) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))))))))))))))),
+  body: (if (isCancelling cursor) then (if (if (Uorc.Core.Heap::isReleasing arena) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (21 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (23 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (25 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (27 : UInt64) : Bool) then true else false)))))) then false else true) else false) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (if (prim equal (project cursor phase) (28 : UInt64) : Bool) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (emptyCursor), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.cancelled)})) else (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then (cancelDrainExisting arena cursor) else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then (cancelDrainExisting arena cursor) else (if (prim equal (project cursor phase) (20 : UInt64) : Bool) then (cancelFresh arena cursor) else (if (prim equal (project cursor phase) (21 : UInt64) : Bool) then (drainCancelFresh arena cursor) else (if (prim equal (project cursor phase) (22 : UInt64) : Bool) then (cancelGarbage arena cursor) else (if (prim equal (project cursor phase) (23 : UInt64) : Bool) then (drainCancelGarbage arena cursor) else (if (prim equal (project cursor phase) (24 : UInt64) : Bool) then (cancelCapture arena cursor) else (if (prim equal (project cursor phase) (25 : UInt64) : Bool) then (drainCancelCapture arena cursor) else (if (prim equal (project cursor phase) (26 : UInt64) : Bool) then (cancelResult arena cursor) else (if (prim equal (project cursor phase) (27 : UInt64) : Bool) then (drainCancelResult arena cursor) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor)))))))))))))) else (if (if (Uorc.Core.Heap::isReleasing arena) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (prim equal (project cursor phase) (11 : UInt64) : Bool)) then false else true) else false) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (10 : UInt64), purpose := (0 : UInt64), capture := (Uorc.Core.RuntimeValue::nullHandle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (Uorc.Core.RuntimeValue::nullHandle), start := (0 : UInt64), count := (0 : UInt64), byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then (ctor Outcome.byte (project cursor byteValue)) else (if (prim equal (project cursor purpose) (3 : UInt64) : Bool) then (ctor Outcome.span (record Span {image := (project cursor result), offset := (project cursor start), length := (project cursor count)})) else (ctor Outcome.sequence (project cursor result))))})) else (if (prim equal (project cursor phase) (1 : UInt64) : Bool) then (concatDown arena cursor) else (if (prim equal (project cursor phase) (2 : UInt64) : Bool) then (concatUp arena cursor) else (if (prim equal (project cursor phase) (3 : UInt64) : Bool) then (sliceWalk arena cursor) else (if (prim equal (project cursor phase) (4 : UInt64) : Bool) then (sliceNext arena cursor) else (if (prim equal (project cursor phase) (5 : UInt64) : Bool) then (indexWalk arena cursor) else (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then (drainGarbage arena cursor) else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then (cleanupGarbage arena cursor) else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then (cleanupCapture arena cursor) else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then (drainCapture arena cursor) else (if (prim equal (project cursor phase) (12 : UInt64) : Bool) then (allocatePlan arena cursor) else (if (prim equal (project cursor phase) (13 : UInt64) : Bool) then (attachPlan arena cursor) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor)))))))))))))))),
   axioms: [Quot.sound, propext],
   executable: true,
   production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
@@ -744,6 +871,16 @@ definition{
   body: (addRoot (project cursor capture) (addRoot (project cursor garbage) (addRoot (project cursor fresh) (addRoot (if (resultOwned cursor) then (project cursor result) else (Uorc.Core.RuntimeValue::nullHandle)) (nil Uorc.Core.RuntimeValue::Handle))))),
   axioms: [],
   executable: true
+}
+
+definition{
+  name: cancel,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (if (Uorc.Core.Heap::isReleasing arena) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (21 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (23 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (25 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (27 : UInt64) : Bool) then true else false)))))) then false else true) else false) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (if (isCancelling cursor) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := cursor, delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (if (if (prim equal (project cursor phase) (1 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (2 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (3 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (4 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (5 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (12 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (13 : UInt64) : Bool) then true else false)))))))))))) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else false)) then (cancelDrainExisting arena cursor) else (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (prepareCancel cursor), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
 }
 \end{semanticmodule}
 \end{lexlean}
