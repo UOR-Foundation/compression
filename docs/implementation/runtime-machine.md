@@ -46,10 +46,13 @@ continues reporting per-event deltas. `takeOverflowReceipt` transfers both piece
 before Ready may leave. Modeled errors, generated ComputeError and unknown/fatal
 host outcomes remain distinct; no host rollback guarantee is asserted.
 
-Metadata local/backward-block offsets are zero-based, as specified by
-RuntimeProgram and RuntimeAdmissionChecks. The independent reference Graph uses
-one-based distances; fixture conversion uses the explicit opcode operand roles.
-No symbolic constructor order is used as a wire tag. Initial unused-parameter
+Historical wire local/backward-block distances are one-based. RuntimeProgram
+backwardIndex/localIndex/priorBlockIndex and RuntimeAdmissionChecks now enforce
+1..count with absolute index count-distance. Fixtures pass those same operands
+to metadata and the independent Graph; the old compensating conversion is
+removed. Slot positions, capture-array positions and lifetime indices remain
+zero-based absolute positions. No symbolic constructor order is used as a wire
+tag. Initial unused-parameter
 releases use block field7, and releasesAfter uses the instruction's zero-based
 index. Erasure removes slot edges. Return holds its result while retiring the
 whole slot root, without an instructionCount+1 sentinel. Scan observes before
@@ -138,3 +141,66 @@ projection and locked-SDK just vv remain open. Logical owned bytes are not RSS.
 The engine does not consume Span normally; a nonempty unexpected Span's separate
 owned image ticket is preserved before protocol failure. Span consumer/emitter
 qualification belongs to its actual consumer lane.
+
+## Continuing qualification
+
+Two additional general source lemmas prove cancellation preserves ownedPrefix
+(the actual root audit and owned-byte agreement) and the achieved arena, Usage,
+current delta, operation ledger and frozen event. They kernel-compile in exact
+build 9bcb12757cbc08ae9b68c9933cf76dc1310d8682e16e8b81e8cb9a4953607e92;
+observed axiom sets are {Quot.sound, propext} and {propext}. These establish the
+cancellation request transition, not all subsequent cleanup events.
+
+A cross-model review subsequently found that historical Graph/local/block
+distances are one-based. The earlier RuntimeProgram readers and component
+fixtures used zero-based distances with a fixture conversion. The Core owner is
+correcting those consumers against Graph-derived admission controls; machine
+fixtures must pass historical operands directly. The preceding 68-case report
+is historical component evidence for its exact source shapes and is not a
+general reference-equivalence result. Corrected composition validation is pending.
+
+Native export and measurement preparation is retained in
+`tests/runtime-machine/production-request.json` and native-qualification.md.
+The request is not an accepted export or evidence of physical measurements.
+
+## Composition correction checkpoint
+
+The current source binds public integration
+`f947c988c6769fac2d94a850afee19015d18653c`. It corrects actual Scan consumption:
+metadata operand2 and first capture lane are observer; operand3 and second lane
+are updater. Internal Action.scan still carries updater then observer. The
+fixtures now preserve the same observer/updater ordering in metadata and Graph.
+Distinct typed/captured observer/updater and byte-state controls demonstrated
+the preceding implementation's type error and silent wrong byte before repair.
+
+Representational sequence length, builder length, store work, slot/instruction
+counter, capture-counter and effect-ledger overflow are operational inability,
+not semantic arithmetic errors or predecessor exclusion. Native owner failures
+keep their actual achieved state and tickets. A compact 64-doubling sequence DAG
+followed by a one-byte slice succeeds independently without materializing its
+logical 2^64 bytes; its old semantic length-overflow classification was rejected
+by the registered control before repair.
+
+Engine prepayment now calls the shared RuntimeWork tariff authority, including
+checked builder copy bounds, before the actual bounded event. Store begin/step
+use the shared indexedStart tariff. Operational fees remain distinct from
+Heap.Delta and the provisional canonical semantic ledger. No complete canonical
+event/storage refinement is claimed.
+
+The strict thirteen-group helper driver passes against the corrected Core
+computational projection, including direct one-based reference and released-slot
+controls. Receipt: tests/runtime-machine/evidence/helpers-f947.json. New actual
+engine and completed-admission lifecycle controls are authored and under
+execution; their registry status distinguishes checked source from passed
+behavior. The preceding 68-case receipt is retained as historical component
+evidence for its exact old fixtures, which reordered references and Scan roles;
+it does not establish equivalence of the canonical wire/admission program.
+
+The official migrator exposed four small source compatibility repairs in the
+imported composition: RuntimeAdmissionBoundary explicitly imports Order,
+InstructionCheck and Lifetime; RuntimeAdmissionCredit alpha-renames arena locals
+that collide with its arena declaration; RuntimeAdmissionCreditTests renames the
+reserved partial binder; RuntimeReferenceTests marks mathematical Graph-based
+controls non-executable as required by their independent reference calls.
+Computational behavior is unchanged by these authoring repairs. No compiler, SDK
+lock, universal policy or contributor branch is changed.

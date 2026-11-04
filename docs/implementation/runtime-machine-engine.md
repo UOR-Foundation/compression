@@ -22,7 +22,9 @@ checkpoint validation, or controller restart protocol is introduced here.
   The first tick allocates the engine control owner. Existing arena ownership and
   budget are checked by `RuntimeResources.observeArena`.
 - `tick(state)` performs one bounded event. Pending events and primitive failures
-  consume work. Builder image commit events preflight the bytes copied as work.
+  consume work. `checkedEventWork` quotes the shared `RuntimeWork` operational
+  policy before `paidEvent` dispatches the operation. Builder copy quotes use
+  `RuntimeWork.builderStepFee` before any image read or commit.
 - `extend(state, budget)` revalidates usage and updates the arena ceiling for
   running, cancelling or suspended work. Valid active updates preserve their
   disposition; only resource suspension resumes. Failed, completed and cleaned
@@ -50,13 +52,64 @@ preserve the achieved arena, cursor and earlier successful allocation prefix.
 
 If composition itself overflows, the engine freezes the preceding prefix in
 `operationDelta` and the achieved event in `overflowEvent`, then reports typed
-`program(static.addressSpaceExhausted)`. Cancellation preserves both. Subsequent
+`program(operational.addressSpaceExhausted)`. Cancellation preserves both. Subsequent
 cleanup still reports each event through `State.delta`; it does not claim a
 flattened cumulative UInt64 total while the overflow receipt is frozen.
 `takeOverflowReceipt` transfers `{prefix, event, state}`, clears the frozen receipt
 and starts a new operation ledger. `takeReady` requires that receipt to have been
 consumed. This fixed receipt preserves the accepted effect; it is no rollback
 claim.
+
+## Operational fee policy
+
+The fee authority is `RuntimeWork.profileIdentity`, currently
+`uorc.operational-task-fees/1`. Engine code calls that module's `fee` and
+`builderStepFee`; it does not copy a second table of numeric tariffs. Quotes
+inspect only fixed state tags, counters and borrowed metadata. They never run an
+operation speculatively to discover its fee.
+
+| Event | Shared operation or checked composition |
+| --- | --- |
+| Allocate engine control | `controlAllocate` |
+| Enter frame | `indexedStart + controlAllocate` |
+| Fetch and prepare an executing instruction | `scalarCheck` |
+| Prefix parameter type lookup and install | `indexedStart + tableMutation` |
+| Capture item validation and install | `captureCheck + tableMutation` |
+| Initial/last-use bucket metadata lookup | `indexedStart` |
+| Release-bucket slot lookup and erase | `indexedStart + tableMutation` |
+| Install instruction result / pending table event | `tableMutation` |
+| Retain a returned local | `indexedStart + heapRetain` |
+| Publish output length | `sequenceLength` |
+| Sequence begin, step, first cancellation | Corresponding `sequenceBegin`, `sequenceStep`, `sequenceCancel` |
+| Compare initial sequence lengths | `sequenceLength + sequenceLength` |
+| Store begin and subsequent owner steps | `indexedStart` |
+| First Store cancellation flag transition | `control` |
+| Builder begin, append/finish start, first cancellation | `builderControl` |
+| Subsequent builder owner step | Checked `builderStepFee(cursor)` |
+| Machine root release / release drain | `heapRelease` / `heapReleaseStep` |
+| Pure ticket move / scheduler and iteration control | `smallControl` / `control` |
+| Tick not dispatched because of disposition | `idle` |
+
+Store's fixed-64 owner steps deliberately use the shared `indexedStart` flat
+tariff. This is an operational policy choice, not a physical instruction bound.
+At builder phase 2 the copied bound is one; at phase 4 it is `cursor.length`.
+The checked quote is `builderControl + 2 * copiedBound`, as defined by
+`RuntimeWork`. An unrepresentable quote pays only `smallControl` before typed
+operational failure. Ordinary failed and pending attempts pay their selected fee.
+
+Admission work already present in `Ready.usage.work` remains the cumulative
+operational baseline. Heap ownership work in `delta.work`, consumed controller
+credits, this operational Usage and the separate provisional canonical-cost
+ledger are different quantities. The engine does not introduce a canonical-cost
+ledger or a new mathematical-reference bound.
+
+Sequence length, builder length, Store work-counter, engine counter, copy-quote
+and operation-ledger exhaustion are operational `addressSpaceExhausted` failures.
+For example, a compact shared concatenation DAG can have mathematical length
+`2^64` without materializing that many bytes; a later one-byte slice may be valid
+in the independent reference even though the handle runtime cannot represent an
+intermediate length. Such a candidate is not semantically excluded. Original
+Heap error details remain under `Failure.heap`.
 
 ## Capacity owners
 
@@ -90,10 +143,15 @@ Frame phases are fixed numeric tags in the authored source:
 | 24–25 | Compare left and right sequence bytes through resumable indexing |
 | 26 | Retire a completed continuation's accumulator ticket |
 
-Captures borrow the parent's immutable instruction record and install one item
-at a time. Prefix parameters are coordinate first, accumulator second when
-applicable. Scan invokes the observer from capture lane B before the updater from
-lane A, and runs the final updater. `RuntimeProgram.initialReleases` supplies the
+The engine forwards historical one-based local and backward-block distances
+unchanged to the shared readers. Slot, instruction, capture-array and release
+bucket positions remain zero-based table positions. Captures borrow the parent's
+immutable instruction record and install one item at a time. Prefix parameters are coordinate first, accumulator second when
+applicable. Canonical Scan operand 2 and capture lane A belong to the observer; operand 3
+and lane B belong to the updater. Internally target A remains the updater and
+target B the observer. The engine invokes the observer with the first lane, then
+the updater with the second lane, including the final update. Fold and Tabulate
+continue to use the first lane. `RuntimeProgram.initialReleases` supplies the
 unused-parameter bucket; `releasesAfter` uses the zero-based instruction index.
 Each released slot is erased with `RuntimeTable.beginErase`.
 
@@ -105,7 +163,7 @@ before their corresponding table mutations. Commit uses checked increments rathe
 than `Heap.wordAdd`'s fallback. A finished frame with `nextInstruction` equal to
 `instructionCount` enters return directly, including the UInt64 maximum boundary.
 Builder copy-cost arithmetic is also checked before effects; an invalid cost pays
-one control-work tick before typed failure. A refused frame entry leaves the
+the shared `smallControl` fee before typed operational failure. A refused frame entry leaves the
 parent at its retryable invocation phase; allocating the child control and entering the child are one successful
 transition.
 
