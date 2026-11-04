@@ -69,6 +69,12 @@ The three honesty levels (R2):
 | --- | --- | --- |
 | `UC-CTL-01` | `open` | Source-owned asynchronous product transitions preserve run, revision, ordered input and output ownership. |
 
+## product-execution
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-EXE-01` | `open` | Product operation binding moves the actual admitted runtime owner, decoded ticket and achieved effects without inventing successful evidence. |
+
 ## product-interfaces
 
 | ID | Level | Statement |
@@ -166,3 +172,4 @@ The three honesty levels (R2):
 | `UC-CTL-01` | `open` | `none` | `not_measured` | Source-owned asynchronous product transitions preserve run, revision, ordered input and output ownership. |
 | `UC-VIW-01` | `open` | `none` | `not_measured` | Source-owned presentation values govern labels, enabled actions, focus, accessibility and evidence claims. |
 | `UC-STG-01` | `open` | `none` | `not_measured` | Storage admission and achieved job-owned storage remain separate from logical arena memory and physical observations. |
+| `UC-EXE-01` | `open` | `none` | `not_measured` | Product operation binding moves the actual admitted runtime owner, decoded ticket and achieved effects without inventing successful evidence. |
