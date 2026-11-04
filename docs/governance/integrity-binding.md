@@ -4,7 +4,10 @@
 The authority is `Uorc.Integrity.Profile`, `OwnedHash`, `ArchiveBinding` and
 `BindingFixtures`; `CollisionEvidence` and `BindingControls` contain independent
 proof/validation evidence. This checkpoint is based on integration
-`d402e3d39d17ac614bdb4b6d98cc2ea3073edb91`, preserving its Core ownership sources.
+`d402e3d39d17ac614bdb4b6d98cc2ea3073edb91` for diagnostic ownership dependencies,
+then rebased onto `3c8fca4c13ce0f50bb1b3b99c977bce2fa04d37f`. Its Heap, RuntimeValue,
+RuntimeSequence and HeapAudit sources remain byte-identical; all integration Core
+files are preserved.
 
 `Profile.select(format, machine)` explicitly selects CHAIN-v1 for 2/1 and
 STREAM-MAX-v1 for 3/1. Other pairs reject. Archive hashing adds no extra purpose
