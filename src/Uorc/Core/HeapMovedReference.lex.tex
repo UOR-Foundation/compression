@@ -106,7 +106,7 @@ definition{
       | Uorc.Core.RuntimeValue::RuntimeValue.predicate unused0 => false
       | Uorc.Core.RuntimeValue::RuntimeValue.sequence unused0 => false
       | Uorc.Core.RuntimeValue::RuntimeValue.store b0 b1 => (if (prim equal a0 b0 : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle a1 b1) then true else false) else false))),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   executable: false
 }
 
@@ -271,7 +271,7 @@ definition{
       | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
       | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
       | Uorc.Core.Heap::Node.imageReservation b0 b1 => (if (prim equal (imageKindTag a0) (imageKindTag b0) : Bool) then (if (prim equal a1 b1 : Bool) then true else false) else false))),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   executable: false
 }
 
@@ -280,7 +280,7 @@ definition{
   parameters: [a : Uorc.Core.Heap::Entry, b : Uorc.Core.Heap::Entry],
   result: Bool,
   body: (if (sameNode (project a node) (project b node)) then (if (prim equal (project a incoming) (project b incoming) : Bool) then (if (prim equal (project a roots) (project b roots) : Bool) then (if (prim equal (project a weight) (project b weight) : Bool) then true else false) else false) else false) else false),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   executable: false
 }
 
@@ -301,7 +301,7 @@ definition{
       | Uorc.Core.Heap::Index.empty => false
       | Uorc.Core.Heap::Index.leaf e => false
       | Uorc.Core.Heap::Index.branch peerLeft peerRight => (if (sameIndex left peerLeft) then (if (sameIndex right peerRight) then true else false) else false))),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   executable: false,
   recursive_argument: a
 }
@@ -318,7 +318,7 @@ definition{
     | List.cons h tail => (match b
       | List.nil => false
       | List.cons peer peerTail => (if (Uorc.Core.RuntimeValue::sameHandle h peer) then (if (sameHandles tail peerTail) then true else false) else false))),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   executable: false,
   recursive_argument: a
 }
@@ -328,7 +328,7 @@ definition{
   parameters: [a : Uorc.Core.Heap::Arena, b : Uorc.Core.Heap::Arena],
   result: Bool,
   body: (if (sameIndex (project a index) (project b index)) then (if (prim equal (project a nextHandle) (project b nextHandle) : Bool) then (if (prim equal (project a exhausted) (project b exhausted) : Bool) then (if (prim equal (project a ownedBytes) (project b ownedBytes) : Bool) then (if (prim equal (project a liveEntries) (project b liveEntries) : Bool) then (if (prim equal (project a maxOwnedBytes) (project b maxOwnedBytes) : Bool) then (if (prim equal (project (project a cursor) pendingCount) (project (project b cursor) pendingCount) : Bool) then (if (prim equal (project (project a cursor) rootStep) (project (project b cursor) rootStep) : Bool) then (if (sameHandles (project (project a cursor) pending) (project (project b cursor) pending)) then true else false) else false) else false) else false) else false) else false) else false) else false) else false),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   executable: false
 }
 
@@ -337,7 +337,7 @@ definition{
   parameters: [a : Uorc.Core.Heap::Delta, b : Uorc.Core.Heap::Delta],
   result: Bool,
   body: (if (prim equal (project a allocatedBytes) (project b allocatedBytes) : Bool) then (if (prim equal (project a releasedBytes) (project b releasedBytes) : Bool) then (if (prim equal (project a allocatedEntries) (project b allocatedEntries) : Bool) then (if (prim equal (project a releasedEntries) (project b releasedEntries) : Bool) then (if (prim equal (project a retainedEdges) (project b retainedEdges) : Bool) then (if (prim equal (project a droppedEdges) (project b droppedEdges) : Bool) then (if (prim equal (project a retainedRoots) (project b retainedRoots) : Bool) then (if (prim equal (project a droppedRoots) (project b droppedRoots) : Bool) then (if (prim equal (project a work) (project b work) : Bool) then true else false) else false) else false) else false) else false) else false) else false) else false) else false),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   executable: false
 }
 
@@ -355,7 +355,7 @@ definition{
     | Result.ok allocation => (match b
       | Result.error peer => false
       | Result.ok expected => (if (sameArena (project allocation arena) (project expected arena)) then (if (Uorc.Core.RuntimeValue::sameHandle (project allocation handle) (project expected handle)) then (if (sameDelta (project allocation delta) (project expected delta)) then true else false) else false) else false))),
-  axioms: [Quot.sound, propext],
+  axioms: [],
   executable: false
 }
 \end{semanticmodule}
