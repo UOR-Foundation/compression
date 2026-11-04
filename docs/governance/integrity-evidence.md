@@ -66,8 +66,10 @@ work, custom-chain fixtures and chain partition invariance.
 
 Source dependency tracing found exactly `Quot.sound` and `propext` in fixed-width
 runtime instances. Each declaration records its observed exact dependency set;
-axiom audits remain exact. The ten small closed kernel observations concern
-wrapping arithmetic, maximum bit-length encoding and typed failure boundaries.
+axiom audits remain exact. The closed kernel observations cover wrapping arithmetic, maximum bit-length
+encoding, typed failure boundaries and every round-constant index (plus its first
+invalid index). A general kernel theorem equates the completed finalization exit
+with `digest` for every state and positive remaining fuel.
 Full-hash reflexivity exhausted the diagnostic executor, so full hash equality
 is supported by runtime fixtures and is not advertised as a universal theorem.
 
@@ -76,14 +78,55 @@ mutation receipts and runtime output are retained outside the repository in the
 local integrity evidence directory. The end-to-end harness also writes a receipt
 under `.prism/uorc/integrity.*`. The release locks have not been replaced.
 
+## Export refinement and native execution
+
+The original producer failed LLB6005 at the call of `Sha256.digest` from the
+recursive finalization driver. This matches upstream [LexLean #279](https://github.com/UOR-Foundation/LexLean/issues/279), fixed by [#300](https://github.com/UOR-Foundation/LexLean/pull/300). Its completed branch now directly emits the
+validated digest snapshot. `completed_finalize_refines_digest` proves the source
+refinement; there is no empty-copy workaround or changed digest behavior.
+
+The next producer failure was the depth-132 round-constant list subtree in the
+package manifest, matching upstream [LexLean #378](https://github.com/UOR-Foundation/LexLean/issues/378). A balanced scalar selector now supplies the execution closure.
+The original literal list remains the mathematical reference for all 64 values
+and the first invalid index. This reduces the lookup walk and removes that deep
+execution subtree without changing compiler limits or validation policy.
+
+The separate official language-1.2 diagnostic projection now builds its certified
+`rust-std` production bundle and passes `production verify-artifact`. An
+independent validation client compiles the exact generated library bytes and
+executes its shared SHA-256 implementation and exported chain root: all 129 CAVP
+cases, 2,919 partitions, seven chain fixtures, repeated finalization, typed errors
+and maximum-count rejection pass. `validation/integrity/evidence.json` binds the
+source, client, generated library, package and producer identities; its function
+numbers apply only to that exact artifact. The client contains no hash algorithm.
+
+The production projection adds executable/effect declarations only in a separate
+migrated copy. The repository language selection, release locks and compiler
+policy remain unchanged. These observations are diagnostic production evidence;
+they do not qualify a different immutable SDK or an integrated BinaryProgram.
+
+## Segment framing review
+
+`src/Uorc/Integrity/SegmentReview.lex.tex` owns the explicitly proposed candidate
+profiles, their exact formulas, domain-bound observations, reference vectors and
+conditional collision-binding argument. They are not wired into the archive or
+substituted for `UORC-SHA256-CHAIN-v1`.
+
+The preferred candidate is `UORC-SHA256-STREAM-MAX-v1`: first and continuation
+frames have distinct domain prefixes; full and terminal frames have explicit
+role/BE64-length suffixes. The frame size is bounded by SHA-256's own standard
+domain, with no accumulated whole-stream counter or retained segment payload.
+It avoids a separate seed hash. For a 1 MiB input its analytical compression-block
+count is 16,385, versus 32,770 for the current 64-byte chain. The source record also
+retains the earlier seeded MAX and 1 MiB alternatives rather than reusing their
+identities for a changed formula. Reference fixtures are not runtime acceptance
+or a security proof, and no universal collision freedom is claimed.
+
 ## Acceptance boundary
 
-The available saved official compiler and Lean 4.32.1 provide diagnostic source,
-kernel and generated-model execution evidence. A separate official language-1.2
-migration is diagnostic only. Its Rust export probe reached production lowering
-and failed LLB6005 because the fallible call of f24 did not propagate overflow.
-That is not production-path acceptance. Neither replaces execution inside the repository's
-immutable pinned SDK. Certified generated Rust/BinaryProgram execution and full
-pinned-SDK `just vv` remain required production acceptance stages. Issue #43
-remains open until its product runtime-path criterion is satisfied; there is no
-issue-closing claim from diagnostic Lean execution alone.
+The saved official compiler and Lean 4.32.1 provide source, kernel, generated-model
+execution, diagnostic certified production export/replay and native execution
+evidence. Complete acceptance still uses the immutable SDK in `prismpm.lock`.
+Full pinned-SDK `just vv` and integrated BinaryProgram product acceptance remain
+outstanding. Issue #43 remains open; this branch does not close it or claim the
+complete compression product is release-qualified.
