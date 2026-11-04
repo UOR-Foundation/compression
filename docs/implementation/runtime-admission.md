@@ -65,7 +65,11 @@ Resource rejection can commit only a prefix of these charges. These are logical
 source costs, not claims about CPU instructions, allocator traffic, or RSS.
 
 `PlanningTests.run` invokes actual step traces and rejects a planted zero-bound
-mutation. A separate diagnostic AST run covered 24 source graphs / 446 steps,
+mutation. These mathematical StepMachine controls and the independent
+Graph comparison controls in RuntimeReferenceTests are diagnostic-only
+definitions, not production-executable roots. Their source bodies remain intact
+for an actual generated Lean/VM test owner to invoke; marking that eligibility
+correctly does not qualify or replace the required runtime controls. A separate diagnostic AST run covered 24 source graphs / 446 steps,
 including 22 successful and 2 failed executions; every observed actual work
 prefix was within the proposed bound. This is finite evidence, not a checked
 general bound theorem or SDK qualification. The general bound obligation remains
