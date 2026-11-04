@@ -12,4 +12,4 @@ const roots=['Heap.allocate','Heap.releaseStep','HeapTests.suite',
   'RuntimeStore.step','RuntimeStore.cancel',
   'RuntimeByteBuilder.begin','RuntimeByteBuilder.beginAppendOwned',
   'RuntimeByteBuilder.beginFinishOwned','RuntimeByteBuilder.cancel','RuntimeByteBuilder.step'];
-console.log(JSON.stringify({spec:'lexlean/production-request/1', roots:roots.map(root=>({root:'Uorc.Uorc.Core.'+root, package:{name:'uorc_'+root.replace('.','_').toLowerCase(), version:'0.1.0'},targets:[{id:'rust-std',digest:target[0].digest}]}))}));
+console.log(JSON.stringify({spec:'lexlean/production-request/1', roots:roots.sort().map(root=>({root:'Uorc.Uorc.Core.'+root, package:{name:'uorc_'+root.replace('.','_').toLowerCase(), version:'0.1.0'},targets:[{id:'rust-std',digest:target[0].digest}]}))}));
