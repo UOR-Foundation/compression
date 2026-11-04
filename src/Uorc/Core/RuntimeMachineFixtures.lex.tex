@@ -1,0 +1,427 @@
+\begin{lexlean}{Uorc.Core.RuntimeMachineFixtures}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Core.RuntimeRecordBuilder}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.RuntimeMachineTests}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: record, fields: [Uorc.Core.RuntimeRecordBuilder::Error]},
+    {name: exhausted, fields: []}
+  ]
+}
+
+structure{
+  name: FieldSpec,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: key, type: UInt64}, {name: field, type: Uorc.Core.RuntimeMetadata::Field}]
+}
+
+structure{
+  name: Instruction,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: opcode, type: Uorc.Core.RuntimeOpcode::Opcode},
+    {name: operand0, type: UInt64},
+    {name: operand1, type: UInt64},
+    {name: operand2, type: UInt64},
+    {name: operand3, type: UInt64},
+    {name: capturesA, type: (List UInt64)},
+    {name: capturesB, type: (List UInt64)},
+    {name: literal, type: Bytes}
+  ]
+}
+
+structure{
+  name: Block,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: parameters, type: (List Uorc.Core.RuntimeValue::RuntimeType)},
+    {name: resultType, type: Uorc.Core.RuntimeValue::RuntimeType},
+    {name: instructions, type: (List Instruction)},
+    {name: returnDistance, type: UInt64},
+    {name: initialRelease, type: (List UInt64)},
+    {name: releaseAfter, type: (List (List UInt64))}
+  ]
+}
+
+definition{
+  name: finishRecord,
+  parameters: [
+    fuel : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Uorc.Core.RuntimeRecordBuilder::Cursor
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.exhausted))
+    | Nat.succ rest => (match (Uorc.Core.RuntimeRecordBuilder::step arena cursor)
+      | Uorc.Core.RuntimeRecordBuilder::Event.advanced next nextCursor delta => (finishRecord rest next nextCursor)
+      | Uorc.Core.RuntimeRecordBuilder::Event.done next root delta => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := next, handle := root, delta := delta}))
+      | Uorc.Core.RuntimeRecordBuilder::Event.failed failure next failedCursor => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.record failure)))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: fuel
+}
+
+definition{
+  name: writeField,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64,
+    field : Uorc.Core.RuntimeMetadata::Field
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match (Uorc.Core.RuntimeRecordBuilder::start root kind key field)
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.record failure))
+    | Result.ok cursor => (finishRecord 30000 arena cursor)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: fields,
+  parameters: [
+    specs : (List FieldSpec),
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match specs
+    | List.nil => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := arena, handle := root, delta := (Uorc.Core.RuntimeMetadata::zeroDelta)}))
+    | List.cons field rest => (match (writeField arena root kind (project field key) (project field field))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok written => (fields rest (project written arena) (project written handle) kind))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: specs
+}
+
+definition{
+  name: drop,
+  parameters: [arena : Uorc.Core.Heap::Arena, root : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Uorc.Core.Heap::Arena Error),
+  body: (match (Uorc.Core.RuntimeMachineTests::drop arena root)
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.heap failure))
+    | Result.ok next => (ctor Result.ok [Uorc.Core.Heap::Arena, Error] next)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: dropAll,
+  parameters: [roots : (List Uorc.Core.RuntimeValue::Handle), arena : Uorc.Core.Heap::Arena],
+  result: (Result Uorc.Core.Heap::Arena Error),
+  body: (match roots
+    | List.nil => (ctor Result.ok [Uorc.Core.Heap::Arena, Error] arena)
+    | List.cons root rest => (match (drop arena root)
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Arena, Error] failure)
+      | Result.ok next => (dropAll rest next))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: roots
+}
+
+definition{
+  name: put,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    key : UInt64,
+    leaf : Uorc.Core.RuntimeTable::PutLeaf
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match (Uorc.Core.RuntimeMachineTests::putFixture arena table key leaf)
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.heap failure))
+    | Result.ok written => (match (drop (project written arena) (project table root))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok next => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := next, handle := (project written handle), delta := (project written delta)})))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: natCount,
+  parameters: [values : (List UInt64)],
+  result: UInt64,
+  body: (match values
+    | List.nil => (0 : UInt64)
+    | List.cons head rest => (Uorc.Core.Heap::wordAdd (1 : UInt64) (natCount rest))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: instructionCount,
+  parameters: [values : (List Instruction)],
+  result: UInt64,
+  body: (match values
+    | List.nil => (0 : UInt64)
+    | List.cons head rest => (Uorc.Core.Heap::wordAdd (1 : UInt64) (instructionCount rest))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: typeCount,
+  parameters: [values : (List Uorc.Core.RuntimeValue::RuntimeType)],
+  result: UInt64,
+  body: (match values
+    | List.nil => (0 : UInt64)
+    | List.cons head rest => (Uorc.Core.Heap::wordAdd (1 : UInt64) (typeCount rest))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: references,
+  parameters: [
+    values : (List UInt64),
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    index : UInt64,
+    role : Uorc.Core.RuntimeValue::RootRole
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match values
+    | List.nil => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := arena, handle := (project table root), delta := (Uorc.Core.RuntimeMetadata::zeroDelta)}))
+    | List.cons value rest => (match (put arena table index (ctor Uorc.Core.RuntimeTable::PutLeaf.slot role (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural value)))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok written => (references rest (project written arena) (record Uorc.Core.RuntimeTable::Table {kind := (project table kind), root := (project written handle)}) (Uorc.Core.Heap::wordAdd index (1 : UInt64)) role))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: types,
+  parameters: [
+    values : (List Uorc.Core.RuntimeValue::RuntimeType),
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    index : UInt64
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match values
+    | List.nil => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := arena, handle := (project table root), delta := (Uorc.Core.RuntimeMetadata::zeroDelta)}))
+    | List.cons value rest => (match (prim checked_convert (Uorc.Core.RuntimeProgram::typeCode value) : (Option UInt8))
+      | Option.none => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.exhausted))
+      | Option.some byte => (match (put arena table index (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.typeCache) (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte byte)))
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+        | Result.ok written => (types rest (project written arena) (record Uorc.Core.RuntimeTable::Table {kind := (project table kind), root := (project written handle)}) (Uorc.Core.Heap::wordAdd index (1 : UInt64)))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: sequence,
+  parameters: [arena : Uorc.Core.Heap::Arena, bytes : Bytes],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (if (prim equal (prim length bytes : Nat) 0 : Bool) then (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := arena, handle := (Uorc.Core.RuntimeValue::nullHandle), delta := (Uorc.Core.RuntimeMetadata::zeroDelta)})) else (match (Uorc.Core.Heap::wordOfNat (prim length bytes : Nat))
+    | Option.none => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.exhausted))
+    | Option.some count => (match (Uorc.Core.Heap::allocate arena (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.runtime) bytes))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.heap failure))
+      | Result.ok image => (match (Uorc.Core.Heap::allocate (project image arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project image handle) (0 : UInt64) count))
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.heap failure))
+        | Result.ok leaf => (match (drop (project leaf arena) (project image handle))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+          | Result.ok next => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := next, handle := (project leaf handle), delta := (project leaf delta)}))))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: makeInstruction,
+  parameters: [arena : Uorc.Core.Heap::Arena, instruction : Instruction],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match (references (project instruction capturesA) arena (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.checkedGraph))) (0 : UInt64) (ctor Uorc.Core.RuntimeValue::RootRole.checkedGraph))
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+    | Result.ok a => (match (references (project instruction capturesB) (project a arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.checkedGraph))) (0 : UInt64) (ctor Uorc.Core.RuntimeValue::RootRole.checkedGraph))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok b => (match (sequence (project b arena) (project instruction literal))
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+        | Result.ok literal => (match (fields (cons (record FieldSpec {key := (0 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (Uorc.Core.RuntimeOpcode::code (project instruction opcode)))}) (cons (record FieldSpec {key := (1 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (project instruction operand0))}) (cons (record FieldSpec {key := (2 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (project instruction operand1))}) (cons (record FieldSpec {key := (3 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (project instruction operand2))}) (cons (record FieldSpec {key := (4 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (project instruction operand3))}) (cons (record FieldSpec {key := (5 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (natCount (project instruction capturesA)))}) (cons (record FieldSpec {key := (6 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (natCount (project instruction capturesB)))}) (cons (record FieldSpec {key := (8 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.link (project a handle))}) (cons (record FieldSpec {key := (9 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.link (project b handle))}) (cons (record FieldSpec {key := (10 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.link (project literal handle))}) (nil FieldSpec))))))))))) (project literal arena) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.instructionRecord)))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+          | Result.ok built => (match (dropAll (cons (project a handle) (cons (project b handle) (cons (project literal handle) (nil Uorc.Core.RuntimeValue::Handle)))) (project built arena))
+            | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+            | Result.ok next => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := next, handle := (project built handle), delta := (project built delta)}))))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: instructions,
+  parameters: [
+    values : (List Instruction),
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    index : UInt64
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match values
+    | List.nil => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := arena, handle := (project table root), delta := (Uorc.Core.RuntimeMetadata::zeroDelta)}))
+    | List.cons value rest => (match (makeInstruction arena value)
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok child => (match (put (project child arena) table index (ctor Uorc.Core.RuntimeTable::PutLeaf.metadata (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.instructionIndex)) index (project child handle)))
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+        | Result.ok written => (match (drop (project written arena) (project child handle))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+          | Result.ok next => (instructions rest next (record Uorc.Core.RuntimeTable::Table {kind := (project table kind), root := (project written handle)}) (Uorc.Core.Heap::wordAdd index (1 : UInt64))))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: bucket,
+  parameters: [arena : Uorc.Core.Heap::Arena, values : (List UInt64)],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match values
+    | List.nil => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := arena, handle := (Uorc.Core.RuntimeValue::nullHandle), delta := (Uorc.Core.RuntimeMetadata::zeroDelta)}))
+    | List.cons head rest => (match (references values arena (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (0 : UInt64) (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok refs => (match (fields (cons (record FieldSpec {key := (0 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (natCount values))}) (cons (record FieldSpec {key := (1 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.link (project refs handle))}) (nil FieldSpec))) (project refs arena) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.releaseBucket)))
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+        | Result.ok built => (match (dropAll (cons (project refs handle) (nil Uorc.Core.RuntimeValue::Handle)) (project built arena))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+          | Result.ok next => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := next, handle := (project built handle), delta := (project built delta)})))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: lifetimes,
+  parameters: [
+    values : (List (List UInt64)),
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    index : UInt64
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match values
+    | List.nil => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := arena, handle := (project table root), delta := (Uorc.Core.RuntimeMetadata::zeroDelta)}))
+    | List.cons value rest => (match (bucket arena value)
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok child => (match (put (project child arena) table index (ctor Uorc.Core.RuntimeTable::PutLeaf.metadata (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.lifetimeIndex)) index (project child handle)))
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+        | Result.ok written => (match (drop (project written arena) (project child handle))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+          | Result.ok next => (lifetimes rest next (record Uorc.Core.RuntimeTable::Table {kind := (project table kind), root := (project written handle)}) (Uorc.Core.Heap::wordAdd index (1 : UInt64))))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: makeBlock,
+  parameters: [arena : Uorc.Core.Heap::Arena, block : Block],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match (types (project block parameters) arena (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache))) (0 : UInt64))
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+    | Result.ok params => (match (instructions (project block instructions) (project params arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.instructionIndex)))) (0 : UInt64))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok body => (match (lifetimes (project block releaseAfter) (project body arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.lifetimeIndex)))) (0 : UInt64))
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+        | Result.ok life => (match (bucket (project life arena) (project block initialRelease))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+          | Result.ok initial => (match (fields (cons (record FieldSpec {key := (0 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (typeCount (project block parameters)))}) (cons (record FieldSpec {key := (1 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (Uorc.Core.RuntimeProgram::typeCode (project block resultType)))}) (cons (record FieldSpec {key := (2 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (instructionCount (project block instructions)))}) (cons (record FieldSpec {key := (3 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.word (project block returnDistance))}) (cons (record FieldSpec {key := (4 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.link (project params handle))}) (cons (record FieldSpec {key := (5 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.link (project body handle))}) (cons (record FieldSpec {key := (6 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.link (project life handle))}) (cons (record FieldSpec {key := (7 : UInt64), field := (ctor Uorc.Core.RuntimeMetadata::Field.link (project initial handle))}) (nil FieldSpec))))))))) (project initial arena) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockRecord)))
+            | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+            | Result.ok built => (match (dropAll (cons (project params handle) (cons (project body handle) (cons (project life handle) (cons (project initial handle) (nil Uorc.Core.RuntimeValue::Handle))))) (project built arena))
+              | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+              | Result.ok next => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := next, handle := (project built handle), delta := (project built delta)})))))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: makeBlocks,
+  parameters: [
+    values : (List Block),
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    index : UInt64
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match values
+    | List.nil => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := arena, handle := (project table root), delta := (Uorc.Core.RuntimeMetadata::zeroDelta)}))
+    | List.cons value rest => (match (makeBlock arena value)
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok child => (match (put (project child arena) table index (ctor Uorc.Core.RuntimeTable::PutLeaf.metadata (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockIndex)) index (project child handle)))
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+        | Result.ok written => (match (drop (project written arena) (project child handle))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+          | Result.ok next => (makeBlocks rest next (record Uorc.Core.RuntimeTable::Table {kind := (project table kind), root := (project written handle)}) (Uorc.Core.Heap::wordAdd index (1 : UInt64))))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: blockCount,
+  parameters: [values : (List Block)],
+  result: UInt64,
+  body: (match values
+    | List.nil => (0 : UInt64)
+    | List.cons head rest => (Uorc.Core.Heap::wordAdd (1 : UInt64) (blockCount rest))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: makeBasis,
+  parameters: [
+    values : (List Bytes),
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    index : UInt64
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match values
+    | List.nil => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := arena, handle := (project table root), delta := (Uorc.Core.RuntimeMetadata::zeroDelta)}))
+    | List.cons value rest => (match (sequence arena value)
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+      | Result.ok child => (match (put (project child arena) table index (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.basis) (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence (project child handle))))
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+        | Result.ok written => (match (drop (project written arena) (project child handle))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] failure)
+          | Result.ok next => (makeBasis rest next (record Uorc.Core.RuntimeTable::Table {kind := (project table kind), root := (project written handle)}) (Uorc.Core.Heap::wordAdd index (1 : UInt64))))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: values
+}
+
+definition{
+  name: ready,
+  parameters: [values : (List Block), entry : UInt64, basisValues : (List Bytes)],
+  result: (Result Uorc.Core.RuntimeProgram::Ready Error),
+  body: (match (makeBlocks values (Uorc.Core.Heap::emptyArena (1000000000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockIndex)))) (0 : UInt64))
+    | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Error] failure)
+    | Result.ok blocks => (match (makeBasis basisValues (project blocks arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (0 : UInt64))
+      | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Error] failure)
+      | Result.ok basis => (ctor Result.ok [Uorc.Core.RuntimeProgram::Ready, Error] (record Uorc.Core.RuntimeProgram::Ready {arena := (project basis arena), program := (record Uorc.Core.RuntimeProgram::Program {blocks := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockIndex))), root := (project blocks handle)}), basis := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis)), root := (project basis handle)}), entry := entry, blockCount := (blockCount values)}), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}), usage := (record Uorc.Core.RuntimeResources::Usage {work := (0 : UInt64), ownedBytes := (project (project basis arena) ownedBytes), peakOwnedBytes := (project (project basis arena) ownedBytes), outputBytes := (0 : UInt64), frames := (0 : UInt64)})})))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

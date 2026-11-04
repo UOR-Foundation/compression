@@ -1,0 +1,558 @@
+\begin{lexlean}{Uorc.Wire.FrameEmitScenarios}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Wire.Output}
+\importmodule{Uorc.Wire.FrameEmit}
+\importmodule{Uorc.Wire.FrameEventContract}
+\importmodule{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Wire.ProgramEmitScenarios}
+\importmodule{Uorc.Wire.ProgramParseScenarios}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: builder, fields: []},
+    {name: fuel, fields: []},
+    {name: wire, fields: []},
+    {name: ownership, fields: []},
+    {name: mismatch, fields: []},
+    {name: pause, fields: []},
+    {name: protocol, fields: []}
+  ]
+}
+
+structure{
+  name: Lengths,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: lengths, type: Uorc.Wire.FrameEventContract::OwnedLengths}
+  ]
+}
+
+structure{
+  name: Fixture,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: request, type: Uorc.Wire.FrameEmit::Request},
+    {name: frameRoot, type: Uorc.Core.RuntimeValue::Handle}
+  ]
+}
+
+structure{
+  name: Done,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: session, type: Uorc.Wire.FrameEmit::Session}, {name: offset, type: Nat}]
+}
+
+definition{
+  name: binding,
+  parameters: [],
+  result: Uorc.Wire.FrameEmit::Binding,
+  body: (record Uorc.Wire.FrameEmit::Binding {magic0 := (85 : UInt8), magic1 := (79 : UInt8), magic2 := (82 : UInt8), magic3 := (67 : UInt8), format := (Uorc.Wire.FrameEventContract::diagnosticFormat), profile := (Uorc.Wire.FrameEventContract::machineProfile), basisBytes := (32 : UInt64)}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lengths,
+  parameters: [
+    values : (List UInt64),
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    index : UInt64,
+    sum : UInt64
+  ],
+  result: (Result Lengths Error),
+  body: (match values
+    | List.nil => (ctor Result.ok [Lengths, Error] (record Lengths {arena := arena, lengths := (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Wire.FrameEventContract::lengthsMetadataKind)), root := root}), count := index, totalOutputBytes := sum})}))
+    | List.cons headLocal1 tailLocal2 => (match (Uorc.Wire.ProgramEmitScenarios::records (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (0 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.word headLocal1)}) (nil Uorc.Wire.ProgramEmitScenarios::Item)) arena (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Wire.FrameEventContract::lengthsMetadataKind))
+      | Result.error errLocal3 => (ctor Result.error [Lengths, Error] (ctor Error.builder))
+      | Result.ok recordLocal4 => (match (Uorc.Core.RuntimeTable::put (project recordLocal4 arena) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Wire.FrameEventContract::lengthsMetadataKind)), root := root}) index (ctor Uorc.Core.Heap::Node.metadataLink (Uorc.Wire.FrameEventContract::lengthsMetadataKind) index (project recordLocal4 root)))
+        | Result.error eLocal5 => (ctor Result.error [Lengths, Error] (ctor Error.builder))
+        | Result.ok allocationLocal6 => (match (Uorc.Wire.ProgramEmitScenarios::drop (project allocationLocal6 arena) (project recordLocal4 root))
+          | Result.error errLocal7 => (ctor Result.error [Lengths, Error] (ctor Error.builder))
+          | Result.ok withoutRecordLocal8 => (match (Uorc.Wire.ProgramEmitScenarios::drop withoutRecordLocal8 root)
+            | Result.error errLocal9 => (ctor Result.error [Lengths, Error] (ctor Error.builder))
+            | Result.ok withoutOldLocal10 => (lengths tailLocal2 withoutOldLocal10 (project allocationLocal6 handle) (Uorc.Core.Heap::wordAdd index (1 : UInt64)) (Uorc.Core.Heap::wordAdd sum headLocal1))))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: values
+}
+
+definition{
+  name: request,
+  parameters: [
+    record : Uorc.Core.RuntimeValue::Handle,
+    ownedLengths : Uorc.Wire.FrameEventContract::OwnedLengths,
+    body : Uorc.Wire.FrameEmit::Body
+  ],
+  result: Uorc.Wire.FrameEmit::Request,
+  body: (record Uorc.Wire.FrameEmit::Request {record := var{
+    name: record
+  }, binding := (binding), lengths := ownedLengths, scope := (ctor Uorc.Wire.FrameEmit::Scope.selfContained), body := body}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: rawFixture,
+  parameters: [values : (List UInt64), bytes : Bytes],
+  result: (Result Fixture Error),
+  body: (let arenaLocal11 : Uorc.Core.Heap::Arena := (Uorc.Core.Heap::emptyArena (1000000 : UInt64)); (if (prim equal (prim length bytes : Nat) 0 : Bool) then (let rawRootLocal12 : Uorc.Core.RuntimeValue::Handle := (Uorc.Core.RuntimeValue::nullHandle); (let rawArenaLocal13 : Uorc.Core.Heap::Arena := arenaLocal11; (match (lengths values rawArenaLocal13 (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (0 : UInt64))
+    | Result.error errLocal14 => (ctor Result.error [Fixture, Error] errLocal14)
+    | Result.ok ownedLocal15 => (match (Uorc.Wire.ProgramEmitScenarios::records (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (0 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link (project (project (project ownedLocal15 lengths) table) root))}) (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (1 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link rawRootLocal12)}) (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (2 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link (Uorc.Core.RuntimeValue::nullHandle))}) (nil Uorc.Wire.ProgramEmitScenarios::Item)))) (project ownedLocal15 arena) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Wire.FrameEmit::frameMetadataKind))
+      | Result.error errLocal16 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+      | Result.ok frameLocal17 => (match (Uorc.Wire.ProgramEmitScenarios::drop (project frameLocal17 arena) rawRootLocal12)
+        | Result.error errLocal18 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+        | Result.ok withoutBodyLocal19 => (match (Uorc.Wire.ProgramEmitScenarios::drop withoutBodyLocal19 (project (project (project ownedLocal15 lengths) table) root))
+          | Result.error errLocal20 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+          | Result.ok lastArenaLocal21 => (ctor Result.ok [Fixture, Error] (record Fixture {arena := lastArenaLocal21, request := (request (project frameLocal17 root) (project ownedLocal15 lengths) (ctor Uorc.Wire.FrameEmit::Body.raw rawRootLocal12)), frameRoot := (project frameLocal17 root)})))))))) else (match (Uorc.Core.Heap::allocate arenaLocal11 (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.archive) bytes))
+    | Result.error eLocal22 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+    | Result.ok imageLocal23 => (match (Uorc.Core.Heap::allocate (project imageLocal23 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal23 handle) (0 : UInt64) (match (Uorc.Core.Heap::wordOfNat (prim length bytes : Nat))
+        | Option.none => (0 : UInt64)
+        | Option.some nLocal24 => nLocal24)))
+      | Result.error eLocal25 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+      | Result.ok leafLocal26 => (match (Uorc.Wire.ProgramEmitScenarios::drop (project leafLocal26 arena) (project imageLocal23 handle))
+        | Result.error errLocal27 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+        | Result.ok rawArenaLocal28 => (let rawRootLocal29 : Uorc.Core.RuntimeValue::Handle := (project leafLocal26 handle); (match (lengths values rawArenaLocal28 (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (0 : UInt64))
+          | Result.error errLocal30 => (ctor Result.error [Fixture, Error] errLocal30)
+          | Result.ok ownedLocal31 => (match (Uorc.Wire.ProgramEmitScenarios::records (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (0 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link (project (project (project ownedLocal31 lengths) table) root))}) (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (1 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link rawRootLocal29)}) (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (2 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link (Uorc.Core.RuntimeValue::nullHandle))}) (nil Uorc.Wire.ProgramEmitScenarios::Item)))) (project ownedLocal31 arena) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Wire.FrameEmit::frameMetadataKind))
+            | Result.error errLocal32 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+            | Result.ok frameLocal33 => (match (Uorc.Wire.ProgramEmitScenarios::drop (project frameLocal33 arena) rawRootLocal29)
+              | Result.error errLocal34 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+              | Result.ok withoutBodyLocal35 => (match (Uorc.Wire.ProgramEmitScenarios::drop withoutBodyLocal35 (project (project (project ownedLocal31 lengths) table) root))
+                | Result.error errLocal36 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+                | Result.ok lastArenaLocal37 => (ctor Result.ok [Fixture, Error] (record Fixture {arena := lastArenaLocal37, request := (request (project frameLocal33 root) (project ownedLocal31 lengths) (ctor Uorc.Wire.FrameEmit::Body.raw rawRootLocal29)), frameRoot := (project frameLocal33 root)})))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: programFixture,
+  parameters: [seed : Uorc.Wire.ProgramEmitScenarios::Seed, values : (List UInt64)],
+  result: (Result Fixture Error),
+  body: (match (Uorc.Wire.ProgramEmitScenarios::build seed)
+    | Result.error errLocal38 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+    | Result.ok builtLocal39 => (let programLocal40 : Uorc.Core.RuntimeProgram::Program := (project builtLocal39 program); (match (lengths values (project builtLocal39 arena) (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (0 : UInt64))
+      | Result.error errLocal41 => (ctor Result.error [Fixture, Error] errLocal41)
+      | Result.ok ownedLocal42 => (match (Uorc.Wire.ProgramEmitScenarios::records (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (0 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link (project (project (project ownedLocal42 lengths) table) root))}) (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (1 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link (project (project programLocal40 blocks) root))}) (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (2 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link (Uorc.Core.RuntimeValue::nullHandle))}) (nil Uorc.Wire.ProgramEmitScenarios::Item)))) (project ownedLocal42 arena) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Wire.FrameEmit::frameMetadataKind))
+        | Result.error errLocal43 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+        | Result.ok frameLocal44 => (match (Uorc.Wire.ProgramEmitScenarios::drop (project frameLocal44 arena) (project (project programLocal40 blocks) root))
+          | Result.error errLocal45 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+          | Result.ok withoutBodyLocal46 => (match (Uorc.Wire.ProgramEmitScenarios::drop withoutBodyLocal46 (project (project (project ownedLocal42 lengths) table) root))
+            | Result.error errLocal47 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+            | Result.ok lastArenaLocal48 => (ctor Result.ok [Fixture, Error] (record Fixture {arena := lastArenaLocal48, request := (request (project frameLocal44 root) (project ownedLocal42 lengths) (ctor Uorc.Wire.FrameEmit::Body.program programLocal40)), frameRoot := (project frameLocal44 root)})))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: conditionalFixture,
+  parameters: [fixture : Fixture, identity : Bytes],
+  result: (Result Fixture Error),
+  body: (match (Uorc.Core.Heap::allocate (project fixture arena) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.basis) identity))
+    | Result.error eLocal49 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+    | Result.ok allocationLocal50 => (let imageLocal51 : Uorc.Core.RuntimeValue::Handle := (project allocationLocal50 handle); (match (Uorc.Wire.ProgramEmitScenarios::records (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (0 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link (project (project (project (project fixture request) lengths) table) root))}) (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (1 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link (match (project (project fixture request) body)
+        | Uorc.Wire.FrameEmit::Body.raw rootLocal52 => rootLocal52
+        | Uorc.Wire.FrameEmit::Body.program programLocal53 => (project (project programLocal53 blocks) root)))}) (cons (record Uorc.Wire.ProgramEmitScenarios::Item {key := (2 : UInt64), value := (ctor Uorc.Core.RuntimeMetadata::Field.link imageLocal51)}) (nil Uorc.Wire.ProgramEmitScenarios::Item)))) (project allocationLocal50 arena) (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Wire.FrameEmit::frameMetadataKind))
+      | Result.error errLocal54 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+      | Result.ok recordLocal55 => (match (Uorc.Wire.ProgramEmitScenarios::drop (project recordLocal55 arena) (project fixture frameRoot))
+        | Result.error errLocal56 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+        | Result.ok withoutOldLocal57 => (match (Uorc.Wire.ProgramEmitScenarios::drop withoutOldLocal57 imageLocal51)
+          | Result.error errLocal58 => (ctor Result.error [Fixture, Error] (ctor Error.builder))
+          | Result.ok lastArenaLocal59 => (ctor Result.ok [Fixture, Error] (record Fixture {arena := lastArenaLocal59, request := (record Uorc.Wire.FrameEmit::Request {record := (project recordLocal55 root), binding := (project (project fixture request) binding), lengths := (project (project fixture request) lengths), scope := (ctor Uorc.Wire.FrameEmit::Scope.conditional (record Uorc.Wire.FrameEmit::Span {image := imageLocal51, offset := (0 : UInt64), length := (match (Uorc.Core.Heap::wordOfNat (prim length identity : Nat))
+            | Option.none => (0 : UInt64)
+            | Option.some nLocal60 => nLocal60)})), body := (project (project fixture request) body)}), frameRoot := (project recordLocal55 root)}))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: clean,
+  parameters: [fuel : Nat, session : Uorc.Wire.FrameEmit::Session],
+  result: (Result Uorc.Wire.FrameEmit::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.FrameEmit::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal61 => (let tLocal62 : Uorc.Wire.FrameEmit::Transition := (Uorc.Wire.FrameEmit::cleanup (Uorc.Wire.ProgramEmitScenarios::budget) session); (match (project tLocal62 signal)
+      | Uorc.Wire.FrameEmit::Signal.clean => (ctor Result.ok [Uorc.Wire.FrameEmit::Session, Error] (project tLocal62 session))
+      | Uorc.Wire.FrameEmit::Signal.advanced => (clean restLocal61 (project tLocal62 session))
+      | Uorc.Wire.FrameEmit::Signal.pending => (clean restLocal61 (project tLocal62 session))
+      | Uorc.Wire.FrameEmit::Signal.complete => (clean restLocal61 (project tLocal62 session))
+      | Uorc.Wire.FrameEmit::Signal.failed => (clean restLocal61 (project tLocal62 session))
+      | Uorc.Wire.FrameEmit::Signal.paused uLocal63 => (clean restLocal61 (project tLocal62 session))
+      | Uorc.Wire.FrameEmit::Signal.transferred uLocal64 => (clean restLocal61 (project tLocal62 session))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: drive,
+  parameters: [
+    fuel : Nat,
+    session : Uorc.Wire.FrameEmit::Session,
+    expected : Bytes,
+    position : Nat
+  ],
+  result: (Result Done Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Done, Error] (ctor Error.fuel))
+    | Nat.succ restLocal65 => (match (Uorc.Wire.FrameEmit::pendingEvent (project session state))
+      | Option.none => (let tLocal66 : Uorc.Wire.FrameEmit::Transition := (Uorc.Wire.FrameEmit::advance (Uorc.Wire.ProgramEmitScenarios::budget) session); (match (project tLocal66 signal)
+        | Uorc.Wire.FrameEmit::Signal.failed => (ctor Result.error [Done, Error] (ctor Error.wire))
+        | Uorc.Wire.FrameEmit::Signal.complete => (ctor Result.ok [Done, Error] (record Done {session := (project tLocal66 session), offset := position}))
+        | Uorc.Wire.FrameEmit::Signal.advanced => (drive restLocal65 (project tLocal66 session) expected position)
+        | Uorc.Wire.FrameEmit::Signal.pending => (drive restLocal65 (project tLocal66 session) expected position)
+        | Uorc.Wire.FrameEmit::Signal.clean => (drive restLocal65 (project tLocal66 session) expected position)
+        | Uorc.Wire.FrameEmit::Signal.paused uLocal67 => (drive restLocal65 (project tLocal66 session) expected position)
+        | Uorc.Wire.FrameEmit::Signal.transferred uLocal68 => (drive restLocal65 (project tLocal66 session) expected position)))
+      | Option.some eventLocal69 => (match eventLocal69
+        | Uorc.Wire.Output::Event.byte byteLocal70 => (match (prim index expected position : (Option UInt8))
+          | Option.none => (ctor Result.error [Done, Error] (ctor Error.mismatch))
+          | Option.some wantedLocal71 => (if (prim equal byteLocal70 wantedLocal71 : Bool) then (drive restLocal65 (project (Uorc.Wire.FrameEmit::acknowledge (Uorc.Wire.ProgramEmitScenarios::budget) session (ctor Uorc.Wire.Output::Ack.consumed)) session) expected (position + 1)) else (ctor Result.error [Done, Error] (ctor Error.mismatch))))
+        | Uorc.Wire.Output::Event.borrowedSpan imageLocal72 offsetLocal73 lengthLocal74 => (match (Uorc.Wire.ProgramEmitScenarios::consumeSpan (prim to_nat lengthLocal74 : Nat) (project session arena) imageLocal72 (prim to_nat offsetLocal73 : Nat) expected position)
+          | Result.error errLocal75 => (ctor Result.error [Done, Error] (ctor Error.builder))
+          | Result.ok nextLocal76 => (drive restLocal65 (project (Uorc.Wire.FrameEmit::acknowledge (Uorc.Wire.ProgramEmitScenarios::budget) session (ctor Uorc.Wire.Output::Ack.consumed)) session) expected nextLocal76))
+        | Uorc.Wire.Output::Event.end => (if (prim equal position (prim length expected : Nat) : Bool) then (drive restLocal65 (project (Uorc.Wire.FrameEmit::acknowledge (Uorc.Wire.ProgramEmitScenarios::budget) session (ctor Uorc.Wire.Output::Ack.consumed)) session) expected position) else (ctor Result.error [Done, Error] (ctor Error.mismatch)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: check,
+  parameters: [fixture : Fixture, expected : Bytes],
+  result: (Result Unit Error),
+  body: (let requestLocal77 : Uorc.Wire.FrameEmit::Request := (project fixture request); (let frameRootLocal78 : Uorc.Core.RuntimeValue::Handle := (project fixture frameRoot); (let baselineLocal79 : UInt64 := (project (project fixture arena) ownedBytes); (match (drive 5000 (Uorc.Wire.FrameEmit::begin (project fixture arena) (Uorc.Core.RuntimeResources::zeroUsage) requestLocal77 (ctor Uorc.Wire.Output::Mode.measure)) expected 0)
+    | Result.error errLocal80 => (ctor Result.error [Unit, Error] errLocal80)
+    | Result.ok measurementLocal81 => (let measuredLengthLocal82 : UInt64 := (project (project (project measurementLocal81 session) state) wireBytes); (match (clean 2000 (project measurementLocal81 session))
+      | Result.error errLocal83 => (ctor Result.error [Unit, Error] errLocal83)
+      | Result.ok afterMeasureLocal84 => (if (prim equal (project (project afterMeasureLocal84 arena) ownedBytes) baselineLocal79 : Bool) then (match (drive 5000 (Uorc.Wire.FrameEmit::begin (project afterMeasureLocal84 arena) (project afterMeasureLocal84 usage) requestLocal77 (ctor Uorc.Wire.Output::Mode.stream)) expected 0)
+        | Result.error errLocal85 => (ctor Result.error [Unit, Error] errLocal85)
+        | Result.ok emittedLocal86 => (match (clean 2000 (project emittedLocal86 session))
+          | Result.error errLocal87 => (ctor Result.error [Unit, Error] errLocal87)
+          | Result.ok cleanedLocal88 => (if (prim equal (project (project cleanedLocal88 arena) ownedBytes) baselineLocal79 : Bool) then (if (prim equal (project (project cleanedLocal88 state) wireBytes) measuredLengthLocal82 : Bool) then (if (prim equal (project emittedLocal86 offset) (prim length expected : Nat) : Bool) then (if (Uorc.Wire.ProgramEmitScenarios::roots (project cleanedLocal88 arena) (cons frameRootLocal78 (nil Uorc.Core.RuntimeValue::Handle))) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership))) else (ctor Result.error [Unit, Error] (ctor Error.mismatch))) else (ctor Result.error [Unit, Error] (ctor Error.mismatch))) else (ctor Result.error [Unit, Error] (ctor Error.ownership))))) else (ctor Result.error [Unit, Error] (ctor Error.ownership))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_empty,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (nil UInt64) 0x)
+    | Result.error errLocal89 => (ctor Result.error [Unit, Error] errLocal89)
+    | Result.ok fixtureLocal90 => (check fixtureLocal90 0x554f5243020100000000)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_oneEmpty,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (0 : UInt64) (nil UInt64)) 0x)
+    | Result.error errLocal91 => (ctor Result.error [Unit, Error] errLocal91)
+    | Result.ok fixtureLocal92 => (check fixtureLocal92 0x554f524302010000010000)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_boundaries,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (0 : UInt64) (cons (1 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (0 : UInt64) (nil UInt64)))))) 0x02ff)
+    | Result.error errLocal93 => (ctor Result.error [Unit, Error] errLocal93)
+    | Result.ok fixtureLocal94 => (check fixtureLocal94 0x554f5243020100000500010001000202ff)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_uleb,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (129 : UInt64) (nil UInt64)) 0x070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707)
+    | Result.error errLocal95 => (ctor Result.error [Unit, Error] errLocal95)
+    | Result.ok fixtureLocal96 => (check fixtureLocal96 0x554f5243020100000181018101070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_program_naturalConstant,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (programFixture (Uorc.Wire.ProgramEmitScenarios::seed_naturalConstant) (cons (3 : UInt64) (nil UInt64)))
+    | Result.error errLocal97 => (ctor Result.error [Unit, Error] errLocal97)
+    | Result.ok fixtureLocal98 => (check fixtureLocal98 0x554f52430201000101030a01010000010081010100)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_program_sequenceConstant,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (programFixture (Uorc.Wire.ProgramEmitScenarios::seed_sequenceConstant) (cons (3 : UInt64) (nil UInt64)))
+    | Result.error errLocal99 => (ctor Result.error [Unit, Error] errLocal99)
+    | Result.ok fixtureLocal100 => (check fixtureLocal100 0x554f52430201000101030c0101000001030300ff800100)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_conditional,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (0 : UInt64) (nil UInt64)) 0x)
+    | Result.error errLocal101 => (ctor Result.error [Unit, Error] errLocal101)
+    | Result.ok rawLocal102 => (match (conditionalFixture rawLocal102 0x0000000000000000000000000000000000000000000000000000000000000000)
+      | Result.error errLocal103 => (ctor Result.error [Unit, Error] errLocal103)
+      | Result.ok fixtureLocal104 => (check fixtureLocal104 0x554f5243020101000100000000000000000000000000000000000000000000000000000000000000000000))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: failureCode,
+  parameters: [f : Uorc.Wire.FrameEmit::Failure],
+  result: UInt64,
+  body: (match f
+    | Uorc.Wire.FrameEmit::Failure.protocol => (0 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.cancelled => (1 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.addressSpaceExhausted => (2 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.lengthMismatch => (3 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.basisLengthMismatch => (4 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.invalidSpan => (5 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.heap detailLocal105 => (6 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.metadata detailLocal106 => (7 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.program detailLocal107 => (8 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.emission detailLocal108 => (9 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.spanRead detailLocal109 => (10 : UInt64)
+    | Uorc.Wire.FrameEmit::Failure.resource detailLocal110 => (11 : UInt64)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: untilFailure,
+  parameters: [fuel : Nat, session : Uorc.Wire.FrameEmit::Session],
+  result: (Result Uorc.Wire.FrameEmit::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.FrameEmit::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal111 => (match (project (project session state) failure)
+      | Option.some reasonLocal112 => (ctor Result.ok [Uorc.Wire.FrameEmit::Session, Error] session)
+      | Option.none => (match (Uorc.Wire.FrameEmit::pendingEvent (project session state))
+        | Option.some eventLocal113 => (untilFailure restLocal111 (project (Uorc.Wire.FrameEmit::acknowledge (Uorc.Wire.ProgramEmitScenarios::budget) session (ctor Uorc.Wire.Output::Ack.consumed)) session))
+        | Option.none => (let tLocal114 : Uorc.Wire.FrameEmit::Transition := (Uorc.Wire.FrameEmit::advance (Uorc.Wire.ProgramEmitScenarios::budget) session); (match (project tLocal114 signal)
+          | Uorc.Wire.FrameEmit::Signal.complete => (ctor Result.error [Uorc.Wire.FrameEmit::Session, Error] (ctor Error.mismatch))
+          | Uorc.Wire.FrameEmit::Signal.advanced => (untilFailure restLocal111 (project tLocal114 session))
+          | Uorc.Wire.FrameEmit::Signal.pending => (untilFailure restLocal111 (project tLocal114 session))
+          | Uorc.Wire.FrameEmit::Signal.failed => (untilFailure restLocal111 (project tLocal114 session))
+          | Uorc.Wire.FrameEmit::Signal.clean => (untilFailure restLocal111 (project tLocal114 session))
+          | Uorc.Wire.FrameEmit::Signal.paused eLocal115 => (untilFailure restLocal111 (project tLocal114 session))
+          | Uorc.Wire.FrameEmit::Signal.transferred eLocal116 => (untilFailure restLocal111 (project tLocal114 session))))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: checkNegative,
+  parameters: [fixture : Fixture, proposed : Uorc.Wire.FrameEmit::Request, wanted : UInt64],
+  result: (Result Unit Error),
+  body: (let frameRootLocal117 : Uorc.Core.RuntimeValue::Handle := (project fixture frameRoot); (let baselineLocal118 : UInt64 := (project (project fixture arena) ownedBytes); (match (untilFailure 5000 (Uorc.Wire.FrameEmit::begin (project fixture arena) (Uorc.Core.RuntimeResources::zeroUsage) proposed (ctor Uorc.Wire.Output::Mode.stream)))
+    | Result.error errLocal119 => (ctor Result.error [Unit, Error] errLocal119)
+    | Result.ok failedLocal120 => (match (project (project failedLocal120 state) failure)
+      | Option.none => (ctor Result.error [Unit, Error] (ctor Error.mismatch))
+      | Option.some reasonLocal121 => (if (prim equal (failureCode reasonLocal121) wanted : Bool) then (match (clean 2000 failedLocal120)
+        | Result.error errLocal122 => (ctor Result.error [Unit, Error] errLocal122)
+        | Result.ok cleanedLocal123 => (if (Uorc.Wire.ProgramEmitScenarios::roots (project cleanedLocal123 arena) (cons frameRootLocal117 (nil Uorc.Core.RuntimeValue::Handle))) then (if (prim equal (project (project cleanedLocal123 arena) ownedBytes) baselineLocal118 : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership))) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))) else (ctor Result.error [Unit, Error] (ctor Error.mismatch))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_negative_sum,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (2 : UInt64) (nil UInt64)) 0x02ff)
+    | Result.error errLocal124 => (ctor Result.error [Unit, Error] errLocal124)
+    | Result.ok fixtureLocal125 => (checkNegative fixtureLocal125 (record Uorc.Wire.FrameEmit::Request {record := (project (project fixtureLocal125 request) record), binding := (project (project fixtureLocal125 request) binding), lengths := (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (project (project (project fixtureLocal125 request) lengths) table), count := (project (project (project fixtureLocal125 request) lengths) count), totalOutputBytes := (3 : UInt64)}), scope := (project (project fixtureLocal125 request) scope), body := (project (project fixtureLocal125 request) body)}) (3 : UInt64))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_negative_rootLink,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (2 : UInt64) (nil UInt64)) 0x02ff)
+    | Result.error errLocal126 => (ctor Result.error [Unit, Error] errLocal126)
+    | Result.ok fixtureLocal127 => (checkNegative fixtureLocal127 (record Uorc.Wire.FrameEmit::Request {record := (project (project fixtureLocal127 request) record), binding := (project (project fixtureLocal127 request) binding), lengths := (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Wire.FrameEventContract::lengthsMetadataKind)), root := (Uorc.Core.RuntimeValue::nullHandle)}), count := (project (project (project fixtureLocal127 request) lengths) count), totalOutputBytes := (project (project (project fixtureLocal127 request) lengths) totalOutputBytes)}), scope := (project (project fixtureLocal127 request) scope), body := (project (project fixtureLocal127 request) body)}) (0 : UInt64))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_negative_missingRecord,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (2 : UInt64) (nil UInt64)) 0x02ff)
+    | Result.error errLocal128 => (ctor Result.error [Unit, Error] errLocal128)
+    | Result.ok fixtureLocal129 => (checkNegative fixtureLocal129 (record Uorc.Wire.FrameEmit::Request {record := (Uorc.Core.RuntimeValue::nullHandle), binding := (project (project fixtureLocal129 request) binding), lengths := (project (project fixtureLocal129 request) lengths), scope := (project (project fixtureLocal129 request) scope), body := (project (project fixtureLocal129 request) body)}) (7 : UInt64))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_negative_missingLength,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (2 : UInt64) (nil UInt64)) 0x02ff)
+    | Result.error errLocal130 => (ctor Result.error [Unit, Error] errLocal130)
+    | Result.ok fixtureLocal131 => (checkNegative fixtureLocal131 (record Uorc.Wire.FrameEmit::Request {record := (project (project fixtureLocal131 request) record), binding := (project (project fixtureLocal131 request) binding), lengths := (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (project (project (project fixtureLocal131 request) lengths) table), count := (2 : UInt64), totalOutputBytes := (project (project (project fixtureLocal131 request) lengths) totalOutputBytes)}), scope := (project (project fixtureLocal131 request) scope), body := (project (project fixtureLocal131 request) body)}) (8 : UInt64))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_negative_basisLength,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (2 : UInt64) (nil UInt64)) 0x02ff)
+    | Result.error errLocal132 => (ctor Result.error [Unit, Error] errLocal132)
+    | Result.ok fixtureLocal133 => (checkNegative fixtureLocal133 (record Uorc.Wire.FrameEmit::Request {record := (project (project fixtureLocal133 request) record), binding := (project (project fixtureLocal133 request) binding), lengths := (project (project fixtureLocal133 request) lengths), scope := (ctor Uorc.Wire.FrameEmit::Scope.conditional (record Uorc.Wire.FrameEmit::Span {image := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (31 : UInt64)})), body := (project (project fixtureLocal133 request) body)}) (4 : UInt64))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_negative_basisSpan,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (2 : UInt64) (nil UInt64)) 0x02ff)
+    | Result.error errLocal134 => (ctor Result.error [Unit, Error] errLocal134)
+    | Result.ok fixtureLocal135 => (checkNegative fixtureLocal135 (record Uorc.Wire.FrameEmit::Request {record := (project (project fixtureLocal135 request) record), binding := (project (project fixtureLocal135 request) binding), lengths := (project (project fixtureLocal135 request) lengths), scope := (ctor Uorc.Wire.FrameEmit::Scope.conditional (record Uorc.Wire.FrameEmit::Span {image := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (32 : UInt64)})), body := (project (project fixtureLocal135 request) body)}) (5 : UInt64))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_negative_badHandle,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (rawFixture (cons (2 : UInt64) (nil UInt64)) 0x02ff)
+    | Result.error errLocal136 => (ctor Result.error [Unit, Error] errLocal136)
+    | Result.ok fixtureLocal137 => (checkNegative fixtureLocal137 (record Uorc.Wire.FrameEmit::Request {record := (record Uorc.Core.RuntimeValue::Handle {id := (18446744073709551615 : UInt64)}), binding := (project (project fixtureLocal137 request) binding), lengths := (project (project fixtureLocal137 request) lengths), scope := (project (project fixtureLocal137 request) scope), body := (project (project fixtureLocal137 request) body)}) (6 : UInt64))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run_negative_emission,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (programFixture (record Uorc.Wire.ProgramEmitScenarios::Seed {opcode := (project (Uorc.Wire.ProgramEmitScenarios::seed_byteConstant) opcode), operand0 := (256 : UInt64), operand1 := (project (Uorc.Wire.ProgramEmitScenarios::seed_byteConstant) operand1), operand2 := (project (Uorc.Wire.ProgramEmitScenarios::seed_byteConstant) operand2), operand3 := (project (Uorc.Wire.ProgramEmitScenarios::seed_byteConstant) operand3), capturesA := (project (Uorc.Wire.ProgramEmitScenarios::seed_byteConstant) capturesA), capturesB := (project (Uorc.Wire.ProgramEmitScenarios::seed_byteConstant) capturesB), literal := (project (Uorc.Wire.ProgramEmitScenarios::seed_byteConstant) literal)}) (cons (2 : UInt64) (nil UInt64)))
+    | Result.error errLocal138 => (ctor Result.error [Unit, Error] errLocal138)
+    | Result.ok fixtureLocal139 => (checkNegative fixtureLocal139 (project fixtureLocal139 request) (9 : UInt64))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runNegatives,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (run_negative_sum)
+    | Result.error errLocal140 => (ctor Result.error [Unit, Error] errLocal140)
+    | Result.ok ignoredrun_negative_sumLocal141 => (match (run_negative_rootLink)
+      | Result.error errLocal142 => (ctor Result.error [Unit, Error] errLocal142)
+      | Result.ok ignoredrun_negative_rootLinkLocal143 => (match (run_negative_missingRecord)
+        | Result.error errLocal144 => (ctor Result.error [Unit, Error] errLocal144)
+        | Result.ok ignoredrun_negative_missingRecordLocal145 => (match (run_negative_missingLength)
+          | Result.error errLocal146 => (ctor Result.error [Unit, Error] errLocal146)
+          | Result.ok ignoredrun_negative_missingLengthLocal147 => (match (run_negative_basisLength)
+            | Result.error errLocal148 => (ctor Result.error [Unit, Error] errLocal148)
+            | Result.ok ignoredrun_negative_basisLengthLocal149 => (match (run_negative_basisSpan)
+              | Result.error errLocal150 => (ctor Result.error [Unit, Error] errLocal150)
+              | Result.ok ignoredrun_negative_basisSpanLocal151 => (match (run_negative_badHandle)
+                | Result.error errLocal152 => (ctor Result.error [Unit, Error] errLocal152)
+                | Result.ok ignoredrun_negative_badHandleLocal153 => (match (run_negative_emission)
+                  | Result.error errLocal154 => (ctor Result.error [Unit, Error] errLocal154)
+                  | Result.ok ignoredrun_negative_emissionLocal155 => (ctor Result.ok [Unit, Error] ()))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: firstSpan,
+  parameters: [fuel : Nat, session : Uorc.Wire.FrameEmit::Session],
+  result: (Result Uorc.Wire.FrameEmit::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.FrameEmit::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal156 => (match (Uorc.Wire.FrameEmit::pendingEvent (project session state))
+      | Option.none => (let tLocal157 : Uorc.Wire.FrameEmit::Transition := (Uorc.Wire.FrameEmit::advance (Uorc.Wire.ProgramEmitScenarios::budget) session); (match (project tLocal157 signal)
+        | Uorc.Wire.FrameEmit::Signal.complete => (ctor Result.error [Uorc.Wire.FrameEmit::Session, Error] (ctor Error.mismatch))
+        | Uorc.Wire.FrameEmit::Signal.failed => (ctor Result.error [Uorc.Wire.FrameEmit::Session, Error] (ctor Error.wire))
+        | Uorc.Wire.FrameEmit::Signal.advanced => (firstSpan restLocal156 (project tLocal157 session))
+        | Uorc.Wire.FrameEmit::Signal.pending => (firstSpan restLocal156 (project tLocal157 session))
+        | Uorc.Wire.FrameEmit::Signal.clean => (firstSpan restLocal156 (project tLocal157 session))
+        | Uorc.Wire.FrameEmit::Signal.paused reasonLocal158 => (firstSpan restLocal156 (project tLocal157 session))
+        | Uorc.Wire.FrameEmit::Signal.transferred reasonLocal159 => (firstSpan restLocal156 (project tLocal157 session))))
+      | Option.some eventLocal160 => (if (Uorc.Core.RuntimeValue::isNull (Uorc.Wire.Output::spanImage eventLocal160)) then (firstSpan restLocal156 (project (Uorc.Wire.FrameEmit::acknowledge (Uorc.Wire.ProgramEmitScenarios::budget) session (ctor Uorc.Wire.Output::Ack.consumed)) session)) else (ctor Result.ok [Uorc.Wire.FrameEmit::Session, Error] session)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: runCancellation,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (programFixture (Uorc.Wire.ProgramEmitScenarios::seed_sequenceConstant) (cons (3 : UInt64) (nil UInt64)))
+    | Result.error errLocal161 => (ctor Result.error [Unit, Error] errLocal161)
+    | Result.ok fixtureLocal162 => (let frameRootLocal163 : Uorc.Core.RuntimeValue::Handle := (project fixtureLocal162 frameRoot); (let baselineLocal164 : UInt64 := (project (project fixtureLocal162 arena) ownedBytes); (match (firstSpan 3000 (Uorc.Wire.FrameEmit::begin (project fixtureLocal162 arena) (Uorc.Core.RuntimeResources::zeroUsage) (project fixtureLocal162 request) (ctor Uorc.Wire.Output::Mode.stream)))
+      | Result.error errLocal165 => (ctor Result.error [Unit, Error] errLocal165)
+      | Result.ok pendingLocal166 => (let wireRootLocal167 : Uorc.Core.RuntimeValue::Handle := (Uorc.Wire.FrameEmit::root (project pendingLocal166 state)); (let cancelledLocal168 : Uorc.Wire.FrameEmit::Session := (Uorc.Wire.FrameEmit::cancel pendingLocal166); (if (Uorc.Wire.ProgramEmitScenarios::roots (project cancelledLocal168 arena) (cons frameRootLocal163 (cons wireRootLocal167 (nil Uorc.Core.RuntimeValue::Handle)))) then (match (clean 2000 cancelledLocal168)
+        | Result.error errLocal169 => (ctor Result.error [Unit, Error] errLocal169)
+        | Result.ok cleanedLocal170 => (if (Uorc.Wire.ProgramEmitScenarios::roots (project cleanedLocal170 arena) (cons frameRootLocal163 (nil Uorc.Core.RuntimeValue::Handle))) then (if (prim equal (project (project cleanedLocal170 arena) ownedBytes) baselineLocal164 : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership))) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))) else (ctor Result.error [Unit, Error] (ctor Error.ownership))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runTransfer,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (programFixture (Uorc.Wire.ProgramEmitScenarios::seed_sequenceConstant) (cons (3 : UInt64) (nil UInt64)))
+    | Result.error errLocal171 => (ctor Result.error [Unit, Error] errLocal171)
+    | Result.ok fixtureLocal172 => (let frameRootLocal173 : Uorc.Core.RuntimeValue::Handle := (project fixtureLocal172 frameRoot); (let baselineLocal174 : UInt64 := (project (project fixtureLocal172 arena) ownedBytes); (match (firstSpan 3000 (Uorc.Wire.FrameEmit::begin (project fixtureLocal172 arena) (Uorc.Core.RuntimeResources::zeroUsage) (project fixtureLocal172 request) (ctor Uorc.Wire.Output::Mode.stream)))
+      | Result.error errLocal175 => (ctor Result.error [Unit, Error] errLocal175)
+      | Result.ok pendingLocal176 => (let wireRootLocal177 : Uorc.Core.RuntimeValue::Handle := (Uorc.Wire.FrameEmit::root (project pendingLocal176 state)); (let takenLocal178 : Uorc.Wire.FrameEmit::Transition := (Uorc.Wire.FrameEmit::acknowledge (Uorc.Wire.ProgramEmitScenarios::budget) pendingLocal176 (ctor Uorc.Wire.Output::Ack.takeSpan)); (match (project takenLocal178 signal)
+        | Uorc.Wire.FrameEmit::Signal.transferred ticketLocal179 => (if (Uorc.Wire.ProgramEmitScenarios::roots (project (project takenLocal178 session) arena) (cons frameRootLocal173 (cons wireRootLocal177 (cons ticketLocal179 (nil Uorc.Core.RuntimeValue::Handle))))) then (match (clean 2000 (Uorc.Wire.FrameEmit::cancel (project takenLocal178 session)))
+          | Result.error errLocal180 => (ctor Result.error [Unit, Error] errLocal180)
+          | Result.ok cleanedLocal181 => (if (Uorc.Wire.ProgramEmitScenarios::roots (project cleanedLocal181 arena) (cons frameRootLocal173 (cons ticketLocal179 (nil Uorc.Core.RuntimeValue::Handle)))) then (match (Uorc.Wire.ProgramEmitScenarios::drop (project cleanedLocal181 arena) ticketLocal179)
+            | Result.error errLocal182 => (ctor Result.error [Unit, Error] (ctor Error.builder))
+            | Result.ok releasedLocal183 => (if (Uorc.Wire.ProgramEmitScenarios::roots releasedLocal183 (cons frameRootLocal173 (nil Uorc.Core.RuntimeValue::Handle))) then (if (prim equal (project releasedLocal183 ownedBytes) baselineLocal174 : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership))) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))
+        | Uorc.Wire.FrameEmit::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.FrameEmit::Signal.pending => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.FrameEmit::Signal.complete => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.FrameEmit::Signal.failed => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.FrameEmit::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.FrameEmit::Signal.paused reasonLocal184 => (ctor Result.error [Unit, Error] (ctor Error.ownership))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (run_empty)
+    | Result.error errLocal185 => (ctor Result.error [Unit, Error] errLocal185)
+    | Result.ok ignoredrun_emptyLocal186 => (match (run_oneEmpty)
+      | Result.error errLocal187 => (ctor Result.error [Unit, Error] errLocal187)
+      | Result.ok ignoredrun_oneEmptyLocal188 => (match (run_boundaries)
+        | Result.error errLocal189 => (ctor Result.error [Unit, Error] errLocal189)
+        | Result.ok ignoredrun_boundariesLocal190 => (match (run_uleb)
+          | Result.error errLocal191 => (ctor Result.error [Unit, Error] errLocal191)
+          | Result.ok ignoredrun_ulebLocal192 => (match (run_program_naturalConstant)
+            | Result.error errLocal193 => (ctor Result.error [Unit, Error] errLocal193)
+            | Result.ok ignoredrun_program_naturalConstantLocal194 => (match (run_program_sequenceConstant)
+              | Result.error errLocal195 => (ctor Result.error [Unit, Error] errLocal195)
+              | Result.ok ignoredrun_program_sequenceConstantLocal196 => (match (run_conditional)
+                | Result.error errLocal197 => (ctor Result.error [Unit, Error] errLocal197)
+                | Result.ok ignoredrun_conditionalLocal198 => (match (runNegatives)
+                  | Result.error errLocal199 => (ctor Result.error [Unit, Error] errLocal199)
+                  | Result.ok ignoredrunNegativesLocal200 => (match (runCancellation)
+                    | Result.error errLocal201 => (ctor Result.error [Unit, Error] errLocal201)
+                    | Result.ok ignoredrunCancellationLocal202 => (match (runTransfer)
+                      | Result.error errLocal203 => (ctor Result.error [Unit, Error] errLocal203)
+                      | Result.ok ignoredrunTransferLocal204 => (ctor Result.ok [Unit, Error] ()))))))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

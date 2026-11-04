@@ -17,6 +17,8 @@ mod claims;
 #[cfg(test)]
 mod offline;
 #[cfg(test)]
+mod product_receipts;
+#[cfg(test)]
 mod varint;
 
 fn main() -> ExitCode {
