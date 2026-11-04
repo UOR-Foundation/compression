@@ -95,3 +95,10 @@ selected authority, compiles generated modules and executes all fixtures and
 source-owned controls. The importer tests also reject changed digest bytes,
 truncated archives and missing fixtures. The acceptance command remains the
 locked `just vv`; diagnostic authoring conversion is not a replacement for it.
+
+Full final diagnostic verification additionally reports `LLV7013`: certificate A
+for `Core.RuntimeSequence.step`, relation `__rel_16`, is rejected by the Lean
+kernel for deep recursion. This is separate from the owned-control export's
+certificate file-size limit. The generated project/runtime modules compile,
+exact axiom traces pass, and the finite runtime controls execute; the complete
+SDK preservation pipeline does not pass this checkpoint.
