@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Operational task work
 
 Uorc.Core.RuntimeWork owns uorc.operational-task-fees/1. These are explicit
@@ -35,3 +36,12 @@ counter. Operational limits may stop a run and retain its work/roots; they never
 establish exclusion from the sealed canonical semantic universe. A changed fee
 policy must remain explicitly bound to a realization/run policy, not silently
 change a semantic minimum statement.
+
+Credit funding is a separate search-effort ledger. RuntimeAdmissionCredit uses
+zeroFeeAttemptCredit=1 when the current task has operational fee0; its
+observationCredit(task) classifies that case explicitly. The final Stage.ready
+ownership observation therefore consumes one funding/search credit while adding
+zero RuntimeResources work. Resource-rejected attempts may likewise retain
+funded credit without committing their reserved operational fee. Neither case
+permits rewriting Usage to force equality with consumedCredits. Actual charged
+work, prepaid search credit, attempts and zero-fee observations remain distinct.
