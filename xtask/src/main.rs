@@ -18,6 +18,7 @@ mod claims;
 mod integrity;
 #[cfg(test)]
 mod offline;
+mod product_execution;
 #[cfg(test)]
 mod product_receipts;
 #[cfg(test)]
