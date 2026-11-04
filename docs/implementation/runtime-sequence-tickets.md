@@ -1,0 +1,13 @@
+# Sequence outcome tickets
+
+A terminal `RuntimeSequence.Outcome.span` transfers **one owned external image root** when its image handle is nonzero. `indexWalk` intentionally retains that image before bounded capture cleanup. The emptied terminal cursor means transfer to the caller, not absence of ownership. A zero-length span has null image and transfers no ticket.
+
+`RuntimeSequenceTickets.outcomeRoot(outcome)` returns the sequence handle or span image; pending, byte and cancelled outcomes return null. `outcomeRoots` inventories its zero or one nonzero ticket. `ownsSpanImage` recognizes a nonzero span image. These pure helpers observe an existing ticket; they neither retain nor release it.
+
+At a terminal qualification checkpoint, add `outcomeRoots` to the caller inventory. Pending sequence tickets still come from `RuntimeSequence.ownedRoots(cursor)`. HeapAudit adds a ticket already transferred into Heap's release cursor itself. Equal image IDs may legitimately occur twice in the caller list: the original image root and the returned span root are two reference occurrences.
+
+The caller keeps the span ticket until admission acknowledges it. It then releases it or moves it into a new owning node with `allocateMoved`. Clear the consumed outcome/ticket from the caller's ledger; immutable old outcome data does not authorize another release. Before terminal transfer, `RuntimeSequence.cancel` owns and reclaims any retained image. After transfer, cancelling the empty cursor cannot reclaim the caller's ticket.
+
+`RuntimeSequenceTicketTests` audits every transition. Completion observes two image roots, releases the original sequence and image tickets, then checks the retained span's binary view while one image root remains. Separate controls release that ticket or move it into an owner root and reclaim everything. Cancellation is tested at every pending span state; empty span completion transfers no ticket. The frozen Sequence and existing tests remain unchanged.
+
+The four focused controls passed official Lean execution after source formatting/build and kernel compilation. All 16 definitions were traced: five have empty axiom sets; eleven use exactly Quot.sound and propext. An isolated actual indexWalk defect replaced retain(image) with retain(null): it linked/compiled, then the owning spanRelease assertion failed with exit 1. Restoring exact Sequence control SHA-256 c352ecaf1eb161df6df7c6f0fed7fc7868d00e4fc9fe3590271d40604785a29e rebuilt and passed all four controls with exit 0. Repository production controls were never mutated. These checks qualify the local ticket contract, not a full machine admission/refinement proof or Rust export.

@@ -1,0 +1,43 @@
+\begin{lexlean}{Uorc.Core.RuntimeSequenceTickets}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeSequence}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: outcomeRoot,
+  parameters: [outcome : Uorc.Core.RuntimeSequence::Outcome],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (match outcome
+    | Uorc.Core.RuntimeSequence::Outcome.pending => (Uorc.Core.RuntimeValue::nullHandle)
+    | Uorc.Core.RuntimeSequence::Outcome.sequence handle => handle
+    | Uorc.Core.RuntimeSequence::Outcome.byte value => (Uorc.Core.RuntimeValue::nullHandle)
+    | Uorc.Core.RuntimeSequence::Outcome.span view => (project view image)
+    | Uorc.Core.RuntimeSequence::Outcome.cancelled => (Uorc.Core.RuntimeValue::nullHandle)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: outcomeRoots,
+  parameters: [outcome : Uorc.Core.RuntimeSequence::Outcome],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull (outcomeRoot outcome)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (outcomeRoot outcome) (nil Uorc.Core.RuntimeValue::Handle))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: ownsSpanImage,
+  parameters: [outcome : Uorc.Core.RuntimeSequence::Outcome],
+  result: Bool,
+  body: (match outcome
+    | Uorc.Core.RuntimeSequence::Outcome.pending => false
+    | Uorc.Core.RuntimeSequence::Outcome.sequence handle => false
+    | Uorc.Core.RuntimeSequence::Outcome.byte value => false
+    | Uorc.Core.RuntimeSequence::Outcome.span view => (if (Uorc.Core.RuntimeValue::isNull (project view image)) then false else true)
+    | Uorc.Core.RuntimeSequence::Outcome.cancelled => false),
+  axioms: [],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}
