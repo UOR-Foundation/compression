@@ -1,0 +1,393 @@
+\begin{lexlean}{Uorc.Core.RuntimeSequenceTests}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeSequence}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: appendRoots,
+  parameters: [
+    xs : (List Uorc.Core.RuntimeValue::Handle),
+    ys : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match xs
+    | List.nil => ys
+    | List.cons headLocal1 tailLocal2 => (cons headLocal1 (appendRoots tailLocal2 ys))),
+  axioms: [],
+  executable: true,
+  recursive_argument: xs
+}
+
+definition{
+  name: addTicket,
+  parameters: [
+    handle : Uorc.Core.RuntimeValue::Handle,
+    ticketList : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull handle) then ticketList else (cons handle ticketList)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: pendingTickets,
+  parameters: [
+    cursor : Uorc.Core.RuntimeSequence::Cursor,
+    outside : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (addTicket (project cursor fresh) (addTicket (project cursor capture) (addTicket (project cursor garbage) (if (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then true else (prim equal (project cursor phase) (11 : UInt64) : Bool))))) then (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then false else true) else false) then (addTicket (project cursor result) outside) else outside)))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: tickets,
+  parameters: [
+    state : Uorc.Core.RuntimeSequence::SequenceTransition,
+    outside : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project state outcome)
+    | Uorc.Core.RuntimeSequence::Outcome.pending => (pendingTickets (project state cursor) outside)
+    | Uorc.Core.RuntimeSequence::Outcome.sequence handleLocal1 => (addTicket handleLocal1 outside)
+    | Uorc.Core.RuntimeSequence::Outcome.byte bLocal2 => outside
+    | Uorc.Core.RuntimeSequence::Outcome.span spanLocal3 => (addTicket (project spanLocal3 image) outside)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: run,
+  parameters: [
+    fuel : Nat,
+    state : Uorc.Core.RuntimeSequence::SequenceTransition,
+    outside : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (Result Uorc.Core.RuntimeSequence::SequenceTransition Uorc.Core.RuntimeSequence::SequenceFailure),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] (ctor Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor))
+    | Nat.succ remainingLocal1 => (if (if (if (Uorc.Core.Heap::less (1 : UInt64) (project (project state delta) allocatedEntries)) then false else true) then (Uorc.Core.HeapAudit::auditRoots (project state arena) (tickets state outside)) else false) then (match (project state outcome)
+      | Uorc.Core.RuntimeSequence::Outcome.pending => (match (Uorc.Core.RuntimeSequence::step (project state arena) (project state cursor))
+        | Result.error failureLocal2 => (ctor Result.error [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] failureLocal2)
+        | Result.ok nextLocal3 => (run remainingLocal1 nextLocal3 outside))
+      | Uorc.Core.RuntimeSequence::Outcome.sequence hLocal4 => (ctor Result.ok [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] state)
+      | Uorc.Core.RuntimeSequence::Outcome.byte bLocal5 => (ctor Result.ok [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] state)
+      | Uorc.Core.RuntimeSequence::Outcome.span sLocal6 => (ctor Result.ok [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] state)) else (ctor Result.error [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] (ctor Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor)))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: releaseAll,
+  parameters: [
+    fuel : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    outside : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: Bool,
+  body: (match fuel
+    | Nat.zero => false
+    | Nat.succ remainingLocal1 => (if (Uorc.Core.HeapAudit::auditRoots arena outside) then (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+      | Result.error failureLocal2 => false
+      | Result.ok nextLocal3 => (releaseAll remainingLocal1 (project nextLocal3 arena) outside)) else (match outside
+      | List.nil => (if (prim equal (project arena ownedBytes) (0 : UInt64) : Bool) then (prim equal (project arena liveEntries) (0 : UInt64) : Bool) else false)
+      | List.cons headLocal4 tailLocal5 => (match (Uorc.Core.Heap::release arena headLocal4)
+        | Result.error failureLocal6 => false
+        | Result.ok nextLocal7 => (releaseAll remainingLocal1 (project nextLocal7 arena) tailLocal5)))) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: binaryScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (10000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x00ff7f80))
+    | Result.error failureLocal1 => false
+    | Result.ok imageALocal2 => (match (Uorc.Core.Heap::allocate (project imageALocal2 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageALocal2 handle) (0 : UInt64) (4 : UInt64)))
+      | Result.error failureLocal3 => false
+      | Result.ok leafALocal4 => (match (Uorc.Core.Heap::allocate (project leafALocal4 arena) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.basis) 0x0100fe))
+        | Result.error failureLocal5 => false
+        | Result.ok imageBLocal6 => (match (Uorc.Core.Heap::allocate (project imageBLocal6 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageBLocal6 handle) (0 : UInt64) (3 : UInt64)))
+          | Result.error failureLocal7 => false
+          | Result.ok leafBLocal8 => (match (Uorc.Core.RuntimeSequence::beginConcat (project leafBLocal8 arena) (project leafALocal4 handle) (project leafBLocal8 handle))
+            | Result.error failureLocal9 => false
+            | Result.ok begunLocal10 => (match (run 20000 begunLocal10 (cons (project imageALocal2 handle) (cons (project leafALocal4 handle) (cons (project imageBLocal6 handle) (cons (project leafBLocal8 handle) (nil Uorc.Core.RuntimeValue::Handle))))))
+              | Result.error failureLocal11 => false
+              | Result.ok finishedLocal12 => (match (project finishedLocal12 outcome)
+                | Uorc.Core.RuntimeSequence::Outcome.pending => false
+                | Uorc.Core.RuntimeSequence::Outcome.sequence joinedLocal13 => (if (match (Uorc.Core.HeapAudit::interpretSequence 128 (project finishedLocal12 arena) joinedLocal13)
+                  | Result.error eLocal14 => false
+                  | Result.ok actualBytesLocal15 => (prim equal actualBytesLocal15 0x00ff7f800100fe : Bool)) then (let joinedStateLocal16 : Uorc.Core.RuntimeSequence::SequenceTransition := finishedLocal12; (match (Uorc.Core.RuntimeSequence::beginSlice (project joinedStateLocal16 arena) joinedLocal13 (2 : UInt64) (4 : UInt64))
+                  | Result.error failureLocal17 => false
+                  | Result.ok begunLocal18 => (match (run 20000 begunLocal18 (appendRoots (cons (project imageALocal2 handle) (cons (project leafALocal4 handle) (cons (project imageBLocal6 handle) (cons (project leafBLocal8 handle) (nil Uorc.Core.RuntimeValue::Handle))))) (cons joinedLocal13 (nil Uorc.Core.RuntimeValue::Handle))))
+                    | Result.error failureLocal19 => false
+                    | Result.ok finishedLocal20 => (match (project finishedLocal20 outcome)
+                      | Uorc.Core.RuntimeSequence::Outcome.pending => false
+                      | Uorc.Core.RuntimeSequence::Outcome.sequence slicedLocal21 => (if (match (Uorc.Core.HeapAudit::interpretSequence 128 (project finishedLocal20 arena) slicedLocal21)
+                        | Result.error eLocal22 => false
+                        | Result.ok actualBytesLocal23 => (prim equal actualBytesLocal23 0x7f800100 : Bool)) then (let sliceStateLocal24 : Uorc.Core.RuntimeSequence::SequenceTransition := finishedLocal20; (match (Uorc.Core.RuntimeSequence::beginIndex (project sliceStateLocal24 arena) joinedLocal13 (4 : UInt64))
+                        | Result.error failureLocal25 => false
+                        | Result.ok begunLocal26 => (match (run 20000 begunLocal26 (appendRoots (cons (project imageALocal2 handle) (cons (project leafALocal4 handle) (cons (project imageBLocal6 handle) (cons (project leafBLocal8 handle) (nil Uorc.Core.RuntimeValue::Handle))))) (cons joinedLocal13 (cons slicedLocal21 (nil Uorc.Core.RuntimeValue::Handle)))))
+                          | Result.error failureLocal27 => false
+                          | Result.ok finishedLocal28 => (match (project finishedLocal28 outcome)
+                            | Uorc.Core.RuntimeSequence::Outcome.pending => false
+                            | Uorc.Core.RuntimeSequence::Outcome.sequence hLocal29 => false
+                            | Uorc.Core.RuntimeSequence::Outcome.span sLocal30 => false
+                            | Uorc.Core.RuntimeSequence::Outcome.byte actualLocal31 => (if (prim equal actualLocal31 (1 : UInt8) : Bool) then (let indexStateLocal32 : Uorc.Core.RuntimeSequence::SequenceTransition := finishedLocal28; (match (Uorc.Core.RuntimeSequence::beginSlice (project indexStateLocal32 arena) joinedLocal13 (0 : UInt64) (7 : UInt64))
+                              | Result.error failureLocal33 => false
+                              | Result.ok begunLocal34 => (match (run 20000 begunLocal34 (appendRoots (cons (project imageALocal2 handle) (cons (project leafALocal4 handle) (cons (project imageBLocal6 handle) (cons (project leafBLocal8 handle) (nil Uorc.Core.RuntimeValue::Handle))))) (cons joinedLocal13 (cons slicedLocal21 (nil Uorc.Core.RuntimeValue::Handle)))))
+                                | Result.error failureLocal35 => false
+                                | Result.ok finishedLocal36 => (match (project finishedLocal36 outcome)
+                                  | Uorc.Core.RuntimeSequence::Outcome.pending => false
+                                  | Uorc.Core.RuntimeSequence::Outcome.sequence sameLocal37 => (if (Uorc.Core.RuntimeValue::sameHandle sameLocal37 joinedLocal13) then (let sameStateLocal38 : Uorc.Core.RuntimeSequence::SequenceTransition := finishedLocal36; (match (Uorc.Core.RuntimeSequence::beginConcat (project sameStateLocal38 arena) (Uorc.Core.RuntimeValue::nullHandle) joinedLocal13)
+                                    | Result.error failureLocal39 => false
+                                    | Result.ok begunLocal40 => (match (run 20000 begunLocal40 (appendRoots (cons (project imageALocal2 handle) (cons (project leafALocal4 handle) (cons (project imageBLocal6 handle) (cons (project leafBLocal8 handle) (nil Uorc.Core.RuntimeValue::Handle))))) (cons joinedLocal13 (cons slicedLocal21 (cons sameLocal37 (nil Uorc.Core.RuntimeValue::Handle))))))
+                                      | Result.error failureLocal41 => false
+                                      | Result.ok finishedLocal42 => (match (project finishedLocal42 outcome)
+                                        | Uorc.Core.RuntimeSequence::Outcome.pending => false
+                                        | Uorc.Core.RuntimeSequence::Outcome.sequence aliasLocal43 => (if (Uorc.Core.RuntimeValue::sameHandle aliasLocal43 joinedLocal13) then (let aliasStateLocal44 : Uorc.Core.RuntimeSequence::SequenceTransition := finishedLocal42; (match (Uorc.Core.RuntimeSequence::beginSpan (project aliasStateLocal44 arena) joinedLocal13 (3 : UInt64) (4 : UInt64))
+                                          | Result.error failureLocal45 => false
+                                          | Result.ok begunLocal46 => (match (run 20000 begunLocal46 (appendRoots (cons (project imageALocal2 handle) (cons (project leafALocal4 handle) (cons (project imageBLocal6 handle) (cons (project leafBLocal8 handle) (nil Uorc.Core.RuntimeValue::Handle))))) (cons joinedLocal13 (cons slicedLocal21 (cons sameLocal37 (cons aliasLocal43 (nil Uorc.Core.RuntimeValue::Handle)))))))
+                                            | Result.error failureLocal47 => false
+                                            | Result.ok finishedLocal48 => (match (project finishedLocal48 outcome)
+                                              | Uorc.Core.RuntimeSequence::Outcome.pending => false
+                                              | Uorc.Core.RuntimeSequence::Outcome.sequence hLocal49 => false
+                                              | Uorc.Core.RuntimeSequence::Outcome.byte bLocal50 => false
+                                              | Uorc.Core.RuntimeSequence::Outcome.span spanLocal51 => (if (prim equal (project spanLocal51 offset) (3 : UInt64) : Bool) then (if (prim equal (project spanLocal51 length) (1 : UInt64) : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle (project spanLocal51 image) (project imageALocal2 handle)) then (releaseAll 20000 (project finishedLocal48 arena) (appendRoots (cons (project imageALocal2 handle) (cons (project leafALocal4 handle) (cons (project imageBLocal6 handle) (cons (project leafBLocal8 handle) (nil Uorc.Core.RuntimeValue::Handle))))) (cons joinedLocal13 (cons slicedLocal21 (cons sameLocal37 (cons aliasLocal43 (cons (project spanLocal51 image) (nil Uorc.Core.RuntimeValue::Handle)))))))) else false) else false) else false))))) else false)
+                                        | Uorc.Core.RuntimeSequence::Outcome.byte bLocal52 => false
+                                        | Uorc.Core.RuntimeSequence::Outcome.span sLocal53 => false)))) else false)
+                                  | Uorc.Core.RuntimeSequence::Outcome.byte bLocal54 => false
+                                  | Uorc.Core.RuntimeSequence::Outcome.span sLocal55 => false)))) else false))))) else false)
+                      | Uorc.Core.RuntimeSequence::Outcome.byte bLocal56 => false
+                      | Uorc.Core.RuntimeSequence::Outcome.span sLocal57 => false)))) else false)
+                | Uorc.Core.RuntimeSequence::Outcome.byte bLocal58 => false
+                | Uorc.Core.RuntimeSequence::Outcome.span sLocal59 => false))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+structure{
+  name: Repeated,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: root, type: Uorc.Core.RuntimeValue::Handle},
+    {name: ok, type: Bool}
+  ]
+}
+
+definition{
+  name: repeat,
+  parameters: [
+    fuel : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    leaf : Uorc.Core.RuntimeValue::Handle,
+    root : Uorc.Core.RuntimeValue::Handle,
+    outside : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: Bool,
+  body: (match fuel
+    | Nat.zero => (match (Uorc.Core.Heap::sequenceInfo arena root)
+      | Result.error failureLocal1 => false
+      | Result.ok infoLocal2 => (if (if (Uorc.Core.Heap::less (8 : UInt64) (project infoLocal2 height)) then false else true) then (if (prim equal (project infoLocal2 length) (32 : UInt64) : Bool) then (if (match (Uorc.Core.HeapAudit::interpretSequence 128 arena root)
+        | Result.error eLocal3 => false
+        | Result.ok actualBytesLocal4 => (prim equal actualBytesLocal4 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff : Bool)) then (releaseAll 50000 arena outside) else false) else false) else false))
+    | Nat.succ remainingLocal5 => (match (Uorc.Core.RuntimeSequence::beginConcat arena root leaf)
+      | Result.error failureLocal6 => false
+      | Result.ok begunLocal7 => (match (run 20000 begunLocal7 outside)
+        | Result.error failureLocal8 => false
+        | Result.ok finishedLocal9 => (match (project finishedLocal9 outcome)
+          | Uorc.Core.RuntimeSequence::Outcome.pending => false
+          | Uorc.Core.RuntimeSequence::Outcome.byte bLocal10 => false
+          | Uorc.Core.RuntimeSequence::Outcome.span sLocal11 => false
+          | Uorc.Core.RuntimeSequence::Outcome.sequence nextRootLocal12 => (repeat remainingLocal5 (project finishedLocal9 arena) leaf nextRootLocal12 (cons nextRootLocal12 outside)))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: balanceScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (10000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.runtime) 0xff))
+    | Result.error failureLocal1 => false
+    | Result.ok imageLocal2 => (match (Uorc.Core.Heap::allocate (project imageLocal2 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal2 handle) (0 : UInt64) (1 : UInt64)))
+      | Result.error failureLocal3 => false
+      | Result.ok leafLocal4 => (repeat 32 (project leafLocal4 arena) (project leafLocal4 handle) (Uorc.Core.RuntimeValue::nullHandle) (cons (project imageLocal2 handle) (cons (project leafLocal4 handle) (nil Uorc.Core.RuntimeValue::Handle)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_range,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeSequence::beginIndex (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64))
+    | Result.ok unexpectedLocal1 => false
+    | Result.error failureLocal2 => (match failureLocal2
+      | Uorc.Core.RuntimeSequence::SequenceFailure.heap eLocal3 => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.range => true
+      | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_invalidCursor,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeSequence::step (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (record Uorc.Core.RuntimeSequence::Cursor {phase := (10 : UInt64), purpose := (0 : UInt64), capture := (Uorc.Core.RuntimeValue::nullHandle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (Uorc.Core.RuntimeValue::nullHandle), start := (0 : UInt64), count := (0 : UInt64), byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (Uorc.Core.RuntimeSequence::emptyPlan)}))
+    | Result.ok unexpectedLocal1 => false
+    | Result.error failureLocal2 => (match failureLocal2
+      | Uorc.Core.RuntimeSequence::SequenceFailure.heap eLocal3 => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => true)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_heap,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeSequence::beginSlice (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (record Uorc.Core.RuntimeValue::Handle {id := (1 : UInt64)}) (0 : UInt64) (0 : UInt64))
+    | Result.ok unexpectedLocal1 => false
+    | Result.error failureLocal2 => (match failureLocal2
+      | Uorc.Core.RuntimeSequence::SequenceFailure.heap eLocal3 => true
+      | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_invalidShape,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataWord (999 : UInt64) (0 : UInt64) (0 : UInt64)))
+    | Result.error failureLocal1 => false
+    | Result.ok wordLocal2 => (match (Uorc.Core.RuntimeSequence::sequenceChildren (project wordLocal2 arena) (project wordLocal2 handle))
+      | Result.ok unexpectedLocal3 => false
+      | Result.error failureLocal4 => (match failureLocal4
+        | Uorc.Core.RuntimeSequence::SequenceFailure.heap eLocal5 => false
+        | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+        | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+        | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => true
+        | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: double,
+  parameters: [
+    fuel : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    size : UInt64,
+    height : UInt64
+  ],
+  result: Bool,
+  body: (match fuel
+    | Nat.zero => (match (Uorc.Core.RuntimeSequence::beginConcat arena root root)
+      | Result.ok unexpectedLocal1 => false
+      | Result.error failureLocal2 => (match failureLocal2
+        | Uorc.Core.RuntimeSequence::SequenceFailure.heap eLocal3 => false
+        | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+        | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => true
+        | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+        | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false))
+    | Nat.succ remainingLocal4 => (match (Uorc.Core.Heap::allocate arena (ctor Uorc.Core.Heap::Node.sequenceBranch (Uorc.Core.Heap::wordAdd size size) (Uorc.Core.Heap::wordAdd height (1 : UInt64)) root root))
+      | Result.error failureLocal5 => false
+      | Result.ok doubledLocal6 => (double remainingLocal4 (project doubledLocal6 arena) (project doubledLocal6 handle) (Uorc.Core.Heap::wordAdd size size) (Uorc.Core.Heap::wordAdd height (1 : UInt64))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: negative_lengthOverflow,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x00))
+    | Result.error failureLocal1 => false
+    | Result.ok imageLocal2 => (match (Uorc.Core.Heap::allocate (project imageLocal2 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal2 handle) (0 : UInt64) (1 : UInt64)))
+      | Result.error failureLocal3 => false
+      | Result.ok leafLocal4 => (double 63 (project leafLocal4 arena) (project leafLocal4 handle) (1 : UInt64) (1 : UInt64)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_releaseBusy,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (ctor Uorc.Core.Heap::Node.metadataWord (777 : UInt64) (0 : UInt64) (0 : UInt64)))
+    | Result.error failureLocal1 => false
+    | Result.ok foreignOwnerLocal2 => (match (Uorc.Core.RuntimeSequence::beginSlice (project foreignOwnerLocal2 arena) (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (0 : UInt64))
+      | Result.error failureLocal3 => false
+      | Result.ok begunLocal4 => (match (Uorc.Core.Heap::release (project begunLocal4 arena) (project foreignOwnerLocal2 handle))
+        | Result.error failureLocal5 => false
+        | Result.ok releasingLocal6 => (if (Uorc.Core.HeapAudit::auditRoots (project releasingLocal6 arena) (cons (project (project begunLocal4 cursor) capture) (nil Uorc.Core.RuntimeValue::Handle))) then (match (Uorc.Core.RuntimeSequence::step (project releasingLocal6 arena) (project begunLocal4 cursor))
+          | Result.ok unexpectedLocal7 => false
+          | Result.error failureLocal8 => (match failureLocal8
+            | Uorc.Core.RuntimeSequence::SequenceFailure.heap eLocal9 => true
+            | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+            | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+            | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+            | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false)) else false)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: failurePrefixScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (241 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0xff))
+    | Result.error failureLocal1 => false
+    | Result.ok imageLocal2 => (match (Uorc.Core.Heap::allocate (project imageLocal2 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal2 handle) (0 : UInt64) (1 : UInt64)))
+      | Result.error failureLocal3 => false
+      | Result.ok leafLocal4 => (match (Uorc.Core.RuntimeSequence::beginConcat (project leafLocal4 arena) (project leafLocal4 handle) (project leafLocal4 handle))
+        | Result.error failureLocal5 => false
+        | Result.ok begunLocal6 => (match (Uorc.Core.RuntimeSequence::step (project begunLocal6 arena) (project begunLocal6 cursor))
+          | Result.error failureLocal7 => false
+          | Result.ok scheduledLocal8 => (match (Uorc.Core.RuntimeSequence::step (project scheduledLocal8 arena) (project scheduledLocal8 cursor))
+            | Result.error failureLocal9 => false
+            | Result.ok prefixLocal10 => (if (prim equal (project (project prefixLocal10 arena) ownedBytes) (241 : UInt64) : Bool) then (if (prim equal (project (project prefixLocal10 delta) allocatedBytes) (72 : UInt64) : Bool) then (if (prim equal (project (project prefixLocal10 delta) allocatedEntries) (1 : UInt64) : Bool) then (if (if (Uorc.Core.RuntimeValue::isNull (project (project prefixLocal10 cursor) fresh)) then false else true) then (if (Uorc.Core.RuntimeValue::isNull (project (project prefixLocal10 cursor) garbage)) then (if (Uorc.Core.HeapAudit::auditRoots (project prefixLocal10 arena) (cons (project imageLocal2 handle) (cons (project leafLocal4 handle) (cons (project (project prefixLocal10 cursor) capture) (cons (project (project prefixLocal10 cursor) fresh) (nil Uorc.Core.RuntimeValue::Handle)))))) then (if (match (Uorc.Core.RuntimeSequence::step (project prefixLocal10 arena) (project prefixLocal10 cursor))
+              | Result.ok unexpectedLocal11 => false
+              | Result.error failureLocal12 => (match failureLocal12
+                | Uorc.Core.RuntimeSequence::SequenceFailure.heap eLocal13 => true
+                | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+                | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+                | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+                | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false)) then (releaseAll 20000 (project prefixLocal10 arena) (cons (project imageLocal2 handle) (cons (project leafLocal4 handle) (cons (project (project prefixLocal10 cursor) capture) (cons (project (project prefixLocal10 cursor) fresh) (nil Uorc.Core.RuntimeValue::Handle)))))) else false) else false) else false) else false) else false) else false) else false)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: suite,
+  parameters: [],
+  result: Bool,
+  body: (if (binaryScenario) then (if (balanceScenario) then (if (negative_range) then (if (negative_invalidCursor) then (if (negative_heap) then (if (negative_invalidShape) then (if (negative_lengthOverflow) then (if (negative_releaseBusy) then (if (failurePrefixScenario) then true else false) else false) else false) else false) else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}
