@@ -1,0 +1,183 @@
+\begin{lexlean}{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: TableKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: slots, fields: [Uorc.Core.RuntimeValue::RootRole]},
+    {name: metadata, fields: [UInt64]}
+  ]
+}
+
+structure{
+  name: Table,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: kind, type: TableKind}, {name: root, type: Uorc.Core.RuntimeValue::Handle}]
+}
+
+definition{
+  name: emptyTable,
+  parameters: [kind : TableKind],
+  result: Table,
+  body: (record Table {kind := kind, root := (Uorc.Core.RuntimeValue::nullHandle)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: branchChildren,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    handle : Uorc.Core.RuntimeValue::Handle,
+    kind : TableKind
+  ],
+  result: (Result Uorc.Core.Heap::Children Uorc.Core.Heap::HeapError),
+  body: (if (Uorc.Core.RuntimeValue::isNull handle) then (ctor Result.ok [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Children {first := (Uorc.Core.RuntimeValue::nullHandle), second := (Uorc.Core.RuntimeValue::nullHandle)})) else (match (Uorc.Core.Heap::lookup arena handle)
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image field0 field1 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Uorc.Core.Heap::Node.sequenceLeaf field0 field1 field2 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Uorc.Core.Heap::Node.sequenceBranch field0 field1 field2 field3 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Uorc.Core.Heap::Node.storeLeaf field0 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Uorc.Core.Heap::Node.storeBranch field0 field1 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Uorc.Core.Heap::Node.slot field0 field1 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Uorc.Core.Heap::Node.rootBranch field0 field1 field2 => (match kind
+        | TableKind.slots role => (if (prim equal (Uorc.Core.RuntimeValue::roleTag role) (Uorc.Core.RuntimeValue::roleTag field0) : Bool) then (ctor Result.ok [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Children {first := field1, second := field2})) else (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode)))
+        | TableKind.metadata k => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode)))
+      | Uorc.Core.Heap::Node.metadataWord field0 field1 field2 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Uorc.Core.Heap::Node.metadataLink field0 field1 field2 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Uorc.Core.Heap::Node.metadataBranch field0 field1 field2 => (match kind
+        | TableKind.slots role => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | TableKind.metadata k => (if (prim equal k field0 : Bool) then (ctor Result.ok [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Children {first := field1, second := field2})) else (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))))
+      | Uorc.Core.Heap::Node.ownerRoot field0 field1 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Uorc.Core.Heap::Node.imageReservation field0 field1 => (ctor Result.error [Uorc.Core.Heap::Children, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: validLeaf,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    handle : Uorc.Core.RuntimeValue::Handle,
+    kind : TableKind,
+    key : UInt64
+  ],
+  result: Bool,
+  body: (if (Uorc.Core.RuntimeValue::isNull handle) then true else (match (Uorc.Core.Heap::lookup arena handle)
+    | Result.error e => false
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image field0 field1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf field0 field1 field2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch field0 field1 field2 field3 => false
+      | Uorc.Core.Heap::Node.storeLeaf field0 => false
+      | Uorc.Core.Heap::Node.storeBranch field0 field1 => false
+      | Uorc.Core.Heap::Node.slot field0 field1 => (match kind
+        | TableKind.slots role => (prim equal (Uorc.Core.RuntimeValue::roleTag role) (Uorc.Core.RuntimeValue::roleTag field0) : Bool)
+        | TableKind.metadata k => false)
+      | Uorc.Core.Heap::Node.rootBranch field0 field1 field2 => false
+      | Uorc.Core.Heap::Node.metadataWord field0 field1 field2 => false
+      | Uorc.Core.Heap::Node.metadataLink field0 field1 field2 => (match kind
+        | TableKind.slots role => false
+        | TableKind.metadata k => (if (prim equal k field0 : Bool) then (prim equal key field1 : Bool) else false))
+      | Uorc.Core.Heap::Node.metadataBranch field0 field1 field2 => false
+      | Uorc.Core.Heap::Node.ownerRoot field0 field1 => false
+      | Uorc.Core.Heap::Node.imageReservation field0 field1 => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: readPath,
+  parameters: [
+    depth : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    handle : Uorc.Core.RuntimeValue::Handle,
+    kind : TableKind,
+    remainingKey : UInt64,
+    key : UInt64
+  ],
+  result: (Result Uorc.Core.RuntimeValue::Handle Uorc.Core.Heap::HeapError),
+  body: (match depth
+    | Nat.zero => (if (Uorc.Core.RuntimeValue::isNull handle) then (ctor Result.ok [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] (Uorc.Core.RuntimeValue::nullHandle)) else (if (validLeaf arena handle kind key) then (ctor Result.ok [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] handle) else (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))))
+    | Nat.succ remaining => (if (Uorc.Core.RuntimeValue::isNull handle) then (ctor Result.ok [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] (Uorc.Core.RuntimeValue::nullHandle)) else (match (branchChildren arena handle kind)
+      | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::HeapError] failure)
+      | Result.ok children => (readPath remaining arena (if (Uorc.Core.Heap::lowBit remainingKey) then (project children second) else (project children first)) kind (Uorc.Core.Heap::nextKey remainingKey) key)))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: depth
+}
+
+definition{
+  name: lookup,
+  parameters: [arena : Uorc.Core.Heap::Arena, table : Table, key : UInt64],
+  result: (Result Uorc.Core.RuntimeValue::Handle Uorc.Core.Heap::HeapError),
+  body: (readPath 64 arena (project table root) (project table kind) key key),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: writePath,
+  parameters: [
+    depth : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    handle : Uorc.Core.RuntimeValue::Handle,
+    kind : TableKind,
+    remainingKey : UInt64,
+    leaf : Uorc.Core.Heap::Node
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError),
+  body: (match depth
+    | Nat.zero => (Uorc.Core.Heap::allocate arena leaf)
+    | Nat.succ remaining => (match (branchChildren arena handle kind)
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
+      | Result.ok children => (match (writePath remaining arena (if (Uorc.Core.Heap::lowBit remainingKey) then (project children second) else (project children first)) kind (Uorc.Core.Heap::nextKey remainingKey) leaf)
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
+        | Result.ok subtree => (let newLeft : Uorc.Core.RuntimeValue::Handle := (if (Uorc.Core.Heap::lowBit remainingKey) then (project children first) else (project subtree handle)); (let newRight : Uorc.Core.RuntimeValue::Handle := (if (Uorc.Core.Heap::lowBit remainingKey) then (project subtree handle) else (project children second)); (match (Uorc.Core.Heap::allocateMoved (project subtree arena) (match kind
+            | TableKind.slots role => (ctor Uorc.Core.Heap::Node.rootBranch role newLeft newRight)
+            | TableKind.metadata k => (ctor Uorc.Core.Heap::Node.metadataBranch k newLeft newRight)) (if (Uorc.Core.Heap::lowBit remainingKey) then false else true) (Uorc.Core.Heap::lowBit remainingKey))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
+          | Result.ok parent => (ctor Result.ok [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Allocation {arena := (project parent arena), handle := (project parent handle), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (Uorc.Core.Heap::wordAdd (project (project subtree delta) allocatedBytes) (project (project parent delta) allocatedBytes)), releasedBytes := (Uorc.Core.Heap::wordAdd (project (project subtree delta) releasedBytes) (project (project parent delta) releasedBytes)), allocatedEntries := (Uorc.Core.Heap::wordAdd (project (project subtree delta) allocatedEntries) (project (project parent delta) allocatedEntries)), releasedEntries := (Uorc.Core.Heap::wordAdd (project (project subtree delta) releasedEntries) (project (project parent delta) releasedEntries)), retainedEdges := (Uorc.Core.Heap::wordAdd (project (project subtree delta) retainedEdges) (project (project parent delta) retainedEdges)), droppedEdges := (Uorc.Core.Heap::wordAdd (project (project subtree delta) droppedEdges) (project (project parent delta) droppedEdges)), retainedRoots := (Uorc.Core.Heap::wordAdd (project (project subtree delta) retainedRoots) (project (project parent delta) retainedRoots)), droppedRoots := (Uorc.Core.Heap::wordAdd (project (project subtree delta) droppedRoots) (project (project parent delta) droppedRoots)), work := (Uorc.Core.Heap::wordAdd (project (project subtree delta) work) (project (project parent delta) work))})})))))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: depth
+}
+
+definition{
+  name: put,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    table : Table,
+    key : UInt64,
+    leaf : Uorc.Core.Heap::Node
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError),
+  body: (let kind : TableKind := (project table kind); (if (match leaf
+    | Uorc.Core.Heap::Node.image unused0 unused1 => false
+    | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => false
+    | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => false
+    | Uorc.Core.Heap::Node.storeLeaf unused0 => false
+    | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => false
+    | Uorc.Core.Heap::Node.slot roleValue value => (match kind
+      | TableKind.slots role => (prim equal (Uorc.Core.RuntimeValue::roleTag role) (Uorc.Core.RuntimeValue::roleTag roleValue) : Bool)
+      | TableKind.metadata k => false)
+    | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => false
+    | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => false
+    | Uorc.Core.Heap::Node.metadataLink kindValue tagValue target => (match kind
+      | TableKind.slots role => false
+      | TableKind.metadata k => (if (prim equal k kindValue : Bool) then (prim equal key tagValue : Bool) else false))
+    | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => false
+    | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => false
+    | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => false) then (writePath 64 arena (project table root) kind key leaf) else (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode)))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+\end{semanticmodule}
+\end{lexlean}

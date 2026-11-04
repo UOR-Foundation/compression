@@ -1,0 +1,534 @@
+\begin{lexlean}{Uorc.Core.HeapTests}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: HeapScenario,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: given, type: String},
+    {name: when, type: String},
+    {name: expected, type: String}
+  ]
+}
+
+definition{
+  name: ownershipScenario,
+  parameters: [],
+  result: HeapScenario,
+  body: (record HeapScenario {id := "UC-RES-04.heap-ownership", given := "Acyclic handle arena, retained aliases, charged images and explicit frame/continuation roots.", when := "Allocate persistent parents, retain roots and resume one-reference release transitions.", expected := "Meaning and aliases survive; counts equal roots plus edges plus pending tokens; owned entry and cursor totals are exact; failures are atomic."}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: drain,
+  parameters: [fuel : Nat, state : Uorc.Core.Heap::Arena],
+  result: (Result Uorc.Core.Heap::Arena Uorc.Core.Heap::HeapError),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure))
+    | Nat.succ remaining => (if (Uorc.Core.Heap::isReleasing state) then (match (Uorc.Core.Heap::releaseStep state)
+      | Result.error e => (ctor Result.error [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] e)
+      | Result.ok step => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project step arena))) then (drain remaining (project step arena)) else (ctor Result.error [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure)))) else (ctor Result.ok [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] state))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: aliasScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x00ff0280))
+    | Result.error failure => false
+    | Result.ok img => (match (Uorc.Core.Heap::allocate (project img arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project img handle) (1 : UInt64) (2 : UInt64)))
+      | Result.error failure => false
+      | Result.ok leaf => (match (Uorc.Core.Heap::allocate (project leaf arena) (ctor Uorc.Core.Heap::Node.sequenceBranch (4 : UInt64) (2 : UInt64) (project leaf handle) (project leaf handle)))
+        | Result.error failure => false
+        | Result.ok branch => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project branch arena))) then (if (match (Uorc.Core.HeapAudit::interpretSequence 16 (project branch arena) (project branch handle))
+          | Result.error e => false
+          | Result.ok bytes => (prim equal bytes 0xff02ff02 : Bool)) then (if (match (Uorc.Core.Heap::release (project branch arena) (project img handle))
+          | Result.error failure => false
+          | Result.ok r0 => (match (drain 16 (project r0 arena))
+            | Result.error failure => false
+            | Result.ok s0 => (match (Uorc.Core.Heap::release s0 (project leaf handle))
+              | Result.error failure => false
+              | Result.ok r1 => (match (drain 16 (project r1 arena))
+                | Result.error failure => false
+                | Result.ok s1 => (match (Uorc.Core.Heap::retain s1 (project branch handle))
+                  | Result.error failure => false
+                  | Result.ok keep => (match (Uorc.Core.Heap::release (project keep arena) (project branch handle))
+                    | Result.error failure => false
+                    | Result.ok r2 => (match (drain 16 (project r2 arena))
+                      | Result.error failure => false
+                      | Result.ok s2 => (if (prim equal (project s2 ownedBytes) (188 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit s2)) then (if (match (Uorc.Core.Heap::release s2 (project branch handle))
+                        | Result.error failure => false
+                        | Result.ok r3 => (match (drain 32 (project r3 arena))
+                          | Result.error failure => false
+                          | Result.ok s3 => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit s3)) then (if (prim equal (project s3 ownedBytes) (0 : UInt64) : Bool) then (if (prim equal (project s3 liveEntries) (0 : UInt64) : Bool) then true else false) else false) else false))) then true else false) else false) else false)))))))) then true else false) else false) else false)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_malformedHandle,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::lookup (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (record Uorc.Core.RuntimeValue::Handle {id := (99 : UInt64)}))
+    | Result.error e => (match e
+      | Uorc.Core.Heap::HeapError.malformedHandle => true
+      | Uorc.Core.Heap::HeapError.invalidNode => false
+      | Uorc.Core.Heap::HeapError.countOverflow => false
+      | Uorc.Core.Heap::HeapError.countUnderflow => false
+      | Uorc.Core.Heap::HeapError.handleOverflow => false
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+      | Uorc.Core.Heap::HeapError.budgetExceeded => false
+      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+      | Uorc.Core.Heap::HeapError.invalidRoot => false
+      | Uorc.Core.Heap::HeapError.protocolFailure => false)
+    | Result.ok v => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_invalidNode,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.sequenceLeaf (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (1 : UInt64)))
+    | Result.error e => (match e
+      | Uorc.Core.Heap::HeapError.malformedHandle => false
+      | Uorc.Core.Heap::HeapError.invalidNode => true
+      | Uorc.Core.Heap::HeapError.countOverflow => false
+      | Uorc.Core.Heap::HeapError.countUnderflow => false
+      | Uorc.Core.Heap::HeapError.handleOverflow => false
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+      | Uorc.Core.Heap::HeapError.budgetExceeded => false
+      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+      | Uorc.Core.Heap::HeapError.invalidRoot => false
+      | Uorc.Core.Heap::HeapError.protocolFailure => false)
+    | Result.ok v => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_budgetExceeded,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (39 : UInt64)) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error e => (match e
+      | Uorc.Core.Heap::HeapError.malformedHandle => false
+      | Uorc.Core.Heap::HeapError.invalidNode => false
+      | Uorc.Core.Heap::HeapError.countOverflow => false
+      | Uorc.Core.Heap::HeapError.countUnderflow => false
+      | Uorc.Core.Heap::HeapError.handleOverflow => false
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+      | Uorc.Core.Heap::HeapError.budgetExceeded => true
+      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+      | Uorc.Core.Heap::HeapError.invalidRoot => false
+      | Uorc.Core.Heap::HeapError.protocolFailure => false)
+    | Result.ok v => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_releaseNotStarted,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::releaseStep (Uorc.Core.Heap::emptyArena (1000000 : UInt64)))
+    | Result.error e => (match e
+      | Uorc.Core.Heap::HeapError.malformedHandle => false
+      | Uorc.Core.Heap::HeapError.invalidNode => false
+      | Uorc.Core.Heap::HeapError.countOverflow => false
+      | Uorc.Core.Heap::HeapError.countUnderflow => false
+      | Uorc.Core.Heap::HeapError.handleOverflow => false
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+      | Uorc.Core.Heap::HeapError.budgetExceeded => false
+      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => true
+      | Uorc.Core.Heap::HeapError.invalidRoot => false
+      | Uorc.Core.Heap::HeapError.protocolFailure => false)
+    | Result.ok v => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_handleOverflow,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (record Uorc.Core.Heap::Arena {index := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) index), nextHandle := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) nextHandle), exhausted := true, ownedBytes := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) ownedBytes), liveEntries := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) liveEntries), maxOwnedBytes := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) maxOwnedBytes), cursor := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) cursor)}) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error e => (match e
+      | Uorc.Core.Heap::HeapError.malformedHandle => false
+      | Uorc.Core.Heap::HeapError.invalidNode => false
+      | Uorc.Core.Heap::HeapError.countOverflow => false
+      | Uorc.Core.Heap::HeapError.countUnderflow => false
+      | Uorc.Core.Heap::HeapError.handleOverflow => true
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+      | Uorc.Core.Heap::HeapError.budgetExceeded => false
+      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+      | Uorc.Core.Heap::HeapError.invalidRoot => false
+      | Uorc.Core.Heap::HeapError.protocolFailure => false)
+    | Result.ok v => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_protocolFailure,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (record Uorc.Core.Heap::Arena {index := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) index), nextHandle := (0 : UInt64), exhausted := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) exhausted), ownedBytes := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) ownedBytes), liveEntries := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) liveEntries), maxOwnedBytes := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) maxOwnedBytes), cursor := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) cursor)}) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error e => (match e
+      | Uorc.Core.Heap::HeapError.malformedHandle => false
+      | Uorc.Core.Heap::HeapError.invalidNode => false
+      | Uorc.Core.Heap::HeapError.countOverflow => false
+      | Uorc.Core.Heap::HeapError.countUnderflow => false
+      | Uorc.Core.Heap::HeapError.handleOverflow => false
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+      | Uorc.Core.Heap::HeapError.budgetExceeded => false
+      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+      | Uorc.Core.Heap::HeapError.invalidRoot => false
+      | Uorc.Core.Heap::HeapError.protocolFailure => true)
+    | Result.ok v => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_ownedBytesOverflow,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (record Uorc.Core.Heap::Arena {index := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) index), nextHandle := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) nextHandle), exhausted := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) exhausted), ownedBytes := (18446744073709551615 : UInt64), liveEntries := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) liveEntries), maxOwnedBytes := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) maxOwnedBytes), cursor := (project (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) cursor)}) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error e => (match e
+      | Uorc.Core.Heap::HeapError.malformedHandle => false
+      | Uorc.Core.Heap::HeapError.invalidNode => false
+      | Uorc.Core.Heap::HeapError.countOverflow => false
+      | Uorc.Core.Heap::HeapError.countUnderflow => false
+      | Uorc.Core.Heap::HeapError.handleOverflow => false
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => true
+      | Uorc.Core.Heap::HeapError.budgetExceeded => false
+      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+      | Uorc.Core.Heap::HeapError.invalidRoot => false
+      | Uorc.Core.Heap::HeapError.protocolFailure => false)
+    | Result.ok v => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_countOverflow,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error failure => false
+    | Result.ok seed => (match (Uorc.Core.Heap::retain (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project (project seed arena) index) (project (project seed handle) id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) node), incoming := (18446744073709551615 : UInt64), roots := (1 : UInt64), weight := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) weight)}))), nextHandle := (project (project seed arena) nextHandle), exhausted := (project (project seed arena) exhausted), ownedBytes := (project (project seed arena) ownedBytes), liveEntries := (project (project seed arena) liveEntries), maxOwnedBytes := (project (project seed arena) maxOwnedBytes), cursor := (project (project seed arena) cursor)}) (project seed handle))
+      | Result.error e => (match e
+        | Uorc.Core.Heap::HeapError.malformedHandle => false
+        | Uorc.Core.Heap::HeapError.invalidNode => false
+        | Uorc.Core.Heap::HeapError.countOverflow => true
+        | Uorc.Core.Heap::HeapError.countUnderflow => false
+        | Uorc.Core.Heap::HeapError.handleOverflow => false
+        | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+        | Uorc.Core.Heap::HeapError.budgetExceeded => false
+        | Uorc.Core.Heap::HeapError.releaseInProgress => false
+        | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+        | Uorc.Core.Heap::HeapError.invalidRoot => false
+        | Uorc.Core.Heap::HeapError.protocolFailure => false)
+      | Result.ok v => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_invalidRoot,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error failure => false
+    | Result.ok seed => (match (Uorc.Core.Heap::release (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project (project seed arena) index) (project (project seed handle) id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) node), incoming := (1 : UInt64), roots := (0 : UInt64), weight := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) weight)}))), nextHandle := (project (project seed arena) nextHandle), exhausted := (project (project seed arena) exhausted), ownedBytes := (project (project seed arena) ownedBytes), liveEntries := (project (project seed arena) liveEntries), maxOwnedBytes := (project (project seed arena) maxOwnedBytes), cursor := (project (project seed arena) cursor)}) (project seed handle))
+      | Result.error e => (match e
+        | Uorc.Core.Heap::HeapError.malformedHandle => false
+        | Uorc.Core.Heap::HeapError.invalidNode => false
+        | Uorc.Core.Heap::HeapError.countOverflow => false
+        | Uorc.Core.Heap::HeapError.countUnderflow => false
+        | Uorc.Core.Heap::HeapError.handleOverflow => false
+        | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+        | Uorc.Core.Heap::HeapError.budgetExceeded => false
+        | Uorc.Core.Heap::HeapError.releaseInProgress => false
+        | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+        | Uorc.Core.Heap::HeapError.invalidRoot => true
+        | Uorc.Core.Heap::HeapError.protocolFailure => false)
+      | Result.ok v => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_countUnderflow,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error failure => false
+    | Result.ok seed => (match (Uorc.Core.Heap::releaseStep (record Uorc.Core.Heap::Arena {index := (project (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project (project seed arena) index) (project (project seed handle) id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) node), incoming := (0 : UInt64), roots := (1 : UInt64), weight := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) weight)}))), nextHandle := (project (project seed arena) nextHandle), exhausted := (project (project seed arena) exhausted), ownedBytes := (project (project seed arena) ownedBytes), liveEntries := (project (project seed arena) liveEntries), maxOwnedBytes := (project (project seed arena) maxOwnedBytes), cursor := (project (project seed arena) cursor)}) index), nextHandle := (project (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project (project seed arena) index) (project (project seed handle) id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) node), incoming := (0 : UInt64), roots := (1 : UInt64), weight := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) weight)}))), nextHandle := (project (project seed arena) nextHandle), exhausted := (project (project seed arena) exhausted), ownedBytes := (project (project seed arena) ownedBytes), liveEntries := (project (project seed arena) liveEntries), maxOwnedBytes := (project (project seed arena) maxOwnedBytes), cursor := (project (project seed arena) cursor)}) nextHandle), exhausted := (project (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project (project seed arena) index) (project (project seed handle) id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) node), incoming := (0 : UInt64), roots := (1 : UInt64), weight := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) weight)}))), nextHandle := (project (project seed arena) nextHandle), exhausted := (project (project seed arena) exhausted), ownedBytes := (project (project seed arena) ownedBytes), liveEntries := (project (project seed arena) liveEntries), maxOwnedBytes := (project (project seed arena) maxOwnedBytes), cursor := (project (project seed arena) cursor)}) exhausted), ownedBytes := (project (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project (project seed arena) index) (project (project seed handle) id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) node), incoming := (0 : UInt64), roots := (1 : UInt64), weight := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) weight)}))), nextHandle := (project (project seed arena) nextHandle), exhausted := (project (project seed arena) exhausted), ownedBytes := (project (project seed arena) ownedBytes), liveEntries := (project (project seed arena) liveEntries), maxOwnedBytes := (project (project seed arena) maxOwnedBytes), cursor := (project (project seed arena) cursor)}) ownedBytes), liveEntries := (project (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project (project seed arena) index) (project (project seed handle) id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) node), incoming := (0 : UInt64), roots := (1 : UInt64), weight := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) weight)}))), nextHandle := (project (project seed arena) nextHandle), exhausted := (project (project seed arena) exhausted), ownedBytes := (project (project seed arena) ownedBytes), liveEntries := (project (project seed arena) liveEntries), maxOwnedBytes := (project (project seed arena) maxOwnedBytes), cursor := (project (project seed arena) cursor)}) liveEntries), maxOwnedBytes := (project (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project (project seed arena) index) (project (project seed handle) id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) node), incoming := (0 : UInt64), roots := (1 : UInt64), weight := (project (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}) weight)}))), nextHandle := (project (project seed arena) nextHandle), exhausted := (project (project seed arena) exhausted), ownedBytes := (project (project seed arena) ownedBytes), liveEntries := (project (project seed arena) liveEntries), maxOwnedBytes := (project (project seed arena) maxOwnedBytes), cursor := (project (project seed arena) cursor)}) maxOwnedBytes), cursor := (record Uorc.Core.Heap::ReleaseCursor {pending := (cons (project seed handle) (nil Uorc.Core.RuntimeValue::Handle)), pendingCount := (1 : UInt64), rootStep := true})}))
+      | Result.error e => (match e
+        | Uorc.Core.Heap::HeapError.malformedHandle => false
+        | Uorc.Core.Heap::HeapError.invalidNode => false
+        | Uorc.Core.Heap::HeapError.countOverflow => false
+        | Uorc.Core.Heap::HeapError.countUnderflow => true
+        | Uorc.Core.Heap::HeapError.handleOverflow => false
+        | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+        | Uorc.Core.Heap::HeapError.budgetExceeded => false
+        | Uorc.Core.Heap::HeapError.releaseInProgress => false
+        | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+        | Uorc.Core.Heap::HeapError.invalidRoot => false
+        | Uorc.Core.Heap::HeapError.protocolFailure => false)
+      | Result.ok v => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: negative_releaseInProgress,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error failure => false
+    | Result.ok seed => (match (Uorc.Core.Heap::release (project seed arena) (project seed handle))
+      | Result.error failure => false
+      | Result.ok r => (if (match (Uorc.Core.Heap::retain (project r arena) (project seed handle))
+        | Result.error e => (match e
+          | Uorc.Core.Heap::HeapError.malformedHandle => false
+          | Uorc.Core.Heap::HeapError.invalidNode => false
+          | Uorc.Core.Heap::HeapError.countOverflow => false
+          | Uorc.Core.Heap::HeapError.countUnderflow => false
+          | Uorc.Core.Heap::HeapError.handleOverflow => false
+          | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+          | Uorc.Core.Heap::HeapError.budgetExceeded => false
+          | Uorc.Core.Heap::HeapError.releaseInProgress => true
+          | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+          | Uorc.Core.Heap::HeapError.invalidRoot => false
+          | Uorc.Core.Heap::HeapError.protocolFailure => false)
+        | Result.ok v => false) then (if (match (Uorc.Core.Heap::allocate (project r arena) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+        | Result.error e => (match e
+          | Uorc.Core.Heap::HeapError.malformedHandle => false
+          | Uorc.Core.Heap::HeapError.invalidNode => false
+          | Uorc.Core.Heap::HeapError.countOverflow => false
+          | Uorc.Core.Heap::HeapError.countUnderflow => false
+          | Uorc.Core.Heap::HeapError.handleOverflow => false
+          | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+          | Uorc.Core.Heap::HeapError.budgetExceeded => false
+          | Uorc.Core.Heap::HeapError.releaseInProgress => true
+          | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+          | Uorc.Core.Heap::HeapError.invalidRoot => false
+          | Uorc.Core.Heap::HeapError.protocolFailure => false)
+        | Result.ok v => false) then (if (match (Uorc.Core.Heap::release (project r arena) (project seed handle))
+        | Result.error e => (match e
+          | Uorc.Core.Heap::HeapError.malformedHandle => false
+          | Uorc.Core.Heap::HeapError.invalidNode => false
+          | Uorc.Core.Heap::HeapError.countOverflow => false
+          | Uorc.Core.Heap::HeapError.countUnderflow => false
+          | Uorc.Core.Heap::HeapError.handleOverflow => false
+          | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+          | Uorc.Core.Heap::HeapError.budgetExceeded => false
+          | Uorc.Core.Heap::HeapError.releaseInProgress => true
+          | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+          | Uorc.Core.Heap::HeapError.invalidRoot => false
+          | Uorc.Core.Heap::HeapError.protocolFailure => false)
+        | Result.ok v => false) then true else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: boundaryScenario,
+  parameters: [],
+  result: Bool,
+  body: (if (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (40 : UInt64)) (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)))
+    | Result.error failure => false
+    | Result.ok atLimit => (match (Uorc.Core.Heap::release (project atLimit arena) (project atLimit handle))
+      | Result.error failure => false
+      | Result.ok begin => (match (drain 8 (project begin arena))
+        | Result.error failure => false
+        | Result.ok empty => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit empty)) then (if (prim equal (project empty ownedBytes) (0 : UInt64) : Bool) then true else false) else false)))) then (if (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x00ff))
+    | Result.error failure => false
+    | Result.ok imageA => (match (Uorc.Core.Heap::allocate (project imageA arena) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x00ff))
+      | Result.error failure => false
+      | Result.ok imageB => (if (if (Uorc.Core.RuntimeValue::sameHandle (project imageA handle) (project imageB handle)) then false else true) then (if (prim equal (project (project imageB arena) ownedBytes) (100 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project imageB arena))) then true else false) else false) else false))) then (if (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x001122))
+    | Result.error failure => false
+    | Result.ok imageRoot => (if (match (Uorc.Core.Heap::allocate (project imageRoot arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageRoot handle) (18446744073709551615 : UInt64) (1 : UInt64)))
+      | Result.error e => (match e
+        | Uorc.Core.Heap::HeapError.malformedHandle => false
+        | Uorc.Core.Heap::HeapError.invalidNode => true
+        | Uorc.Core.Heap::HeapError.countOverflow => false
+        | Uorc.Core.Heap::HeapError.countUnderflow => false
+        | Uorc.Core.Heap::HeapError.handleOverflow => false
+        | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+        | Uorc.Core.Heap::HeapError.budgetExceeded => false
+        | Uorc.Core.Heap::HeapError.releaseInProgress => false
+        | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+        | Uorc.Core.Heap::HeapError.invalidRoot => false
+        | Uorc.Core.Heap::HeapError.protocolFailure => false)
+      | Result.ok v => false) then (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project imageRoot arena))) then (if (prim equal (project (project imageRoot arena) nextHandle) (2 : UInt64) : Bool) then true else false) else false) else false)) then (if (match (Uorc.Core.Heap::reserveImage (Uorc.Core.Heap::emptyArena (52 : UInt64)) (ctor Uorc.Core.Heap::ImageKind.runtime) (4 : UInt64))
+    | Result.error failure => false
+    | Result.ok ticket => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project ticket arena))) then (if (match (Uorc.Core.Heap::retain (project ticket arena) (project ticket handle))
+      | Result.error e => (match e
+        | Uorc.Core.Heap::HeapError.malformedHandle => false
+        | Uorc.Core.Heap::HeapError.invalidNode => false
+        | Uorc.Core.Heap::HeapError.countOverflow => false
+        | Uorc.Core.Heap::HeapError.countUnderflow => false
+        | Uorc.Core.Heap::HeapError.handleOverflow => false
+        | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+        | Uorc.Core.Heap::HeapError.budgetExceeded => false
+        | Uorc.Core.Heap::HeapError.releaseInProgress => false
+        | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+        | Uorc.Core.Heap::HeapError.invalidRoot => false
+        | Uorc.Core.Heap::HeapError.protocolFailure => true)
+      | Result.ok v => false) then (if (match (Uorc.Core.Heap::commitImage (project ticket arena) (project ticket handle) 0x00)
+      | Result.error e => (match e
+        | Uorc.Core.Heap::HeapError.malformedHandle => false
+        | Uorc.Core.Heap::HeapError.invalidNode => true
+        | Uorc.Core.Heap::HeapError.countOverflow => false
+        | Uorc.Core.Heap::HeapError.countUnderflow => false
+        | Uorc.Core.Heap::HeapError.handleOverflow => false
+        | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+        | Uorc.Core.Heap::HeapError.budgetExceeded => false
+        | Uorc.Core.Heap::HeapError.releaseInProgress => false
+        | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+        | Uorc.Core.Heap::HeapError.invalidRoot => false
+        | Uorc.Core.Heap::HeapError.protocolFailure => false)
+      | Result.ok v => false) then (if (match (Uorc.Core.Heap::commitImage (project ticket arena) (project ticket handle) 0x00ff0102)
+      | Result.error failure => false
+      | Result.ok image => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit (project image arena))) then (if (prim equal (project (project image arena) ownedBytes) (52 : UInt64) : Bool) then (if (if (Uorc.Core.RuntimeValue::sameHandle (project ticket handle) (project image handle)) then false else true) then (if (match (Uorc.Core.Heap::lookup (project image arena) (project ticket handle))
+        | Result.error e => (match e
+          | Uorc.Core.Heap::HeapError.malformedHandle => true
+          | Uorc.Core.Heap::HeapError.invalidNode => false
+          | Uorc.Core.Heap::HeapError.countOverflow => false
+          | Uorc.Core.Heap::HeapError.countUnderflow => false
+          | Uorc.Core.Heap::HeapError.handleOverflow => false
+          | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+          | Uorc.Core.Heap::HeapError.budgetExceeded => false
+          | Uorc.Core.Heap::HeapError.releaseInProgress => false
+          | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+          | Uorc.Core.Heap::HeapError.invalidRoot => false
+          | Uorc.Core.Heap::HeapError.protocolFailure => false)
+        | Result.ok v => false) then (if (match (Uorc.Core.Heap::release (project image arena) (project image handle))
+        | Result.error failure => false
+        | Result.ok drop => (match (drain 8 (project drop arena))
+          | Result.error failure => false
+          | Result.ok cleared => (if (Uorc.Core.HeapAudit::passed (Uorc.Core.HeapAudit::audit cleared)) then (if (prim equal (project cleared ownedBytes) (0 : UInt64) : Bool) then true else false) else false))) then true else false) else false) else false) else false) else false)) then true else false) else false) else false) else false)) then true else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+theorem{
+  name: conformance_negative_malformedHandle,
+  parameters: [],
+  statement: ((negative_malformedHandle) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_invalidNode,
+  parameters: [],
+  statement: ((negative_invalidNode) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_budgetExceeded,
+  parameters: [],
+  statement: ((negative_budgetExceeded) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_releaseNotStarted,
+  parameters: [],
+  statement: ((negative_releaseNotStarted) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_handleOverflow,
+  parameters: [],
+  statement: ((negative_handleOverflow) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_protocolFailure,
+  parameters: [],
+  statement: ((negative_protocolFailure) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_ownedBytesOverflow,
+  parameters: [],
+  statement: ((negative_ownedBytesOverflow) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_countOverflow,
+  parameters: [],
+  statement: ((negative_countOverflow) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_invalidRoot,
+  parameters: [],
+  statement: ((negative_invalidRoot) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_countUnderflow,
+  parameters: [],
+  statement: ((negative_countUnderflow) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: conformance_negative_releaseInProgress,
+  parameters: [],
+  statement: ((negative_releaseInProgress) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: suite,
+  parameters: [],
+  result: Bool,
+  body: (if (aliasScenario) then (if (negative_malformedHandle) then (if (negative_invalidNode) then (if (negative_budgetExceeded) then (if (negative_releaseNotStarted) then (if (negative_handleOverflow) then (if (negative_protocolFailure) then (if (negative_ownedBytesOverflow) then (if (negative_countOverflow) then (if (negative_invalidRoot) then (if (negative_countUnderflow) then (if (negative_releaseInProgress) then (if (boundaryScenario) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+\end{semanticmodule}
+\end{lexlean}
