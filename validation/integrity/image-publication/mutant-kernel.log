@@ -1,0 +1,49 @@
+$DIAGNOSTIC/image-publication/mutant-model/Uorc/Uorc/Integrity/ImagePublicationLaws.lean:713:0: error: native core declaration 'Uorc.Uorc.Integrity.ImagePublicationLaws.commitImage_effect':
+  (kernel) declaration type mismatch, 'Uorc.Uorc.Integrity.ImagePublicationLaws.commitImage_effect' has type
+    ∀ (arena : Uorc.Uorc.Core.Heap.Arena) (reservation : Uorc.Uorc.Core.RuntimeValue.Handle) (bytes : ByteArray)
+      (committed : Uorc.Uorc.Core.Heap.Allocation),
+      Uorc.Uorc.Core.Heap.commitImage arena reservation bytes = Except.ok committed →
+        ∃ kind entry,
+          Uorc.Uorc.Core.Heap.lookup committed.arena committed.handle = Except.ok entry ∧
+            entry.node = Uorc.Uorc.Core.Heap.Node.image kind bytes ∧ Uorc.Uorc.Core.Heap.isControlKind kind = false
+  but it is expected to have type
+    ∀ (arena : Uorc.Uorc.Core.Heap.Arena) (reservation : Uorc.Uorc.Core.RuntimeValue.Handle) (bytes : ByteArray)
+      (committed : Uorc.Uorc.Core.Heap.Allocation),
+      Uorc.Uorc.Core.Heap.commitImage arena reservation bytes = Except.ok committed →
+        ∃ kind entry,
+          Uorc.Uorc.Core.Heap.lookup committed.arena committed.handle = Except.ok entry ∧
+            entry.node = Uorc.Uorc.Core.Heap.Node.image kind ByteArray.empty ∧
+              Uorc.Uorc.Core.Heap.isControlKind kind = false
+$DIAGNOSTIC/image-publication/mutant-model/Uorc/Uorc/Integrity/ImagePublicationLaws.lean:727:0: error: native core declaration 'Uorc.Uorc.Integrity.ImagePublicationLaws.commitImage_lookup_node':
+  (kernel) application type mismatch
+    Exists.casesOn
+      (Uorc.Uorc.Integrity.ImagePublicationLaws.commitImage_effect arena reservation bytes committed success)
+  argument has type
+    ∃ kind entry,
+      Uorc.Uorc.Core.Heap.lookup committed.arena committed.handle = Except.ok entry ∧
+        entry.node = Uorc.Uorc.Core.Heap.Node.image kind ByteArray.empty ∧
+          Uorc.Uorc.Core.Heap.isControlKind kind = false
+  but function has type
+    ∀
+      (t :
+        ∃ kind entry,
+          Uorc.Uorc.Core.Heap.lookup committed.arena committed.handle = Except.ok entry ∧
+            entry.node = Uorc.Uorc.Core.Heap.Node.image kind bytes ∧ Uorc.Uorc.Core.Heap.isControlKind kind = false),
+      (∀ (w : Uorc.Uorc.Core.Heap.ImageKind)
+          (h :
+            (fun kind =>
+                ∃ entry,
+                  Uorc.Uorc.Core.Heap.lookup committed.arena committed.handle = Except.ok entry ∧
+                    entry.node = Uorc.Uorc.Core.Heap.Node.image kind bytes ∧
+                      Uorc.Uorc.Core.Heap.isControlKind kind = false)
+              w),
+          (fun x =>
+              ∃ kind entry,
+                Uorc.Uorc.Core.Heap.lookup committed.arena committed.handle = Except.ok entry ∧
+                  entry.node = Uorc.Uorc.Core.Heap.Node.image kind bytes)
+            ⋯) →
+        (fun x =>
+            ∃ kind entry,
+              Uorc.Uorc.Core.Heap.lookup committed.arena committed.handle = Except.ok entry ∧
+                entry.node = Uorc.Uorc.Core.Heap.Node.image kind bytes)
+          t
