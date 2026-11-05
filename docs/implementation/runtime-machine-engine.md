@@ -30,6 +30,9 @@ checkpoint validation, or controller restart protocol is introduced here.
   The first paid startup attempt checks profile, storage policy, ledger shape and
   current limits before allocating engine control. Existing arena ownership and
   operational budget are checked by `RuntimeResources.observeArena`.
+  Ingress requires equal arena and budget owned-byte ceilings; a mismatch suspends
+  with `arenaBudgetMismatch` before allocation. The existing `extend` operation
+  deliberately revalidates usage and updates that ceiling.
 - `start(ready, budget)` is a standalone component compatibility constructor. It
   explicitly creates a fresh current-profile ledger and unconstrained semantic
   budget with UInt64 maximum work. It has no production annotation and must not

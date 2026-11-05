@@ -13,6 +13,10 @@
 \importmodule{Uorc.Core.Heap}
 \importmodule{Uorc.Core.HeapAudit}
 \importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.CanonicalCallComposition}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.ReferenceSemantics}
 \title{Parameters}
 \begin{semanticmodule}
 inductive{
@@ -65,6 +69,138 @@ definition{
   ],
   result: Bool,
   body: (if (prim equal (project left semanticWork) (project right semanticWork) : Bool) then (if (prim equal (project left semanticStorageUnits) (project right semanticStorageUnits) : Bool) then (if (prim equal (project left peakSemanticStorageUnits) (project right peakSemanticStorageUnits) : Bool) then (if (prim equal (project left outputBytes) (project right outputBytes) : Bool) then (if (prim equal (project left activeFrames) (project right activeFrames) : Bool) then (if (prim equal (project left peakFrames) (project right peakFrames) : Bool) then (if (prim equal (project left acceptedArchives) (project right acceptedArchives) : Bool) then (if (prim equal (project left basisObjects) (project right basisObjects) : Bool) then true else false) else false) else false) else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: enteredLedger,
+  parameters: [work : UInt64, storage : UInt64, peak : UInt64],
+  result: Uorc.Core.RuntimeMachineSemantic::Ledger,
+  body: (record Uorc.Core.RuntimeMachineSemantic::Ledger {profile := (Uorc.Core.CanonicalCost::currentProfile), semanticWork := work, semanticStorageUnits := storage, peakSemanticStorageUnits := peak, outputBytes := (2 : UInt64), activeFrames := (2 : UInt64), peakFrames := (2 : UInt64), acceptedArchives := (1 : UInt64), basisObjects := (1 : UInt64)}),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: divisionLedger,
+  parameters: [work : UInt64],
+  result: Uorc.Core.RuntimeMachineSemantic::Ledger,
+  body: (enteredLedger work (19 : UInt64) (19 : UInt64)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: returnedOutputLedger,
+  parameters: [],
+  result: Uorc.Core.RuntimeMachineSemantic::Ledger,
+  body: (record Uorc.Core.RuntimeMachineSemantic::Ledger {profile := (Uorc.Core.CanonicalCost::currentProfile), semanticWork := (17 : UInt64), semanticStorageUnits := (4 : UInt64), peakSemanticStorageUnits := (5 : UInt64), outputBytes := (2 : UInt64), activeFrames := (1 : UInt64), peakFrames := (2 : UInt64), acceptedArchives := (1 : UInt64), basisObjects := (1 : UInt64)}),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: sameCoreUsage,
+  parameters: [left : Uorc.Core.CanonicalCost::Usage, right : Uorc.Core.CanonicalCost::Usage],
+  result: Bool,
+  body: (if ((project left semanticWork) =? (project right semanticWork)) then (if ((project left semanticStorageUnits) =? (project right semanticStorageUnits)) then (if ((project left peakSemanticStorageUnits) =? (project right peakSemanticStorageUnits)) then (if ((project left outputBytes) =? (project right outputBytes)) then (if ((project left activeFrames) =? (project right activeFrames)) then (if ((project left peakFrames) =? (project right peakFrames)) then (if ((project left acceptedArchives) =? (project right acceptedArchives)) then (if ((project left basisObjects) =? (project right basisObjects)) then true else false) else false) else false) else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: coreAdvance,
+  parameters: [
+    usage : Uorc.Core.CanonicalCost::Usage,
+    events : (List Uorc.Core.CanonicalCost::SemanticEvent)
+  ],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (match events
+    | List.nil => usage
+    | List.cons event rest => (coreAdvance (Uorc.Core.CanonicalCost::advance usage event) rest)),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: events
+}
+
+definition{
+  name: takeCoreEvents,
+  parameters: [count : Nat, events : (List Uorc.Core.CanonicalCost::SemanticEvent)],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (match count
+    | Nat.zero => (nil Uorc.Core.CanonicalCost::SemanticEvent)
+    | Nat.succ rest => (match events
+      | List.nil => (nil Uorc.Core.CanonicalCost::SemanticEvent)
+      | List.cons event tail => (cons event (takeCoreEvents rest tail)))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: count
+}
+
+definition{
+  name: coreFresh,
+  parameters: [
+    usage : Uorc.Core.CanonicalCost::Usage,
+    opcode : Uorc.Core.RuntimeOpcode::Opcode,
+    value : Uorc.Core.ReferenceSemantics::Value
+  ],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (coreAdvance (coreAdvance usage (Uorc.Core.CanonicalSchedule::instructionPrefix opcode)) (project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh) (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := value}) (nil Uorc.Core.CanonicalBindings::Binding)) events)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: coreEntryUsage,
+  parameters: [],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (coreAdvance (Uorc.Core.RuntimeMachineSemantic::meaning (nonzeroLedger (10 : UInt64))) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.blockEnter) (nil Uorc.Core.CanonicalCost::SemanticEvent))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: coreTwoNaturals,
+  parameters: [firstValue : Nat, secondValue : Nat],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (coreFresh (coreFresh (coreEntryUsage) (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant) (ctor Uorc.Core.ReferenceSemantics::Value.natural firstValue)) (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant) (ctor Uorc.Core.ReferenceSemantics::Value.natural secondValue)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: coreDivisionRefusalUsage,
+  parameters: [],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (coreAdvance (coreTwoNaturals 7 0) (takeCoreEvents 2 (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalDivide)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: coreDivisionRetryUsage,
+  parameters: [],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (coreAdvance (coreDivisionRefusalUsage) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: coreInvalidReferenceUsage,
+  parameters: [],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (coreAdvance (coreFresh (coreEntryUsage) (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant) (ctor Uorc.Core.ReferenceSemantics::Value.natural 7)) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalToByte))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: coreReturnedOutputUsage,
+  parameters: [],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (coreAdvance (coreAdvance (coreAdvance (coreAdvance (coreFresh (coreEntryUsage) (ctor Uorc.Core.RuntimeOpcode::Opcode.byteConstant) (ctor Uorc.Core.ReferenceSemantics::Value.byte 65)) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.singletonSequence))) (Uorc.Core.CanonicalSchedule::singletonConstruction)) (project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh) (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (Uorc.Core.ReferenceSemantics::sequenceFromBytes 0x41))}) (nil Uorc.Core.CanonicalBindings::Binding)) events)) (project (Uorc.Core.CanonicalSchedule::returnPlan (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (Uorc.Core.ReferenceSemantics::sequenceFromBytes 0x41))}) (cons (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 65)}) (nil Uorc.Core.CanonicalBindings::Binding))) events)),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -282,11 +418,11 @@ definition{
   name: blockedDivide,
   parameters: [fuel : Nat],
   result: (Result Uorc.Core.RuntimeMachineEngine::State ScenarioError),
-  body: (match (divideStart (semBudget (14 : UInt64)) (nonzeroLedger (10 : UInt64)))
+  body: (if (sameCoreUsage (Uorc.Core.RuntimeMachineSemantic::meaning (divisionLedger (15 : UInt64))) (coreDivisionRefusalUsage)) then (match (divideStart (semBudget (15 : UInt64)) (nonzeroLedger (10 : UInt64)))
     | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] failure)
     | Result.ok initial => (match (settle fuel initial)
       | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] failure)
-      | Result.ok blocked => (ctor Result.ok [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] blocked))),
+      | Result.ok blocked => (ctor Result.ok [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] blocked))) else (ctor Result.error [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] (ctor ScenarioError.audit (18 : UInt64)))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -297,7 +433,7 @@ definition{
   result: (Result Unit ScenarioError),
   body: (match (blockedDivide fuel)
     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
-    | Result.ok blocked => (let inert : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick blocked); (if (if (if (hasSemanticError blocked (4 : UInt64)) then (if (prim equal (phase blocked) (32 : UInt64) : Bool) then (if (prim equal (position blocked) (2 : UInt64) : Bool) then (if (prim equal (pc blocked) (2 : UInt64) : Bool) then (if (sameLedger (project blocked semanticLedger) (nonzeroLedger (14 : UInt64))) then (if (audit blocked) then true else false) else false) else false) else false) else false) else false) then (if (sameArena blocked inert) then (if (sameLedger (project blocked semanticLedger) (project inert semanticLedger)) then (if (prim equal (position inert) (2 : UInt64) : Bool) then true else false) else false) else false) else false) then (cleanup fuel inert (nonzeroLedger (14 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (3 : UInt64)))))),
+    | Result.ok blocked => (let inert : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick blocked); (if (if (if (hasSemanticError blocked (4 : UInt64)) then (if (prim equal (phase blocked) (32 : UInt64) : Bool) then (if (prim equal (position blocked) (2 : UInt64) : Bool) then (if (prim equal (pc blocked) (2 : UInt64) : Bool) then (if (sameLedger (project blocked semanticLedger) (divisionLedger (15 : UInt64))) then (if (audit blocked) then true else false) else false) else false) else false) else false) else false) then (if (sameArena blocked inert) then (if (sameLedger (project blocked semanticLedger) (project inert semanticLedger)) then (if (prim equal (position inert) (2 : UInt64) : Bool) then true else false) else false) else false) else false) then (cleanup fuel inert (divisionLedger (15 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (3 : UInt64)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -332,7 +468,7 @@ definition{
         | Uorc.Core.RuntimeMachine::Disposition.cancelling => false
         | Uorc.Core.RuntimeMachine::Disposition.cleaned => false
         | Uorc.Core.RuntimeMachine::Disposition.completed handle => false
-        | Uorc.Core.RuntimeMachine::Disposition.suspended error => false) then (if (sameArena blocked failed) then (if (prim equal (position failed) (5 : UInt64) : Bool) then (if (sameLedger (project failed semanticLedger) (nonzeroLedger (15 : UInt64))) then (if (audit failed) then true else false) else false) else false) else false) else false) then (cleanup fuel failed (nonzeroLedger (15 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (4 : UInt64))))))),
+        | Uorc.Core.RuntimeMachine::Disposition.suspended error => false) then (if (sameArena blocked failed) then (if (prim equal (position failed) (5 : UInt64) : Bool) then (if (sameLedger (project failed semanticLedger) (divisionLedger (16 : UInt64))) then (if (if (audit failed) then (sameCoreUsage (Uorc.Core.RuntimeMachineSemantic::meaning (project failed semanticLedger)) (coreDivisionRetryUsage)) else false) then true else false) else false) else false) else false) else false) then (cleanup fuel failed (divisionLedger (16 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (4 : UInt64))))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -357,8 +493,8 @@ definition{
   ],
   result: (Result Unit ScenarioError),
   body: (match remaining
-    | Nat.zero => (cleanup fuel state (nonzeroLedger expected))
-    | Nat.succ rest => (let advanced : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick state); (if (if (prim equal (position advanced) (Uorc.Core.Heap::wordAdd wanted (1 : UInt64)) : Bool) then (if (sameArena state advanced) then (if (sameLedger (project advanced semanticLedger) (nonzeroLedger (Uorc.Core.Heap::wordAdd expected (1 : UInt64)))) then (if (audit advanced) then true else false) else false) else false) else false) then (let capped : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::extend advanced (opBudget (project (project advanced usage) work))); (let refused : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick capped); (if (if (sameArena advanced refused) then (if (sameLedger (project advanced semanticLedger) (project refused semanticLedger)) then (if (prim equal (position advanced) (position refused) : Bool) then (if (match (project refused disposition)
+    | Nat.zero => (cleanup fuel state (divisionLedger expected))
+    | Nat.succ rest => (let advanced : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick state); (if (if (prim equal (position advanced) (Uorc.Core.Heap::wordAdd wanted (1 : UInt64)) : Bool) then (if (sameArena state advanced) then (if (sameLedger (project advanced semanticLedger) (divisionLedger (Uorc.Core.Heap::wordAdd expected (1 : UInt64)))) then (if (audit advanced) then true else false) else false) else false) else false) then (let capped : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::extend advanced (opBudget (project (project advanced usage) work))); (let refused : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick capped); (if (if (sameArena advanced refused) then (if (sameLedger (project advanced semanticLedger) (project refused semanticLedger)) then (if (prim equal (position advanced) (position refused) : Bool) then (if (match (project refused disposition)
       | Uorc.Core.RuntimeMachine::Disposition.suspended error => true
       | Uorc.Core.RuntimeMachine::Disposition.running => false
       | Uorc.Core.RuntimeMachine::Disposition.cancelling => false
@@ -378,7 +514,7 @@ definition{
     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
     | Result.ok initial => (match (seekPrefix fuel initial (ctor Uorc.Core.RuntimeOpcode::Opcode.scan) (0 : UInt64))
       | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
-      | Result.ok prefix => (if (sameLedger (project prefix semanticLedger) (nonzeroLedger (12 : UInt64))) then (walkScanPrefix 5 fuel prefix (12 : UInt64) (0 : UInt64)) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64)))))),
+      | Result.ok prefix => (if (if (sameLedger (project prefix semanticLedger) (divisionLedger (13 : UInt64))) then (sameCoreUsage (Uorc.Core.RuntimeMachineSemantic::meaning (project prefix semanticLedger)) (coreTwoNaturals 1 0)) else false) then (walkScanPrefix 5 fuel prefix (13 : UInt64) (0 : UInt64)) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -387,11 +523,11 @@ definition{
   name: wordRefusal,
   parameters: [fuel : Nat],
   result: (Result Unit ScenarioError),
-  body: (match (divideStart (semBudget (18446744073709551615 : UInt64)) (nonzeroLedger (18446744073709551615 : UInt64)))
+  body: (match (divideStart (semBudget (18446744073709551615 : UInt64)) (nonzeroLedger (18446744073709551614 : UInt64)))
     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
     | Result.ok initial => (match (seekPrefix fuel initial (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant) (0 : UInt64))
       | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
-      | Result.ok prefix => (let refused : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick prefix); (if (if (hasSemanticError refused (1 : UInt64)) then (if (sameArena prefix refused) then (if (sameLedger (project refused semanticLedger) (nonzeroLedger (18446744073709551615 : UInt64))) then (if (prim equal (position refused) (0 : UInt64) : Bool) then (if (audit refused) then true else false) else false) else false) else false) else false) then (cleanup fuel refused (nonzeroLedger (18446744073709551615 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64))))))),
+      | Result.ok prefix => (let refused : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick prefix); (if (if (hasSemanticError refused (1 : UInt64)) then (if (sameArena prefix refused) then (if (sameLedger (project refused semanticLedger) (enteredLedger (18446744073709551615 : UInt64) (3 : UInt64) (4 : UInt64))) then (if (prim equal (position refused) (0 : UInt64) : Bool) then (if (if (audit refused) then (sameCoreUsage (Uorc.Core.RuntimeMachineSemantic::meaning (project refused semanticLedger)) (coreAdvance (Uorc.Core.RuntimeMachineSemantic::meaning (nonzeroLedger (18446744073709551614 : UInt64))) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.blockEnter) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) else false) then true else false) else false) else false) else false) else false) then (cleanup fuel refused (enteredLedger (18446744073709551615 : UInt64) (3 : UInt64) (4 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64))))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -426,7 +562,7 @@ definition{
     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
     | Result.ok initial => (match (seekPrefix fuel initial (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalDivide) (0 : UInt64))
       | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
-      | Result.ok prefix => (let accepted : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick prefix); (let capped : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::extend accepted (opBudget (project (project accepted usage) work))); (let refused : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick capped); (if (if (sameArena accepted refused) then (if (sameLedger (project refused semanticLedger) (nonzeroLedger (13 : UInt64))) then (if (prim equal (position refused) (1 : UInt64) : Bool) then (if (audit refused) then true else false) else false) else false) else false) then (let resumed : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::extend refused (opBudget (100000000 : UInt64))); (let next : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick resumed); (if (if (sameLedger (project next semanticLedger) (nonzeroLedger (14 : UInt64))) then (if (prim equal (position next) (2 : UInt64) : Bool) then (if (audit next) then true else false) else false) else false) then (cleanup fuel next (nonzeroLedger (14 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (11 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (10 : UInt64))))))))),
+      | Result.ok prefix => (let accepted : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick prefix); (let capped : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::extend accepted (opBudget (project (project accepted usage) work))); (let refused : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick capped); (if (if (sameArena accepted refused) then (if (sameLedger (project refused semanticLedger) (divisionLedger (14 : UInt64))) then (if (prim equal (position refused) (1 : UInt64) : Bool) then (if (audit refused) then true else false) else false) else false) else false) then (let resumed : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::extend refused (opBudget (100000000 : UInt64))); (let next : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick resumed); (if (if (sameLedger (project next semanticLedger) (divisionLedger (15 : UInt64))) then (if (prim equal (position next) (2 : UInt64) : Bool) then (if (audit next) then true else false) else false) else false) then (cleanup fuel next (divisionLedger (15 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (11 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (10 : UInt64))))))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -476,7 +612,7 @@ definition{
         | Uorc.Core.RuntimeMachine::Disposition.completed handle => false
         | Uorc.Core.RuntimeMachine::Disposition.suspended error => false) then (if (match (Uorc.Core.RuntimeMachineEngine::semanticStatus finished)
         | Option.none => true
-        | Option.some failure => false) then (if (sameLedger (project finished semanticLedger) (nonzeroLedger (10 : UInt64))) then (if (audit finished) then true else false) else false) else false) else false) then (cleanup fuel finished (nonzeroLedger (10 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (12 : UInt64)))))),
+        | Option.some failure => false) then (if (sameLedger (project finished semanticLedger) (enteredLedger (11 : UInt64) (3 : UInt64) (4 : UInt64))) then (if (if (audit finished) then (sameCoreUsage (Uorc.Core.RuntimeMachineSemantic::meaning (project finished semanticLedger)) (coreEntryUsage)) else false) then true else false) else false) else false) else false) then (cleanup fuel finished (enteredLedger (11 : UInt64) (3 : UInt64) (4 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (12 : UInt64)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -503,7 +639,7 @@ definition{
         | Uorc.Core.RuntimeMachine::Disposition.completed handle => false
         | Uorc.Core.RuntimeMachine::Disposition.suspended error => false) then (if (match (Uorc.Core.RuntimeMachineEngine::semanticStatus finished)
         | Option.none => true
-        | Option.some failure => false) then (if (sameLedger (project finished semanticLedger) (nonzeroLedger (13 : UInt64))) then (if (audit finished) then true else false) else false) else false) else false) then (cleanup fuel finished (nonzeroLedger (13 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (13 : UInt64)))))),
+        | Option.some failure => false) then (if (sameLedger (project finished semanticLedger) (enteredLedger (14 : UInt64) (11 : UInt64) (11 : UInt64))) then (if (if (audit finished) then (sameCoreUsage (Uorc.Core.RuntimeMachineSemantic::meaning (project finished semanticLedger)) (coreInvalidReferenceUsage)) else false) then true else false) else false) else false) else false) then (cleanup fuel finished (enteredLedger (14 : UInt64) (11 : UInt64) (11 : UInt64))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (13 : UInt64)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -535,13 +671,13 @@ definition{
         | Uorc.Core.RuntimeMachine::Disposition.cancelling => false
         | Uorc.Core.RuntimeMachine::Disposition.failed failure => false
         | Uorc.Core.RuntimeMachine::Disposition.suspended error => false
-        | Uorc.Core.RuntimeMachine::Disposition.cleaned => false) then (if (audit finished) then (if (sameLedger (project finished semanticLedger) (nonzeroLedger (13 : UInt64))) then true else false) else false) else false) then (match (Uorc.Core.RuntimeMachineEngine::takeOutput finished)
+        | Uorc.Core.RuntimeMachine::Disposition.cleaned => false) then (if (if (audit finished) then (sameCoreUsage (Uorc.Core.RuntimeMachineSemantic::meaning (project finished semanticLedger)) (coreReturnedOutputUsage)) else false) then (if (sameLedger (project finished semanticLedger) (returnedOutputLedger)) then true else false) else false) else false) then (match (Uorc.Core.RuntimeMachineEngine::takeOutput finished)
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-        | Result.ok output => (if (sameLedger (project (project output state) semanticLedger) (nonzeroLedger (13 : UInt64))) then (match (drainCancel fuel (Uorc.Core.RuntimeMachineEngine::cancel (project output state)))
+        | Result.ok output => (if (sameLedger (project (project output state) semanticLedger) (returnedOutputLedger)) then (match (drainCancel fuel (Uorc.Core.RuntimeMachineEngine::cancel (project output state)))
           | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
           | Result.ok cleaned => (if (Uorc.Core.HeapAudit::auditRoots (project cleaned arena) (cons (project output handle) (Uorc.Core.RuntimeMachineEngine::ownedRoots cleaned))) then (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-            | Result.ok transferred => (if (if (sameLedger (project transferred semanticLedger) (nonzeroLedger (13 : UInt64))) then (if (prim equal (project (project transferred semanticBudget) maxSemanticWork) (100 : UInt64) : Bool) then true else false) else false) then (match (Uorc.Core.RuntimeMachineFixtures::dropAll (cons (project output handle) (Uorc.Core.RuntimeProgram::rootInventory (project (project transferred ready) program) (project (project transferred ready) caller))) (project (project transferred ready) arena))
+            | Result.ok transferred => (if (if (sameLedger (project transferred semanticLedger) (returnedOutputLedger)) then (if (prim equal (project (project transferred semanticBudget) maxSemanticWork) (100 : UInt64) : Bool) then true else false) else false) then (match (Uorc.Core.RuntimeMachineFixtures::dropAll (cons (project output handle) (Uorc.Core.RuntimeProgram::rootInventory (project (project transferred ready) program) (project (project transferred ready) caller))) (project (project transferred ready) arena))
               | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
               | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (17 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (16 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (15 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64)))))),
   axioms: [Quot.sound, propext],
