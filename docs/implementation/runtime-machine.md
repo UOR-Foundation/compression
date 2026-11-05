@@ -204,3 +204,51 @@ reserved partial binder; RuntimeReferenceTests marks mathematical Graph-based
 controls non-executable as required by their independent reference calls.
 Computational behavior is unchanged by these authoring repairs. No compiler, SDK
 lock, universal policy or contributor branch is changed.
+
+
+## Owned unit-cache and fixed-width ledger checkpoint
+
+RuntimeMachineSemantic supplies the shared fixed-width adapter for
+logicalReferenceEvents1, with explicit profile/storage guards, checked counters,
+retained failed prefixes and proof-side lifts to the single CanonicalCost fee
+authority. Its ten fresh-profile generated Lean evaluator controls pass and
+71 exact axiom policies match. This adapter is not yet an Engine event ledger.
+
+Each Engine frame now owns an additional unitsTable root and a UInt64
+accumulatorUnits witness; State carries valueUnits. Data and cache mutations
+commit separately through native retained-failure table cursors. Slot/capture
+counters advance after both commits, and reclamation erases both edges before
+retiring their roots. Aliases, arguments, captures and returned values propagate
+the witness. Store writes inspect the existing leaf before the native mutation
+and update 1 + 9 times the exception count without traversing the store. Cache
+addressability and invariant failures preserve achieved state as operational
+inability. Cached-unit correspondence to the independent reference remains a
+proof obligation, including canonical store reachability/cardinality.
+
+RuntimePeak now records the actual pre-event arena after prepayment and folds
+the returned arena before later release, including failed prefixes and native
+table transition peaks. Metric errors fail with achieved state rather than
+becoming zero. The 23-module cache/peak generated Lean kernel closure compiled
+and all 83 Engine function axiom policies matched. Canonical formatting
+preserved generated Engine and Semantic Lean byte for byte; exact identities
+are recorded in tests/runtime-machine/evidence/canonical-format.json.
+
+The corrected earlier Engine source passes its complete 83-root generated Lean
+evaluator driver, including the actual admitted Credit/Boundary/Engine/output
+lifecycle. That receipt is baseline evidence, not execution of the new cache
+schema. The new 93-root source checks/build passes; focused peak controls and a
+peak-bypass mutant have executed. The source-owned common-Graph natural-state
+and byte-state Scan paths emit actual wire and invoke ProgramParse, Admission
+and Engine. Their first run exposed a test-controller foreignRelease boundary
+failure; the corrected parser release drain and cache/cancellation runs remain
+under execution. Exact partial results are retained in increment93-progress.json.
+
+The verification-only refinement adds general constructive output-ticket and
+Ready handoff laws, including alias multiplicity and value interpretation.
+Earlier kernel receipts identify their exact context; the new cache-context
+source build passes, with its kernel recheck tracked separately. Neither these
+handoff lemmas nor finite controls establish complete reachable-state simulation.
+Actual canonical event coverage and return/accumulator binding rules, global
+reference/ownership/prefix preservation, authentic parsed IR export using the
+existing SDK reader, accepted native export and physical measurements, and the
+locked-SDK whole-product acceptance boundary remain open.

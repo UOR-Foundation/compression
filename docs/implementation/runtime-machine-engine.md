@@ -74,11 +74,13 @@ operation speculatively to discover its fee.
 | Enter frame | `indexedStart + controlAllocate` |
 | Fetch and prepare an executing instruction | `scalarCheck` |
 | Prefix parameter type lookup and install | `indexedStart + tableMutation` |
-| Capture item validation and install | `captureCheck + tableMutation` |
+| Capture validation, witness lookup and install | `captureCheck + tableMutation + indexedStart` |
 | Initial/last-use bucket metadata lookup | `indexedStart` |
-| Release-bucket slot lookup and erase | `indexedStart + tableMutation` |
-| Install instruction result / pending table event | `tableMutation` |
-| Retain a returned local | `indexedStart + heapRetain` |
+| Release-bucket slot and witness lookup, data erase | `indexedStart + tableMutation + indexedStart` |
+| Install instruction result / pending data or witness table event | `tableMutation` |
+| Action payload witness reads before dispatch | Action fee plus `indexedStart` |
+| Erase witness after data erase | `indexedStart + tableMutation` |
+| Retain returned local and read its witness | `indexedStart + heapRetain + indexedStart` |
 | Publish output length | `sequenceLength` |
 | Sequence begin, step, first cancellation | Corresponding `sequenceBegin`, `sequenceStep`, `sequenceCancel` |
 | Compare initial sequence lengths | `sequenceLength + sequenceLength` |
@@ -114,12 +116,12 @@ Heap error details remain under `Failure.heap`.
 ## Capacity owners
 
 Each retained frame cons has its own actual `Heap.allocateControl(4096)` owner.
-The modeled 64-bit packed frame plus the cons spine is at most 672 bytes when
+The modeled 64-bit packed frame plus the cons spine is at most 704 bytes when
 sum tags, option tags, booleans and bytes each occupy one word. This includes the
 frame table shell, borrowed block and optional instruction metadata shells,
-action, capture and release counters, iteration state, accumulator, and fixed
+action, capture and release counters, iteration state, accumulator and its unit count, auxiliary units-table shell, and fixed
 builder. The reserve includes the complete control record and spine, rather than
-only a symbolic frame marker. Frame roots, accumulator roots, and builder roots
+only a symbolic frame marker. Frame data and units-table roots, accumulator roots, and builder roots
 remain separate tickets and are enumerated with multiplicity.
 
 The fixed engine control uses `Heap.allocateControl(8192)`, including the extra
@@ -142,6 +144,9 @@ Frame phases are fixed numeric tags in the authored source:
 | 19–23 | Start, append, finish, and advance a byte builder |
 | 24–25 | Compare left and right sequence bytes through resumable indexing |
 | 26 | Retire a completed continuation's accumulator ticket |
+| 27–29 | Install prefix, capture and instruction payload-unit witnesses |
+| 30 | Erase a released binding's payload-unit witness |
+| 31 | Retire the frame's units-table root before popping |
 
 The engine forwards historical one-based local and backward-block distances
 unchanged to the shared readers. Slot, instruction, capture-array and release
@@ -180,3 +185,52 @@ The engine's typed failures are `RuntimeMachine.Failure`. The generated
 `ComputeError` channel and unknown host fatal failures remain separate; no
 rollback guarantee is asserted for those channels. Input/EOF interpretation
 belongs to the surrounding controller.
+
+
+## Charged payload-unit witnesses
+
+Every frame owns an auxiliary `RuntimeTable` of natural-valued witnesses under
+`RootRole.typeCache`. `FrameRecord.unitsTable` has its own root ticket;
+`accumulatorUnits` and `State.valueUnits` move with their corresponding value.
+A data-table put installs its root before beginning a separate witness-table
+put. The logical slot count advances only after both commits. A last-use erase
+similarly erases data first, then its witness before advancing the bucket index.
+Both native cursors retain their achieved allocation and cleanup state on refusal.
+Cancellation drains pending mutations and then retires both frame tables.
+
+Witness reads use the shared one-based `RuntimeProgram.localIndex` and
+`RuntimeMachineSemantic.unitsAt`; a missing or malformed witness is an operational
+invariant failure. Empty sequence units are the valid value zero. Scalar units
+come from `RuntimeMachineSemantic.fixedValueUnits`; sequence constants and basis
+values use bounded cached sequence length. Alias, choose, parameters, captures,
+returns and loop accumulators copy their source witness. Builder completion uses
+the accepted builder byte count. These are charged runtime metadata witnesses;
+the global relation to the provisional reference-cost profile remains an open
+invariant, and no canonical event ledger is emitted by this integration.
+
+A Store write reads `RuntimeStore.leafByte` only at genuine descent depth zero,
+then checks `storeUnitsAfter` before the native owner can allocate. Its predicted
+units commit only if that native step succeeds. Refusal preserves the previous
+units, so retry cannot count an insertion twice. This uses a bounded leaf read,
+not a scan of the store. The shared `indexedStart` Store tariff includes these
+fixed owner reads as an operational policy.
+
+## Exposed-event peak envelope
+
+After the event fee is paid, `RuntimePeak.beginEvent` reads the actual pre-event
+arena metric. `completeMeasuredEvent` retains that start and prior history with
+`failedEvent`, then folds `completeEvent` over the achieved arena immediately,
+before a queued old-root ticket is released on a later tick. Native table
+`peakOwnedBytes` is also retained, since a table event can contain an intermediate
+peak above its final arena. Metric errors preserve achieved state and history
+and report their typed Heap error; they never substitute zero.
+
+The imported Sequence and ByteBuilder endpoint argument is conditional on valid,
+source-created and audited owner lineage. Store's separate source walkthrough has
+one allocation, retain, release or release step in each exposed event: descent
+observes or allocates one leaf/frame, ascent allocates one branch, cleanup drains
+one release, and cancellation selects flags or drains one release step. Its work
+counter guard precedes these effects. The outer engine defers ownership release
+to later ticks. These facts explain the logical ownership metric envelope; they
+do not establish host RSS, an arbitrary forged cursor theorem, or a universal
+physical-memory bound.
