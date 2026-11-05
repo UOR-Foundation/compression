@@ -49,5 +49,50 @@ definition{
   axioms: [Quot.sound, propext],
   executable: true
 }
+
+definition{
+  name: uc_wire_length_cancel_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-LENGTH-CANCEL-01", given := "a reserved Core table mutation at every prefix through publication", when := "cancel and drive the actual returned cursor and Arena to cleanup", then := "all owners are released, including a table completed by an in-flight final drain", owner := "Uorc.Wire.LengthStoreScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_table_cancel_repro_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-TABLE-CANCEL-REPRO-01", given := "133 reserved put steps reach draining with null control and a live subtree", when := "invoke actual RuntimeTable.cancel and step through its cancelled outcome", then := "HeapAudit must reject an empty terminal inventory if the subtree ticket is still live; known shared Core regression", owner := "Uorc.Wire.TableCancelRepro.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_frame_nat_domain_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-FRAME-NAT-DOMAIN-01", given := "compact format2 header prefixes with natural values 2^64", when := "read count, individual length, aggregate sum and body length through independent FrameParse", then := "the Nat field is observed without allocating a huge body; no format3 or full-archive acceptance claimed", owner := "Uorc.Wire.FrameDomainScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_wire_borrow_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-BORROW-01", given := "a pending literal over an external charged wire owner", when := "read bytes, acknowledge synchronous copy, pause, cancel or supply a wrong owner", then := "pending ticket stays live, no additional input ticket is retained and cleanup preserves external ownership", owner := "Uorc.Wire.BorrowedInputScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_wire_admission_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-ADMISSION-01", given := "bounded parser controls and actual Core credit/boundary objects", when := "move one Arena through event offer, credit, acknowledgment and detach/reattach", then := "only actual admission Ready is returned; independent archive verification and dependency qualification remain open", owner := "Uorc.Wire.ProgramAdmissionScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
 \end{semanticmodule}
 \end{lexlean}

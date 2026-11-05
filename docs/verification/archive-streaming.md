@@ -89,3 +89,55 @@ Mid-cursor cancellation, pause/transfer failure prefixes, physical multi-image
 partitions, complete negative reconciliation, general proofs and end-to-end
 admission/hash/execution/reconstruction remain qualification work in this same
 lane. They are not replaced by the finite syntax controls above.
+
+## Additional ownership and admission controls
+
+The borrowed feed additions to ProgramParse/ArchiveParse validate an external
+live image ticket or wire ownerRoot and retain no second input ticket.
+ProgramParse.acknowledgeCopied is an internal synchronous-copy acknowledgment;
+the admission controller invokes it only after actual Core awaiting confirms
+that the offered event has finished. A pending literal is not acknowledged merely
+because its event has been offered. BorrowedInputScenarios executes pending
+literal lifetime, byte reads, pause/resume counters, cancellation cleanup and
+invalid-owner controls.
+
+LengthStoreScenarios cancels at every actual mutation prefix through the first
+stored length (138 prefixes). This found a real final-drain seam: calling Core
+RuntimeTable.cancel while its normal control release is in progress can report
+cancelled without returning or releasing the completed subtree. TableCancelRepro
+isolates that behavior without LengthStore: 133 Core steps reach draining with
+null control and a live subtree; the cancelled result then fails HeapAudit.
+The wire controller now advances an existing Core release before initiating
+cancellation, handles the actual complete(table) result if returned, and releases
+that table. The Core cursor algorithm is unchanged. All cancellation prefixes
+and the earlier parser/demultiplexer/emitter suites pass with that controller fix.
+
+ProgramAdmission implements ProgramParse -> RuntimeAdmissionCredit -> actual
+Core Ready, moving the single Arena through Core's actual Taken/Returning
+boundary. Its control contains no Arena. One literal-program control reaches
+actual Ready and passes the complete root audit in native diagnostic execution.
+This is a narrower implemented composition than complete archive verification.
+Cancellation retains the actual Core phase for its cancellation owner; a complete
+controller cancellation API and lifecycle qualification remain open.
+
+Exact shared Core source blocks this consumer's source check: RuntimeAdmissionBoundary
+omits direct imports of RuntimeAdmissionOrder, RuntimeInstructionCheck and
+RuntimeLifetime. After those imports are added only in an isolated diagnostic
+projection, RuntimeAdmissionCredit also needs hygienic arena binders (the module
+has a declaration named arena). Native admission execution above used those
+explicit dependency-only import/alpha-renaming repairs. They are not published
+Core fixes or exact-source acceptance. The wire parser/controller declaration
+payloads are preserved. No successful Ready was fabricated.
+
+See frame-domain-audit.md for the separately executed Nat header-domain controls.
+The generic U64 varint contract must not be confused with FrameParse's own Nat
+header parser. Full archive hashing, admission, machine output, object boundaries
+and every reconstructed byte still need one closed production controller; the
+current checkpoint does not claim that result or pinned-SDK acceptance.
+
+The later public Core import delta `765742af7aaa3e1ee409c408847773b9eedbbef7`
+is now applied as exactly three header lines, with this branch's semanticdata
+payload unchanged. The unpatched admission consumer check progresses to the
+RuntimeAdmissionCredit arena-binder collision, recorded in
+`admission-public-header-consumer-diagnostic.json`. No private binder repair is
+substituted into authoritative Core source.
