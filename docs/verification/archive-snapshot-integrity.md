@@ -33,9 +33,10 @@ truncation and trailing-byte controls. Source owners first ran red. The basis
 adapter's representative empty-length omission is rejected by its canonical
 identity gate; see `owned-basis-controls.md`.
 
-These are implemented verification stages. The closed orchestrator through
-conditional basis preparation, actual admission/engine execution, ordered output
-and publication custody is still being implemented. No old archive-v1/profile02
+These are implemented verification stages. The closed orchestrator through conditional basis preparation, actual
+admission/engine execution, ordered output and retained publication custody is
+implemented in ClosedArchive; see closed-archive-dispatch.md and its scoped
+runtime receipt. Protected-caller handoff has a separate owning scenario. No old archive-v1/profile02
 compatibility, complete source export, full refinement, physical-memory bound or
 locked-SDK acceptance is claimed. The existing Integrity APIs retain their exact
 source and declaration eligibility; no executable assertion is fabricated over
