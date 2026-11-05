@@ -43,3 +43,10 @@ committed receipts cannot satisfy that test. Full verification of the recorded
 older Core closure fails its actual ByteBuilder certificate-size guard. Newer
 published Core factoring, actual operation/publication and ABI ownership on
 overflow require their own qualification.
+
+`payload-image-core-compatibility.json` records a later targeted four-path Core
+composition from public `0ff59f5`, keeping all other selected dependencies at
+product `2eb6c59`. Its 39 VM controls and 111 product axiom policies pass, while
+full verification records certificate B at 6,703,926 bytes. Its separate archive
+binds the exact 56 inputs/results. Neither this composition nor the earlier
+receipt asserts whole-current-graph or generated operational ABI acceptance.

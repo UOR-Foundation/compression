@@ -106,3 +106,17 @@ failure does not measure the newer published Core factoring. Complete
 preservation/export, native/browser flows, closed operation/publication and
 pinned-SDK acceptance are separate outstanding qualification work. Production
 locks and the required `just vv` boundary remain intact.
+
+A later isolated compatibility probe replaces exactly four Core paths (Heap,
+RuntimeByteBuilder, RuntimeSequence and RuntimeImage) with their public
+`0ff59f5187f5a9ca78118e141c72031dc540e5a1` source. Other selected dependencies
+remain at product `2eb6c5912a6f3691c486b801002b629b6925e171`; this is not the
+complete shared integration graph. All 39 VM controls and 111 exact product
+axiom policies pass after 24 generated modules kernel-compile. Full verification
+rejects that actual RuntimeByteBuilder.step source's certificate B at 6,703,926
+bytes against the unchanged 4,194,304-byte guard. Source SHA256 is
+`fc41954a33f2b396f694714de0e3daf7af612d6bd271abd48f0ca93761cbd77a`.
+`validation/product/payload-image-core-compatibility.json` binds every source,
+the exact configuration and complete diagnostic archive. The earlier four
+mutants were not rerun for this composition. This result refines the concrete
+Core integration dependency without asserting production export or ABI custody.
