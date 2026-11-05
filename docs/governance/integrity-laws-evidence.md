@@ -2,7 +2,7 @@
 # Scoped integrity proof evidence
 
 The authorities are `Integrity.ByteEquality`, `CollisionLaws`, `StateLaws`,
-`ShaTransitionLaws` and `OwnedLifecycleLaws`.
+`ShaTransitionLaws`, `OwnedLifecycleLaws` and `IncrementalLaws`.
 They are proof modules; ordinary archive hashing, compression and decompression
 add no proof metadata or dependency on proof completion.
 
@@ -59,13 +59,30 @@ still fails inherited certificate A at `RuntimeSequence.step.__rel_16` with
 `LLV7013` and kernel deep recursion. Those results are recorded separately; no
 owned lifecycle SDK attestation is claimed.
 
+`IncrementalLaws` decomposes every successful actual update step into the
+actual compression-work step, absorption of the byte at the current input
+index, or exact input exhaustion. Its finite primitive trace theorem follows
+the actual `runUpdate` and `update` functions. With in-range starting offsets,
+equal remaining lengths and indexed suffix bytes imply equal actual `runUpdate` results at every fuel,
+including errors. This establishes continuation equivalence under reindexing;
+it does not yet establish arbitrary chunk-partition equivalence to one-shot
+`Sha256.hash` or the engine-to-authenticated-frame-trace bridge.
+
+Its two-module scoped SDK verification, exact audit and separate kernel replay
+pass with attestation
+`d1325f324cbe0016507ba02daa67365ec6f2e46d209a9666c5fcfb026160fbf5`.
+Changing the actual consuming offset increment from one to two rejects the new
+source bridge; restoration reproduces the exact original command result.
+
 The combined six-module diagnostic verification and kernel replay passed with
 saved official compiler `71defb4c663aaec5b9a3aab04cbc6a03e7106227`, binary SHA-256
 `38f8502e5c108a362265663253283a0f60f14538951e592b2d5dd4db9e67be0a`,
 under language 1.2 and Lean 4.32.1. Its attestation is
 `73f07f639a30fa463b3ae372d7ac01679fac80a7940456c104f18d7dce7122b5`.
-Only the exact traced `Quot.sound` and `propext` foundations occur; no custom
-axiom, `Classical.choice`, `sorryAx`, `native_decide` or proof skip is used.
+The project proof declarations use only their exact traced `Quot.sound` and
+`propext` foundations; no project proof uses a custom axiom, `Classical.choice`,
+`sorryAx`, `native_decide` or proof skip. Imported SDK declarations retain their
+own exact audited policies.
 
 Removing only the checker's digest guard fails the new checker proof while the
 old acceptance-guard truth table remains unchanged. Corrupting a returned digest
