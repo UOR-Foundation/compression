@@ -24,6 +24,17 @@ mathematical unsigned conversion. Three positivity/count reflection lemmas use
 the exactly declared standard `Classical.choice` axiom in addition to
 `Quot.sound` and `propext`; the runtime's prior 406 policies are unchanged.
 
+`RuntimeAccountingProofs.weightsRows_reflect` now supplies the independent
+pointwise weight reflection for every row list, auxiliary row list and arena:
+the actual `HeapAudit.weightsRows` Boolean succeeds exactly when each stored
+weight, interpreted by the existing `wordToNat`, equals the independent
+`referenceWeight` of that row's node. `sumReferenceWeights` uses node reference
+weights rather than stored weights. The qualified `cons_sum_from_tail` bridge
+requires explicit head-weight validity and tail-sum equality; it does not
+prove the full recursive invariant-to-sum implication. Six registered controls
+include an actual allocated store leaf and balanced wrong weights whose sum
+matches the right total. See [the exact qualification and remaining bridge](runtime-accounting-refinement.md).
+
 `RuntimeObservationProofs.lookupFrame` proves actual lookup is independent of
 arena bookkeeping outside its index. `interpretSequenceFrame` proves the same
 for the independent sequence interpreter, for **every Nat fuel**, arena and
@@ -79,7 +90,8 @@ and the independent `HeapAudit` roots, with the following obligations composed:
    Roots: `Heap.readIndex`, `writeIndex`, `lookup`, `validNode`, `nodeChildren`,
    `HeapAudit.scanIndex`, `acyclicRows`, `nodesRows`.
 2. **Global ownership and accounting preservation.** Lift the proved count/root
-   reflections to the complete index, prove weight/totals/cursor reflection,
+   reflections to the complete index, compose pointwise weight validity into
+   sum equality, and prove totals/cursor reflection,
    then prove the invariant initially and after every real Heap operation.
    Counts include edge multiplicity and the distinct pending-root protocol;
    entry bytes equal the sum of live weights, and pending edge tokens carry
