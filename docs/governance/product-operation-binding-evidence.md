@@ -1,7 +1,8 @@
 <!-- uorc:non-authoritative -->
 # Product operation and host binding evidence
 
-The authority is `Product.MachineBinding`, `OwnedCompare`, the product control,
+The authority is `Product.MachineBinding`, `OwnedCompare`, `ComparisonOwner`,
+`ReadImage`, the product control,
 resource and presentation modules, and their typed source scenarios. This
 checkpoint composes integration `5a01915fb467652b28a9fa11339bbea614f8b280`, preserves
 its integrity Registry rows, and regenerates the actual model projections.
@@ -74,18 +75,32 @@ The separate product component gate runs 123 typed controls, rejects five
 planted defects, and binds its source hashes and complete attestation. That
 receipt does not replace the machine gate, native/browser execution or proof.
 
-Remaining operation integration is concrete: a production owned archive-frame
-parser/demultiplexer must move the single arena/caller roots/usage through the
-closed admission credit boundary; the existing `Wire.FrameParse` mathematical
-Graph/Rope parser is not that producer. Actual frame/integrity outcomes, basis
-and owned search/replay producers must feed operation-specific Reports and
-independent all-byte verification. The charged comparison owner now reserves an actual fixed control and pays
-separate initialization and matching shared getter quotes, preserving a partial
-left-read prefix through refusal. It still needs the complete archive/lease
-carrier and operation-specific publication path. The generic persistent Library/V1 adapter must bind the
-complete current type closure and source custody decisions, execute native and
-browser keyboard/focus/cancellation/publication races, and preserve outer SDK
-ComputeError separately. No fake executor, always-unavailable shipping stub or
-fabricated Report was introduced. Exact pinned SDK acceptance was not run and
-its required guard remains intact. No lock, universal policy, merge, approval or
-tag was changed.
+The bounded input bridge now moves actual immutable transport leases through
+prepaid fixed control, exact Heap image reservation, paid commit and one-time
+image-ticket transfer. It retains pending callbacks and actual cleanup receipts
+through cancellation and resource refusal. Its separate exact diagnostic receipt
+records 39 typed VM controls, four rejected source defects, 111 exact axiom
+policies and the complete reproducible input/archive manifest. See
+`docs/implementation/product-read-image.md` and
+`validation/product/payload-image-evidence.json`.
+
+Remaining operation integration uses the concrete published Wire parser and
+admission revision `d27be3e8f7dba73440ec29fa8dba236275162ca7`; that owner is
+completing closed archive orchestration and exact basis identity. This product
+branch has not yet composed or qualified that newer graph. Actual archive,
+integrity, basis and search/replay outcomes must feed operation-specific Reports,
+fresh all-byte verification and staged publication. Large raw inputs must use
+bounded ResourceIO/spool rereads rather than whole-input arena materialization.
+The shared Core checked bounded span-to-Bytes accessor and copy quote are the
+remaining exact output-bridge interface; no host Heap traversal is substituted.
+
+The generic persistent Library/V1 adapter must bind the complete current type
+closure and source custody decisions and execute native/browser keyboard, focus,
+cancellation and publication races. Actual ABI failure must retain achieved
+Arena, Usage, root tickets, pending receipts and cleanup owners, including
+lowering overflow. The historical 22-root export cannot establish this for
+newer operational roots, nor can source-level transition custody alone. Outer
+SDK ComputeError and fatal/unknown host disposition remain separate. No fake
+executor, always-unavailable shipping stub or fabricated Report was introduced.
+Exact pinned SDK acceptance was not run and its required guard remains intact.
+No lock, universal policy, merge, approval or tag was changed.

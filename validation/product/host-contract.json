@@ -318,6 +318,102 @@
       "name": "comparisonDisposition",
       "root": "Uorc.Uorc.Product.ComparisonOwner.releaseDisposition",
       "signature": "ComparisonOwner.State -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "bounded transport shell only; source owns an actual pending read and run/source/ticket/offset/maximum",
+      "name": "imageStart",
+      "root": "Uorc.Uorc.Product.ReadImage.start",
+      "signature": "ResourceIO.ReadRequest -> ReadImage.Cursor"
+    },
+    {
+      "authority": "metadata-only immutable external extent; matching instance, run, source, ticket and offset before any materialization",
+      "name": "imageLease",
+      "root": "Uorc.Uorc.Product.ReadImage.leaseReady",
+      "signature": "RuntimeResources.Budget -> Heap.Arena -> RuntimeResources.Usage -> ReadImage.Cursor -> ReadImage.LeaseReady -> ReadImage.Transition"
+    },
+    {
+      "authority": "move the same actual arena and usage; fixed charged control and exact image capacity precede requestPayload",
+      "name": "imageTick",
+      "root": "Uorc.Uorc.Product.ReadImage.tick",
+      "signature": "RuntimeResources.Budget -> Heap.Arena -> RuntimeResources.Usage -> ReadImage.Cursor -> ReadImage.Transition"
+    },
+    {
+      "authority": "exact lease callback; prepaid actual commit quote; a refusal retains reservation and this immutable payload callback for retry",
+      "name": "imagePayload",
+      "root": "Uorc.Uorc.Product.ReadImage.commit",
+      "signature": "RuntimeResources.Budget -> Heap.Arena -> RuntimeResources.Usage -> ReadImage.Cursor -> ReadImage.PayloadReply -> ReadImage.Transition"
+    },
+    {
+      "authority": "one-time transfer of one nonempty image ticket and external lease; empty EOF transfers no image ticket",
+      "name": "imageTake",
+      "root": "Uorc.Uorc.Product.ReadImage.takeImage",
+      "signature": "Heap.Arena -> RuntimeResources.Usage -> ReadImage.Cursor -> Api.Run -> ReadImage.Transition"
+    },
+    {
+      "authority": "internal acknowledgment only after the actual achieved Transition.delta has been delivered; no new mutation while pending",
+      "name": "imageDelta",
+      "root": "Uorc.Uorc.Product.ReadImage.acknowledgeDelta",
+      "signature": "ReadImage.Cursor -> Api.Run -> ReadImage.Cursor"
+    },
+    {
+      "authority": "same-run idempotent cancellation retains in-flight read or payload custody until actual reply or matching stopped receipt",
+      "name": "imageCancel",
+      "root": "Uorc.Uorc.Product.ReadImage.cancel",
+      "signature": "ReadImage.Cursor -> Api.Run -> ReadImage.Cursor"
+    },
+    {
+      "authority": "matching true stopped initial read receipt; false, unknown and stale receipts retain pending custody",
+      "name": "imageReadStopped",
+      "root": "Uorc.Uorc.Product.ReadImage.readStopped",
+      "signature": "Heap.Arena -> RuntimeResources.Usage -> ReadImage.Cursor -> ResourceIO.ReadCancellationReply -> ReadImage.Transition"
+    },
+    {
+      "authority": "matching true stopped payload receipt; cleanup cannot release reservation while payload may still arrive",
+      "name": "imagePayloadStopped",
+      "root": "Uorc.Uorc.Product.ReadImage.payloadStopped",
+      "signature": "Heap.Arena -> RuntimeResources.Usage -> ReadImage.Cursor -> ReadImage.PayloadStopped -> ReadImage.Transition"
+    },
+    {
+      "authority": "actual matching external lease release receipt, after source-owned charged image/control drain",
+      "name": "imageLeaseReleased",
+      "root": "Uorc.Uorc.Product.ReadImage.leaseReleased",
+      "signature": "Heap.Arena -> RuntimeResources.Usage -> ReadImage.Cursor -> ReadImage.LeaseReleased -> ReadImage.Transition"
+    },
+    {
+      "authority": "same-run resource extension resumes the retained prefix and never creates a new input read",
+      "name": "imageExtend",
+      "root": "Uorc.Uorc.Product.ReadImage.extend",
+      "signature": "RuntimeResources.Budget -> Heap.Arena -> RuntimeResources.Usage -> ReadImage.Cursor -> Api.Run -> ReadImage.Transition"
+    },
+    {
+      "authority": "exact still-owned control/reservation/image tickets; cursor holds neither Arena nor Bytes",
+      "name": "imageRoots",
+      "root": "Uorc.Uorc.Product.ReadImage.ownedRoots",
+      "signature": "ReadImage.Cursor -> List RuntimeValue.Handle"
+    },
+    {
+      "authority": "unconsumed transferred nonempty image ticket remains inventoried separately from cursor",
+      "name": "imageOutcomeRoots",
+      "root": "Uorc.Uorc.Product.ReadImage.outcomeRoots",
+      "signature": "ReadImage.Outcome -> List RuntimeValue.Handle"
+    },
+    {
+      "authority": "retained immutable external payload lease; this is not a Heap handle",
+      "name": "imageLeases",
+      "root": "Uorc.Uorc.Product.ReadImage.ownedLease",
+      "signature": "ReadImage.Cursor -> List Api.ResourceRef"
+    },
+    {
+      "authority": "transferred or rejected incoming lease remains explicit cleanup/attachment custody",
+      "name": "imageOutcomeLeases",
+      "root": "Uorc.Uorc.Product.ReadImage.outcomeLeases",
+      "signature": "ReadImage.Outcome -> List Api.ResourceRef"
+    },
+    {
+      "authority": "retirement requires no in-flight receipt, delta, charged ticket or external lease; unconsumed outcomes also retain custody",
+      "name": "imageDisposition",
+      "root": "Uorc.Uorc.Product.ReadImage.releaseDisposition",
+      "signature": "ReadImage.Cursor -> Api.ReleaseDisposition"
     }
   ],
   "modelRequired": false,
@@ -385,11 +481,11 @@
     },
     {
       "name": "failures",
-      "requirement": "Keep modeled Failure, generated outer SDK ComputeError, and fatal/unknown host disposition distinct. Invalidate failed instance generations and reconcile retained resources; no universal allocation-trap recovery is promised."
+      "requirement": "Keep modeled Failure, generated outer SDK ComputeError, and fatal/unknown host disposition distinct. Source transitions preserve achieved custody, but that alone does not prove a generated export preserves by-value state on lowering overflow. An operational binding must demonstrate retained arena, usage, tickets, cleanup owners and pending receipts on every actual ABI failure. Do not retire or retry a lost/unknown instance; retain externally registered leases and achieved storage for reconciliation. No universal allocation-trap recovery is promised."
     },
     {
       "name": "qualification",
-      "requirement": "The actual-root probe established the configured Uorc.Uorc prefix only for Api.sameResource. Complete typed endpoint export, native/browser operation and exact pinned-SDK acceptance require their own actual artifacts and execution; no successful operation is inferred from endpoint presence."
+      "requirement": "The public 22-root artifact qualifies its exact earlier diagnostic projection only. Current machine, charged comparison and bounded payload-image roots have separately scoped source/kernel/VM evidence; their complete generated operational ABI, persistent native/browser binding and pinned SDK acceptance remain unqualified."
     },
     {
       "name": "numeric fields",
@@ -410,6 +506,22 @@
     {
       "name": "charged comparison",
       "requirement": "ComparisonOwner owns one actual terminal arena and retains original/output roots throughout comparison. It reserves a real fixed control before initializing either reader, pays each initialization and every attempted shared RuntimeImage getter, and retains a paid left byte if the right quote is refused. Resume charges only the pending right read. No equality follows from pending, cancelled, failed or incomplete work. Consume achieved delta receipts before another mutation, drain the comparison control, then move the actual terminal once. These internal steps never require a user approval dashboard. A pairwise equality observation alone is not an archive/certificate/optimality claim."
+    },
+    {
+      "name": "bounded payload admission",
+      "requirement": "The host reports immutable bounded LeaseReady metadata before copying payload bytes into the generated runtime. The source allocates fixed control and reserves the exact image before emitting requestPayload. Only then supply the same lease bytes to commit; do not build a whole input image, pre-materialize every candidate, or turn the transport quantum into a total feature size limit. Copy buffers, logical arena ownership and spool/staging storage have separate admission/accounting."
+    },
+    {
+      "name": "payload ownership transfer",
+      "requirement": "ReadImage.Transition returns the single achieved Arena, Usage, actual Heap.Delta, cursor and Outcome. Keep the same actual arena through the internal controller; do not retain a second parser/admission snapshot. A transferred Span has one owned image ticket even if the cursor is empty. Move that ticket into the producer/CallerRoots aggregate before acknowledgment. Keep external payload lease custody distinct; ResourceRef is never cast into a Heap handle. The controller registers a real host attachment for the returned image and delivers an actual ResourceIO.ReadReply, then releases it only on full consumer acknowledgment."
+    },
+    {
+      "name": "payload cancellation",
+      "requirement": "A refused commit leaves the same reservation and immutable external lease; the generic host retains that callback for source-directed retry without rereading or allocating a replacement lease. Cancellation retains pending read/payload requests until actual late reply or matching stopped=true receipt. Deliver source releaseLease commands and matching achieved acknowledgments. Rejected incoming leases are explicit cleanup obligations. Idempotent close requires cursor and unconsumed Outcome custody both settled."
+    },
+    {
+      "name": "bounded output dependency",
+      "requirement": "The generic host may copy source-requested bounded bytes and attach a lease; it must not traverse Heap nodes or invent output progress. The shared Core checked span-to-Bytes accessor and its non-materializing copy quote, followed by source-paid bounded extraction and actual partial-write receipts, are required for the output bridge. The existing scalar getter and historical whole-buffer BinaryProgram do not establish that binding."
     }
   ],
   "runtimeNoticeType": "Uorc.Uorc.Product.Workspace.RuntimeNotice",
