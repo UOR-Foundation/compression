@@ -287,7 +287,7 @@ definition{
     right : Uorc.Core.RuntimeMachineEngine::State
   ],
   result: Prop,
-  body: (((project left arena) = (project right arena)) /\ (((project left program) = (project right program)) /\ (((project left caller) = (project right caller)) /\ (((project left budget) = (project right budget)) /\ (((project left frames) = (project right frames)) /\ (((project left pending) = (project right pending)) /\ (((project left value) = (project right value)) /\ (((project left valueOwned) = (project right valueOwned)) /\ (((project left oldRoot) = (project right oldRoot)) /\ (((project left draining) = (project right draining)) /\ (((project left control) = (project right control)) /\ (((project left ownsReady) = (project right ownsReady)) /\ (((project left mode) = (project right mode)) /\ (((project left cancelStarted) = (project right cancelStarted)) /\ (((project left sequenceCleanup) = (project right sequenceCleanup)) /\ (((project left delta) = (project right delta)) /\ (((project left operationDelta) = (project right operationDelta)) /\ (((project left overflowEvent) = (project right overflowEvent)) /\ (0 = 0))))))))))))))))))),
+  body: (((project left arena) = (project right arena)) /\ (((project left program) = (project right program)) /\ (((project left caller) = (project right caller)) /\ (((project left budget) = (project right budget)) /\ (((project left frames) = (project right frames)) /\ (((project left pending) = (project right pending)) /\ (((project left value) = (project right value)) /\ (((project left valueOwned) = (project right valueOwned)) /\ (((project left valueUnits) = (project right valueUnits)) /\ (((project left oldRoot) = (project right oldRoot)) /\ (((project left draining) = (project right draining)) /\ (((project left control) = (project right control)) /\ (((project left ownsReady) = (project right ownsReady)) /\ (((project left mode) = (project right mode)) /\ (((project left cancelStarted) = (project right cancelStarted)) /\ (((project left sequenceCleanup) = (project right sequenceCleanup)) /\ (((project left delta) = (project right delta)) /\ (((project left operationDelta) = (project right operationDelta)) /\ (((project left overflowEvent) = (project right overflowEvent)) /\ (0 = 0)))))))))))))))))))),
   axioms: [],
   executable: false
 }
@@ -365,6 +365,218 @@ theorem{
     scrutinee: (project state disposition)
   },
   axioms: [propext]
+}
+
+inductive{
+  name: HandoffPhase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: completed, fields: []},
+    {name: detached, fields: []},
+    {name: cleaned, fields: []}
+  ]
+}
+
+definition{
+  name: quiescentHandoff,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    phase : HandoffPhase,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: Uorc.Core.RuntimeMachineEngine::State,
+  body: (record Uorc.Core.RuntimeMachineEngine::State {arena := (project base arena), program := (project base program), caller := (project base caller), budget := (project base budget), usage := (project base usage), disposition := (match phase
+    | HandoffPhase.completed => (ctor Uorc.Core.RuntimeMachine::Disposition.completed output)
+    | HandoffPhase.detached => (ctor Uorc.Core.RuntimeMachine::Disposition.completed (Uorc.Core.RuntimeValue::nullHandle))
+    | HandoffPhase.cleaned => (ctor Uorc.Core.RuntimeMachine::Disposition.cleaned)), frames := (nil Uorc.Core.RuntimeMachineEngine::FrameRecord), pending := (ctor Uorc.Core.RuntimeMachineEngine::Pending.none), value := (match phase
+    | HandoffPhase.completed => (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence output)
+    | HandoffPhase.detached => (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (0 : UInt64))
+    | HandoffPhase.cleaned => (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (0 : UInt64))), valueOwned := (match phase
+    | HandoffPhase.completed => true
+    | HandoffPhase.detached => false
+    | HandoffPhase.cleaned => false), valueUnits := (match phase
+    | HandoffPhase.completed => (project base valueUnits)
+    | HandoffPhase.detached => (0 : UInt64)
+    | HandoffPhase.cleaned => (0 : UInt64)), oldRoot := (Uorc.Core.RuntimeValue::nullHandle), draining := false, control := (match phase
+    | HandoffPhase.completed => (project base control)
+    | HandoffPhase.detached => (project base control)
+    | HandoffPhase.cleaned => (Uorc.Core.RuntimeValue::nullHandle)), ownsReady := true, mode := (match phase
+    | HandoffPhase.completed => (1 : UInt64)
+    | HandoffPhase.detached => (1 : UInt64)
+    | HandoffPhase.cleaned => (2 : UInt64)), cancelStarted := false, sequenceCleanup := (0 : UInt64), delta := (project base delta), operationDelta := (project base operationDelta), overflowEvent := (ctor Option.none [Uorc.Core.Heap::Delta])}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: ticketContribution,
+  parameters: [handle : Uorc.Core.RuntimeValue::Handle, target : Uorc.Core.RuntimeValue::Handle],
+  result: Nat,
+  body: (if (Uorc.Core.RuntimeValue::isNull handle) then 0 else (if (Uorc.Core.RuntimeValue::sameHandle handle target) then 1 else 0)),
+  axioms: [],
+  executable: false
+}
+
+theorem{
+  name: occurrences_cons,
+  parameters: [
+    head : Uorc.Core.RuntimeValue::Handle,
+    tail : (List Uorc.Core.RuntimeValue::Handle),
+    target : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.HeapAudit::occurrences (cons head tail) target) = ((if (Uorc.Core.RuntimeValue::sameHandle head target) then 1 else 0) + (Uorc.Core.HeapAudit::occurrences tail target))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: occurrences_if,
+  parameters: [
+    condition : Bool,
+    left : (List Uorc.Core.RuntimeValue::Handle),
+    right : (List Uorc.Core.RuntimeValue::Handle),
+    target : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.HeapAudit::occurrences (if condition then left else right) target) = (if condition then (Uorc.Core.HeapAudit::occurrences left target) else (Uorc.Core.HeapAudit::occurrences right target))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: condition
+  },
+  axioms: []
+}
+
+theorem{
+  name: optional_count,
+  parameters: [absent : Bool, matches : Bool, tail : Nat],
+  statement: ((if absent then tail else ((if matches then 1 else 0) + tail)) = ((if absent then 0 else (if matches then 1 else 0)) + tail)),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: linear_arithmetic{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: absent
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: occurrences_addRoot,
+  parameters: [
+    handle : Uorc.Core.RuntimeValue::Handle,
+    tail : (List Uorc.Core.RuntimeValue::Handle),
+    target : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.HeapAudit::occurrences (Uorc.Core.RuntimeMachineEngine::addRoot handle tail) target) = ((ticketContribution handle target) + (Uorc.Core.HeapAudit::occurrences tail target))),
+  proof: simplify{
+    definitions: [
+      occurrences_cons,
+      occurrences_if,
+      optional_count,
+      ticketContribution,
+      Uorc.Core.RuntimeMachineEngine::addRoot
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: swap_ticket_count,
+  parameters: [left : Nat, right : Nat, tail : Nat],
+  statement: ((left + (right + tail)) = (right + (left + tail))),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: completed_root_inventory,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::ownedRoots (quiescentHandoff base (ctor HandoffPhase.completed) output)) = (Uorc.Core.RuntimeMachineEngine::addRoot (project base control) (Uorc.Core.RuntimeMachineEngine::addRoot output (Uorc.Core.RuntimeProgram::rootInventory (project base program) (project base caller))))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: detached_root_inventory,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::ownedRoots (quiescentHandoff base (ctor HandoffPhase.detached) output)) = (Uorc.Core.RuntimeMachineEngine::addRoot (project base control) (Uorc.Core.RuntimeProgram::rootInventory (project base program) (project base caller)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: completed_output_move_is_exact,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::takeOutput (quiescentHandoff base (ctor HandoffPhase.completed) output)) = (ctor Result.ok [Uorc.Core.RuntimeMachineEngine::OutputTransfer, Uorc.Core.RuntimeMachine::Failure] (record Uorc.Core.RuntimeMachineEngine::OutputTransfer {state := (quiescentHandoff base (ctor HandoffPhase.detached) output), handle := output}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: detached_output_move_cannot_repeat,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::takeOutput (quiescentHandoff base (ctor HandoffPhase.detached) output)) = (ctor Result.error [Uorc.Core.RuntimeMachineEngine::OutputTransfer, Uorc.Core.RuntimeMachine::Failure] (ctor Uorc.Core.RuntimeMachine::Failure.invariant))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: output_move_preserves_ticket_multiplicity,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle,
+    target : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.HeapAudit::occurrences (Uorc.Core.RuntimeMachineEngine::ownedRoots (quiescentHandoff base (ctor HandoffPhase.completed) output)) target) = (Uorc.Core.HeapAudit::occurrences (Uorc.Core.RuntimeMachineEngine::addRoot output (Uorc.Core.RuntimeMachineEngine::ownedRoots (quiescentHandoff base (ctor HandoffPhase.detached) output))) target)),
+  proof: simplify{
+    definitions: [
+      completed_root_inventory,
+      detached_root_inventory,
+      occurrences_addRoot,
+      swap_ticket_count
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: output_move_preserves_value_interpretation,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle,
+    fuel : Nat
+  ],
+  statement: (match (Uorc.Core.RuntimeMachineEngine::takeOutput (quiescentHandoff base (ctor HandoffPhase.completed) output))
+    | Result.error failure => (0 = 1)
+    | Result.ok transfer => ((valueMeaning fuel (project (project transfer state) arena) (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence (project transfer handle))) = (valueMeaning fuel (project base arena) (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence output)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cleaned_ready_move_is_exact,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::takeReady (quiescentHandoff base (ctor HandoffPhase.cleaned) output)) = (ctor Result.ok [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeMachine::Failure] (record Uorc.Core.RuntimeProgram::Ready {arena := (project base arena), program := (project base program), caller := (project base caller), usage := (project base usage)}))),
+  proof: reflexivity{},
+  axioms: []
 }
 \end{semanticmodule}
 \end{lexlean}
