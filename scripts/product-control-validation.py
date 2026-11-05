@@ -225,6 +225,16 @@ def main():
                                      'runtime': execute(mutated, 'double-cancel-waits-for-achieved-write')})
         path.write_bytes(originals['ResourceIO'])
         print('cancellation-before-write-ack rejected by bounded I/O runtime owner', flush=True)
+        path = src / 'ResourceIO.lex.tex'
+        text, module = read_module(path)
+        declaration = next(d for d in module['declarations'] if d['name'] == 'cleanupPreparation')
+        declaration['body'] = declaration['body']['then_value']
+        write_module(path, text, module)
+        mutated = verify()
+        evidence['mutations'].append({'id': 'delete-spool-before-read-receipt',
+                                     'runtime': execute(mutated, 'cancelled-read-blocks-spool-deletion')})
+        path.write_bytes(originals['ResourceIO'])
+        print('delete-spool-before-read-receipt rejected by the read custody owner', flush=True)
         if any((src / f'{name}.lex.tex').read_bytes() != data for name, data in originals.items()):
             raise RuntimeError('A planted defect was not restored byte-for-byte')
         restored = verify()

@@ -80,6 +80,12 @@ The three honesty levels (R2):
 | --- | --- | --- |
 | `UC-CTL-01` | `open` | Source-owned asynchronous product transitions preserve run, revision, ordered input and output ownership. |
 
+## product-execution
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-EXE-01` | `open` | Product operation binding moves the actual admitted runtime owner, decoded ticket and achieved effects without inventing successful evidence. |
+
 ## product-interfaces
 
 | ID | Level | Statement |
@@ -185,3 +191,4 @@ The three honesty levels (R2):
 | `UC-SHA-02` | `build` | `fixture_result` | `not_measured` | The distinct UORC-SHA256-STREAM-MAX-v1 construction streams arbitrary finite input with standard-domain frame bounds, typed cancellation, explicit terminal framing and independently checked reduced-capacity segmentation controls. |
 | `UC-INT-02` | `build` | `fixture_result` | `not_measured` | Format3/machine1 explicitly binds STREAM-MAX-v1 to charged image spans, preserves format2 CHAIN-v1 semantics, and seals input, basis and checkpoint identity domains without replacing exact reconstruction comparison. |
 | `UC-INT-03` | `build` | `fixture_result` | `not_measured` | Finite reverse-trace candidates remain untrusted until actual successful SHA computations independently validate a collision witness; generic acceptance-guard reflection does not claim global SHA injectivity or reduction completeness. |
+| `UC-EXE-01` | `open` | `none` | `not_measured` | Product operation binding moves the actual admitted runtime owner, decoded ticket and achieved effects without inventing successful evidence. |

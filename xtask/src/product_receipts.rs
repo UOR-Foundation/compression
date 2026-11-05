@@ -103,7 +103,7 @@ mod tests {
             assert_eq!(receipt["runtime_total"].as_u64(), Some(inventory));
             assert_eq!(receipt["runtime_passed"].as_u64(), Some(inventory));
             let mutations = receipt["mutations"].as_array().expect("planted defects");
-            assert_eq!(mutations.len(), 4);
+            assert_eq!(mutations.len(), 5);
             assert!(mutations.iter().all(|m| m["verification"]["exit"]
                 .as_i64()
                 .or_else(|| m["runtime"]["exit"].as_i64())
