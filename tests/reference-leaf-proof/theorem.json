@@ -1,0 +1,141 @@
+{
+  "axioms": [
+    "Quot.sound",
+    "propext"
+  ],
+  "kind": "theorem",
+  "name": "leaf_index_step_refines_independent_sequence",
+  "parameters": [
+    {
+      "name": "backing",
+      "type": {
+        "kind": "bytes"
+      }
+    },
+    {
+      "name": "index",
+      "type": {
+        "kind": "nat"
+      }
+    },
+    {
+      "name": "continuations",
+      "type": {
+        "element": {
+          "arguments": [],
+          "kind": "named",
+          "member": {
+            "module": "Uorc.Core.Bytes",
+            "name": "WorkContinuation"
+          }
+        },
+        "kind": "list"
+      }
+    }
+  ],
+  "proof": {
+    "definitions": [
+      {
+        "module": "Uorc.Core.Bytes",
+        "name": "workStep"
+      },
+      {
+        "name": "indexingEventObservation"
+      },
+      {
+        "name": "sequenceFromBytes"
+      }
+    ],
+    "kind": "linear_arithmetic"
+  },
+  "statement": {
+    "kind": "eq",
+    "left": {
+      "arguments": [
+        {
+          "arguments": [
+            {
+              "fields": [
+                {
+                  "field": "task",
+                  "value": {
+                    "arguments": [
+                      {
+                        "arguments": [
+                          {
+                            "kind": "var",
+                            "name": "backing"
+                          }
+                        ],
+                        "constructor": {
+                          "module": "Uorc.Core.Bytes",
+                          "name": "Rope.leaf"
+                        },
+                        "kind": "constructor"
+                      },
+                      {
+                        "kind": "var",
+                        "name": "index"
+                      }
+                    ],
+                    "constructor": {
+                      "module": "Uorc.Core.Bytes",
+                      "name": "WorkTask.indexing"
+                    },
+                    "kind": "constructor"
+                  }
+                },
+                {
+                  "field": "continuations",
+                  "value": {
+                    "kind": "var",
+                    "name": "continuations"
+                  }
+                }
+              ],
+              "kind": "record",
+              "type": {
+                "module": "Uorc.Core.Bytes",
+                "name": "Work"
+              }
+            }
+          ],
+          "function": {
+            "module": "Uorc.Core.Bytes",
+            "name": "workStep"
+          },
+          "kind": "call"
+        }
+      ],
+      "function": {
+        "name": "indexingEventObservation"
+      },
+      "kind": "call"
+    },
+    "right": {
+      "arguments": [
+        {
+          "kind": "var",
+          "name": "index"
+        }
+      ],
+      "function": {
+        "field": "read",
+        "kind": "project",
+        "value": {
+          "arguments": [
+            {
+              "kind": "var",
+              "name": "backing"
+            }
+          ],
+          "function": {
+            "name": "sequenceFromBytes"
+          },
+          "kind": "call"
+        }
+      },
+      "kind": "apply"
+    }
+  }
+}
