@@ -143,3 +143,33 @@ This adapter requires exactly one module and that one probe root. It does not
 change the strict 21-module/21-root adapter. Both serial runs completed within
 the same 120-second outer bound and unchanged generation guards. No further
 source factoring is proposed from this experiment.
+
+## Inspecting the actual derivation
+
+`structure-summary.md` and `structure-summary.json` reconcile the full increase
+to the actual rendered data. The complete numerical reports are
+`structure-full.json` and `structure-singleton-only.json`.
+`analyze-certificate.py` reproduces them from the SDK diagnostic outputs:
+
+```sh
+python3 analyze-certificate.py --baseline ORIGINAL_DIAGNOSTIC_OUTPUT \
+  --candidate SPLIT_DIAGNOSTIC_OUTPUT --findings sdk-findings.json \
+  --output NEW_REPORT.json
+```
+
+For the isolated pair add `--cases-key case_results --baseline-case baseline
+--candidate-case candidate`, and use `singleton-only-findings.json`.
+The analyzer checks all six path-neutral consumed artifacts against their
+recorded hashes before parsing. SDK metrics come from the supplied findings
+and are explicitly labelled as recorded; this script does not recompute them.
+A one-byte change to a temporary program copy is rejected before any report is
+written. `hash-rejection-control.json` records that independent rerun.
+
+Byte attribution assigns each printed node block, including its inlined
+children, to the earliest declaration reaching the block root. All declaration
+headers, blocks and surrounding source reconcile exactly. Global sharing,
+printing and declaration order couple these costs; the attribution is a
+reproducible convention, not a separate causal price for each function.
+`constant-attribution.json` additionally identifies the 16 new constant nodes
+as the 16 added function-proof references. No retained Lean LCNF or SSA dump
+is claimed or substituted.
