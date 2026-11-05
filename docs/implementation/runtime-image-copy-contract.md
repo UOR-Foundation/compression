@@ -93,3 +93,33 @@ the repository's release project or locks.
 These are source, kernel, finite-control and unqualified generated-code
 observations. No certificate/export, Wasm/NativeLibrary, pinned-SDK, timing, RSS
 or whole-product peak/no-copy qualification follows from them.
+
+## Source-only export consumer fixture
+
+The source helper tests/heap/export-copy-fixture.py packs the four immutable
+production dependencies from public bd8c62063bd568c7f513042475e33a36bdccdeda:
+Heap b342, RuntimeValue8b3, RuntimeImage7a and RuntimeImageCopyaa130.
+It invokes no compiler or export. Use it with an absolute new output directory
+and optionally an absolute new source-only archive path.
+
+The package retains the original qualified configuration/lock under
+profiles/qualified for reference. Its separate root export profile selects Copy
+Main and retains language1.2 and the unchanged 4MiB/300s limits. The four-source
+package does not include the original test/proof modules; the preserved
+qualified profile is not presented as runnable or requalified by that package.
+
+The five Copy production roots, signatures, flags and policies come from the
+official SDK reader. Run tools/run-export.mjs with an existing absolute compiler
+path, the fixture path, and lane original or new. Each lane refuses prior output
+and runs in its own isolated project, records compiler SHA/version and generated
+lock, discovers the actual rust-std target digest, issues the sorted request,
+and performs standard production build followed by accepted-artifact replay.
+Compiler source-commit provenance remains the owning executor's responsibility;
+a lane label does not attest a compiler revision.
+
+All ten imported Heap/Image production annotations remain intact. Standard
+verification can fail an inherited root before the five requested Copy exports;
+the request is not a verifier filter. Original/new results, the inherited Heap A
+issue, Builder B size issue and full-product acceptance remain separate.
+Preparing this fixture and validating its bytes/request builder executes no
+export and qualifies no new compiler candidate.
