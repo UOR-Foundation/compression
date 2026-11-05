@@ -1,6 +1,6 @@
 # Official compiler-parsed diagnostic cache
 
-`runtime-owners.json` is one read-only diagnostic bundle for matching source call signatures in another executor. It includes all 29 owned modules: runtime/audit modules including the scalar image API, six proof modules, exact old-body diagnostic references for moved allocation and sequence factoring, and scenario modules. The `.lex.tex` sources remain authoritative; no production build, compiler or runtime loads this cache as a semantic source. Each module has an explicit role, and every declaration retains its actual executable/axiom metadata.
+`runtime-owners.json` is one read-only diagnostic bundle for matching source call signatures in another executor. It includes 33 modules at its source_commit: runtime/audit modules including the scalar image API and corrected table cancellation, eight proof modules, exact old-body diagnostic references for moved allocation and sequence factoring, and scenario modules. The `.lex.tex` sources remain authoritative; no production build, compiler or runtime loads this cache as a semantic source. Each module has an explicit role, and every declaration retains its actual executable/axiom metadata.
 
 The supported PrismPM helper delegates parsing and notation writing to `lexlean::sdk::read_module` and `lexlean::sdk::write_module`. It does not reconstruct declarations or use a second semantic parser. With a clean official PrismPM checkout and its locked dependencies:
 

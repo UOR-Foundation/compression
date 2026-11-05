@@ -61,6 +61,13 @@ cases. Ten general theorems and an actual bit-order mutation gate pass; see
 [the exact scope](runtime-index-proofs.md). This closes the same-key bridge,
 while distinct-key frame, bit injectivity and complete enumeration remain open.
 
+RuntimeIndexFrameProofs additionally supplies a guarded other-path frame law
+for arbitrary Option payloads and arbitrary Nat depth/tree/keys. Its condition
+is the source-owned routesDiffer computation using actual highBit/advanceKey;
+a nonvacuity witness and dropped-sibling/false-predicate gates qualify that
+condition. This is not yet the distinct-UInt64-key theorem: the64-step route
+injectivity bridge is still open. See [its exact scope](runtime-index-frame-proofs.md).
+
 The global invariant can be carried by existing `Heap.Arena`/`RuntimeValue`
 and the independent `HeapAudit` roots, with the following obligations composed:
 
