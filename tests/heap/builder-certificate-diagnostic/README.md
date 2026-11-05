@@ -104,3 +104,42 @@ separately reads the already emitted program through the SDK's actual parser
 and measurement APIs; it does not regenerate a certificate. File digests,
 SDK identity, exact logical arguments and code references are in the findings;
 the original host-specific invocation receipts remain privately hash-bound.
+
+## Singleton-only isolation
+
+`singleton-only/baseline/` and `singleton-only/candidate/` contain one diagnostic
+module each. The original one declaration or split's 17 declarations are
+copied byte-for-byte from their authentic source; official SDK rereads confirm
+their complete declaration objects are unchanged. Both add the same
+`probe(UInt8) -> Bytes` root and import no Core module. All 256 possible byte
+values remain in the source definition. This isolates the changed function
+boundaries without narrowing the byte domain.
+
+| Measurement | Original singleton | Split singleton |
+| --- | ---: | ---: |
+| Target functions | 2 | 18 |
+| Certificate declarations | 7 | 23 |
+| Certificate DAG nodes | 47,323 | 50,859 |
+| Recorded certificate bytes | 1,094,760 | 1,257,410 |
+| SDK record-slot measure | 0 | 0 |
+
+The isolated increase is 162,650 bytes, only 57 bytes different from the full
+context's increase. Both isolated records fit the unchanged file-size guard.
+This reproduces the growth mechanism; it does **not** reproduce the full
+21-root size refusal or qualify a smaller product. No preservation kernel,
+standard verification, accepted export or replay was run for these records.
+`singleton-only-findings.json` binds source/body checks, complete configurations,
+identities, actual results and private artifact hashes.
+
+Build the separate `inspect-singleton.rs` adapter against the same existing
+SDK dependencies as `inspect-b.rs`. From each case directory its arguments are:
+
+```sh
+INSPECT_SINGLETON lexlean.toml src/Uorc/Core/BuilderSingletonOnly.lex.tex \
+  Uorc.Core.BuilderSingletonOnly probe NEW_DIAGNOSTIC_OUTPUT
+```
+
+This adapter requires exactly one module and that one probe root. It does not
+change the strict 21-module/21-root adapter. Both serial runs completed within
+the same 120-second outer bound and unchanged generation guards. No further
+source factoring is proposed from this experiment.
