@@ -42,7 +42,7 @@ Dropping a replacement tail, advancing a round twice, resetting a finished
 message count, and corrupting the remainder at 64 each fail their new proof
 owner. Restored source reproduces the same attestation.
 
-`OwnedLifecycleLaws` proves exact ordered root-list preservation, actual
+The current `OwnedLifecycleLaws` proves exact ordered root-list preservation, actual
 one-byte read/admission correspondence, retained input during update, and
 canonical cancellation/publication ownership shapes. Its read bridge requires
 the explicit cursor/state profile agreement and actual checked read success.
@@ -52,13 +52,19 @@ release completion. These structural laws rely on the independently maintained
 Heap ownership invariant for genuine root ownership; they do not infer that
 invariant from list membership or from arbitrary forged cursor records.
 
-The owned lifecycle source compiles from fresh official generated modules,
-passes all 28 exact declaration audits and separate kernel replay, and rejects
+The historical owned lifecycle source compiled from fresh official generated modules,
+passed all 28 exact declaration audits and separate kernel replay, and rejected
 an actual source mutation reporting two copied bytes for its one-byte admission.
 Restoration passes compilation and replay. Its complete scoped SDK verification
 still fails inherited certificate A at `RuntimeSequence.step.__rel_16` with
 `LLV7013` and kernel deep recursion. Those results are recorded separately; no
-owned lifecycle SDK attestation is claimed.
+owned lifecycle SDK attestation is claimed. The current RuntimeImage-bound
+replacement has 33 native declarations and 27 main proof roots. Its actual
+read/read-cost, failure-prefix and successful work equations compile, pass exact
+audits and replay; its copy-count defect rejects and restoration replays. These
+current receipts are under `validation/integrity/image-access`, with distinct
+source hashes. The earlier 28-row receipts remain historical evidence for the
+previous adapter and getter boundary.
 
 `IncrementalLaws` decomposes every successful actual update step into the
 actual compression-work step, absorption of the byte at the current input

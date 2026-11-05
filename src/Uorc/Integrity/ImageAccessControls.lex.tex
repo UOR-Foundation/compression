@@ -1,0 +1,211 @@
+\begin{lexlean}{Uorc.Integrity.ImageAccessControls}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Integrity.OwnedHash}
+\importmodule{Uorc.Integrity.ArchiveBinding}
+\importmodule{Uorc.Integrity.BindingControls}
+\importmodule{Uorc.Integrity.BindingFixtures}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: scope,
+  parameters: [],
+  result: String,
+  body: "Nonproduction source-owned RuntimeImage integration controls. Calls actual charged adapters and real producer spans; no hash implementation, image-node matcher, ownership normalization or SDK runtime substitute. Driver arena/fuel allowances come from existing BindingControls and are not semantic input caps. Charged success work equals Transition.work and is charged once. Error work is checked independently. Legacy proof32671bba targets oldOwn/Qread; it is historical and not imported as proof of this integration.",
+  axioms: []
+}
+
+definition{
+  name: ownedAgreement,
+  parameters: [charged : Uorc.Integrity.OwnedHash::ChargedTransition],
+  result: Bool,
+  body: (match (project charged result)
+    | Result.error failure => false
+    | Result.ok success => (prim equal (project charged work) (project success work) : Bool)),
+  axioms: []
+}
+
+definition{
+  name: archiveAgreement,
+  parameters: [charged : Uorc.Integrity.ArchiveBinding::ChargedTransition],
+  result: Bool,
+  body: (match (project charged result)
+    | Result.error failure => false
+    | Result.ok success => (prim equal (project charged work) (project success work) : Bool)),
+  axioms: []
+}
+
+definition{
+  name: emptySpanNoAccessor,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Integrity.BindingControls::prepareNegative (Uorc.Integrity.BindingControls::fixtureImage))
+    | Option.none => false
+    | Option.some prepared => (let checked : Uorc.Integrity.OwnedHash::ChargedTransition := (Uorc.Integrity.OwnedHash::beginSpanCharged (project (project prepared transition) arena) (project (project (project prepared transition) cursor) hash) (record Uorc.Core.RuntimeSequence::Span {image := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (0 : UInt64)})); ((prim equal (project var{
+      name: checked
+    } work) (1 : UInt64) : Bool) && ((ownedAgreement var{
+      name: checked
+    }) && ((Uorc.Integrity.BindingControls::cancelNegativeAndCleanup (record Uorc.Integrity.ArchiveBinding::Transition {arena := (project (project prepared transition) arena), cursor := (project (project prepared transition) cursor), delta := (project (project prepared transition) delta), work := (project (project prepared transition) work), admittedInputBytes := (project (project prepared transition) admittedInputBytes), inputMaterializationBytes := (project (project prepared transition) inputMaterializationBytes), digestMaterializationBytes := (project (project prepared transition) digestMaterializationBytes), outcome := (project (project prepared transition) outcome)}) (project prepared sequence)) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: rangeFailurePaid,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Integrity.BindingControls::prepareNegative (Uorc.Integrity.BindingControls::fixtureImage))
+    | Option.none => false
+    | Option.some prepared => (let checked : Uorc.Integrity.OwnedHash::ChargedTransition := (Uorc.Integrity.OwnedHash::beginSpanCharged (project (project prepared transition) arena) (project (project (project prepared transition) cursor) hash) (record Uorc.Core.RuntimeSequence::Span {image := (project prepared image), offset := (100 : UInt64), length := (1 : UInt64)})); (((prim equal (project var{
+      name: checked
+    } work) (2 : UInt64) : Bool) && ((match (project var{name: checked} result)
+      | Result.error failure => ((Uorc.Integrity.BindingControls::ownedErrorTag failure) =? 4)
+      | Result.ok unexpected => false) && true)) && (Uorc.Integrity.BindingControls::cancelNegativeAndCleanup (record Uorc.Integrity.ArchiveBinding::Transition {arena := (project (project prepared transition) arena), cursor := (project (project prepared transition) cursor), delta := (project (project prepared transition) delta), work := (project (project prepared transition) work), admittedInputBytes := (project (project prepared transition) admittedInputBytes), inputMaterializationBytes := (project (project prepared transition) inputMaterializationBytes), digestMaterializationBytes := (project (project prepared transition) digestMaterializationBytes), outcome := (project (project prepared transition) outcome)}) (project prepared sequence))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: reservationRejectedPaid,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Integrity.BindingControls::prepareNegative (Uorc.Integrity.BindingControls::fixtureImage))
+    | Option.none => false
+    | Option.some prepared => (let checked : Uorc.Integrity.OwnedHash::ChargedValidation := (Uorc.Integrity.OwnedHash::validateSpanCharged (project (project prepared transition) arena) (record Uorc.Core.RuntimeSequence::Span {image := (project (project (project (project prepared transition) cursor) hash) control), offset := (0 : UInt64), length := (1 : UInt64)})); (((prim equal (project var{
+      name: checked
+    } work) (1 : UInt64) : Bool) && ((match (project var{name: checked} result)
+      | Result.error failure => ((Uorc.Integrity.BindingControls::ownedErrorTag failure) =? 3)
+      | Result.ok unexpected => false) && true)) && (Uorc.Integrity.BindingControls::cancelNegativeAndCleanup (record Uorc.Integrity.ArchiveBinding::Transition {arena := (project (project prepared transition) arena), cursor := (project (project prepared transition) cursor), delta := (project (project prepared transition) delta), work := (project (project prepared transition) work), admittedInputBytes := (project (project prepared transition) admittedInputBytes), inputMaterializationBytes := (project (project prepared transition) inputMaterializationBytes), digestMaterializationBytes := (project (project prepared transition) digestMaterializationBytes), outcome := (project (project prepared transition) outcome)}) (project prepared sequence))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: overflowMappedPaid,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Integrity.BindingControls::prepareNegative (Uorc.Integrity.BindingControls::fixtureImage))
+    | Option.none => false
+    | Option.some prepared => (let checked : Uorc.Integrity.OwnedHash::ChargedValidation := (Uorc.Integrity.OwnedHash::validateSpanCharged (project (project prepared transition) arena) (record Uorc.Core.RuntimeSequence::Span {image := (project prepared image), offset := (18446744073709551615 : UInt64), length := (1 : UInt64)})); (((prim equal (project var{
+      name: checked
+    } work) (1 : UInt64) : Bool) && ((match (project var{name: checked} result)
+      | Result.error failure => ((Uorc.Integrity.BindingControls::ownedErrorTag failure) =? 4)
+      | Result.ok unexpected => false) && true)) && (Uorc.Integrity.BindingControls::cancelNegativeAndCleanup (record Uorc.Integrity.ArchiveBinding::Transition {arena := (project (project prepared transition) arena), cursor := (project (project prepared transition) cursor), delta := (project (project prepared transition) delta), work := (project (project prepared transition) work), admittedInputBytes := (project (project prepared transition) admittedInputBytes), inputMaterializationBytes := (project (project prepared transition) inputMaterializationBytes), digestMaterializationBytes := (project (project prepared transition) digestMaterializationBytes), outcome := (project (project prepared transition) outcome)}) (project prepared sequence))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: producerScenario,
+  parameters: [readOne : Bool],
+  result: Bool,
+  body: (match (Uorc.Integrity.BindingControls::prepareNegative (Uorc.Integrity.BindingControls::fixtureImage))
+    | Option.none => false
+    | Option.some prepared => (match (Uorc.Integrity.BindingControls::produceNegativeSpan (project prepared transition) (project prepared sequence) (0 : UInt64) (1 : UInt64))
+      | Option.none => false
+      | Option.some produced => (match (project produced outcome)
+        | Uorc.Core.RuntimeSequence::Outcome.pending => false
+        | Uorc.Core.RuntimeSequence::Outcome.sequence unexpectedSequence => false
+        | Uorc.Core.RuntimeSequence::Outcome.byte unexpectedByte => false
+        | Uorc.Core.RuntimeSequence::Outcome.cancelled => false
+        | Uorc.Core.RuntimeSequence::Outcome.span producerSpan => (let begun : Uorc.Integrity.ArchiveBinding::ChargedTransition := (Uorc.Integrity.ArchiveBinding::beginSpanCharged (project produced arena) (project (project prepared transition) cursor) producerSpan); ((prim equal (project begun work) (2 : UInt64) : Bool) && ((archiveAgreement begun) && ((match (project begun result)
+          | Result.error failure => false
+          | Result.ok taken => (if readOne then (let read : Uorc.Integrity.ArchiveBinding::ChargedTransition := (Uorc.Integrity.ArchiveBinding::stepCharged (project taken arena) (project taken cursor)); ((prim equal (project read work) (3 : UInt64) : Bool) && ((archiveAgreement read) && ((match (project read result)
+            | Result.error failure => false
+            | Result.ok readDone => ((prim equal (project readDone inputMaterializationBytes) (1 : UInt64) : Bool) && ((prim equal (project readDone admittedInputBytes) (1 : UInt64) : Bool) && ((Uorc.Integrity.BindingControls::cancelNegativeAndCleanup readDone (project prepared sequence)) && true)))) && true)))) else (Uorc.Integrity.BindingControls::cancelNegativeAndCleanup taken (project prepared sequence)))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: producerTicketTransferred,
+  parameters: [],
+  result: Bool,
+  body: (producerScenario false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: actualReadAndBytePaid,
+  parameters: [],
+  result: Bool,
+  body: (producerScenario true),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: digestScenario,
+  parameters: [mode : Nat],
+  result: Bool,
+  body: ((Uorc.Integrity.BindingControls::fixtureBinding) && (match (Uorc.Integrity.BindingControls::prepareNegative (Uorc.Integrity.BindingControls::fixtureImage))
+    | Option.none => false
+    | Option.some prepared => (match (Uorc.Core.Heap::reserveImage (project (project prepared transition) arena) (ctor Uorc.Core.Heap::ImageKind.runtime) (32 : UInt64))
+      | Result.error failure => false
+      | Result.ok reserved => (match (Uorc.Core.Heap::commitImage (project reserved arena) (project reserved handle) (if (mode =? 1) then 0x829bc0875e1887a1058fb0ed4d2fecc4ce6a3fd14735d1ab9a955d71f5dc3918 else (if (mode =? 2) then 0x839bc0875e1887a1058fb0ed4d2fecc4ce6a3fd14735d1ab9a955d71f5dc3919 else 0x839bc0875e1887a1058fb0ed4d2fecc4ce6a3fd14735d1ab9a955d71f5dc3918)))
+        | Result.error failure => false
+        | Result.ok actual => (let checked : Uorc.Integrity.ArchiveBinding::ChargedCheck := (Uorc.Integrity.ArchiveBinding::verifyDigestCharged (project actual arena) (project actual handle) (record Uorc.Core.RuntimeSequence::Span {image := (project prepared image), offset := (14 : UInt64), length := (if (mode =? 3) then (31 : UInt64) else (32 : UInt64))})); ((prim equal (project var{
+          name: checked
+        } work) (if (mode =? 1) then (5 : UInt64) else (if (mode =? 3) then (1 : UInt64) else (67 : UInt64))) : Bool) && ((match (project var{
+            name: checked
+          } result)
+          | Result.error failure => ((Uorc.Integrity.BindingControls::archiveErrorTag failure) =? (if (mode =? 3) then 7 else 8))
+          | Result.ok equalDigest => ((mode =? 0) && (equalDigest && true))) && ((match (Uorc.Integrity.BindingControls::releaseOwned (project actual arena) (project actual handle))
+          | Option.none => false
+          | Option.some releasedActual => (Uorc.Integrity.BindingControls::cancelNegativeAndCleanup (record Uorc.Integrity.ArchiveBinding::Transition {arena := releasedActual, cursor := (project (project prepared transition) cursor), delta := (project (project prepared transition) delta), work := (project (project prepared transition) work), admittedInputBytes := (project (project prepared transition) admittedInputBytes), inputMaterializationBytes := (project (project prepared transition) inputMaterializationBytes), digestMaterializationBytes := (project (project prepared transition) digestMaterializationBytes), outcome := (project (project prepared transition) outcome)}) (project prepared sequence))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: equalDigestPaid,
+  parameters: [],
+  result: Bool,
+  body: (digestScenario 0),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: earlyMismatchPaid,
+  parameters: [],
+  result: Bool,
+  body: (digestScenario 1),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lateMismatchPaid,
+  parameters: [],
+  result: Bool,
+  body: (digestScenario 2),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lengthGuardNoAccessor,
+  parameters: [],
+  result: Bool,
+  body: (digestScenario 3),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runtimeChecks,
+  parameters: [],
+  result: (List Bool),
+  body: (cons (emptySpanNoAccessor) (cons (rangeFailurePaid) (cons (reservationRejectedPaid) (cons (overflowMappedPaid) (cons (producerTicketTransferred) (cons (actualReadAndBytePaid) (cons (equalDigestPaid) (cons (earlyMismatchPaid) (cons (lateMismatchPaid) (cons (lengthGuardNoAccessor) (nil Bool))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: legacyChecks,
+  parameters: [],
+  result: (List Bool),
+  body: (Uorc.Integrity.BindingControls::runtimeChecks),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: legacyNegativeChecks,
+  parameters: [],
+  result: (List Bool),
+  body: (Uorc.Integrity.BindingControls::negativeChecks),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

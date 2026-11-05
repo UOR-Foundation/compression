@@ -4,8 +4,294 @@
 \importmodule{Uorc.Core.Heap}
 \importmodule{Uorc.Core.RuntimeValue}
 \importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeImage}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Profile","name":"Error"}}],"name":"profile"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.OwnedHash","name":"Error"}}],"name":"owned"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeSequence","name":"SequenceFailure"}}],"name":"sequence"},{"fields":[],"name":"archiveLength"},{"fields":[],"name":"truncatedPreimage"},{"fields":[],"name":"extraPreimage"},{"fields":[],"name":"addressSpaceExhausted"},{"fields":[],"name":"digestLength"},{"fields":[],"name":"digestMismatch"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"fields":[{"name":"format","type":{"kind":"nat"}},{"name":"machine","type":{"kind":"nat"}},{"name":"preimageLength","type":{"kind":"uint64"}},{"name":"archiveLength","type":{"kind":"uint64"}}],"kind":"structure","name":"Descriptor","parameters":[],"type_parameters":[]},{"fields":[{"name":"descriptor","type":{"arguments":[],"kind":"named","member":{"name":"Descriptor"}}},{"name":"hash","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.OwnedHash","name":"Cursor"}}},{"name":"remaining","type":{"kind":"uint64"}}],"kind":"structure","name":"Cursor","parameters":[],"type_parameters":[]},{"fields":[{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"name":"delta","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Delta"}}},{"name":"work","type":{"kind":"uint64"}},{"name":"admittedInputBytes","type":{"kind":"uint64"}},{"name":"inputMaterializationBytes","type":{"kind":"uint64"}},{"name":"digestMaterializationBytes","type":{"kind":"uint64"}},{"name":"outcome","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.OwnedHash","name":"Outcome"}}}],"kind":"structure","name":"Transition","parameters":[],"type_parameters":[]},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.profile"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Profile","name":"Kind"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["profile"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.addressSpaceExhausted"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Profile","name":"Kind"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Option.none"}},{"binders":["expectedLength"],"body":{"condition":{"arguments":[{"field":"archiveLength","kind":"project","value":{"kind":"var","name":"descriptor"}},{"kind":"var","name":"expectedLength"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.archiveLength"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Profile","name":"Kind"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"condition":{"arguments":[{"field":"preimageLength","kind":"project","value":{"kind":"var","name":"descriptor"}},{"kind":"integer","representation":"uint64","value":"6"}],"function":{"module":"Uorc.Core.Heap","name":"less"},"kind":"call"},"else_value":{"arguments":[{"kind":"var","name":"profile"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Profile","name":"Kind"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.truncatedPreimage"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Profile","name":"Kind"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"preimageLength","kind":"project","value":{"kind":"var","name":"descriptor"}},{"kind":"integer","representation":"uint64","value":"32"}],"kind":"primitive","operation":"checked_add","result":{"kind":"option","value":{"kind":"uint64"}}}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"field":"format","kind":"project","value":{"kind":"var","name":"descriptor"}},{"field":"machine","kind":"project","value":{"kind":"var","name":"descriptor"}}],"function":{"module":"Uorc.Integrity.Profile","name":"select"},"kind":"call"}},"kind":"definition","name":"select","parameters":[{"name":"descriptor","type":{"arguments":[],"kind":"named","member":{"name":"Descriptor"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"module":"Uorc.Integrity.Profile","name":"Kind"}}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["profile"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.owned"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["started"],"body":{"arguments":[{"fields":[{"field":"arena","value":{"field":"arena","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"cursor","value":{"fields":[{"field":"descriptor","value":{"kind":"var","name":"descriptor"}},{"field":"hash","value":{"field":"cursor","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"remaining","value":{"field":"preimageLength","kind":"project","value":{"kind":"var","name":"descriptor"}}}],"kind":"record","type":{"name":"Cursor"}}},{"field":"delta","value":{"field":"delta","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"work","value":{"field":"work","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"admittedInputBytes","value":{"field":"admittedInputBytes","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"inputMaterializationBytes","value":{"field":"inputMaterializationBytes","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"digestMaterializationBytes","value":{"field":"digestMaterializationBytes","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"outcome","value":{"field":"outcome","kind":"project","value":{"kind":"var","name":"started"}}}],"kind":"record","type":{"name":"Transition"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"kind":"var","name":"profile"},{"arguments":[],"constructor":{"module":"Uorc.Integrity.Profile","name":"Purpose.archivePreimage"},"kind":"constructor"}],"function":{"module":"Uorc.Integrity.OwnedHash","name":"start"},"kind":"call"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"descriptor"}],"function":{"name":"select"},"kind":"call"}},"kind":"definition","name":"start","parameters":[{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"descriptor","type":{"arguments":[],"kind":"named","member":{"name":"Descriptor"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"Transition"}}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"field":"remaining","kind":"project","value":{"kind":"var","name":"cursor"}},{"field":"length","kind":"project","value":{"kind":"var","name":"span"}}],"function":{"module":"Uorc.Core.Heap","name":"less"},"kind":"call"},"else_value":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.owned"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["started"],"body":{"arguments":[{"fields":[{"field":"arena","value":{"field":"arena","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"cursor","value":{"fields":[{"field":"descriptor","value":{"field":"descriptor","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"hash","value":{"field":"cursor","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"remaining","value":{"arguments":[{"field":"remaining","kind":"project","value":{"kind":"var","name":"cursor"}},{"field":"length","kind":"project","value":{"kind":"var","name":"span"}}],"function":{"module":"Uorc.Core.Heap","name":"wordSub"},"kind":"call"}}],"kind":"record","type":{"name":"Cursor"}}},{"field":"delta","value":{"field":"delta","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"work","value":{"field":"work","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"admittedInputBytes","value":{"field":"admittedInputBytes","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"inputMaterializationBytes","value":{"field":"inputMaterializationBytes","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"digestMaterializationBytes","value":{"field":"digestMaterializationBytes","kind":"project","value":{"kind":"var","name":"started"}}},{"field":"outcome","value":{"field":"outcome","kind":"project","value":{"kind":"var","name":"started"}}}],"kind":"record","type":{"name":"Transition"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"field":"hash","kind":"project","value":{"kind":"var","name":"cursor"}},{"kind":"var","name":"span"}],"function":{"module":"Uorc.Integrity.OwnedHash","name":"beginSpan"},"kind":"call"}},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.extraPreimage"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}},"kind":"definition","name":"beginSpan","parameters":[{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"name":"span","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeSequence","name":"Span"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"Transition"}}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.owned"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["advanced"],"body":{"arguments":[{"fields":[{"field":"arena","value":{"field":"arena","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"cursor","value":{"fields":[{"field":"descriptor","value":{"field":"descriptor","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"hash","value":{"field":"cursor","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"remaining","value":{"field":"remaining","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}}},{"field":"delta","value":{"field":"delta","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"work","value":{"field":"work","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"admittedInputBytes","value":{"field":"admittedInputBytes","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"inputMaterializationBytes","value":{"field":"inputMaterializationBytes","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"digestMaterializationBytes","value":{"field":"digestMaterializationBytes","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"outcome","value":{"field":"outcome","kind":"project","value":{"kind":"var","name":"advanced"}}}],"kind":"record","type":{"name":"Transition"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"field":"hash","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Integrity.OwnedHash","name":"step"},"kind":"call"}},"kind":"definition","name":"step","parameters":[{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"Transition"}}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"field":"remaining","kind":"project","value":{"kind":"var","name":"cursor"}},{"kind":"integer","representation":"uint64","value":"0"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.truncatedPreimage"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.owned"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["advanced"],"body":{"arguments":[{"fields":[{"field":"arena","value":{"field":"arena","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"cursor","value":{"fields":[{"field":"descriptor","value":{"field":"descriptor","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"hash","value":{"field":"cursor","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"remaining","value":{"field":"remaining","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}}},{"field":"delta","value":{"field":"delta","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"work","value":{"field":"work","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"admittedInputBytes","value":{"field":"admittedInputBytes","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"inputMaterializationBytes","value":{"field":"inputMaterializationBytes","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"digestMaterializationBytes","value":{"field":"digestMaterializationBytes","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"outcome","value":{"field":"outcome","kind":"project","value":{"kind":"var","name":"advanced"}}}],"kind":"record","type":{"name":"Transition"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"field":"hash","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Integrity.OwnedHash","name":"finalize"},"kind":"call"}}},"kind":"definition","name":"finalize","parameters":[{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"Transition"}}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.owned"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["advanced"],"body":{"arguments":[{"fields":[{"field":"arena","value":{"field":"arena","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"cursor","value":{"fields":[{"field":"descriptor","value":{"field":"descriptor","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"hash","value":{"field":"cursor","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"remaining","value":{"field":"remaining","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}}},{"field":"delta","value":{"field":"delta","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"work","value":{"field":"work","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"admittedInputBytes","value":{"field":"admittedInputBytes","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"inputMaterializationBytes","value":{"field":"inputMaterializationBytes","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"digestMaterializationBytes","value":{"field":"digestMaterializationBytes","kind":"project","value":{"kind":"var","name":"advanced"}}},{"field":"outcome","value":{"field":"outcome","kind":"project","value":{"kind":"var","name":"advanced"}}}],"kind":"record","type":{"name":"Transition"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Transition"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"field":"hash","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Integrity.OwnedHash","name":"cancel"},"kind":"call"}},"kind":"definition","name":"cancel","parameters":[{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"Transition"}}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"bool","value":true}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Nat.zero"}},{"binders":["rest"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.sequence"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["leftByte"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.addressSpaceExhausted"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Option.none"}},{"binders":["rightOffset"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.sequence"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["rightByte"],"body":{"condition":{"arguments":[{"kind":"var","name":"leftByte"},{"kind":"var","name":"rightByte"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"arguments":[{"kind":"bool","value":false}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"kind":"var","name":"rest"},{"arguments":[{"kind":"var","name":"index"},{"kind":"integer","representation":"uint64","value":"1"}],"function":{"module":"Uorc.Core.Heap","name":"wordAdd"},"kind":"call"},{"kind":"var","name":"arena"},{"kind":"var","name":"actual"},{"kind":"var","name":"expected"}],"function":{"name":"compareAux"},"kind":"call"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"field":"image","kind":"project","value":{"kind":"var","name":"expected"}},{"kind":"var","name":"rightOffset"}],"function":{"module":"Uorc.Core.RuntimeSequence","name":"readByte"},"kind":"call"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"offset","kind":"project","value":{"kind":"var","name":"expected"}},{"kind":"var","name":"index"}],"kind":"primitive","operation":"checked_add","result":{"kind":"option","value":{"kind":"uint64"}}}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"kind":"var","name":"actual"},{"kind":"var","name":"index"}],"function":{"module":"Uorc.Core.RuntimeSequence","name":"readByte"},"kind":"call"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"compareAux","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"index","type":{"kind":"uint64"}},{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"actual","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}}},{"name":"expected","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeSequence","name":"Span"}}}],"recursive_argument":"fuel","result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"kind":"bool"}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"field":"length","kind":"project","value":{"kind":"var","name":"expected"}},{"kind":"integer","representation":"uint64","value":"32"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.digestLength"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.owned"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["actualShape"],"body":{"branches":[{"binders":["cause"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cause"}],"constructor":{"name":"Error.owned"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["expectedShape"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["equalDigest"],"body":{"condition":{"kind":"var","name":"equalDigest"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.digestMismatch"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"kind":"bool","value":true}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"kind":"bool"},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"nat","value":"32"},{"kind":"integer","representation":"uint64","value":"0"},{"kind":"var","name":"arena"},{"kind":"var","name":"actual"},{"kind":"var","name":"expected"}],"function":{"name":"compareAux"},"kind":"call"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"kind":"var","name":"expected"}],"function":{"module":"Uorc.Integrity.OwnedHash","name":"validateSpan"},"kind":"call"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"fields":[{"field":"image","value":{"kind":"var","name":"actual"}},{"field":"offset","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"length","value":{"kind":"integer","representation":"uint64","value":"32"}}],"kind":"record","type":{"module":"Uorc.Core.RuntimeSequence","name":"Span"}}],"function":{"module":"Uorc.Integrity.OwnedHash","name":"validateSpan"},"kind":"call"}}},"kind":"definition","name":"verifyDigest","parameters":[{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"actual","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}}},{"name":"expected","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeSequence","name":"Span"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"kind":"bool"}}},{"axioms":[],"body":{"kind":"string","value":"Format2/machine1 selects legacy CHAIN-v1; format3/machine1 selects STREAM-MAX-v1. Hash exactly preimageLength bytes and exclude the following 32 integrity bytes. Descriptor counts are admitted runtime U64 words, not wire-level length limits; wire Nat and mathematical stream domains remain distinct. Descriptor archiveLength must equal preimageLength+32 without runtime address overflow. OwnedHash validates the six fixed UORC/format/machine octets across span partitions; grammar beyond those octets remains the owned parser authority. beginSpan consumes each nonempty producer span ticket, which stays in OwnedHash.ownedRoots until completion/cancel; empty spans transfer none. The caller must supply spans from the same retained immutable archive snapshot and retain that snapshot while parsing, hashing and checking the stored digest. Input/basis/checkpoint domains are Profile-owned; checkpoint matching still requires exact full query/basis bytes, object boundaries, scope, operational envelope and source/policy identity. Certificate/checkpoint scope must separately bind the shared canonical semantic profile and interpretation; this module does not define or prove semantic minimum admissibility. The format/machine relation to canonical semantic cost is owned by shared Core/search declarations; this binding invents no cost profile, adds no mandatory certification metadata, and claims no semantic-budget minimum without that refinement bridge. Hashing covers all chosen header bytes. Digest equality is never reconstruction equality or authenticity. verifyDigest borrows two already-owned images for one bounded 32-byte check. The returned digest handle from OwnedHash is owned and remains caller-owned on a mismatch."},"kind":"definition","name":"bindingContract","parameters":[],"result":{"kind":"string"}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: profile, fields: [Uorc.Integrity.Profile::Error]},
+    {name: owned, fields: [Uorc.Integrity.OwnedHash::Error]},
+    {name: sequence, fields: [Uorc.Core.RuntimeSequence::SequenceFailure]},
+    {name: archiveLength, fields: []},
+    {name: truncatedPreimage, fields: []},
+    {name: extraPreimage, fields: []},
+    {name: addressSpaceExhausted, fields: []},
+    {name: digestLength, fields: []},
+    {name: digestMismatch, fields: []}
+  ]
+}
+
+structure{
+  name: Descriptor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: format, type: Nat},
+    {name: machine, type: Nat},
+    {name: preimageLength, type: UInt64},
+    {name: archiveLength, type: UInt64}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: descriptor, type: Descriptor},
+    {name: hash, type: Uorc.Integrity.OwnedHash::Cursor},
+    {name: remaining, type: UInt64}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: cursor, type: Cursor},
+    {name: delta, type: Uorc.Core.Heap::Delta},
+    {name: work, type: UInt64},
+    {name: admittedInputBytes, type: UInt64},
+    {name: inputMaterializationBytes, type: UInt64},
+    {name: digestMaterializationBytes, type: UInt64},
+    {name: outcome, type: Uorc.Integrity.OwnedHash::Outcome}
+  ]
+}
+
+structure{
+  name: ChargedTransition,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: work, type: UInt64}, {name: result, type: (Result Transition Error)}]
+}
+
+structure{
+  name: ChargedCheck,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: work, type: UInt64}, {name: result, type: (Result Bool Error)}]
+}
+
+definition{
+  name: addCheckWork,
+  parameters: [prefixWork : UInt64, checked : ChargedCheck],
+  result: ChargedCheck,
+  body: (record ChargedCheck {work := (Uorc.Core.Heap::wordAdd prefixWork (project var{
+    name: checked
+  } work)), result := (project var{name: checked} result)}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: adaptCharged,
+  parameters: [
+    descriptor : Descriptor,
+    remaining : UInt64,
+    owned : Uorc.Integrity.OwnedHash::ChargedTransition
+  ],
+  result: ChargedTransition,
+  body: (record ChargedTransition {work := (project owned work), result := (match (project owned result)
+    | Result.error ownedCause => (ctor Result.error [Transition, Error] (ctor Error.owned ownedCause))
+    | Result.ok transition => (ctor Result.ok [Transition, Error] (record Transition {arena := (project transition arena), cursor := (record Cursor {descriptor := descriptor, hash := (project transition cursor), remaining := remaining}), delta := (project transition delta), work := (project owned work), admittedInputBytes := (project transition admittedInputBytes), inputMaterializationBytes := (project transition inputMaterializationBytes), digestMaterializationBytes := (project transition digestMaterializationBytes), outcome := (project transition outcome)})))}),
+  executable: true
+}
+
+definition{
+  name: select,
+  parameters: [descriptor : Descriptor],
+  result: (Result Uorc.Integrity.Profile::Kind Error),
+  body: (match (Uorc.Integrity.Profile::select (project descriptor format) (project descriptor machine))
+    | Result.error cause => (ctor Result.error [Uorc.Integrity.Profile::Kind, Error] (ctor Error.profile cause))
+    | Result.ok profile => (match (prim checked_add (project descriptor preimageLength) (32 : UInt64) : (Option UInt64))
+      | Option.none => (ctor Result.error [Uorc.Integrity.Profile::Kind, Error] (ctor Error.addressSpaceExhausted))
+      | Option.some expectedLength => (if (prim equal (project descriptor archiveLength) expectedLength : Bool) then (if (Uorc.Core.Heap::less (project descriptor preimageLength) (6 : UInt64)) then (ctor Result.error [Uorc.Integrity.Profile::Kind, Error] (ctor Error.truncatedPreimage)) else (ctor Result.ok [Uorc.Integrity.Profile::Kind, Error] profile)) else (ctor Result.error [Uorc.Integrity.Profile::Kind, Error] (ctor Error.archiveLength))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: startCharged,
+  parameters: [arena : Uorc.Core.Heap::Arena, descriptor : Descriptor],
+  result: ChargedTransition,
+  body: (match (select descriptor)
+    | Result.error failure => (record ChargedTransition {work := (1 : UInt64), result := (ctor Result.error [Transition, Error] failure)})
+    | Result.ok profile => (adaptCharged descriptor (project descriptor preimageLength) (Uorc.Integrity.OwnedHash::startCharged arena profile (ctor Uorc.Integrity.Profile::Purpose.archivePreimage)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: start,
+  parameters: [arena : Uorc.Core.Heap::Arena, descriptor : Descriptor],
+  result: (Result Transition Error),
+  body: (project (startCharged arena descriptor) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: beginSpanCharged,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    span : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: ChargedTransition,
+  body: (if (Uorc.Core.Heap::less (project cursor remaining) (project span length)) then (record ChargedTransition {work := (1 : UInt64), result := (ctor Result.error [Transition, Error] (ctor Error.extraPreimage))}) else (adaptCharged (project cursor descriptor) (Uorc.Core.Heap::wordSub (project cursor remaining) (project span length)) (Uorc.Integrity.OwnedHash::beginSpanCharged arena (project cursor hash) span))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: beginSpan,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    span : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: (Result Transition Error),
+  body: (project (beginSpanCharged arena cursor span) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: stepCharged,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: ChargedTransition,
+  body: (adaptCharged (project cursor descriptor) (project cursor remaining) (Uorc.Integrity.OwnedHash::stepCharged arena (project cursor hash))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: step,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result Transition Error),
+  body: (project (stepCharged arena cursor) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalizeCharged,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: ChargedTransition,
+  body: (if (prim equal (project cursor remaining) (0 : UInt64) : Bool) then (adaptCharged (project cursor descriptor) (project cursor remaining) (Uorc.Integrity.OwnedHash::finalizeCharged arena (project cursor hash))) else (record ChargedTransition {work := (1 : UInt64), result := (ctor Result.error [Transition, Error] (ctor Error.truncatedPreimage))})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalize,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result Transition Error),
+  body: (project (finalizeCharged arena cursor) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelCharged,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: ChargedTransition,
+  body: (adaptCharged (project cursor descriptor) (project cursor remaining) (Uorc.Integrity.OwnedHash::cancelCharged arena (project cursor hash))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancel,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result Transition Error),
+  body: (project (cancelCharged arena cursor) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: compareAuxCharged,
+  parameters: [
+    fuel : Nat,
+    index : UInt64,
+    arena : Uorc.Core.Heap::Arena,
+    actual : Uorc.Core.RuntimeValue::Handle,
+    expected : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: ChargedCheck,
+  body: (match fuel
+    | Nat.zero => (record ChargedCheck {work := (0 : UInt64), result := (ctor Result.ok [Bool, Error] true)})
+    | Nat.succ rest => (let leftQuote : UInt64 := (Uorc.Core.RuntimeImage::readByteCost arena actual index); (match (Uorc.Core.RuntimeImage::readByte arena actual index)
+      | Result.error leftFailure => (record ChargedCheck {work := leftQuote, result := (ctor Result.error [Bool, Error] (ctor Error.sequence (Uorc.Integrity.OwnedHash::imageFailureToSequence leftFailure)))})
+      | Result.ok leftByte => (match (prim checked_add (project expected offset) index : (Option UInt64))
+        | Option.none => (record ChargedCheck {work := leftQuote, result := (ctor Result.error [Bool, Error] (ctor Error.addressSpaceExhausted))})
+        | Option.some rightOffset => (let rightQuote : UInt64 := (Uorc.Core.RuntimeImage::readByteCost arena (project expected image) rightOffset); (let pairQuote : UInt64 := (Uorc.Core.Heap::wordAdd leftQuote rightQuote); (match (Uorc.Core.RuntimeImage::readByte arena (project expected image) rightOffset)
+          | Result.error rightFailure => (record ChargedCheck {work := pairQuote, result := (ctor Result.error [Bool, Error] (ctor Error.sequence (Uorc.Integrity.OwnedHash::imageFailureToSequence rightFailure)))})
+          | Result.ok rightByte => (if (prim equal leftByte rightByte : Bool) then (addCheckWork pairQuote (compareAuxCharged rest (Uorc.Core.Heap::wordAdd index (1 : UInt64)) arena actual expected)) else (record ChargedCheck {work := pairQuote, result := (ctor Result.ok [Bool, Error] false)}))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: compareAux,
+  parameters: [
+    fuel : Nat,
+    index : UInt64,
+    arena : Uorc.Core.Heap::Arena,
+    actual : Uorc.Core.RuntimeValue::Handle,
+    expected : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: (Result Bool Error),
+  body: (project (compareAuxCharged fuel index arena actual expected) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: verifyDigestCharged,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    actual : Uorc.Core.RuntimeValue::Handle,
+    expected : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: ChargedCheck,
+  body: (if (prim equal (project expected length) (32 : UInt64) : Bool) then (let leftValidation : Uorc.Integrity.OwnedHash::ChargedValidation := (Uorc.Integrity.OwnedHash::validateSpanCharged arena (record Uorc.Core.RuntimeSequence::Span {image := actual, offset := (0 : UInt64), length := (32 : UInt64)})); (let leftWork : UInt64 := (Uorc.Core.Heap::wordAdd (1 : UInt64) (project leftValidation work)); (match (project leftValidation result)
+    | Result.error leftShapeFailure => (record ChargedCheck {work := leftWork, result := (ctor Result.error [Bool, Error] (ctor Error.owned leftShapeFailure))})
+    | Result.ok leftShape => (let rightValidation : Uorc.Integrity.OwnedHash::ChargedValidation := (Uorc.Integrity.OwnedHash::validateSpanCharged arena expected); (let validationWork : UInt64 := (Uorc.Core.Heap::wordAdd leftWork (project rightValidation work)); (match (project rightValidation result)
+      | Result.error rightShapeFailure => (record ChargedCheck {work := validationWork, result := (ctor Result.error [Bool, Error] (ctor Error.owned rightShapeFailure))})
+      | Result.ok rightShape => (let comparison : ChargedCheck := (compareAuxCharged 32 (0 : UInt64) arena actual expected); (let totalWork : UInt64 := (Uorc.Core.Heap::wordAdd validationWork (project comparison work)); (match (project comparison result)
+        | Result.error compareFailure => (record ChargedCheck {work := totalWork, result := (ctor Result.error [Bool, Error] compareFailure)})
+        | Result.ok equalDigest => (if equalDigest then (record ChargedCheck {work := totalWork, result := (ctor Result.ok [Bool, Error] true)}) else (record ChargedCheck {work := totalWork, result := (ctor Result.error [Bool, Error] (ctor Error.digestMismatch))}))))))))))) else (record ChargedCheck {work := (1 : UInt64), result := (ctor Result.error [Bool, Error] (ctor Error.digestLength))})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: verifyDigest,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    actual : Uorc.Core.RuntimeValue::Handle,
+    expected : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: (Result Bool Error),
+  body: (project (verifyDigestCharged arena actual expected) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: bindingContract,
+  parameters: [],
+  result: String,
+  body: "Format2/machine1 selects legacy CHAIN-v1; format3/machine1 selects STREAM-MAX-v1. Hash exactly preimageLength bytes and exclude the following 32 integrity bytes. Descriptor counts are admitted runtime U64 words, not wire-level length limits; wire Nat and mathematical stream domains remain distinct. Descriptor archiveLength must equal preimageLength+32 without runtime address overflow. OwnedHash validates the six fixed UORC/format/machine octets across span partitions; grammar beyond those octets remains the owned parser authority. beginSpan consumes each nonempty producer span ticket, which stays in OwnedHash.ownedRoots until completion/cancel; empty spans transfer none. The caller must supply spans from the same retained immutable archive snapshot and retain that snapshot while parsing, hashing and checking the stored digest. Input/basis/checkpoint domains are Profile-owned; checkpoint matching still requires exact full query/basis bytes, object boundaries, scope, operational envelope and source/policy identity. Certificate/checkpoint scope must separately bind the shared canonical semantic profile and interpretation; this module does not define or prove semantic minimum admissibility. The format/machine relation to canonical semantic cost is owned by shared Core/search declarations; this binding invents no cost profile, adds no mandatory certification metadata, and claims no semantic-budget minimum without that refinement bridge. Hashing covers all chosen header bytes. Digest equality is never reconstruction equality or authenticity. verifyDigest borrows two already-owned images for one bounded 32-byte check. The returned digest handle from OwnedHash is owned and remains caller-owned on a mismatch. RuntimeImage is the shared validation/scalar access authority. Every Cost quote is evaluated before its corresponding result; *Charged preserves actual prefix work on errors, early mismatches and overflow. A complete equal digest check costs one adapter event, two validation dispatches and64scalar dispatches (=67 logical work), while an early mismatch stops earlier. Charged work and successful Transition.work are equal alternative observations: charge one only. Plain Result.error contains no work. Borrowed descriptors neither own nor pin: keep the real archive/producer owner until release transfer and acknowledgment. Logical dispatch prices are not physical allocation/instruction/time measurements and never semantic minimum admissibility.",
+  executable: true
+}
 \end{semanticmodule}
 \end{lexlean}

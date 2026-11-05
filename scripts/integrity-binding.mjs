@@ -9,6 +9,27 @@ export function moduleData(root,name){
  const rows=[...text.matchAll(/\\semanticdata\{(.*)\}\n/g)];requireFact(rows.length===1,'one source semantic module required');
  return JSON.parse(rows[0][1]);
 }
+// Follow actual computational calls through result/charged wrappers. Text in a
+// contract string or a theorem does not count as an executed ownership check.
+export function calledMembers(module,entry){
+ const definitions=new Map(module.declarations.filter(d=>d.kind==='definition').map(d=>[d.name,d]));
+ const visited=new Set(),calls=new Set();
+ function visit(name){
+  if(visited.has(name))return;visited.add(name);
+  const declaration=definitions.get(name);requireFact(declaration,'missing computational entry '+name);
+  function walk(node){
+   if(!node||typeof node!=='object')return;
+   if(node.kind==='call'){
+    const member=node.function;
+    calls.add(`${member.module??''}::${member.name}`);
+    if(!member.module&&definitions.has(member.name))visit(member.name);
+   }
+   for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else walk(value);
+  }
+  walk(declaration.body);
+ }
+ visit(entry);return calls;
+}
 export function fixtures(root){
  const rows=moduleData(root,'BindingFixtures').declarations.filter(d=>d.kind==='definition'&&d.body.kind==='record'&&d.body.type.name==='Fixture').map(d=>Object.fromEntries(d.body.fields.map(f=>[f.field,f.value.value])));
  requireFact(rows.length===20&&new Set(rows.map(r=>r.name)).size===20,'complete unique binding inventory required');return rows;
