@@ -263,10 +263,10 @@
     {
       "endpoints": [
         {
-          "authority": "internal transfer from completed owned admission; never caller supplied Ready",
+          "authority": "internal move of actual ReadyTransfer and accepted semantic budget/ledger; uses startWithSemantic, never a fresh compatibility constructor",
           "name": "machineStart",
           "root": "Uorc.Uorc.Product.MachineBinding.start",
-          "signature": "Api.Run -> RuntimeProgram.Ready -> RuntimeResources.Budget -> MachineBinding.State"
+          "signature": "Api.Run -> RuntimeMachineEngine.ReadyTransfer -> RuntimeResources.Budget -> MachineBinding.State"
         },
         {
           "authority": "actual owned engine and cleanup; stale run cannot advance",
@@ -297,6 +297,90 @@
           "name": "machineDisposition",
           "root": "Uorc.Uorc.Product.MachineBinding.releaseDisposition",
           "signature": "MachineBinding.State -> Api.ReleaseDisposition"
+        },
+        {
+          "authority": "semantic resource extension preserves accepted ledger and paid instruction prefix",
+          "name": "machineExtendSemantic",
+          "root": "Uorc.Uorc.Product.MachineBinding.extendSemantic",
+          "signature": "MachineBinding.State -> Api.Run -> RuntimeMachineSemantic.Budget -> MachineBinding.State"
+        },
+        {
+          "authority": "actual still-owned semantic budget; handed-off state has no second owner",
+          "name": "machineSemanticBudget",
+          "root": "Uorc.Uorc.Product.MachineBinding.semanticBudget",
+          "signature": "MachineBinding.State -> Option RuntimeMachineSemantic.Budget"
+        },
+        {
+          "authority": "actual accepted prefix, separate from native RuntimeResources.Usage",
+          "name": "machineSemanticLedger",
+          "root": "Uorc.Uorc.Product.MachineBinding.semanticLedger",
+          "signature": "MachineBinding.State -> Option RuntimeMachineSemantic.Ledger"
+        },
+        {
+          "authority": "internal one-time terminal custody wrapper",
+          "name": "machineHoldTerminal",
+          "root": "Uorc.Uorc.Product.MachineBinding.holdTerminal",
+          "signature": "MachineBinding.Terminal -> MachineBinding.TerminalSlot"
+        },
+        {
+          "authority": "moves the single actual Arena, CallerRoots and Usage only after the pending actual OverflowReceipt is taken; noArena control retains semantic fields and program/output tickets",
+          "name": "machineDetachTerminal",
+          "root": "Uorc.Uorc.Product.MachineBinding.detachTerminal",
+          "signature": "MachineBinding.TerminalSlot -> Api.Run -> Nat -> MachineBinding.Detach"
+        },
+        {
+          "authority": "matching internal resident transfer only; pending actual Delta or usage regression retains both owners, never arbitrary validation snapshot",
+          "name": "machineReattachTerminal",
+          "root": "Uorc.Uorc.Product.MachineBinding.reattachTerminal",
+          "signature": "MachineBinding.TerminalSlot -> Api.Run -> MachineBinding.ArenaExchange -> MachineBinding.Reattach"
+        },
+        {
+          "authority": "one actual whole ReadyTransfer/terminal movement after reattachment",
+          "name": "machineTakeTerminalSlot",
+          "root": "Uorc.Uorc.Product.MachineBinding.takeTerminalSlot",
+          "signature": "MachineBinding.TerminalSlot -> Api.Run -> MachineBinding.Movement"
+        },
+        {
+          "authority": "actual still-owned machine roots; handed-off state does not recreate tickets",
+          "name": "machineOwnedRoots",
+          "root": "Uorc.Uorc.Product.MachineBinding.ownedRoots",
+          "signature": "MachineBinding.State -> List RuntimeValue.Handle"
+        },
+        {
+          "authority": "terminal program and output tickets remain pinned while the one actual Arena moves through IO",
+          "name": "machineTerminalSlotRoots",
+          "root": "Uorc.Uorc.Product.MachineBinding.terminalSlotRoots",
+          "signature": "MachineBinding.TerminalSlot -> List RuntimeValue.Handle"
+        },
+        {
+          "authority": "actual transferred CallerRoots only; combine with terminal control tickets in the resident owner",
+          "name": "machineArenaExchangeRoots",
+          "root": "Uorc.Uorc.Product.MachineBinding.arenaExchangeRoots",
+          "signature": "MachineBinding.ArenaExchange -> List RuntimeValue.Handle"
+        },
+        {
+          "authority": "source-owned retained terminal or detached custody; no unconditional release on execution termination",
+          "name": "machineTerminalSlotDisposition",
+          "root": "Uorc.Uorc.Product.MachineBinding.terminalSlotDisposition",
+          "signature": "MachineBinding.TerminalSlot -> Api.ReleaseDisposition"
+        },
+        {
+          "authority": "moves the actual OverflowReceipt once; stale run retains original owner; pending receipt blocks arena detachment",
+          "name": "machineTakeTerminalReceipt",
+          "root": "Uorc.Uorc.Product.MachineBinding.takeTerminalReceipt",
+          "signature": "MachineBinding.TerminalSlot -> Api.Run -> MachineBinding.TerminalReceiptTake"
+        },
+        {
+          "authority": "all result variants retain the actual terminal slot inventory",
+          "name": "machineTerminalReceiptTakeRoots",
+          "root": "Uorc.Uorc.Product.MachineBinding.terminalReceiptTakeRoots",
+          "signature": "MachineBinding.TerminalReceiptTake -> List RuntimeValue.Handle"
+        },
+        {
+          "authority": "taken actual receipt requires retention until its source owner delivers the achieved prefix",
+          "name": "machineTerminalReceiptTakeDisposition",
+          "root": "Uorc.Uorc.Product.MachineBinding.terminalReceiptTakeDisposition",
+          "signature": "MachineBinding.TerminalReceiptTake -> Api.ReleaseDisposition"
         }
       ],
       "name": "MachineBinding"
@@ -1047,10 +1131,10 @@
       "signature": "Storage.Limits -> Storage.Usage -> Storage.Category -> Nat -> Result Storage.Usage Storage.Error"
     },
     {
-      "authority": "internal transfer from completed owned admission; never caller supplied Ready",
+      "authority": "internal move of actual ReadyTransfer and accepted semantic budget/ledger; uses startWithSemantic, never a fresh compatibility constructor",
       "name": "machineStart",
       "root": "Uorc.Uorc.Product.MachineBinding.start",
-      "signature": "Api.Run -> RuntimeProgram.Ready -> RuntimeResources.Budget -> MachineBinding.State"
+      "signature": "Api.Run -> RuntimeMachineEngine.ReadyTransfer -> RuntimeResources.Budget -> MachineBinding.State"
     },
     {
       "authority": "actual owned engine and cleanup; stale run cannot advance",
@@ -1081,6 +1165,90 @@
       "name": "machineDisposition",
       "root": "Uorc.Uorc.Product.MachineBinding.releaseDisposition",
       "signature": "MachineBinding.State -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "semantic resource extension preserves accepted ledger and paid instruction prefix",
+      "name": "machineExtendSemantic",
+      "root": "Uorc.Uorc.Product.MachineBinding.extendSemantic",
+      "signature": "MachineBinding.State -> Api.Run -> RuntimeMachineSemantic.Budget -> MachineBinding.State"
+    },
+    {
+      "authority": "actual still-owned semantic budget; handed-off state has no second owner",
+      "name": "machineSemanticBudget",
+      "root": "Uorc.Uorc.Product.MachineBinding.semanticBudget",
+      "signature": "MachineBinding.State -> Option RuntimeMachineSemantic.Budget"
+    },
+    {
+      "authority": "actual accepted prefix, separate from native RuntimeResources.Usage",
+      "name": "machineSemanticLedger",
+      "root": "Uorc.Uorc.Product.MachineBinding.semanticLedger",
+      "signature": "MachineBinding.State -> Option RuntimeMachineSemantic.Ledger"
+    },
+    {
+      "authority": "internal one-time terminal custody wrapper",
+      "name": "machineHoldTerminal",
+      "root": "Uorc.Uorc.Product.MachineBinding.holdTerminal",
+      "signature": "MachineBinding.Terminal -> MachineBinding.TerminalSlot"
+    },
+    {
+      "authority": "moves the single actual Arena, CallerRoots and Usage only after the pending actual OverflowReceipt is taken; noArena control retains semantic fields and program/output tickets",
+      "name": "machineDetachTerminal",
+      "root": "Uorc.Uorc.Product.MachineBinding.detachTerminal",
+      "signature": "MachineBinding.TerminalSlot -> Api.Run -> Nat -> MachineBinding.Detach"
+    },
+    {
+      "authority": "matching internal resident transfer only; pending actual Delta or usage regression retains both owners, never arbitrary validation snapshot",
+      "name": "machineReattachTerminal",
+      "root": "Uorc.Uorc.Product.MachineBinding.reattachTerminal",
+      "signature": "MachineBinding.TerminalSlot -> Api.Run -> MachineBinding.ArenaExchange -> MachineBinding.Reattach"
+    },
+    {
+      "authority": "one actual whole ReadyTransfer/terminal movement after reattachment",
+      "name": "machineTakeTerminalSlot",
+      "root": "Uorc.Uorc.Product.MachineBinding.takeTerminalSlot",
+      "signature": "MachineBinding.TerminalSlot -> Api.Run -> MachineBinding.Movement"
+    },
+    {
+      "authority": "actual still-owned machine roots; handed-off state does not recreate tickets",
+      "name": "machineOwnedRoots",
+      "root": "Uorc.Uorc.Product.MachineBinding.ownedRoots",
+      "signature": "MachineBinding.State -> List RuntimeValue.Handle"
+    },
+    {
+      "authority": "terminal program and output tickets remain pinned while the one actual Arena moves through IO",
+      "name": "machineTerminalSlotRoots",
+      "root": "Uorc.Uorc.Product.MachineBinding.terminalSlotRoots",
+      "signature": "MachineBinding.TerminalSlot -> List RuntimeValue.Handle"
+    },
+    {
+      "authority": "actual transferred CallerRoots only; combine with terminal control tickets in the resident owner",
+      "name": "machineArenaExchangeRoots",
+      "root": "Uorc.Uorc.Product.MachineBinding.arenaExchangeRoots",
+      "signature": "MachineBinding.ArenaExchange -> List RuntimeValue.Handle"
+    },
+    {
+      "authority": "source-owned retained terminal or detached custody; no unconditional release on execution termination",
+      "name": "machineTerminalSlotDisposition",
+      "root": "Uorc.Uorc.Product.MachineBinding.terminalSlotDisposition",
+      "signature": "MachineBinding.TerminalSlot -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "moves the actual OverflowReceipt once; stale run retains original owner; pending receipt blocks arena detachment",
+      "name": "machineTakeTerminalReceipt",
+      "root": "Uorc.Uorc.Product.MachineBinding.takeTerminalReceipt",
+      "signature": "MachineBinding.TerminalSlot -> Api.Run -> MachineBinding.TerminalReceiptTake"
+    },
+    {
+      "authority": "all result variants retain the actual terminal slot inventory",
+      "name": "machineTerminalReceiptTakeRoots",
+      "root": "Uorc.Uorc.Product.MachineBinding.terminalReceiptTakeRoots",
+      "signature": "MachineBinding.TerminalReceiptTake -> List RuntimeValue.Handle"
+    },
+    {
+      "authority": "taken actual receipt requires retention until its source owner delivers the achieved prefix",
+      "name": "machineTerminalReceiptTakeDisposition",
+      "root": "Uorc.Uorc.Product.MachineBinding.terminalReceiptTakeDisposition",
+      "signature": "MachineBinding.TerminalReceiptTake -> Api.ReleaseDisposition"
     },
     {
       "authority": "internal move of the single actual arena and pinned terminal owners; borrowed operand handles remain reachable from those retained owners",
@@ -1626,7 +1794,7 @@
     },
     {
       "name": "qualification",
-      "requirement": "The public 22-root artifact qualifies its exact earlier diagnostic projection only. Current machine, charged comparison and bounded payload-image roots have separately scoped source/kernel/VM evidence; their complete generated operational ABI, persistent native/browser binding and pinned SDK acceptance remain unqualified."
+      "requirement": "Historical22-root export and earlier33-machine VM controls retain their exact source scope. Current semantic ReadyTransfer migration source-checks/builds its45-module compositions; its51 controls and broad axiom annotations remain unexecuted/unaudited while an identified upstream ReferenceSemantics theorem blocks kernel compilation. Four additional machine mutations are registered in the actual runtime gate but their rejection is unexecuted. Separate input/output/report/frontend receipts do not establish this current machine graph or complete operational ABI, native/browser or pinned SDK acceptance."
     },
     {
       "name": "numeric fields",
@@ -1695,6 +1863,10 @@
     {
       "name": "output reporting dispositions",
       "requirement": "Recoverable resource refusal is suspension, not terminal failure. Early output failure still needs actual cleanup. Settled transport success continues the operation and cannot set verified or emit successful Control.completed. Preserve substantive storage/I/O failure when cancellation is also latched. Publication staged, notPublished, published and unknown come from their actual owner/receipt; failed publication copies do not imply rollback. Unknown blocks blind retry. Reporting/arithmetic/missing-observation errors retain the exact achieved envelope; generated outer Overflow custody remains separately unqualified."
+    },
+    {
+      "name": "semantic terminal exchange",
+      "requirement": "MachineBinding consumes whole ReadyTransfer{ready,semanticBudget,semanticLedger}, calls Engine.startWithSemantic and exposes typed semanticSuspended separately from execution/archive failure. Cancellation/extension/Ready movement/comparison preserve the accepted prefix and typed refusal. TerminalControl has no Arena/CallerRoots/Bytes/Usage snapshot; ArenaExchange moves the one actual Arena+CallerRoots+Usage and any achieved pending Delta. A pending Terminal OverflowReceipt blocks detach until takeTerminalReceipt moves the actual receipt once; each result keeps explicit source-owned roots/disposition. Reattach matches run/ticket, waits for actual Delta delivery and rejects usage regression while returning both owners. Semantic fields transfer directly without zeroing or recharging native partial writes/EOF. Native IO progress is distinct from canonical semantic output/boundary/EOF coverage; Engine7cf only integrates instruction/reference prefix events. Source type checking is not full semantic/admissibility or current ABI qualification."
     }
   ],
   "runtimeNoticeType": "Uorc.Uorc.Product.Workspace.RuntimeNotice",
