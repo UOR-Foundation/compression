@@ -127,3 +127,17 @@ The current Engine has cache witnesses and operational prepayment, but no semant
 Ledger field or source event-consumption cursor. This audit is preparation only.
 No source changes, duplicate adapter, profile switch, post-hoc execution trace, or
 new semantic-budget acceptance claim were made.
+
+
+## Common-source parser boundary control
+
+The same-Graph Scan control exposed a separate controller composition problem:
+ProgramParse.advancePaid returns pending before inspecting Heap.isReleasing.
+Calling advance repeatedly to drain a release while an event is pending cannot
+progress, although it still prepays work. Boundary.reattach correctly rejects a
+foreign active release. The producer lease must retain the pending event and
+finish the actual release cursor with prepaid release work and observed achieved
+Usage before returning the single arena. Clearing or acknowledging the event
+before admission, returning a second arena snapshot, or weakening foreignRelease
+would conceal the problem. The source-owned control repair and its execution are
+tracked separately from decoder arithmetic and canonical-event refinement.

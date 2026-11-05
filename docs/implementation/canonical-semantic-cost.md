@@ -110,6 +110,17 @@ The remaining bridge must attach these observations to every real owned-machine
 transition, including failure prefixes and static last-use buckets, without
 rerunning a duplicate decoder or accepting supplied event records as proof.
 
+`CanonicalRuntimeRelation.bindingRelated` reuses the actual
+`RuntimeMachineRefinement.valueCorresponds` denotation and separately requires
+that the native per-binding unit witness lifts to the reference payload measure.
+Role transfers and parameter aliases preserve this relation. Scalar general-law
+candidates connect all natural/byte/predicate bindings to that existing runtime
+denotation; no second Heap reader or graph evaluator is introduced. A raw cache
+record or unit number is not evidence of the relation. In particular, extensional
+store equality alone does not establish the cardinality of a malformed exception
+list: the production store/count invariant and its update preservation are still
+required. These definitions are proof-side, not executable production caches.
+
 ## Realization independence and evidence boundary
 
 The4096-byte native builder policy remains `uorc.fixed4096-byte-leaves/1`, exposed
