@@ -1044,7 +1044,7 @@ definition{
     | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] (ctor ScenarioError.fuel))
     | Nat.succ rest => (if (match (project state frames)
       | List.nil => false
-      | List.cons frame restFrames => (if (prim equal (project frame phase) (3 : UInt64) : Bool) then (prim equal (project (project frame frame) nextInstruction) index : Bool) else false)) then (ctor Result.ok [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] state) else (seekInstruction rest (Uorc.Core.RuntimeMachineEngine::tick state) index))),
+      | List.cons frame restFrames => (if (prim equal (project frame phase) (32 : UInt64) : Bool) then (if (prim equal (project frame semanticPosition) (5 : UInt64) : Bool) then (prim equal (project (project frame frame) nextInstruction) index : Bool) else false) else false)) then (ctor Result.ok [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] state) else (seekInstruction rest (Uorc.Core.RuntimeMachineEngine::tick state) index))),
   axioms: [Quot.sound, propext],
   executable: false,
   recursive_argument: fuel
