@@ -1,13 +1,13 @@
 # Machine native qualification handoff
 
-`production-request.json` requests the ten actual RuntimeMachineEngine API
+`production-request.json` requests the eleven actual RuntimeMachineEngine API
 roots, with the official rust-std target descriptor reported by LexLean 0.4.0.
 It uses startWithSemantic so the controller supplies the existing semantic ledger,
-and exposes semanticStatus/extendSemantic for the typed refusal channel. The fresh
+and exposes semanticStatus/extendSemantic for the typed refusal channel. startTransferred preserves the actual ReadyTransfer budget/ledger. The fresh
 standalone start helper is excluded. takeReady now transfers Ready together with
 its semantic Budget and Ledger; consumers must unwrap .ready and retain the ledger.
 Its SHA256 is
-`21c1a6368b048e72e96c8227c73ba973f0da0cdcf657206ef644967f8c7e798e`.
+`f9f77ac96bf9760cdbe6236440f0bc40420993842d13950389b680ee4abde356`.
 This is export preparation, not an accepted package or replacement SDK lock.
 The existing compiler qualification route must run the supported
 `lexlean production build --request ...` and `production verify-artifact` on the

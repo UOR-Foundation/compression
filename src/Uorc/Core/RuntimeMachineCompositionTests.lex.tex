@@ -1,0 +1,165 @@
+\begin{lexlean}{Uorc.Core.RuntimeMachineCompositionTests}
+\importmodule{Uorc.Core.RuntimeMachineSemanticPrefixTests}
+\importmodule{Uorc.Core.RuntimeMachineEngine}
+\importmodule{Uorc.Core.RuntimeMachineFixtures}
+\importmodule{Uorc.Core.RuntimeMachineSemantic}
+\importmodule{Uorc.Core.RuntimeMachine}
+\importmodule{Uorc.Core.RuntimeMachineTests}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.Heap}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: prefix, fields: [Uorc.Core.RuntimeMachineSemanticPrefixTests::ScenarioError]},
+    {name: engine, fields: [Uorc.Core.RuntimeMachine::Failure]},
+    {name: audit, fields: [UInt64]}
+  ]
+}
+
+definition{
+  name: zeroLoopGraph,
+  parameters: [],
+  result: Uorc.Core.Graph::Graph,
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (65 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (cons 0 (nil Nat))) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: zeroLoopStart,
+  parameters: [],
+  result: (Result Uorc.Core.RuntimeMachineEngine::State Uorc.Core.RuntimeMachineSemanticPrefixTests::ScenarioError),
+  body: (Uorc.Core.RuntimeMachineSemanticPrefixTests::start (cons (record Uorc.Core.RuntimeMachineFixtures::Block {parameters := (cons (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) (cons (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) (nil Uorc.Core.RuntimeValue::RuntimeType))), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.byte), instructions := (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.byteConstant), operand0 := (65 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (nil Uorc.Core.RuntimeMachineFixtures::Instruction)), returnDistance := (1 : UInt64), initialRelease := (nil UInt64), releaseAfter := (nil (List UInt64))}) (cons (record Uorc.Core.RuntimeMachineFixtures::Block {parameters := (nil Uorc.Core.RuntimeValue::RuntimeType), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence), instructions := (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.tabulate), operand0 := (1 : UInt64), operand1 := (1 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (cons (0 : UInt64) (nil UInt64)), capturesB := (nil UInt64), literal := 0x}) (nil Uorc.Core.RuntimeMachineFixtures::Instruction))), returnDistance := (1 : UInt64), initialRelease := (nil UInt64), releaseAfter := (nil (List UInt64))}) (nil Uorc.Core.RuntimeMachineFixtures::Block))) (1 : UInt64) (Uorc.Core.RuntimeMachineSemanticPrefixTests::semBudget (100 : UInt64)) (Uorc.Core.RuntimeMachineSemantic::zeroLedger)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: zeroLoopCapturesPrepared,
+  parameters: [fuel : Nat],
+  result: (Result Unit ScenarioError),
+  body: (match (Uorc.Core.ReferenceSemantics::evaluateGraph (zeroLoopGraph) (nil Uorc.Core.ReferenceSemantics::Sequence))
+    | Result.error referenceFailure => (match (zeroLoopStart)
+      | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+      | Result.ok initial => (match (Uorc.Core.RuntimeMachineSemanticPrefixTests::settle fuel initial)
+        | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+        | Result.ok finished => (if (if (match (project finished disposition)
+          | Uorc.Core.RuntimeMachine::Disposition.failed failure => (match failure
+            | Uorc.Core.RuntimeMachine::Failure.program problem => (match problem
+              | Uorc.Core.RuntimeProgram::Failure.static staticError => (prim equal (Uorc.Core.RuntimeMachineTests::staticCode staticError) (1 : UInt8) : Bool)
+              | Uorc.Core.RuntimeProgram::Failure.heap error => false
+              | Uorc.Core.RuntimeProgram::Failure.metadata error => false
+              | Uorc.Core.RuntimeProgram::Failure.operational error => false
+              | Uorc.Core.RuntimeProgram::Failure.resource error => false
+              | Uorc.Core.RuntimeProgram::Failure.releasedSlot slot => false)
+            | Uorc.Core.RuntimeMachine::Failure.semantic error => false
+            | Uorc.Core.RuntimeMachine::Failure.resource error => false
+            | Uorc.Core.RuntimeMachine::Failure.heap error => false
+            | Uorc.Core.RuntimeMachine::Failure.cancelled => false
+            | Uorc.Core.RuntimeMachine::Failure.invariant => false)
+          | Uorc.Core.RuntimeMachine::Disposition.running => false
+          | Uorc.Core.RuntimeMachine::Disposition.cancelling => false
+          | Uorc.Core.RuntimeMachine::Disposition.suspended error => false
+          | Uorc.Core.RuntimeMachine::Disposition.completed handle => false
+          | Uorc.Core.RuntimeMachine::Disposition.cleaned => false) then (if (Uorc.Core.RuntimeMachineSemanticPrefixTests::audit finished) then true else false) else false) then (match (Uorc.Core.RuntimeMachineSemanticPrefixTests::cleanup fuel finished (project finished semanticLedger))
+          | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+          | Result.ok cleaned => (ctor Result.ok [Unit, ScenarioError] ())) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (501 : UInt64))))))
+    | Result.ok referenceValue => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (500 : UInt64)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: seekCommitted,
+  parameters: [fuel : Nat, state : Uorc.Core.RuntimeMachineEngine::State, index : UInt64],
+  result: (Result Uorc.Core.RuntimeMachineEngine::State ScenarioError),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] (ctor ScenarioError.audit (511 : UInt64)))
+    | Nat.succ rest => (if (Uorc.Core.RuntimeMachineSemanticPrefixTests::audit state) then (if (match (project state frames)
+      | List.nil => false
+      | List.cons frame tail => (if (prim equal (project frame phase) (3 : UInt64) : Bool) then (if (Uorc.Core.Heap::less index (project (project frame frame) slotCount)) then (if (prim equal (project (project frame frame) nextInstruction) (Uorc.Core.Heap::wordAdd index (1 : UInt64)) : Bool) then true else false) else false) else false)) then (ctor Result.ok [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] state) else (seekCommitted rest (Uorc.Core.RuntimeMachineEngine::tick state) index)) else (ctor Result.error [Uorc.Core.RuntimeMachineEngine::State, ScenarioError] (ctor ScenarioError.audit (512 : UInt64))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: fuel
+}
+
+definition{
+  name: checkFreshSlot,
+  parameters: [
+    fuel : Nat,
+    specs : (List Uorc.Core.RuntimeMachineFixtures::Block),
+    index : UInt64,
+    expectedUnits : Nat
+  ],
+  result: (Result Unit ScenarioError),
+  body: (match (Uorc.Core.RuntimeMachineSemanticPrefixTests::start specs (0 : UInt64) (Uorc.Core.RuntimeMachineSemanticPrefixTests::semBudget (100 : UInt64)) (Uorc.Core.RuntimeMachineSemantic::zeroLedger))
+    | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+    | Result.ok initial => (match (seekCommitted fuel initial index)
+      | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+      | Result.ok committed => (if (prim equal (Uorc.Core.Types::wordToNat (project (project committed semanticLedger) semanticStorageUnits)) expectedUnits : Bool) then (match (Uorc.Core.RuntimeMachineSemanticPrefixTests::cleanup fuel committed (project committed semanticLedger))
+        | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+        | Result.ok cleaned => (ctor Result.ok [Unit, ScenarioError] ())) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (510 : UInt64)))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: freshCompletionAllocatesOnce,
+  parameters: [fuel : Nat],
+  result: (Result Unit ScenarioError),
+  body: (match (checkFreshSlot fuel (cons (record Uorc.Core.RuntimeMachineFixtures::Block {parameters := (nil Uorc.Core.RuntimeValue::RuntimeType), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence), instructions := (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalToByte), operand0 := (1 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.singletonSequence), operand0 := (1 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (nil Uorc.Core.RuntimeMachineFixtures::Instruction)))), returnDistance := (1 : UInt64), initialRelease := (nil UInt64), releaseAfter := (nil (List UInt64))}) (nil Uorc.Core.RuntimeMachineFixtures::Block)) (0 : UInt64) (Uorc.Core.CanonicalCost::referenceValueUnits (ctor Uorc.Core.ReferenceSemantics::Value.natural 0)))
+    | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+    | Result.ok fresh0 => (match (checkFreshSlot fuel (cons (record Uorc.Core.RuntimeMachineFixtures::Block {parameters := (nil Uorc.Core.RuntimeValue::RuntimeType), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence), instructions := (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.byteConstant), operand0 := (65 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.singletonSequence), operand0 := (1 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (nil Uorc.Core.RuntimeMachineFixtures::Instruction))), returnDistance := (1 : UInt64), initialRelease := (nil UInt64), releaseAfter := (nil (List UInt64))}) (nil Uorc.Core.RuntimeMachineFixtures::Block)) (0 : UInt64) (Uorc.Core.CanonicalCost::referenceValueUnits (ctor Uorc.Core.ReferenceSemantics::Value.byte 65)))
+      | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+      | Result.ok fresh1 => (match (checkFreshSlot fuel (cons (record Uorc.Core.RuntimeMachineFixtures::Block {parameters := (nil Uorc.Core.RuntimeValue::RuntimeType), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence), instructions := (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.predicateConstant), operand0 := (1 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.byteConstant), operand0 := (65 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.byteConstant), operand0 := (66 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.choose), operand0 := (3 : UInt64), operand1 := (2 : UInt64), operand2 := (1 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.singletonSequence), operand0 := (1 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (nil Uorc.Core.RuntimeMachineFixtures::Instruction)))))), returnDistance := (1 : UInt64), initialRelease := (nil UInt64), releaseAfter := (nil (List UInt64))}) (nil Uorc.Core.RuntimeMachineFixtures::Block)) (0 : UInt64) (Uorc.Core.CanonicalCost::referenceValueUnits (ctor Uorc.Core.ReferenceSemantics::Value.predicate true)))
+        | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+        | Result.ok fresh2 => (match (checkFreshSlot fuel (cons (record Uorc.Core.RuntimeMachineFixtures::Block {parameters := (nil Uorc.Core.RuntimeValue::RuntimeType), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence), instructions := (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x0102}) (nil Uorc.Core.RuntimeMachineFixtures::Instruction)), returnDistance := (1 : UInt64), initialRelease := (nil UInt64), releaseAfter := (nil (List UInt64))}) (nil Uorc.Core.RuntimeMachineFixtures::Block)) (0 : UInt64) (Uorc.Core.CanonicalCost::referenceValueUnits (ctor Uorc.Core.ReferenceSemantics::Value.sequence (Uorc.Core.ReferenceSemantics::sequenceFromBytes 0x0102))))
+          | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+          | Result.ok fresh3 => (match (checkFreshSlot fuel (cons (record Uorc.Core.RuntimeMachineFixtures::Block {parameters := (nil Uorc.Core.RuntimeValue::RuntimeType), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence), instructions := (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.byteConstant), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.storeNew), operand0 := (1 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.storeRead), operand0 := (2 : UInt64), operand1 := (1 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.singletonSequence), operand0 := (1 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (nil Uorc.Core.RuntimeMachineFixtures::Instruction)))))), returnDistance := (1 : UInt64), initialRelease := (nil UInt64), releaseAfter := (nil (List UInt64))}) (nil Uorc.Core.RuntimeMachineFixtures::Block)) (1 : UInt64) ((Uorc.Core.CanonicalCost::referenceValueUnits (ctor Uorc.Core.ReferenceSemantics::Value.byte 0)) + (Uorc.Core.CanonicalCost::referenceValueUnits (ctor Uorc.Core.ReferenceSemantics::Value.store (record Uorc.Core.ReferenceSemantics::Store {defaultByte := 0, exceptions := (nil Uorc.Core.ReferenceSemantics::Exception)})))))
+            | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+            | Result.ok fresh4 => (ctor Result.ok [Unit, ScenarioError] ())))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: indexReadStart,
+  parameters: [],
+  result: (Result Uorc.Core.RuntimeMachineEngine::State Uorc.Core.RuntimeMachineSemanticPrefixTests::ScenarioError),
+  body: (Uorc.Core.RuntimeMachineSemanticPrefixTests::start (cons (record Uorc.Core.RuntimeMachineFixtures::Block {parameters := (nil Uorc.Core.RuntimeValue::RuntimeType), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence), instructions := (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0xaa}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex), operand0 := (2 : UInt64), operand1 := (1 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.singletonSequence), operand0 := (1 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x}) (nil Uorc.Core.RuntimeMachineFixtures::Instruction))))), returnDistance := (1 : UInt64), initialRelease := (nil UInt64), releaseAfter := (nil (List UInt64))}) (nil Uorc.Core.RuntimeMachineFixtures::Block)) (0 : UInt64) (Uorc.Core.RuntimeMachineSemanticPrefixTests::semBudget (1000 : UInt64)) (Uorc.Core.RuntimeMachineSemantic::zeroLedger)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: indexInRangePrepaysRead,
+  parameters: [fuel : Nat],
+  result: (Result Unit ScenarioError),
+  body: (match (indexReadStart)
+    | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+    | Result.ok initial => (match (Uorc.Core.RuntimeMachineSemanticPrefixTests::seekPrefix fuel initial (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex) (5 : UInt64))
+      | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+      | Result.ok before => (let base : Uorc.Core.RuntimeMachineSemantic::Ledger := (project before semanticLedger); (match (Uorc.Core.RuntimeMachineSemanticPrefixTests::settle fuel (Uorc.Core.RuntimeMachineEngine::extendSemantic before (Uorc.Core.RuntimeMachineSemanticPrefixTests::semBudget (project base semanticWork))))
+        | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+        | Result.ok blocked => (if (if (Uorc.Core.RuntimeMachineSemanticPrefixTests::hasSemanticError blocked (4 : UInt64)) then (if (prim equal (Uorc.Core.RuntimeMachineSemanticPrefixTests::pc blocked) (2 : UInt64) : Bool) then (if (Uorc.Core.RuntimeMachineSemanticPrefixTests::sameLedger base (project blocked semanticLedger)) then (if (Uorc.Core.RuntimeMachineSemanticPrefixTests::audit blocked) then true else false) else false) else false) else false) then (match (prim checked_add (project base semanticWork) (Uorc.Core.RuntimeMachineSemantic::eventWork (ctor Uorc.Core.RuntimeMachineSemantic::Event.byteRead)) : (Option UInt64))
+          | Option.none => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (522 : UInt64)))
+          | Option.some paidWork => (match (Uorc.Core.RuntimeMachineSemanticPrefixTests::settle fuel (Uorc.Core.RuntimeMachineEngine::extendSemantic blocked (Uorc.Core.RuntimeMachineSemanticPrefixTests::semBudget paidWork)))
+            | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+            | Result.ok afterRead => (if (if (Uorc.Core.RuntimeMachineSemanticPrefixTests::hasSemanticError afterRead (4 : UInt64)) then (if (prim equal (Uorc.Core.RuntimeMachineSemanticPrefixTests::pc afterRead) (3 : UInt64) : Bool) then (if (prim equal (project (project afterRead semanticLedger) semanticWork) paidWork : Bool) then (if (Uorc.Core.RuntimeMachineSemanticPrefixTests::audit afterRead) then true else false) else false) else false) else false) then (match (Uorc.Core.RuntimeMachineSemanticPrefixTests::cleanup fuel afterRead (project afterRead semanticLedger))
+              | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.prefix failure))
+              | Result.ok cleaned => (ctor Result.ok [Unit, ScenarioError] ())) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (521 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (520 : UInt64)))))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

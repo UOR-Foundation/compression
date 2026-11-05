@@ -10,6 +10,12 @@ kernel compilation are diagnostic evidence, not the repository's pinned SDK
 acceptance boundary. End-to-end behavior and native cancellation qualification
 remain under integration tests.
 
+The Core-29 composition checkpoint is source-checked and built, but its ordinary
+full-proof kernel attempt stops at the unchanged ReferenceSemantics leaf-index
+proof. It has no new composition runtime or accepted-compiler qualification.
+The earlier complete102-control native result binds Engine6be96651 and remains
+historical for this newer source. Exact scope is in semantic-composition-source.json.
+
 ## State and transfer
 
 The admitted `Ready` enters by move. The engine retains one arena, with fixed
@@ -59,6 +65,10 @@ checkpoint validation, or controller restart protocol is introduced here.
   and `semanticLedger`; there is no parallel transfer which silently drops the
   semantic ledger. `OutputTransfer.state` already carries the authoritative ledger,
   so output transfer introduces no separate ledger copy.
+
+`startTransferred(transfer, operationalBudget)` moves an actual `ReadyTransfer`
+into `startWithSemantic` with the same semantic budget and ledger. It introduces
+no arena, ledger reset or new controller.
 
 `ownedRoots` is a transient inventory for `HeapAudit.auditRoots`: aliases appear
 once per outside ticket. Heap's release cursor owns a transferred ticket, and the
@@ -139,10 +149,11 @@ Heap error details remain under `Failure.heap`.
 ## Capacity owners
 
 Each retained frame cons has its own actual `Heap.allocateControl(4096)` owner.
-The modeled 64-bit packed frame plus the cons spine is at most 712 bytes when
+The modeled 64-bit packed frame plus the cons spine is at most 816 bytes when
 sum tags, option tags, booleans and bytes each occupy one word. This includes the
 frame table shell, borrowed block and optional instruction metadata shells,
-action, capture and release counters, iteration state, accumulator and its unit count, auxiliary units-table shell, semantic position, and fixed
+action, capture and release counters, iteration state, accumulator and its unit count, auxiliary units-table shell, semantic position, pinned caller roots, completion
+origin, retirement and observation cursors, and fixed
 builder. The reserve includes the complete control record and spine, rather than
 only a symbolic frame marker. Frame data and units-table roots, accumulator roots, and builder roots
 remain separate tickets and are enumerated with multiplicity.
@@ -198,9 +209,17 @@ the shared `smallControl` fee before typed operational failure. A refused frame 
 parent at its retryable invocation phase; allocating the child control and entering the child are one successful
 transition.
 
-The engine starts only sequence Index, Slice and Concat operations; its builder
-starts Concat. It does not qualify Span consumption. An unexpected Span outcome
-retains its transferred image ticket under `oldRoot` before protocol failure.
+Sequence views delegate Slice/Concat; actual byte observations use native
+`beginSpan` and `RuntimeImage.readSpanByte`. A nonempty span transfers one image
+root ticket into the frame's observation descriptor and owner flag. Empty spans
+transfer no owner. Metadata descriptors alone do not pin images. Each image read
+is quoted and prepaid before the actual accessor. Observation images are retired
+through `oldRoot`, with native cancellation retaining all pending owners.
+Normal `RuntimeSequence.step` is guarded by nonempty frames, a quiescent old-root
+slot and no outstanding observation image before it can return another owner.
+Cancelled native cursors can still drain without a frame. Unexpected nonempty
+outcomes preserve their transferred root at this guarded boundary; empty outcomes
+never trigger an invented image release.
 
 Sequence, store, table, and builder cancellation use their native owner
 protocols. The engine clears a pending cursor only after the owner reports its
@@ -282,10 +301,72 @@ All cursor/counter additions are checked before effects. A numeric exhaustion
 is operationally incomplete and cannot exclude an otherwise valid reference
 candidate. Cancellation and native cleanup do not synthesize semantic releases.
 
-This component consumes only instruction and signature-reference prefixes.
-Capture/entry, binding allocation/release, literal/byte observations, return,
-accumulator, output/basis and exact EOF schedules remain separate integration
-obligations. The controller must thread one ledger through those domains rather
-than calling the fresh compatibility constructor repeatedly. No full semantic
-budget enforcement, cache/reference invariant or admissibility claim follows
-from this partial event coverage.
+The graph-execution consumer now extends that prefix through the exact
+`CanonicalCallComposition`, `CanonicalComposition`, `CanonicalRetirement` and
+`CanonicalActionComposition` contracts from Core29. Output/basis context and
+verified EOF observations still belong to the real controller/reader handoff;
+they are not inferred from a final outcome. No complete product budget
+admissibility or cache/reference invariant is claimed by these consumer bodies.
+
+
+## Core29 composition cursors
+
+Capture preparation runs once per instruction before call entry or loop setup,
+including zero iterations. Two separate native retain events pin the immutable
+caller slot root and its units-cache root, with the original slot count. If the
+second retain fails, the achieved first arena, delta prefix and ticket remain
+owned. Capture references are then consumed one bounded item at a time; Scan
+prepares observer lane A before updater lane B. Each invocation physically rereads
+those pinned roots, without another semantic capture read. Both pins are explicit
+outside tickets in `ownedRoots` and are released before result installation or
+through cancellation cleanup. Instruction metadata remains borrowed under the
+owned immutable program root.
+
+Every invocation prepays `blockEnter`, then each source-order parameter's
+`parameterBind` and payload allocation before its data/cache dual commit. Main
+entry has its own paid continuation across operational frame refusal. Completion
+uses the actual Core `CompletionOrigin` enum: ordinary results allocate their full
+cached payload once; Apply and final Fold/Tabulate/Scan results transfer their
+existing binding. Handle equality, null handles and alias sharing never infer
+origin. Last-use releases follow the existing checked bucket and cached units.
+
+Return first prepays the reference read and holds the returned value and key.
+A fixed retirement cursor visits ascending logical slot keys, skips the returned
+key before lookup, and skips holes. It saves each live payload before release
+prepayment, then emits `blockLeave` before bulk physical table retirement.
+Retirement uses no copied binding list and no maximum-plus-one sentinel.
+
+Loop setup pays the actual accumulator events; Scan creates output0 before its
+state copy. Conditions include the final false condition. Observer append pays
+write/growth/returned-byte release before native append; Scan's updater follows
+that append, and its completed-iteration event follows state replacement.
+Fold's final state and Tabulate/Scan's final output transfer without a second
+length allocation. Scan releases its final state before output transfer.
+
+Literal traversal prepays and actually observes each logical byte through an
+owned image span. Index range failure emits no byte event; an in-range attempt
+prepays one read before span acquisition and the actual image accessor. Basis
+resolves and stores its operand before the extra lookup-reference event, then
+calls the factored actual `RuntimeMachine.prepareBasis` lookup. Missing basis
+entries retain that paid reference. Equal-length comparisons pay left read,
+right read, then comparison before computing equality, stopping at the first
+difference; unequal lengths have no pair events. Singleton prepays one write.
+Native tree traversal, image pinning, builder chunks and physical cleanup do not
+synthesize logical events.
+
+The11 appended frame fields are two pinned roots, original slot count,
+preparation lane, Core completion origin, retirement index, returned key, pending
+units, borrowed span, observation-owner flag and span position. Their modeled
+104 bytes increase the complete frame/spine bound from712 to816, still under the
+existing4096 charged control owner. No State field, event list, reference Value,
+Nat cursor or capture list is introduced. These remain logical packed charges;
+a physical representation bound awaits accepted backend measurement.
+
+This checkpoint passes official source linking/build against the actual full
+Core29 authority declarations. The known unmodified
+`ReferenceSemantics.leaf_index_step_refines_independent_sequence` proof failure
+blocks ordinary dependency kernel and matched new consumer execution until the
+separate Core repair. Source checking alone is not kernel qualification or an
+accepted Rust/SDK export. Preimplementation controls already reject the earlier
+zero-loop capture, missing fresh-allocation and missing index-read behavior;
+matched runtime replay for this composition remains pending.

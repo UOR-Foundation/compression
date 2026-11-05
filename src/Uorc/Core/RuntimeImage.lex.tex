@@ -1,0 +1,225 @@
+\begin{lexlean}{Uorc.Core.RuntimeImage}
+
+\importmodule{Uorc.Core.RuntimeValue}
+
+\importmodule{Uorc.Core.Heap}
+
+\title{Parameters}
+
+\begin{semanticmodule}
+inductive{
+  name: ImageFailure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: invalidShape, fields: []},
+    {name: range, fields: []},
+    {name: lengthOverflow, fields: []}
+  ]
+}
+
+structure{
+  name: BorrowedSpan,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: image, type: Uorc.Core.RuntimeValue::Handle},
+    {name: offset, type: UInt64},
+    {name: length, type: UInt64}
+  ]
+}
+
+definition{
+  name: wordToNatAux,
+  parameters: [depth : Nat, value : UInt64],
+  result: Nat,
+  body: (match depth
+    | Nat.zero => 0
+    | Nat.succ remaining => ((if (Uorc.Core.Heap::lowBit value) then 1 else 0) + (prim multiply 2 (wordToNatAux remaining (Uorc.Core.Heap::nextKey value)) : Nat))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: depth
+}
+
+definition{
+  name: nodeByte,
+  parameters: [node : Uorc.Core.Heap::Node, offset : UInt64],
+  result: (Result UInt8 ImageFailure),
+  body: (match node
+    | Uorc.Core.Heap::Node.image f0 f1 => (if (Uorc.Core.Heap::isControlKind f0) then (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape)) else (match (prim index f1 (wordToNatAux 64 offset) : (Option UInt8))
+      | Option.none => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.range))
+      | Option.some byteValue => (ctor Result.ok [UInt8, ImageFailure] byteValue)))
+    | Uorc.Core.Heap::Node.sequenceLeaf f0 f1 f2 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.sequenceBranch f0 f1 f2 f3 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.storeLeaf f0 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.storeBranch f0 f1 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.slot f0 f1 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.rootBranch f0 f1 f2 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.metadataWord f0 f1 f2 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.metadataLink f0 f1 f2 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.metadataBranch f0 f1 f2 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.ownerRoot f0 f1 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.imageReservation f0 f1 => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.invalidShape))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: nodeLength,
+  parameters: [node : Uorc.Core.Heap::Node],
+  result: (Result UInt64 ImageFailure),
+  body: (match node
+    | Uorc.Core.Heap::Node.image f0 f1 => (if (Uorc.Core.Heap::isControlKind f0) then (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape)) else (match (Uorc.Core.Heap::wordOfNat (prim length f1 : Nat))
+      | Option.none => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.lengthOverflow))
+      | Option.some size => (ctor Result.ok [UInt64, ImageFailure] size)))
+    | Uorc.Core.Heap::Node.sequenceLeaf f0 f1 f2 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.sequenceBranch f0 f1 f2 f3 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.storeLeaf f0 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.storeBranch f0 f1 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.slot f0 f1 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.rootBranch f0 f1 f2 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.metadataWord f0 f1 f2 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.metadataLink f0 f1 f2 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.metadataBranch f0 f1 f2 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.ownerRoot f0 f1 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))
+    | Uorc.Core.Heap::Node.imageReservation f0 f1 => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.invalidShape))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: readByte,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    absoluteOffset : UInt64
+  ],
+  result: (Result UInt8 ImageFailure),
+  body: (match (Uorc.Core.Heap::lookup arena image)
+    | Result.error heapFailure => (ctor Result.error [UInt8, ImageFailure] (ctor ImageFailure.heap heapFailure))
+    | Result.ok entry => (nodeByte (project entry node) absoluteOffset)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: imageLength,
+  parameters: [arena : Uorc.Core.Heap::Arena, image : Uorc.Core.RuntimeValue::Handle],
+  result: (Result UInt64 ImageFailure),
+  body: (match (Uorc.Core.Heap::lookup arena image)
+    | Result.error heapFailure => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.heap heapFailure))
+    | Result.ok entry => (nodeLength (project entry node))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: validateRange,
+  parameters: [
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    length : UInt64,
+    size : UInt64
+  ],
+  result: (Result BorrowedSpan ImageFailure),
+  body: (match (prim checked_add offset length : (Option UInt64))
+    | Option.none => (ctor Result.error [BorrowedSpan, ImageFailure] (ctor ImageFailure.lengthOverflow))
+    | Option.some endOffset => (if (prim less_than size endOffset : Bool) then (ctor Result.error [BorrowedSpan, ImageFailure] (ctor ImageFailure.range)) else (ctor Result.ok [BorrowedSpan, ImageFailure] (record BorrowedSpan {image := image, offset := offset, length := length})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: validateSpan,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    length : UInt64
+  ],
+  result: (Result BorrowedSpan ImageFailure),
+  body: (match (imageLength arena image)
+    | Result.error failure => (ctor Result.error [BorrowedSpan, ImageFailure] failure)
+    | Result.ok size => (validateRange image offset length size)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: spanOffset,
+  parameters: [span : BorrowedSpan, relativeIndex : UInt64],
+  result: (Result UInt64 ImageFailure),
+  body: (if (prim less_than relativeIndex (project span length) : Bool) then (match (prim checked_add (project span offset) relativeIndex : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.lengthOverflow))
+    | Option.some absoluteOffset => (ctor Result.ok [UInt64, ImageFailure] absoluteOffset)) else (ctor Result.error [UInt64, ImageFailure] (ctor ImageFailure.range))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: readSpanByte,
+  parameters: [arena : Uorc.Core.Heap::Arena, span : BorrowedSpan, relativeIndex : UInt64],
+  result: (Result UInt8 ImageFailure),
+  body: (match (spanOffset span relativeIndex)
+    | Result.error failure => (ctor Result.error [UInt8, ImageFailure] failure)
+    | Result.ok absoluteOffset => (readByte arena (project span image) absoluteOffset)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: readByteCost,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    absoluteOffset : UInt64
+  ],
+  result: UInt64,
+  body: (1 : UInt64),
+  axioms: [],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: imageLengthCost,
+  parameters: [arena : Uorc.Core.Heap::Arena, image : Uorc.Core.RuntimeValue::Handle],
+  result: UInt64,
+  body: (1 : UInt64),
+  axioms: [],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: validateSpanCost,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    length : UInt64
+  ],
+  result: UInt64,
+  body: (1 : UInt64),
+  axioms: [],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: readSpanByteCost,
+  parameters: [arena : Uorc.Core.Heap::Arena, span : BorrowedSpan, relativeIndex : UInt64],
+  result: UInt64,
+  body: (1 : UInt64),
+  axioms: [],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+\end{semanticmodule}
+
+\end{lexlean}
