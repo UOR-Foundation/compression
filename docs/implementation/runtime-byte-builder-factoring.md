@@ -60,6 +60,13 @@ closure were not retained and remain unknown. The numerical difference from the
 earlier36-source/c7f/c352/ee41 receipt is not attributed to this factoring.
 No accepted export follows.
 
+A later matched SDK71 experiment reproduces this fc419 byte count and rejects
+the sixteen-helper singleton candidate at6,866,519 bytes. Production retains
+fc419; the [negative experiment](runtime-byte-builder-singleton.md) records the
+unchanged context, rejected candidate and separately requalified regression
+controls. This resource refusal occurs during certificate source generation;
+it is not a failed semantic theorem or kernel counterexample.
+
 The newly reported Heap.releaseStep certificate-A deep-recursion failure and
 the historical Sequence.step A probe are separate root-specific scopes. A
 relation index cannot be transferred between their emitted programs. Neither
