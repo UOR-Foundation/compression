@@ -104,3 +104,34 @@ SDK ComputeError and fatal/unknown host disposition remain separate. No fake
 executor, always-unavailable shipping stub or fabricated Report was introduced.
 Exact pinned SDK acceptance was not run and its required guard remains intact.
 No lock, universal policy, merge, approval or tag was changed.
+
+The current bounded input controller composes ResourceIO.Reader with ReadImage
+and an actual native mapping receipt for the single returned image ticket.
+Unregistration removes only that mapping; source Heap.release follows actual
+consumer and mapping acknowledgments. Its 50 controls, three rejected defects
+and 160 exact policies are recorded separately in read-controller-evidence.json.
+The published source representation conversion preserves all 22 generated Lean
+modules; the original VM execution remains attributed to its exact projection.
+
+WriteImage now uses actual RuntimeImageCopy quote/reserve/copy operations and
+loops bounded chunks without limiting total input. Its 53 controls, five defects
+and 162 policies are in write-image-evidence.json. OutputDelivery folds actual
+settled Writer/Storage, checked work and explicit I/O/publication observations;
+it never creates successful archive verification from transport settlement.
+Its 32 controls, five defects and 103 policies are independently recorded.
+InspectionReport constructs a framing-only Report from an actual taken snapshot;
+its 19 controls, three defects and 63 policies retain their older exact Control
+closure rather than claiming the later whole graph. Each receipt links its exact
+public diagnostic archive, source hashes, limitations and generated inputs.
+
+The complete source adapter catalog is grouped by namespace in HostContract
+(profile2) and projected with an unchanged flat endpoint view. Grouping removes
+a deeply nested metadata emission term without dropping endpoints or imposing
+a product feature bound. Current registered runtime tests execute their source
+owners and planted defects rather than accepting these committed receipts.
+The frontend shared record-setter factoring preserves every original field and
+declaration after expansion; its five general contracts and 15 VM controls pass.
+Its actual certificate B is 6,795,277 bytes and is refused by the unchanged guard.
+The earlier refusal was only a derivation lower bound, so no size-comparison
+claim follows from those observations. Operational ABI custody and exact pinned
+SDK acceptance remain unqualified.

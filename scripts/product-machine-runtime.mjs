@@ -5,10 +5,14 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {writeImageMutationSpecimens} from './product-write-image-mutations.mjs';
+import {inspectionMutationSpecimens} from './product-inspection-mutations.mjs';
+import {readControllerMutationSpecimens} from './product-read-controller-mutations.mjs';
+import {outputDeliveryMutationSpecimens} from './product-output-delivery-mutations.mjs';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const requireFact=(b,m)=>{if(!b)throw new Error(m);};
 const defaultSuite='MachineBindingScenarios';
-function selection(suite){requireFact(['MachineBindingScenarios','ReadImageScenarios'].includes(suite),'unknown typed runtime suite');return `src/Uorc/Product/${suite}.lex.tex`;}
+function selection(suite){requireFact(['MachineBindingScenarios','ReadImageScenarios','WriteImageScenarios','ApplicationScenarios','InspectionReportScenarios','ReadControllerScenarios','OutputDeliveryScenarios'].includes(suite),'unknown typed runtime suite');return `src/Uorc/Product/${suite}.lex.tex`;}
 function run(command,args,cwd,env={}){
  const r=spawnSync(command,args,{cwd,env:{...process.env,...env},encoding:'utf8',timeout:600000,maxBuffer:32*1024*1024});
  requireFact(!r.error&&!r.signal,`${command}: ${r.error??r.signal}`);return r;
@@ -91,6 +95,27 @@ export function imageMutationSpecimens(){return [
    for(const v of Object.values(x))Array.isArray(v)?v.forEach(walk):walk(v);};walk(ds.find(d=>d.name==='leaseReady').body);requireFact(count===1,'one actual payload instance mutation');
  }]
 ];}
+export function applicationMutationSpecimens(){return [
+ ['frontend-stale-action-promoted','Application','staleControl',ds=>{
+  ds.find(d=>d.name==='fromInvocation').body.arguments[2]={kind:'constructor',constructor:{name:'Disposition.applied'},arguments:[]};
+ }],
+ ['frontend-generated-focus-erased','Application','factoryControl',ds=>{
+  ds.find(d=>d.name==='frame').body.fields.find(f=>f.field==='focusId').value={kind:'string',value:''};
+ }],
+ ['frontend-invalid-number-message-erased','Application','invalidNumberControl',ds=>{
+  ds.find(d=>d.name==='fromNumber').body.arguments[3]={kind:'string',value:''};
+ }]
+];}
+function suiteMutations(suite){
+ if(suite===defaultSuite)return mutationSpecimens();
+ if(suite==='ReadImageScenarios')return imageMutationSpecimens();
+ if(suite==='WriteImageScenarios')return writeImageMutationSpecimens();
+ if(suite==='ApplicationScenarios')return applicationMutationSpecimens();
+ if(suite==='InspectionReportScenarios')return inspectionMutationSpecimens();
+ if(suite==='ReadControllerScenarios')return readControllerMutationSpecimens();
+ if(suite==='OutputDeliveryScenarios')return outputDeliveryMutationSpecimens();
+ throw new Error('unregistered typed scenario suite');
+}
 export function validate(root,authoring=sourceData,suite=defaultSuite){
  const selected=selection(suite);
  const inventory=authoring.read(path.join(root,selected)).declarations.find(d=>d.name==='observations');
@@ -102,7 +127,7 @@ export function validate(root,authoring=sourceData,suite=defaultSuite){
  try{
   fs.cpSync(path.join(root,'src'),path.join(temp,'src'),{recursive:true});
   for(const name of ['lexlean.toml','lexlean.lock','lakefile.toml','lake-manifest.json','lean-toolchain'])fs.copyFileSync(path.join(root,name),path.join(temp,name));
-  const specimens=suite===defaultSuite?mutationSpecimens():imageMutationSpecimens();
+  const specimens=suiteMutations(suite);
   requireFact(specimens.length>0,'empty mutation inventory');
   for(const [id,module,owner,transform] of specimens){
    const restore=mutate(temp,module,transform,authoring);
@@ -110,7 +135,7 @@ export function validate(root,authoring=sourceData,suite=defaultSuite){
   }
  }finally{fs.rmSync(temp,{recursive:true,force:true});}
  const out=path.join(root,'.prism/uorc');fs.mkdirSync(out,{recursive:true});
- fs.writeFileSync(path.join(out,suite===defaultSuite?'product-machine-receipt.json':'product-image-receipt.json'),JSON.stringify({spec:'uorc/product-machine-runtime/1',scope:'Actual source linking, generated Lean kernel compilation, VM controls and owning planted negatives. Exact axiom audit, leanchecker, accepted production export, native library, browser, closed archive operation and full pinned SDK acceptance remain separate.',source_id:restored.source_id,semantic_id:restored.semantic_id,build_id:restored.build_id,attestation_id:restored.attestation_id,modules:restored.modules,total:expected,passed:expected,mutations,gate_sha256:sha(fs.readFileSync(fileURLToPath(import.meta.url))),harness_sha256:restored.harness_sha256})+'\n');
+ fs.writeFileSync(path.join(out,({MachineBindingScenarios:'product-machine-receipt.json',ReadImageScenarios:'product-image-receipt.json',WriteImageScenarios:'product-write-image-receipt.json',ApplicationScenarios:'product-application-receipt.json',InspectionReportScenarios:'product-inspection-receipt.json',ReadControllerScenarios:'product-read-controller-receipt.json',OutputDeliveryScenarios:'product-output-delivery-receipt.json'})[suite]),JSON.stringify({spec:'uorc/product-machine-runtime/1',suite,scope:'Actual source linking, generated Lean kernel compilation, VM controls and owning planted negatives. Exact axiom audit, leanchecker, accepted production export, native library, browser, closed archive operation and full pinned SDK acceptance remain separate.',source_id:restored.source_id,semantic_id:restored.semantic_id,build_id:restored.build_id,attestation_id:restored.attestation_id,modules:restored.modules,total:expected,passed:expected,mutations,gate_sha256:sha(fs.readFileSync(fileURLToPath(import.meta.url))),mutation_helper_sha256:suite==='WriteImageScenarios'?sha(fs.readFileSync(new URL('./product-write-image-mutations.mjs',import.meta.url))):suite==='InspectionReportScenarios'?sha(fs.readFileSync(new URL('./product-inspection-mutations.mjs',import.meta.url))):suite==='ReadControllerScenarios'?sha(fs.readFileSync(new URL('./product-read-controller-mutations.mjs',import.meta.url))):suite==='OutputDeliveryScenarios'?sha(fs.readFileSync(new URL('./product-output-delivery-mutations.mjs',import.meta.url))):null,harness_sha256:restored.harness_sha256})+'\n');
  console.log(restored.execution.stdout.trim());console.log(`${mutations.length} actual product-machine defects rejected`);
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){try{requireFact(process.argv.length===2,'no arguments accepted');validate(process.cwd());}catch(e){console.error(e.message);process.exitCode=1;}}

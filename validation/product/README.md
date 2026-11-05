@@ -50,3 +50,13 @@ product `2eb6c59`. Its 39 VM controls and 111 product axiom policies pass, while
 full verification records certificate B at 6,703,926 bytes. Its separate archive
 binds the exact 56 inputs/results. Neither this composition nor the earlier
 receipt asserts whole-current-graph or generated operational ABI acceptance.
+
+The current delivery families have independent source-bound receipts and exact
+input archives. `write-image-evidence.json` covers the bounded quote/reserve/copy
+transport owner; `output-delivery-evidence.json` covers checked partial-write
+accounting and actual publication dispositions. Neither settlement nor these
+finite controls establishes a successful verified archive. `application-evidence.json`
+preserves the original Product-only frontend export refusal and explicitly
+unqualified native probe; `application-control-factoring-evidence.json` records
+the later exact setter factoring and its separate export refusal. Current
+operational ABI, whole-graph, browser and pinned-SDK acceptance remain separate.

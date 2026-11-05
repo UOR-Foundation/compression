@@ -30,7 +30,12 @@ def main():
     source = (ROOT / 'src/Uorc/Product/HostContract.lex.tex').read_text()
     module = json.loads(re.search(r'\\semanticdata\{(.*)\}', source).group(1))
     declaration = next(d for d in module['declarations'] if d['name'] == 'contract')
-    expected = json.dumps(literal(declaration['body']), sort_keys=True, indent=2) + '\n'
+    projected = literal(declaration['body'])
+    # Flatten only the source-owned metadata groups; no product behavior is evaluated here.
+    if 'endpointGroups' in projected:
+        projected['endpoints'] = [endpoint for group in projected['endpointGroups']
+                                  for endpoint in group['endpoints']]
+    expected = json.dumps(projected, sort_keys=True, indent=2) + '\n'
     target = ROOT / 'validation/product/host-contract.json'
     if args.write:
         target.parent.mkdir(parents=True, exist_ok=True)

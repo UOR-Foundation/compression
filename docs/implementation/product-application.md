@@ -45,3 +45,12 @@ The receipt preserves the exact pre-shared-Control-updater source snapshot.
 Subsequent factoring and export attempts have their own scope; this historical
 receipt must not be attributed to a later complete source graph. Production locks,
 all frontend variants/fields and the certificate guard remain intact.
+
+The subsequent shared-Control-updater probe preserves all 60 original Control
+declarations after exact helper expansion and adds five general setter
+contracts. It passes 12-module source/kernel verification (655 declarations)
+and all 15 VM flows. Its separate certified export completes certificate B at
+6,795,277 bytes and is refused by the same 4,194,304-byte guard. The earlier
+snapshot supplied only a derivation lower bound, so these numbers do not
+establish an improvement or regression. Exact inputs and both meanings are in
+`validation/product/application-control-factoring-evidence.json`.
