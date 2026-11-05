@@ -2324,7 +2324,11 @@ definition{
   result: (Result Uorc.Wire.ProgramParse::Transition ScenarioError),
   body: (match fuel
     | Nat.zero => (ctor Result.error [Uorc.Wire.ProgramParse::Transition, ScenarioError] (ctor ScenarioError.fuel))
-    | Nat.succ rest => (if (Uorc.Core.HeapAudit::auditRoots (project (project transition session) arena) (Uorc.Core.RuntimeAdmissionBoundary::rootInventory (project detached state) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project caller input), archive := (project caller archive), search := (project caller search), checkpoint := (project caller checkpoint), certificate := (project caller certificate), verification := (project caller verification), wire := (project (Uorc.Wire.ProgramParse::roots (project transition session)) wire)}))) then (if (Uorc.Core.Heap::isReleasing (project (project transition session) arena)) then (drainCommonParserLease rest detached caller (Uorc.Wire.ProgramParse::advance (budget) (project transition session))) else (ctor Result.ok [Uorc.Wire.ProgramParse::Transition, ScenarioError] transition)) else (ctor Result.error [Uorc.Wire.ProgramParse::Transition, ScenarioError] (ctor ScenarioError.audit (59 : UInt64))))),
+    | Nat.succ rest => (if (Uorc.Core.HeapAudit::auditRoots (project (project transition session) arena) (Uorc.Core.RuntimeAdmissionBoundary::rootInventory (project detached state) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project caller input), archive := (project caller archive), search := (project caller search), checkpoint := (project caller checkpoint), certificate := (project caller certificate), verification := (project caller verification), wire := (project (Uorc.Wire.ProgramParse::roots (project transition session)) wire)}))) then (if (Uorc.Core.Heap::isReleasing (project (project transition session) arena)) then (match (Uorc.Wire.ProgramParse::prepay (budget) (project transition session))
+      | Result.error failure => (ctor Result.error [Uorc.Wire.ProgramParse::Transition, ScenarioError] (ctor ScenarioError.suspended failure))
+      | Result.ok paid => (match (Uorc.Core.Heap::releaseStep (project paid arena))
+        | Result.error failure => (ctor Result.error [Uorc.Wire.ProgramParse::Transition, ScenarioError] (ctor ScenarioError.engine (ctor Uorc.Core.RuntimeMachine::Failure.heap failure)))
+        | Result.ok released => (drainCommonParserLease rest detached caller (Uorc.Wire.ProgramParse::observeResult (budget) (record Uorc.Wire.ProgramParse::Transition {session := (record Uorc.Wire.ProgramParse::Session {state := (project paid state), arena := (project released arena), usage := (project paid usage)}), signal := (project transition signal)}))))) else (ctor Result.ok [Uorc.Wire.ProgramParse::Transition, ScenarioError] transition)) else (ctor Result.error [Uorc.Wire.ProgramParse::Transition, ScenarioError] (ctor ScenarioError.audit (59 : UInt64))))),
   axioms: [Quot.sound, propext],
   executable: false,
   recursive_argument: fuel
@@ -2333,6 +2337,7 @@ definition{
 definition{
   name: commonParserAction,
   parameters: [
+    testFuel : Nat,
     cursor : Uorc.Core.RuntimeAdmissionCredit::Cursor,
     parser : Uorc.Wire.ProgramParse::State,
     action : UInt64,
@@ -2341,9 +2346,9 @@ definition{
   ],
   result: (Result CommonParserCheckpoint ScenarioError),
   body: (match (Uorc.Core.RuntimeAdmissionCreditBoundary::take cursor (ctor Uorc.Core.RuntimeAdmissionBoundary::ProducerRole.wire))
-    | Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent.taken taken => (let owned : Uorc.Wire.ProgramParse::Session := (record Uorc.Wire.ProgramParse::Session {state := parser, arena := (project taken arena), usage := (project taken usage)}); (match (drainCommonParserLease 300000 (project taken session) (project taken caller) (if (prim equal action (0 : UInt64) : Bool) then (Uorc.Wire.ProgramParse::feed (budget) owned image (0 : UInt64) length) else (if (prim equal action (1 : UInt64) : Bool) then (Uorc.Wire.ProgramParse::advance (budget) owned) else (if (prim equal action (2 : UInt64) : Bool) then (Uorc.Wire.ProgramParse::finishInput (budget) owned) else (Uorc.Wire.ProgramParse::acknowledge (budget) owned (ctor Uorc.Wire.ProgramParse::Ack.consumed))))))
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent.taken taken => (let owned : Uorc.Wire.ProgramParse::Session := (record Uorc.Wire.ProgramParse::Session {state := parser, arena := (project taken arena), usage := (project taken usage)}); (match (drainCommonParserLease testFuel (project taken session) (project taken caller) (if (prim equal action (0 : UInt64) : Bool) then (Uorc.Wire.ProgramParse::feed (budget) owned image (0 : UInt64) length) else (if (prim equal action (1 : UInt64) : Bool) then (Uorc.Wire.ProgramParse::advance (budget) owned) else (if (prim equal action (2 : UInt64) : Bool) then (Uorc.Wire.ProgramParse::finishInput (budget) owned) else (Uorc.Wire.ProgramParse::acknowledge (budget) owned (ctor Uorc.Wire.ProgramParse::Ack.consumed))))))
       | Result.error drainFailure => (ctor Result.error [CommonParserCheckpoint, ScenarioError] drainFailure)
-      | Result.ok transition => (let returnedCaller : Uorc.Core.RuntimeProgram::CallerRoots := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project taken caller) input), archive := (project (project taken caller) archive), search := (project (project taken caller) search), checkpoint := (project (project taken caller) checkpoint), certificate := (project (project taken caller) certificate), verification := (project (project taken caller) verification), wire := (project (Uorc.Wire.ProgramParse::roots (project transition session)) wire)}); (if (Uorc.Core.HeapAudit::auditRoots (project (project transition session) arena) (Uorc.Core.RuntimeAdmissionBoundary::rootInventory (project (project taken session) state) returnedCaller)) then (match (returnCommonBoundary 300000 (Uorc.Core.RuntimeAdmissionCreditBoundary::reattach (project taken session) (ctor Uorc.Core.RuntimeAdmissionBoundary::ProducerRole.wire) (project (project transition session) arena) (project (project transition session) usage) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project taken caller) input), archive := (project (project taken caller) archive), search := (project (project taken caller) search), checkpoint := (project (project taken caller) checkpoint), certificate := (project (project taken caller) certificate), verification := (project (project taken caller) verification), wire := (project (Uorc.Wire.ProgramParse::roots (project transition session)) wire)})))
+      | Result.ok transition => (let returnedCaller : Uorc.Core.RuntimeProgram::CallerRoots := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project taken caller) input), archive := (project (project taken caller) archive), search := (project (project taken caller) search), checkpoint := (project (project taken caller) checkpoint), certificate := (project (project taken caller) certificate), verification := (project (project taken caller) verification), wire := (project (Uorc.Wire.ProgramParse::roots (project transition session)) wire)}); (if (Uorc.Core.HeapAudit::auditRoots (project (project transition session) arena) (Uorc.Core.RuntimeAdmissionBoundary::rootInventory (project (project taken session) state) returnedCaller)) then (match (returnCommonBoundary testFuel (Uorc.Core.RuntimeAdmissionCreditBoundary::reattach (project taken session) (ctor Uorc.Core.RuntimeAdmissionBoundary::ProducerRole.wire) (project (project transition session) arena) (project (project transition session) usage) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project taken caller) input), archive := (project (project taken caller) archive), search := (project (project taken caller) search), checkpoint := (project (project taken caller) checkpoint), certificate := (project (project taken caller) certificate), verification := (project (project taken caller) verification), wire := (project (Uorc.Wire.ProgramParse::roots (project transition session)) wire)})))
         | Result.error failure => (ctor Result.error [CommonParserCheckpoint, ScenarioError] failure)
         | Result.ok restored => (if (Uorc.Core.HeapAudit::auditRoots (Uorc.Core.RuntimeAdmissionCredit::arena restored) (Uorc.Core.RuntimeAdmissionCredit::rootInventory restored)) then (ctor Result.ok [CommonParserCheckpoint, ScenarioError] (record CommonParserCheckpoint {parser := (project (project transition session) state), admission := restored, signal := (project transition signal)})) else (ctor Result.error [CommonParserCheckpoint, ScenarioError] (ctor ScenarioError.audit (42 : UInt64))))) else (ctor Result.error [CommonParserCheckpoint, ScenarioError] (ctor ScenarioError.audit (43 : UInt64)))))))
     | Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent.failed failure retained => (ctor Result.error [CommonParserCheckpoint, ScenarioError] (ctor ScenarioError.audit (44 : UInt64)))
@@ -2379,9 +2384,13 @@ definition{
 
 definition{
   name: acknowledgeCommonReadyParser,
-  parameters: [ready : Uorc.Core.RuntimeProgram::Ready, parser : Uorc.Wire.ProgramParse::State],
+  parameters: [
+    testFuel : Nat,
+    ready : Uorc.Core.RuntimeProgram::Ready,
+    parser : Uorc.Wire.ProgramParse::State
+  ],
   result: (Result Uorc.Core.RuntimeProgram::Ready ScenarioError),
-  body: (let transition : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::acknowledge (budget) (record Uorc.Wire.ProgramParse::Session {state := parser, arena := (project ready arena), usage := (project ready usage)}) (ctor Uorc.Wire.ProgramParse::Ack.consumed)); (let achieved : Uorc.Wire.ProgramParse::Session := (project transition session); (if (Uorc.Core.HeapAudit::auditRoots (project achieved arena) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project ready caller) input), archive := (project (project ready caller) archive), search := (project (project ready caller) search), checkpoint := (project (project ready caller) checkpoint), certificate := (project (project ready caller) certificate), verification := (project (project ready caller) verification), wire := (project (Uorc.Wire.ProgramParse::roots achieved) wire)}))) then (cleanCommonReadyParser 300000 (project ready program) (project ready caller) achieved) else (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (58 : UInt64)))))),
+  body: (let transition : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::acknowledge (budget) (record Uorc.Wire.ProgramParse::Session {state := parser, arena := (project ready arena), usage := (project ready usage)}) (ctor Uorc.Wire.ProgramParse::Ack.consumed)); (let achieved : Uorc.Wire.ProgramParse::Session := (project transition session); (if (Uorc.Core.HeapAudit::auditRoots (project achieved arena) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project ready caller) input), archive := (project (project ready caller) archive), search := (project (project ready caller) search), checkpoint := (project (project ready caller) checkpoint), certificate := (project (project ready caller) certificate), verification := (project (project ready caller) verification), wire := (project (Uorc.Wire.ProgramParse::roots achieved) wire)}))) then (cleanCommonReadyParser testFuel (project ready program) (project ready caller) achieved) else (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (58 : UInt64)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -2399,27 +2408,29 @@ definition{
   ],
   result: (Result Uorc.Core.RuntimeProgram::Ready ScenarioError),
   body: (match fuel
-    | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.fuel))
+    | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (Uorc.Core.Heap::wordAdd (Uorc.Core.Heap::wordAdd (2000 : UInt64) (Uorc.Wire.ProgramParse::phaseCode (project parser phase))) (Uorc.Core.Heap::wordAdd (if (match (project parser pending)
+      | Option.none => false
+      | Option.some event => true) then (100 : UInt64) else (0 : UInt64)) (if (Uorc.Core.Heap::isReleasing (Uorc.Core.RuntimeAdmissionCredit::arena cursor)) then (1000 : UInt64) else (0 : UInt64))))))
     | Nat.succ rest => (match (project parser failure)
       | Option.some failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (49 : UInt64)))
       | Option.none => (match (project parser pending)
         | Option.some event => (match (Uorc.Core.RuntimeAdmissionCredit::offer cursor event)
           | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (48 : UInt64)))
-          | Result.ok offered => (match (driveAdmittedCredits 300000 offered (100000000 : UInt64))
+          | Result.ok offered => (match (driveAdmittedCredits (ctor Nat.succ rest) offered (100000000 : UInt64))
             | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] failure)
             | Result.ok funded => (match (project funded event)
-              | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => (acknowledgeCommonReadyParser ready parser)
-              | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting next => (match (commonParserAction next parser (3 : UInt64) image length)
+              | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => (acknowledgeCommonReadyParser (ctor Nat.succ rest) ready parser)
+              | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting next => (match (commonParserAction (ctor Nat.succ rest) next parser (3 : UInt64) image length)
                 | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] failure)
                 | Result.ok acknowledged => (driveCommonParser rest (project acknowledged admission) (project acknowledged parser) image length supplied ended))
               | Uorc.Core.RuntimeAdmissionCredit::Event.pending next => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.fuel))
               | Uorc.Core.RuntimeAdmissionCredit::Event.failed failure retained ledger => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (46 : UInt64)))
               | Uorc.Core.RuntimeAdmissionCredit::Event.rejected failure retained => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (47 : UInt64))))))
-        | Option.none => (if (project parser waiting) then (if supplied then (if ended then (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (50 : UInt64))) else (match (commonParserAction cursor parser (2 : UInt64) image length)
+        | Option.none => (if (project parser waiting) then (if supplied then (if ended then (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (50 : UInt64))) else (match (commonParserAction (ctor Nat.succ rest) cursor parser (2 : UInt64) image length)
           | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] failure)
-          | Result.ok finished => (driveCommonParser rest (project finished admission) (project finished parser) image length supplied true))) else (match (commonParserAction cursor parser (0 : UInt64) image length)
+          | Result.ok finished => (driveCommonParser rest (project finished admission) (project finished parser) image length supplied true))) else (match (commonParserAction (ctor Nat.succ rest) cursor parser (0 : UInt64) image length)
           | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] failure)
-          | Result.ok fed => (driveCommonParser rest (project fed admission) (project fed parser) image length true ended))) else (match (commonParserAction cursor parser (1 : UInt64) image length)
+          | Result.ok fed => (driveCommonParser rest (project fed admission) (project fed parser) image length true ended))) else (match (commonParserAction (ctor Nat.succ rest) cursor parser (1 : UInt64) image length)
           | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] failure)
           | Result.ok advanced => (driveCommonParser rest (project advanced admission) (project advanced parser) image length supplied ended)))))),
   axioms: [Quot.sound, propext],
@@ -2430,19 +2441,20 @@ definition{
 definition{
   name: finishCommonGraphReady,
   parameters: [
+    testFuel : Nat,
     ready : Uorc.Core.RuntimeProgram::Ready,
     expected : Uorc.Core.ReferenceSemantics::Sequence
   ],
   result: (Result Unit ScenarioError),
-  body: (if (Uorc.Core.HeapAudit::auditRoots (project ready arena) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller))) then (match (auditDrive 300000 (Uorc.Core.RuntimeMachineEngine::start ready (budget)) (nil Uorc.Core.RuntimeValue::Handle))
+  body: (if (Uorc.Core.HeapAudit::auditRoots (project ready arena) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller))) then (match (auditDrive testFuel (Uorc.Core.RuntimeMachineEngine::start ready (budget)) (nil Uorc.Core.RuntimeValue::Handle))
     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
     | Result.ok finished => (match (checkOutput finished expected)
       | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
       | Result.ok checkedOutput => (match (Uorc.Core.RuntimeMachineEngine::takeOutput finished)
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-        | Result.ok transferred => (match (driveAdmittedConsumer 300000 (record AdmittedOutputConsumer {machine := (project transferred state), output := (project transferred handle), releaseStarted := false}))
+        | Result.ok transferred => (match (driveAdmittedConsumer testFuel (record AdmittedOutputConsumer {machine := (project transferred state), output := (project transferred handle), releaseStarted := false}))
           | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
-          | Result.ok acknowledged => (match (auditDrive 300000 (Uorc.Core.RuntimeMachineEngine::cancel acknowledged) (nil Uorc.Core.RuntimeValue::Handle))
+          | Result.ok acknowledged => (match (auditDrive testFuel (Uorc.Core.RuntimeMachineEngine::cancel acknowledged) (nil Uorc.Core.RuntimeValue::Handle))
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
             | Result.ok cleaned => (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
               | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
@@ -2455,12 +2467,12 @@ definition{
 
 definition{
   name: commonGraphPipeline,
-  parameters: [graph : Uorc.Core.Graph::Graph],
+  parameters: [testFuel : Nat, graph : Uorc.Core.Graph::Graph],
   result: (Result Unit ScenarioError),
   body: (match (Uorc.Core.ReferenceSemantics::evaluateGraph graph (nil Uorc.Core.ReferenceSemantics::Sequence))
     | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.reference failure))
     | Result.ok referenceValue => (match referenceValue
-      | Uorc.Core.ReferenceSemantics::Value.sequence expected => (match (Uorc.Wire.GraphEmit::collectFixture 300000 (Uorc.Wire.GraphEmit::start graph) 0x)
+      | Uorc.Core.ReferenceSemantics::Value.sequence expected => (match (Uorc.Wire.GraphEmit::collectFixture testFuel (Uorc.Wire.GraphEmit::start graph) 0x)
         | Option.none => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (55 : UInt64)))
         | Option.some bytes => (match (Uorc.Core.Types::wordOfNat (prim length bytes : Nat))
           | Option.none => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
@@ -2468,12 +2480,12 @@ definition{
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
             | Result.ok image => (match (Uorc.Core.RuntimeResources::observeArena (budget) (Uorc.Core.RuntimeResources::zeroUsage) (project image arena))
               | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.suspended failure))
-              | Result.ok initialUsage => (match (driveAdmittedCredits 300000 (Uorc.Core.RuntimeAdmissionCredit::start (budget) (project image arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project image handle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) initialUsage) (100000000 : UInt64))
+              | Result.ok initialUsage => (match (driveAdmittedCredits testFuel (Uorc.Core.RuntimeAdmissionCredit::start (budget) (project image arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project image handle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) initialUsage) (100000000 : UInt64))
                 | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
                 | Result.ok initialized => (match (project initialized event)
-                  | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting awaiting => (match (driveCommonParser 300000 awaiting (Uorc.Wire.ProgramParse::initialState) (project image handle) length false false)
+                  | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting awaiting => (match (driveCommonParser testFuel awaiting (Uorc.Wire.ProgramParse::initialState) (project image handle) length false false)
                     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
-                    | Result.ok ready => (finishCommonGraphReady ready expected))
+                    | Result.ok ready => (finishCommonGraphReady testFuel ready expected))
                   | Uorc.Core.RuntimeAdmissionCredit::Event.ready unexpected ledger => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
                   | Uorc.Core.RuntimeAdmissionCredit::Event.pending next => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fuel))
                   | Uorc.Core.RuntimeAdmissionCredit::Event.failed failure retained ledger => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (53 : UInt64)))
@@ -2487,10 +2499,28 @@ definition{
 }
 
 definition{
+  name: commonGraphNaturalScanPipelineAtFuel,
+  parameters: [testFuel : Nat],
+  result: (Result Unit ScenarioError),
+  body: (commonGraphPipeline testFuel (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (65 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (nil Uorc.Core.Graph::Instruction), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2})),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
   name: commonGraphNaturalScanPipeline,
   parameters: [],
   result: (Result Unit ScenarioError),
-  body: (commonGraphPipeline (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (65 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (nil Uorc.Core.Graph::Instruction), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2})),
+  body: (commonGraphNaturalScanPipelineAtFuel 300000),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: commonGraphByteScanPipelineAtFuel,
+  parameters: [testFuel : Nat],
+  result: (Result Unit ScenarioError),
+  body: (commonGraphPipeline testFuel (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (65 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (66 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2})),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -2499,7 +2529,7 @@ definition{
   name: commonGraphByteScanPipeline,
   parameters: [],
   result: (Result Unit ScenarioError),
-  body: (commonGraphPipeline (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (65 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (66 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2})),
+  body: (commonGraphByteScanPipelineAtFuel 300000),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -2901,7 +2931,12 @@ definition{
     | Nat.zero => (ctor Result.error [PeakCheckpoint, ScenarioError] (ctor ScenarioError.fuel))
     | Nat.succ rest => (match (Uorc.Core.Heap::totalOwnedBytes (project state arena))
       | Result.error failure => (ctor Result.error [PeakCheckpoint, ScenarioError] (ctor ScenarioError.engine (ctor Uorc.Core.RuntimeMachine::Failure.heap failure)))
-      | Result.ok actualBytes => (let wanted : UInt64 := (Uorc.Core.RuntimePeak::maxWord required actualBytes); (if (if (Uorc.Core.Heap::less (project (project state usage) peakOwnedBytes) wanted) then false else (Uorc.Core.HeapAudit::auditRoots (project state arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots state))) then (if (if (prim equal (pendingTag state) tag : Bool) then (if (Uorc.Core.Heap::less (0 : UInt64) (project (project state delta) allocatedEntries)) then true else false) else false) then (ctor Result.ok [PeakCheckpoint, ScenarioError] (record PeakCheckpoint {machine := state, minimumPeak := wanted})) else (match (project state disposition)
+      | Result.ok actualBytes => (let wanted : UInt64 := (Uorc.Core.RuntimePeak::maxWord required actualBytes); (if (if (Uorc.Core.Heap::less (project (project state usage) peakOwnedBytes) wanted) then false else (Uorc.Core.HeapAudit::auditRoots (project state arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots state))) then (if (if (match (project state pending)
+        | Uorc.Core.RuntimeMachineEngine::Pending.sequence cursor purpose => (prim equal tag (1 : UInt64) : Bool)
+        | Uorc.Core.RuntimeMachineEngine::Pending.store cursor => (prim equal tag (2 : UInt64) : Bool)
+        | Uorc.Core.RuntimeMachineEngine::Pending.builder cursor purpose => (prim equal tag (3 : UInt64) : Bool)
+        | Uorc.Core.RuntimeMachineEngine::Pending.none => false
+        | Uorc.Core.RuntimeMachineEngine::Pending.table native purpose => false) then (if (Uorc.Core.Heap::less (0 : UInt64) (project (project state delta) allocatedEntries)) then true else false) else false) then (ctor Result.ok [PeakCheckpoint, ScenarioError] (record PeakCheckpoint {machine := state, minimumPeak := wanted})) else (match (project state disposition)
         | Uorc.Core.RuntimeMachine::Disposition.running => (seekAllocatedPeak rest (Uorc.Core.RuntimeMachineEngine::tick state) tag wanted)
         | Uorc.Core.RuntimeMachine::Disposition.cancelling => (seekAllocatedPeak rest (Uorc.Core.RuntimeMachineEngine::tick state) tag wanted)
         | Uorc.Core.RuntimeMachine::Disposition.failed searchFailure => (ctor Result.error [PeakCheckpoint, ScenarioError] (ctor ScenarioError.engine searchFailure))
