@@ -1,0 +1,107 @@
+\begin{lexlean}{Uorc.Core.CanonicalRetirement}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: prependLive,
+  parameters: [
+    selected : (Option Uorc.Core.CanonicalBindings::Binding),
+    rest : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  result: (List Uorc.Core.CanonicalBindings::Binding),
+  body: (match selected | Option.none => rest | Option.some binding => (cons binding rest)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: remainingFrom,
+  parameters: [
+    count : Nat,
+    slot : Nat,
+    returnedSlot : Nat,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  result: (List Uorc.Core.CanonicalBindings::Binding),
+  body: (match count
+    | Nat.zero => (nil Uorc.Core.CanonicalBindings::Binding)
+    | Nat.succ countLeft => (if (slot =? returnedSlot) then (remainingFrom countLeft (slot + 1) returnedSlot liveAt) else (prependLive (apply liveAt slot) (remainingFrom countLeft (slot + 1) returnedSlot liveAt)))),
+  axioms: [],
+  executable: false,
+  recursive_argument: count
+}
+
+definition{
+  name: remaining,
+  parameters: [
+    count : Nat,
+    returnedSlot : Nat,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  result: (List Uorc.Core.CanonicalBindings::Binding),
+  body: (remainingFrom count 0 returnedSlot liveAt),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: releaseEventsFrom,
+  parameters: [
+    count : Nat,
+    slot : Nat,
+    returnedSlot : Nat,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalBindings::releaseEvents (remainingFrom count slot returnedSlot liveAt)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: frameReturnPlan,
+  parameters: [
+    count : Nat,
+    returnedSlot : Nat,
+    returnedBinding : Uorc.Core.CanonicalBindings::Binding,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  result: Uorc.Core.CanonicalSchedule::ValuePlan,
+  body: (Uorc.Core.CanonicalSchedule::returnPlan returnedBinding (remaining count returnedSlot liveAt)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: returnCoherent,
+  parameters: [
+    count : Nat,
+    returnedSlot : Nat,
+    returnedBinding : Uorc.Core.CanonicalBindings::Binding,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  result: Prop,
+  body: ((returnedSlot < count) /\ ((apply liveAt returnedSlot) = (ctor Option.some [Uorc.Core.CanonicalBindings::Binding] returnedBinding))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: planRepresentsReturnedSlot,
+  parameters: [
+    count : Nat,
+    returnedSlot : Nat,
+    sourceRole : Uorc.Core.CanonicalBindings::Role,
+    plan : Uorc.Core.CanonicalSchedule::ValuePlan,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  result: Prop,
+  body: ((returnedSlot < count) /\ ((apply liveAt returnedSlot) = (ctor Option.some [Uorc.Core.CanonicalBindings::Binding] (record Uorc.Core.CanonicalBindings::Binding {role := sourceRole, value := (project (project plan binding) value)})))),
+  axioms: [],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}
