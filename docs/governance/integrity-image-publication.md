@@ -23,9 +23,9 @@ calls `Heap.release arena cursor.control`. `controlDrain` calls
 lookup, and the actual non-control digest-image lookup. Successful release and
 drain must preserve the digest node; the childless control drain must finish
 with an empty queue. These are transition-effect obligations, not a replacement
-for Core's ownership model. Core or the consumer must establish the control
+for Core's ownership model. Integrity owns the actual OwnedHash control
 reservation's lifetime and the queue's provenance through the preceding hash
-operations. This checkpoint does not assert that preservation proof is complete.
+operations. This checkpoint does not assert that lifetime proof is complete.
 
 All sixteen source declarations passed scoped build, generated kernel checks,
 exact axiom audit and leanchecker. An isolated actual commitImage defect kept
