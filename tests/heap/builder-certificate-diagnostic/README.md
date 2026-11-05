@@ -48,3 +48,59 @@ native behavior, physical memory/copy measurements, and full locked-SDK
 `just vv`. A certificate-size refusal establishes none of the later stages.
 Product.Application's separate no-Core certificate refusal is not a Builder
 result.
+
+## What was measured
+
+`sdk-findings.json` records two new, bounded diagnostic calls through the
+existing official SDK library. They check all 21 modules and enumerate all 21
+roots, then inspect the actual `Builder.step` root at index 6. They preserve
+the original generation budget. The public `certificate_b_data` API returns
+typed data before the ordinary renderer's final exact source-size check;
+public `sdk::assemble` records that actual data with the same official printer
+and header. The resulting lengths reproduce both earlier size refusals
+exactly. Historical failed B bytes were never retained, so this establishes
+matching identities and lengths, not bytewise comparison with a historical B
+file. Neither diagnostic record has kernel or export acceptance.
+
+| Measurement | Original | Discarded split |
+| --- | ---: | ---: |
+| Target functions | 126 | 142 |
+| Certificate declarations | 131 | 147 |
+| Certificate DAG nodes | 329,490 | 333,046 |
+| Recorded certificate bytes | 6,703,926 | 6,866,519 |
+| Rendered Rust bytes | 906,513 | 868,878 |
+| SDK record-slot measure | 53,011 | 53,011 |
+| Match-arm pairs | 3,198 | 3,198 |
+| Literal hexadecimal digits | 512 | 512 |
+
+The split preserves the total branch/literal structure while adding actual
+calls and a separately derived function theorem for every helper. The Rust
+lowerer retains function calls; it does not inline the helper bodies. Source
+function names do not occur in either recorded B, so shorter names are not a
+remedy. Full-arity record patterns and their proof witnesses amplify the
+baseline certificate, but their unchanged counts cannot explain this split's
+increase. Global DAG sharing and notation inlining couple the byte costs;
+source length, Rust length and simple node-count bounds do not predict them.
+
+`inspect-b.rs` is a read-only host diagnostic using the existing SDK, not a
+runtime implementation. Build only this adapter against the already available
+SDK71 library and its existing dependencies:
+
+```sh
+EXISTING_RUSTC --edition=2021 inspect-b.rs \
+  -L dependency=EXISTING_SDK_DEPS \
+  --extern lexlean=EXISTING_SDK_RLIB \
+  --extern serde_json=EXISTING_SERDE_JSON_RLIB \
+  --extern camino=EXISTING_CAMINO_RLIB -o inspect-b
+./inspect-b PREPARED_CASE/lexlean.toml src/Uorc/Core/RuntimeByteBuilder.lex.tex \
+  Uorc.Core.RuntimeByteBuilder step NEW_DIAGNOSTIC_OUTPUT
+```
+
+Use a 120-second outer timeout for each of the two serial diagnostic calls.
+Both recorded calls completed within it. The adapter refuses changed file or
+child-time guards and a different full input/root count. It writes private
+diagnostic data and a receipt, never an accepted export bundle. `measure.rs`
+separately reads the already emitted program through the SDK's actual parser
+and measurement APIs; it does not regenerate a certificate. File digests,
+SDK identity, exact logical arguments and code references are in the findings;
+the original host-specific invocation receipts remain privately hash-bound.
