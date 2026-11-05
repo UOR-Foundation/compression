@@ -65,17 +65,34 @@ or cancellation. No semantic ledger is reconstructed from operational Usage.
 Automatic complete output/basis/comparison/EOF event coverage is still an
 integration obligation and is not claimed by this custody increment.
 
-UC-WIRE-CLOSED-SEMANTIC-01 through -04 and UC-WIRE-DECODED-MOVE-01 through -05 have
+UC-WIRE-CLOSED-SEMANTIC-01 through -05 and UC-WIRE-DECODED-MOVE-01 through -05 have
 source-owned typed runtime owners. Initial source failure caught the obsolete
 Ready-to-ReadyTransfer call. Removing only moveDecoded from the disposable
-projection rejects the new owner with LLT4001 missing function. New native
-controls are being completed; the first semantic run exposed an empty fixture,
-then a cancellation cleanup fuel failure caused by the fixture operational
-budget disagreeing with its charged Arena budget. Both fixture errors are
-corrected; current native controls remain pending. These observations are
-recorded as failures, not passing acceptance. The older 1da29c8 native receipts remain bound to their older
-Core/Product closure. No locked-SDK, whole-product, export, general refinement or
-physical-memory acceptance is asserted.
+projection rejects the new owner with LLT4001 missing function. The final controller and both owners pass the complete77-module source check/build
+with every declaration retained. Scoped native diagnostics pass the semantic
+custody owner (58 modules) and raw decoded-transfer owner (59 modules). The latter
+checks all five ordered lengths, both actual body bytes, distinct ticket
+multiplicity for one equal handle, clearing verification custody, once-only move
+and retained pre-decode/cancel/publication/consumed-event refusals.
+
+An incoming-ledger reset fails the semantic prefix gate. A returned duplicate
+verification ticket fails the actual decoded root inventory gate. Exact source
+restoration passes both owners. Their receipts identify exact raw/projected
+hashes, generated Lean hashes, build IDs and compiler identity. Earlier empty
+fixture and mismatched fixture-budget failures remain historical observations.
+The latter also motivated UC-WIRE-CLOSED-SEMANTIC-05: entry now invokes the shared
+resource validator before taking an archive ticket, so this mismatch is a typed
+resource refusal with the original caller roots still live.
+
+See `closed-semantic-custody-diagnostic.json`,
+`decoded-owner-transfer-native.json`, `decoded-owner-transfer-mutation.json` and
+`decoded-owner-transfer-full-source.json`. The native projections omit imported
+proofs/unreachable imported declarations only in disposable diagnostics. The
+complete77-module check does not prune them. No generated handwritten product
+implementation is introduced. Program-output handoff runtime, receipt/release
+barrier controls, general refinement, canonical observation coverage, physical
+behavior, accepted export and locked-SDK whole-product acceptance remain open.
+The older1da29c8 runtime receipts stay bound to their older Core/Product closure.
 
 The shared image-access boundary now supplies validated ordinary image spans and
 uses the same byte accessor as Integrity. Initial archive layout, preserved
