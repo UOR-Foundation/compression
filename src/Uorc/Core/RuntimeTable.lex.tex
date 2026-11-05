@@ -358,6 +358,19 @@ inductive{
   ]
 }
 
+definition{
+  name: outcomeRoot,
+  parameters: [outcome : PutOutcome],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (match outcome
+    | PutOutcome.complete completedTable => (project completedTable root)
+    | PutOutcome.pending => (Uorc.Core.RuntimeValue::nullHandle)
+    | PutOutcome.cancelled => (Uorc.Core.RuntimeValue::nullHandle)
+    | PutOutcome.failed failure => (Uorc.Core.RuntimeValue::nullHandle)),
+  axioms: [],
+  executable: true
+}
+
 structure{
   name: PutTransition,
   type_parameters: [],
@@ -442,6 +455,15 @@ definition{
 }
 
 definition{
+  name: outcomeRoots,
+  parameters: [outcome : PutOutcome],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (putAddRoot (outcomeRoot outcome) (nil Uorc.Core.RuntimeValue::Handle)),
+  axioms: [],
+  executable: true
+}
+
+definition{
   name: ownedRoots,
   parameters: [s : PutTransition],
   result: (List Uorc.Core.RuntimeValue::Handle),
@@ -494,16 +516,22 @@ definition{
         | Result.ok parent => (putReport s (project parent arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := d, remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project parent handle), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (project c phase), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project parent delta))))))))))
       | PutPhase.cleanup => (if (if (project c cancelling) then (Uorc.Core.RuntimeValue::isNull (project c subtree)) else true) then (if (Uorc.Core.RuntimeValue::isNull (project c leafCapture)) then (if (Uorc.Core.RuntimeValue::isNull (project c tableCapture)) then (if (Uorc.Core.RuntimeValue::isNull (project c control)) then (putReport s (project s arena) (ctor Option.none [PutCursor]) (if (project c cancelling) then (ctor PutOutcome.cancelled) else (ctor PutOutcome.complete (record Table {kind := (project c kind), root := (project c subtree)}))) (putZeroDelta)) else (match (Uorc.Core.Heap::release (project s arena) (project c control))
         | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
-        | Result.ok released => (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (Uorc.Core.RuntimeValue::nullHandle), phase := (ctor PutPhase.draining), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta)))) else (match (Uorc.Core.Heap::release (project s arena) (project c tableCapture))
+        | Result.ok released => (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c control), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (Uorc.Core.RuntimeValue::nullHandle), phase := (ctor PutPhase.draining), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta)))) else (match (Uorc.Core.Heap::release (project s arena) (project c tableCapture))
         | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
         | Result.ok released => (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (Uorc.Core.RuntimeValue::nullHandle), leafCapture := (project c leafCapture), control := (project c control), phase := (ctor PutPhase.draining), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta)))) else (match (Uorc.Core.Heap::release (project s arena) (project c leafCapture))
         | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
         | Result.ok released => (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (Uorc.Core.RuntimeValue::nullHandle), control := (project c control), phase := (ctor PutPhase.draining), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta)))) else (match (Uorc.Core.Heap::release (project s arena) (project c subtree))
         | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
         | Result.ok released => (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (Uorc.Core.RuntimeValue::nullHandle), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (ctor PutPhase.draining), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta))))
-      | PutPhase.draining => (match (Uorc.Core.Heap::releaseStep (project s arena))
+      | PutPhase.draining => (if (if (project c cancelling) then (if (Uorc.Core.RuntimeValue::isNull (project c control)) then (if (if (Uorc.Core.RuntimeValue::isNull (project c subtree)) then false else true) then true else false) else false) else false) then (if (if (project (project (project s arena) cursor) rootStep) then (if (prim equal (project (project (project s arena) cursor) pendingCount) (1 : UInt64) : Bool) then (if (if (Uorc.Core.RuntimeValue::isNull (project c borrowed)) then false else true) then true else false) else false) else false) then (match (project (project (project s arena) cursor) pending)
+        | List.nil => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed (ctor Uorc.Core.Heap::HeapError.protocolFailure)) (putZeroDelta))
+        | List.cons pendingRoot pendingTail => (match pendingTail
+          | List.nil => (if (Uorc.Core.RuntimeValue::sameHandle pendingRoot (project c borrowed)) then (match (Uorc.Core.Heap::withdrawRootRelease (project s arena))
+            | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
+            | Result.ok reclaimed => (if (Uorc.Core.RuntimeValue::sameHandle (project reclaimed handle) (project c borrowed)) then (putReport s (project reclaimed arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project reclaimed handle), phase := (ctor PutPhase.cleanup), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project reclaimed delta)) else (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed (ctor Uorc.Core.Heap::HeapError.protocolFailure)) (putZeroDelta)))) else (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed (ctor Uorc.Core.Heap::HeapError.protocolFailure)) (putZeroDelta)))
+          | List.cons extra rest => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed (ctor Uorc.Core.Heap::HeapError.protocolFailure)) (putZeroDelta)))) else (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed (ctor Uorc.Core.Heap::HeapError.protocolFailure)) (putZeroDelta))) else (match (Uorc.Core.Heap::releaseStep (project s arena))
         | Result.error failure => (putReport s (project s arena) (ctor Option.some [PutCursor] c) (ctor PutOutcome.failed failure) (putZeroDelta))
-        | Result.ok released => (if (if (project released complete) then (Uorc.Core.RuntimeValue::isNull (project c control)) else false) then (putReport s (project released arena) (ctor Option.none [PutCursor]) (if (project c cancelling) then (ctor PutOutcome.cancelled) else (ctor PutOutcome.complete (record Table {kind := (project c kind), root := (project c subtree)}))) (project released delta)) else (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (if (project released complete) then (ctor PutPhase.cleanup) else (ctor PutPhase.draining)), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta))))))),
+        | Result.ok released => (if (if (project released complete) then (Uorc.Core.RuntimeValue::isNull (project c control)) else false) then (putReport s (project released arena) (ctor Option.none [PutCursor]) (if (project c cancelling) then (ctor PutOutcome.cancelled) else (ctor PutOutcome.complete (record Table {kind := (project c kind), root := (project c subtree)}))) (project released delta)) else (putReport s (project released arena) (ctor Option.some [PutCursor] (record PutCursor {kind := (project c kind), key := (project c key), leaf := (project c leaf), path := (project c path), depth := (project c depth), remainingKey := (project c remainingKey), borrowed := (project c borrowed), original := (project c original), subtree := (project c subtree), tableCapture := (project c tableCapture), leafCapture := (project c leafCapture), control := (project c control), phase := (if (project released complete) then (ctor PutPhase.cleanup) else (ctor PutPhase.draining)), cancelling := (project c cancelling)})) (ctor PutOutcome.pending) (project released delta)))))))),
   axioms: [Quot.sound, propext],
   executable: true,
   production: {effects: [allocation, overflow, recursion], targets: [rust-std]}

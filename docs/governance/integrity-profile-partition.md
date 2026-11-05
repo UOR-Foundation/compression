@@ -1,6 +1,8 @@
 <!-- uorc:non-authoritative -->
 # Profile continuation evidence
 
+This note records the historical `8188c3d` qualification with Core `8bb13182`. Its receipts retain that exact scope. [Current-source requalification](integrity-current-source-requalification.md) records the separate replay against restored Core and current Wire.
+
 The authority is `Integrity.ProfilePartitionLaws`. Its equations cover actual
 CHAIN and STREAM update reindexing, append composition with arbitrary successful
 fuel, settled empty updates, and successful update/finalization uniqueness.

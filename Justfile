@@ -94,4 +94,5 @@ integrity:
     node --test scripts/integrity-binding.test.mjs
     node --test scripts/integrity-transcript.test.mjs
     node --test scripts/integrity-canonical.test.mjs
+    node --test scripts/integrity-consumer-components.test.mjs
     node scripts/integrity-canonical-runtime.mjs

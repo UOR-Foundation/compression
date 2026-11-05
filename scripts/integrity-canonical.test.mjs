@@ -9,25 +9,34 @@ import {validateCanonicalEvidence, proofSources} from './integrity-canonical.mjs
 import {leanDriver} from './integrity-binding-runtime.mjs';
 import {canonicalDriver} from './integrity-canonical-runtime.mjs';
 import {extendCanonicalDriver, canonicalDriverInventory} from './integrity-canonical-driver.mjs';
+import {validateCurrentCanonicalReplay} from './integrity-current-context.mjs';
 
-test('canonical integrity has all source declarations, exact replay and actual defects', () => {
+test('canonical integrity retains its historical source scope and requires current replay', () => {
   const receipt = validateCanonicalEvidence('.');
   assert.equal(receipt.proofs.reduce((sum, row) => sum + row.rows, 0), 534);
+  const current = validateCurrentCanonicalReplay('.');
+  assert.equal(current.historical_declarations, 534);
+  assert.equal(current.original_pinned_sdk_acceptance, false);
 });
 test('canonical importer rejects omitted, stale, incorrect and axiom-widened evidence', () => {
   const original = validateCanonicalEvidence('.');
-  const files = [...Object.keys(original.source_sha256), ...Object.keys(original.evidence_sha256)];
+  const current = validateCurrentCanonicalReplay('.');
+  const files = [...new Set([...Object.keys(original.source_sha256), ...Object.keys(original.evidence_sha256),
+    ...Object.keys(current.source_sha256), ...Object.keys(current.evidence_sha256),
+    ...current.historical_source_substitutions.map(row => row.snapshot),
+    'validation/integrity/canonical/evidence.json', 'validation/integrity/canonical-current/evidence.json'])];
   for (const change of [r => r.proofs.pop(), r => { r.proofs[0].audit.pop(); }, r => { r.proofs[0].audit[0].observed.push('Classical.choice'); }, r => { r.mutations[0].mutant_exit = -9; }, r => { r.runtime.stream_cases = 0; }, r => { r.source_sha256[proofSources[0]] = '0'.repeat(64); }]) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'canonical-evidence-test-'));
     try {
       for (const file of files) { const dest = path.join(root, file); fs.mkdirSync(path.dirname(dest), {recursive: true}); fs.copyFileSync(file, dest); }
+      validateCanonicalEvidence(root);
       const receipt = structuredClone(original); change(receipt);
       const dest = path.join(root, 'validation/integrity/canonical/evidence.json'); fs.mkdirSync(path.dirname(dest), {recursive: true}); fs.writeFileSync(dest, JSON.stringify(receipt));
       assert.throws(() => validateCanonicalEvidence(root));
     } finally { fs.rmSync(root, {recursive: true, force: true}); }
   }
 });
-test('normal SDK gate executes one complete canonical generated client', () => {
+test('normal SDK gate keeps one complete canonical generated client wired', () => {
   const receipt = validateCanonicalEvidence('.');
   const driver = canonicalDriver('.');
   assert.equal(crypto.createHash('sha256').update(driver).digest('hex'), receipt.runtime.driver_sha256);
@@ -42,4 +51,24 @@ test('normal SDK gate executes one complete canonical generated client', () => {
   assert.ok(just.includes('    node --test scripts/integrity-canonical.test.mjs\n'));
   assert.equal(just.split('    node scripts/integrity-canonical-runtime.mjs\n').length, 2);
   assert.equal(just.split('    node scripts/integrity-binding-runtime.mjs\n').length, 1);
+});
+
+test('current-source replay rejects omitted audits, stale files and broadened policies', () => {
+  const original = validateCurrentCanonicalReplay('.');
+  const files = [...new Set([...Object.keys(original.source_sha256), ...Object.keys(original.evidence_sha256),
+    'validation/integrity/canonical/evidence.json', 'validation/integrity/canonical-current/evidence.json'])];
+  for (const change of [r => r.proofs.pop(), r => r.proofs[0].audit.pop(),
+    r => r.proofs[0].audit[0].observed.push('Classical.choice'),
+    r => { r.source_sha256[proofSources[0]] = '0'.repeat(64); },
+    r => { r.runtime.profile_comparisons = 257; },
+    r => { r.original_pinned_sdk_acceptance = true; }]) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'current-canonical-evidence-test-'));
+    try {
+      for (const file of files) { const dest = path.join(root, file); fs.mkdirSync(path.dirname(dest), {recursive: true}); fs.copyFileSync(file, dest); }
+      validateCurrentCanonicalReplay(root);
+      const receipt = structuredClone(original); change(receipt);
+      fs.writeFileSync(path.join(root, 'validation/integrity/canonical-current/evidence.json'), JSON.stringify(receipt));
+      assert.throws(() => validateCurrentCanonicalReplay(root));
+    } finally { fs.rmSync(root, {recursive: true, force: true}); }
+  }
 });

@@ -1,6 +1,8 @@
 <!-- uorc:non-authoritative -->
 # Actual childless control cleanup
 
+This note records the historical `8188c3d` qualification with Core `8bb13182`. Its receipts retain that exact scope. [Current-source requalification](integrity-current-source-requalification.md) records the separate replay against restored Core and current Wire.
+
 The authority is `Integrity.HashControlCleanupLaws`. Its observed-read trie
 frame uses genuine prior lookup observations; it does not assume that different
 numeric keys necessarily take different paths. Actual `Heap.release` preserves

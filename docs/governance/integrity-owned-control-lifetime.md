@@ -1,6 +1,8 @@
 <!-- uorc:non-authoritative -->
 # Actual owned digest lifetime and publication
 
+This note records the historical `8188c3d` qualification with Core `8bb13182`. Its receipts retain that exact scope. [Current-source requalification](integrity-current-source-requalification.md) records the separate replay against restored Core and current Wire.
+
 The authority is `Integrity.OwnedControlLifetime`. The final
 `completed_view_canonical_publication` theorem combines actual `CompletedView`
 provenance, the actual closing phase and a continuous actual successful

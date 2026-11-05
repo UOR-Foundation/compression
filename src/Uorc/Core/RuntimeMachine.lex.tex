@@ -8,6 +8,7 @@
 \importmodule{Uorc.Core.RuntimeAdmissionChecks}
 \importmodule{Uorc.Core.RuntimeResources}
 \importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Resources}
 \title{Parameters}
 \begin{semanticmodule}
 inductive{
@@ -519,9 +520,9 @@ definition{
         | Result.error failure => (ctor Result.error [Action, Failure] failure)
         | Result.ok a1 => (match (priorBlock frame (project instruction operand2))
           | Result.error failure => (ctor Result.error [Action, Failure] failure)
-          | Result.ok updater => (match (priorBlock frame (project instruction operand3))
+          | Result.ok observer => (match (priorBlock frame (project instruction operand3))
             | Result.error failure => (ctor Result.error [Action, Failure] failure)
-            | Result.ok observer => (ctor Result.ok [Action, Failure] (ctor Action.scan a0 a1 updater observer))))))),
+            | Result.ok updater => (ctor Result.ok [Action, Failure] (ctor Action.scan a0 a1 updater observer))))))),
   axioms: [Quot.sound, propext],
   executable: true
 }
@@ -571,7 +572,7 @@ definition{
   ],
   result: (Result Unit Failure),
   body: (match (prim checked_add prefixCount count : (Option UInt64))
-    | Option.none => (ctor Result.error [Unit, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.addressSpaceExhausted))))
+    | Option.none => (ctor Result.error [Unit, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
     | Option.some total => (if (prim equal total (project callee parameterCount) : Bool) then (ctor Result.ok [Unit, Failure] ()) else (ctor Result.error [Unit, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))))),
   axioms: [Quot.sound, propext],
   executable: true
@@ -584,7 +585,7 @@ definition{
   body: (match (validateCaptureArity (project cursor callee) (project cursor prefixCount) (captureCount cursor))
     | Result.error failure => (ctor Result.error [CaptureItem, Failure] failure)
     | Result.ok arityValid => (if (Uorc.Core.Heap::less (project cursor index) (captureCount cursor)) then (match (prim checked_add (project cursor prefixCount) (project cursor index) : (Option UInt64))
-      | Option.none => (ctor Result.error [CaptureItem, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.addressSpaceExhausted))))
+      | Option.none => (ctor Result.error [CaptureItem, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
       | Option.some destination => (match (Uorc.Core.RuntimeProgram::captureAt arena (project cursor instruction) (project cursor lane) (project cursor index))
         | Result.error failure => (ctor Result.error [CaptureItem, Failure] (ctor Failure.program failure))
         | Result.ok distance => (match (local arena (project cursor source) distance)
@@ -601,7 +602,7 @@ definition{
   parameters: [cursor : CaptureCursor, installed : Uorc.Core.RuntimeTable::Table],
   result: (Result CaptureCursor Failure),
   body: (if (Uorc.Core.Heap::less (project cursor index) (captureCount cursor)) then (match (prim checked_add (project cursor index) (1 : UInt64) : (Option UInt64))
-    | Option.none => (ctor Result.error [CaptureCursor, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.addressSpaceExhausted))))
+    | Option.none => (ctor Result.error [CaptureCursor, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
     | Option.some nextIndex => (ctor Result.ok [CaptureCursor, Failure] (record CaptureCursor {source := (project cursor source), instruction := (project cursor instruction), lane := (project cursor lane), index := nextIndex, prefixCount := (project cursor prefixCount), callee := (project cursor callee), target := installed}))) else (ctor Result.error [CaptureCursor, Failure] (ctor Failure.invariant))),
   axioms: [Quot.sound, propext],
   executable: true
@@ -671,7 +672,7 @@ definition{
   parameters: [iteration : Iteration],
   result: (Result Iteration Failure),
   body: (if (Uorc.Core.Heap::less (project iteration index) (project iteration count)) then (match (prim checked_add (project iteration index) (1 : UInt64) : (Option UInt64))
-    | Option.none => (ctor Result.error [Iteration, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.addressSpaceExhausted))))
+    | Option.none => (ctor Result.error [Iteration, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
     | Option.some nextIndex => (ctor Result.ok [Iteration, Failure] (record Iteration {kind := (project iteration kind), count := (project iteration count), index := nextIndex, phase := (if (prim equal nextIndex (project iteration count) : Bool) then (ctor IterationPhase.finished) else (match (project iteration kind)
       | IterationKind.tabulate => (ctor IterationPhase.element)
       | IterationKind.fold => (ctor IterationPhase.update)

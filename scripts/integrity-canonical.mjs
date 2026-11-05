@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {historicalCanonicalSource} from './integrity-current-context.mjs';
 
 export const proofSources = [
   'RetainedSourceLaws', 'ProfilePartitionLaws', 'ImagePublicationLaws',
@@ -23,11 +24,11 @@ export function validateCanonicalEvidence(root) {
   const receipt = JSON.parse(checkedFile(root, 'validation/integrity/canonical/evidence.json'));
   required(receipt.schema === 'uorc/canonical-integrity-refinement-evidence/1', 'canonical evidence schema');
   for (const file of proofSources) required(Object.hasOwn(receipt.source_sha256, file), `missing proof source ${file}`);
-  for (const [file, expected] of Object.entries(receipt.source_sha256)) required(sha(checkedFile(root, file)) === expected, `stale source ${file}`);
+  for (const [file, expected] of Object.entries(receipt.source_sha256)) required(sha(historicalCanonicalSource(root, file, expected)) === expected, `stale source ${file}`);
   for (const [file, expected] of Object.entries(receipt.evidence_sha256)) required(sha(checkedFile(root, file)) === expected, `changed evidence ${file}`);
   required(JSON.stringify(receipt.proofs.map(row => row.file)) === JSON.stringify(proofSources), 'complete ordered proof inventory');
   for (const proof of receipt.proofs) {
-    const source = checkedFile(root, proof.file).toString();
+    const source = historicalCanonicalSource(root, proof.file, receipt.source_sha256[proof.file]).toString();
     const names = [...source.matchAll(/^(?:definition|theorem|opaque|abbrev)\s+(.+?)\s*:\s*@\d+/gm)].map(match => match[1].replace(/\.\{[^}]*\}$/, ''));
     required(names.length === proof.rows && new Set(names).size === names.length && names.length > 0, `complete source declarations ${proof.file}`);
     required(proof.source_build_passed === true && proof.kernel_exit === 0 && proof.leanchecker_exit === 0, `proof replay ${proof.file}`);

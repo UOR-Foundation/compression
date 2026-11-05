@@ -1,6 +1,8 @@
 <!-- uorc:non-authoritative -->
 # Digest image storage and cleanup boundary
 
+This note records the historical `8188c3d` qualification with Core `8bb13182`. Its receipts retain that exact scope. [Current-source requalification](integrity-current-source-requalification.md) records the separate replay against restored Core and current Wire.
+
 The authority is `Integrity.ImagePublicationLaws`. Actual successful
 `Heap.commitImage arena reservation bytes` yields a successful lookup at the
 returned handle whose node is an image of those supplied bytes, with a

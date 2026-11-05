@@ -651,6 +651,52 @@ definition{
 }
 
 definition{
+  name: releaseDeletedEntry,
+  parameters: [
+    arena : Arena,
+    head : Uorc.Core.RuntimeValue::Handle,
+    tail : (List Uorc.Core.RuntimeValue::Handle),
+    entry : Entry,
+    kids : Children,
+    newCount : UInt64
+  ],
+  result: (Result Transition HeapError),
+  body: (if (if (less (project arena ownedBytes) (project entry weight)) then true else (prim equal (project arena liveEntries) (0 : UInt64) : Bool)) then (ctor Result.error [Transition, HeapError] (ctor HeapError.protocolFailure)) else (ctor Result.ok [Transition, HeapError] (record Transition {arena := (record Arena {index := (writeIndex 64 (project arena index) (project head id) (ctor Option.none [Entry])), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (wordSub (project arena ownedBytes) (project entry weight)), liveEntries := (wordSub (project arena liveEntries) (1 : UInt64)), maxOwnedBytes := (project arena maxOwnedBytes), cursor := (record ReleaseCursor {pending := (if (Uorc.Core.RuntimeValue::isNull (project kids first)) then (if (Uorc.Core.RuntimeValue::isNull (project kids second)) then tail else (cons (project kids second) tail)) else (cons (project kids first) (if (Uorc.Core.RuntimeValue::isNull (project kids second)) then tail else (cons (project kids second) tail)))), pendingCount := newCount, rootStep := false})}), delta := (record Delta {allocatedBytes := (0 : UInt64), releasedBytes := (project entry weight), allocatedEntries := (0 : UInt64), releasedEntries := (1 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (if (project (project arena cursor) rootStep) then (0 : UInt64) else (1 : UInt64)), retainedRoots := (0 : UInt64), droppedRoots := (if (project (project arena cursor) rootStep) then (1 : UInt64) else (0 : UInt64)), work := (1 : UInt64)}), complete := (prim equal newCount (0 : UInt64) : Bool)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: releaseLastReference,
+  parameters: [
+    arena : Arena,
+    head : Uorc.Core.RuntimeValue::Handle,
+    tail : (List Uorc.Core.RuntimeValue::Handle),
+    entry : Entry
+  ],
+  result: (Result Transition HeapError),
+  body: (if (prim equal (if (project (project arena cursor) rootStep) then (wordSub (project entry roots) (1 : UInt64)) else (project entry roots)) (0 : UInt64) : Bool) then (let kids : Children := (nodeChildren (project entry node)); (match (prim checked_add (wordSub (project (project arena cursor) pendingCount) (1 : UInt64)) (wordAdd (if (Uorc.Core.RuntimeValue::isNull (project kids first)) then (0 : UInt64) else (1 : UInt64)) (if (Uorc.Core.RuntimeValue::isNull (project kids second)) then (0 : UInt64) else (1 : UInt64))) : (Option UInt64))
+    | Option.none => (ctor Result.error [Transition, HeapError] (ctor HeapError.countOverflow))
+    | Option.some newCount => (releaseDeletedEntry arena head tail entry kids newCount))) else (ctor Result.error [Transition, HeapError] (ctor HeapError.countUnderflow))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: releaseReferencedEntry,
+  parameters: [
+    arena : Arena,
+    head : Uorc.Core.RuntimeValue::Handle,
+    tail : (List Uorc.Core.RuntimeValue::Handle),
+    entry : Entry
+  ],
+  result: (Result Transition HeapError),
+  body: (ctor Result.ok [Transition, HeapError] (record Transition {arena := (record Arena {index := (writeIndex 64 (project arena index) (project head id) (ctor Option.some [Entry] (record Entry {node := (project entry node), incoming := (wordSub (project entry incoming) (1 : UInt64)), roots := (if (project (project arena cursor) rootStep) then (wordSub (project entry roots) (1 : UInt64)) else (project entry roots)), weight := (project entry weight)}))), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project arena maxOwnedBytes), cursor := (record ReleaseCursor {pending := tail, pendingCount := (wordSub (project (project arena cursor) pendingCount) (1 : UInt64)), rootStep := false})}), delta := (record Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (if (project (project arena cursor) rootStep) then (0 : UInt64) else (1 : UInt64)), retainedRoots := (0 : UInt64), droppedRoots := (if (project (project arena cursor) rootStep) then (1 : UInt64) else (0 : UInt64)), work := (1 : UInt64)}), complete := (prim equal (project (project arena cursor) pendingCount) (1 : UInt64) : Bool)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
   name: releaseStep,
   parameters: [arena : Arena],
   result: (Result Transition HeapError),
@@ -658,9 +704,7 @@ definition{
     | List.nil => (if (prim equal (project (project arena cursor) pendingCount) (0 : UInt64) : Bool) then (ctor Result.error [Transition, HeapError] (ctor HeapError.releaseNotStarted)) else (ctor Result.error [Transition, HeapError] (ctor HeapError.protocolFailure)))
     | List.cons head tail => (if (prim equal (project (project arena cursor) pendingCount) (0 : UInt64) : Bool) then (ctor Result.error [Transition, HeapError] (ctor HeapError.protocolFailure)) else (match (lookup arena head)
       | Result.error error => (ctor Result.error [Transition, HeapError] error)
-      | Result.ok entry => (if (if (if (prim equal (project entry incoming) (0 : UInt64) : Bool) then false else true) then (if (if (project (project arena cursor) rootStep) then false else true) then true else (if (prim equal (project entry roots) (0 : UInt64) : Bool) then false else true)) else false) then (if (prim equal (project entry incoming) (1 : UInt64) : Bool) then (if (prim equal (if (project (project arena cursor) rootStep) then (wordSub (project entry roots) (1 : UInt64)) else (project entry roots)) (0 : UInt64) : Bool) then (let kids : Children := (nodeChildren (project entry node)); (match (prim checked_add (wordSub (project (project arena cursor) pendingCount) (1 : UInt64)) (wordAdd (if (Uorc.Core.RuntimeValue::isNull (project kids first)) then (0 : UInt64) else (1 : UInt64)) (if (Uorc.Core.RuntimeValue::isNull (project kids second)) then (0 : UInt64) else (1 : UInt64))) : (Option UInt64))
-        | Option.none => (ctor Result.error [Transition, HeapError] (ctor HeapError.countOverflow))
-        | Option.some newCount => (if (if (less (project arena ownedBytes) (project entry weight)) then true else (prim equal (project arena liveEntries) (0 : UInt64) : Bool)) then (ctor Result.error [Transition, HeapError] (ctor HeapError.protocolFailure)) else (ctor Result.ok [Transition, HeapError] (record Transition {arena := (record Arena {index := (writeIndex 64 (project arena index) (project head id) (ctor Option.none [Entry])), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (wordSub (project arena ownedBytes) (project entry weight)), liveEntries := (wordSub (project arena liveEntries) (1 : UInt64)), maxOwnedBytes := (project arena maxOwnedBytes), cursor := (record ReleaseCursor {pending := (if (Uorc.Core.RuntimeValue::isNull (project kids first)) then (if (Uorc.Core.RuntimeValue::isNull (project kids second)) then tail else (cons (project kids second) tail)) else (cons (project kids first) (if (Uorc.Core.RuntimeValue::isNull (project kids second)) then tail else (cons (project kids second) tail)))), pendingCount := newCount, rootStep := false})}), delta := (record Delta {allocatedBytes := (0 : UInt64), releasedBytes := (project entry weight), allocatedEntries := (0 : UInt64), releasedEntries := (1 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (if (project (project arena cursor) rootStep) then (0 : UInt64) else (1 : UInt64)), retainedRoots := (0 : UInt64), droppedRoots := (if (project (project arena cursor) rootStep) then (1 : UInt64) else (0 : UInt64)), work := (1 : UInt64)}), complete := (prim equal newCount (0 : UInt64) : Bool)}))))) else (ctor Result.error [Transition, HeapError] (ctor HeapError.countUnderflow))) else (ctor Result.ok [Transition, HeapError] (record Transition {arena := (record Arena {index := (writeIndex 64 (project arena index) (project head id) (ctor Option.some [Entry] (record Entry {node := (project entry node), incoming := (wordSub (project entry incoming) (1 : UInt64)), roots := (if (project (project arena cursor) rootStep) then (wordSub (project entry roots) (1 : UInt64)) else (project entry roots)), weight := (project entry weight)}))), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project arena maxOwnedBytes), cursor := (record ReleaseCursor {pending := tail, pendingCount := (wordSub (project (project arena cursor) pendingCount) (1 : UInt64)), rootStep := false})}), delta := (record Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (if (project (project arena cursor) rootStep) then (0 : UInt64) else (1 : UInt64)), retainedRoots := (0 : UInt64), droppedRoots := (if (project (project arena cursor) rootStep) then (1 : UInt64) else (0 : UInt64)), work := (1 : UInt64)}), complete := (prim equal (project (project arena cursor) pendingCount) (1 : UInt64) : Bool)}))) else (ctor Result.error [Transition, HeapError] (ctor HeapError.countUnderflow)))))),
+      | Result.ok entry => (if (if (if (prim equal (project entry incoming) (0 : UInt64) : Bool) then false else true) then (if (if (project (project arena cursor) rootStep) then false else true) then true else (if (prim equal (project entry roots) (0 : UInt64) : Bool) then false else true)) else false) then (if (prim equal (project entry incoming) (1 : UInt64) : Bool) then (releaseLastReference arena head tail entry) else (releaseReferencedEntry arena head tail entry)) else (ctor Result.error [Transition, HeapError] (ctor HeapError.countUnderflow)))))),
   axioms: [Quot.sound, propext],
   executable: true,
   production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
@@ -728,6 +772,47 @@ definition{
 }
 
 definition{
+  name: attachMovedChild,
+  parameters: [
+    arena : Arena,
+    handle : Uorc.Core.RuntimeValue::Handle,
+    move : Bool,
+    earlierMoved : Bool
+  ],
+  result: (Result Arena HeapError),
+  body: (if (Uorc.Core.RuntimeValue::isNull handle) then (ctor Result.ok [Arena, HeapError] arena) else (if (if move then true else earlierMoved) then (match (lookup arena handle)
+    | Result.error error => (ctor Result.error [Arena, HeapError] error)
+    | Result.ok entry => (if (isReservation (project entry node)) then (ctor Result.error [Arena, HeapError] (ctor HeapError.protocolFailure)) else (match (if earlierMoved then (prim checked_add (project entry incoming) (1 : UInt64) : (Option UInt64)) else (ctor Option.some [UInt64] (project entry incoming)))
+      | Option.none => (ctor Result.error [Arena, HeapError] (ctor HeapError.countOverflow))
+      | Option.some transient => (match (prim checked_add transient (1 : UInt64) : (Option UInt64))
+        | Option.none => (ctor Result.error [Arena, HeapError] (ctor HeapError.countOverflow))
+        | Option.some retained => (ctor Result.ok [Arena, HeapError] (record Arena {index := (writeIndex 64 (project arena index) (project handle id) (ctor Option.some [Entry] (record Entry {node := (project entry node), incoming := (if move then (project entry incoming) else (wordAdd (project entry incoming) (1 : UInt64))), roots := (if move then (wordSub (project entry roots) (1 : UInt64)) else (project entry roots)), weight := (project entry weight)}))), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project arena maxOwnedBytes), cursor := (project arena cursor)})))))) else (retainEntry arena handle false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: allocateMovedChecked,
+  parameters: [arena : Arena, node : Node, moveFirst : Bool, moveSecond : Bool],
+  result: (Result Allocation HeapError),
+  body: (if (isReleasing arena) then (ctor Result.error [Allocation, HeapError] (ctor HeapError.releaseInProgress)) else (if (project arena exhausted) then (ctor Result.error [Allocation, HeapError] (ctor HeapError.handleOverflow)) else (if (prim equal (project arena nextHandle) (0 : UInt64) : Bool) then (ctor Result.error [Allocation, HeapError] (ctor HeapError.protocolFailure)) else (match (readIndex 64 (project arena index) (project arena nextHandle))
+    | Option.none => (let kids : Children := (nodeChildren node); (if (if (if (Uorc.Core.RuntimeValue::isNull (project kids first)) then true else (less (project (project kids first) id) (project arena nextHandle))) then (if (Uorc.Core.RuntimeValue::isNull (project kids second)) then true else (less (project (project kids second) id) (project arena nextHandle))) else false) then (if (validNode arena node) then (match (nodeWeight node)
+      | Result.error error => (ctor Result.error [Allocation, HeapError] error)
+      | Result.ok weight => (match (prim checked_add (project arena ownedBytes) weight : (Option UInt64))
+        | Option.none => (ctor Result.error [Allocation, HeapError] (ctor HeapError.ownedBytesOverflow))
+        | Option.some owned => (if (less (project arena maxOwnedBytes) owned) then (ctor Result.error [Allocation, HeapError] (ctor HeapError.budgetExceeded)) else (match (prim checked_add (project arena liveEntries) (1 : UInt64) : (Option UInt64))
+          | Option.none => (ctor Result.error [Allocation, HeapError] (ctor HeapError.ownedBytesOverflow))
+          | Option.some live => (match (attachMovedChild arena (project kids first) moveFirst false)
+            | Result.error error => (ctor Result.error [Allocation, HeapError] error)
+            | Result.ok a1 => (match (attachMovedChild a1 (project kids second) moveSecond (if moveFirst then (Uorc.Core.RuntimeValue::sameHandle (project kids first) (project kids second)) else false))
+              | Result.error error => (ctor Result.error [Allocation, HeapError] error)
+              | Result.ok a2 => (let handle : Uorc.Core.RuntimeValue::Handle := (record Uorc.Core.RuntimeValue::Handle {id := (project arena nextHandle)}); (ctor Result.ok [Allocation, HeapError] (record Allocation {arena := (record Arena {index := (writeIndex 64 (project a2 index) (project handle id) (ctor Option.some [Entry] (record Entry {node := node, incoming := (1 : UInt64), roots := (1 : UInt64), weight := weight}))), nextHandle := (if (prim equal (project arena nextHandle) (18446744073709551615 : UInt64) : Bool) then (project arena nextHandle) else (wordAdd (project arena nextHandle) (1 : UInt64))), exhausted := (prim equal (project arena nextHandle) (18446744073709551615 : UInt64) : Bool), ownedBytes := owned, liveEntries := live, maxOwnedBytes := (project a2 maxOwnedBytes), cursor := (project a2 cursor)}), handle := handle, delta := (record Delta {allocatedBytes := weight, releasedBytes := (0 : UInt64), allocatedEntries := (1 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (wordAdd (if (Uorc.Core.RuntimeValue::isNull (project kids first)) then (0 : UInt64) else (1 : UInt64)) (if (Uorc.Core.RuntimeValue::isNull (project kids second)) then (0 : UInt64) else (1 : UInt64))), droppedEdges := (0 : UInt64), retainedRoots := (1 : UInt64), droppedRoots := (wordAdd (if moveFirst then (if (Uorc.Core.RuntimeValue::isNull (project kids first)) then (0 : UInt64) else (1 : UInt64)) else (0 : UInt64)) (if moveSecond then (if (Uorc.Core.RuntimeValue::isNull (project kids second)) then (0 : UInt64) else (1 : UInt64)) else (0 : UInt64))), work := (wordAdd (1 : UInt64) (wordAdd (if moveFirst then (1 : UInt64) else (0 : UInt64)) (if moveSecond then (1 : UInt64) else (0 : UInt64))))})}))))))))) else (ctor Result.error [Allocation, HeapError] (ctor HeapError.invalidNode))) else (ctor Result.error [Allocation, HeapError] (ctor HeapError.malformedHandle))))
+    | Option.some existing => (ctor Result.error [Allocation, HeapError] (ctor HeapError.protocolFailure)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
   name: allocateMoved,
   parameters: [arena : Arena, node : Node, moveFirst : Bool, moveSecond : Bool],
   result: (Result Allocation HeapError),
@@ -739,13 +824,7 @@ definition{
         constructor: Result.error
       },
       {
-        body: (match (allocate arena node)
-          | Result.error error => (ctor Result.error [Allocation, HeapError] error)
-          | Result.ok allocated => (match (if moveFirst then (dropRetainedRoot (project allocated arena) (project kids first)) else (ctor Result.ok [Transition, HeapError] (record Transition {arena := (project allocated arena), delta := (record Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), complete := true})))
-            | Result.error error => (ctor Result.error [Allocation, HeapError] error)
-            | Result.ok firstStep => (match (if moveSecond then (dropRetainedRoot (project firstStep arena) (project kids second)) else (ctor Result.ok [Transition, HeapError] (record Transition {arena := (project firstStep arena), delta := (record Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), complete := true})))
-              | Result.error error => (ctor Result.error [Allocation, HeapError] error)
-              | Result.ok secondStep => (ctor Result.ok [Allocation, HeapError] (record Allocation {arena := (project secondStep arena), handle := (project allocated handle), delta := (record Delta {allocatedBytes := (wordAdd (project (project allocated delta) allocatedBytes) (wordAdd (project (project firstStep delta) allocatedBytes) (project (project secondStep delta) allocatedBytes))), releasedBytes := (wordAdd (project (project allocated delta) releasedBytes) (wordAdd (project (project firstStep delta) releasedBytes) (project (project secondStep delta) releasedBytes))), allocatedEntries := (wordAdd (project (project allocated delta) allocatedEntries) (wordAdd (project (project firstStep delta) allocatedEntries) (project (project secondStep delta) allocatedEntries))), releasedEntries := (wordAdd (project (project allocated delta) releasedEntries) (wordAdd (project (project firstStep delta) releasedEntries) (project (project secondStep delta) releasedEntries))), retainedEdges := (wordAdd (project (project allocated delta) retainedEdges) (wordAdd (project (project firstStep delta) retainedEdges) (project (project secondStep delta) retainedEdges))), droppedEdges := (wordAdd (project (project allocated delta) droppedEdges) (wordAdd (project (project firstStep delta) droppedEdges) (project (project secondStep delta) droppedEdges))), retainedRoots := (wordAdd (project (project allocated delta) retainedRoots) (wordAdd (project (project firstStep delta) retainedRoots) (project (project secondStep delta) retainedRoots))), droppedRoots := (wordAdd (project (project allocated delta) droppedRoots) (wordAdd (project (project firstStep delta) droppedRoots) (project (project secondStep delta) droppedRoots))), work := (wordAdd (project (project allocated delta) work) (wordAdd (project (project firstStep delta) work) (project (project secondStep delta) work)))})}))))),
+        body: (allocateMovedChecked arena node moveFirst moveSecond),
         binders: [checked],
         constructor: Result.ok
       }

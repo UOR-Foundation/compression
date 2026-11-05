@@ -1,6 +1,8 @@
 <!-- uorc:non-authoritative -->
 # Actual completed-view canonical refinement
 
+This note records the historical `8188c3d` qualification with Core `8bb13182`. Its receipts retain that exact scope. [Current-source requalification](integrity-current-source-requalification.md) records the separate replay against restored Core and current Wire.
+
 The authority is `Integrity.CanonicalRefinement`. Its input bridge now derives
 the profile computation from actual `StartedView`, `OrderedExecution` and
 `Attempt` transitions ending at a ready boundary. It covers real arena/cursor

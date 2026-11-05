@@ -1,6 +1,8 @@
 <!-- uorc:non-authoritative -->
 # Retained source accessor evidence
 
+This note records the historical `8188c3d` qualification with Core `8bb13182`. Its receipts retain that exact scope. [Current-source requalification](integrity-current-source-requalification.md) records the separate replay against restored Core and current Wire.
+
 The authorities are `Integrity.OwnedTranscript.RetainedSnapshot` and
 `Integrity.RetainedSourceLaws`. This checkpoint supplies accessor equations;
 it does not establish a Wire session's ownership or parser invariant.
