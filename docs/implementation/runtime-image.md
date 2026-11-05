@@ -19,9 +19,9 @@ ImageFailure is heap(HeapError), invalidShape, range or lengthOverflow.
 BorrowedSpan contains exactly image Handle, offset UInt64 and length UInt64.
 It has no Bytes payload, retained root ticket or ownership operation.
 
-The caller must keep the image/sequence owner and actual arena alive through
-the read. A borrowed descriptor does not pin its backing. For an owned
-RuntimeSequence span outcome, retain its separate transferred image ticket
+The caller must keep the image/sequence owner and originating arena alive
+through the read. Handles are arena-local; a borrowed descriptor does not pin
+its backing. For an owned RuntimeSequence span outcome, retain its separate transferred image ticket
 until the consumer acknowledges all reads, then explicitly move or release it.
 These accessors perform no Heap.retain, release, image transfer or allocation.
 They return only a scalar or fixed descriptor; they do not add an input limit.
@@ -62,6 +62,22 @@ See [the line-cited review](runtime-image-generated-cost.md),
 This observation applies to the exact measured getter with a held native owner.
 Setup, backing construction and final-owner destruction are excluded. It does
 not qualify every byte-reading path, whole-product memory, timing, accepted
-certificates/export or the pinned SDK release. General range/identity/frame
-proofs and source-owned scenario qualification are separate follow-up evidence;
-unqualified proof attempts are excluded from this checkpoint.
+certificates/export or the pinned SDK release.
+
+The additive RuntimeImageProofs and RuntimeImageTests now pass source/kernel
+checks and all52 additional exact declaration policies. The safe proof subset
+covers real-API index frames, four pre-call cost laws, scalar/control/null
+semantics, general relative-bound/end rejection and explicit resolution
+equations. Nine source-owned scenarios cover binary bytes, wide/end offsets,
+span translation/overflow, empty images, identity and caller-pinned reads.
+Removing the relative bound guard makes their suite fail; byte-exact restoration
+passes. The [additive receipt](runtime-image-additive-evidence.json) records all67
+production/proof/test declaration policies and their separate scope. Universal
+successful Option/Result projection, general numeric-conversion refinement and
+the full Heap invariant remain unproved; failed attempts are excluded.
+
+The exact language1.2 [diagnostic configuration snapshots](../../tests/heap/diagnostic-projects/README.md)
+are retained beside this evidence and the private generated artifacts. The
+product's locked language1.1 configuration is unchanged. Direct rust-std root
+annotations do not restrict caller targets transitively; NativeLibrary/Core-Wasm
+closure/signature/IR/ABI acceptance requires independent qualification.

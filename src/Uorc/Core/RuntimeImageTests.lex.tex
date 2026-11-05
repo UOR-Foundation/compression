@@ -1,0 +1,270 @@
+\begin{lexlean}{Uorc.Core.RuntimeImageTests}
+
+\importmodule{Uorc.Core.RuntimeValue}
+
+\importmodule{Uorc.Core.Heap}
+
+\importmodule{Uorc.Core.HeapAudit}
+
+\importmodule{Uorc.Core.RuntimeImage}
+
+\title{Parameters}
+
+\begin{semanticmodule}
+definition{
+  name: errorTag,
+  parameters: [failure : Uorc.Core.RuntimeImage::ImageFailure],
+  result: UInt64,
+  body: (match failure
+    | Uorc.Core.RuntimeImage::ImageFailure.heap heapFailure => (match heapFailure
+      | Uorc.Core.Heap::HeapError.malformedHandle => (1 : UInt64)
+      | Uorc.Core.Heap::HeapError.invalidNode => (2 : UInt64)
+      | Uorc.Core.Heap::HeapError.countOverflow => (2 : UInt64)
+      | Uorc.Core.Heap::HeapError.countUnderflow => (2 : UInt64)
+      | Uorc.Core.Heap::HeapError.handleOverflow => (2 : UInt64)
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => (2 : UInt64)
+      | Uorc.Core.Heap::HeapError.budgetExceeded => (2 : UInt64)
+      | Uorc.Core.Heap::HeapError.releaseInProgress => (2 : UInt64)
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => (2 : UInt64)
+      | Uorc.Core.Heap::HeapError.invalidRoot => (2 : UInt64)
+      | Uorc.Core.Heap::HeapError.protocolFailure => (2 : UInt64))
+    | Uorc.Core.RuntimeImage::ImageFailure.invalidShape => (3 : UInt64)
+    | Uorc.Core.RuntimeImage::ImageFailure.range => (4 : UInt64)
+    | Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow => (5 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: byteIs,
+  parameters: [attempt : (Result UInt8 Uorc.Core.RuntimeImage::ImageFailure), expected : UInt8],
+  result: Bool,
+  body: (match attempt
+    | Result.error failure => false
+    | Result.ok observed => (prim equal observed expected : Bool)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: lengthIs,
+  parameters: [attempt : (Result UInt64 Uorc.Core.RuntimeImage::ImageFailure), expected : UInt64],
+  result: Bool,
+  body: (match attempt
+    | Result.error failure => false
+    | Result.ok observed => (prim equal observed expected : Bool)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: byteError,
+  parameters: [attempt : (Result UInt8 Uorc.Core.RuntimeImage::ImageFailure), expected : UInt64],
+  result: Bool,
+  body: (match attempt
+    | Result.ok observed => false
+    | Result.error failure => (prim equal (errorTag failure) expected : Bool)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: lengthError,
+  parameters: [attempt : (Result UInt64 Uorc.Core.RuntimeImage::ImageFailure), expected : UInt64],
+  result: Bool,
+  body: (match attempt
+    | Result.ok observed => false
+    | Result.error failure => (prim equal (errorTag failure) expected : Bool)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: spanError,
+  parameters: [
+    attempt : (Result Uorc.Core.RuntimeImage::BorrowedSpan Uorc.Core.RuntimeImage::ImageFailure),
+    expected : UInt64
+  ],
+  result: Bool,
+  body: (match attempt
+    | Result.ok observed => false
+    | Result.error failure => (prim equal (errorTag failure) expected : Bool)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: spanFields,
+  parameters: [
+    view : Uorc.Core.RuntimeImage::BorrowedSpan,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    length : UInt64
+  ],
+  result: Bool,
+  body: (if (Uorc.Core.RuntimeValue::sameHandle (project view image) image) then (if (prim equal (project view offset) offset : Bool) then (if (prim equal (project view length) length : Bool) then true else false) else false) else false),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: binaryImage,
+  parameters: [],
+  result: (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError),
+  body: (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (10000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x00ff7f80)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: ownerCounts,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    roots : UInt64,
+    incoming : UInt64
+  ],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::lookup arena image)
+    | Result.error failure => false
+    | Result.ok entry => (if (prim equal (project entry roots) roots : Bool) then (if (prim equal (project entry incoming) incoming : Bool) then true else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: scalarBoundsScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (binaryImage)
+    | Result.error failure => false
+    | Result.ok allocated => (if (byteIs (Uorc.Core.RuntimeImage::readByte (project allocated arena) (project allocated handle) (0 : UInt64)) (0 : UInt8)) then (if (byteIs (Uorc.Core.RuntimeImage::readByte (project allocated arena) (project allocated handle) (1 : UInt64)) (255 : UInt8)) then (if (byteIs (Uorc.Core.RuntimeImage::readByte (project allocated arena) (project allocated handle) (2 : UInt64)) (127 : UInt8)) then (if (byteIs (Uorc.Core.RuntimeImage::readByte (project allocated arena) (project allocated handle) (3 : UInt64)) (128 : UInt8)) then (if (byteError (Uorc.Core.RuntimeImage::readByte (project allocated arena) (project allocated handle) (4 : UInt64)) (4 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readByte (project allocated arena) (project allocated handle) (4294967296 : UInt64)) (4 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readByte (project allocated arena) (project allocated handle) (9223372036854775808 : UInt64)) (4 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readByte (project allocated arena) (project allocated handle) (18446744073709551615 : UInt64)) (4 : UInt64)) then (if (lengthIs (Uorc.Core.RuntimeImage::imageLength (project allocated arena) (project allocated handle)) (4 : UInt64)) then (if (ownerCounts (project allocated arena) (project allocated handle) (1 : UInt64) (1 : UInt64)) then (if (Uorc.Core.HeapAudit::auditRoots (project allocated arena) (cons (project allocated handle) (nil Uorc.Core.RuntimeValue::Handle))) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: spanBoundsScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (binaryImage)
+    | Result.error failure => false
+    | Result.ok allocated => (match (Uorc.Core.RuntimeImage::validateSpan (project allocated arena) (project allocated handle) (1 : UInt64) (2 : UInt64))
+      | Result.error failure => false
+      | Result.ok view => (if (spanFields view (project allocated handle) (1 : UInt64) (2 : UInt64)) then (if (byteIs (Uorc.Core.RuntimeImage::readSpanByte (project allocated arena) view (0 : UInt64)) (255 : UInt8)) then (if (byteIs (Uorc.Core.RuntimeImage::readSpanByte (project allocated arena) view (1 : UInt64)) (127 : UInt8)) then (if (byteError (Uorc.Core.RuntimeImage::readSpanByte (project allocated arena) view (2 : UInt64)) (4 : UInt64)) then (if (spanError (Uorc.Core.RuntimeImage::validateSpan (project allocated arena) (project allocated handle) (3 : UInt64) (2 : UInt64)) (4 : UInt64)) then (if (spanError (Uorc.Core.RuntimeImage::validateSpan (project allocated arena) (project allocated handle) (18446744073709551615 : UInt64) (1 : UInt64)) (5 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readSpanByte (project allocated arena) (record Uorc.Core.RuntimeImage::BorrowedSpan {image := (project allocated handle), offset := (18446744073709551615 : UInt64), length := (2 : UInt64)}) (1 : UInt64)) (5 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readSpanByte (project allocated arena) (record Uorc.Core.RuntimeImage::BorrowedSpan {image := (project allocated handle), offset := (18446744073709551615 : UInt64), length := (2 : UInt64)}) (2 : UInt64)) (4 : UInt64)) then (if (match (Uorc.Core.RuntimeImage::validateSpan (project allocated arena) (project allocated handle) (4 : UInt64) (0 : UInt64))
+        | Result.error failure => false
+        | Result.ok emptyView => (if (spanFields emptyView (project allocated handle) (4 : UInt64) (0 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readSpanByte (project allocated arena) emptyView (0 : UInt64)) (4 : UInt64)) then true else false) else false)) then (if (ownerCounts (project allocated arena) (project allocated handle) (1 : UInt64) (1 : UInt64)) then (if (Uorc.Core.HeapAudit::auditRoots (project allocated arena) (cons (project allocated handle) (nil Uorc.Core.RuntimeValue::Handle))) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: emptyImageScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x))
+    | Result.error failure => false
+    | Result.ok allocated => (if (lengthIs (Uorc.Core.RuntimeImage::imageLength (project allocated arena) (project allocated handle)) (0 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readByte (project allocated arena) (project allocated handle) (0 : UInt64)) (4 : UInt64)) then (if (match (Uorc.Core.RuntimeImage::validateSpan (project allocated arena) (project allocated handle) (0 : UInt64) (0 : UInt64))
+      | Result.error failure => false
+      | Result.ok emptyView => (if (spanFields emptyView (project allocated handle) (0 : UInt64) (0 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readSpanByte (project allocated arena) emptyView (0 : UInt64)) (4 : UInt64)) then true else false) else false)) then (if (Uorc.Core.HeapAudit::auditRoots (project allocated arena) (cons (project allocated handle) (nil Uorc.Core.RuntimeValue::Handle))) then true else false) else false) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: handlePrecedenceScenario,
+  parameters: [],
+  result: Bool,
+  body: (if (byteError (Uorc.Core.RuntimeImage::readByte (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (Uorc.Core.RuntimeValue::nullHandle) (18446744073709551615 : UInt64)) (1 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readByte (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (record Uorc.Core.RuntimeValue::Handle {id := (18446744073709551615 : UInt64)}) (0 : UInt64)) (1 : UInt64)) then (if (lengthError (Uorc.Core.RuntimeImage::imageLength (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (Uorc.Core.RuntimeValue::nullHandle)) (1 : UInt64)) then (if (spanError (Uorc.Core.RuntimeImage::validateSpan (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (Uorc.Core.RuntimeValue::nullHandle) (18446744073709551615 : UInt64) (1 : UInt64)) (1 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readSpanByte (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (record Uorc.Core.RuntimeImage::BorrowedSpan {image := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (0 : UInt64)}) (0 : UInt64)) (4 : UInt64)) then true else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: shapeScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (ctor Uorc.Core.Heap::Node.storeLeaf (9 : UInt8)))
+    | Result.error failure => false
+    | Result.ok leaf => (match (Uorc.Core.Heap::allocateControl (project leaf arena) (4 : UInt64))
+      | Result.error failure => false
+      | Result.ok control => (match (Uorc.Core.Heap::reserveImage (project control arena) (ctor Uorc.Core.Heap::ImageKind.runtime) (4 : UInt64))
+        | Result.error failure => false
+        | Result.ok reservation => (if (byteError (Uorc.Core.RuntimeImage::readByte (project reservation arena) (project leaf handle) (0 : UInt64)) (3 : UInt64)) then (if (lengthError (Uorc.Core.RuntimeImage::imageLength (project reservation arena) (project control handle)) (3 : UInt64)) then (if (byteError (Uorc.Core.RuntimeImage::readByte (project reservation arena) (project reservation handle) (0 : UInt64)) (3 : UInt64)) then (if (Uorc.Core.HeapAudit::auditRoots (project reservation arena) (cons (project leaf handle) (cons (project control handle) (cons (project reservation handle) (nil Uorc.Core.RuntimeValue::Handle))))) then true else false) else false) else false) else false)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: forgedControlScenario,
+  parameters: [],
+  result: Bool,
+  body: (if (byteError (Uorc.Core.RuntimeImage::readByte (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (ctor Uorc.Core.Heap::Index.empty) (1 : UInt64) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.control) 0x0001), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (50 : UInt64)}))), nextHandle := (2 : UInt64), exhausted := false, ownedBytes := (50 : UInt64), liveEntries := (1 : UInt64), maxOwnedBytes := (1000 : UInt64), cursor := (Uorc.Core.Heap::emptyCursor)}) (record Uorc.Core.RuntimeValue::Handle {id := (1 : UInt64)}) (0 : UInt64)) (3 : UInt64)) then (if (lengthError (Uorc.Core.RuntimeImage::imageLength (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (ctor Uorc.Core.Heap::Index.empty) (1 : UInt64) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.control) 0x0001), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (50 : UInt64)}))), nextHandle := (2 : UInt64), exhausted := false, ownedBytes := (50 : UInt64), liveEntries := (1 : UInt64), maxOwnedBytes := (1000 : UInt64), cursor := (Uorc.Core.Heap::emptyCursor)}) (record Uorc.Core.RuntimeValue::Handle {id := (1 : UInt64)})) (3 : UInt64)) then (if (spanError (Uorc.Core.RuntimeImage::validateSpan (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (ctor Uorc.Core.Heap::Index.empty) (1 : UInt64) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.control) 0x0001), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (50 : UInt64)}))), nextHandle := (2 : UInt64), exhausted := false, ownedBytes := (50 : UInt64), liveEntries := (1 : UInt64), maxOwnedBytes := (1000 : UInt64), cursor := (Uorc.Core.Heap::emptyCursor)}) (record Uorc.Core.RuntimeValue::Handle {id := (1 : UInt64)}) (0 : UInt64) (1 : UInt64)) (3 : UInt64)) then true else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: identityScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (binaryImage)
+    | Result.error failure => false
+    | Result.ok allocated => (match (Uorc.Core.Heap::allocate (project allocated arena) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x00ff7f80))
+      | Result.error failure => false
+      | Result.ok otherAllocation => (if (if (Uorc.Core.RuntimeValue::sameHandle (project allocated handle) (project otherAllocation handle)) then false else true) then (if (match (Uorc.Core.RuntimeImage::validateSpan (project otherAllocation arena) (project allocated handle) (0 : UInt64) (4 : UInt64))
+        | Result.error failure => false
+        | Result.ok leftView => (match (Uorc.Core.RuntimeImage::validateSpan (project otherAllocation arena) (project otherAllocation handle) (0 : UInt64) (4 : UInt64))
+          | Result.error failure => false
+          | Result.ok rightView => (if (spanFields leftView (project allocated handle) (0 : UInt64) (4 : UInt64)) then (if (spanFields rightView (project otherAllocation handle) (0 : UInt64) (4 : UInt64)) then (if (byteIs (Uorc.Core.RuntimeImage::readSpanByte (project otherAllocation arena) rightView (1 : UInt64)) (255 : UInt8)) then true else false) else false) else false))) then (if (ownerCounts (project otherAllocation arena) (project allocated handle) (1 : UInt64) (1 : UInt64)) then (if (ownerCounts (project otherAllocation arena) (project otherAllocation handle) (1 : UInt64) (1 : UInt64)) then (if (Uorc.Core.HeapAudit::auditRoots (project otherAllocation arena) (cons (project allocated handle) (cons (project otherAllocation handle) (nil Uorc.Core.RuntimeValue::Handle)))) then true else false) else false) else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: pinnedReadScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (binaryImage)
+    | Result.error failure => false
+    | Result.ok allocated => (match (Uorc.Core.Heap::retain (project allocated arena) (project allocated handle))
+      | Result.error failure => false
+      | Result.ok alias => (match (Uorc.Core.Heap::release (project alias arena) (project allocated handle))
+        | Result.error failure => false
+        | Result.ok started => (if (byteIs (Uorc.Core.RuntimeImage::readByte (project started arena) (project allocated handle) (3 : UInt64)) (128 : UInt8)) then (if (match (Uorc.Core.Heap::releaseStep (project started arena))
+          | Result.error failure => false
+          | Result.ok dropped => (if (byteIs (Uorc.Core.RuntimeImage::readByte (project dropped arena) (project allocated handle) (3 : UInt64)) (128 : UInt8)) then (if (ownerCounts (project dropped arena) (project allocated handle) (1 : UInt64) (1 : UInt64)) then (if (Uorc.Core.HeapAudit::auditRoots (project dropped arena) (cons (project allocated handle) (nil Uorc.Core.RuntimeValue::Handle))) then true else false) else false) else false)) then true else false) else false)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: quoteScenario,
+  parameters: [],
+  result: Bool,
+  body: (if (prim equal (Uorc.Core.RuntimeImage::readByteCost (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (Uorc.Core.RuntimeValue::nullHandle) (18446744073709551615 : UInt64)) (1 : UInt64) : Bool) then (if (prim equal (Uorc.Core.RuntimeImage::imageLengthCost (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (Uorc.Core.RuntimeValue::nullHandle)) (1 : UInt64) : Bool) then (if (prim equal (Uorc.Core.RuntimeImage::validateSpanCost (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (Uorc.Core.RuntimeValue::nullHandle) (18446744073709551615 : UInt64) (18446744073709551615 : UInt64)) (1 : UInt64) : Bool) then (if (prim equal (Uorc.Core.RuntimeImage::readSpanByteCost (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (record Uorc.Core.RuntimeImage::BorrowedSpan {image := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (0 : UInt64)}) (18446744073709551615 : UInt64)) (1 : UInt64) : Bool) then true else false) else false) else false) else false),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: scenarioNames,
+  parameters: [],
+  result: (List String),
+  body: (cons "scalarBoundsScenario" (cons "spanBoundsScenario" (cons "emptyImageScenario" (cons "handlePrecedenceScenario" (cons "shapeScenario" (cons "forgedControlScenario" (cons "identityScenario" (cons "pinnedReadScenario" (cons "quoteScenario" (nil String)))))))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: suite,
+  parameters: [],
+  result: Bool,
+  body: (if (scalarBoundsScenario) then (if (spanBoundsScenario) then (if (emptyImageScenario) then (if (handlePrecedenceScenario) then (if (shapeScenario) then (if (forgedControlScenario) then (if (identityScenario) then (if (pinnedReadScenario) then (if (quoteScenario) then true else false) else false) else false) else false) else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+\end{semanticmodule}
+
+\end{lexlean}

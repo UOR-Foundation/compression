@@ -25,7 +25,8 @@ const names=['RuntimeValue','Heap','HeapAudit','RuntimeTable','RuntimeSequence',
   'RuntimeOwnershipProofs','RuntimeAuditProofs','RuntimeObservationProofs','RuntimeSequenceProofs',
   'RuntimeCost','RuntimeSequenceTickets','RuntimeSequenceTicketTests','HeapMovedReference','HeapMovedTests',
   'RuntimePeak','RuntimePeakProofs','RuntimePeakTests','RuntimeSequenceConcatReference',
-  'RuntimeImage','RuntimeIndexProofs'];
+  'RuntimeImage','RuntimeIndexProofs','RuntimeImageProofs','RuntimeImageTests',
+  'RuntimeIndexFrameProofs','RuntimeTableCancelTests','RuntimeByteBuilderFactorReference'];
 const modules=[];
 for(const name of names) {
   const sourcePath=`src/Uorc/Core/${name}.lex.tex`;
