@@ -141,3 +141,28 @@ payload unchanged. The unpatched admission consumer check progresses to the
 RuntimeAdmissionCredit arena-binder collision, recorded in
 `admission-public-header-consumer-diagnostic.json`. No private binder repair is
 substituted into authoritative Core source.
+
+
+## Current shared-Core qualification
+
+The earlier f947 missing-import/binder receipts above are historical and are
+superseded by the actual public dependency closure at
+`ad70ad9a32bff5cca1a039a60794ac5eb0e7c079`, with the unchanged Boundary semanticdata
+and latest public imports from `95683d8ecda91a17ee0655686a9f42063312ecb9`.
+The credit module is byte-verified as
+`b9cbd54aed802621167824c59abdf32d64e47b38f4c16194193976349abbb42e`.
+The full imported Core closure is recorded in archive-shared-core-provenance.json.
+No private alpha-renaming or Core algorithm repair is used by the current run.
+
+The current source consumer check and generated native execution pass. The
+admission owner checks actual Ready and also rejects encoded return distance
+zero after the identical earlier literal-event prefix. That retained failure
+passes the complete root audit, then the actual Core cancellation owner cleans
+it to the original caller image. Encoded distances remain unchanged.
+FrameOwnershipScenarios additionally checks pause, cancellation with a pending
+body span, explicit retained-ticket transfer and final release. These controls
+and all earlier frame, object, emission and 138 length-cancellation-prefix
+controls pass on current shared Core. Exact source/build identities are in
+archive-current-shared-core-diagnostic.json. Diagnostic theorem/dependency
+slicing remains explicit; locked-SDK acceptance and the full archive controller
+are still open.
