@@ -2,7 +2,8 @@
 # Scoped integrity proof evidence
 
 The authorities are `Integrity.ByteEquality`, `CollisionLaws`, `StateLaws`,
-`ShaTransitionLaws`, `OwnedLifecycleLaws` and `IncrementalLaws`.
+`ShaTransitionLaws`, `OwnedLifecycleLaws`, `IncrementalLaws`, `ShaLifecycleLaws`,
+`PartitionLaws`, `FuelLaws` and `PartitionTotalLaws`.
 They are proof modules; ordinary archive hashing, compression and decompression
 add no proof metadata or dependency on proof completion.
 
@@ -74,6 +75,36 @@ pass with attestation
 Changing the actual consuming offset increment from one to two rejects the new
 source bridge; restoration reproduces the exact original command result.
 
+`ShaLifecycleLaws` proves successful byte absorption preserves validity and adds
+exactly one to the natural message count. Successful finalization and update
+steps preserve their specified state/count invariants, actual digest output is
+32 bytes, and finished finalization is stable. Its 76 native declarations pass
+complete scoped verification and independent replay with attestation
+`bb031e677b47abef3185e9a0e7a6bd2dbc4c71d3084d1726316898d51b876036`.
+Five actual implementation defects reject; the receipts identify the first
+owner, including earlier prerequisite proofs and the precise kernel recursion
+failure for the absorption defect. Restored verification is identical.
+
+`PartitionLaws` connects actual chunk updates to concatenated execution and
+one-shot finalization when the named operations succeed. `FuelLaws` proves the
+actual source budgets suffice: update uses `3*n + 132`, and finalization uses
+`300`. Every message in SHA-256's standard byte-count domain therefore succeeds
+in the actual source hash. `PartitionTotalLaws` supplies exact message-count
+postconditions and unconditional two-chunk agreement from the standard initial
+state for combined length at most `2^61-1` bytes, including identical actual
+one-shot/partitioned digest bytes and width 32. This is the standard SHA domain,
+not a total archive input-size limit; STREAM-MAX is the separately named
+composition for arbitrary finite total input.
+
+The partition, fuel and total-partition scopes verify and independently replay
+with attestations `d1afca219e5dcc21d56aca894be255283799bbd893d89dadf8540a9d52540d63`,
+`4179b4059d55fb903e32cae3b032ff7988e2cb838a0e2353e39c17ca16874f9e`
+and `01f6b2c235fac59c3027eb44fdd7210b98f536f53466c4bb8b60aee85aefb38a`.
+Actual input loss, insufficient update/finalization budgets and count-reset
+defects reject; all restored results reproduce their original attestations.
+These are source-Nat results. Target storage, overflow and physical-resource
+refinement remain separate claims.
+
 The combined six-module diagnostic verification and kernel replay passed with
 saved official compiler `71defb4c663aaec5b9a3aab04cbc6a03e7106227`, binary SHA-256
 `38f8502e5c108a362265663253283a0f60f14538951e592b2d5dd4db9e67be0a`,
@@ -99,7 +130,7 @@ repository; generated Lean is not committed or a production fallback.
 
 This saved component compiler result does not change or qualify the original
 product pinned SDK. The actual decoder/owned engine-to-authenticated-trace bridge,
-SHA implementation-to-standard functional correctness, general valid-state/Heap
+SHA implementation-to-standard functional correctness, general engine/Heap
 ownership preservation and integrated BinaryProgram/full archive acceptance are
 separate remaining obligations. Hash equality is not reconstruction equality;
 full byte reconstruction comparison remains necessary.
