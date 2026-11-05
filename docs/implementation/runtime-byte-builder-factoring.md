@@ -52,9 +52,13 @@ separately scoped full-verification refusal for the current fc419 builder:
 certificateB source6,703,926 bytes against the same4,194,304-byte limit.
 Its [receipt](https://github.com/UOR-Foundation/compression/blob/e0a00895a74f0504e331eee6e82341997b174016/validation/product/payload-image-core-compatibility.json)
 supersedes the initial untested status for that exact current-source consumer.
-Compiler/configuration/root-set reconciliation remains explicit; the numerical
-difference from the earlier old-source receipt is not attributed to this
-factoring without a matched context. No accepted export follows.
+The [read-only scope receipt](runtime-byte-builder-current-b-scope.json) binds
+the archived language1.2 project/lock, compiler binary hash, all56 archive hashes,
+four exact current Core Git blobs,21 selected source modules and21 literal
+declared Std roots. Actual argv/cwd, compiler Git commit and lowered declaration
+closure were not retained and remain unknown. The numerical difference from the
+earlier36-source/c7f/c352/ee41 receipt is not attributed to this factoring.
+No accepted export follows.
 
 The newly reported Heap.releaseStep certificate-A deep-recursion failure and
 the historical Sequence.step A probe are separate root-specific scopes. A
