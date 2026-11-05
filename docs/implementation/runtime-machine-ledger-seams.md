@@ -1,9 +1,9 @@
-# Event-ledger integration audit (read-only)
+# Event-ledger integration audit and prefix checkpoint
 
 Audited engine: ad6a4507f5f4ac1b3637ed5b28b0003b8329295c2b14a3830bd20f83d768bf69.
 Audited CanonicalSchedule: 2d70f4682cd814a8939848af805f4e71bcb70bedd927f00aa40fddf663f17ebe.
 Schedule identity: uorc.logical-reference-event-schedule/1. Ledger authority is
-RuntimeMachineSemantic, current logicalReferenceEvents1. This document records the audit; no Engine mutation or semantic-budget acceptance is claimed.
+RuntimeMachineSemantic, current logicalReferenceEvents1. This section records the earlier audit. The instruction/reference prefix is now implemented; the remaining seams below retain their stated obligations.
 
 ## Smallest unambiguous initial seam
 
@@ -123,10 +123,7 @@ read/write, never once per native fixed64 owner step.
 
 ## Validation boundary
 
-The current Engine has cache witnesses and operational prepayment, but no semantic
-Ledger field or source event-consumption cursor. This audit is preparation only.
-No source changes, duplicate adapter, profile switch, post-hoc execution trace, or
-new semantic-budget acceptance claim were made.
+At the audited checkpoint the Engine had cache witnesses and operational prepayment, but no semantic Ledger field or event-consumption cursor. The following increment implements the first prefix seam; no complete semantic-budget acceptance is claimed.
 
 
 ## Common-source parser boundary control
@@ -141,3 +138,39 @@ Usage before returning the single arena. Clearing or acknowledging the event
 before admission, returning a second arena snapshot, or weakening foreignRelease
 would conceal the problem. The source-owned control repair and its execution are
 tracked separately from decoder arithmetic and canonical-event refinement.
+
+
+## Implemented instruction/reference prefix
+
+The Engine now owns semanticBudget, semanticLedger and semanticError in State,
+plus a fixed UInt64 semanticPosition in each charged frame. Phase3 fetches immutable
+instruction metadata; phase32 consumes dispatch and the four actual spec roles,
+one bounded position at a time. Position5 performs prepare under its separately
+prepaid operational scalar-check fee. Semantic refusal preserves the accepted
+ledger and exact cursor; tick is inert until supported budget extension. Native
+work refusal after accepted prefix payment retains position5 without charging
+those semantic events again. Cancellation bypasses the semantic-error stop so it
+can clean up while preserving the semantic prefix.
+
+Production ingress is startWithSemantic(Ready, operationalBudget, semanticBudget,
+ledger). The fresh standalone start helper remains for component diagnostics and
+is excluded from the production request. Controllers must inspect semanticStatus
+alongside the operational disposition. extendSemantic retries only work/storage
+budget refusals; fixed-word/profile/invariant inability stays operational and
+cannot exclude a predecessor from arbitrary-Nat semantic scope.
+
+takeReady now returns ReadyTransfer containing ready, semanticBudget and
+semanticLedger. Controllers unwrap .ready and carry the same ledger into the next
+basis/decode/output/EOF scope. OutputTransfer already contains the State with its
+ledger and transfers exactly one output ticket. These fields remain bounded native
+controls; no reference Value, Nat counter or event list is retained. The existing
+machine/frame control reserves remain charged, while physical layout and complete
+controller ownership transfer require the accepted export/whole-product audit.
+
+The general native role/prefix agreement and five-position-success laws kernel
+check against the exact authoritative instructionPrefix/operandPrefix/operandEvents
+bodies. Omitting block-reference events is rejected. The Engine is still counting
+only this implemented prefix: the profile tag alone is not evidence of complete
+canonical execution accounting, and no minimum-certificate eligibility claim follows.
+Capture/entry, return/accumulator, live-slot, byte and controller scope composition
+remain the Core-owned decisions described above.

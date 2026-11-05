@@ -750,5 +750,34 @@ theorem{
   proof: reflexivity{},
   axioms: [Quot.sound, propext]
 }
+
+definition{
+  name: referenceRoleEvent,
+  parameters: [role : Uorc.Core.RuntimeOpcode::OperandRole],
+  result: (Option Event),
+  body: (match role
+    | Uorc.Core.RuntimeOpcode::OperandRole.absent => (ctor Option.none [Event])
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateNatural => (ctor Option.none [Event])
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateByte => (ctor Option.none [Event])
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediatePredicate => (ctor Option.none [Event])
+    | Uorc.Core.RuntimeOpcode::OperandRole.localNatural => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localByte => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localPredicate => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localSequence => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localStore => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localAny => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.blockReference => (ctor Option.some [Event] (ctor Event.referenceRead))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: prefixEvent,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode, position : UInt64],
+  result: (Result (Option Event) Error),
+  body: (if (prim equal position (0 : UInt64) : Bool) then (ctor Result.ok [(Option Event), Error] (ctor Option.some [Event] (ctor Event.instruction opcode))) else (if (Uorc.Core.Heap::less position (5 : UInt64)) then (let signature : Uorc.Core.RuntimeOpcode::Spec := (Uorc.Core.RuntimeOpcode::spec opcode); (ctor Result.ok [(Option Event), Error] (referenceRoleEvent (if (prim equal position (1 : UInt64) : Bool) then (project signature operand0) else (if (prim equal position (2 : UInt64) : Bool) then (project signature operand1) else (if (prim equal position (3 : UInt64) : Bool) then (project signature operand2) else (project signature operand3))))))) else (if (prim equal position (5 : UInt64) : Bool) then (ctor Result.ok [(Option Event), Error] (ctor Option.none [Event])) else (ctor Result.error [(Option Event), Error] (ctor Error.invalidUsage))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
 \end{semanticmodule}
 \end{lexlean}

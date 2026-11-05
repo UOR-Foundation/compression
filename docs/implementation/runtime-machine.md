@@ -253,3 +253,49 @@ Actual canonical event coverage and return/accumulator binding rules, global
 reference/ownership/prefix preservation, authentic parsed IR export using the
 existing SDK reader, accepted native export and physical measurements, and the
 locked-SDK whole-product acceptance boundary remain open.
+
+
+## Prepaid semantic-prefix increment
+
+RuntimeMachineEngine now consumes the source-owned instruction/spec-role prefix
+before actual prepare, with a fixed-width cursor and the shared Semantic ledger.
+startWithSemantic preserves a supplied ledger; semanticStatus exposes a typed
+independent refusal channel, extendSemantic retries budget refusals, and cancel
+can clean up without changing the accepted prefix. takeReady returns ReadyTransfer
+with Ready, semantic Budget and Ledger. Production request roots use that ingress;
+standalone fresh start is component compatibility only.
+
+The 23-module generated Engine kernel closure and all92 function policies pass.
+A genuine Fixture/Engine evaluator smoke preserves a nonzero incoming ledger,
+stops before division preparation at work14/cursor2, resumes once to work15 and
+then observes divisionByZero; cancellation/Ready transfer preserve the ledger and
+budget. Its private diagnostic wrapper is not the nine source-owned test roots,
+whose execution is recorded separately. General prefix agreement laws and scoped
+33-declaration handoff/cancellation checks pass; this is not complete accounting.
+
+Cache-reader and unchanged-store general implication contracts encountered a real
+proof-language limitation. Exact source probes and both ordinary failed kernel
+routes are outside production source_roots under tests/runtime-machine/probes.
+No false or failing theorem is inserted into the production module closure.
+Full store reachability/cardinality and cache correspondence remain open.
+
+
+## Completed native diagnostics at the prefix checkpoint
+
+The immutable pre-prefix Engine snapshot ad6a4507 and test build88db6bade332328116ef408d602d9942a6dba13c857871230f9e71073c7cd616
+completed its unfiltered93-scenario generated Lean-to-C driver: exit0,
+RuntimeMachineEngineTests.run: pass. This includes both same-Graph wire/parser/
+admission/Engine Scan controls, cache4 and peak4. The run observed3048.59 seconds
+and68776KiB peak RSS for the diagnostic test harness. This is not a production
+Engine memory bound or acceptance of the later semantic-prefix API. Exact native
+source, generated modules, C and objects are bound in native93-common-cache-peak.json.
+
+The later prefix Engine6be96651 separately passes the genuine Fixture/Engine
+smoke in both generated Lean evaluation and native Lean/C. The native executable
+SHA256 is7cc09116a85e101d564b4affdfac16c43f8a0f92886c9bdfadf4df679117c6dd;
+semantic-prefix-smoke-native.json binds all29 module sources/generated C/objects.
+A prepare-before-semantic-payment mutation compiles, then fails the same strict
+behavioral owner gate; the original passes after restoration. Nine new typed
+source-owned prefix controls remain distinct and pending their own execution.
+Accepted Rust/Wasm export, physical layout/copy bounds and locked-SDK whole-product
+qualification remain open.

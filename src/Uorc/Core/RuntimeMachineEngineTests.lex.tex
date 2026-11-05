@@ -26,6 +26,7 @@
 \importmodule{Uorc.Core.RuntimeMachineSemantic}
 \importmodule{Uorc.Core.RuntimePeak}
 \importmodule{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Core.RuntimeLifetime}
 \title{Parameters}
 \begin{semanticmodule}
 inductive{
@@ -39,7 +40,8 @@ inductive{
     {name: fuel, fields: []},
     {name: mismatch, fields: []},
     {name: audit, fields: [UInt64]},
-    {name: reference, fields: [Uorc.Core.ReferenceSemantics::Failure]}
+    {name: reference, fields: [Uorc.Core.ReferenceSemantics::Failure]},
+    {name: diagnostic, fields: [UInt64, (List UInt64)]}
   ]
 }
 
@@ -772,9 +774,9 @@ definition{
               {
                 body: (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
                   | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-                  | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (cons (project transferred handle) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller))) (project ready arena))
+                  | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (cons (project transferred handle) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller))) (project ready arena))
                     | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-                    | Result.ok empty => (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (5 : UInt64)))))),
+                    | Result.ok empty => (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (5 : UInt64))))))),
                 binders: [checked],
                 constructor: Result.ok
               }
@@ -907,9 +909,9 @@ definition{
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
         | Result.ok cleaned => (if (Uorc.Core.HeapAudit::auditRoots (project cleaned arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots cleaned)) then (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
           | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-          | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
+          | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (9 : UInt64)))))),
+            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (9 : UInt64)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -926,9 +928,9 @@ definition{
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
         | Result.ok cleaned => (if (Uorc.Core.HeapAudit::auditRoots (project cleaned arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots cleaned)) then (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
           | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-          | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
+          | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (9 : UInt64)))))),
+            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (9 : UInt64)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -945,9 +947,9 @@ definition{
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
         | Result.ok cleaned => (if (Uorc.Core.HeapAudit::auditRoots (project cleaned arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots cleaned)) then (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
           | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-          | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
+          | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (9 : UInt64)))))),
+            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (9 : UInt64)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -964,9 +966,9 @@ definition{
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
         | Result.ok cleaned => (if (Uorc.Core.HeapAudit::auditRoots (project cleaned arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots cleaned)) then (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
           | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-          | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
+          | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (9 : UInt64)))))),
+            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (8 : UInt64))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (7 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (9 : UInt64)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -1171,11 +1173,11 @@ definition{
                             | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
                             | Result.ok outputChecked => (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
                               | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-                              | Result.ok returned => (if (Uorc.Core.HeapAudit::auditRoots (project returned arena) (cons (project transferred handle) (Uorc.Core.RuntimeProgram::rootInventory (project returned program) (project returned caller)))) then (match (Uorc.Core.Heap::lookup (project returned arena) (project owner handle))
+                              | Result.ok returnedTransfer => (let returned : Uorc.Core.RuntimeProgram::Ready := (project returnedTransfer ready); (if (Uorc.Core.HeapAudit::auditRoots (project returned arena) (cons (project transferred handle) (Uorc.Core.RuntimeProgram::rootInventory (project returned program) (project returned caller)))) then (match (Uorc.Core.Heap::lookup (project returned arena) (project owner handle))
                                 | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
                                 | Result.ok entry => (if (if (prim equal (project (project (project returned caller) input) id) (project (project owner handle) id) : Bool) then (if (prim equal (project (project (project returned caller) archive) id) (project (project owner handle) id) : Bool) then (if (prim equal (project (project (project returned caller) search) id) (project (project owner handle) id) : Bool) then (if (prim equal (project (project (project returned caller) checkpoint) id) (project (project owner handle) id) : Bool) then (if (prim equal (project (project (project returned caller) certificate) id) (project (project owner handle) id) : Bool) then (if (prim equal (project (project (project returned caller) verification) id) (project (project owner handle) id) : Bool) then (if (prim equal (project (project (project returned caller) wire) id) (project (project owner handle) id) : Bool) then (if (prim equal (project (project (project (project returned program) blocks) root) id) (project (project (project (project fixture program) blocks) root) id) : Bool) then (if (prim equal (project (project (project (project returned program) basis) root) id) (project (project (project (project fixture program) basis) root) id) : Bool) then (if (prim equal (project entry roots) (7 : UInt64) : Bool) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) then (match (Uorc.Core.RuntimeMachineFixtures::dropAll (cons (project transferred handle) (Uorc.Core.RuntimeProgram::rootInventory (project returned program) (project returned caller))) (project returned arena))
                                   | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-                                  | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64)))))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64))))))))))))))))))),
+                                  | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64))))))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (14 : UInt64))))))))))))))))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -1186,7 +1188,7 @@ definition{
   result: Uorc.Core.RuntimeMachineEngine::State,
   body: (match (project state frames)
     | List.nil => state
-    | List.cons frame restFrames => (record Uorc.Core.RuntimeMachineEngine::State {arena := (project state arena), program := (project state program), caller := (project state caller), budget := (project state budget), usage := (project state usage), disposition := (project state disposition), frames := (cons (record Uorc.Core.RuntimeMachineEngine::FrameRecord {frame := (record Uorc.Core.RuntimeMachine::Frame {blockIndex := (project (project frame frame) blockIndex), slotCount := (if isSlot then counter else (project (project frame frame) slotCount)), nextInstruction := (if isSlot then (project (project frame frame) nextInstruction) else counter), slots := (project (project frame frame) slots)}), block := (project frame block), control := (project frame control), phase := (project frame phase), instruction := (project frame instruction), action := (project frame action), prefixCount := (project frame prefixCount), captureIndex := (project frame captureIndex), lane := (project frame lane), bucket := (project frame bucket), bucketIndex := (project frame bucketIndex), kind := (project frame kind), iteration := (project frame iteration), targetA := (project frame targetA), targetB := (project frame targetB), accumulator := (project frame accumulator), accumulatorOwned := (project frame accumulatorOwned), accumulatorUnits := (project frame accumulatorUnits), unitsTable := (project frame unitsTable), builder := (project frame builder)}) restFrames), pending := (project state pending), value := (project state value), valueOwned := (project state valueOwned), valueUnits := (project state valueUnits), oldRoot := (project state oldRoot), draining := (project state draining), control := (project state control), ownsReady := (project state ownsReady), mode := (project state mode), cancelStarted := (project state cancelStarted), sequenceCleanup := (project state sequenceCleanup), delta := (project state delta), operationDelta := (project state operationDelta), overflowEvent := (project state overflowEvent)})),
+    | List.cons frame restFrames => (record Uorc.Core.RuntimeMachineEngine::State {arena := (project state arena), program := (project state program), caller := (project state caller), budget := (project state budget), semanticBudget := (project state semanticBudget), semanticLedger := (project state semanticLedger), semanticError := (project state semanticError), usage := (project state usage), disposition := (project state disposition), frames := (cons (record Uorc.Core.RuntimeMachineEngine::FrameRecord {frame := (record Uorc.Core.RuntimeMachine::Frame {blockIndex := (project (project frame frame) blockIndex), slotCount := (if isSlot then counter else (project (project frame frame) slotCount)), nextInstruction := (if isSlot then (project (project frame frame) nextInstruction) else counter), slots := (project (project frame frame) slots)}), block := (project frame block), control := (project frame control), phase := (project frame phase), semanticPosition := (project frame semanticPosition), instruction := (project frame instruction), action := (project frame action), prefixCount := (project frame prefixCount), captureIndex := (project frame captureIndex), lane := (project frame lane), bucket := (project frame bucket), bucketIndex := (project frame bucketIndex), kind := (project frame kind), iteration := (project frame iteration), targetA := (project frame targetA), targetB := (project frame targetB), accumulator := (project frame accumulator), accumulatorOwned := (project frame accumulatorOwned), accumulatorUnits := (project frame accumulatorUnits), unitsTable := (project frame unitsTable), builder := (project frame builder)}) restFrames), pending := (project state pending), value := (project state value), valueOwned := (project state valueOwned), valueUnits := (project state valueUnits), oldRoot := (project state oldRoot), draining := (project state draining), control := (project state control), ownsReady := (project state ownsReady), mode := (project state mode), cancelStarted := (project state cancelStarted), sequenceCleanup := (project state sequenceCleanup), delta := (project state delta), operationDelta := (project state operationDelta), overflowEvent := (project state overflowEvent)})),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -1196,7 +1198,7 @@ definition{
   parameters: [state : Uorc.Core.RuntimeMachineEngine::State, length : UInt64],
   result: Uorc.Core.RuntimeMachineEngine::State,
   body: (match (project state pending)
-    | Uorc.Core.RuntimeMachineEngine::Pending.builder cursor purpose => (record Uorc.Core.RuntimeMachineEngine::State {arena := (project state arena), program := (project state program), caller := (project state caller), budget := (project state budget), usage := (project state usage), disposition := (project state disposition), frames := (project state frames), pending := (ctor Uorc.Core.RuntimeMachineEngine::Pending.builder (record Uorc.Core.RuntimeByteBuilder::Cursor {phase := (project cursor phase), mode := (project cursor mode), builder := (project cursor builder), carry := (project cursor carry), oldLeft := (project cursor oldLeft), oldRight := (project cursor oldRight), reservation := (project cursor reservation), leaf := (project cursor leaf), ncapture := (project cursor ncapture), ngarbage := (project cursor ngarbage), nfresh := (project cursor nfresh), nresult := (project cursor nresult), level := (project cursor level), length := length, resume := (project cursor resume), cleanup := (project cursor cleanup), byteValue := (project cursor byteValue), nested := (project cursor nested), active := (project cursor active)}) purpose), value := (project state value), valueOwned := (project state valueOwned), valueUnits := (project state valueUnits), oldRoot := (project state oldRoot), draining := (project state draining), control := (project state control), ownsReady := (project state ownsReady), mode := (project state mode), cancelStarted := (project state cancelStarted), sequenceCleanup := (project state sequenceCleanup), delta := (project state delta), operationDelta := (project state operationDelta), overflowEvent := (project state overflowEvent)})
+    | Uorc.Core.RuntimeMachineEngine::Pending.builder cursor purpose => (record Uorc.Core.RuntimeMachineEngine::State {arena := (project state arena), program := (project state program), caller := (project state caller), budget := (project state budget), semanticBudget := (project state semanticBudget), semanticLedger := (project state semanticLedger), semanticError := (project state semanticError), usage := (project state usage), disposition := (project state disposition), frames := (project state frames), pending := (ctor Uorc.Core.RuntimeMachineEngine::Pending.builder (record Uorc.Core.RuntimeByteBuilder::Cursor {phase := (project cursor phase), mode := (project cursor mode), builder := (project cursor builder), carry := (project cursor carry), oldLeft := (project cursor oldLeft), oldRight := (project cursor oldRight), reservation := (project cursor reservation), leaf := (project cursor leaf), ncapture := (project cursor ncapture), ngarbage := (project cursor ngarbage), nfresh := (project cursor nfresh), nresult := (project cursor nresult), level := (project cursor level), length := length, resume := (project cursor resume), cleanup := (project cursor cleanup), byteValue := (project cursor byteValue), nested := (project cursor nested), active := (project cursor active)}) purpose), value := (project state value), valueOwned := (project state valueOwned), valueUnits := (project state valueUnits), oldRoot := (project state oldRoot), draining := (project state draining), control := (project state control), ownsReady := (project state ownsReady), mode := (project state mode), cancelStarted := (project state cancelStarted), sequenceCleanup := (project state sequenceCleanup), delta := (project state delta), operationDelta := (project state operationDelta), overflowEvent := (project state overflowEvent)})
     | Uorc.Core.RuntimeMachineEngine::Pending.none => state
     | Uorc.Core.RuntimeMachineEngine::Pending.table cursor purpose => state
     | Uorc.Core.RuntimeMachineEngine::Pending.sequence cursor purpose => state
@@ -1405,7 +1407,7 @@ definition{
   ],
   result: (Result Unit ScenarioError),
   body: (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
-    | Result.ok unexpectedReady => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
+    | Result.ok unexpectedReadyTransfer => (let unexpectedReady : Uorc.Core.RuntimeProgram::Ready := (project unexpectedReadyTransfer ready); (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch)))
     | Result.error refusal => (if (Uorc.Core.RuntimeMachineTests::isOperationalAddress refusal) then (let extended : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::extend cleaned (record Uorc.Core.RuntimeResources::Budget {maxWork := (0 : UInt64), maxOwnedBytes := (0 : UInt64), maxOutputBytes := (0 : UInt64), maxFrames := (0 : UInt64)})); (if (if (sameTerminalLedgerProjection cleaned extended) then (if (frozenOperationLedger extended prefix event) then (match (project extended disposition)
       | Uorc.Core.RuntimeMachine::Disposition.cleaned => true
       | Uorc.Core.RuntimeMachine::Disposition.running => false
@@ -1420,9 +1422,9 @@ definition{
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
         | Result.ok noneRefused => (match (Uorc.Core.RuntimeMachineEngine::takeReady (project receipt state))
           | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-          | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
+          | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (16 : UInt64))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (16 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (16 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine refusal)))),
+            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (16 : UInt64)))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (16 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (16 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine refusal)))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -1476,7 +1478,7 @@ definition{
           | Uorc.Core.RuntimeMachineEngine::Pending.none => false
           | Uorc.Core.RuntimeMachineEngine::Pending.table cursor purpose => false
           | Uorc.Core.RuntimeMachineEngine::Pending.sequence cursor purpose => false
-          | Uorc.Core.RuntimeMachineEngine::Pending.store cursor => false) then (let prefix : Uorc.Core.Heap::Delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (project (project before operationDelta) allocatedBytes), releasedBytes := (project (project before operationDelta) releasedBytes), allocatedEntries := (18446744073709551615 : UInt64), releasedEntries := (project (project before operationDelta) releasedEntries), retainedEdges := (project (project before operationDelta) retainedEdges), droppedEdges := (project (project before operationDelta) droppedEdges), retainedRoots := (project (project before operationDelta) retainedRoots), droppedRoots := (project (project before operationDelta) droppedRoots), work := (project (project before operationDelta) work)}); (let forged : Uorc.Core.RuntimeMachineEngine::State := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project before arena), program := (project before program), caller := (project before caller), budget := (project before budget), usage := (project before usage), disposition := (project before disposition), frames := (project before frames), pending := (project before pending), value := (project before value), valueOwned := (project before valueOwned), valueUnits := (project before valueUnits), oldRoot := (project before oldRoot), draining := (project before draining), control := (project before control), ownsReady := (project before ownsReady), mode := (project before mode), cancelStarted := (project before cancelStarted), sequenceCleanup := (project before sequenceCleanup), delta := (project before delta), operationDelta := prefix, overflowEvent := (project before overflowEvent)}); (checkAchievedOperationLedgerOverflow forged (Uorc.Core.RuntimeMachineEngine::tick forged) prefix))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch)))))),
+          | Uorc.Core.RuntimeMachineEngine::Pending.store cursor => false) then (let prefix : Uorc.Core.Heap::Delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (project (project before operationDelta) allocatedBytes), releasedBytes := (project (project before operationDelta) releasedBytes), allocatedEntries := (18446744073709551615 : UInt64), releasedEntries := (project (project before operationDelta) releasedEntries), retainedEdges := (project (project before operationDelta) retainedEdges), droppedEdges := (project (project before operationDelta) droppedEdges), retainedRoots := (project (project before operationDelta) retainedRoots), droppedRoots := (project (project before operationDelta) droppedRoots), work := (project (project before operationDelta) work)}); (let forged : Uorc.Core.RuntimeMachineEngine::State := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project before arena), program := (project before program), caller := (project before caller), budget := (project before budget), semanticBudget := (project before semanticBudget), semanticLedger := (project before semanticLedger), semanticError := (project before semanticError), usage := (project before usage), disposition := (project before disposition), frames := (project before frames), pending := (project before pending), value := (project before value), valueOwned := (project before valueOwned), valueUnits := (project before valueUnits), oldRoot := (project before oldRoot), draining := (project before draining), control := (project before control), ownsReady := (project before ownsReady), mode := (project before mode), cancelStarted := (project before cancelStarted), sequenceCleanup := (project before sequenceCleanup), delta := (project before delta), operationDelta := prefix, overflowEvent := (project before overflowEvent)}); (checkAchievedOperationLedgerOverflow forged (Uorc.Core.RuntimeMachineEngine::tick forged) prefix))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch)))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -1496,9 +1498,9 @@ definition{
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
         | Result.ok cleaned => (if (Uorc.Core.HeapAudit::auditRoots (project cleaned arena) (cons (project transferred handle) (Uorc.Core.RuntimeMachineEngine::ownedRoots cleaned))) then (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
           | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-          | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (cons (project transferred handle) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller))) (project ready arena))
+          | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (cons (project transferred handle) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller))) (project ready arena))
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (17 : UInt64)))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (17 : UInt64))))))),
+            | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (17 : UInt64))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (17 : UInt64))))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -1576,9 +1578,9 @@ definition{
               | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
               | Result.ok cleaned => (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
                 | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-                | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
+                | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
                   | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-                  | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (17 : UInt64))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (17 : UInt64)))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine actualFailure)))
+                  | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (17 : UInt64)))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (17 : UInt64)))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine actualFailure)))
             | Uorc.Core.RuntimeMachine::Disposition.running => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
             | Uorc.Core.RuntimeMachine::Disposition.cancelling => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
             | Uorc.Core.RuntimeMachine::Disposition.completed output => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
@@ -1764,9 +1766,9 @@ definition{
                 | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
                 | Result.ok cleaned => (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
                   | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-                  | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
+                  | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
                     | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-                    | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (19 : UInt64))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (19 : UInt64)))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine capacityFailure)))
+                    | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (19 : UInt64)))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (19 : UInt64)))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine capacityFailure)))
               | Uorc.Core.RuntimeMachine::Disposition.running => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
               | Uorc.Core.RuntimeMachine::Disposition.cancelling => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
               | Uorc.Core.RuntimeMachine::Disposition.completed output => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
@@ -1892,9 +1894,9 @@ definition{
     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
     | Result.ok cleaned => (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
       | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-      | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
+      | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-        | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (21 : UInt64))))))),
+        | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (21 : UInt64)))))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -2156,8 +2158,8 @@ definition{
   parameters: [consumer : AdmittedOutputConsumer, transition : Uorc.Core.Heap::Transition],
   result: AdmittedConsumerEvent,
   body: (match (Uorc.Core.RuntimeResources::observeArena (project (project consumer machine) budget) (project (project consumer machine) usage) (project transition arena))
-    | Result.error failure => (ctor AdmittedConsumerEvent.failed (ctor ScenarioError.suspended failure) (record AdmittedOutputConsumer {machine := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project transition arena), program := (project (project consumer machine) program), caller := (project (project consumer machine) caller), budget := (project (project consumer machine) budget), usage := (project (project consumer machine) usage), disposition := (project (project consumer machine) disposition), frames := (project (project consumer machine) frames), pending := (project (project consumer machine) pending), value := (project (project consumer machine) value), valueOwned := (project (project consumer machine) valueOwned), valueUnits := (project (project consumer machine) valueUnits), oldRoot := (project (project consumer machine) oldRoot), draining := (project (project consumer machine) draining), control := (project (project consumer machine) control), ownsReady := (project (project consumer machine) ownsReady), mode := (project (project consumer machine) mode), cancelStarted := (project (project consumer machine) cancelStarted), sequenceCleanup := (project (project consumer machine) sequenceCleanup), delta := (project transition delta), operationDelta := (project (project consumer machine) operationDelta), overflowEvent := (project (project consumer machine) overflowEvent)}), output := (Uorc.Core.RuntimeValue::nullHandle), releaseStarted := true}))
-    | Result.ok observed => (ctor AdmittedConsumerEvent.pending (record AdmittedOutputConsumer {machine := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project transition arena), program := (project (project consumer machine) program), caller := (project (project consumer machine) caller), budget := (project (project consumer machine) budget), usage := observed, disposition := (project (project consumer machine) disposition), frames := (project (project consumer machine) frames), pending := (project (project consumer machine) pending), value := (project (project consumer machine) value), valueOwned := (project (project consumer machine) valueOwned), valueUnits := (project (project consumer machine) valueUnits), oldRoot := (project (project consumer machine) oldRoot), draining := (project (project consumer machine) draining), control := (project (project consumer machine) control), ownsReady := (project (project consumer machine) ownsReady), mode := (project (project consumer machine) mode), cancelStarted := (project (project consumer machine) cancelStarted), sequenceCleanup := (project (project consumer machine) sequenceCleanup), delta := (project transition delta), operationDelta := (project (project consumer machine) operationDelta), overflowEvent := (project (project consumer machine) overflowEvent)}), output := (Uorc.Core.RuntimeValue::nullHandle), releaseStarted := true}))),
+    | Result.error failure => (ctor AdmittedConsumerEvent.failed (ctor ScenarioError.suspended failure) (record AdmittedOutputConsumer {machine := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project transition arena), program := (project (project consumer machine) program), caller := (project (project consumer machine) caller), budget := (project (project consumer machine) budget), semanticBudget := (project (project consumer machine) semanticBudget), semanticLedger := (project (project consumer machine) semanticLedger), semanticError := (project (project consumer machine) semanticError), usage := (project (project consumer machine) usage), disposition := (project (project consumer machine) disposition), frames := (project (project consumer machine) frames), pending := (project (project consumer machine) pending), value := (project (project consumer machine) value), valueOwned := (project (project consumer machine) valueOwned), valueUnits := (project (project consumer machine) valueUnits), oldRoot := (project (project consumer machine) oldRoot), draining := (project (project consumer machine) draining), control := (project (project consumer machine) control), ownsReady := (project (project consumer machine) ownsReady), mode := (project (project consumer machine) mode), cancelStarted := (project (project consumer machine) cancelStarted), sequenceCleanup := (project (project consumer machine) sequenceCleanup), delta := (project transition delta), operationDelta := (project (project consumer machine) operationDelta), overflowEvent := (project (project consumer machine) overflowEvent)}), output := (Uorc.Core.RuntimeValue::nullHandle), releaseStarted := true}))
+    | Result.ok observed => (ctor AdmittedConsumerEvent.pending (record AdmittedOutputConsumer {machine := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project transition arena), program := (project (project consumer machine) program), caller := (project (project consumer machine) caller), budget := (project (project consumer machine) budget), semanticBudget := (project (project consumer machine) semanticBudget), semanticLedger := (project (project consumer machine) semanticLedger), semanticError := (project (project consumer machine) semanticError), usage := observed, disposition := (project (project consumer machine) disposition), frames := (project (project consumer machine) frames), pending := (project (project consumer machine) pending), value := (project (project consumer machine) value), valueOwned := (project (project consumer machine) valueOwned), valueUnits := (project (project consumer machine) valueUnits), oldRoot := (project (project consumer machine) oldRoot), draining := (project (project consumer machine) draining), control := (project (project consumer machine) control), ownsReady := (project (project consumer machine) ownsReady), mode := (project (project consumer machine) mode), cancelStarted := (project (project consumer machine) cancelStarted), sequenceCleanup := (project (project consumer machine) sequenceCleanup), delta := (project transition delta), operationDelta := (project (project consumer machine) operationDelta), overflowEvent := (project (project consumer machine) overflowEvent)}), output := (Uorc.Core.RuntimeValue::nullHandle), releaseStarted := true}))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -2168,7 +2170,7 @@ definition{
   result: AdmittedConsumerEvent,
   body: (match (Uorc.Core.RuntimeResources::charge (project (project consumer machine) budget) (project (project consumer machine) usage) (record Uorc.Core.RuntimeResources::Event {work := (if (project consumer releaseStarted) then (if (Uorc.Core.Heap::isReleasing (project (project consumer machine) arena)) then (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)) else (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.acknowledgment))) else (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease))), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
     | Result.error failure => (ctor AdmittedConsumerEvent.failed (ctor ScenarioError.suspended failure) consumer)
-    | Result.ok charged => (let accepted : AdmittedOutputConsumer := (record AdmittedOutputConsumer {machine := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project (project consumer machine) arena), program := (project (project consumer machine) program), caller := (project (project consumer machine) caller), budget := (project (project consumer machine) budget), usage := charged, disposition := (project (project consumer machine) disposition), frames := (project (project consumer machine) frames), pending := (project (project consumer machine) pending), value := (project (project consumer machine) value), valueOwned := (project (project consumer machine) valueOwned), valueUnits := (project (project consumer machine) valueUnits), oldRoot := (project (project consumer machine) oldRoot), draining := (project (project consumer machine) draining), control := (project (project consumer machine) control), ownsReady := (project (project consumer machine) ownsReady), mode := (project (project consumer machine) mode), cancelStarted := (project (project consumer machine) cancelStarted), sequenceCleanup := (project (project consumer machine) sequenceCleanup), delta := (Uorc.Core.RuntimeSequence::zeroDelta), operationDelta := (project (project consumer machine) operationDelta), overflowEvent := (project (project consumer machine) overflowEvent)}), output := (project consumer output), releaseStarted := (project consumer releaseStarted)}); (if (project accepted releaseStarted) then (if (Uorc.Core.Heap::isReleasing (project (project accepted machine) arena)) then (match (Uorc.Core.Heap::releaseStep (project (project accepted machine) arena))
+    | Result.ok charged => (let accepted : AdmittedOutputConsumer := (record AdmittedOutputConsumer {machine := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project (project consumer machine) arena), program := (project (project consumer machine) program), caller := (project (project consumer machine) caller), budget := (project (project consumer machine) budget), semanticBudget := (project (project consumer machine) semanticBudget), semanticLedger := (project (project consumer machine) semanticLedger), semanticError := (project (project consumer machine) semanticError), usage := charged, disposition := (project (project consumer machine) disposition), frames := (project (project consumer machine) frames), pending := (project (project consumer machine) pending), value := (project (project consumer machine) value), valueOwned := (project (project consumer machine) valueOwned), valueUnits := (project (project consumer machine) valueUnits), oldRoot := (project (project consumer machine) oldRoot), draining := (project (project consumer machine) draining), control := (project (project consumer machine) control), ownsReady := (project (project consumer machine) ownsReady), mode := (project (project consumer machine) mode), cancelStarted := (project (project consumer machine) cancelStarted), sequenceCleanup := (project (project consumer machine) sequenceCleanup), delta := (Uorc.Core.RuntimeSequence::zeroDelta), operationDelta := (project (project consumer machine) operationDelta), overflowEvent := (project (project consumer machine) overflowEvent)}), output := (project consumer output), releaseStarted := (project consumer releaseStarted)}); (if (project accepted releaseStarted) then (if (Uorc.Core.Heap::isReleasing (project (project accepted machine) arena)) then (match (Uorc.Core.Heap::releaseStep (project (project accepted machine) arena))
       | Result.error failure => (ctor AdmittedConsumerEvent.failed (ctor ScenarioError.engine (ctor Uorc.Core.RuntimeMachine::Failure.heap failure)) accepted)
       | Result.ok transition => (admittedConsumerTransition accepted transition)) else (ctor AdmittedConsumerEvent.done (project accepted machine))) else (match (Uorc.Core.Heap::release (project (project accepted machine) arena) (project accepted output))
       | Result.error failure => (ctor AdmittedConsumerEvent.failed (ctor ScenarioError.engine (ctor Uorc.Core.RuntimeMachine::Failure.heap failure)) accepted)
@@ -2225,9 +2227,9 @@ definition{
                     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
                     | Result.ok cleaned => (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
                       | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-                      | Result.ok returned => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project returned program) (project returned caller)) (project returned arena))
+                      | Result.ok returnedTransfer => (let returned : Uorc.Core.RuntimeProgram::Ready := (project returnedTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project returned program) (project returned caller)) (project returned arena))
                         | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-                        | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (32 : UInt64))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (32 : UInt64)))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (33 : UInt64)))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (34 : UInt64)))),
+                        | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (32 : UInt64)))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (32 : UInt64)))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (33 : UInt64)))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (34 : UInt64)))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -2267,6 +2269,142 @@ definition{
 }
 
 definition{
+  name: commonWordAppend,
+  parameters: [left : (List UInt64), right : (List UInt64)],
+  result: (List UInt64),
+  body: (match left
+    | List.nil => right
+    | List.cons head tail => (cons head (commonWordAppend tail right))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: left
+}
+
+definition{
+  name: commonCoreStageTag,
+  parameters: [stage : Uorc.Core.RuntimeAdmission::Stage],
+  result: UInt64,
+  body: (match stage
+    | Uorc.Core.RuntimeAdmission::Stage.awaiting => (0 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.dispatch => (1 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.ack => (2 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.parameterType => (3 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.snapshotParameters => (4 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.scalar => (5 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.capture => (6 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.captureUse => (7 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.literalStart => (8 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.literalSpan => (9 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.literalRead => (10 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.literalFinish => (11 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.literalJoin => (12 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.literalJoinDone => (13 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.literalDropLeaf => (14 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.instructionField index => (15 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.instructionAttach => (16 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.instructionType => (17 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.instructionCleanup index => (18 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.blockReturn => (19 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.lifetime => (20 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.bucketAppend => (21 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.bucketField index => (22 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.bucketAttach => (23 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.bucketCleanup => (24 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.bucketCleanupSlots => (25 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.blockField index => (26 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.blockAttach => (27 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.blockCount => (28 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.blockCleanup index => (29 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.sealCheck => (30 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.sealFinish => (31 : UInt64)
+    | Uorc.Core.RuntimeAdmission::Stage.ready => (32 : UInt64)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: commonCoreTaskSnapshot,
+  parameters: [cursor : Uorc.Core.RuntimeAdmission::Cursor],
+  result: (List UInt64),
+  body: (match (project cursor task)
+    | Uorc.Core.RuntimeAdmission::Task.stage after => (cons (0 : UInt64) (cons (commonCoreStageTag after) (cons (0 : UInt64) (cons (0 : UInt64) (nil UInt64)))))
+    | Uorc.Core.RuntimeAdmission::Task.table native slot after => (cons (1 : UInt64) (cons (commonCoreStageTag after) (cons (match (project native cursor)
+      | Option.none => (0 : UInt64)
+      | Option.some tableCursor => (project tableCursor depth)) (cons (match (project native cursor)
+      | Option.none => (0 : UInt64)
+      | Option.some tableCursor => (project tableCursor key)) (nil UInt64)))))
+    | Uorc.Core.RuntimeAdmission::Task.record native slot after => (cons (2 : UInt64) (cons (commonCoreStageTag after) (cons (0 : UInt64) (cons (0 : UInt64) (nil UInt64)))))
+    | Uorc.Core.RuntimeAdmission::Task.beginRelease root after => (cons (3 : UInt64) (cons (commonCoreStageTag after) (cons (0 : UInt64) (cons (0 : UInt64) (nil UInt64)))))
+    | Uorc.Core.RuntimeAdmission::Task.draining after => (cons (4 : UInt64) (cons (commonCoreStageTag after) (cons (0 : UInt64) (cons (0 : UInt64) (nil UInt64)))))
+    | Uorc.Core.RuntimeAdmission::Task.sequence native after => (cons (5 : UInt64) (cons (commonCoreStageTag after) (cons (project native phase) (cons (0 : UInt64) (nil UInt64)))))
+    | Uorc.Core.RuntimeAdmission::Task.builder native finishing after => (cons (6 : UInt64) (cons (commonCoreStageTag after) (cons (project native phase) (cons (0 : UInt64) (nil UInt64)))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: commonCoreSnapshot,
+  parameters: [cursor : Uorc.Core.RuntimeAdmission::Cursor],
+  result: (List UInt64),
+  body: (commonWordAppend (cons (project (project cursor arena) nextHandle) (cons (project (project cursor arena) ownedBytes) (cons (project cursor pendingSlot) (cons (project cursor bucketIndex) (cons (project cursor bucketCount) (cons (match (project cursor lifetimeCursor)
+    | Option.none => (0 : UInt64)
+    | Option.some lifetime => (project lifetime nextSlot)) (nil UInt64))))))) (commonCoreTaskSnapshot cursor)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: commonCreditSnapshot,
+  parameters: [cursor : Uorc.Core.RuntimeAdmissionCredit::Cursor, credits : UInt64],
+  result: (List UInt64),
+  body: (commonWordAppend (cons credits (cons (project cursor activeCost) (cons (project cursor paidCost) (cons (project cursor consumedCredits) (cons (project cursor attemptedOperations) (cons (project (project cursor usage) work) (nil UInt64))))))) (match (project cursor intent)
+    | Uorc.Core.RuntimeAdmissionCredit::Intent.execute native => (commonCoreSnapshot native)
+    | Uorc.Core.RuntimeAdmissionCredit::Intent.offer native event => (commonCoreSnapshot native)
+    | Uorc.Core.RuntimeAdmissionCredit::Intent.initialize cap heap basis caller usage => (nil UInt64)
+    | Uorc.Core.RuntimeAdmissionCredit::Intent.terminal step => (match step
+      | Uorc.Core.RuntimeAdmission::Step.pending native => (commonCoreSnapshot native)
+      | Uorc.Core.RuntimeAdmission::Step.awaiting native => (commonCoreSnapshot native)
+      | Uorc.Core.RuntimeAdmission::Step.failed failure native => (commonCoreSnapshot native)
+      | Uorc.Core.RuntimeAdmission::Step.ready ready => (nil UInt64)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: driveCommonCredit,
+  parameters: [fuel : Nat, cursor : Uorc.Core.RuntimeAdmissionCredit::Cursor, credits : UInt64],
+  result: (Result Uorc.Core.RuntimeAdmissionCredit::Funded ScenarioError),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeAdmissionCredit::Funded, ScenarioError] (ctor ScenarioError.diagnostic (0 : UInt64) (commonCreditSnapshot cursor credits)))
+    | Nat.succ rest => (let funded : Uorc.Core.RuntimeAdmissionCredit::Funded := (Uorc.Core.RuntimeAdmissionCredit::fund cursor credits); (match (project funded event)
+      | Uorc.Core.RuntimeAdmissionCredit::Event.pending next => (driveCommonCredit rest next (project funded remainingCredits))
+      | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting next => (ctor Result.ok [Uorc.Core.RuntimeAdmissionCredit::Funded, ScenarioError] funded)
+      | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => (ctor Result.ok [Uorc.Core.RuntimeAdmissionCredit::Funded, ScenarioError] funded)
+      | Uorc.Core.RuntimeAdmissionCredit::Event.failed failure failedCursor ledger => (ctor Result.error [Uorc.Core.RuntimeAdmissionCredit::Funded, ScenarioError] (ctor ScenarioError.audit (22 : UInt64)))
+      | Uorc.Core.RuntimeAdmissionCredit::Event.rejected failure failedCursor => (ctor Result.error [Uorc.Core.RuntimeAdmissionCredit::Funded, ScenarioError] (ctor ScenarioError.audit (23 : UInt64)))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: fuel
+}
+
+definition{
+  name: commonFuelAt,
+  parameters: [stage : UInt64, failure : ScenarioError],
+  result: ScenarioError,
+  body: (match failure
+    | ScenarioError.fuel => (ctor ScenarioError.audit stage)
+    | ScenarioError.fixture value => (ctor ScenarioError.fixture value)
+    | ScenarioError.engine value => (ctor ScenarioError.engine value)
+    | ScenarioError.suspended value => (ctor ScenarioError.suspended value)
+    | ScenarioError.mismatch => (ctor ScenarioError.mismatch)
+    | ScenarioError.audit value => (ctor ScenarioError.audit value)
+    | ScenarioError.reference value => (ctor ScenarioError.reference value)
+    | ScenarioError.diagnostic prior values => (ctor ScenarioError.diagnostic stage values)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
   name: commonBoundaryFailureCode,
   parameters: [failure : Uorc.Core.RuntimeAdmissionCreditBoundary::Error],
   result: UInt64,
@@ -2292,7 +2430,7 @@ definition{
   parameters: [fuel : Nat, event : Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent],
   result: (Result Uorc.Core.RuntimeAdmissionCredit::Cursor ScenarioError),
   body: (match fuel
-    | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeAdmissionCredit::Cursor, ScenarioError] (ctor ScenarioError.fuel))
+    | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeAdmissionCredit::Cursor, ScenarioError] (ctor ScenarioError.audit (430000 : UInt64)))
     | Nat.succ rest => (match event
       | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.restored cursor => (ctor Result.ok [Uorc.Core.RuntimeAdmissionCredit::Cursor, ScenarioError] cursor)
       | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.pending returning => (if (Uorc.Core.HeapAudit::auditRoots (project (project (project returning boundary) taken) arena) (Uorc.Core.RuntimeAdmissionCreditBoundary::returnRootInventory returning)) then (returnCommonBoundary rest (Uorc.Core.RuntimeAdmissionCreditBoundary::returnStep returning)) else (ctor Result.error [Uorc.Core.RuntimeAdmissionCredit::Cursor, ScenarioError] (ctor ScenarioError.audit (28 : UInt64))))
@@ -2323,7 +2461,7 @@ definition{
   ],
   result: (Result Uorc.Wire.ProgramParse::Transition ScenarioError),
   body: (match fuel
-    | Nat.zero => (ctor Result.error [Uorc.Wire.ProgramParse::Transition, ScenarioError] (ctor ScenarioError.fuel))
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ProgramParse::Transition, ScenarioError] (ctor ScenarioError.audit (440000 : UInt64)))
     | Nat.succ rest => (if (Uorc.Core.HeapAudit::auditRoots (project (project transition session) arena) (Uorc.Core.RuntimeAdmissionBoundary::rootInventory (project detached state) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project caller input), archive := (project caller archive), search := (project caller search), checkpoint := (project caller checkpoint), certificate := (project caller certificate), verification := (project caller verification), wire := (project (Uorc.Wire.ProgramParse::roots (project transition session)) wire)}))) then (if (Uorc.Core.Heap::isReleasing (project (project transition session) arena)) then (match (Uorc.Wire.ProgramParse::prepay (budget) (project transition session))
       | Result.error failure => (ctor Result.error [Uorc.Wire.ProgramParse::Transition, ScenarioError] (ctor ScenarioError.suspended failure))
       | Result.ok paid => (match (Uorc.Core.Heap::releaseStep (project paid arena))
@@ -2367,7 +2505,7 @@ definition{
   ],
   result: (Result Uorc.Core.RuntimeProgram::Ready ScenarioError),
   body: (match fuel
-    | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.fuel))
+    | Nat.zero => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (450000 : UInt64)))
     | Nat.succ rest => (let transition : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::cleanup (budget) session); (let achieved : Uorc.Wire.ProgramParse::Session := (project transition session); (if (Uorc.Core.HeapAudit::auditRoots (project achieved arena) (Uorc.Core.RuntimeProgram::rootInventory program (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project caller input), archive := (project caller archive), search := (project caller search), checkpoint := (project caller checkpoint), certificate := (project caller certificate), verification := (project caller verification), wire := (project (Uorc.Wire.ProgramParse::roots achieved) wire)}))) then (match (project transition signal)
       | Uorc.Wire.ProgramParse::Signal.clean => (ctor Result.ok [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (record Uorc.Core.RuntimeProgram::Ready {arena := (project achieved arena), program := program, caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project caller input), archive := (project caller archive), search := (project caller search), checkpoint := (project caller checkpoint), certificate := (project caller certificate), verification := (project caller verification), wire := (project (Uorc.Wire.ProgramParse::roots achieved) wire)}), usage := (project achieved usage)}))
       | Uorc.Wire.ProgramParse::Signal.advanced => (cleanCommonReadyParser rest program caller achieved)
@@ -2416,8 +2554,8 @@ definition{
       | Option.none => (match (project parser pending)
         | Option.some event => (match (Uorc.Core.RuntimeAdmissionCredit::offer cursor event)
           | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.audit (48 : UInt64)))
-          | Result.ok offered => (match (driveAdmittedCredits (ctor Nat.succ rest) offered (100000000 : UInt64))
-            | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] failure)
+          | Result.ok offered => (match (driveCommonCredit (ctor Nat.succ rest) offered (100000000 : UInt64))
+            | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (commonFuelAt (Uorc.Core.Heap::wordAdd (420000 : UInt64) (Uorc.Wire.ProgramParse::phaseCode (project parser phase))) failure))
             | Result.ok funded => (match (project funded event)
               | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => (acknowledgeCommonReadyParser (ctor Nat.succ rest) ready parser)
               | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting next => (match (commonParserAction (ctor Nat.succ rest) next parser (3 : UInt64) image length)
@@ -2447,20 +2585,20 @@ definition{
   ],
   result: (Result Unit ScenarioError),
   body: (if (Uorc.Core.HeapAudit::auditRoots (project ready arena) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller))) then (match (auditDrive testFuel (Uorc.Core.RuntimeMachineEngine::start ready (budget)) (nil Uorc.Core.RuntimeValue::Handle))
-    | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+    | Result.error failure => (ctor Result.error [Unit, ScenarioError] (commonFuelAt (460000 : UInt64) failure))
     | Result.ok finished => (match (checkOutput finished expected)
-      | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+      | Result.error failure => (ctor Result.error [Unit, ScenarioError] (commonFuelAt (490000 : UInt64) failure))
       | Result.ok checkedOutput => (match (Uorc.Core.RuntimeMachineEngine::takeOutput finished)
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
         | Result.ok transferred => (match (driveAdmittedConsumer testFuel (record AdmittedOutputConsumer {machine := (project transferred state), output := (project transferred handle), releaseStarted := false}))
-          | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+          | Result.error failure => (ctor Result.error [Unit, ScenarioError] (commonFuelAt (470000 : UInt64) failure))
           | Result.ok acknowledged => (match (auditDrive testFuel (Uorc.Core.RuntimeMachineEngine::cancel acknowledged) (nil Uorc.Core.RuntimeValue::Handle))
-            | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+            | Result.error failure => (ctor Result.error [Unit, ScenarioError] (commonFuelAt (480000 : UInt64) failure))
             | Result.ok cleaned => (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
               | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-              | Result.ok returned => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project returned program) (project returned caller)) (project returned arena))
+              | Result.ok returnedTransfer => (let returned : Uorc.Core.RuntimeProgram::Ready := (project returnedTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project returned program) (project returned caller)) (project returned arena))
                 | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-                | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (51 : UInt64))))))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (52 : UInt64)))),
+                | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (51 : UInt64)))))))))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (52 : UInt64)))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -2480,8 +2618,8 @@ definition{
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
             | Result.ok image => (match (Uorc.Core.RuntimeResources::observeArena (budget) (Uorc.Core.RuntimeResources::zeroUsage) (project image arena))
               | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.suspended failure))
-              | Result.ok initialUsage => (match (driveAdmittedCredits testFuel (Uorc.Core.RuntimeAdmissionCredit::start (budget) (project image arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project image handle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) initialUsage) (100000000 : UInt64))
-                | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
+              | Result.ok initialUsage => (match (driveCommonCredit testFuel (Uorc.Core.RuntimeAdmissionCredit::start (budget) (project image arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project image handle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) initialUsage) (100000000 : UInt64))
+                | Result.error failure => (ctor Result.error [Unit, ScenarioError] (commonFuelAt (410000 : UInt64) failure))
                 | Result.ok initialized => (match (project initialized event)
                   | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting awaiting => (match (driveCommonParser testFuel awaiting (Uorc.Wire.ProgramParse::initialState) (project image handle) length false false)
                     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
@@ -2825,7 +2963,7 @@ definition{
             | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
             | Result.ok queued => (match (Uorc.Core.Heap::totalOwnedBytes (project queued arena))
               | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mismatch))
-              | Result.ok beforeBytes => (let started : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::start (record Uorc.Core.RuntimeProgram::Ready {arena := (project queued arena), program := (record Uorc.Core.RuntimeProgram::Program {blocks := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockIndex)))), basis := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))), entry := (0 : UInt64), blockCount := (0 : UInt64)}), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project child handle), archive := (project other handle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}), usage := (Uorc.Core.RuntimeResources::zeroUsage)}) (budget)); (let before : Uorc.Core.RuntimeMachineEngine::State := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project started arena), program := (project started program), caller := (project started caller), budget := (project started budget), usage := (Uorc.Core.RuntimeResources::zeroUsage), disposition := (project started disposition), frames := (project started frames), pending := (project started pending), value := (project started value), valueOwned := (project started valueOwned), valueUnits := (project started valueUnits), oldRoot := (project started oldRoot), draining := true, control := (project started control), ownsReady := (project started ownsReady), mode := (project started mode), cancelStarted := (project started cancelStarted), sequenceCleanup := (project started sequenceCleanup), delta := (project started delta), operationDelta := (project started operationDelta), overflowEvent := (project started overflowEvent)}); (let after : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick before); (if (if (prim equal beforeBytes (128 : UInt64) : Bool) then (if (prim equal (project (project queued arena) ownedBytes) (112 : UInt64) : Bool) then (if (prim equal (project (project after arena) ownedBytes) (112 : UInt64) : Bool) then (if (prim equal (project (project after usage) peakOwnedBytes) (128 : UInt64) : Bool) then (if (prim equal (project (project after usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots (project before arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots before)) then (if (Uorc.Core.HeapAudit::auditRoots (project after arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots after)) then true else false) else false) else false) else false) else false) else false) else false) then (finishSharedFeeControl after) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (64 : UInt64))))))))))))),
+              | Result.ok beforeBytes => (let started : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::start (record Uorc.Core.RuntimeProgram::Ready {arena := (project queued arena), program := (record Uorc.Core.RuntimeProgram::Program {blocks := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockIndex)))), basis := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))), entry := (0 : UInt64), blockCount := (0 : UInt64)}), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project child handle), archive := (project other handle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}), usage := (Uorc.Core.RuntimeResources::zeroUsage)}) (budget)); (let before : Uorc.Core.RuntimeMachineEngine::State := (record Uorc.Core.RuntimeMachineEngine::State {arena := (project started arena), program := (project started program), caller := (project started caller), budget := (project started budget), semanticBudget := (project started semanticBudget), semanticLedger := (project started semanticLedger), semanticError := (project started semanticError), usage := (Uorc.Core.RuntimeResources::zeroUsage), disposition := (project started disposition), frames := (project started frames), pending := (project started pending), value := (project started value), valueOwned := (project started valueOwned), valueUnits := (project started valueUnits), oldRoot := (project started oldRoot), draining := true, control := (project started control), ownsReady := (project started ownsReady), mode := (project started mode), cancelStarted := (project started cancelStarted), sequenceCleanup := (project started sequenceCleanup), delta := (project started delta), operationDelta := (project started operationDelta), overflowEvent := (project started overflowEvent)}); (let after : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick before); (if (if (prim equal beforeBytes (128 : UInt64) : Bool) then (if (prim equal (project (project queued arena) ownedBytes) (112 : UInt64) : Bool) then (if (prim equal (project (project after arena) ownedBytes) (112 : UInt64) : Bool) then (if (prim equal (project (project after usage) peakOwnedBytes) (128 : UInt64) : Bool) then (if (prim equal (project (project after usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots (project before arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots before)) then (if (Uorc.Core.HeapAudit::auditRoots (project after arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots after)) then true else false) else false) else false) else false) else false) else false) else false) then (finishSharedFeeControl after) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (64 : UInt64))))))))))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -2868,7 +3006,7 @@ definition{
   result: (Result Unit ScenarioError),
   body: (match (startFixture (cons (record Uorc.Core.RuntimeMachineFixtures::Block {parameters := (nil Uorc.Core.RuntimeValue::RuntimeType), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence), instructions := (cons (record Uorc.Core.RuntimeMachineFixtures::Instruction {opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), capturesA := (nil UInt64), capturesB := (nil UInt64), literal := 0x01}) (nil Uorc.Core.RuntimeMachineFixtures::Instruction)), returnDistance := (1 : UInt64), initialRelease := (nil UInt64), releaseAfter := (nil (List UInt64))}) (nil Uorc.Core.RuntimeMachineFixtures::Block)) (0 : UInt64) (nil Bytes))
     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
-    | Result.ok initial => (let forged : Uorc.Core.RuntimeMachineEngine::State := (record Uorc.Core.RuntimeMachineEngine::State {arena := (record Uorc.Core.Heap::Arena {index := (project (project initial arena) index), nextHandle := (project (project initial arena) nextHandle), exhausted := (project (project initial arena) exhausted), ownedBytes := (project (project initial arena) ownedBytes), liveEntries := (project (project initial arena) liveEntries), maxOwnedBytes := (project (project initial arena) maxOwnedBytes), cursor := (record Uorc.Core.Heap::ReleaseCursor {pending := (project (project (project initial arena) cursor) pending), pendingCount := (18446744073709551615 : UInt64), rootStep := false})}), program := (project initial program), caller := (project initial caller), budget := (project initial budget), usage := (project initial usage), disposition := (project initial disposition), frames := (project initial frames), pending := (project initial pending), value := (project initial value), valueOwned := (project initial valueOwned), valueUnits := (project initial valueUnits), oldRoot := (project initial oldRoot), draining := (project initial draining), control := (project initial control), ownsReady := (project initial ownsReady), mode := (project initial mode), cancelStarted := (project initial cancelStarted), sequenceCleanup := (project initial sequenceCleanup), delta := (project initial delta), operationDelta := (project initial operationDelta), overflowEvent := (project initial overflowEvent)}); (let failed : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick forged); (if (if (isFailedPendingMetric failed) then (if (prim equal (project (project failed arena) nextHandle) (project (project initial arena) nextHandle) : Bool) then (if (prim equal (project (project failed arena) ownedBytes) (project (project initial arena) ownedBytes) : Bool) then (if (prim equal (project (project failed arena) liveEntries) (project (project initial arena) liveEntries) : Bool) then (if (prim equal (project (project failed usage) work) (Uorc.Core.Heap::wordAdd (project (project initial usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) : Bool) then (if (sameOperationDelta (project failed delta) (Uorc.Core.RuntimeSequence::zeroDelta)) then (if (Uorc.Core.HeapAudit::auditRoots (project initial arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots initial)) then true else false) else false) else false) else false) else false) else false) else false) then (let restored : Uorc.Core.RuntimeMachineEngine::State := (record Uorc.Core.RuntimeMachineEngine::State {arena := (record Uorc.Core.Heap::Arena {index := (project (project failed arena) index), nextHandle := (project (project failed arena) nextHandle), exhausted := (project (project failed arena) exhausted), ownedBytes := (project (project failed arena) ownedBytes), liveEntries := (project (project failed arena) liveEntries), maxOwnedBytes := (project (project failed arena) maxOwnedBytes), cursor := (record Uorc.Core.Heap::ReleaseCursor {pending := (project (project (project failed arena) cursor) pending), pendingCount := (0 : UInt64), rootStep := false})}), program := (project failed program), caller := (project failed caller), budget := (project failed budget), usage := (project failed usage), disposition := (project failed disposition), frames := (project failed frames), pending := (project failed pending), value := (project failed value), valueOwned := (project failed valueOwned), valueUnits := (project failed valueUnits), oldRoot := (project failed oldRoot), draining := (project failed draining), control := (project failed control), ownsReady := (project failed ownsReady), mode := (project failed mode), cancelStarted := (project failed cancelStarted), sequenceCleanup := (project failed sequenceCleanup), delta := (project failed delta), operationDelta := (project failed operationDelta), overflowEvent := (project failed overflowEvent)}); (if (Uorc.Core.HeapAudit::auditRoots (project restored arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots restored)) then (finishSharedFeeControl restored) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (65 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (65 : UInt64))))))),
+    | Result.ok initial => (let forged : Uorc.Core.RuntimeMachineEngine::State := (record Uorc.Core.RuntimeMachineEngine::State {arena := (record Uorc.Core.Heap::Arena {index := (project (project initial arena) index), nextHandle := (project (project initial arena) nextHandle), exhausted := (project (project initial arena) exhausted), ownedBytes := (project (project initial arena) ownedBytes), liveEntries := (project (project initial arena) liveEntries), maxOwnedBytes := (project (project initial arena) maxOwnedBytes), cursor := (record Uorc.Core.Heap::ReleaseCursor {pending := (project (project (project initial arena) cursor) pending), pendingCount := (18446744073709551615 : UInt64), rootStep := false})}), program := (project initial program), caller := (project initial caller), budget := (project initial budget), semanticBudget := (project initial semanticBudget), semanticLedger := (project initial semanticLedger), semanticError := (project initial semanticError), usage := (project initial usage), disposition := (project initial disposition), frames := (project initial frames), pending := (project initial pending), value := (project initial value), valueOwned := (project initial valueOwned), valueUnits := (project initial valueUnits), oldRoot := (project initial oldRoot), draining := (project initial draining), control := (project initial control), ownsReady := (project initial ownsReady), mode := (project initial mode), cancelStarted := (project initial cancelStarted), sequenceCleanup := (project initial sequenceCleanup), delta := (project initial delta), operationDelta := (project initial operationDelta), overflowEvent := (project initial overflowEvent)}); (let failed : Uorc.Core.RuntimeMachineEngine::State := (Uorc.Core.RuntimeMachineEngine::tick forged); (if (if (isFailedPendingMetric failed) then (if (prim equal (project (project failed arena) nextHandle) (project (project initial arena) nextHandle) : Bool) then (if (prim equal (project (project failed arena) ownedBytes) (project (project initial arena) ownedBytes) : Bool) then (if (prim equal (project (project failed arena) liveEntries) (project (project initial arena) liveEntries) : Bool) then (if (prim equal (project (project failed usage) work) (Uorc.Core.Heap::wordAdd (project (project initial usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) : Bool) then (if (sameOperationDelta (project failed delta) (Uorc.Core.RuntimeSequence::zeroDelta)) then (if (Uorc.Core.HeapAudit::auditRoots (project initial arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots initial)) then true else false) else false) else false) else false) else false) else false) else false) then (let restored : Uorc.Core.RuntimeMachineEngine::State := (record Uorc.Core.RuntimeMachineEngine::State {arena := (record Uorc.Core.Heap::Arena {index := (project (project failed arena) index), nextHandle := (project (project failed arena) nextHandle), exhausted := (project (project failed arena) exhausted), ownedBytes := (project (project failed arena) ownedBytes), liveEntries := (project (project failed arena) liveEntries), maxOwnedBytes := (project (project failed arena) maxOwnedBytes), cursor := (record Uorc.Core.Heap::ReleaseCursor {pending := (project (project (project failed arena) cursor) pending), pendingCount := (0 : UInt64), rootStep := false})}), program := (project failed program), caller := (project failed caller), budget := (project failed budget), semanticBudget := (project failed semanticBudget), semanticLedger := (project failed semanticLedger), semanticError := (project failed semanticError), usage := (project failed usage), disposition := (project failed disposition), frames := (project failed frames), pending := (project failed pending), value := (project failed value), valueOwned := (project failed valueOwned), valueUnits := (project failed valueUnits), oldRoot := (project failed oldRoot), draining := (project failed draining), control := (project failed control), ownsReady := (project failed ownsReady), mode := (project failed mode), cancelStarted := (project failed cancelStarted), sequenceCleanup := (project failed sequenceCleanup), delta := (project failed delta), operationDelta := (project failed operationDelta), overflowEvent := (project failed overflowEvent)}); (if (Uorc.Core.HeapAudit::auditRoots (project restored arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots restored)) then (finishSharedFeeControl restored) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (65 : UInt64))))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (65 : UInt64))))))),
   axioms: [Quot.sound, propext],
   executable: false
 }
@@ -2911,9 +3049,9 @@ definition{
     | Result.error failure => (ctor Result.error [Unit, ScenarioError] failure)
     | Result.ok cleaned => (match (Uorc.Core.RuntimeMachineEngine::takeReady cleaned)
       | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.engine failure))
-      | Result.ok ready => (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
+      | Result.ok readyTransfer => (let ready : Uorc.Core.RuntimeProgram::Ready := (project readyTransfer ready); (match (Uorc.Core.RuntimeMachineFixtures::dropAll (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (project ready arena))
         | Result.error failure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixture failure))
-        | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (66 : UInt64))))))),
+        | Result.ok empty => (if (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (66 : UInt64)))))))),
   axioms: [Quot.sound, propext],
   executable: false
 }

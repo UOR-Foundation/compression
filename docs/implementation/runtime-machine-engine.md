@@ -18,9 +18,17 @@ arena snapshot. It has no input/EOF demand after admission. The terminal
 `takeReady` move is the controller boundary; no active-machine detach, arbitrary
 checkpoint validation, or controller restart protocol is introduced here.
 
-- `start(ready, budget)` consumes the `Ready` root tickets and returns fixed state.
-  The first tick allocates the engine control owner. Existing arena ownership and
-  budget are checked by `RuntimeResources.observeArena`.
+- `startWithSemantic(ready, operationalBudget, semanticBudget, semanticLedger)`
+  consumes the `Ready` tickets and preserves the supplied semantic ledger. This is
+  typed ingress, not proof that a supplied ledger came from a valid execution.
+  The first paid startup attempt checks profile, storage policy, ledger shape and
+  current limits before allocating engine control. Existing arena ownership and
+  operational budget are checked by `RuntimeResources.observeArena`.
+- `start(ready, budget)` is a standalone component compatibility constructor. It
+  explicitly creates a fresh current-profile ledger and unconstrained semantic
+  budget with UInt64 maximum work. It has no production annotation and must not
+  reset a controller's ongoing basis/decode/output scope. UInt64 representability
+  is operational capacity, not a mathematical candidate bound.
 - `tick(state)` performs one bounded event. Pending events and primitive failures
   consume work. `checkedEventWork` quotes the shared `RuntimeWork` operational
   policy before `paidEvent` dispatches the operation. Builder copy quotes use
@@ -30,14 +38,27 @@ checkpoint validation, or controller restart protocol is introduced here.
   disposition; only resource suspension resumes. Failed, completed and cleaned
   states are returned exactly unchanged before budget validation, including when
   the proposed budget is invalid.
-- `cancel(state)` selects cleanup. Cleanup ticks remain subject to the work budget;
+- `semanticStatus(state)` exposes the independent typed semantic refusal channel.
+  A controller must inspect it as well as `disposition`. A retained
+  `Disposition.running` does not imply progress when this channel holds an error.
+  Ordinary ticks then return the exact state without further work or effects.
+- `extendSemantic(state, budget)` checks the proposed budget against the accepted
+  prefix. Work/storage budget refusals can retry; word, profile, scope and
+  invariant errors remain operationally incomplete and are not resumed. Terminal
+  and cancelling states remain exact. This never rolls back the ledger or cursor.
+- `cancel(state)` preempts a semantic refusal and selects cleanup. Cleanup
+  preserves the semantic ledger and refusal, and remains subject to the work budget;
   `extend` can resume a cleanup suspended for resources.
 - `takeOutput(state)` transfers exactly one completed output root ticket into
   `OutputTransfer.handle`. Its returned state has `valueOwned = false` and a null
   completed handle, so a second transfer is rejected.
 - Cleanup preserves the program, basis, and caller tickets supplied in `Ready`.
   After `cleaned`, `takeReady` consumes the terminal engine state and returns those
-  tickets with the current arena/usage as `Result<RuntimeProgram.Ready, Failure>`.
+  tickets with the current arena/usage as
+  `Result<ReadyTransfer, Failure>`. The transfer contains `ready`, `semanticBudget`
+  and `semanticLedger`; there is no parallel transfer which silently drops the
+  semantic ledger. `OutputTransfer.state` already carries the authoritative ledger,
+  so output transfer introduces no separate ledger copy.
 
 `ownedRoots` is a transient inventory for `HeapAudit.auditRoots`: aliases appear
 once per outside ticket. Heap's release cursor owns a transferred ticket, and the
@@ -72,7 +93,9 @@ operation speculatively to discover its fee.
 | --- | --- |
 | Allocate engine control | `controlAllocate` |
 | Enter frame | `indexedStart + controlAllocate` |
-| Fetch and prepare an executing instruction | `scalarCheck` |
+| Fetch immutable instruction metadata | `indexedStart` |
+| Advance one semantic prefix position | `control` |
+| Prepare after the complete paid prefix | `scalarCheck` |
 | Prefix parameter type lookup and install | `indexedStart + tableMutation` |
 | Capture validation, witness lookup and install | `captureCheck + tableMutation + indexedStart` |
 | Initial/last-use bucket metadata lookup | `indexedStart` |
@@ -116,16 +139,18 @@ Heap error details remain under `Failure.heap`.
 ## Capacity owners
 
 Each retained frame cons has its own actual `Heap.allocateControl(4096)` owner.
-The modeled 64-bit packed frame plus the cons spine is at most 704 bytes when
+The modeled 64-bit packed frame plus the cons spine is at most 712 bytes when
 sum tags, option tags, booleans and bytes each occupy one word. This includes the
 frame table shell, borrowed block and optional instruction metadata shells,
-action, capture and release counters, iteration state, accumulator and its unit count, auxiliary units-table shell, and fixed
+action, capture and release counters, iteration state, accumulator and its unit count, auxiliary units-table shell, semantic position, and fixed
 builder. The reserve includes the complete control record and spine, rather than
 only a symbolic frame marker. Frame data and units-table roots, accumulator roots, and builder roots
 remain separate tickets and are enumerated with multiplicity.
 
 The fixed engine control uses `Heap.allocateControl(8192)`, including the extra
-72-byte operation ledger and optional 72-byte frozen event plus its tag. Its fixed pending
+72-byte operation ledger and optional 72-byte frozen event plus its tag.
+The semantic ingress adds a modeled72-byte profile-tagged ledger,32-byte budget
+and16-byte optional error; these fixed fields remain under the same8192 reserve. Its fixed pending
 union includes the 64-entry table path, sequence plan, or builder cursor. A
 `TablePending` retains cursor/outcome/cumulative delta/peak only. The sole arena is
 `State.arena`; a table transition borrows that arena when passed to the owner API.
@@ -147,6 +172,7 @@ Frame phases are fixed numeric tags in the authored source:
 | 27–29 | Install prefix, capture and instruction payload-unit witnesses |
 | 30 | Erase a released binding's payload-unit witness |
 | 31 | Retire the frame's units-table root before popping |
+| 32 | Consume instruction/spec-role prefix; position5 prepares |
 
 The engine forwards historical one-based local and backward-block distances
 unchanged to the shared readers. Slot, instruction, capture-array and release
@@ -234,3 +260,32 @@ counter guard precedes these effects. The outer engine defers ownership release
 to later ticks. These facts explain the logical ownership metric envelope; they
 do not establish host RSS, an arbitrary forged cursor theorem, or a universal
 physical-memory bound.
+
+
+## Prepaid instruction prefix
+
+Phase3 fetches immutable instruction metadata and stores it without calling
+`RuntimeMachine.prepare`. Phase32 then advances `FrameRecord.semanticPosition`:
+position0 consumes the instruction event; positions1 through4 select the actual
+`RuntimeOpcode.spec` operand0 through operand3 roles through the shared
+`RuntimeMachineSemantic.prefixEvent`; position5 calls `prepare`. Local and block
+references emit `referenceRead`; immediate and absent positions advance without
+an event. Scan has five events including dispatch. No copied opcode event table,
+event list, mathematical-natural cursor or reference-value backing is retained.
+
+Each event calls the existing `RuntimeMachineSemantic.commit` before prepare or
+its semantic effects. Rejection retains the exact accepted ledger, cursor,
+instruction metadata, arena and ownership state. An accepted position advances
+once. A later operational refusal preserves the paid continuation, including
+position5 before prepare, so retry never charges those semantic events again.
+All cursor/counter additions are checked before effects. A numeric exhaustion
+is operationally incomplete and cannot exclude an otherwise valid reference
+candidate. Cancellation and native cleanup do not synthesize semantic releases.
+
+This component consumes only instruction and signature-reference prefixes.
+Capture/entry, binding allocation/release, literal/byte observations, return,
+accumulator, output/basis and exact EOF schedules remain separate integration
+obligations. The controller must thread one ledger through those domains rather
+than calling the fresh compatibility constructor repeatedly. No full semantic
+budget enforcement, cache/reference invariant or admissibility claim follows
+from this partial event coverage.
