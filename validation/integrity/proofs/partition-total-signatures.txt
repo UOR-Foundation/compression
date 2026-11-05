@@ -1,0 +1,61 @@
+<!-- uorc:non-authoritative -->
+Uorc.Uorc.Integrity.PartitionTotalLaws.primitive_trace_postcount (input : ByteArray) (fuel offset : Nat)
+  (state out : Uorc.Uorc.Integrity.Sha256.State)
+  (trace : Uorc.Uorc.Integrity.IncrementalLaws.PrimitiveTrace input fuel offset state out) :
+  out.count.toNat + offset = state.count.toNat + input.size ∧
+    Uorc.Uorc.Integrity.Sha256.valid out = true ∧
+      out.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing ∧ out.work = none
+Uorc.Uorc.Integrity.PartitionTotalLaws.update_success_postcount (state : Uorc.Uorc.Integrity.Sha256.State)
+  (input : ByteArray) (out : Uorc.Uorc.Integrity.Sha256.State)
+  (success : Uorc.Uorc.Integrity.Sha256.update state input = Except.ok out) :
+  out.count.toNat = state.count.toNat + input.size ∧
+    Uorc.Uorc.Integrity.Sha256.valid out = true ∧
+      out.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing ∧ out.work = none
+Uorc.Uorc.Integrity.PartitionTotalLaws.update_success_exact_count (state : Uorc.Uorc.Integrity.Sha256.State)
+  (input : ByteArray) (out : Uorc.Uorc.Integrity.Sha256.State)
+  (success : Uorc.Uorc.Integrity.Sha256.update state input = Except.ok out) :
+  out.count.toNat = state.count.toNat + input.size
+Uorc.Uorc.Integrity.PartitionTotalLaws.standard_partition_updates_exist (left right : ByteArray)
+  (domain : left.size + right.size ≤ 2305843009213693951) :
+  ∃ middle part whole,
+    Uorc.Uorc.Integrity.Sha256.update Uorc.Uorc.Integrity.Sha256.init left = Except.ok middle ∧
+      Uorc.Uorc.Integrity.Sha256.update middle right = Except.ok part ∧
+        Uorc.Uorc.Integrity.Sha256.update Uorc.Uorc.Integrity.Sha256.init (left ++ right) = Except.ok whole ∧
+          part = whole ∧
+            middle.count.toNat = left.size ∧
+              part.count.toNat = left.size + right.size ∧
+                Uorc.Uorc.Integrity.Sha256.valid part = true ∧
+                  part.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing ∧ part.work = none
+Uorc.Uorc.Integrity.PartitionTotalLaws.standard_partition_hash_exists (left right : ByteArray)
+  (domain : left.size + right.size ≤ 2305843009213693951) :
+  ∃ middle part whole output,
+    Uorc.Uorc.Integrity.Sha256.update Uorc.Uorc.Integrity.Sha256.init left = Except.ok middle ∧
+      Uorc.Uorc.Integrity.Sha256.update middle right = Except.ok part ∧
+        Uorc.Uorc.Integrity.Sha256.update Uorc.Uorc.Integrity.Sha256.init (left ++ right) = Except.ok whole ∧
+          part = whole ∧
+            Uorc.Uorc.Integrity.Sha256.hash (left ++ right) = Except.ok output ∧
+              (Uorc.Uorc.Integrity.PartitionTotalLaws.standard_partition_hash_exists.match_1
+                    (fun x => Except Uorc.Uorc.Integrity.Sha256.Error ByteArray)
+                    (Uorc.Uorc.Integrity.Sha256.finalize part) (fun failure => Except.error failure) fun finalizing =>
+                    Uorc.Uorc.Integrity.Sha256.runFinalize 300 finalizing) =
+                  Except.ok output ∧
+                middle.count.toNat = left.size ∧ part.count.toNat = left.size + right.size
+Uorc.Uorc.Integrity.PartitionTotalLaws.run_finalize_success_size (fuel : Nat) (state : Uorc.Uorc.Integrity.Sha256.State)
+  (output : ByteArray) (success : Uorc.Uorc.Integrity.Sha256.runFinalize fuel state = Except.ok output) :
+  output.size = 32
+Uorc.Uorc.Integrity.PartitionTotalLaws.hash_success_size (input output : ByteArray)
+  (success : Uorc.Uorc.Integrity.Sha256.hash input = Except.ok output) : output.size = 32
+Uorc.Uorc.Integrity.PartitionTotalLaws.standard_partition_hash_total (left right : ByteArray)
+  (domain : left.size + right.size ≤ 2305843009213693951) :
+  ∃ middle part whole output,
+    Uorc.Uorc.Integrity.Sha256.update Uorc.Uorc.Integrity.Sha256.init left = Except.ok middle ∧
+      Uorc.Uorc.Integrity.Sha256.update middle right = Except.ok part ∧
+        Uorc.Uorc.Integrity.Sha256.update Uorc.Uorc.Integrity.Sha256.init (left ++ right) = Except.ok whole ∧
+          part = whole ∧
+            Uorc.Uorc.Integrity.Sha256.hash (left ++ right) = Except.ok output ∧
+              (Uorc.Uorc.Integrity.PartitionTotalLaws.standard_partition_hash_exists.match_1
+                    (fun x => Except Uorc.Uorc.Integrity.Sha256.Error ByteArray)
+                    (Uorc.Uorc.Integrity.Sha256.finalize part) (fun failure => Except.error failure) fun finalizing =>
+                    Uorc.Uorc.Integrity.Sha256.runFinalize 300 finalizing) =
+                  Except.ok output ∧
+                output.size = 32 ∧ middle.count.toNat = left.size ∧ part.count.toNat = left.size + right.size

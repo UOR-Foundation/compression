@@ -49,11 +49,47 @@ test('gate self-audit rejects omissions, guards and mutation filters',()=>{
 });
 
 import crypto from 'node:crypto';
+import {validateSourceProvenance} from './integrity-source-provenance.mjs';
 test('native artifact input binds all fixtures and exact public evidence',()=>{
  const input=nativeInput('.'),rows=input.trim().split('\n');assert.equal(rows.length,283);
  assert.equal(new Set(rows.map(r=>r.split('\t')[0])).size,283);
  const evidence=JSON.parse(fs.readFileSync('validation/integrity/stream-evidence.json','utf8'));
  assert.equal(crypto.createHash('sha256').update(input).digest('hex'),evidence.native_input_sha256);
- for(const [file,digest] of Object.entries(evidence.source_sha256))assert.equal(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'),digest);
+ assert.equal(validateSourceProvenance('.'),true);
  assert.equal(crypto.createHash('sha256').update(fs.readFileSync('validation/integrity/stream-native-client.rs')).digest('hex'),evidence.native_client_sha256);
+});
+
+
+test('historical source bridge rejects changed bodies, metadata, snapshots and pins',()=>{
+ const receiptFile='validation/integrity/source-equivalence-v1.json';
+ const sourceFile='src/Uorc/Integrity/StreamEngine.lex.tex';
+ const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
+ const receipt=JSON.parse(fs.readFileSync(receiptFile,'utf8'));
+ const files=[receiptFile,'validation/integrity/stream-evidence.json',...Object.keys(receipt.sources),...Object.values(receipt.sources).map(r=>r.historical_path)];
+ const variants=[
+  {owner:/current source hash/,change:(root,r)=>{r.sources[sourceFile].current_source_sha256='0'.repeat(64);}},
+  {owner:/historical source hash/,change:(root,r)=>{fs.appendFileSync(path.join(root,r.sources[sourceFile].historical_path),' ');}},
+  {owner:/historical evidence changed/,change:(root,r)=>{fs.appendFileSync(path.join(root,'validation/integrity/stream-evidence.json'),' ');}},
+  {owner:/complete historical source inventory/,change:(root,r)=>{delete r.sources[sourceFile];}},
+  {owner:/computational model changed/,model:m=>{const body=m.declarations.find(d=>d.name==='productionLimit').body;assert.equal(body.value,'2305843009213693942');body.value='2305843009213693941';}},
+  {owner:/exact executable addition/,model:m=>{delete m.declarations.find(d=>d.name==='productionLimit').executable;}},
+  {owner:/computational model changed/,model:m=>{m.declarations.find(d=>d.name==='production_limit_exact').executable=true;}},
+  {owner:/computational model changed/,change:(root,r)=>{r.sources[sourceFile].executable_additions.pop();}},
+  {owner:/unique annotation inventory/,change:(root,r)=>{r.sources[sourceFile].executable_additions.push(r.sources[sourceFile].executable_additions[0]);}}
+ ];
+ for(const variant of variants){
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'historical-source-provenance-'));
+  try{
+   for(const file of files){const dest=path.join(root,file);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(file,dest);}
+   const r=structuredClone(receipt);
+   if(variant.model){
+    const file=path.join(root,sourceFile),text=fs.readFileSync(file,'utf8');
+    const raw=[...text.matchAll(/\\semanticdata\{(.*)\}\n/g)][0][1],m=JSON.parse(raw);variant.model(m);
+    fs.writeFileSync(file,text.replace(raw,JSON.stringify(m)));r.sources[sourceFile].current_source_sha256=hash(fs.readFileSync(file));
+   }
+   if(variant.change)variant.change(root,r);
+   fs.writeFileSync(path.join(root,receiptFile),JSON.stringify(r));
+   assert.throws(()=>validateSourceProvenance(root),variant.owner);
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
+ }
 });

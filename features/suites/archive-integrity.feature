@@ -14,7 +14,7 @@ Feature: archive-integrity
     Then profile and ownership mismatches reject, chunking preserves digests, exact bytes reconstruct, and restored controls pass
 
   @UC-INT-03 @build
-  Scenario: Finite reverse-trace candidates remain untrusted until actual successful SHA computations independently validate a collision witness; generic acceptance-guard reflection does not claim global SHA injectivity or reduction completeness.
-    Given finite framed reverse traces, an untrusted candidate extractor and an independent successful-SHA candidate checker
-    When the generated source controls exercise malformed and non-collision candidates and a planted false digest-equality result
-    Then malformed, failed-SHA and unequal-digest candidates reject; the planted equality defect fails its owning observation and restored controls pass; no global SHA injectivity or trace completeness claim follows
+  Scenario: Source-owned checker soundness and constructive finite backward reduction are kernel checked for actual canonical framed messages and shape-valid source-SHA-authenticated traces, without global hash injectivity or an assumed frame codec. The decoder-to-authenticated-trace bridge and full product acceptance remain distinct.
+    Given the byte equality bridge, actual candidate checker, canonical framing and finite source-SHA-authenticated reverse traces
+    When the saved official component compiler verifies and replays the scoped proof source, then digest-guard, returned-witness and counter defects are planted and restored
+    Then the scoped proofs and exact axiom policies pass; actual false checksum/witness/counter behavior rejects at new proof owners; restored attestations agree without promoting this to original pinned product acceptance

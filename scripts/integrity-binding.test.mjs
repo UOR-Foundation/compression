@@ -4,15 +4,24 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {moduleData,validateFixtures,sourceAudit} from './integrity-binding.mjs';
+import {moduleData,validateFixtures,sourceAudit,calledMembers} from './integrity-binding.mjs';
 import {leanDriver} from './integrity-binding-runtime.mjs';
 test('independent oracle checks all format, input, basis and checkpoint byte identities',()=>{
  assert.equal(validateFixtures('.').length,20);assert.equal(sourceAudit('.'),true);
 });
 test('owned source consumes tickets and exposes exact cursor/outcome aggregates',()=>{
  const owned=moduleData('.','OwnedHash');for(const name of ['beginSpan','borrowSpan','ownedRoots','outcomeRoots'])assert.ok(owned.declarations.some(d=>d.name===name));
- const data=JSON.stringify(owned.declarations.find(d=>d.name==='beginSpan').body);assert.ok(data.includes('checkMoveRoot'));assert.ok(!data.includes('"name":"retain"'));
- assert.ok(JSON.stringify(owned.declarations.find(d=>d.name==='borrowSpan').body).includes('"name":"retain"'));
+ const moved=calledMembers(owned,'beginSpan'),borrowed=calledMembers(owned,'borrowSpan');
+ assert.ok(moved.has('Uorc.Core.Heap::checkMoveRoot'));assert.ok(!moved.has('Uorc.Core.Heap::retain'));
+ assert.ok(borrowed.has('Uorc.Core.Heap::retain'));
+ const changed=structuredClone(owned);
+ function drop(node){
+  if(!node||typeof node!=='object')return;
+  if(node.kind==='call'&&node.function.module==='Uorc.Core.Heap'&&node.function.name==='checkMoveRoot')node.function.name='invalidMovedRootCheck';
+  for(const value of Object.values(node))if(Array.isArray(value))value.forEach(drop);else drop(value);
+ }
+ changed.declarations.filter(d=>d.kind==='definition').forEach(d=>drop(d.body));
+ assert.ok(!calledMembers(changed,'beginSpan').has('Uorc.Core.Heap::checkMoveRoot'));
 });
 test('changed digest, truncated archive and dropped fixture fail the independent owner',()=>{
  const source=fs.readFileSync('src/Uorc/Integrity/BindingFixtures.lex.tex','utf8');const raw=[...source.matchAll(/\\semanticdata\{(.*)\}\n/g)][0][1];
