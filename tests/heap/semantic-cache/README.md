@@ -1,6 +1,14 @@
 # Official compiler-parsed diagnostic cache
 
-`runtime-owners.json` is one read-only diagnostic bundle for matching source call signatures in another executor. It includes 40 modules at its source_commit: runtime/audit modules including scalar image access, bounded image-copy quotation/extraction and corrected table cancellation, nine proof modules, exact old-body diagnostic references for moved allocation, sequence, builder, singleton and heap-release factoring, and scenario modules. The `.lex.tex` sources remain authoritative; no production build, compiler or runtime loads this cache as a semantic source. Each module has an explicit role, and every declaration retains its actual executable/axiom metadata.
+`runtime-owners.json` is one read-only diagnostic bundle for matching source call signatures in another executor. It includes 42 modules at its source_commit: runtime/audit modules including scalar image access, bounded image-copy quotation/extraction and corrected table cancellation, ten proof modules, exact old-body diagnostic references for moved allocation, sequence, builder, singleton and heap-release factoring, and scenario modules. The `.lex.tex` sources remain authoritative; no production build, compiler or runtime loads this cache as a semantic source. Each module has an explicit role, and every declaration retains its actual executable/axiom metadata.
+
+The current bundle is bound to source commit
+`48034096fab90ff5f32ddd2e6ad2b654a26ea5db`: 3,640,213 bytes, SHA-256
+`f7d7b0a11db5adefdd90b8f7398935665805275901281f754643ed86c6d0e847`.
+It adds the qualified accounting reflection/explicit cons bridge and its
+registered controls. The full invariant-to-sum induction remains open.
+All prior 40 parsed modules and source hashes are unchanged. This export
+reused the existing official reader; no compiler or helper was bootstrapped.
 
 The supported PrismPM helper delegates parsing and notation writing to `lexlean::sdk::read_module` and `lexlean::sdk::write_module`. It does not reconstruct declarations or use a second semantic parser. With a clean official PrismPM checkout and its locked dependencies:
 
@@ -27,3 +35,8 @@ Six proof-only helpers omit an explicit executable field. Their summaries preser
 Provenance includes the official PrismPM commit, helper source and binary hashes, Cargo lock hash, exact vendored LexLean crate hash and reproduction commands. This diagnostic use of the official SDK changes no compressor production dependency or lock. The earlier four-file cache tied to source commit `314c9b5`, and the fourteen-module e87 cache (SHA-256 `7bf8c8898aac8776919c0c10646a19b65cb81a8b23f461c181762705b78386e9`), remain available in Git history. The current cache adds proof/cost/ticket modules, the guard-preserving fused moved-child update, and the endpoint peak helpers with their conditional arithmetic proofs and source-owned scenarios. Existing API signatures and runtime layouts are preserved. The separate peak receipts do not replace or extend the nine-suite/577-policy qualification of the previous 23 modules.
 
 The retained pre-fix preservation failure and candidate #393 consumer qualification remain separate evidence. This cache does not accept export, establish pinned SDK acceptance, or measure physical memory.
+
+The source-bound full 21-root Builder certificate-size refusal and the
+separate singleton-only growth diagnostic are recorded in
+`tests/heap/builder-certificate-diagnostic/`. Those results do not qualify the
+complete cached source as a production export.
