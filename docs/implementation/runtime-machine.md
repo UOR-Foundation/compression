@@ -245,8 +245,9 @@ under execution. Exact partial results are retained in increment93-progress.json
 
 The verification-only refinement adds general constructive output-ticket and
 Ready handoff laws, including alias multiplicity and value interpretation.
-Earlier kernel receipts identify their exact context; the new cache-context
-source build passes, with its kernel recheck tracked separately. Neither these
+The new cache-context module kernel-compiles and all 32 declared axiom sets
+match; refinement-cache-kernel.json binds the exact source and generated module.
+Neither these
 handoff lemmas nor finite controls establish complete reachable-state simulation.
 Actual canonical event coverage and return/accumulator binding rules, global
 reference/ownership/prefix preservation, authentic parsed IR export using the
