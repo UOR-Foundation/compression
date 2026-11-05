@@ -106,4 +106,20 @@ mod tests {
             "the generated output-delivery gate failed"
         );
     }
+
+    #[test]
+    fn generated_charged_target_flow_uc_exe_01() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("repository parent");
+        let result = std::process::Command::new("node")
+            .arg(root.join("scripts/product-target-descriptor-runtime.mjs"))
+            .current_dir(root)
+            .status()
+            .expect("execute charged target construction, ordered lengths and ownership controls");
+        assert!(
+            result.success(),
+            "the generated target-descriptor gate failed"
+        );
+    }
 }
