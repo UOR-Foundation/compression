@@ -45,8 +45,16 @@ against the unchanged4,194,304-byte limit. Its verified builder source is the
 original c7f version, with the older Sequence c352 version. The published
 receipt does not identify the failing compiler executable, exact command or
 diagnostic project configuration. Those missing identities remain with the
-reporting owner. This factoring has not been assigned that failure or accepted
-by a new certificate/export run. No verifier limit or proof statement changes.
+reporting owner. No verifier limit or proof statement changes.
+
+Later Product commit e0a00895a74f0504e331eee6e82341997b174016 reports a
+separately scoped full-verification refusal for the current fc419 builder:
+certificateB source6,703,926 bytes against the same4,194,304-byte limit.
+Its [receipt](https://github.com/UOR-Foundation/compression/blob/e0a00895a74f0504e331eee6e82341997b174016/validation/product/payload-image-core-compatibility.json)
+supersedes the initial untested status for that exact current-source consumer.
+Compiler/configuration/root-set reconciliation remains explicit; the numerical
+difference from the earlier old-source receipt is not attributed to this
+factoring without a matched context. No accepted export follows.
 
 The newly reported Heap.releaseStep certificate-A deep-recursion failure and
 the historical Sequence.step A probe are separate root-specific scopes. A
