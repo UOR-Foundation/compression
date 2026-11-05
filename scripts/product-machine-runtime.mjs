@@ -48,6 +48,23 @@ const sourceData={
  read(p){const m=/\\semanticdata\{(.*)\}/.exec(fs.readFileSync(p,'utf8'));requireFact(m,'source data required; a diagnostic notation projection must supply its official SDK authoring API');return JSON.parse(m[1]);},
  write(p,data){const text=fs.readFileSync(p,'utf8');fs.writeFileSync(p,text.replace(/\\semanticdata\{(.*)\}/,'\\semanticdata{'+JSON.stringify(data)+'}'));}
 };
+export function mutationSpecimens(){
+ return [
+   ['length-mismatch-stalled','OwnedCompare','lengthMismatchControl',ds=>{
+    let count=0;const walk=x=>{if(!x||typeof x!=='object')return;if(x.kind==='constructor'&&x.constructor.name==='Disposition.lengthMismatch'){x.constructor.name='Disposition.working';x.arguments=[];count++;}else for(const v of Object.values(x))Array.isArray(v)?v.forEach(walk):walk(v);};walk(ds.find(d=>d.name==='fromReaders').body);requireFact(count===1,'one actual length mismatch mutation');
+   }],
+   ['byte-equality-forged','OwnedCompare','byteMismatchControl',ds=>{
+    let count=0;const walk=x=>{if(!x||typeof x!=='object')return;if(x.kind==='if'&&x.condition.kind==='primitive'&&x.condition.operation==='equal'){x.condition={kind:'bool',value:true};count++;}for(const v of Object.values(x))Array.isArray(v)?v.forEach(walk):walk(v);};walk(ds.find(d=>d.name==='completeByte').body);requireFact(count===1,'one actual byte comparison mutation');
+   }],
+   ['returned-output-ticket-omitted','MachineBinding','outputCustodyControl',ds=>{const d=ds.find(d=>d.name==='addOutputRoot');d.body={kind:'var',name:'roots'};}],
+   ['comparison-initialization-unpaid','ComparisonOwner','comparisonMismatchPaidInitialization',ds=>{ds.find(d=>d.name==='beginWork').body={kind:'integer',representation:'uint64',value:'0'};}],
+   ['left-getter-prepayment-bypassed','OwnedCompare','getterRefusalResumeControl',ds=>{
+    const body=ds.find(d=>d.name==='paidReadLeft').body;
+    const event=body.scrutinee.arguments[2];event.fields.find(f=>f.field==='work').value={kind:'integer',representation:'uint64',value:'0'};
+   }]
+
+  ];
+}
 export function validate(root,authoring=sourceData){
  const inventory=authoring.read(path.join(root,selected)).declarations.find(d=>d.name==='observations');
  let expected=0;for(let p=inventory.body;p.kind==='cons';p=p.tail)expected++;
@@ -58,15 +75,7 @@ export function validate(root,authoring=sourceData){
  try{
   fs.cpSync(path.join(root,'src'),path.join(temp,'src'),{recursive:true});
   for(const name of ['lexlean.toml','lexlean.lock','lakefile.toml','lake-manifest.json','lean-toolchain'])fs.copyFileSync(path.join(root,name),path.join(temp,name));
-  const specimens=[
-   ['length-mismatch-stalled','OwnedCompare','lengthMismatchControl',ds=>{
-    let count=0;const walk=x=>{if(!x||typeof x!=='object')return;if(x.kind==='constructor'&&x.constructor.name==='Disposition.lengthMismatch'){x.constructor.name='Disposition.working';x.arguments=[];count++;}else for(const v of Object.values(x))Array.isArray(v)?v.forEach(walk):walk(v);};walk(ds.find(d=>d.name==='begin').body);requireFact(count===1,'one actual length mismatch mutation');
-   }],
-   ['byte-equality-forged','OwnedCompare','byteMismatchControl',ds=>{
-    let count=0;const walk=x=>{if(!x||typeof x!=='object')return;if(x.kind==='if'&&x.condition.kind==='primitive'&&x.condition.operation==='equal'){x.condition={kind:'bool',value:true};count++;}for(const v of Object.values(x))Array.isArray(v)?v.forEach(walk):walk(v);};walk(ds.find(d=>d.name==='compareByte').body);requireFact(count===1,'one actual byte comparison mutation');
-   }],
-   ['returned-output-ticket-omitted','MachineBinding','outputCustodyControl',ds=>{const d=ds.find(d=>d.name==='addOutputRoot');d.body={kind:'var',name:'roots'};}]
-  ];
+  const specimens=mutationSpecimens();
   for(const [id,module,owner,transform] of specimens){
    const restore=mutate(temp,module,transform,authoring);
    try{const r=execute(temp,owner,restored.runtime_library);requireFact(r.execution.status!==0&&(r.execution.stdout+r.execution.stderr).includes('FAIL '+owner),`planted ${id} did not fail at ${owner}: ${r.execution.stdout}${r.execution.stderr}`);mutations.push({id,owner,exit:r.execution.status});}finally{restore();}

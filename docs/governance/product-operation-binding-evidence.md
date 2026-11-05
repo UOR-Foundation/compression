@@ -16,21 +16,27 @@ owns these resources. No successful archive Report follows from decoding alone.
 
 `OwnedCompare` traverses the actual immutable sequence owners, compares every
 byte through the shared checked scalar accessor, and distinguishes exact length
-mismatch, differing byte, read failure, cancellation and unfinished work. The
-source tests now require `lengthMismatch(3,0)`, exercise actual `tick` prepayment,
-zero-work refusal, retained-prefix extension, cancellation and unfinished-result
-rejection. The 36-module generated closure kernel-compiles and its 16 typed
-runtime controls pass, including independent comparison of all 256 byte values.
-The fixture's former 2000-step admission allowance was insufficient; increasing
-only that finite harness allowance fixed it without changing bytes or expected
-results. These are finite VM controls, not a universal reconstruction theorem,
-accepted production export or full operation qualification.
+mismatch, differing byte, read failure, cancellation and unfinished work. The source tests require `lengthMismatch(3,0)` and exercise actual getter
+prepayment, zero-work refusal, retained-prefix extension, cancellation,
+unfinished-result rejection and charged comparison-owner lifecycle. The current
+38-module source closure kernel-compiles; 33 typed VM controls pass, five actual
+planted defects fail at their intended owners, and 115 product declaration axiom
+policies match direct kernel queries. Exact current source/dependency hashes,
+annotation-only generated-code equality and limits are recorded in
+`validation/product/charged-comparison-evidence.json`.
+
+The earlier 16/16 receipt in `machine-vm-evidence.json` remains a historical
+closure record. Neither result qualifies the newer shared integration graph's
+changed RuntimeMachine, RuntimeMachineEngine or RuntimeSequence sources. All
+these controls are finite VM execution, not a universal reconstruction theorem,
+accepted production export or complete operation qualification.
 
 The registered UC-EXE-01 test executes `scripts/product-machine-runtime.mjs`;
 a committed receipt cannot satisfy it. The script obtains the actual verified compiler artifact, kernel-compiles its
 generated closure and executes the typed owner; mutations rebuild and compile
 the actual changed source against the same SDK runtime. It plants stalled length
-mismatch, invented byte equality and missing output-ticket defects. Its full
+mismatch, invented byte equality, missing output tickets, unpaid initialization
+and getter prepayment defects. Its full
 execution remains blocked: the current official diagnostic verifier rejects inherited
 `Core.RuntimeByteBuilder.step` certificate B at 7,530,370 bytes against the
 unchanged 4,194,304-byte limit. No compiler, policy or limit was changed to
@@ -73,9 +79,10 @@ parser/demultiplexer must move the single arena/caller roots/usage through the
 closed admission credit boundary; the existing `Wire.FrameParse` mathematical
 Graph/Rope parser is not that producer. Actual frame/integrity outcomes, basis
 and owned search/replay producers must feed operation-specific Reports and
-independent all-byte verification. Comparison initialization still requires its
-charged fixed-control owner and matching accessor quotes before the production
-operation can publish. The generic persistent Library/V1 adapter must bind the
+independent all-byte verification. The charged comparison owner now reserves an actual fixed control and pays
+separate initialization and matching shared getter quotes, preserving a partial
+left-read prefix through refusal. It still needs the complete archive/lease
+carrier and operation-specific publication path. The generic persistent Library/V1 adapter must bind the
 complete current type closure and source custody decisions, execute native and
 browser keyboard/focus/cancellation/publication races, and preserve outer SDK
 ComputeError separately. No fake executor, always-unavailable shipping stub or
