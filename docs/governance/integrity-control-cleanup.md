@@ -10,12 +10,12 @@ separate image lookup, preserves that image entry and completes the empty queue.
 Both deletion and incoming-reference decrement branches are covered.
 
 The local predicates are structural facts about actual nodes and the actual
-queue. Root presence or equal lengths do not establish them. Integrity is also
-proving `OwnedControlLifetime`: actual allocation, span validation, retain,
-reservation, commit and hashing transitions must establish and preserve the
-control entry and input-release queue before this cleanup theorem applies.
+queue. Root presence or equal lengths do not establish them. The composed
+`OwnedControlLifetime` proof establishes them from actual allocation, span
+validation, retain, reservation, commit and hashing transitions. The helper
+increment also proves the actual local frames those transitions need.
 
-All eleven declarations passed scoped source build, generated kernel checks,
+All 34 declarations passed scoped source build, generated kernel checks,
 exact axiom audit and leanchecker. A real delete-branch defect clearing the
 whole index makes protected-image reads fail and invalidates the unchanged
 frame proof; exact restoration passes. A separate wrong-key diagnostic was

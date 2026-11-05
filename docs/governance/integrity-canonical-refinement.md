@@ -16,10 +16,11 @@ handle from the actual call and combines the proved image storage effect with
 the output node frame. No premise asserts the desired canonical digest equality.
 
 The independent existential success of the executable canonical `Profile.hash`
-driver is still explicit in this checkpoint. `ProfileFuelLaws` is proving its
-chosen-driver sufficient-fuel bounds. The output node frame during cleanup is
-also explicit; Integrity owns the actual control-reservation lifetime and
-cleanup discharge. The ordinary archive has no new proof field or input limit.
+driver is explicit at this proof layer. `ProfileFuelLaws` proves its chosen-driver
+sufficient-fuel bounds. The output node frame during cleanup is also explicit
+here; `OwnedControlLifetime` discharges both premises from actual transitions
+in its composed consumer theorem. The ordinary archive has no new proof field
+or input limit.
 
 The result compares the digest with the bytes actually admitted by the ordered
 trace. Relating those completed-view observations to an initial source layout

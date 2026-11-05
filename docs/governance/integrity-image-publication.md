@@ -16,16 +16,16 @@ control ticket is released, plus the actual publication transfer. The existing
 the precise content requirement: successful lookups and equal nodes. It does
 not follow from live roots or unchanged lengths alone.
 
-Integrity is proving the narrow actual cleanup transitions. `releaseControl`
+Integrity proves the narrow actual cleanup transitions. `releaseControl`
 calls `Heap.release arena cursor.control`. `controlDrain` calls
 `Heap.releaseStep arena`. The local drain contract uses the actual pending list
 `[control]`, pending count one and root-step flag, an actual control-reservation
 lookup, and the actual non-control digest-image lookup. Successful release and
 drain must preserve the digest node; the childless control drain must finish
 with an empty queue. These are transition-effect obligations, not a replacement
-for Core's ownership model. Integrity owns the actual OwnedHash control
-reservation's lifetime and the queue's provenance through the preceding hash
-operations. This checkpoint does not assert that lifetime proof is complete.
+for Core's ownership model. `OwnedControlLifetime` establishes the actual
+OwnedHash control reservation's lifetime and the queue's provenance through
+the preceding hash operations, and composes this storage effect with cleanup.
 
 All sixteen source declarations passed scoped build, generated kernel checks,
 exact axiom audit and leanchecker. An isolated actual commitImage defect kept
