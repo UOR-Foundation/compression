@@ -45,8 +45,27 @@ against the unchanged4,194,304-byte limit. Its verified builder source is the
 original c7f version, with the older Sequence c352 version. The published
 receipt does not identify the failing compiler executable, exact command or
 diagnostic project configuration. Those missing identities remain with the
-reporting owner. This factoring has not been assigned that failure or accepted
-by a new certificate/export run. No verifier limit or proof statement changes.
+reporting owner. No verifier limit or proof statement changes.
+
+Later Product commit e0a00895a74f0504e331eee6e82341997b174016 reports a
+separately scoped full-verification refusal for the current fc419 builder:
+certificateB source6,703,926 bytes against the same4,194,304-byte limit.
+Its [receipt](https://github.com/UOR-Foundation/compression/blob/e0a00895a74f0504e331eee6e82341997b174016/validation/product/payload-image-core-compatibility.json)
+supersedes the initial untested status for that exact current-source consumer.
+The [read-only scope receipt](runtime-byte-builder-current-b-scope.json) binds
+the archived language1.2 project/lock, compiler binary hash, all56 archive hashes,
+four exact current Core Git blobs,21 selected source modules and21 literal
+declared Std roots. Actual argv/cwd, compiler Git commit and lowered declaration
+closure were not retained and remain unknown. The numerical difference from the
+earlier36-source/c7f/c352/ee41 receipt is not attributed to this factoring.
+No accepted export follows.
+
+A later matched SDK71 experiment reproduces this fc419 byte count and rejects
+the sixteen-helper singleton candidate at6,866,519 bytes. Production retains
+fc419; the [negative experiment](runtime-byte-builder-singleton.md) records the
+unchanged context, rejected candidate and separately requalified regression
+controls. This resource refusal occurs during certificate source generation;
+it is not a failed semantic theorem or kernel counterexample.
 
 The newly reported Heap.releaseStep certificate-A deep-recursion failure and
 the historical Sequence.step A probe are separate root-specific scopes. A

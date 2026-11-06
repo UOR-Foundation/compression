@@ -1,0 +1,1071 @@
+{
+  "schema": "uorc/runtime-image-copy-official-reader-inventory/1",
+  "source_commit": "bd8c62063bd568c7f513042475e33a36bdccdeda",
+  "module_prefix": "Uorc",
+  "source_module": "Uorc.Core.RuntimeImageCopy",
+  "generated_module_prefix": "Uorc.Uorc.Core.RuntimeImageCopy",
+  "sources": [
+    {
+      "path": "src/Uorc/Core/Heap.lex.tex",
+      "sha256": "b3423752932ed8e385a35d947a86001ed4b329ef8009a6bd70ec5258f3a63918",
+      "bytes": 58210
+    },
+    {
+      "path": "src/Uorc/Core/RuntimeImage.lex.tex",
+      "sha256": "7a3dbde81e2e3e08a3e59f0d2ab6a6f0f3f6fab5714991ddecd65894230ef77f",
+      "bytes": 9732
+    },
+    {
+      "path": "src/Uorc/Core/RuntimeImageCopy.lex.tex",
+      "sha256": "aa1305d44def07b47e0e38db811aa626cdefd8455ace895f25820decef508d73",
+      "bytes": 8283
+    },
+    {
+      "path": "src/Uorc/Core/RuntimeValue.lex.tex",
+      "sha256": "8b3ed5db4fbfce0f796d1164ff106733c0fa63f150b3bc162f99b505257b331f",
+      "bytes": 3519
+    }
+  ],
+  "roots": [
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImageCopy.chunkLimit",
+      "source_path": "src/Uorc/Core/RuntimeImageCopy.lex.tex",
+      "declaration": "chunkLimit",
+      "parameters": [],
+      "result": "UInt64",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [],
+      "official_reader_signature": {
+        "parameters": [],
+        "result": {
+          "kind": "uint64"
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImageCopy.copyChunk",
+      "source_path": "src/Uorc/Core/RuntimeImageCopy.lex.tex",
+      "declaration": "copyChunk",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "quotedSpan",
+          "type": "Uorc.Core.RuntimeImage::BorrowedSpan"
+        }
+      ],
+      "result": "Result Bytes Uorc.Core.RuntimeImage::ImageFailure",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "quotedSpan",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeImage",
+                "name": "BorrowedSpan"
+              }
+            }
+          }
+        ],
+        "result": {
+          "error": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "module": "Uorc.Core.RuntimeImage",
+              "name": "ImageFailure"
+            }
+          },
+          "kind": "result",
+          "ok": {
+            "kind": "bytes"
+          }
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImageCopy.copyCost",
+      "source_path": "src/Uorc/Core/RuntimeImageCopy.lex.tex",
+      "declaration": "copyCost",
+      "parameters": [
+        {
+          "name": "quotedSpan",
+          "type": "Uorc.Core.RuntimeImage::BorrowedSpan"
+        }
+      ],
+      "result": "Result UInt64 Uorc.Core.RuntimeImage::ImageFailure",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "quotedSpan",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeImage",
+                "name": "BorrowedSpan"
+              }
+            }
+          }
+        ],
+        "result": {
+          "error": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "module": "Uorc.Core.RuntimeImage",
+              "name": "ImageFailure"
+            }
+          },
+          "kind": "result",
+          "ok": {
+            "kind": "uint64"
+          }
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImageCopy.quoteChunk",
+      "source_path": "src/Uorc/Core/RuntimeImageCopy.lex.tex",
+      "declaration": "quoteChunk",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "span",
+          "type": "Uorc.Core.RuntimeImage::BorrowedSpan"
+        },
+        {
+          "name": "relativeOffset",
+          "type": "UInt64"
+        },
+        {
+          "name": "maximumBytes",
+          "type": "UInt64"
+        }
+      ],
+      "result": "Result Uorc.Core.RuntimeImage::BorrowedSpan Uorc.Core.RuntimeImage::ImageFailure",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "span",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeImage",
+                "name": "BorrowedSpan"
+              }
+            }
+          },
+          {
+            "name": "relativeOffset",
+            "type": {
+              "kind": "uint64"
+            }
+          },
+          {
+            "name": "maximumBytes",
+            "type": {
+              "kind": "uint64"
+            }
+          }
+        ],
+        "result": {
+          "error": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "module": "Uorc.Core.RuntimeImage",
+              "name": "ImageFailure"
+            }
+          },
+          "kind": "result",
+          "ok": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "module": "Uorc.Core.RuntimeImage",
+              "name": "BorrowedSpan"
+            }
+          }
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImageCopy.quoteCost",
+      "source_path": "src/Uorc/Core/RuntimeImageCopy.lex.tex",
+      "declaration": "quoteCost",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "span",
+          "type": "Uorc.Core.RuntimeImage::BorrowedSpan"
+        },
+        {
+          "name": "relativeOffset",
+          "type": "UInt64"
+        },
+        {
+          "name": "maximumBytes",
+          "type": "UInt64"
+        }
+      ],
+      "result": "UInt64",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "span",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeImage",
+                "name": "BorrowedSpan"
+              }
+            }
+          },
+          {
+            "name": "relativeOffset",
+            "type": {
+              "kind": "uint64"
+            }
+          },
+          {
+            "name": "maximumBytes",
+            "type": {
+              "kind": "uint64"
+            }
+          }
+        ],
+        "result": {
+          "kind": "uint64"
+        }
+      }
+    }
+  ],
+  "inherited_declared_production_roots": [
+    {
+      "root": "Uorc.Uorc.Core.Heap.allocate",
+      "source_path": "src/Uorc/Core/Heap.lex.tex",
+      "declaration": "allocate",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Arena"
+        },
+        {
+          "name": "node",
+          "type": "Node"
+        }
+      ],
+      "result": "Result Allocation HeapError",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "node",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "name": "Node"
+              }
+            }
+          }
+        ],
+        "result": {
+          "error": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "name": "HeapError"
+            }
+          },
+          "kind": "result",
+          "ok": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "name": "Allocation"
+            }
+          }
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.Heap.releaseStep",
+      "source_path": "src/Uorc/Core/Heap.lex.tex",
+      "declaration": "releaseStep",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Arena"
+        }
+      ],
+      "result": "Result Transition HeapError",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "name": "Arena"
+              }
+            }
+          }
+        ],
+        "result": {
+          "error": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "name": "HeapError"
+            }
+          },
+          "kind": "result",
+          "ok": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "name": "Transition"
+            }
+          }
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImage.imageLength",
+      "source_path": "src/Uorc/Core/RuntimeImage.lex.tex",
+      "declaration": "imageLength",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "image",
+          "type": "Uorc.Core.RuntimeValue::Handle"
+        }
+      ],
+      "result": "Result UInt64 ImageFailure",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "image",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeValue",
+                "name": "Handle"
+              }
+            }
+          }
+        ],
+        "result": {
+          "error": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "name": "ImageFailure"
+            }
+          },
+          "kind": "result",
+          "ok": {
+            "kind": "uint64"
+          }
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImage.imageLengthCost",
+      "source_path": "src/Uorc/Core/RuntimeImage.lex.tex",
+      "declaration": "imageLengthCost",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "image",
+          "type": "Uorc.Core.RuntimeValue::Handle"
+        }
+      ],
+      "result": "UInt64",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "image",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeValue",
+                "name": "Handle"
+              }
+            }
+          }
+        ],
+        "result": {
+          "kind": "uint64"
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImage.readByte",
+      "source_path": "src/Uorc/Core/RuntimeImage.lex.tex",
+      "declaration": "readByte",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "image",
+          "type": "Uorc.Core.RuntimeValue::Handle"
+        },
+        {
+          "name": "absoluteOffset",
+          "type": "UInt64"
+        }
+      ],
+      "result": "Result UInt8 ImageFailure",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "image",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeValue",
+                "name": "Handle"
+              }
+            }
+          },
+          {
+            "name": "absoluteOffset",
+            "type": {
+              "kind": "uint64"
+            }
+          }
+        ],
+        "result": {
+          "error": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "name": "ImageFailure"
+            }
+          },
+          "kind": "result",
+          "ok": {
+            "kind": "uint8"
+          }
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImage.readByteCost",
+      "source_path": "src/Uorc/Core/RuntimeImage.lex.tex",
+      "declaration": "readByteCost",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "image",
+          "type": "Uorc.Core.RuntimeValue::Handle"
+        },
+        {
+          "name": "absoluteOffset",
+          "type": "UInt64"
+        }
+      ],
+      "result": "UInt64",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "image",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeValue",
+                "name": "Handle"
+              }
+            }
+          },
+          {
+            "name": "absoluteOffset",
+            "type": {
+              "kind": "uint64"
+            }
+          }
+        ],
+        "result": {
+          "kind": "uint64"
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImage.readSpanByte",
+      "source_path": "src/Uorc/Core/RuntimeImage.lex.tex",
+      "declaration": "readSpanByte",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "span",
+          "type": "BorrowedSpan"
+        },
+        {
+          "name": "relativeIndex",
+          "type": "UInt64"
+        }
+      ],
+      "result": "Result UInt8 ImageFailure",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "span",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "name": "BorrowedSpan"
+              }
+            }
+          },
+          {
+            "name": "relativeIndex",
+            "type": {
+              "kind": "uint64"
+            }
+          }
+        ],
+        "result": {
+          "error": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "name": "ImageFailure"
+            }
+          },
+          "kind": "result",
+          "ok": {
+            "kind": "uint8"
+          }
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImage.readSpanByteCost",
+      "source_path": "src/Uorc/Core/RuntimeImage.lex.tex",
+      "declaration": "readSpanByteCost",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "span",
+          "type": "BorrowedSpan"
+        },
+        {
+          "name": "relativeIndex",
+          "type": "UInt64"
+        }
+      ],
+      "result": "UInt64",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "span",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "name": "BorrowedSpan"
+              }
+            }
+          },
+          {
+            "name": "relativeIndex",
+            "type": {
+              "kind": "uint64"
+            }
+          }
+        ],
+        "result": {
+          "kind": "uint64"
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImage.validateSpan",
+      "source_path": "src/Uorc/Core/RuntimeImage.lex.tex",
+      "declaration": "validateSpan",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "image",
+          "type": "Uorc.Core.RuntimeValue::Handle"
+        },
+        {
+          "name": "offset",
+          "type": "UInt64"
+        },
+        {
+          "name": "length",
+          "type": "UInt64"
+        }
+      ],
+      "result": "Result BorrowedSpan ImageFailure",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [
+        "Quot.sound",
+        "propext"
+      ],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "image",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeValue",
+                "name": "Handle"
+              }
+            }
+          },
+          {
+            "name": "offset",
+            "type": {
+              "kind": "uint64"
+            }
+          },
+          {
+            "name": "length",
+            "type": {
+              "kind": "uint64"
+            }
+          }
+        ],
+        "result": {
+          "error": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "name": "ImageFailure"
+            }
+          },
+          "kind": "result",
+          "ok": {
+            "arguments": [],
+            "kind": "named",
+            "member": {
+              "name": "BorrowedSpan"
+            }
+          }
+        }
+      }
+    },
+    {
+      "root": "Uorc.Uorc.Core.RuntimeImage.validateSpanCost",
+      "source_path": "src/Uorc/Core/RuntimeImage.lex.tex",
+      "declaration": "validateSpanCost",
+      "parameters": [
+        {
+          "name": "arena",
+          "type": "Uorc.Core.Heap::Arena"
+        },
+        {
+          "name": "image",
+          "type": "Uorc.Core.RuntimeValue::Handle"
+        },
+        {
+          "name": "offset",
+          "type": "UInt64"
+        },
+        {
+          "name": "length",
+          "type": "UInt64"
+        }
+      ],
+      "result": "UInt64",
+      "production": {
+        "effects": [
+          "allocation",
+          "overflow",
+          "recursion"
+        ],
+        "targets": [
+          "rust-std"
+        ]
+      },
+      "axioms": [],
+      "official_reader_signature": {
+        "parameters": [
+          {
+            "name": "arena",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.Heap",
+                "name": "Arena"
+              }
+            }
+          },
+          {
+            "name": "image",
+            "type": {
+              "arguments": [],
+              "kind": "named",
+              "member": {
+                "module": "Uorc.Core.RuntimeValue",
+                "name": "Handle"
+              }
+            }
+          },
+          {
+            "name": "offset",
+            "type": {
+              "kind": "uint64"
+            }
+          },
+          {
+            "name": "length",
+            "type": {
+              "kind": "uint64"
+            }
+          }
+        ],
+        "result": {
+          "kind": "uint64"
+        }
+      }
+    }
+  ],
+  "derivation": {
+    "API": "lexlean::sdk::read_module + write_module byte-exact roundtrip",
+    "adapter_source": "tests/heap/export-semantic-json.rs",
+    "adapter_source_sha256": "a6a6b368afedb402ad5e22914361857619fb612ddb96fdba7be4124ded57e937",
+    "SDK_source_commit": "71defb4c663aaec5b9a3aab04cbc6a03e7106227",
+    "root_name_binding": "Official module-prefix convention verified by existing SDK71 Copy allocation-probe layout; compiler validates root identities during production request.",
+    "scope": "Declaration metadata only; no hand-authored semantic program or implementation body."
+  }
+}
