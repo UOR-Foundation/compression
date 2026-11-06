@@ -1,0 +1,863 @@
+\begin{lexlean}{Uorc.Wire.ClosedArchiveCallerScenarios}
+\importmodule{Uorc.Wire.ClosedArchive}
+\importmodule{Uorc.Wire.ClosedArchiveRunScenarios}
+\importmodule{Uorc.Wire.ArchiveSnapshotScenarios}
+\importmodule{Uorc.Wire.ArchiveSnapshot}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Wire.OwnedRead}
+\importmodule{Uorc.Wire.FrameEventContract}
+\importmodule{Uorc.Wire.ObjectDemux}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Wire.OwnedBasisSnapshot}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Integrity.Profile}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: setup, fields: []},
+    {name: fuel, fields: []},
+    {name: decode, fields: []},
+    {name: read, fields: []},
+    {name: trace, fields: []},
+    {name: cleanup, fields: []},
+    {name: ownership, fields: []},
+    {name: transfer, fields: []},
+    {name: pause, fields: []},
+    {name: refusal, fields: []},
+    {name: audit, fields: []}
+  ]
+}
+
+structure{
+  name: Scenario,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: given, type: String},
+    {name: when, type: String},
+    {name: then, type: String},
+    {name: owner, type: String}
+  ]
+}
+
+definition{
+  name: caller_roundtrip,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-01", given := "valid raw/program archive and separate original sequence in the same actual Arena; original supplied as protected CallerRoots.input", when := "beginWithCaller, drive actual output with readSequenceStep/readByte, acknowledge, clean and takeClean once", then := "every byte equals original, returned CleanSession owns exactly protected input; duplicate takeClean rejects, final original release leaves empty arena", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.run"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (Uorc.Wire.ClosedArchiveRunScenarios::budget),
+  axioms: [Quot.sound, propext]
+}
+
+structure{
+  name: Prepared,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: state, type: Uorc.Wire.ClosedArchive::State},
+    {name: original, type: Uorc.Core.RuntimeValue::Handle},
+    {name: reader, type: Uorc.Wire.OwnedRead::Cursor},
+    {name: objects, type: UInt64},
+    {name: bytes, type: UInt64},
+    {name: candidate, type: Uorc.Core.RuntimeValue::Handle},
+    {name: search, type: Uorc.Core.RuntimeValue::Handle},
+    {name: extra, type: Uorc.Core.RuntimeValue::Handle}
+  ]
+}
+
+definition{
+  name: originalSequence,
+  parameters: [arena : Uorc.Core.Heap::Arena, bytes : Bytes],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match (Uorc.Core.Heap::allocate arena (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) bytes))
+    | Result.error whyLocal1 => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.setup))
+    | Result.ok imageLocal2 => (match (Uorc.Core.Heap::wordOfNat (prim length bytes : Nat))
+      | Option.none => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.setup))
+      | Option.some lengthLocal3 => (match (Uorc.Core.Heap::allocateMoved (project imageLocal2 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal2 handle) (0 : UInt64) lengthLocal3) true false)
+        | Result.error whyLocal4 => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.setup))
+        | Result.ok sequenceLocal5 => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] sequenceLocal5)))),
+  axioms: [Quot.sound, propext]
+}
+
+structure{
+  name: FixtureArena,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: extra, type: Uorc.Core.RuntimeValue::Handle}
+  ]
+}
+
+definition{
+  name: requestBudget,
+  parameters: [paused : Bool],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (let normalLocal6 : Uorc.Core.RuntimeResources::Budget := (budget); (record Uorc.Core.RuntimeResources::Budget {maxWork := (if paused then (0 : UInt64) else (project normalLocal6 maxWork)), maxOwnedBytes := (project normalLocal6 maxOwnedBytes), maxOutputBytes := (project normalLocal6 maxOutputBytes), maxFrames := (project normalLocal6 maxFrames)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: setupCase,
+  parameters: [
+    program : Bool,
+    shared : Bool,
+    copy : Bool,
+    unrelated : Bool,
+    paused : Bool,
+    badHash : Bool,
+    future : Bool
+  ],
+  result: (Result Prepared Error),
+  body: (match (Uorc.Wire.ClosedArchiveRunScenarios::wire program badHash)
+    | Result.error whyLocal7 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+    | Result.ok wireLocal8 => (match (Uorc.Wire.ArchiveSnapshotScenarios::setupBytes wireLocal8)
+      | Result.error whyLocal9 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+      | Result.ok frameLocal10 => (match (originalSequence (project frameLocal10 arena) (if program then 0x00ff80 else 0x02ff))
+        | Result.error whyLocal11 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+        | Result.ok originalLocal12 => (if unrelated then (match (originalSequence (project originalLocal12 arena) 0xee)
+          | Result.error whyLocal13 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+          | Result.ok otherLocal14 => (let extraLocal15 : FixtureArena := (record FixtureArena {arena := (project otherLocal14 arena), extra := (project otherLocal14 handle)}); (if (shared && copy) then (match (Uorc.Core.Heap::retain (project extraLocal15 arena) (project (project frameLocal10 state) archive))
+            | Result.error whyLocal16 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+            | Result.ok retainedLocal17 => (let readyLocal18 : FixtureArena := (record FixtureArena {arena := (project retainedLocal17 arena), extra := (project extraLocal15 extra)}); (match (Uorc.Core.RuntimeResources::observeArena (requestBudget paused) (project frameLocal10 usage) (project readyLocal18 arena))
+              | Result.error whyLocal19 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+              | Result.ok usageLocal20 => (match (Uorc.Wire.OwnedRead::begin (project readyLocal18 arena) (project originalLocal12 handle))
+                | Result.error whyLocal21 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+                | Result.ok readerLocal22 => (match (Uorc.Wire.ClosedArchive::beginWithCaller (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 1}) (requestBudget paused) (project readyLocal18 arena) usageLocal20 (project (project frameLocal10 state) archive) (ctor Option.none [Uorc.Wire.OwnedBasisSnapshot::Snapshot]) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project originalLocal12 handle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (if shared then (project (project frameLocal10 state) archive) else (Uorc.Core.RuntimeValue::nullHandle)), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (if future then (record Uorc.Core.RuntimeValue::Handle {id := (Uorc.Core.Heap::wordAdd (project (project readyLocal18 arena) nextHandle) (10 : UInt64))}) else (Uorc.Core.RuntimeValue::nullHandle)), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}))
+                  | Result.error whyLocal23 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+                  | Result.ok stateLocal24 => (ctor Result.ok [Prepared, Error] (record Prepared {state := stateLocal24, original := (project originalLocal12 handle), reader := readerLocal22, objects := (if program then (1 : UInt64) else (5 : UInt64)), bytes := (if program then (3 : UInt64) else (2 : UInt64)), candidate := (project (project frameLocal10 state) archive), search := (if shared then (project (project frameLocal10 state) archive) else (Uorc.Core.RuntimeValue::nullHandle)), extra := (project readyLocal18 extra)}))))))) else (let readyLocal25 : FixtureArena := extraLocal15; (match (Uorc.Core.RuntimeResources::observeArena (requestBudget paused) (project frameLocal10 usage) (project readyLocal25 arena))
+            | Result.error whyLocal26 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+            | Result.ok usageLocal27 => (match (Uorc.Wire.OwnedRead::begin (project readyLocal25 arena) (project originalLocal12 handle))
+              | Result.error whyLocal28 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+              | Result.ok readerLocal29 => (match (Uorc.Wire.ClosedArchive::beginWithCaller (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 1}) (requestBudget paused) (project readyLocal25 arena) usageLocal27 (project (project frameLocal10 state) archive) (ctor Option.none [Uorc.Wire.OwnedBasisSnapshot::Snapshot]) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project originalLocal12 handle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (if shared then (project (project frameLocal10 state) archive) else (Uorc.Core.RuntimeValue::nullHandle)), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (if future then (record Uorc.Core.RuntimeValue::Handle {id := (Uorc.Core.Heap::wordAdd (project (project readyLocal25 arena) nextHandle) (10 : UInt64))}) else (Uorc.Core.RuntimeValue::nullHandle)), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}))
+                | Result.error whyLocal30 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+                | Result.ok stateLocal31 => (ctor Result.ok [Prepared, Error] (record Prepared {state := stateLocal31, original := (project originalLocal12 handle), reader := readerLocal29, objects := (if program then (1 : UInt64) else (5 : UInt64)), bytes := (if program then (3 : UInt64) else (2 : UInt64)), candidate := (project (project frameLocal10 state) archive), search := (if shared then (project (project frameLocal10 state) archive) else (Uorc.Core.RuntimeValue::nullHandle)), extra := (project readyLocal25 extra)}))))))))) else (let extraLocal32 : FixtureArena := (record FixtureArena {arena := (project originalLocal12 arena), extra := (Uorc.Core.RuntimeValue::nullHandle)}); (if (shared && copy) then (match (Uorc.Core.Heap::retain (project extraLocal32 arena) (project (project frameLocal10 state) archive))
+          | Result.error whyLocal33 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+          | Result.ok retainedLocal34 => (let readyLocal35 : FixtureArena := (record FixtureArena {arena := (project retainedLocal34 arena), extra := (project extraLocal32 extra)}); (match (Uorc.Core.RuntimeResources::observeArena (requestBudget paused) (project frameLocal10 usage) (project readyLocal35 arena))
+            | Result.error whyLocal36 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+            | Result.ok usageLocal37 => (match (Uorc.Wire.OwnedRead::begin (project readyLocal35 arena) (project originalLocal12 handle))
+              | Result.error whyLocal38 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+              | Result.ok readerLocal39 => (match (Uorc.Wire.ClosedArchive::beginWithCaller (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 1}) (requestBudget paused) (project readyLocal35 arena) usageLocal37 (project (project frameLocal10 state) archive) (ctor Option.none [Uorc.Wire.OwnedBasisSnapshot::Snapshot]) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project originalLocal12 handle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (if shared then (project (project frameLocal10 state) archive) else (Uorc.Core.RuntimeValue::nullHandle)), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (if future then (record Uorc.Core.RuntimeValue::Handle {id := (Uorc.Core.Heap::wordAdd (project (project readyLocal35 arena) nextHandle) (10 : UInt64))}) else (Uorc.Core.RuntimeValue::nullHandle)), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}))
+                | Result.error whyLocal40 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+                | Result.ok stateLocal41 => (ctor Result.ok [Prepared, Error] (record Prepared {state := stateLocal41, original := (project originalLocal12 handle), reader := readerLocal39, objects := (if program then (1 : UInt64) else (5 : UInt64)), bytes := (if program then (3 : UInt64) else (2 : UInt64)), candidate := (project (project frameLocal10 state) archive), search := (if shared then (project (project frameLocal10 state) archive) else (Uorc.Core.RuntimeValue::nullHandle)), extra := (project readyLocal35 extra)}))))))) else (let readyLocal42 : FixtureArena := extraLocal32; (match (Uorc.Core.RuntimeResources::observeArena (requestBudget paused) (project frameLocal10 usage) (project readyLocal42 arena))
+          | Result.error whyLocal43 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+          | Result.ok usageLocal44 => (match (Uorc.Wire.OwnedRead::begin (project readyLocal42 arena) (project originalLocal12 handle))
+            | Result.error whyLocal45 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+            | Result.ok readerLocal46 => (match (Uorc.Wire.ClosedArchive::beginWithCaller (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 1}) (requestBudget paused) (project readyLocal42 arena) usageLocal44 (project (project frameLocal10 state) archive) (ctor Option.none [Uorc.Wire.OwnedBasisSnapshot::Snapshot]) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project originalLocal12 handle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (if shared then (project (project frameLocal10 state) archive) else (Uorc.Core.RuntimeValue::nullHandle)), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (if future then (record Uorc.Core.RuntimeValue::Handle {id := (Uorc.Core.Heap::wordAdd (project (project readyLocal42 arena) nextHandle) (10 : UInt64))}) else (Uorc.Core.RuntimeValue::nullHandle)), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}))
+              | Result.error whyLocal47 => (ctor Result.error [Prepared, Error] (ctor Error.setup))
+              | Result.ok stateLocal48 => (ctor Result.ok [Prepared, Error] (record Prepared {state := stateLocal48, original := (project originalLocal12 handle), reader := readerLocal46, objects := (if program then (1 : UInt64) else (5 : UInt64)), bytes := (if program then (3 : UInt64) else (2 : UInt64)), candidate := (project (project frameLocal10 state) archive), search := (if shared then (project (project frameLocal10 state) archive) else (Uorc.Core.RuntimeValue::nullHandle)), extra := (project readyLocal42 extra)})))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: setup,
+  parameters: [program : Bool],
+  result: (Result Prepared Error),
+  body: (setupCase program false false false false false false),
+  axioms: [Quot.sound, propext]
+}
+
+structure{
+  name: Progress,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: state, type: Uorc.Wire.ClosedArchive::State},
+    {name: original, type: Uorc.Core.RuntimeValue::Handle},
+    {name: reader, type: Uorc.Wire.OwnedRead::Cursor},
+    {name: originalImage, type: Uorc.Core.RuntimeValue::Handle},
+    {name: originalOffset, type: UInt64},
+    {name: originalRemaining, type: UInt64},
+    {name: bytes, type: UInt64},
+    {name: begins, type: UInt64},
+    {name: ends, type: UInt64},
+    {name: expectedObjects, type: UInt64},
+    {name: expectedBytes, type: UInt64},
+    {name: search, type: Uorc.Core.RuntimeValue::Handle}
+  ]
+}
+
+definition{
+  name: beginProgress,
+  parameters: [p : Prepared],
+  result: Progress,
+  body: (record Progress {state := (project p state), original := (project p original), reader := (project p reader), originalImage := (Uorc.Core.RuntimeValue::nullHandle), originalOffset := (0 : UInt64), originalRemaining := (0 : UInt64), bytes := (0 : UInt64), begins := (0 : UInt64), ends := (0 : UInt64), expectedObjects := (project p objects), expectedBytes := (project p bytes), search := (project p search)}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: loadOriginal,
+  parameters: [fuel : Nat, r : Progress],
+  result: (Result Progress Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Progress, Error] (ctor Error.fuel))
+    | Nat.succ restLocal49 => (if (prim equal (project r originalRemaining) (0 : UInt64) : Bool) then (let readLocal50 : Uorc.Wire.ClosedArchive::SequenceRead := (Uorc.Wire.ClosedArchive::readSequenceStep (project r state) (project r reader)); (match (project readLocal50 value)
+      | Result.error whyLocal51 => (ctor Result.error [Progress, Error] (ctor Error.read))
+      | Result.ok eventLocal52 => (match eventLocal52
+        | Uorc.Wire.OwnedRead::Step.advanced nextLocal53 => (loadOriginal restLocal49 (record Progress {state := (project readLocal50 state), original := (project r original), reader := nextLocal53, originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+        | Uorc.Wire.OwnedRead::Step.failed whyLocal54 => (ctor Result.error [Progress, Error] (ctor Error.read))
+        | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.error [Progress, Error] (ctor Error.trace))
+        | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal55 offsetLocal56 lengthLocal57 nextLocal58 => (if (prim equal lengthLocal57 (0 : UInt64) : Bool) then (loadOriginal restLocal49 (record Progress {state := (project readLocal50 state), original := (project r original), reader := nextLocal58, originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)})) else (ctor Result.ok [Progress, Error] (record Progress {state := (project readLocal50 state), original := (project r original), reader := nextLocal58, originalImage := imageLocal55, originalOffset := offsetLocal56, originalRemaining := lengthLocal57, bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)})))))) else (ctor Result.ok [Progress, Error] r))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: compareByte,
+  parameters: [r : Progress, image : Uorc.Core.RuntimeValue::Handle, offset : UInt64],
+  result: (Result Progress Error),
+  body: (match (loadOriginal 10000 r)
+    | Result.error whyLocal59 => (ctor Result.error [Progress, Error] whyLocal59)
+    | Result.ok loadedLocal60 => (let expectedReadLocal61 : Uorc.Wire.ClosedArchive::ByteRead := (Uorc.Wire.ClosedArchive::readByte (project loadedLocal60 state) (project loadedLocal60 originalImage) (project loadedLocal60 originalOffset)); (match (project expectedReadLocal61 value)
+      | Result.error whyLocal62 => (ctor Result.error [Progress, Error] (ctor Error.read))
+      | Result.ok expectedLocal63 => (let actualReadLocal64 : Uorc.Wire.ClosedArchive::ByteRead := (Uorc.Wire.ClosedArchive::readByte (project expectedReadLocal61 state) image offset); (match (project actualReadLocal64 value)
+        | Result.error whyLocal65 => (ctor Result.error [Progress, Error] (ctor Error.read))
+        | Result.ok actualLocal66 => (if (prim equal actualLocal66 expectedLocal63 : Bool) then (ctor Result.ok [Progress, Error] (record Progress {state := (project actualReadLocal64 state), original := (project loadedLocal60 original), reader := (project loadedLocal60 reader), originalImage := (project loadedLocal60 originalImage), originalOffset := (Uorc.Core.Heap::wordAdd (project loadedLocal60 originalOffset) (1 : UInt64)), originalRemaining := (Uorc.Core.Heap::wordSub (project loadedLocal60 originalRemaining) (1 : UInt64)), bytes := (Uorc.Core.Heap::wordAdd (project loadedLocal60 bytes) (1 : UInt64)), begins := (project loadedLocal60 begins), ends := (project loadedLocal60 ends), expectedObjects := (project loadedLocal60 expectedObjects), expectedBytes := (project loadedLocal60 expectedBytes), search := (project loadedLocal60 search)})) else (ctor Result.error [Progress, Error] (ctor Error.trace)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: compareSpan,
+  parameters: [
+    fuel : Nat,
+    r : Progress,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    remaining : UInt64
+  ],
+  result: (Result Progress Error),
+  body: (match fuel
+    | Nat.zero => (if (prim equal remaining (0 : UInt64) : Bool) then (ctor Result.ok [Progress, Error] r) else (ctor Result.error [Progress, Error] (ctor Error.fuel)))
+    | Nat.succ restLocal67 => (if (prim equal remaining (0 : UInt64) : Bool) then (ctor Result.ok [Progress, Error] r) else (match (compareByte r image offset)
+      | Result.error whyLocal68 => (ctor Result.error [Progress, Error] whyLocal68)
+      | Result.ok nextLocal69 => (compareSpan restLocal67 nextLocal69 image (Uorc.Core.Heap::wordAdd offset (1 : UInt64)) (Uorc.Core.Heap::wordSub remaining (1 : UInt64)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: originalEOF,
+  parameters: [fuel : Nat, r : Progress],
+  result: (Result Progress Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Progress, Error] (ctor Error.fuel))
+    | Nat.succ restLocal70 => (if (prim equal (project r originalRemaining) (0 : UInt64) : Bool) then (let readLocal71 : Uorc.Wire.ClosedArchive::SequenceRead := (Uorc.Wire.ClosedArchive::readSequenceStep (project r state) (project r reader)); (match (project readLocal71 value)
+      | Result.error whyLocal72 => (ctor Result.error [Progress, Error] (ctor Error.read))
+      | Result.ok eventLocal73 => (match eventLocal73
+        | Uorc.Wire.OwnedRead::Step.advanced nextLocal74 => (originalEOF restLocal70 (record Progress {state := (project readLocal71 state), original := (project r original), reader := nextLocal74, originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+        | Uorc.Wire.OwnedRead::Step.failed whyLocal75 => (ctor Result.error [Progress, Error] (ctor Error.read))
+        | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.ok [Progress, Error] (record Progress {state := (project readLocal71 state), original := (project r original), reader := (project r reader), originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+        | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal76 offsetLocal77 lengthLocal78 nextLocal79 => (if (prim equal lengthLocal78 (0 : UInt64) : Bool) then (originalEOF restLocal70 (record Progress {state := (project readLocal71 state), original := (project r original), reader := nextLocal79, originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)})) else (ctor Result.error [Progress, Error] (ctor Error.trace)))))) else (ctor Result.error [Progress, Error] (ctor Error.trace)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: acknowledge,
+  parameters: [r : Progress],
+  result: (Result Progress Error),
+  body: (let tLocal80 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::acknowledge (project r state) (ctor Uorc.Wire.ObjectDemux::Ack.consumed)); (match (project tLocal80 signal)
+    | Uorc.Wire.ClosedArchive::Signal.advanced => (ctor Result.ok [Progress, Error] (record Progress {state := (project tLocal80 state), original := (project r original), reader := (project r reader), originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+    | Uorc.Wire.ClosedArchive::Signal.pending => (ctor Result.ok [Progress, Error] (record Progress {state := (project tLocal80 state), original := (project r original), reader := (project r reader), originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+    | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.ok [Progress, Error] (record Progress {state := (project tLocal80 state), original := (project r original), reader := (project r reader), originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+    | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.error [Progress, Error] (ctor Error.decode))
+    | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Progress, Error] (ctor Error.decode))
+    | Uorc.Wire.ClosedArchive::Signal.paused whyLocal81 => (ctor Result.error [Progress, Error] (ctor Error.decode))
+    | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal82 => (ctor Result.error [Progress, Error] (ctor Error.decode)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drive,
+  parameters: [fuel : Nat, r : Progress],
+  result: (Result Progress Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Progress, Error] (ctor Error.fuel))
+    | Nat.succ restLocal83 => (match (Uorc.Wire.ClosedArchive::pending (project r state))
+      | Option.none => (let tLocal84 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::advance (project r state) (1024 : UInt64)); (match (project tLocal84 signal)
+        | Uorc.Wire.ClosedArchive::Signal.advanced => (drive restLocal83 (record Progress {state := (project tLocal84 state), original := (project r original), reader := (project r reader), originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+        | Uorc.Wire.ClosedArchive::Signal.pending => (drive restLocal83 (record Progress {state := (project tLocal84 state), original := (project r original), reader := (project r reader), originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+        | Uorc.Wire.ClosedArchive::Signal.decoded => (if ((prim equal (project r bytes) (project r expectedBytes) : Bool) && ((prim equal (project r begins) (project r expectedObjects) : Bool) && (prim equal (project r ends) (project r expectedObjects) : Bool))) then (ctor Result.ok [Progress, Error] (record Progress {state := (project tLocal84 state), original := (project r original), reader := (project r reader), originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)})) else (ctor Result.error [Progress, Error] (ctor Error.trace)))
+        | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.error [Progress, Error] (ctor Error.decode))
+        | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Progress, Error] (ctor Error.decode))
+        | Uorc.Wire.ClosedArchive::Signal.paused whyLocal85 => (ctor Result.error [Progress, Error] (ctor Error.decode))
+        | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal86 => (ctor Result.error [Progress, Error] (ctor Error.decode))))
+      | Option.some eventLocal87 => (match eventLocal87
+        | Uorc.Wire.FrameEventContract::ObjectEvent.beginObject indexLocal88 lengthLocal89 => (if ((prim equal indexLocal88 (project r begins) : Bool) && ((prim equal (project r begins) (project r ends) : Bool) && (prim equal lengthLocal89 (if (prim equal (project r expectedObjects) (1 : UInt64) : Bool) then (project r expectedBytes) else (if (prim equal indexLocal88 (1 : UInt64) : Bool) then (1 : UInt64) else (if (prim equal indexLocal88 (3 : UInt64) : Bool) then (1 : UInt64) else (0 : UInt64)))) : Bool))) then (match (acknowledge (record Progress {state := (project r state), original := (project r original), reader := (project r reader), originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (Uorc.Core.Heap::wordAdd (project r begins) (1 : UInt64)), ends := (project r ends), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+          | Result.error whyLocal90 => (ctor Result.error [Progress, Error] whyLocal90)
+          | Result.ok nextLocal91 => (drive restLocal83 nextLocal91)) else (ctor Result.error [Progress, Error] (ctor Error.trace)))
+        | Uorc.Wire.FrameEventContract::ObjectEvent.endObject indexLocal92 => (if ((prim equal indexLocal92 (project r ends) : Bool) && (prim equal (project r begins) (Uorc.Core.Heap::wordAdd (project r ends) (1 : UInt64)) : Bool)) then (match (acknowledge (record Progress {state := (project r state), original := (project r original), reader := (project r reader), originalImage := (project r originalImage), originalOffset := (project r originalOffset), originalRemaining := (project r originalRemaining), bytes := (project r bytes), begins := (project r begins), ends := (Uorc.Core.Heap::wordAdd (project r ends) (1 : UInt64)), expectedObjects := (project r expectedObjects), expectedBytes := (project r expectedBytes), search := (project r search)}))
+          | Result.error whyLocal93 => (ctor Result.error [Progress, Error] whyLocal93)
+          | Result.ok nextLocal94 => (drive restLocal83 nextLocal94)) else (ctor Result.error [Progress, Error] (ctor Error.trace)))
+        | Uorc.Wire.FrameEventContract::ObjectEvent.bytes indexLocal95 imageLocal96 offsetLocal97 lengthLocal98 => (if ((prim equal indexLocal95 (project r ends) : Bool) && (prim equal (project r begins) (Uorc.Core.Heap::wordAdd (project r ends) (1 : UInt64)) : Bool)) then (match (compareSpan 10000 r imageLocal96 offsetLocal97 lengthLocal98)
+          | Result.error whyLocal99 => (ctor Result.error [Progress, Error] whyLocal99)
+          | Result.ok comparedLocal100 => (match (acknowledge comparedLocal100)
+            | Result.error whyLocal101 => (ctor Result.error [Progress, Error] whyLocal101)
+            | Result.ok nextLocal102 => (drive restLocal83 nextLocal102))) else (ctor Result.error [Progress, Error] (ctor Error.trace)))
+        | Uorc.Wire.FrameEventContract::ObjectEvent.seal totalLocal103 => (if ((prim equal totalLocal103 (project r expectedBytes) : Bool) && ((prim equal (project r bytes) (project r expectedBytes) : Bool) && (prim equal (project r begins) (project r ends) : Bool))) then (match (originalEOF 10000 r)
+          | Result.error whyLocal104 => (ctor Result.error [Progress, Error] whyLocal104)
+          | Result.ok endedLocal105 => (match (acknowledge endedLocal105)
+            | Result.error whyLocal106 => (ctor Result.error [Progress, Error] whyLocal106)
+            | Result.ok nextLocal107 => (drive restLocal83 nextLocal107))) else (ctor Result.error [Progress, Error] (ctor Error.trace)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: clean,
+  parameters: [fuel : Nat, x : Uorc.Wire.ClosedArchive::State],
+  result: (Result Uorc.Wire.ClosedArchive::State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.fuel))
+    | Nat.succ restLocal108 => (let tLocal109 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::cleanup x (1024 : UInt64)); (match (project tLocal109 signal)
+      | Uorc.Wire.ClosedArchive::Signal.advanced => (clean restLocal108 (project tLocal109 state))
+      | Uorc.Wire.ClosedArchive::Signal.pending => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.cleanup))
+      | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.cleanup))
+      | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.cleanup))
+      | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.ok [Uorc.Wire.ClosedArchive::State, Error] (project tLocal109 state))
+      | Uorc.Wire.ClosedArchive::Signal.paused whyLocal110 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.cleanup))
+      | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal111 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.cleanup))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: releaseDrain,
+  parameters: [fuel : Nat, arena : Uorc.Core.Heap::Arena],
+  result: (Result Unit Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Unit, Error] (ctor Error.fuel))
+    | Nat.succ restLocal112 => (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+      | Result.error whyLocal113 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+      | Result.ok tLocal114 => (releaseDrain restLocal112 (project tLocal114 arena))) else (if (Uorc.Core.HeapAudit::auditRoots arena (nil Uorc.Core.RuntimeValue::Handle)) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: isHandedOff,
+  parameters: [x : Uorc.Wire.ClosedArchive::State],
+  result: Bool,
+  body: (match (project x owner)
+    | Uorc.Wire.ClosedArchive::Owner.scanning sessionLocal115 => false
+    | Uorc.Wire.ClosedArchive::Owner.integrity sessionLocal116 => false
+    | Uorc.Wire.ClosedArchive::Owner.basisHash sessionLocal117 => false
+    | Uorc.Wire.ClosedArchive::Owner.basisCompare sessionLocal118 => false
+    | Uorc.Wire.ClosedArchive::Owner.preparing arenaLocal119 usageLocal120 => false
+    | Uorc.Wire.ClosedArchive::Owner.program sessionLocal121 => false
+    | Uorc.Wire.ClosedArchive::Owner.machine sessionLocal122 => false
+    | Uorc.Wire.ClosedArchive::Owner.objects sessionLocal123 => false
+    | Uorc.Wire.ClosedArchive::Owner.terminal arenaLocal124 usageLocal125 => false
+    | Uorc.Wire.ClosedArchive::Owner.clean arenaLocal126 usageLocal127 => false
+    | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal128 => true),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: fixtureRoots,
+  parameters: [arena : Uorc.Core.Heap::Arena, h : Uorc.Core.RuntimeValue::Handle, count : UInt64],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::lookup arena h)
+    | Result.error whyLocal129 => false
+    | Result.ok entryLocal130 => (prim equal (project entryLocal130 roots) count : Bool)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: addRoot,
+  parameters: [h : Uorc.Core.RuntimeValue::Handle, rs : (List Uorc.Core.RuntimeValue::Handle)],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull h) then rs else (cons h rs)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drainArena,
+  parameters: [fuel : Nat, arena : Uorc.Core.Heap::Arena],
+  result: (Result Uorc.Core.Heap::Arena Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.fuel))
+    | Nat.succ restLocal131 => (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+      | Result.error whyLocal132 => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.ownership))
+      | Result.ok tLocal133 => (drainArena restLocal131 (project tLocal133 arena))) else (ctor Result.ok [Uorc.Core.Heap::Arena, Error] arena))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: releasePair,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    original : Uorc.Core.RuntimeValue::Handle,
+    search : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Unit Error),
+  body: (if (Uorc.Core.RuntimeValue::isNull search) then (match (Uorc.Core.Heap::release arena original)
+    | Result.error whyLocal134 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+    | Result.ok tLocal135 => (releaseDrain 10000 (project tLocal135 arena))) else (match (Uorc.Core.Heap::release arena search)
+    | Result.error whyLocal136 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+    | Result.ok tLocal137 => (match (drainArena 10000 (project tLocal137 arena))
+      | Result.error whyLocal138 => (ctor Result.error [Unit, Error] whyLocal138)
+      | Result.ok drainedLocal139 => (match (Uorc.Core.Heap::release drainedLocal139 original)
+        | Result.error whyLocal140 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Result.ok doneLocal141 => (releaseDrain 10000 (project doneLocal141 arena)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: handoff,
+  parameters: [
+    x : Uorc.Wire.ClosedArchive::State,
+    original : Uorc.Core.RuntimeValue::Handle,
+    search : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Unit Error),
+  body: (match (Uorc.Wire.ClosedArchive::takeClean x)
+    | Uorc.Wire.ClosedArchive::CleanMovement.retained retainedLocal142 => (ctor Result.error [Unit, Error] (ctor Error.transfer))
+    | Uorc.Wire.ClosedArchive::CleanMovement.moved movedLocal143 sessionLocal144 => (if ((isHandedOff movedLocal143) && (((((((Uorc.Core.RuntimeValue::sameHandle (project (project sessionLocal144 caller) input) original) && (Uorc.Core.RuntimeValue::sameHandle (project (project sessionLocal144 caller) search) search)) && (Uorc.Core.RuntimeValue::isNull (project (project sessionLocal144 caller) archive))) && (Uorc.Core.RuntimeValue::isNull (project (project sessionLocal144 caller) checkpoint))) && (Uorc.Core.RuntimeValue::isNull (project (project sessionLocal144 caller) certificate))) && (Uorc.Core.RuntimeValue::isNull (project (project sessionLocal144 caller) verification))) && (Uorc.Core.RuntimeValue::isNull (project (project sessionLocal144 caller) wire)))) then (if (((fixtureRoots (project sessionLocal144 arena) original (1 : UInt64)) && (if (Uorc.Core.RuntimeValue::isNull search) then true else (fixtureRoots (project sessionLocal144 arena) search (1 : UInt64)))) && (Uorc.Core.HeapAudit::auditRoots (project sessionLocal144 arena) (addRoot search (cons original (nil Uorc.Core.RuntimeValue::Handle))))) then (match (Uorc.Wire.ClosedArchive::takeClean movedLocal143)
+      | Uorc.Wire.ClosedArchive::CleanMovement.moved badStateLocal145 badSessionLocal146 => (ctor Result.error [Unit, Error] (ctor Error.transfer))
+      | Uorc.Wire.ClosedArchive::CleanMovement.retained retainedLocal147 => (if (isHandedOff retainedLocal147) then (releasePair (project sessionLocal144 arena) original search) else (ctor Result.error [Unit, Error] (ctor Error.transfer)))) else (ctor Result.error [Unit, Error] (ctor Error.ownership))) else (ctor Result.error [Unit, Error] (ctor Error.transfer)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runPrepared,
+  parameters: [p : Prepared],
+  result: (Result Unit Error),
+  body: (match (drive 500000 (beginProgress p))
+    | Result.error whyLocal148 => (ctor Result.error [Unit, Error] whyLocal148)
+    | Result.ok observedLocal149 => (match (clean 500000 (project observedLocal149 state))
+      | Result.error whyLocal150 => (ctor Result.error [Unit, Error] whyLocal150)
+      | Result.ok cleanedLocal151 => (handoff cleanedLocal151 (project p original) (project p search)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: check,
+  parameters: [program : Bool],
+  result: (Result Unit Error),
+  body: (match (setup program)
+    | Result.error whyLocal152 => (ctor Result.error [Unit, Error] whyLocal152)
+    | Result.ok pLocal153 => (runPrepared pLocal153)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runCompact,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (check false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runBasic,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (runCompact)
+    | Result.error whyLocal154 => (ctor Result.error [Unit, Error] whyLocal154)
+    | Result.ok rawLocal155 => (check true)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "This source scenario owns no independent Arena snapshot during output. Original sequence and archive are separately allocated in one actual Arena before beginWithCaller consumes archive; original is protected CallerRoots.input. Progress stores exactly one ClosedArchive.State, borrowed OwnedRead controls and scalar counters. All original/output reads go through state-returning readSequenceStep/readByte while Owner.objects, then bytes are acknowledged. The actual takeClean outcome is audited for exactly the protected input ticket; the returned moved State is handedOff with Usage only. Duplicate takeClean must retain that handedOff State. Only after handoff is original released and the achieved heap release drained to an empty root audit. This is candidate/native source-control evidence, not locked SDK acceptance or native physical-memory qualification.",
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: caller_02,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-02", given := "same candidate sequence has two actual root tickets; protected search aliases transferred archive; separate original is protected input", when := "run raw/program trial and clean", then := "return one candidate root ticket plus one original root, then release both to empty", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: caller_03,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-03", given := "shared candidate missing its second ticket, or an unrelated live root omitted from caller inventory", when := "advance then cleanup", then := "typed ownership refusal retains actual arena, never takeClean", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: caller_04,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-04", given := "zero-work input audit with correct shared custody", when := "pause then fundInputWork and resume", then := "cursor/usage/roots persist; resume reads/decodes and returns protected tickets", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: caller_05,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-05", given := "same paused audit or validated early program prefix", when := "cancel and fund audit if needed", then := "audit cannot be bypassed; cleanup returns both protected tickets", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: caller_06,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-06", given := "valid ownership with wrong archive hash", when := "run semantic integrity refusal and cleanup", then := "typed archiveIntegrity failure differs from ownership; protected tickets survive", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: caller_07,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-07", given := "protected certificate names a future handle beyond nextHandle", when := "run exact custody admission", then := "ownership refusal retains all actual roots; no clean handoff", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkShared,
+  parameters: [program : Bool],
+  result: (Result Unit Error),
+  body: (match (setupCase program true true false false false false)
+    | Result.error whyLocal156 => (ctor Result.error [Unit, Error] whyLocal156)
+    | Result.ok pLocal157 => (runPrepared pLocal157)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: heldAudit,
+  parameters: [p : Prepared, x : Uorc.Wire.ClosedArchive::State, two : Bool],
+  result: Bool,
+  body: (match (project x owner)
+    | Uorc.Wire.ClosedArchive::Owner.scanning sessionLocal158 => (Uorc.Core.HeapAudit::auditRoots (project sessionLocal158 arena) (addRoot (project p extra) (cons (project p original) (cons (project p candidate) (if two then (cons (project p candidate) (nil Uorc.Core.RuntimeValue::Handle)) else (nil Uorc.Core.RuntimeValue::Handle))))))
+    | Uorc.Wire.ClosedArchive::Owner.integrity sessionLocal159 => false
+    | Uorc.Wire.ClosedArchive::Owner.basisHash sessionLocal160 => false
+    | Uorc.Wire.ClosedArchive::Owner.basisCompare sessionLocal161 => false
+    | Uorc.Wire.ClosedArchive::Owner.preparing arenaLocal162 usageLocal163 => false
+    | Uorc.Wire.ClosedArchive::Owner.program sessionLocal164 => false
+    | Uorc.Wire.ClosedArchive::Owner.machine sessionLocal165 => false
+    | Uorc.Wire.ClosedArchive::Owner.objects sessionLocal166 => false
+    | Uorc.Wire.ClosedArchive::Owner.terminal arenaLocal167 usageLocal168 => false
+    | Uorc.Wire.ClosedArchive::Owner.clean arenaLocal169 usageLocal170 => false
+    | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal171 => false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: expectedFailure,
+  parameters: [x : Uorc.Wire.ClosedArchive::State, ownership : Bool],
+  result: Bool,
+  body: (match (project x failure)
+    | Option.none => false
+    | Option.some reasonLocal172 => (match reasonLocal172
+      | Uorc.Wire.ClosedArchive::Failure.protocol => false
+      | Uorc.Wire.ClosedArchive::Failure.ownership => ownership
+      | Uorc.Wire.ClosedArchive::Failure.cancelled => false
+      | Uorc.Wire.ClosedArchive::Failure.missingBasis => false
+      | Uorc.Wire.ClosedArchive::Failure.basisIdentity => false
+      | Uorc.Wire.ClosedArchive::Failure.archiveIntegrity => (if ownership then false else true)
+      | Uorc.Wire.ClosedArchive::Failure.framing => false
+      | Uorc.Wire.ClosedArchive::Failure.admission => false
+      | Uorc.Wire.ClosedArchive::Failure.execution => false
+      | Uorc.Wire.ClosedArchive::Failure.objects => false
+      | Uorc.Wire.ClosedArchive::Failure.publication => false
+      | Uorc.Wire.ClosedArchive::Failure.resource whyLocal173 => false
+      | Uorc.Wire.ClosedArchive::Failure.heap whyLocal174 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: noClean,
+  parameters: [x : Uorc.Wire.ClosedArchive::State],
+  result: Bool,
+  body: (match (Uorc.Wire.ClosedArchive::takeClean x)
+    | Uorc.Wire.ClosedArchive::CleanMovement.moved movedLocal175 sessionLocal176 => false
+    | Uorc.Wire.ClosedArchive::CleanMovement.retained retainedLocal177 => true),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: untilFailure,
+  parameters: [fuel : Nat, x : Uorc.Wire.ClosedArchive::State],
+  result: (Result Uorc.Wire.ClosedArchive::State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.fuel))
+    | Nat.succ restLocal178 => (let tLocal179 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::advance x (1024 : UInt64)); (match (project tLocal179 signal)
+      | Uorc.Wire.ClosedArchive::Signal.advanced => (untilFailure restLocal178 (project tLocal179 state))
+      | Uorc.Wire.ClosedArchive::Signal.pending => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.refusal))
+      | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.refusal))
+      | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.ok [Uorc.Wire.ClosedArchive::State, Error] (project tLocal179 state))
+      | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.refusal))
+      | Uorc.Wire.ClosedArchive::Signal.paused whyLocal180 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.refusal))
+      | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal181 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.refusal))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: releaseOne,
+  parameters: [arena : Uorc.Core.Heap::Arena, h : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Uorc.Core.Heap::Arena Error),
+  body: (if (Uorc.Core.RuntimeValue::isNull h) then (ctor Result.ok [Uorc.Core.Heap::Arena, Error] arena) else (match (Uorc.Core.Heap::release arena h)
+    | Result.error whyLocal182 => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.ownership))
+    | Result.ok tLocal183 => (drainArena 10000 (project tLocal183 arena)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: handoffRefusal,
+  parameters: [p : Prepared, x : Uorc.Wire.ClosedArchive::State, two : Bool],
+  result: (Result Unit Error),
+  body: (match (Uorc.Wire.ClosedArchive::takeOwnershipRefusal x)
+    | Uorc.Wire.ClosedArchive::RefusalMovement.retained retainedLocal184 => (ctor Result.error [Unit, Error] (ctor Error.transfer))
+    | Uorc.Wire.ClosedArchive::RefusalMovement.moved movedLocal185 refusalLocal186 => (if ((isHandedOff movedLocal185) && (Uorc.Core.HeapAudit::auditRoots (project refusalLocal186 arena) (addRoot (project p extra) (cons (project p original) (cons (project p candidate) (if two then (cons (project p candidate) (nil Uorc.Core.RuntimeValue::Handle)) else (nil Uorc.Core.RuntimeValue::Handle))))))) then (match (Uorc.Wire.ClosedArchive::takeOwnershipRefusal movedLocal185)
+      | Uorc.Wire.ClosedArchive::RefusalMovement.moved twiceLocal187 badLocal188 => (ctor Result.error [Unit, Error] (ctor Error.transfer))
+      | Uorc.Wire.ClosedArchive::RefusalMovement.retained retainedLocal189 => (if ((isHandedOff retainedLocal189) && (noClean retainedLocal189)) then (match (releaseOne (project refusalLocal186 arena) (project p extra))
+        | Result.error whyLocal190 => (ctor Result.error [Unit, Error] whyLocal190)
+        | Result.ok noExtraLocal191 => (match (releaseOne noExtraLocal191 (project p candidate))
+          | Result.error whyLocal192 => (ctor Result.error [Unit, Error] whyLocal192)
+          | Result.ok oneCandidateLocal193 => (match (if two then (releaseOne oneCandidateLocal193 (project p candidate)) else (ctor Result.ok [Uorc.Core.Heap::Arena, Error] oneCandidateLocal193))
+            | Result.error whyLocal194 => (ctor Result.error [Unit, Error] whyLocal194)
+            | Result.ok noCandidateLocal195 => (match (Uorc.Core.Heap::release noCandidateLocal195 (project p original))
+              | Result.error whyLocal196 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+              | Result.ok tLocal197 => (releaseDrain 10000 (project tLocal197 arena)))))) else (ctor Result.error [Unit, Error] (ctor Error.transfer)))) else (ctor Result.error [Unit, Error] (ctor Error.audit)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: refusal,
+  parameters: [p : Prepared, two : Bool],
+  result: (Result Unit Error),
+  body: (match (untilFailure 500000 (project p state))
+    | Result.error whyLocal198 => (ctor Result.error [Unit, Error] whyLocal198)
+    | Result.ok refusedLocal199 => (if ((expectedFailure refusedLocal199 true) && ((if (project refusedLocal199 ownershipValidated) then false else true) && (noClean refusedLocal199))) then (let againLocal200 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::cleanup refusedLocal199 (1024 : UInt64)); (match (project againLocal200 signal)
+      | Uorc.Wire.ClosedArchive::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.refusal))
+      | Uorc.Wire.ClosedArchive::Signal.pending => (ctor Result.error [Unit, Error] (ctor Error.refusal))
+      | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.error [Unit, Error] (ctor Error.refusal))
+      | Uorc.Wire.ClosedArchive::Signal.failed => (if ((noClean (project againLocal200 state)) && (heldAudit p (project againLocal200 state) two)) then (handoffRefusal p (project againLocal200 state) two) else (ctor Result.error [Unit, Error] (ctor Error.audit)))
+      | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.refusal))
+      | Uorc.Wire.ClosedArchive::Signal.paused whyLocal201 => (ctor Result.error [Unit, Error] (ctor Error.refusal))
+      | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal202 => (ctor Result.error [Unit, Error] (ctor Error.refusal)))) else (ctor Result.error [Unit, Error] (ctor Error.refusal)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: missingCopy,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setupCase false true false false false false false)
+    | Result.error whyLocal203 => (ctor Result.error [Unit, Error] whyLocal203)
+    | Result.ok pLocal204 => (refusal pLocal204 false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: omittedRoot,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setupCase false true true true false false false)
+    | Result.error whyLocal205 => (ctor Result.error [Unit, Error] whyLocal205)
+    | Result.ok pLocal206 => (refusal pLocal206 true)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: futureRoot,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setupCase false true true false false false true)
+    | Result.error whyLocal207 => (ctor Result.error [Unit, Error] whyLocal207)
+    | Result.ok pLocal208 => (refusal pLocal208 true)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sameAuditPrefix,
+  parameters: [before : Uorc.Wire.ClosedArchive::State, after : Uorc.Wire.ClosedArchive::State],
+  result: Bool,
+  body: (match (project before owner)
+    | Uorc.Wire.ClosedArchive::Owner.scanning aLocal209 => (match (project after owner)
+      | Uorc.Wire.ClosedArchive::Owner.scanning zLocal210 => (((((((((((((((true && (prim equal (project (project aLocal209 usage) work) (project (project zLocal210 usage) work) : Bool)) && (prim equal (project (project aLocal209 usage) ownedBytes) (project (project zLocal210 usage) ownedBytes) : Bool)) && (prim equal (project (project aLocal209 usage) peakOwnedBytes) (project (project zLocal210 usage) peakOwnedBytes) : Bool)) && (prim equal (project (project aLocal209 usage) outputBytes) (project (project zLocal210 usage) outputBytes) : Bool)) && (prim equal (project (project aLocal209 usage) frames) (project (project zLocal210 usage) frames) : Bool)) && (prim equal (project (project aLocal209 arena) nextHandle) (project (project zLocal210 arena) nextHandle) : Bool)) && (prim equal (project (project aLocal209 arena) ownedBytes) (project (project zLocal210 arena) ownedBytes) : Bool)) && (prim equal (project (project aLocal209 arena) liveEntries) (project (project zLocal210 arena) liveEntries) : Bool)) && (prim equal (project (project aLocal209 arena) maxOwnedBytes) (project (project zLocal210 arena) maxOwnedBytes) : Bool)) && (prim equal (project (project aLocal209 arena) exhausted) (project (project zLocal210 arena) exhausted) : Bool)) && (prim equal (project before auditing) (project after auditing) : Bool)) && (prim equal (project before ownershipValidated) (project after ownershipValidated) : Bool)) && (prim equal (project before stopped) (project after stopped) : Bool)) && (prim equal (project before auditIndex) (project after auditIndex) : Bool)) && (prim equal (project before auditedTickets) (project after auditedTickets) : Bool))
+      | Uorc.Wire.ClosedArchive::Owner.integrity sessionLocal211 => false
+      | Uorc.Wire.ClosedArchive::Owner.basisHash sessionLocal212 => false
+      | Uorc.Wire.ClosedArchive::Owner.basisCompare sessionLocal213 => false
+      | Uorc.Wire.ClosedArchive::Owner.preparing arenaLocal214 usageLocal215 => false
+      | Uorc.Wire.ClosedArchive::Owner.program sessionLocal216 => false
+      | Uorc.Wire.ClosedArchive::Owner.machine sessionLocal217 => false
+      | Uorc.Wire.ClosedArchive::Owner.objects sessionLocal218 => false
+      | Uorc.Wire.ClosedArchive::Owner.terminal arenaLocal219 usageLocal220 => false
+      | Uorc.Wire.ClosedArchive::Owner.clean arenaLocal221 usageLocal222 => false
+      | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal223 => false)
+    | Uorc.Wire.ClosedArchive::Owner.integrity sessionLocal224 => false
+    | Uorc.Wire.ClosedArchive::Owner.basisHash sessionLocal225 => false
+    | Uorc.Wire.ClosedArchive::Owner.basisCompare sessionLocal226 => false
+    | Uorc.Wire.ClosedArchive::Owner.preparing arenaLocal227 usageLocal228 => false
+    | Uorc.Wire.ClosedArchive::Owner.program sessionLocal229 => false
+    | Uorc.Wire.ClosedArchive::Owner.machine sessionLocal230 => false
+    | Uorc.Wire.ClosedArchive::Owner.objects sessionLocal231 => false
+    | Uorc.Wire.ClosedArchive::Owner.terminal arenaLocal232 usageLocal233 => false
+    | Uorc.Wire.ClosedArchive::Owner.clean arenaLocal234 usageLocal235 => false
+    | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal236 => false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: pauseState,
+  parameters: [p : Prepared],
+  result: (Result Uorc.Wire.ClosedArchive::State Error),
+  body: (let tLocal237 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::advance (project p state) (1024 : UInt64)); (match (project tLocal237 signal)
+    | Uorc.Wire.ClosedArchive::Signal.advanced => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+    | Uorc.Wire.ClosedArchive::Signal.pending => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+    | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+    | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+    | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+    | Uorc.Wire.ClosedArchive::Signal.paused whyLocal238 => (match whyLocal238
+      | Uorc.Core.RuntimeResources::Error.workLimit => (if (((project (project tLocal237 state) auditing) && ((prim equal (project (project tLocal237 state) auditIndex) (project (project p state) auditIndex) : Bool) && ((prim equal (project (project tLocal237 state) auditedTickets) (project (project p state) auditedTickets) : Bool) && (heldAudit p (project tLocal237 state) true)))) && (sameAuditPrefix (project p state) (project tLocal237 state))) then (ctor Result.ok [Uorc.Wire.ClosedArchive::State, Error] (project tLocal237 state)) else (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause)))
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+      | Uorc.Core.RuntimeResources::Error.outputLimit => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+      | Uorc.Core.RuntimeResources::Error.frameLimit => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause))
+      | Uorc.Core.RuntimeResources::Error.heap detailLocal239 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause)))
+    | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal240 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.pause)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: pauseResume,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setupCase false true true false true false false)
+    | Result.error whyLocal241 => (ctor Result.error [Unit, Error] whyLocal241)
+    | Result.ok pLocal242 => (match (pauseState pLocal242)
+      | Result.error whyLocal243 => (ctor Result.error [Unit, Error] whyLocal243)
+      | Result.ok pausedLocal244 => (match (Uorc.Wire.ClosedArchive::fundInputWork pausedLocal244 (1000000000 : UInt64))
+        | Result.error whyLocal245 => (ctor Result.error [Unit, Error] (ctor Error.setup))
+        | Result.ok fundedLocal246 => (if (((((((prim equal (project (project fundedLocal246 budget) maxWork) (1000000000 : UInt64) : Bool) && ((prim equal (project fundedLocal246 auditIndex) (project pausedLocal244 auditIndex) : Bool) && (prim equal (project fundedLocal246 auditedTickets) (project pausedLocal244 auditedTickets) : Bool))) && (prim equal (project (project fundedLocal246 budget) maxOwnedBytes) (project (project pausedLocal244 budget) maxOwnedBytes) : Bool)) && (prim equal (project (project fundedLocal246 budget) maxOutputBytes) (project (project pausedLocal244 budget) maxOutputBytes) : Bool)) && (prim equal (project (project fundedLocal246 budget) maxFrames) (project (project pausedLocal244 budget) maxFrames) : Bool)) && (heldAudit pLocal242 fundedLocal246 true)) && (sameAuditPrefix pausedLocal244 fundedLocal246)) then (runPrepared (record Prepared {state := fundedLocal246, original := (project pLocal242 original), reader := (project pLocal242 reader), objects := (project pLocal242 objects), bytes := (project pLocal242 bytes), candidate := (project pLocal242 candidate), search := (project pLocal242 search), extra := (project pLocal242 extra)})) else (ctor Result.error [Unit, Error] (ctor Error.pause)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: pauseCancel,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setupCase false true true false true false false)
+    | Result.error whyLocal247 => (ctor Result.error [Unit, Error] whyLocal247)
+    | Result.ok pLocal248 => (match (pauseState pLocal248)
+      | Result.error whyLocal249 => (ctor Result.error [Unit, Error] whyLocal249)
+      | Result.ok pausedLocal250 => (let stoppedLocal251 : Uorc.Wire.ClosedArchive::State := (Uorc.Wire.ClosedArchive::cancel pausedLocal250); (let tLocal252 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::cleanup stoppedLocal251 (1024 : UInt64)); (match (project tLocal252 signal)
+        | Uorc.Wire.ClosedArchive::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.pause))
+        | Uorc.Wire.ClosedArchive::Signal.pending => (ctor Result.error [Unit, Error] (ctor Error.pause))
+        | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.error [Unit, Error] (ctor Error.pause))
+        | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.error [Unit, Error] (ctor Error.pause))
+        | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.pause))
+        | Uorc.Wire.ClosedArchive::Signal.paused whyLocal253 => (if ((noClean (project tLocal252 state)) && (heldAudit pLocal248 (project tLocal252 state) true)) then (match (Uorc.Wire.ClosedArchive::fundInputWork (project tLocal252 state) (1000000000 : UInt64))
+          | Result.error whyLocal254 => (ctor Result.error [Unit, Error] (ctor Error.setup))
+          | Result.ok fundedLocal255 => (match (clean 500000 fundedLocal255)
+            | Result.error whyLocal256 => (ctor Result.error [Unit, Error] whyLocal256)
+            | Result.ok cleanedLocal257 => (handoff cleanedLocal257 (project pLocal248 original) (project pLocal248 search)))) else (ctor Result.error [Unit, Error] (ctor Error.pause)))
+        | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal258 => (ctor Result.error [Unit, Error] (ctor Error.pause))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ticks,
+  parameters: [fuel : Nat, x : Uorc.Wire.ClosedArchive::State],
+  result: Uorc.Wire.ClosedArchive::State,
+  body: (match fuel
+    | Nat.zero => x
+    | Nat.succ restLocal259 => (ticks restLocal259 (project (Uorc.Wire.ClosedArchive::advance x (1024 : UInt64)) state))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: cancelPrefix,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setupCase true true true false false false false)
+    | Result.error whyLocal260 => (ctor Result.error [Unit, Error] whyLocal260)
+    | Result.ok pLocal261 => (match (clean 500000 (Uorc.Wire.ClosedArchive::cancel (ticks 30 (project pLocal261 state))))
+      | Result.error whyLocal262 => (ctor Result.error [Unit, Error] whyLocal262)
+      | Result.ok cleanedLocal263 => (handoff cleanedLocal263 (project pLocal261 original) (project pLocal261 search)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongHash,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setupCase true true true false false true false)
+    | Result.error whyLocal264 => (ctor Result.error [Unit, Error] whyLocal264)
+    | Result.ok pLocal265 => (match (untilFailure 500000 (project pLocal265 state))
+      | Result.error whyLocal266 => (ctor Result.error [Unit, Error] whyLocal266)
+      | Result.ok failedLocal267 => (if ((expectedFailure failedLocal267 false) && (project failedLocal267 ownershipValidated)) then (match (clean 500000 failedLocal267)
+        | Result.error whyLocal268 => (ctor Result.error [Unit, Error] whyLocal268)
+        | Result.ok cleanedLocal269 => (handoff cleanedLocal269 (project pLocal265 original) (project pLocal265 search))) else (ctor Result.error [Unit, Error] (ctor Error.refusal))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runExtended,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkShared false)
+    | Result.error whyLocal270 => (ctor Result.error [Unit, Error] whyLocal270)
+    | Result.ok checkedLocal271 => (match (checkShared true)
+      | Result.error whyLocal272 => (ctor Result.error [Unit, Error] whyLocal272)
+      | Result.ok checkedLocal273 => (match (missingCopy)
+        | Result.error whyLocal274 => (ctor Result.error [Unit, Error] whyLocal274)
+        | Result.ok checkedLocal275 => (match (omittedRoot)
+          | Result.error whyLocal276 => (ctor Result.error [Unit, Error] whyLocal276)
+          | Result.ok checkedLocal277 => (match (futureRoot)
+            | Result.error whyLocal278 => (ctor Result.error [Unit, Error] whyLocal278)
+            | Result.ok checkedLocal279 => (match (pauseResume)
+              | Result.error whyLocal280 => (ctor Result.error [Unit, Error] whyLocal280)
+              | Result.ok checkedLocal281 => (match (pauseCancel)
+                | Result.error whyLocal282 => (ctor Result.error [Unit, Error] whyLocal282)
+                | Result.ok checkedLocal283 => (match (cancelPrefix)
+                  | Result.error whyLocal284 => (ctor Result.error [Unit, Error] whyLocal284)
+                  | Result.ok checkedLocal285 => (match (wrongHash)
+                    | Result.error whyLocal286 => (ctor Result.error [Unit, Error] whyLocal286)
+                    | Result.ok checkedLocal287 => (ctor Result.ok [Unit, Error] ())))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (runBasic)
+    | Result.error whyLocal288 => (ctor Result.error [Unit, Error] whyLocal288)
+    | Result.ok basicLocal289 => (runExtended)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: custodyBoundary,
+  parameters: [],
+  result: String,
+  body: "Same-candidate controls perform actual Heap.retain on archive sequence before transferring the candidate ticket; protected.search keeps the other copy. Protected.input is a separate original sequence in that SAME Arena. Success, wrong-hash refusal and cancellation return exactly one search ticket plus one input ticket, then release both after takeClean. Initial custody negatives cover missing duplicate ticket, unlisted unrelated root, and a forged future protected certificate handle. They require typed Failure.ownership, actual retained arena inventory, failed cleanup and no CleanMovement. Zero-work initial audit pauses retain index, audited ticket count and roots; fundInputWork adds only maxWork before decode or cancelled cleanup resumes. Assertions use ephemeral HeapAudit root lists only; production custody is exercised through its own actual entry counter and never receives List metadata.",
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}
