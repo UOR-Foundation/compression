@@ -205,11 +205,24 @@ definition{
         | Uorc.Search.Replay::Phase.parsing b e r f w => (seekWords remaining (Uorc.Search.Replay::step cursor))
         | Uorc.Search.Replay::Phase.validating b c w => (seekWords remaining (Uorc.Search.Replay::step cursor))
         | Uorc.Search.Replay::Phase.measuring g c w => (seekWords remaining (Uorc.Search.Replay::step cursor))
-        | Uorc.Search.Replay::Phase.predecessorTrial s w => (seekWords remaining (Uorc.Search.Replay::step cursor)))
+        | Uorc.Search.Replay::Phase.predecessorTrial s w => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.unresolvedTrial retainedTrial retainedWords => (ctor ProbeSetup.pending state))
       | Uorc.Search.Replay::Step.counterexample c => (ctor ProbeSetup.unavailable)
       | Uorc.Search.Replay::Step.completeBodyReplay c => (ctor ProbeSetup.unavailable)
       | Uorc.Search.Replay::Step.incomplete e c => (ctor ProbeSetup.unavailable))),
   recursive_argument: work
+}
+
+theorem{
+  name: unresolved_predecessor_probe_preserves_exact_pending_prefix,
+  parameters: [
+    remaining : Nat,
+    originalCursor : Uorc.Search.Replay::Cursor,
+    retainedTrial : Uorc.Search.ArchiveTrial::Step,
+    retainedWords : Uorc.Search.RopeWords::Cursor
+  ],
+  statement: ((seekWords (remaining + 1) (ctor Uorc.Search.Replay::Step.pending (record Uorc.Search.Replay::Cursor {request := (project originalCursor request), expected := (project originalCursor expected), phase := (ctor Uorc.Search.Replay::Phase.unresolvedTrial retainedTrial retainedWords), winner := (project originalCursor winner), raw := (project originalCursor raw), maximumBodyLength := (project originalCursor maximumBodyLength), ledger := (project originalCursor ledger), failures := (project originalCursor failures)}))) = (ctor ProbeSetup.pending (ctor Uorc.Search.Replay::Step.pending (record Uorc.Search.Replay::Cursor {request := (project originalCursor request), expected := (project originalCursor expected), phase := (ctor Uorc.Search.Replay::Phase.unresolvedTrial retainedTrial retainedWords), winner := (project originalCursor winner), raw := (project originalCursor raw), maximumBodyLength := (project originalCursor maximumBodyLength), ledger := (project originalCursor ledger), failures := (project originalCursor failures)})))),
+  proof: reflexivity{}
 }
 
 definition{
