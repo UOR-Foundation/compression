@@ -13,6 +13,7 @@
 \importmodule{Uorc.Core.RuntimeSequence}
 \importmodule{Uorc.Core.RuntimeValue}
 \importmodule{Uorc.Core.ReferenceSemantics}
+\importmodule{Uorc.Core.CanonicalCallComposition}
 \title{Parameters}
 
 \begin{semanticmodule}
@@ -776,6 +777,29 @@ definition{
   parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode, position : UInt64],
   result: (Result (Option Event) Error),
   body: (if (prim equal position (0 : UInt64) : Bool) then (ctor Result.ok [(Option Event), Error] (ctor Option.some [Event] (ctor Event.instruction opcode))) else (if (Uorc.Core.Heap::less position (5 : UInt64)) then (let signature : Uorc.Core.RuntimeOpcode::Spec := (Uorc.Core.RuntimeOpcode::spec opcode); (ctor Result.ok [(Option Event), Error] (referenceRoleEvent (if (prim equal position (1 : UInt64) : Bool) then (project signature operand0) else (if (prim equal position (2 : UInt64) : Bool) then (project signature operand1) else (if (prim equal position (3 : UInt64) : Bool) then (project signature operand2) else (project signature operand3))))))) else (if (prim equal position (5 : UInt64) : Bool) then (ctor Result.ok [(Option Event), Error] (ctor Option.none [Event])) else (ctor Result.error [(Option Event), Error] (ctor Error.invalidUsage))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: completionOrigin,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: Uorc.Core.CanonicalCallComposition::CompletionOrigin,
+  body: (match (project (Uorc.Core.RuntimeOpcode::spec opcode) call)
+    | Uorc.Core.RuntimeOpcode::CallRule.none => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)
+    | Uorc.Core.RuntimeOpcode::CallRule.apply => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)
+    | Uorc.Core.RuntimeOpcode::CallRule.tabulate => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)
+    | Uorc.Core.RuntimeOpcode::CallRule.fold => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)
+    | Uorc.Core.RuntimeOpcode::CallRule.scan => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: basisAttemptEvent,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: (Option Event),
+  body: (if (prim equal (Uorc.Core.RuntimeOpcode::code opcode) (Uorc.Core.RuntimeOpcode::code (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) : Bool) then (ctor Option.some [Event] (ctor Event.referenceRead)) else (ctor Option.none [Event])),
   axioms: [Quot.sound, propext],
   executable: true
 }

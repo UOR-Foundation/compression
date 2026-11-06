@@ -287,7 +287,7 @@ definition{
     right : Uorc.Core.RuntimeMachineEngine::State
   ],
   result: Prop,
-  body: (((project left arena) = (project right arena)) /\ (((project left program) = (project right program)) /\ (((project left caller) = (project right caller)) /\ (((project left budget) = (project right budget)) /\ (((project left frames) = (project right frames)) /\ (((project left pending) = (project right pending)) /\ (((project left value) = (project right value)) /\ (((project left valueOwned) = (project right valueOwned)) /\ (((project left valueUnits) = (project right valueUnits)) /\ (((project left oldRoot) = (project right oldRoot)) /\ (((project left draining) = (project right draining)) /\ (((project left control) = (project right control)) /\ (((project left ownsReady) = (project right ownsReady)) /\ (((project left mode) = (project right mode)) /\ (((project left cancelStarted) = (project right cancelStarted)) /\ (((project left sequenceCleanup) = (project right sequenceCleanup)) /\ (((project left delta) = (project right delta)) /\ (((project left operationDelta) = (project right operationDelta)) /\ (((project left overflowEvent) = (project right overflowEvent)) /\ (0 = 0)))))))))))))))))))),
+  body: (((project left arena) = (project right arena)) /\ (((project left program) = (project right program)) /\ (((project left caller) = (project right caller)) /\ (((project left budget) = (project right budget)) /\ (((project left frames) = (project right frames)) /\ (((project left pending) = (project right pending)) /\ (((project left value) = (project right value)) /\ (((project left valueOwned) = (project right valueOwned)) /\ (((project left valueUnits) = (project right valueUnits)) /\ (((project left oldRoot) = (project right oldRoot)) /\ (((project left draining) = (project right draining)) /\ (((project left control) = (project right control)) /\ (((project left ownsReady) = (project right ownsReady)) /\ (((project left mode) = (project right mode)) /\ (((project left cancelStarted) = (project right cancelStarted)) /\ (((project left sequenceCleanup) = (project right sequenceCleanup)) /\ (((project left delta) = (project right delta)) /\ (((project left operationDelta) = (project right operationDelta)) /\ (((project left overflowEvent) = (project right overflowEvent)) /\ (((project left semanticBudget) = (project right semanticBudget)) /\ (((project left semanticLedger) = (project right semanticLedger)) /\ ((project left semanticError) = (project right semanticError))))))))))))))))))))))),
   axioms: [],
   executable: false
 }
@@ -386,7 +386,7 @@ definition{
     output : Uorc.Core.RuntimeValue::Handle
   ],
   result: Uorc.Core.RuntimeMachineEngine::State,
-  body: (record Uorc.Core.RuntimeMachineEngine::State {arena := (project base arena), program := (project base program), caller := (project base caller), budget := (project base budget), usage := (project base usage), disposition := (match phase
+  body: (record Uorc.Core.RuntimeMachineEngine::State {arena := (project base arena), program := (project base program), caller := (project base caller), budget := (project base budget), semanticBudget := (project base semanticBudget), semanticLedger := (project base semanticLedger), semanticError := (project base semanticError), usage := (project base usage), disposition := (match phase
     | HandoffPhase.completed => (ctor Uorc.Core.RuntimeMachine::Disposition.completed output)
     | HandoffPhase.detached => (ctor Uorc.Core.RuntimeMachine::Disposition.completed (Uorc.Core.RuntimeValue::nullHandle))
     | HandoffPhase.cleaned => (ctor Uorc.Core.RuntimeMachine::Disposition.cleaned)), frames := (nil Uorc.Core.RuntimeMachineEngine::FrameRecord), pending := (ctor Uorc.Core.RuntimeMachineEngine::Pending.none), value := (match phase
@@ -574,9 +574,20 @@ theorem{
     base : Uorc.Core.RuntimeMachineEngine::State,
     output : Uorc.Core.RuntimeValue::Handle
   ],
-  statement: ((Uorc.Core.RuntimeMachineEngine::takeReady (quiescentHandoff base (ctor HandoffPhase.cleaned) output)) = (ctor Result.ok [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeMachine::Failure] (record Uorc.Core.RuntimeProgram::Ready {arena := (project base arena), program := (project base program), caller := (project base caller), usage := (project base usage)}))),
+  statement: ((Uorc.Core.RuntimeMachineEngine::takeReady (quiescentHandoff base (ctor HandoffPhase.cleaned) output)) = (ctor Result.ok [Uorc.Core.RuntimeMachineEngine::ReadyTransfer, Uorc.Core.RuntimeMachine::Failure] (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project base arena), program := (project base program), caller := (project base caller), usage := (project base usage)}), semanticBudget := (project base semanticBudget), semanticLedger := (project base semanticLedger)}))),
   proof: reflexivity{},
   axioms: []
+}
+
+theorem{
+  name: cancellation_preserves_semantic_prefix,
+  parameters: [state : Uorc.Core.RuntimeMachineEngine::State],
+  statement: (((project (Uorc.Core.RuntimeMachineEngine::cancel state) semanticBudget) = (project state semanticBudget)) /\ (((project (Uorc.Core.RuntimeMachineEngine::cancel state) semanticLedger) = (project state semanticLedger)) /\ ((project (Uorc.Core.RuntimeMachineEngine::cancel state) semanticError) = (project state semanticError)))),
+  proof: term_cases{
+    definitions: [Uorc.Core.RuntimeMachineEngine::cancel],
+    scrutinee: (project state disposition)
+  },
+  axioms: [propext]
 }
 \end{semanticmodule}
 \end{lexlean}

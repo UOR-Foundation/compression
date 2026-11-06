@@ -2,10 +2,14 @@
 
 # Machine native qualification handoff
 
-`production-request.json` requests the eight actual RuntimeMachineEngine API
+`production-request.json` requests the eleven actual RuntimeMachineEngine API
 roots, with the official rust-std target descriptor reported by LexLean 0.4.0.
+It uses startWithSemantic so the controller supplies the existing semantic ledger,
+and exposes semanticStatus/extendSemantic for the typed refusal channel. startTransferred preserves the actual ReadyTransfer budget/ledger. The fresh
+standalone start helper is excluded. takeReady now transfers Ready together with
+its semantic Budget and Ledger; consumers must unwrap .ready and retain the ledger.
 Its SHA256 is
-`973b82219bc70cf278c30b6559d923a76a3db470b0caaad9a7741b78d1bd1618`.
+`f9f77ac96bf9760cdbe6236440f0bc40420993842d13950389b680ee4abde356`.
 This is export preparation, not an accepted package or replacement SDK lock.
 The existing compiler qualification route must run the supported
 `lexlean production build --request ...` and `production verify-artifact` on the
@@ -46,3 +50,13 @@ transport spans or representation traversal remain real operational costs;
 only the source-owned canonical profile and its refinement may define
 partition-independent semantic eligibility. This document creates no physical
 memory bound or completed performance result.
+
+
+Diagnostic native execution now exists separately from the accepted-package lane.
+The immutable pre-prefix88db6bade3 closure passes its complete93-root Lean/C
+harness, including actual same-Graph admission pipelines. Its3048.59-second runtime
+and68776KiB observed peak RSS belong to that harness and exact source closure.
+The later6be96651 semantic-prefix Engine separately passes the small genuine
+Fixture/Engine Lean/C smoke, with exact29-module code/object receipts. These runs
+validate the named diagnostics; they are not the requested accepted Rust package,
+Wasm consumer qualification, a production throughput claim or a physical memory bound.

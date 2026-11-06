@@ -297,6 +297,25 @@ definition{
 }
 
 definition{
+  name: prepareBasis,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    program : Uorc.Core.RuntimeProgram::Program,
+    index : UInt64
+  ],
+  result: (Result Action Failure),
+  body: (match (Uorc.Core.RuntimeTable::lookup arena (project program basis) index)
+    | Result.error failure => (ctor Result.error [Action, Failure] (ctor Failure.heap failure))
+    | Result.ok leaf => (if (Uorc.Core.RuntimeValue::isNull leaf) then (ctor Result.error [Action, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.basisOutOfBounds))) else (match (Uorc.Core.RuntimeProgram::valueAtLeaf arena leaf (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference)))
+      | Result.error failure => (ctor Result.error [Action, Failure] (ctor Failure.program failure))
+      | Result.ok basisValue => (match (asSequence basisValue)
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok basisHandle => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence basisHandle))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
   name: prepare,
   parameters: [
     arena : Uorc.Core.Heap::Arena,
@@ -460,13 +479,7 @@ definition{
       | Result.ok a0 => (ctor Result.ok [Action, Failure] (ctor Action.singleton a0)))
     | Uorc.Core.RuntimeOpcode::Opcode.basisGet => (match (readNatural arena frame (project instruction operand0))
       | Result.error failure => (ctor Result.error [Action, Failure] failure)
-      | Result.ok a0 => (match (Uorc.Core.RuntimeTable::lookup arena (project program basis) a0)
-        | Result.error failure => (ctor Result.error [Action, Failure] (ctor Failure.heap failure))
-        | Result.ok leaf => (if (Uorc.Core.RuntimeValue::isNull leaf) then (ctor Result.error [Action, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.basisOutOfBounds))) else (match (Uorc.Core.RuntimeProgram::valueAtLeaf arena leaf (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference)))
-          | Result.error failure => (ctor Result.error [Action, Failure] (ctor Failure.program failure))
-          | Result.ok basisValue => (match (asSequence basisValue)
-            | Result.error failure => (ctor Result.error [Action, Failure] failure)
-            | Result.ok basisHandle => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence basisHandle))))))))
+      | Result.ok a0 => (prepareBasis arena program a0))
     | Uorc.Core.RuntimeOpcode::Opcode.storeNew => (match (readByte arena frame (project instruction operand0))
       | Result.error failure => (ctor Result.error [Action, Failure] failure)
       | Result.ok a0 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.store a0 (Uorc.Core.RuntimeValue::nullHandle)))))
