@@ -96,3 +96,13 @@ The [source-bound receipt](canonical-composition-evidence.json) records these
 outcomes, exact hashes and diagnostic configuration. No certificate/export,
 native execution, whole-product refinement, pinned SDK or release acceptance is
 claimed for this checkpoint.
+
+Two later, explicitly modified-generated proof experiments are recorded in
+[v1](../../tests/canonical-composition/reference-leaf-experiment-0e3/result.json)
+and [v2](../../tests/canonical-composition/reference-leaf-experiment-v2/result.json).
+V1 fails the positive case. V2 passes the unchanged-statement full-module kernel,
+rejects both false controls, and matches all79 original Ref axiom policies.
+The experiment copies are restored byte-exactly, reproducing the original
+eight-error failure. No supported source route or official compiler change is
+accepted by those experiments, so the composition source qualification remains
+blocked. The diagnostic positive artifact is not installed as its foundation.
