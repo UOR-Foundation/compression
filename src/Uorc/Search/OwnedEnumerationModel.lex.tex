@@ -1,0 +1,821 @@
+\begin{lexlean}{Uorc.Search.OwnedEnumerationModel}
+\importmodule{Uorc.Search.UnsignedByteConversion}
+\importmodule{Uorc.Search.UnsignedByteConversionLaws}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: modelByte,
+  parameters: [payload : Nat],
+  result: Nat,
+  body: (prim remainder payload 256 0 : Nat),
+  axioms: []
+}
+
+definition{
+  name: modelReverseRank,
+  parameters: [words : (List Nat)],
+  result: Nat,
+  body: (match words
+    | List.nil => 0
+    | List.cons head tail => (ctor Nat.succ ((modelByte head) + (prim multiply 256 (modelReverseRank tail) : Nat)))),
+  axioms: [],
+  recursive_argument: words
+}
+
+definition{
+  name: modelReverseSuccessor,
+  parameters: [words : (List Nat)],
+  result: (List Nat),
+  body: (match words
+    | List.nil => (cons 0 (nil Nat))
+    | List.cons head tail => (if ((modelByte head) <? 255) then (cons ((modelByte head) + 1) tail) else (cons 0 (modelReverseSuccessor tail)))),
+  axioms: [],
+  recursive_argument: words
+}
+
+theorem{
+  name: model_byte_stays_within_unsigned_range,
+  parameters: [payload : Nat],
+  statement: ((modelByte payload) < 256),
+  proof: linear_arithmetic{definitions: [modelByte]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_byte_is_identity_on_every_byte,
+  parameters: [payload : Nat],
+  statement: ((payload < 256) -> ((modelByte payload) = payload)),
+  proof: linear_arithmetic{definitions: [modelByte]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_reverse_successor_increments_rank,
+  parameters: [words : (List Nat)],
+  statement: ((modelReverseRank (modelReverseSuccessor words)) = ((modelReverseRank words) + 1)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [
+            ih,
+            modelByte,
+            modelReverseRank,
+            modelReverseSuccessor,
+            Uorc.Search.UnsignedByteConversionLaws::law_fn_if_list_nat,
+            Uorc.Search.UnsignedByteConversionLaws::law_rank_succ_step
+          ]
+        },
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: words
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelReverseAt,
+  parameters: [rank : Nat],
+  result: (List Nat),
+  body: (match rank
+    | Nat.zero => (nil Nat)
+    | Nat.succ previous => (modelReverseSuccessor (modelReverseAt previous))),
+  axioms: [],
+  recursive_argument: rank
+}
+
+theorem{
+  name: model_reverse_enumeration_has_every_natural_rank,
+  parameters: [rank : Nat],
+  statement: ((modelReverseRank (modelReverseAt rank)) = rank),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: simplify{definitions: [ih, modelReverseAt, model_reverse_successor_increments_rank]},
+        binders: [previous, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: rank
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: model_adjacent_ranks_have_no_intermediate_rank,
+  parameters: [rank : Nat, intermediate : Nat],
+  statement: ((rank < intermediate) -> ((intermediate < (rank + 1)) -> (0 = 1))),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelNormalize,
+  parameters: [words : (List Nat)],
+  result: (List Nat),
+  body: (match words
+    | List.nil => (nil Nat)
+    | List.cons head tail => (cons (modelByte head) (modelNormalize tail))),
+  axioms: [],
+  recursive_argument: words
+}
+
+definition{
+  name: modelWordLength,
+  parameters: [words : (List Nat)],
+  result: Nat,
+  body: (match words | List.nil => 0 | List.cons head tail => (1 + (modelWordLength tail))),
+  axioms: [],
+  recursive_argument: words
+}
+
+theorem{
+  name: model_byte_normalization_is_idempotent,
+  parameters: [payload : Nat],
+  statement: ((modelByte (modelByte payload)) = (modelByte payload)),
+  proof: linear_arithmetic{definitions: [modelByte]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_normalization_preserves_every_list_cell,
+  parameters: [words : (List Nat)],
+  statement: ((modelWordLength (modelNormalize words)) = (modelWordLength words)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{definitions: [ih, modelNormalize, modelWordLength]},
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: words
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: model_normalization_is_idempotent,
+  parameters: [words : (List Nat)],
+  statement: ((modelNormalize (modelNormalize words)) = (modelNormalize words)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{definitions: [ih, modelNormalize, model_byte_normalization_is_idempotent]},
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: words
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: model_normalization_preserves_rank,
+  parameters: [words : (List Nat)],
+  statement: ((modelReverseRank (modelNormalize words)) = (modelReverseRank words)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [
+            ih,
+            modelNormalize,
+            modelReverseRank,
+            model_byte_normalization_is_idempotent
+          ]
+        },
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: words
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: model_decoder_quotient_strictly_decreases,
+  parameters: [rank : Nat, previous : Nat],
+  statement: ((rank = (ctor Nat.succ previous)) -> ((prim quotient previous 256 0 : Nat) < rank)),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelDecode,
+  parameters: [rank : Nat],
+  result: (List Nat),
+  body: (match rank
+    | Nat.zero => (nil Nat)
+    | Nat.succ previous => (cons (modelByte previous) (modelDecode (prim quotient previous 256 0 : Nat)))),
+  axioms: [Quot.sound, propext],
+  termination: {evidence: [model_decoder_quotient_strictly_decreases], measure: rank}
+}
+
+theorem{
+  name: model_nonempty_rank_is_nonzero,
+  parameters: [head : Nat, tail : (List Nat)],
+  statement: (((modelReverseRank (cons head tail)) =? 0) = false),
+  proof: linear_arithmetic{definitions: [modelByte, modelReverseRank]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_cons_rank_decodes_exact_head,
+  parameters: [head : Nat, tail : (List Nat)],
+  statement: ((modelByte (prim subtract (modelReverseRank (cons head tail)) 1 : Nat)) = (modelByte head)),
+  proof: linear_arithmetic{definitions: [modelByte, modelReverseRank]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_cons_rank_decodes_exact_tail_rank,
+  parameters: [head : Nat, tail : (List Nat)],
+  statement: ((prim quotient (prim subtract (modelReverseRank (cons head tail)) 1 : Nat) 256 0 : Nat) = (modelReverseRank tail)),
+  proof: linear_arithmetic{definitions: [modelByte, modelReverseRank]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_decoding_rank_is_exact_pointwise_normalization,
+  parameters: [words : (List Nat)],
+  statement: ((modelDecode (modelReverseRank words)) = (modelNormalize words)),
+  proof: induction{
+    branches: [
+      {
+        proof: simplify{definitions: [modelDecode, modelNormalize, modelReverseRank]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: simplify{
+          definitions: [
+            ih,
+            modelByte,
+            modelDecode,
+            modelNormalize,
+            modelReverseRank,
+            Uorc.Search.UnsignedByteConversionLaws::law_decode_head_step,
+            Uorc.Search.UnsignedByteConversionLaws::law_decode_tail_step
+          ]
+        },
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: words
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelDecodedEqual,
+  parameters: [leftRank : Nat, rightRank : Nat],
+  result: Prop,
+  body: ((modelDecode leftRank) = (modelDecode rightRank)),
+  axioms: []
+}
+
+theorem{
+  name: model_equal_ranks_have_equal_decodings,
+  parameters: [leftRank : Nat, rightRank : Nat],
+  statement: ((leftRank = rightRank) -> (modelDecodedEqual leftRank rightRank)),
+  proof: linear_arithmetic{definitions: [modelDecodedEqual]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelNormalizedEqual,
+  parameters: [left : (List Nat), right : (List Nat)],
+  result: Prop,
+  body: ((modelNormalize left) = (modelNormalize right)),
+  axioms: []
+}
+
+theorem{
+  name: model_normalized_equality_iff_decoded_equality,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: ((modelNormalizedEqual left right) <-> (modelDecodedEqual (modelReverseRank left) (modelReverseRank right))),
+  proof: simplify{
+    definitions: [
+      modelDecodedEqual,
+      modelNormalizedEqual,
+      model_decoding_rank_is_exact_pointwise_normalization
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_equal_ranks_imply_normalized_word_equality,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: (((modelReverseRank left) = (modelReverseRank right)) -> (modelNormalizedEqual left right)),
+  proof: simplify{
+    definitions: [
+      modelDecodedEqual,
+      model_normalized_equality_iff_decoded_equality,
+      Uorc.Search.UnsignedByteConversionLaws::law_imp_congr_eq_nat_list
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelObservedRankEqual,
+  parameters: [left : (List Nat), right : (List Nat)],
+  result: Prop,
+  body: (((modelReverseRank left) =? (modelReverseRank right)) = true),
+  axioms: []
+}
+
+theorem{
+  name: model_equal_words_have_equal_observed_ranks,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: ((left = right) -> (modelObservedRankEqual left right)),
+  proof: linear_arithmetic{definitions: [modelObservedRankEqual]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_rank_equality_iff_normalized_observed_ranks,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: (((modelReverseRank left) = (modelReverseRank right)) <-> (modelObservedRankEqual (modelNormalize left) (modelNormalize right))),
+  proof: simplify{
+    definitions: [
+      modelObservedRankEqual,
+      model_normalization_preserves_rank,
+      Uorc.Search.UnsignedByteConversionLaws::law_nat_beq_iff_eq
+    ]
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: model_normalized_word_equality_implies_equal_ranks,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: ((modelNormalizedEqual left right) -> ((modelReverseRank left) = (modelReverseRank right))),
+  proof: simplify{
+    definitions: [
+      modelNormalizedEqual,
+      modelObservedRankEqual,
+      model_rank_equality_iff_normalized_observed_ranks,
+      Uorc.Search.UnsignedByteConversionLaws::law_imp_congr_beq_list_nat
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_rank_equality_iff_pointwise_normalized_word_equality,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: (((modelReverseRank left) = (modelReverseRank right)) <-> (modelNormalizedEqual left right)),
+  proof: constructor{
+    branches: [
+      apply{arguments: [left, right], theorem: model_equal_ranks_imply_normalized_word_equality},
+      apply{arguments: [left, right], theorem: model_normalized_word_equality_implies_equal_ranks}
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_normalized_words_equal_iff_ranks_equal,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: (((modelNormalize left) = (modelNormalize right)) <-> ((modelReverseRank left) = (modelReverseRank right))),
+  proof: simplify{
+    definitions: [modelNormalizedEqual, model_rank_equality_iff_pointwise_normalized_word_equality]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelNextByte,
+  parameters: [payload : Nat],
+  result: Nat,
+  body: (if ((modelByte payload) <? 255) then ((modelByte payload) + 1) else 0),
+  axioms: []
+}
+
+theorem{
+  name: model_next_byte_is_already_normalized,
+  parameters: [payload : Nat],
+  statement: ((modelByte (modelNextByte payload)) = (modelNextByte payload)),
+  proof: linear_arithmetic{definitions: [modelByte, modelNextByte]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_next_byte_ignores_only_payload_modulo_aliases,
+  parameters: [payload : Nat],
+  statement: ((modelNextByte (modelByte payload)) = (modelNextByte payload)),
+  proof: linear_arithmetic{definitions: [modelByte, modelNextByte]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_reverse_successor_has_exact_cons_form,
+  parameters: [head : Nat, tail : (List Nat)],
+  statement: ((modelReverseSuccessor (cons head tail)) = (cons (modelNextByte head) (if ((modelByte head) <? 255) then tail else (modelReverseSuccessor tail)))),
+  proof: simplify{
+    definitions: [
+      modelNextByte,
+      modelReverseSuccessor,
+      Uorc.Search.UnsignedByteConversionLaws::law_if_cons_nat
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_normalization_distributes_over_byte_choice,
+  parameters: [chooseLeft : Bool, left : (List Nat), right : (List Nat)],
+  statement: ((modelNormalize (if chooseLeft then left else right)) = (if chooseLeft then (modelNormalize left) else (modelNormalize right))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: chooseLeft
+  },
+  axioms: []
+}
+
+theorem{
+  name: model_normalization_commutes_with_successor,
+  parameters: [words : (List Nat)],
+  statement: ((modelNormalize (modelReverseSuccessor words)) = (modelReverseSuccessor (modelNormalize words))),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [
+            ih,
+            modelNormalize,
+            model_byte_normalization_is_idempotent,
+            model_next_byte_ignores_only_payload_modulo_aliases,
+            model_next_byte_is_already_normalized,
+            model_normalization_distributes_over_byte_choice,
+            model_reverse_successor_has_exact_cons_form
+          ]
+        },
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: words
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_every_iterated_word_is_pointwise_normalized,
+  parameters: [rank : Nat],
+  statement: ((modelNormalize (modelReverseAt rank)) = (modelReverseAt rank)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: simplify{
+          definitions: [ih, modelReverseAt, model_normalization_commutes_with_successor]
+        },
+        binders: [previous, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: rank
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelCoverage,
+  parameters: [words : (List Nat)],
+  result: Prop,
+  body: ((modelReverseAt (modelReverseRank words)) = (modelNormalize words)),
+  axioms: []
+}
+
+definition{
+  name: modelNormalizedCoverage,
+  parameters: [words : (List Nat)],
+  result: Prop,
+  body: ((modelNormalize (modelReverseAt (modelReverseRank words))) = (modelNormalize words)),
+  axioms: []
+}
+
+theorem{
+  name: model_coverage_iff_normalized_coverage,
+  parameters: [words : (List Nat)],
+  statement: ((modelCoverage words) <-> (modelNormalizedCoverage words)),
+  proof: simplify{
+    definitions: [
+      modelCoverage,
+      modelNormalizedCoverage,
+      model_every_iterated_word_is_pointwise_normalized
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_every_pointwise_normalized_finite_word_is_reached,
+  parameters: [words : (List Nat)],
+  statement: (modelCoverage words),
+  proof: simplify{
+    definitions: [
+      modelNormalizedCoverage,
+      model_coverage_iff_normalized_coverage,
+      model_normalized_words_equal_iff_ranks_equal,
+      model_reverse_enumeration_has_every_natural_rank
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_at_rank_is_exact_pointwise_normalization,
+  parameters: [words : (List Nat)],
+  statement: ((modelReverseAt (modelReverseRank words)) = (modelNormalize words)),
+  proof: apply{
+    arguments: [words],
+    theorem: model_every_pointwise_normalized_finite_word_is_reached
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelByteBounded,
+  parameters: [words : (List Nat)],
+  result: Prop,
+  body: ((modelNormalize words) = words),
+  axioms: []
+}
+
+theorem{
+  name: model_byte_bounded_finite_word_has_exact_coverage,
+  parameters: [words : (List Nat)],
+  statement: ((modelByteBounded words) <-> ((modelReverseAt (modelReverseRank words)) = words)),
+  proof: simplify{definitions: [modelByteBounded, model_at_rank_is_exact_pointwise_normalization]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_normalized_image_is_byte_bounded,
+  parameters: [words : (List Nat)],
+  statement: (modelByteBounded (modelNormalize words)),
+  proof: apply{arguments: [words], theorem: model_normalization_is_idempotent},
+  axioms: [propext]
+}
+
+theorem{
+  name: model_every_iterated_word_is_byte_bounded,
+  parameters: [rank : Nat],
+  statement: (modelByteBounded (modelReverseAt rank)),
+  proof: apply{arguments: [rank], theorem: model_every_iterated_word_is_pointwise_normalized},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_rank_is_injective_on_pointwise_fixed_words,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: ((modelByteBounded left) -> ((modelByteBounded right) -> (((modelReverseRank left) = (modelReverseRank right)) <-> (left = right)))),
+  proof: simplify{
+    definitions: [
+      modelByteBounded,
+      modelNormalizedEqual,
+      model_rank_equality_iff_pointwise_normalized_word_equality,
+      Uorc.Search.UnsignedByteConversionLaws::law_fixed_points_eq_iff
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: model_successor_preserves_byte_bounded_words,
+  parameters: [words : (List Nat)],
+  statement: ((modelByteBounded words) -> (modelByteBounded (modelReverseSuccessor words))),
+  proof: simplify{
+    definitions: [
+      modelByteBounded,
+      model_normalization_commutes_with_successor,
+      Uorc.Search.UnsignedByteConversionLaws::law_imp_congr_eq_list_list
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: modelWordsOfBytes,
+  parameters: [bytes : (List UInt8)],
+  result: (List Nat),
+  body: (match bytes
+    | List.nil => (nil Nat)
+    | List.cons head tail => (cons (prim to_nat head : Nat) (modelWordsOfBytes tail))),
+  axioms: [],
+  recursive_argument: bytes
+}
+
+definition{
+  name: modelUnsignedWordLength,
+  parameters: [bytes : (List UInt8)],
+  result: Nat,
+  body: (match bytes | List.nil => 0 | List.cons head tail => (1 + (modelUnsignedWordLength tail))),
+  axioms: [],
+  recursive_argument: bytes
+}
+
+theorem{
+  name: model_unsigned_byte_is_already_normalized,
+  parameters: [value : UInt8],
+  statement: ((modelByte (prim to_nat value : Nat)) = (prim to_nat value : Nat)),
+  proof: apply{
+    arguments: [value],
+    theorem: Uorc.Search.UnsignedByteConversionLaws::unsigned_byte_to_nat_remainder_256
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: model_unsigned_word_embedding_preserves_every_list_cell,
+  parameters: [bytes : (List UInt8)],
+  statement: ((modelWordLength (modelWordsOfBytes bytes)) = (modelUnsignedWordLength bytes)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [ih, modelUnsignedWordLength, modelWordLength, modelWordsOfBytes]
+        },
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: bytes
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: model_every_finite_unsigned_word_is_pointwise_normalized,
+  parameters: [bytes : (List UInt8)],
+  statement: ((modelNormalize (modelWordsOfBytes bytes)) = (modelWordsOfBytes bytes)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [
+            ih,
+            modelNormalize,
+            modelWordsOfBytes,
+            model_unsigned_byte_is_already_normalized
+          ]
+        },
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: bytes
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: model_every_finite_unsigned_byte_word_has_exact_coverage,
+  parameters: [bytes : (List UInt8)],
+  statement: ((modelReverseAt (modelReverseRank (modelWordsOfBytes bytes))) = (modelWordsOfBytes bytes)),
+  proof: simplify{
+    definitions: [
+      model_at_rank_is_exact_pointwise_normalization,
+      model_every_finite_unsigned_word_is_pointwise_normalized
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: modelUnsignedByte,
+  parameters: [payload : Nat],
+  result: UInt8,
+  body: (Uorc.Search.UnsignedByteConversion::fromNat (modelByte payload)),
+  axioms: []
+}
+
+definition{
+  name: modelBytesOfWords,
+  parameters: [words : (List Nat)],
+  result: (List UInt8),
+  body: (match words
+    | List.nil => (nil UInt8)
+    | List.cons head tail => (cons (modelUnsignedByte head) (modelBytesOfWords tail))),
+  axioms: [],
+  recursive_argument: words
+}
+
+theorem{
+  name: model_unsigned_scalar_round_trip,
+  parameters: [value : UInt8],
+  statement: ((modelUnsignedByte (prim to_nat value : Nat)) = value),
+  proof: apply{
+    arguments: [value],
+    theorem: Uorc.Search.UnsignedByteConversionLaws::from_nat_remainder_to_nat_round_trip
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: model_normalized_scalar_round_trip,
+  parameters: [payload : Nat],
+  statement: ((prim to_nat (modelUnsignedByte payload) : Nat) = (modelByte payload)),
+  proof: apply{
+    arguments: [payload],
+    theorem: Uorc.Search.UnsignedByteConversionLaws::to_nat_from_nat_remainder_idempotent
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: model_unsigned_byte_word_round_trip,
+  parameters: [bytes : (List UInt8)],
+  statement: ((modelBytesOfWords (modelWordsOfBytes bytes)) = bytes),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [ih, modelBytesOfWords, modelWordsOfBytes, model_unsigned_scalar_round_trip]
+        },
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: bytes
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: model_natural_word_round_trip_is_pointwise_normalization,
+  parameters: [words : (List Nat)],
+  statement: ((modelWordsOfBytes (modelBytesOfWords words)) = (modelNormalize words)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [
+            ih,
+            modelBytesOfWords,
+            modelNormalize,
+            modelWordsOfBytes,
+            model_normalized_scalar_round_trip
+          ]
+        },
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: words
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: model_unsigned_inverse_preserves_every_list_cell,
+  parameters: [words : (List Nat)],
+  statement: ((modelUnsignedWordLength (modelBytesOfWords words)) = (modelWordLength words)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [ih, modelBytesOfWords, modelUnsignedWordLength, modelWordLength]
+        },
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: words
+  },
+  axioms: [propext]
+}
+
+definition{
+  name: modelBoundary,
+  parameters: [],
+  result: String,
+  body: "This pure mathematical module models every finite reversed byte word, including the empty word and every zero at every list position. Pointwise Nat normalization reduces each existing payload modulo 256 and preserves the exact list length; ByteBounded is the fixed-point predicate of that same cell-preserving map, never numeric zero stripping. UInt8.toNat embedding and its checked-conversion inverse have exact scalar and full-list round trips and length preservation. Decoder/rank identities, normalized-successor commutation and normalized iteration construct modelAt(rank(words)) = normalize(words), exact word equality for every pointwise-fixed word, and direct exact coverage for every finite UInt8 list. These source-authored closed proof programs remain unaccepted until actual compiler, Lean, kernel replay and declared-axiom checks succeed. This abstract inverse/length/coverage result is not forward-shortlex order equivalence, Heap/sequence denotation, reachable-arena ownership, readStep adequacy, pivot invariant, byte-builder simulation, funding/refusal refinement, actual machine no-omission, controller qualification, native or complete SDK acceptance. Those stronger obligations are preserved, not replaced by this module or finite diagnostics.",
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}
