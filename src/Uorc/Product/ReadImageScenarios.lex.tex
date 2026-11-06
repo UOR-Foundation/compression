@@ -1,0 +1,1443 @@
+\begin{lexlean}{Uorc.Product.ReadImageScenarios}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.ReadImage}
+\importmodule{Uorc.Product.ResourceIO}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: Uorc.Product.Api::Run,
+  body: (record Uorc.Product.Api::Run {instance := 1, serial := 2, revision := 3}),
+  axioms: []
+}
+
+definition{
+  name: source,
+  parameters: [],
+  result: Uorc.Product.Api::ResourceRef,
+  body: (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 10, generation := 1}),
+  axioms: []
+}
+
+definition{
+  name: lease,
+  parameters: [],
+  result: Uorc.Product.Api::ResourceRef,
+  body: (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 20, generation := 1}),
+  axioms: []
+}
+
+definition{name: sampleBytes, parameters: [], result: Bytes, body: 0x0102ff, axioms: []}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}),
+  axioms: []
+}
+
+definition{
+  name: first,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), length := 3, eof := false, failed := false})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: advanceWith,
+  parameters: [t : Uorc.Product.ReadImage::Transition, limits : Uorc.Core.RuntimeResources::Budget],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (Uorc.Product.ReadImage::tick limits (project t arena) (project t usage) (Uorc.Product.ReadImage::acknowledgeDelta (project t cursor) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: advance,
+  parameters: [t : Uorc.Product.ReadImage::Transition],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (advanceWith t (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: control,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (advance call{arguments: [], function: first}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: reserved,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (advance (control)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: armed,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (advance (reserved)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drive,
+  parameters: [fuel : Nat, t : Uorc.Product.ReadImage::Transition],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (match fuel | Nat.zero => t | Nat.succ remaining => (drive remaining (advance t))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: leaseCount,
+  parameters: [leases : (List Uorc.Product.Api::ResourceRef)],
+  result: Nat,
+  body: (match leases | List.nil => 0 | List.cons head tail => (1 + (leaseCount tail))),
+  axioms: [],
+  recursive_argument: leases
+}
+
+definition{
+  name: expectedAdmitWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.Heap::wordAdd (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapAllocate))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: coreCommitFee,
+  parameters: [t : Uorc.Product.ReadImage::Transition],
+  result: (Option UInt64),
+  body: (match (Uorc.Core.Heap::preflightImageCommit (project t arena) (project (project t cursor) reservation) (3 : UInt64))
+    | Result.error failure => (ctor Option.none [UInt64])
+    | Result.ok quote => (Uorc.Core.RuntimeWork::feeWithCopy (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapAllocate)) quote)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: refusedCommit,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (let t : Uorc.Product.ReadImage::Transition := (armed); (match (coreCommitFee t)
+    | Option.none => t
+    | Option.some fee => (Uorc.Product.ReadImage::commit (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordSub (Uorc.Core.Heap::wordAdd (project (project t usage) work) fee) (1 : UInt64)), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project t arena) (project t usage) (project t cursor) (record Uorc.Product.ReadImage::PayloadReply {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), bytes := (sampleBytes), failed := false})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: resumedCommit,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (let t : Uorc.Product.ReadImage::Transition := (refusedCommit); (let extended : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::extend (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project t arena) (project t usage) (project t cursor) (run)); (Uorc.Product.ReadImage::commit (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project extended arena) (project extended usage) (project extended cursor) (record Uorc.Product.ReadImage::PayloadReply {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), bytes := (sampleBytes), failed := false})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: committed,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (Uorc.Product.ReadImage::commit (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project (armed) arena) (project (armed) usage) (project (armed) cursor) (record Uorc.Product.ReadImage::PayloadReply {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), bytes := (sampleBytes), failed := false})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: transferred,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (Uorc.Product.ReadImage::takeImage (project (committed) arena) (project (committed) usage) (Uorc.Product.ReadImage::acknowledgeDelta (project (committed) cursor) (run)) (run)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: stopping,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project (armed) arena) (project (armed) usage) (Uorc.Product.ReadImage::cancel (project (armed) cursor) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: settled,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (Uorc.Product.ReadImage::payloadStopped (project (stopping) arena) (project (stopping) usage) (project (stopping) cursor) (record Uorc.Product.ReadImage::PayloadStopped {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), stopped := true})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: releasing,
+  parameters: [],
+  result: Uorc.Product.ReadImage::Transition,
+  body: (drive 8 (settled)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: exactReservation,
+  parameters: [t : Uorc.Product.ReadImage::Transition],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::lookup (project t arena) (project (project t cursor) reservation))
+    | Result.error failure => false
+    | Result.ok entry => ((prim equal (project entry roots) (1 : UInt64) : Bool) && ((prim equal (project entry incoming) (1 : UInt64) : Bool) && ((match (project entry node)
+      | Uorc.Core.Heap::Node.image n0 n1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf n0 n1 n2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch n0 n1 n2 n3 => false
+      | Uorc.Core.Heap::Node.storeLeaf n0 => false
+      | Uorc.Core.Heap::Node.storeBranch n0 n1 => false
+      | Uorc.Core.Heap::Node.slot n0 n1 => false
+      | Uorc.Core.Heap::Node.rootBranch n0 n1 n2 => false
+      | Uorc.Core.Heap::Node.metadataWord n0 n1 n2 => false
+      | Uorc.Core.Heap::Node.metadataLink n0 n1 n2 => false
+      | Uorc.Core.Heap::Node.metadataBranch n0 n1 n2 => false
+      | Uorc.Core.Heap::Node.ownerRoot n0 n1 => false
+      | Uorc.Core.Heap::Node.imageReservation n0 n1 => ((prim equal n1 (3 : UInt64) : Bool) && ((match n0
+        | Uorc.Core.Heap::ImageKind.input => false
+        | Uorc.Core.Heap::ImageKind.archive => true
+        | Uorc.Core.Heap::ImageKind.basis => false
+        | Uorc.Core.Heap::ImageKind.runtime => false
+        | Uorc.Core.Heap::ImageKind.control => false) && true))) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: metadataOnlyControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := call{
+    arguments: [],
+    function: first
+  }; ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && ((prim equal (project (project t usage) work) (0 : UInt64) : Bool) && ((not (project (project t cursor) payloadPending)) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: controlPrepaymentControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (control); ((prim equal (project (project t usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)) : Bool) && ((prim equal (project (project t delta) allocatedEntries) (1 : UInt64) : Bool) && ((not (Uorc.Core.Heap::less (project (project t delta) allocatedBytes) (Uorc.Core.RuntimeOwnerRoots::controlBytes))) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::ownedRoots (project t cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: deltaBlocksMutationControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (control); (let blocked : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project t arena) (project t usage) (project t cursor)); ((prim equal (project (project blocked usage) work) (project (project t usage) work) : Bool) && ((prim equal (project (project blocked arena) liveEntries) (1 : UInt64) : Bool) && ((match (project blocked outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => true
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((Uorc.Core.HeapAudit::auditRoots (project blocked arena) (Uorc.Product.ReadImage::ownedRoots (project blocked cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: exactCapacityControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (reserved); ((prim equal (project (project t usage) work) (expectedAdmitWork) : Bool) && ((exactReservation t) && ((not (project (project t cursor) payloadPending)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::ownedRoots (project t cursor))) =? 2) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: requestAfterCapacityControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (armed); ((prim equal (project (project t usage) work) (expectedAdmitWork) : Bool) && ((project (project t cursor) payloadPending) && ((exactReservation t) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => (((project v0 length) =? 3) && ((Uorc.Product.Api::sameResource (project v0 lease) (lease)) && true))
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: commitQuoteControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (armed); (match (Uorc.Core.Heap::preflightImageCommit (project t arena) (project (project t cursor) reservation) (3 : UInt64))
+    | Result.error failure => false
+    | Result.ok quote => ((prim equal quote (51 : UInt64) : Bool) && ((match (coreCommitFee t)
+      | Option.none => false
+      | Option.some fee => (prim equal fee (1126 : UInt64) : Bool)) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: commitPrepaymentControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (refusedCommit); ((prim equal (project (project t usage) work) (expectedAdmitWork) : Bool) && ((exactReservation t) && ((project (project t cursor) payloadPending) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => (match v0
+      | Uorc.Core.RuntimeResources::Error.workLimit => true
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap r0 => false)
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sameCallbackResumeControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (resumedCommit); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => true
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((Uorc.Core.RuntimeValue::isNull (project (project t cursor) reservation)) && ((not (Uorc.Core.RuntimeValue::isNull (project (project t cursor) image))) && ((not (project (project t cursor) payloadPending)) && ((prim equal (project (project t delta) allocatedEntries) (1 : UInt64) : Bool) && ((prim equal (project (project t delta) releasedEntries) (1 : UInt64) : Bool) && ((match (coreCommitFee (armed))
+    | Option.none => false
+    | Option.some fee => (prim equal (project (project t usage) work) (Uorc.Core.Heap::wordAdd (expectedAdmitWork) fee) : Bool)) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: commitDeltaGateControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (committed); (match (project (Uorc.Product.ReadImage::takeImage (project t arena) (project t usage) (project t cursor) (run)) outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => true
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: oneTimeTransferControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (transferred); (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::ownedRoots (project t cursor))) =? 1) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::outcomeRoots (project t outcome))) =? 1) && (((leaseCount (Uorc.Product.ReadImage::outcomeLeases (project t outcome))) =? 1) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => false
+    | Option.none => true) && ((Uorc.Core.RuntimeValue::isNull (project (project t cursor) image)) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => ((prim equal (project v1 length) (3 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Core.RuntimeSequence::addRoot (project v1 image) (Uorc.Product.ReadImage::ownedRoots (project t cursor)))) && true))
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: duplicateTransferControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (transferred); ((match (project (Uorc.Product.ReadImage::takeImage (project t arena) (project t usage) (project t cursor) (run)) outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => true
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::ownedRoots (project t cursor))) =? 1) && true))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: transferredBytesSurviveCleanupControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (transferred); (match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => (let image : Uorc.Core.RuntimeValue::Handle := (project v1 image); (let cleaned : Uorc.Product.ReadImage::Transition := (drive 8 t); ((match (Uorc.Core.RuntimeImage::readByte (project cleaned arena) image (0 : UInt64))
+      | Result.error failure => false
+      | Result.ok byte => (prim equal byte (1 : UInt8) : Bool)) && ((match (Uorc.Core.RuntimeImage::readByte (project cleaned arena) image (1 : UInt64))
+      | Result.error failure => false
+      | Result.ok byte => (prim equal byte (2 : UInt8) : Bool)) && ((match (Uorc.Core.RuntimeImage::readByte (project cleaned arena) image (2 : UInt64))
+      | Result.error failure => false
+      | Result.ok byte => (prim equal byte (255 : UInt8) : Bool)) && ((Uorc.Core.HeapAudit::auditRoots (project cleaned arena) (Uorc.Core.RuntimeSequence::addRoot image (Uorc.Product.ReadImage::ownedRoots (project cleaned cursor)))) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::ownedRoots (project cleaned cursor))) =? 0) && ((match (Uorc.Product.ReadImage::releaseDisposition (project cleaned cursor))
+      | Uorc.Product.Api::ReleaseDisposition.retain reason => false
+      | Uorc.Product.Api::ReleaseDisposition.releasable => true) && ((prim equal (project (project cleaned arena) liveEntries) (1 : UInt64) : Bool) && true)))))))))
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: staleLeaseCustodyControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := call{
+    arguments: [],
+    function: first
+  }; (let stale : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project t arena) (project t usage) (project t cursor) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (source), ticket := 99, offset := 0, lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 21, generation := 1}), length := 3, eof := false, failed := false})); (((project (project (project stale cursor) request) ticket) =? 7) && ((match (project stale outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => ((match v0
+      | Uorc.Product.ReadImage::Error.staleReply => true
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false) && ((match v1
+      | Option.some present => ((project present slot) =? 21)
+      | Option.none => false) && true))) && (((leaseCount (Uorc.Product.ReadImage::outcomeLeases (project stale outcome))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project stale arena) (Uorc.Product.ReadImage::ownedRoots (project stale cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongSourceControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 11, generation := 1}), ticket := 7, offset := 0, lease := (lease), length := 3, eof := false, failed := false})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => ((match v0
+      | Uorc.Product.ReadImage::Error.staleReply => false
+      | Uorc.Product.ReadImage::Error.wrongSource => true
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false) && ((match v1
+      | Option.some present => true
+      | Option.none => false) && true))) && ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: oversizedLeaseControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), length := 17, eof := false, failed := false})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => (match v0
+      | Uorc.Product.ReadImage::Error.staleReply => false
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => true
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false)
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: noProgressControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), length := 0, eof := false, failed := false})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => (match v0
+      | Uorc.Product.ReadImage::Error.staleReply => false
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => true
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false)
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emptyEOFControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (advance (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), length := 0, eof := true, failed := false}))); (let moved : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::takeImage (project t arena) (project t usage) (Uorc.Product.ReadImage::acknowledgeDelta (project t cursor) (run)) (run)); (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::outcomeRoots (project moved outcome))) =? 0) && (((leaseCount (Uorc.Product.ReadImage::outcomeLeases (project moved outcome))) =? 1) && ((Uorc.Core.RuntimeValue::isNull (project (project moved cursor) image)) && ((Uorc.Core.RuntimeValue::isNull (project (project moved cursor) reservation)) && ((match (project moved outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => ((project v0 eof) && (((project v0 length) =? 0) && true))
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((Uorc.Core.HeapAudit::auditRoots (project moved arena) (Uorc.Product.ReadImage::ownedRoots (project moved cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: unaddressableLengthControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 18446744073709551616})) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), length := 18446744073709551616, eof := false, failed := false})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => (match v0
+      | Uorc.Product.ReadImage::Error.staleReply => false
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => true
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false)
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancellationPendingControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (stopping); ((exactReservation t) && ((project (project t cursor) payloadPending) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => (Uorc.Product.Api::sameResource (project v0 lease) (lease))
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::ownedRoots (project t cursor))) =? 2) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: pendingStopBlocksCleanupControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (advance (stopping)); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => true
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((exactReservation t) && ((project (project t cursor) payloadPending) && ((prim equal (project (project t arena) liveEntries) (2 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: falseStoppedControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::payloadStopped (project (stopping) arena) (project (stopping) usage) (project (stopping) cursor) (record Uorc.Product.ReadImage::PayloadStopped {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), stopped := false})); ((project (project t cursor) payloadPending) && ((exactReservation t) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => true
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: matchingStoppedControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (settled); ((not (project (project t cursor) payloadPending)) && ((exactReservation t) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => true
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancelCleanupLeaseControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (releasing); ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => true
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::ownedRoots (project t cursor))) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: leaseReleaseReceiptControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (advance (Uorc.Product.ReadImage::leaseReleased (project (releasing) arena) (project (releasing) usage) (project (releasing) cursor) (record Uorc.Product.ReadImage::LeaseReleased {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), released := true}))); ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => false
+    | Option.none => true) && ((match (Uorc.Product.ReadImage::releaseDisposition (project t cursor))
+    | Uorc.Product.Api::ReleaseDisposition.retain reason => false
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => true
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: latePayloadCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (let current : Uorc.Product.ReadImage::Transition := (armed); (let late : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::commit (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project current arena) (project current usage) (Uorc.Product.ReadImage::cancel (project current cursor) (run)) (record Uorc.Product.ReadImage::PayloadReply {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), bytes := (sampleBytes), failed := false})); ((not (project (project late cursor) payloadPending)) && ((exactReservation late) && ((prim equal (project (project late usage) work) (project (project current usage) work) : Bool) && ((prim equal (project (project late delta) allocatedEntries) (0 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project late arena) (Uorc.Product.ReadImage::ownedRoots (project late cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: initialReadCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))); ((project (project t cursor) leasePending) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => ((project v0 ticket) =? 7)
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ownedQuotaBeforePayloadControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (advanceWith (advanceWith (Uorc.Product.ReadImage::extend (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (4144 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project call{
+    arguments: [],
+    function: first
+  } arena) (project call{
+    arguments: [],
+    function: first
+  } usage) (project call{
+    arguments: [],
+    function: first
+  } cursor) (run)) (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (4144 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)})) (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (4144 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)})); ((prim equal (project (project t usage) work) (expectedAdmitWork) : Bool) && ((Uorc.Core.RuntimeValue::isNull (project (project t cursor) reservation)) && ((not (project (project t cursor) payloadPending)) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => (match v0
+      | Uorc.Core.RuntimeResources::Error.workLimit => false
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => true
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap r0 => false)
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongStoppedIdentityControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::payloadStopped (project (stopping) arena) (project (stopping) usage) (project (stopping) cursor) (record Uorc.Product.ReadImage::PayloadStopped {run := (run), source := (source), ticket := 99, offset := 0, lease := (lease), stopped := true})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => ((match v0
+      | Uorc.Product.ReadImage::Error.staleReply => true
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false) && (true && true))) && ((project (project t cursor) payloadPending) && ((exactReservation t) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: falseLeaseReleaseControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::leaseReleased (project (releasing) arena) (project (releasing) usage) (project (releasing) cursor) (record Uorc.Product.ReadImage::LeaseReleased {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), released := false})); ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => true
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((not (match (Uorc.Product.ReadImage::releaseDisposition (project t cursor))
+    | Uorc.Product.Api::ReleaseDisposition.retain reason => false
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true)) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: payloadLengthMismatchControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::commit (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project (armed) arena) (project (armed) usage) (project (armed) cursor) (record Uorc.Product.ReadImage::PayloadReply {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), bytes := 0x0102, failed := false})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => (match v0
+      | Uorc.Product.ReadImage::Error.staleReply => false
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => true
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false)
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((not (project (project t cursor) payloadPending)) && ((exactReservation t) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: payloadFailureControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::commit (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project (armed) arena) (project (armed) usage) (project (armed) cursor) (record Uorc.Product.ReadImage::PayloadReply {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), bytes := (sampleBytes), failed := true})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => (match v0
+      | Uorc.Product.ReadImage::Error.staleReply => false
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => true
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false)
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((not (project (project t cursor) payloadPending)) && ((exactReservation t) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: readFailureControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), length := 3, eof := false, failed := true})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => (match v0
+      | Uorc.Product.ReadImage::Error.staleReply => false
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => true
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false)
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongPayloadLeaseControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::commit (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project (armed) arena) (project (armed) usage) (project (armed) cursor) (record Uorc.Product.ReadImage::PayloadReply {run := (run), source := (source), ticket := 7, offset := 0, lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 21, generation := 1}), bytes := (sampleBytes), failed := false})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => ((match v0
+      | Uorc.Product.ReadImage::Error.staleReply => false
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => true
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false) && (true && true))) && ((project (project t cursor) payloadPending) && ((exactReservation t) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: falseReadStoppedControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::readStopped (project (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))) arena) (project (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))) usage) (project (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))) cursor) (record Uorc.Product.ResourceIO::ReadCancellationReply {run := (run), source := (source), ticket := 7, offset := 0, stopped := false})); ((project (project t cursor) leasePending) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => true
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((not (match (Uorc.Product.ReadImage::releaseDisposition (project t cursor))
+    | Uorc.Product.Api::ReleaseDisposition.retain reason => false
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true)) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongReadStoppedIdentityControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::readStopped (project (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))) arena) (project (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))) usage) (project (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))) cursor) (record Uorc.Product.ResourceIO::ReadCancellationReply {run := (run), source := (source), ticket := 99, offset := 0, stopped := true})); ((project (project t cursor) leasePending) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => ((match v0
+      | Uorc.Product.ReadImage::Error.staleReply => true
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => false
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false) && (true && true))) && ((not (match (Uorc.Product.ReadImage::releaseDisposition (project t cursor))
+    | Uorc.Product.Api::ReleaseDisposition.retain reason => false
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true)) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: matchingReadStoppedControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (advance (Uorc.Product.ReadImage::readStopped (project (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))) arena) (project (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))) usage) (project (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))) cursor) (record Uorc.Product.ResourceIO::ReadCancellationReply {run := (run), source := (source), ticket := 7, offset := 0, stopped := true}))); ((not (project (project t cursor) leasePending)) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => true
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((match (Uorc.Product.ReadImage::releaseDisposition (project t cursor))
+    | Uorc.Product.Api::ReleaseDisposition.retain reason => false
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lateLeaseCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (let pending : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::cancel (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (run))); (let arrived : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project pending arena) (project pending usage) (project pending cursor) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (source), ticket := 7, offset := 0, lease := (lease), length := 3, eof := false, failed := false})); (let t : Uorc.Product.ReadImage::Transition := (advance arrived); ((not (project (project t cursor) leasePending)) && ((not (project (project t cursor) payloadPending)) && ((match (Uorc.Product.ReadImage::ownedLease (project t cursor))
+    | Option.some present => true
+    | Option.none => false) && ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => (Uorc.Product.Api::sameResource (project v0 lease) (lease))
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => false) && ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: directCleanupDrainControl,
+  parameters: [],
+  result: Bool,
+  body: (let pending : Uorc.Product.ReadImage::Transition := (settled); (let firstRelease : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::cleanup (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project pending arena) (project pending usage) (project pending cursor)); (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::cleanup (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project firstRelease arena) (project firstRelease usage) (Uorc.Product.ReadImage::acknowledgeDelta (project firstRelease cursor) (run))); ((prim equal (project (project t delta) releasedEntries) (1 : UInt64) : Bool) && ((prim equal (project (project t arena) liveEntries) (1 : UInt64) : Bool) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadImage::ownedRoots (project t cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongLeaseInstanceControl,
+  parameters: [],
+  result: Bool,
+  body: (let t : Uorc.Product.ReadImage::Transition := (Uorc.Product.ReadImage::leaseReady (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage) (Uorc.Product.ReadImage::start (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (source), ticket := 7, offset := 0, maximum := 16})) (record Uorc.Product.ReadImage::LeaseReady {run := (run), source := (source), ticket := 7, offset := 0, lease := (record Uorc.Product.Api::ResourceRef {instance := 2, slot := 20, generation := 1}), length := 3, eof := false, failed := false})); ((match (project t outcome)
+    | Uorc.Product.ReadImage::Outcome.advanced => false
+    | Uorc.Product.ReadImage::Outcome.awaitLease => false
+    | Uorc.Product.ReadImage::Outcome.requestPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitPayload => false
+    | Uorc.Product.ReadImage::Outcome.cancelRead v0 => false
+    | Uorc.Product.ReadImage::Outcome.cancelPayload v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitStopped => false
+    | Uorc.Product.ReadImage::Outcome.imageReady => false
+    | Uorc.Product.ReadImage::Outcome.emptyReady => false
+    | Uorc.Product.ReadImage::Outcome.transferred v0 v1 => false
+    | Uorc.Product.ReadImage::Outcome.empty v0 => false
+    | Uorc.Product.ReadImage::Outcome.releaseLease v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitLeaseRelease => false
+    | Uorc.Product.ReadImage::Outcome.clean => false
+    | Uorc.Product.ReadImage::Outcome.cancelled => false
+    | Uorc.Product.ReadImage::Outcome.failed v0 => false
+    | Uorc.Product.ReadImage::Outcome.refused v0 => false
+    | Uorc.Product.ReadImage::Outcome.awaitDelta => false
+    | Uorc.Product.ReadImage::Outcome.notReady => false
+    | Uorc.Product.ReadImage::Outcome.rejected v0 v1 => ((match v0
+      | Uorc.Product.ReadImage::Error.staleReply => false
+      | Uorc.Product.ReadImage::Error.wrongSource => false
+      | Uorc.Product.ReadImage::Error.wrongOffset => false
+      | Uorc.Product.ReadImage::Error.wrongLease => true
+      | Uorc.Product.ReadImage::Error.oversizedReply => false
+      | Uorc.Product.ReadImage::Error.noProgress => false
+      | Uorc.Product.ReadImage::Error.addressSpaceExhausted => false
+      | Uorc.Product.ReadImage::Error.readFailure => false
+      | Uorc.Product.ReadImage::Error.payloadFailure => false
+      | Uorc.Product.ReadImage::Error.payloadLengthMismatch => false
+      | Uorc.Product.ReadImage::Error.protocol => false
+      | Uorc.Product.ReadImage::Error.heap e0 => false) && ((match v1
+      | Option.some present => true
+      | Option.none => false) && true))) && ((prim equal (project (project t arena) liveEntries) (0 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project t arena) (Uorc.Product.ReadImage::ownedRoots (project t cursor))) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "read-image-metadataOnlyControl", passed := (metadataOnlyControl)}) (cons (record Observation {id := "read-image-controlPrepaymentControl", passed := (controlPrepaymentControl)}) (cons (record Observation {id := "read-image-deltaBlocksMutationControl", passed := (deltaBlocksMutationControl)}) (cons (record Observation {id := "read-image-exactCapacityControl", passed := (exactCapacityControl)}) (cons (record Observation {id := "read-image-requestAfterCapacityControl", passed := (requestAfterCapacityControl)}) (cons (record Observation {id := "read-image-commitQuoteControl", passed := (commitQuoteControl)}) (cons (record Observation {id := "read-image-commitPrepaymentControl", passed := (commitPrepaymentControl)}) (cons (record Observation {id := "read-image-sameCallbackResumeControl", passed := (sameCallbackResumeControl)}) (cons (record Observation {id := "read-image-commitDeltaGateControl", passed := (commitDeltaGateControl)}) (cons (record Observation {id := "read-image-oneTimeTransferControl", passed := (oneTimeTransferControl)}) (cons (record Observation {id := "read-image-duplicateTransferControl", passed := (duplicateTransferControl)}) (cons (record Observation {id := "read-image-transferredBytesSurviveCleanupControl", passed := (transferredBytesSurviveCleanupControl)}) (cons (record Observation {id := "read-image-staleLeaseCustodyControl", passed := (staleLeaseCustodyControl)}) (cons (record Observation {id := "read-image-wrongSourceControl", passed := (wrongSourceControl)}) (cons (record Observation {id := "read-image-oversizedLeaseControl", passed := (oversizedLeaseControl)}) (cons (record Observation {id := "read-image-noProgressControl", passed := (noProgressControl)}) (cons (record Observation {id := "read-image-emptyEOFControl", passed := (emptyEOFControl)}) (cons (record Observation {id := "read-image-unaddressableLengthControl", passed := (unaddressableLengthControl)}) (cons (record Observation {id := "read-image-cancellationPendingControl", passed := (cancellationPendingControl)}) (cons (record Observation {id := "read-image-pendingStopBlocksCleanupControl", passed := (pendingStopBlocksCleanupControl)}) (cons (record Observation {id := "read-image-falseStoppedControl", passed := (falseStoppedControl)}) (cons (record Observation {id := "read-image-matchingStoppedControl", passed := (matchingStoppedControl)}) (cons (record Observation {id := "read-image-cancelCleanupLeaseControl", passed := (cancelCleanupLeaseControl)}) (cons (record Observation {id := "read-image-leaseReleaseReceiptControl", passed := (leaseReleaseReceiptControl)}) (cons (record Observation {id := "read-image-latePayloadCancellationControl", passed := (latePayloadCancellationControl)}) (cons (record Observation {id := "read-image-initialReadCancellationControl", passed := (initialReadCancellationControl)}) (cons (record Observation {id := "read-image-ownedQuotaBeforePayloadControl", passed := (ownedQuotaBeforePayloadControl)}) (cons (record Observation {id := "read-image-wrongStoppedIdentityControl", passed := (wrongStoppedIdentityControl)}) (cons (record Observation {id := "read-image-falseLeaseReleaseControl", passed := (falseLeaseReleaseControl)}) (cons (record Observation {id := "read-image-payloadLengthMismatchControl", passed := (payloadLengthMismatchControl)}) (cons (record Observation {id := "read-image-payloadFailureControl", passed := (payloadFailureControl)}) (cons (record Observation {id := "read-image-readFailureControl", passed := (readFailureControl)}) (cons (record Observation {id := "read-image-wrongPayloadLeaseControl", passed := (wrongPayloadLeaseControl)}) (cons (record Observation {id := "read-image-falseReadStoppedControl", passed := (falseReadStoppedControl)}) (cons (record Observation {id := "read-image-wrongReadStoppedIdentityControl", passed := (wrongReadStoppedIdentityControl)}) (cons (record Observation {id := "read-image-matchingReadStoppedControl", passed := (matchingReadStoppedControl)}) (cons (record Observation {id := "read-image-lateLeaseCancellationControl", passed := (lateLeaseCancellationControl)}) (cons (record Observation {id := "read-image-directCleanupDrainControl", passed := (directCleanupDrainControl)}) (cons (record Observation {id := "read-image-wrongLeaseInstanceControl", passed := (wrongLeaseInstanceControl)}) (nil Observation)))))))))))))))))))))))))))))))))))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -211,13 +211,6 @@ definition{
 }
 
 definition{
-  name: reject,
-  parameters: [s : State, error : Uorc.Product.Api::Failure],
-  result: Transition,
-  body: (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-}
-
-definition{
   name: cleanupEffects,
   parameters: [s : State],
   result: (List Effect),
@@ -229,15 +222,6 @@ definition{
   parameters: [s : State, argRun : Uorc.Product.Api::Run, failure : Uorc.Product.Api::Failure],
   result: Transition,
   body: (if (owns s argRun) then (record Transition {state := (record State {instance := (project s instance), session := (Uorc.Product.Session::finish (project s session) (project argRun serial) (project argRun revision) (ctor Uorc.Product.Session::ResultKind.failure)), stream := (Uorc.Product.StreamProtocol::fail (project s stream) (ctor Uorc.Product.StreamProtocol::Publication.notPublished)), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (ctor Option.none [Uorc.Product.Api::ResourceRef]), publicationPending := false, transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] failure), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := false, storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (cons (ctor Effect.discard argRun) (nil Effect))}) else (record Transition {state := s, effects := (nil Effect)}))
-}
-
-definition{
-  name: demand,
-  parameters: [s : State, argRun : Uorc.Product.Api::Run],
-  result: Transition,
-  body: (if (owns s argRun) then (match (Uorc.Product.StreamProtocol::requestInput (project s stream))
-    | Result.error err => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.protocol err)), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-    | Result.ok stream => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := stream, input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})) else (record Transition {state := s, effects := (nil Effect)}))
 }
 
 definition{
@@ -262,43 +246,6 @@ definition{
     | Uorc.Product.StreamProtocol::Publication.published => false
     | Uorc.Product.StreamProtocol::Publication.notPublished => true
     | Uorc.Product.StreamProtocol::Publication.unknown => false) && true))))))
-}
-
-definition{
-  name: publication,
-  parameters: [
-    s : State,
-    argRun : Uorc.Product.Api::Run,
-    outcome : Uorc.Product.StreamProtocol::Publication
-  ],
-  result: Transition,
-  body: (if ((sameRun s argRun) && ((project s publicationPending) && true)) then (match (Uorc.Product.StreamProtocol::recordPublication (project s stream) outcome)
-    | Result.error err => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.protocol err)), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-    | Result.ok stream => (match outcome
-      | Uorc.Product.StreamProtocol::Publication.staged => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noPublicationPending))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-      | Uorc.Product.StreamProtocol::Publication.published => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := stream, input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (ctor Option.none [Uorc.Product.Api::ResourceRef]), publicationPending := false, transferred := true, error := (ctor Option.none [Uorc.Product.Api::Failure]), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-      | Uorc.Product.StreamProtocol::Publication.notPublished => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := stream, input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := false, transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.publicationIo outcome "Output was not published; the staged result is retained.")), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-      | Uorc.Product.StreamProtocol::Publication.unknown => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := stream, input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := false, transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.publicationIo outcome "Publication outcome is unknown; reconcile with the destination before retrying.")), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)}))) else (record Transition {state := s, effects := (nil Effect)}))
-}
-
-definition{
-  name: extend,
-  parameters: [s : State, credit : Nat],
-  result: Transition,
-  body: (if (credit =? 0) then (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.invalidEffort))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)}) else (if (project (project s session) active) then (record Transition {state := s, effects := (cons (ctor Effect.extend (run s) credit) (nil Effect))}) else (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noRequest))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})))
-}
-
-definition{
-  name: staged,
-  parameters: [s : State, argRun : Uorc.Product.Api::Run, bytes : Nat],
-  result: Transition,
-  body: (if (owns s argRun) then (match (project s request)
-    | Option.none => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noRequest))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-    | Option.some request => (match (Uorc.Product.StreamProtocol::stageOutput (project s stream) bytes (match (project (project (Uorc.Product.Api::options request) limits) outputBytes)
-        | Option.none => ((project (project s stream) producedBytes) + bytes)
-        | Option.some requestedLimit => requestedLimit))
-      | Result.error err => (fail s argRun (ctor Uorc.Product.Api::Failure.protocol err))
-      | Result.ok stream => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := stream, input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)}))) else (record Transition {state := s, effects := (nil Effect)}))
 }
 
 definition{
@@ -376,17 +323,6 @@ definition{
     | Uorc.Product.InputModel::Piece.endInput => true)
 }
 
-definition{
-  name: feed,
-  parameters: [s : State, argRun : Uorc.Product.Api::Run, piece : Uorc.Product.InputModel::Piece],
-  result: Transition,
-  body: (if (owns s argRun) then (if (validPieceInstance s piece) then (match (Uorc.Product.StreamProtocol::acceptInput (project s stream) (streamPiece piece))
-    | Uorc.Product.StreamProtocol::Decision.rejected err => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.protocol err)), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-    | Uorc.Product.StreamProtocol::Decision.accepted action stream => (match (Uorc.Product.InputModel::accept (project s input) piece)
-      | Result.error err => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.inputOrder))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-      | Result.ok input => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := stream, input := input, request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (cons (ctor Effect.feed argRun piece) (nil Effect))}))) else (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.wrongInstance))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})) else (record Transition {state := s, effects := (nil Effect)}))
-}
-
 theorem{
   name: discard_report_preserves_state,
   parameters: [s : State, report : Uorc.Product.Api::Report],
@@ -433,15 +369,6 @@ theorem{
 }
 
 definition{
-  name: download,
-  parameters: [s : State],
-  result: Transition,
-  body: (if (canDownload s) then (match (project s staged)
-    | Option.none => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noOutput))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-    | Option.some output => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (preparePublication (project s stream)), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := true, transferred := (project s transferred), error := (ctor Option.none [Uorc.Product.Api::Failure]), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (cons (ctor Effect.publish (run s) output) (nil Effect))})) else (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noOutput))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)}))
-}
-
-definition{
   name: authorizePublication,
   parameters: [s : State, argRun : Uorc.Product.Api::Run, resource : Uorc.Product.Api::ResourceRef],
   result: Bool,
@@ -454,13 +381,6 @@ definition{
     | Option.some held => (Uorc.Product.Api::sameResource held resource)) && true))))) && (((Uorc.Product.Storage::reservedBytes (project (project s storage) usage)) =? 0) && ((match (project (project s storage) error)
     | Option.none => true
     | Option.some storageError => false) && true)))
-}
-
-definition{
-  name: runtimeFailed,
-  parameters: [s : State, argRun : Uorc.Product.Api::Run, report : Uorc.Product.Api::FailureReport],
-  result: Transition,
-  body: (if ((sameRun s argRun) && ((project s publicationPending) && true)) then (record Transition {state := (record State {instance := (project (project (publication s argRun (project report publication)) state) instance), session := (project (project (publication s argRun (project report publication)) state) session), stream := (project (project (publication s argRun (project report publication)) state) stream), input := (project (project (publication s argRun (project report publication)) state) input), request := (project (project (publication s argRun (project report publication)) state) request), report := (project (project (publication s argRun (project report publication)) state) report), progress := (project (project (publication s argRun (project report publication)) state) progress), staged := (project (project (publication s argRun (project report publication)) state) staged), publicationPending := (project (project (publication s argRun (project report publication)) state) publicationPending), transferred := (project (project (publication s argRun (project report publication)) state) transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (project report failure)), hostFailure := (project (project (publication s argRun (project report publication)) state) hostFailure), checkpoint := (project (project (publication s argRun (project report publication)) state) checkpoint), attached := (project (project (publication s argRun (project report publication)) state) attached), closed := (project (project (publication s argRun (project report publication)) state) closed), page := (project (project (publication s argRun (project report publication)) state) page), cleanup := (project (project (publication s argRun (project report publication)) state) cleanup), jobRetained := (project (project (publication s argRun (project report publication)) state) jobRetained), storage := (project (project (publication s argRun (project report publication)) state) storage), lastAccounting := (ctor Option.some [Uorc.Product.Api::Accounting] (project report achieved)), retired := (project (project (publication s argRun (project report publication)) state) retired)}), effects := (project (publication s argRun (project report publication)) effects)}) else (if (owns s argRun) then (record Transition {state := (record State {instance := (project (project (fail s argRun (project report failure)) state) instance), session := (project (project (fail s argRun (project report failure)) state) session), stream := (Uorc.Product.StreamProtocol::fail (project s stream) (project report publication)), input := (project (project (fail s argRun (project report failure)) state) input), request := (project (project (fail s argRun (project report failure)) state) request), report := (project (project (fail s argRun (project report failure)) state) report), progress := (project (project (fail s argRun (project report failure)) state) progress), staged := (project (project (fail s argRun (project report failure)) state) staged), publicationPending := (project (project (fail s argRun (project report failure)) state) publicationPending), transferred := (project (project (fail s argRun (project report failure)) state) transferred), error := (project (project (fail s argRun (project report failure)) state) error), hostFailure := (project (project (fail s argRun (project report failure)) state) hostFailure), checkpoint := (project (project (fail s argRun (project report failure)) state) checkpoint), attached := (project (project (fail s argRun (project report failure)) state) attached), closed := (project (project (fail s argRun (project report failure)) state) closed), page := (project (project (fail s argRun (project report failure)) state) page), cleanup := (project (project (fail s argRun (project report failure)) state) cleanup), jobRetained := (project (project (fail s argRun (project report failure)) state) jobRetained), storage := (project (project (fail s argRun (project report failure)) state) storage), lastAccounting := (ctor Option.some [Uorc.Product.Api::Accounting] (project report achieved)), retired := (project (project (fail s argRun (project report failure)) state) retired)}), effects := (project (fail s argRun (project report failure)) effects)}) else (record Transition {state := s, effects := (nil Effect)})))
 }
 
 definition{
@@ -496,17 +416,97 @@ definition{
 }
 
 definition{
-  name: start,
-  parameters: [s : State, request : Uorc.Product.Api::Request],
-  result: Transition,
-  body: (if (project s closed) then (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.closed))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)}) else (if (not (project s attached)) then (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.detached))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)}) else (if (project (project s session) active) then (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.busy))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)}) else (if (project s publicationPending) then (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.publicationPending))), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)}) else (record Transition {state := (record State {instance := (project s instance), session := (Uorc.Product.Session::begin (project s session)), stream := (Uorc.Product.StreamProtocol::initial), input := (Uorc.Product.InputModel::initial), request := (ctor Option.some [Uorc.Product.Api::Request] request), report := (ctor Option.none [Uorc.Product.Api::Report]), progress := (record Uorc.Product.Api::Progress {inputBytes := 0, objects := 0, candidates := 0, checkedCandidates := 0, work := 0, stage := "Ready"}), staged := (ctor Option.none [Uorc.Product.Api::ResourceRef]), publicationPending := false, transferred := false, error := (ctor Option.none [Uorc.Product.Api::Failure]), hostFailure := (ctor Option.none [Uorc.Product.Api::HostFailure]), checkpoint := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := true, storage := (Uorc.Product.Storage::initial), lastAccounting := (ctor Option.none [Uorc.Product.Api::Accounting]), retired := (retireCurrent s)}), effects := (appendEffects (cons (ctor Effect.start (run (record State {instance := (project s instance), session := (Uorc.Product.Session::begin (project s session)), stream := (Uorc.Product.StreamProtocol::initial), input := (Uorc.Product.InputModel::initial), request := (ctor Option.some [Uorc.Product.Api::Request] request), report := (ctor Option.none [Uorc.Product.Api::Report]), progress := (record Uorc.Product.Api::Progress {inputBytes := 0, objects := 0, candidates := 0, checkedCandidates := 0, work := 0, stage := "Ready"}), staged := (ctor Option.none [Uorc.Product.Api::ResourceRef]), publicationPending := false, transferred := false, error := (ctor Option.none [Uorc.Product.Api::Failure]), hostFailure := (ctor Option.none [Uorc.Product.Api::HostFailure]), checkpoint := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := true, storage := (Uorc.Product.Storage::initial), lastAccounting := (ctor Option.none [Uorc.Product.Api::Accounting]), retired := (retireCurrent s)})) request) (nil Effect)) (cleanupEffects s))})))))
-}
-
-definition{
   name: cancel,
   parameters: [s : State],
   result: Transition,
   body: (if (project (project s session) active) then (record Transition {state := (record State {instance := (project s instance), session := (Uorc.Product.Session::cancel (project s session)), stream := (Uorc.Product.StreamProtocol::fail (project s stream) (ctor Uorc.Product.StreamProtocol::Publication.notPublished)), input := (project s input), request := (project s request), report := (ctor Option.none [Uorc.Product.Api::Report]), progress := (project s progress), staged := (ctor Option.none [Uorc.Product.Api::ResourceRef]), publicationPending := false, transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.cancelled)), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (ctor Cleanup.requested), jobRetained := false, storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (retireCurrent s)}), effects := (cons (ctor Effect.cancel (run s)) (cons (ctor Effect.discard (run s)) (nil Effect)))}) else (if (project s publicationPending) then (record Transition {state := (record State {instance := (project s instance), session := (Uorc.Product.Session::edit (project s session)), stream := (Uorc.Product.StreamProtocol::fail (project s stream) (ctor Uorc.Product.StreamProtocol::Publication.unknown)), input := (project s input), request := (project s request), report := (ctor Option.none [Uorc.Product.Api::Report]), progress := (project s progress), staged := (ctor Option.none [Uorc.Product.Api::ResourceRef]), publicationPending := false, transferred := (project s transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.cancelled)), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (ctor Cleanup.requested), jobRetained := false, storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (retireCurrent s)}), effects := (cleanupEffects s)}) else (record Transition {state := s, effects := (nil Effect)})))
+}
+
+definition{
+  name: shutdown,
+  parameters: [s : State],
+  result: Transition,
+  body: (if (project s closed) then (record Transition {state := s, effects := (nil Effect)}) else (record Transition {state := (project (invalidate s false true (project s page)) state), effects := (appendEffects (cleanupEffects s) (cons (ctor Effect.requestInstanceRelease (project s instance)) (nil Effect)))}))
+}
+
+definition{
+  name: updateRetiredStorage,
+  parameters: [
+    jobs : (List RetiredJob),
+    owner : Uorc.Product.Api::Run,
+    event : Uorc.Product.Storage::Event
+  ],
+  result: (List RetiredJob),
+  body: (match jobs
+    | List.nil => (nil RetiredJob)
+    | List.cons head tail => (cons (if (sameJob (project head run) owner) then (record RetiredJob {run := (project head run), limits := (project head limits), storage := (Uorc.Product.Storage::step (project head limits) (project head storage) event), achieved := (project head achieved)}) else head) (updateRetiredStorage tail owner event))),
+  recursive_argument: jobs
+}
+
+definition{
+  name: finishRetired,
+  parameters: [jobs : (List RetiredJob), owner : Uorc.Product.Api::Run],
+  result: (List RetiredJob),
+  body: (match jobs
+    | List.nil => (nil RetiredJob)
+    | List.cons head tail => (if ((sameJob (project head run) owner) && ((((Uorc.Product.Storage::retainedBytes (project (project head storage) usage)) =? 0) && (((Uorc.Product.Storage::reservedBytes (project (project head storage) usage)) =? 0) && true)) && true)) then tail else (cons head (finishRetired tail owner)))),
+  recursive_argument: jobs
+}
+
+definition{
+  name: releaseDisposition,
+  parameters: [s : State],
+  result: Uorc.Product.Api::ReleaseDisposition,
+  body: (if (not (project s closed)) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.open)) else (if (project s publicationPending) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.pendingIo)) else (if ((project s jobRetained) || match{
+    branches: [
+      {body: false, binders: [], constructor: List.nil},
+      {body: true, binders: [first, rest], constructor: List.cons}
+    ],
+    scrutinee: (project s retired)
+  }) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.job)) else (if ((match (project s staged)
+    | Option.none => false
+    | Option.some present => true) || (match (project s checkpoint)
+    | Option.none => false
+    | Option.some present => true)) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.resourceLease)) else (if ((not ((Uorc.Product.Storage::retainedBytes (project (project s storage) usage)) =? 0)) || (not ((Uorc.Product.Storage::reservedBytes (project (project s storage) usage)) =? 0))) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.storage)) else (ctor Uorc.Product.Api::ReleaseDisposition.releasable))))))
+}
+
+definition{
+  name: stateWithError,
+  parameters: [argBase : State, replacementError : (Option Uorc.Product.Api::Failure)],
+  result: State,
+  body: (record State {instance := (project argBase instance), session := (project argBase session), stream := (project argBase stream), input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := (project argBase publicationPending), transferred := (project argBase transferred), error := replacementError, hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := (project argBase page), cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := (project argBase retired)})
+}
+
+definition{
+  name: reject,
+  parameters: [s : State, error : Uorc.Product.Api::Failure],
+  result: Transition,
+  body: (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] error)), effects := (nil Effect)})
+}
+
+definition{
+  name: extend,
+  parameters: [s : State, credit : Nat],
+  result: Transition,
+  body: (if (credit =? 0) then (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.invalidEffort)))), effects := (nil Effect)}) else (if (project (project s session) active) then (record Transition {state := s, effects := (cons (ctor Effect.extend (run s) credit) (nil Effect))}) else (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noRequest)))), effects := (nil Effect)})))
+}
+
+definition{
+  name: feed,
+  parameters: [s : State, argRun : Uorc.Product.Api::Run, piece : Uorc.Product.InputModel::Piece],
+  result: Transition,
+  body: (if (owns s argRun) then (if (validPieceInstance s piece) then (match (Uorc.Product.StreamProtocol::acceptInput (project s stream) (streamPiece piece))
+    | Uorc.Product.StreamProtocol::Decision.rejected err => (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.protocol err))), effects := (nil Effect)})
+    | Uorc.Product.StreamProtocol::Decision.accepted action stream => (match (Uorc.Product.InputModel::accept (project s input) piece)
+      | Result.error err => (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.inputOrder)))), effects := (nil Effect)})
+      | Result.ok input => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := stream, input := input, request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (cons (ctor Effect.feed argRun piece) (nil Effect))}))) else (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.wrongInstance)))), effects := (nil Effect)})) else (record Transition {state := s, effects := (nil Effect)}))
+}
+
+definition{
+  name: start,
+  parameters: [s : State, request : Uorc.Product.Api::Request],
+  result: Transition,
+  body: (if (project s closed) then (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.closed)))), effects := (nil Effect)}) else (if (not (project s attached)) then (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.detached)))), effects := (nil Effect)}) else (if (project (project s session) active) then (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.busy)))), effects := (nil Effect)}) else (if (project s publicationPending) then (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.publicationPending)))), effects := (nil Effect)}) else (record Transition {state := (record State {instance := (project s instance), session := (Uorc.Product.Session::begin (project s session)), stream := (Uorc.Product.StreamProtocol::initial), input := (Uorc.Product.InputModel::initial), request := (ctor Option.some [Uorc.Product.Api::Request] request), report := (ctor Option.none [Uorc.Product.Api::Report]), progress := (record Uorc.Product.Api::Progress {inputBytes := 0, objects := 0, candidates := 0, checkedCandidates := 0, work := 0, stage := "Ready"}), staged := (ctor Option.none [Uorc.Product.Api::ResourceRef]), publicationPending := false, transferred := false, error := (ctor Option.none [Uorc.Product.Api::Failure]), hostFailure := (ctor Option.none [Uorc.Product.Api::HostFailure]), checkpoint := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := true, storage := (Uorc.Product.Storage::initial), lastAccounting := (ctor Option.none [Uorc.Product.Api::Accounting]), retired := (retireCurrent s)}), effects := (appendEffects (cons (ctor Effect.start (run (record State {instance := (project s instance), session := (Uorc.Product.Session::begin (project s session)), stream := (Uorc.Product.StreamProtocol::initial), input := (Uorc.Product.InputModel::initial), request := (ctor Option.some [Uorc.Product.Api::Request] request), report := (ctor Option.none [Uorc.Product.Api::Report]), progress := (record Uorc.Product.Api::Progress {inputBytes := 0, objects := 0, candidates := 0, checkedCandidates := 0, work := 0, stage := "Ready"}), staged := (ctor Option.none [Uorc.Product.Api::ResourceRef]), publicationPending := false, transferred := false, error := (ctor Option.none [Uorc.Product.Api::Failure]), hostFailure := (ctor Option.none [Uorc.Product.Api::HostFailure]), checkpoint := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := true, storage := (Uorc.Product.Storage::initial), lastAccounting := (ctor Option.none [Uorc.Product.Api::Accounting]), retired := (retireCurrent s)})) request) (nil Effect)) (cleanupEffects s))})))))
 }
 
 definition{
@@ -580,24 +580,84 @@ definition{
 }
 
 definition{
-  name: shutdown,
-  parameters: [s : State],
-  result: Transition,
-  body: (if (project s closed) then (record Transition {state := s, effects := (nil Effect)}) else (record Transition {state := (project (invalidate s false true (project s page)) state), effects := (appendEffects (cleanupEffects s) (cons (ctor Effect.requestInstanceRelease (project s instance)) (nil Effect)))}))
+  name: stateWithStream,
+  parameters: [argBase : State, replacementStream : Uorc.Product.StreamProtocol::State],
+  result: State,
+  body: (record State {instance := (project argBase instance), session := (project argBase session), stream := replacementStream, input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := (project argBase publicationPending), transferred := (project argBase transferred), error := (project argBase error), hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := (project argBase page), cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := (project argBase retired)})
 }
 
 definition{
-  name: updateRetiredStorage,
+  name: demand,
+  parameters: [s : State, argRun : Uorc.Product.Api::Run],
+  result: Transition,
+  body: (if (owns s argRun) then (match (Uorc.Product.StreamProtocol::requestInput (project s stream))
+    | Result.error err => (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.protocol err))), effects := (nil Effect)})
+    | Result.ok stream => (record Transition {state := (stateWithStream s stream), effects := (nil Effect)})) else (record Transition {state := s, effects := (nil Effect)}))
+}
+
+definition{
+  name: staged,
+  parameters: [s : State, argRun : Uorc.Product.Api::Run, bytes : Nat],
+  result: Transition,
+  body: (if (owns s argRun) then (match (project s request)
+    | Option.none => (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noRequest)))), effects := (nil Effect)})
+    | Option.some request => (match (Uorc.Product.StreamProtocol::stageOutput (project s stream) bytes (match (project (project (Uorc.Product.Api::options request) limits) outputBytes)
+        | Option.none => ((project (project s stream) producedBytes) + bytes)
+        | Option.some requestedLimit => requestedLimit))
+      | Result.error err => (fail s argRun (ctor Uorc.Product.Api::Failure.protocol err))
+      | Result.ok stream => (record Transition {state := (stateWithStream s stream), effects := (nil Effect)}))) else (record Transition {state := s, effects := (nil Effect)}))
+}
+
+definition{
+  name: stateWithStreamPublicationPendingError,
   parameters: [
-    jobs : (List RetiredJob),
-    owner : Uorc.Product.Api::Run,
-    event : Uorc.Product.Storage::Event
+    argBase : State,
+    replacementStream : Uorc.Product.StreamProtocol::State,
+    replacementPublicationPending : Bool,
+    replacementError : (Option Uorc.Product.Api::Failure)
   ],
-  result: (List RetiredJob),
-  body: (match jobs
-    | List.nil => (nil RetiredJob)
-    | List.cons head tail => (cons (if (sameJob (project head run) owner) then (record RetiredJob {run := (project head run), limits := (project head limits), storage := (Uorc.Product.Storage::step (project head limits) (project head storage) event), achieved := (project head achieved)}) else head) (updateRetiredStorage tail owner event))),
-  recursive_argument: jobs
+  result: State,
+  body: (record State {instance := (project argBase instance), session := (project argBase session), stream := replacementStream, input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := replacementPublicationPending, transferred := (project argBase transferred), error := replacementError, hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := (project argBase page), cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := (project argBase retired)})
+}
+
+definition{
+  name: publication,
+  parameters: [
+    s : State,
+    argRun : Uorc.Product.Api::Run,
+    outcome : Uorc.Product.StreamProtocol::Publication
+  ],
+  result: Transition,
+  body: (if ((sameRun s argRun) && ((project s publicationPending) && true)) then (match (Uorc.Product.StreamProtocol::recordPublication (project s stream) outcome)
+    | Result.error err => (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.protocol err))), effects := (nil Effect)})
+    | Result.ok stream => (match outcome
+      | Uorc.Product.StreamProtocol::Publication.staged => (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noPublicationPending)))), effects := (nil Effect)})
+      | Uorc.Product.StreamProtocol::Publication.published => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := stream, input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (ctor Option.none [Uorc.Product.Api::ResourceRef]), publicationPending := false, transferred := true, error := (ctor Option.none [Uorc.Product.Api::Failure]), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
+      | Uorc.Product.StreamProtocol::Publication.notPublished => (record Transition {state := (stateWithStreamPublicationPendingError s stream false (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.publicationIo outcome "Output was not published; the staged result is retained."))), effects := (nil Effect)})
+      | Uorc.Product.StreamProtocol::Publication.unknown => (record Transition {state := (stateWithStreamPublicationPendingError s stream false (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.publicationIo outcome "Publication outcome is unknown; reconcile with the destination before retrying."))), effects := (nil Effect)}))) else (record Transition {state := s, effects := (nil Effect)}))
+}
+
+definition{
+  name: download,
+  parameters: [s : State],
+  result: Transition,
+  body: (if (canDownload s) then (match (project s staged)
+    | Option.none => (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noOutput)))), effects := (nil Effect)})
+    | Option.some output => (record Transition {state := (stateWithStreamPublicationPendingError s (preparePublication (project s stream)) true (ctor Option.none [Uorc.Product.Api::Failure])), effects := (cons (ctor Effect.publish (run s) output) (nil Effect))})) else (record Transition {state := (stateWithError s (ctor Option.some [Uorc.Product.Api::Failure] (ctor Uorc.Product.Api::Failure.control (ctor Uorc.Product.Api::ControlError.noOutput)))), effects := (nil Effect)}))
+}
+
+definition{
+  name: runtimeFailed,
+  parameters: [s : State, argRun : Uorc.Product.Api::Run, report : Uorc.Product.Api::FailureReport],
+  result: Transition,
+  body: (if ((sameRun s argRun) && ((project s publicationPending) && true)) then (record Transition {state := (record State {instance := (project (project (publication s argRun (project report publication)) state) instance), session := (project (project (publication s argRun (project report publication)) state) session), stream := (project (project (publication s argRun (project report publication)) state) stream), input := (project (project (publication s argRun (project report publication)) state) input), request := (project (project (publication s argRun (project report publication)) state) request), report := (project (project (publication s argRun (project report publication)) state) report), progress := (project (project (publication s argRun (project report publication)) state) progress), staged := (project (project (publication s argRun (project report publication)) state) staged), publicationPending := (project (project (publication s argRun (project report publication)) state) publicationPending), transferred := (project (project (publication s argRun (project report publication)) state) transferred), error := (ctor Option.some [Uorc.Product.Api::Failure] (project report failure)), hostFailure := (project (project (publication s argRun (project report publication)) state) hostFailure), checkpoint := (project (project (publication s argRun (project report publication)) state) checkpoint), attached := (project (project (publication s argRun (project report publication)) state) attached), closed := (project (project (publication s argRun (project report publication)) state) closed), page := (project (project (publication s argRun (project report publication)) state) page), cleanup := (project (project (publication s argRun (project report publication)) state) cleanup), jobRetained := (project (project (publication s argRun (project report publication)) state) jobRetained), storage := (project (project (publication s argRun (project report publication)) state) storage), lastAccounting := (ctor Option.some [Uorc.Product.Api::Accounting] (project report achieved)), retired := (project (project (publication s argRun (project report publication)) state) retired)}), effects := (project (publication s argRun (project report publication)) effects)}) else (if (owns s argRun) then (record Transition {state := (record State {instance := (project (project (fail s argRun (project report failure)) state) instance), session := (project (project (fail s argRun (project report failure)) state) session), stream := (Uorc.Product.StreamProtocol::fail (project s stream) (project report publication)), input := (project (project (fail s argRun (project report failure)) state) input), request := (project (project (fail s argRun (project report failure)) state) request), report := (project (project (fail s argRun (project report failure)) state) report), progress := (project (project (fail s argRun (project report failure)) state) progress), staged := (project (project (fail s argRun (project report failure)) state) staged), publicationPending := (project (project (fail s argRun (project report failure)) state) publicationPending), transferred := (project (project (fail s argRun (project report failure)) state) transferred), error := (project (project (fail s argRun (project report failure)) state) error), hostFailure := (project (project (fail s argRun (project report failure)) state) hostFailure), checkpoint := (project (project (fail s argRun (project report failure)) state) checkpoint), attached := (project (project (fail s argRun (project report failure)) state) attached), closed := (project (project (fail s argRun (project report failure)) state) closed), page := (project (project (fail s argRun (project report failure)) state) page), cleanup := (project (project (fail s argRun (project report failure)) state) cleanup), jobRetained := (project (project (fail s argRun (project report failure)) state) jobRetained), storage := (project (project (fail s argRun (project report failure)) state) storage), lastAccounting := (ctor Option.some [Uorc.Product.Api::Accounting] (project report achieved)), retired := (project (project (fail s argRun (project report failure)) state) retired)}), effects := (project (fail s argRun (project report failure)) effects)}) else (record Transition {state := s, effects := (nil Effect)})))
+}
+
+definition{
+  name: stateWithRetired,
+  parameters: [argBase : State, replacementRetired : (List RetiredJob)],
+  result: State,
+  body: (record State {instance := (project argBase instance), session := (project argBase session), stream := (project argBase stream), input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := (project argBase publicationPending), transferred := (project argBase transferred), error := (project argBase error), hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := (project argBase page), cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := replacementRetired})
 }
 
 definition{
@@ -606,17 +666,14 @@ definition{
   result: Transition,
   body: (if (sameRun s argRun) then (match (project s request)
     | Option.none => (record Transition {state := s, effects := (nil Effect)})
-    | Option.some request => (applyStorageState (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (updateRetiredStorage (project s retired) argRun event)}) (Uorc.Product.Storage::step (project (project (Uorc.Product.Api::options request) limits) storage) (project s storage) event))) else (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (updateRetiredStorage (project s retired) argRun event)}), effects := (nil Effect)}))
+    | Option.some request => (applyStorageState (stateWithRetired s (updateRetiredStorage (project s retired) argRun event)) (Uorc.Product.Storage::step (project (project (Uorc.Product.Api::options request) limits) storage) (project s storage) event))) else (record Transition {state := (stateWithRetired s (updateRetiredStorage (project s retired) argRun event)), effects := (nil Effect)}))
 }
 
 definition{
-  name: finishRetired,
-  parameters: [jobs : (List RetiredJob), owner : Uorc.Product.Api::Run],
-  result: (List RetiredJob),
-  body: (match jobs
-    | List.nil => (nil RetiredJob)
-    | List.cons head tail => (if ((sameJob (project head run) owner) && ((((Uorc.Product.Storage::retainedBytes (project (project head storage) usage)) =? 0) && (((Uorc.Product.Storage::reservedBytes (project (project head storage) usage)) =? 0) && true)) && true)) then tail else (cons head (finishRetired tail owner)))),
-  recursive_argument: jobs
+  name: stateWithPage,
+  parameters: [argBase : State, replacementPage : Page],
+  result: State,
+  body: (record State {instance := (project argBase instance), session := (project argBase session), stream := (project argBase stream), input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := (project argBase publicationPending), transferred := (project argBase transferred), error := (project argBase error), hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := replacementPage, cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := (project argBase retired)})
 }
 
 definition{
@@ -627,8 +684,8 @@ definition{
     | Event.start request => (start s request)
     | Event.edit => (invalidate s (project s attached) (project s closed) (project s page))
     | Event.cancel => (cancel s)
-    | Event.navigate page => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := page, cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
-    | Event.back => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (ctor Page.main), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (project s retired)}), effects := (nil Effect)})
+    | Event.navigate page => (record Transition {state := (stateWithPage s page), effects := (nil Effect)})
+    | Event.back => (record Transition {state := (stateWithPage s (ctor Page.main)), effects := (nil Effect)})
     | Event.detach => (if (project s attached) then (invalidate s false (project s closed) (project s page)) else (record Transition {state := s, effects := (nil Effect)}))
     | Event.close => (shutdown s)
     | Event.shutdown => (shutdown s)
@@ -647,25 +704,53 @@ definition{
     | Event.retryPublication => (download s)
     | Event.staged bindingRun bytes => (staged s bindingRun bytes)
     | Event.storage bindingRun storageInput => (storageEvent s bindingRun storageInput)
-    | Event.retiredStorage retiredRun bindingStorageEvent => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (updateRetiredStorage (project s retired) retiredRun bindingStorageEvent)}), effects := (nil Effect)})
-    | Event.retiredCleanupComplete retiredRun => (record Transition {state := (record State {instance := (project s instance), session := (project s session), stream := (project s stream), input := (project s input), request := (project s request), report := (project s report), progress := (project s progress), staged := (project s staged), publicationPending := (project s publicationPending), transferred := (project s transferred), error := (project s error), hostFailure := (project s hostFailure), checkpoint := (project s checkpoint), attached := (project s attached), closed := (project s closed), page := (project s page), cleanup := (project s cleanup), jobRetained := (project s jobRetained), storage := (project s storage), lastAccounting := (project s lastAccounting), retired := (finishRetired (project s retired) retiredRun)}), effects := (nil Effect)}))
+    | Event.retiredStorage retiredRun bindingStorageEvent => (record Transition {state := (stateWithRetired s (updateRetiredStorage (project s retired) retiredRun bindingStorageEvent)), effects := (nil Effect)})
+    | Event.retiredCleanupComplete retiredRun => (record Transition {state := (stateWithRetired s (finishRetired (project s retired) retiredRun)), effects := (nil Effect)}))
 }
 
-definition{
-  name: releaseDisposition,
-  parameters: [s : State],
-  result: Uorc.Product.Api::ReleaseDisposition,
-  body: (if (not (project s closed)) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.open)) else (if (project s publicationPending) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.pendingIo)) else (if ((project s jobRetained) || match{
-    branches: [
-      {body: false, binders: [], constructor: List.nil},
-      {body: true, binders: [first, rest], constructor: List.cons}
-    ],
-    scrutinee: (project s retired)
-  }) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.job)) else (if ((match (project s staged)
-    | Option.none => false
-    | Option.some present => true) || (match (project s checkpoint)
-    | Option.none => false
-    | Option.some present => true)) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.resourceLease)) else (if ((not ((Uorc.Product.Storage::retainedBytes (project (project s storage) usage)) =? 0)) || (not ((Uorc.Product.Storage::reservedBytes (project (project s storage) usage)) =? 0))) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.storage)) else (ctor Uorc.Product.Api::ReleaseDisposition.releasable))))))
+theorem{
+  name: stateWithError_exact,
+  parameters: [argBase : State, replacementError : (Option Uorc.Product.Api::Failure)],
+  statement: ((stateWithError argBase replacementError) = (record State {instance := (project argBase instance), session := (project argBase session), stream := (project argBase stream), input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := (project argBase publicationPending), transferred := (project argBase transferred), error := replacementError, hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := (project argBase page), cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := (project argBase retired)})),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: stateWithStream_exact,
+  parameters: [argBase : State, replacementStream : Uorc.Product.StreamProtocol::State],
+  statement: ((stateWithStream argBase replacementStream) = (record State {instance := (project argBase instance), session := (project argBase session), stream := replacementStream, input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := (project argBase publicationPending), transferred := (project argBase transferred), error := (project argBase error), hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := (project argBase page), cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := (project argBase retired)})),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: stateWithStreamPublicationPendingError_exact,
+  parameters: [
+    argBase : State,
+    replacementStream : Uorc.Product.StreamProtocol::State,
+    replacementPublicationPending : Bool,
+    replacementError : (Option Uorc.Product.Api::Failure)
+  ],
+  statement: ((stateWithStreamPublicationPendingError argBase replacementStream replacementPublicationPending replacementError) = (record State {instance := (project argBase instance), session := (project argBase session), stream := replacementStream, input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := replacementPublicationPending, transferred := (project argBase transferred), error := replacementError, hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := (project argBase page), cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := (project argBase retired)})),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: stateWithRetired_exact,
+  parameters: [argBase : State, replacementRetired : (List RetiredJob)],
+  statement: ((stateWithRetired argBase replacementRetired) = (record State {instance := (project argBase instance), session := (project argBase session), stream := (project argBase stream), input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := (project argBase publicationPending), transferred := (project argBase transferred), error := (project argBase error), hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := (project argBase page), cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := replacementRetired})),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: stateWithPage_exact,
+  parameters: [argBase : State, replacementPage : Page],
+  statement: ((stateWithPage argBase replacementPage) = (record State {instance := (project argBase instance), session := (project argBase session), stream := (project argBase stream), input := (project argBase input), request := (project argBase request), report := (project argBase report), progress := (project argBase progress), staged := (project argBase staged), publicationPending := (project argBase publicationPending), transferred := (project argBase transferred), error := (project argBase error), hostFailure := (project argBase hostFailure), checkpoint := (project argBase checkpoint), attached := (project argBase attached), closed := (project argBase closed), page := replacementPage, cleanup := (project argBase cleanup), jobRetained := (project argBase jobRetained), storage := (project argBase storage), lastAccounting := (project argBase lastAccounting), retired := (project argBase retired)})),
+  proof: reflexivity{},
+  axioms: []
 }
 \end{semanticmodule}
 \end{lexlean}

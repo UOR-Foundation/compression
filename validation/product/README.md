@@ -16,7 +16,7 @@ python3 scripts/product-control-validation.py --lexlean lexlean --lean lean --di
 
 The latter records the two pre-existing executable-annotation omissions in its
 temporary copy. It changes no repository source, lock, proof policy or behavior.
-Every run executes the full component inventory, all four planted defects, and the
+Every run executes the full component inventory, all five planted defects, and the
 restored control. The harness and gate contain no product implementation.
 
 `evidence.json` is a component execution receipt, not pinned-SDK, native, browser,
@@ -32,3 +32,31 @@ that actual projection before executing the source controls.
 the extracted `Api.sameResource` root; `root-probe/evidence.json` records artifact
 replay, the rejected single-prefix request and five native controls. Its scope
 is separate from the complete Workspace/View and pinned-SDK acceptance.
+
+`payload-image-evidence.json` records the separate bounded input-image owner:
+39 typed VM controls, four rejected source defects and 111 exact axiom policies.
+Its `read-image/<build>/diagnostic.tar.gz` is the complete source/generation input
+archive for that exact closure. It is not an accepted native/library/Wasm export.
+The archive manifest binds all 59 contents; its hash and size are in the receipt.
+The source-directed production test is `scripts/product-image-runtime.mjs`;
+committed receipts cannot satisfy that test. Full verification of the recorded
+older Core closure fails its actual ByteBuilder certificate-size guard. Newer
+published Core factoring, actual operation/publication and ABI ownership on
+overflow require their own qualification.
+
+`payload-image-core-compatibility.json` records a later targeted four-path Core
+composition from public `0ff59f5`, keeping all other selected dependencies at
+product `2eb6c59`. Its 39 VM controls and 111 product axiom policies pass, while
+full verification records certificate B at 6,703,926 bytes. Its separate archive
+binds the exact 56 inputs/results. Neither this composition nor the earlier
+receipt asserts whole-current-graph or generated operational ABI acceptance.
+
+The current delivery families have independent source-bound receipts and exact
+input archives. `write-image-evidence.json` covers the bounded quote/reserve/copy
+transport owner; `output-delivery-evidence.json` covers checked partial-write
+accounting and actual publication dispositions. Neither settlement nor these
+finite controls establishes a successful verified archive. `application-evidence.json`
+preserves the original Product-only frontend export refusal and explicitly
+unqualified native probe; `application-control-factoring-evidence.json` records
+the later exact setter factoring and its separate export refusal. Current
+operational ABI, whole-graph, browser and pinned-SDK acceptance remain separate.

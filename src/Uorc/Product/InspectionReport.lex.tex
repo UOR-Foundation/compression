@@ -1,0 +1,510 @@
+\begin{lexlean}{Uorc.Product.InspectionReport}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Integrity.Profile}
+\importmodule{Uorc.Integrity.Sha256}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.Control}
+\importmodule{Uorc.Product.Evidence}
+\importmodule{Uorc.Product.ResourceIO}
+\importmodule{Uorc.Product.Storage}
+\importmodule{Uorc.Product.StreamProtocol}
+\importmodule{Uorc.Wire.ArchiveParse}
+\importmodule{Uorc.Wire.ArchiveSnapshot}
+\importmodule{Uorc.Wire.FrameEventContract}
+\importmodule{Uorc.Wire.LengthStore}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Measurements,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: archive, type: Uorc.Product.Api::ResourceRef},
+    {name: archiveRoot, type: Uorc.Core.RuntimeValue::Handle},
+    {name: transportBytes, type: Nat},
+    {name: externalBasisBytes, type: Nat},
+    {name: basisTransferBytes, type: Nat},
+    {name: physical, type: (Option Uorc.Product.Api::PhysicalObservation)}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: wrongOperation, fields: []},
+    {name: measurementScope, fields: []},
+    {name: snapshotBinding, fields: []},
+    {name: notTaken, fields: []},
+    {name: wireFailed, fields: []},
+    {name: upstream, fields: [Uorc.Wire.ArchiveSnapshot::Failure]},
+    {name: frame, fields: [Uorc.Wire.ArchiveParse::Failure]},
+    {name: lengths, fields: [Uorc.Wire.LengthStore::Failure]},
+    {name: profile, fields: [Uorc.Integrity.Profile::Error]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: outputAlreadyStaged, fields: []},
+    {name: unsettledStorage, fields: []}
+  ]
+}
+
+inductive{
+  name: Owner,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: holding,
+      fields: [Uorc.Wire.ArchiveSnapshot::Transition, (Option Uorc.Core.RuntimeValue::Handle)]
+    },
+    {
+      name: ready,
+      fields: [
+        Uorc.Wire.ArchiveSnapshot::Transition,
+        Uorc.Core.RuntimeValue::Handle,
+        Uorc.Product.Api::Report
+      ]
+    },
+    {name: handedOff, fields: [Uorc.Core.RuntimeResources::Usage]}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: owner, type: Owner},
+    {name: pendingDelta, type: (Option Uorc.Core.Heap::Delta)},
+    {name: failure, type: (Option Error)}
+  ]
+}
+
+structure{
+  name: Envelope,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: wire, type: Uorc.Wire.ArchiveSnapshot::Transition},
+    {name: control, type: Uorc.Core.RuntimeValue::Handle},
+    {name: report, type: Uorc.Product.Api::Report}
+  ]
+}
+
+structure{
+  name: Retained,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: wire, type: Uorc.Wire.ArchiveSnapshot::Transition},
+    {name: control, type: (Option Uorc.Core.RuntimeValue::Handle)},
+    {name: pendingDelta, type: (Option Uorc.Core.Heap::Delta)}
+  ]
+}
+
+inductive{
+  name: Attempt,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [State]},
+    {name: waiting, fields: [State]},
+    {name: awaitDelta, fields: [State]},
+    {name: ready, fields: [State]},
+    {name: stale, fields: [State]},
+    {name: failed, fields: [Error, State]},
+    {name: refused, fields: [Uorc.Core.RuntimeResources::Error, State]}
+  ]
+}
+
+inductive{
+  name: Movement,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: stale, fields: [State]},
+    {name: notReady, fields: [State]},
+    {name: moved, fields: [State, Envelope]}
+  ]
+}
+
+inductive{
+  name: WireMovement,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: stale, fields: [State]},
+    {name: notReady, fields: [State]},
+    {name: moved, fields: [State, Retained]}
+  ]
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "Inspection completion consumes the actual ArchiveSnapshot taken transition, preserving its one Arena and archive/length tickets. Measurements are a frozen enclosing I/O observation bound to exact run, requested archive lease and borrowed archive root, never correctness flags. A real 4096-byte report control is allocated before Profile.select or report projection; every achieved allocation delta must be acknowledged. The six-octet archive prefix, profile octet and selected format/profile pair are named framing identifiers, not digest observations. The bounded projection prepays scalarCheck plus nine octets of identity materialization under the shared RuntimeWork profile. This is logical source accounting, not a whole-host/native-memory bound. Checker work is the actual cumulative inspection job Usage including intake/framing/report work; decode, replay and search are zero because this owner runs none. Physical None explicitly means unobserved, while transport/basis counters are required scoped measurements. No integrity check, boundary reconstruction, execution, original equality, certificate or search outcome follows from framing. Envelope moves report control plus actual Wire carrier once; Retained moves all custody back to the enclosing source owner on noncompletion.",
+  axioms: []
+}
+
+definition{
+  name: controlBytes,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeOwnerRoots::controlBytes),
+  axioms: []
+}
+
+definition{
+  name: controlWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)),
+  axioms: []
+}
+
+definition{
+  name: projectionWork,
+  parameters: [],
+  result: (Option UInt64),
+  body: (Uorc.Core.RuntimeWork::feeWithCopy (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.scalarCheck)) (9 : UInt64)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: start,
+  parameters: [run : Uorc.Product.Api::Run, wire : Uorc.Wire.ArchiveSnapshot::Transition],
+  result: State,
+  body: (record State {run := run, owner := (ctor Owner.holding wire (ctor Option.none [Uorc.Core.RuntimeValue::Handle])), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta]), failure := (ctor Option.none [Error])}),
+  axioms: []
+}
+
+definition{
+  name: achievedUsage,
+  parameters: [usage : Uorc.Core.RuntimeResources::Usage, arena : Uorc.Core.Heap::Arena],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (Uorc.Core.Heap::totalOwnedBytes arena)
+    | Result.error reason => usage
+    | Result.ok bytes => (record Uorc.Core.RuntimeResources::Usage {work := (project usage work), ownedBytes := bytes, peakOwnedBytes := (if (Uorc.Core.Heap::less (project usage peakOwnedBytes) bytes) then bytes else (project usage peakOwnedBytes)), outputBytes := (project usage outputBytes), frames := (project usage frames)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: heapFailure,
+  parameters: [
+    s : State,
+    wire : Uorc.Wire.ArchiveSnapshot::Transition,
+    control : (Option Uorc.Core.RuntimeValue::Handle),
+    error : Uorc.Core.Heap::HeapError,
+    paid : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: Attempt,
+  body: (match error
+    | Uorc.Core.Heap::HeapError.malformedHandle => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))
+    | Uorc.Core.Heap::HeapError.invalidNode => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))
+    | Uorc.Core.Heap::HeapError.countOverflow => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))
+    | Uorc.Core.Heap::HeapError.countUnderflow => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))
+    | Uorc.Core.Heap::HeapError.handleOverflow => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))
+    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))
+    | Uorc.Core.Heap::HeapError.budgetExceeded => (ctor Attempt.refused (ctor Uorc.Core.RuntimeResources::Error.ownedByteLimit) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (project s failure)}))
+    | Uorc.Core.Heap::HeapError.releaseInProgress => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))
+    | Uorc.Core.Heap::HeapError.releaseNotStarted => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))
+    | Uorc.Core.Heap::HeapError.invalidRoot => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))
+    | Uorc.Core.Heap::HeapError.protocolFailure => (ctor Attempt.failed (ctor Error.heap error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.heap error))}))),
+  axioms: []
+}
+
+definition{
+  name: allocateObserved,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    s : State,
+    wire : Uorc.Wire.ArchiveSnapshot::Transition,
+    control : (Option Uorc.Core.RuntimeValue::Handle),
+    paid : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: Attempt,
+  body: (match (Uorc.Core.Heap::allocateControl (project (project wire session) arena) (controlBytes))
+    | Result.error error => (heapFailure s wire control error paid)
+    | Result.ok allocation => (match (Uorc.Core.RuntimeResources::observeArena budget (achievedUsage paid (project allocation arena)) (project allocation arena))
+      | Result.error reason => (ctor Attempt.refused reason (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project allocation arena), usage := (achievedUsage paid (project allocation arena))}), signal := (project wire signal)}) (ctor Option.some [Uorc.Core.RuntimeValue::Handle] (project allocation handle))), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] (project allocation delta)), failure := (project s failure)}))
+      | Result.ok observed => (ctor Attempt.advanced (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project allocation arena), usage := observed}), signal := (project wire signal)}) (ctor Option.some [Uorc.Core.RuntimeValue::Handle] (project allocation handle))), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] (project allocation delta)), failure := (project s failure)})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: allocate,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    s : State,
+    wire : Uorc.Wire.ArchiveSnapshot::Transition,
+    control : (Option Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: Attempt,
+  body: (match (Uorc.Core.RuntimeResources::charge budget (project (project wire session) usage) (record Uorc.Core.RuntimeResources::Event {work := (controlWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+    | Result.error reason => (ctor Attempt.refused reason s)
+    | Result.ok paid => (match (Uorc.Core.RuntimeResources::observeArena budget paid (project (project wire session) arena))
+      | Result.error reason => (ctor Attempt.refused reason (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (project s failure)}))
+      | Result.ok observed => (allocateObserved budget s (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := observed}), signal := (project wire signal)}) control observed))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: buildReport,
+  parameters: [
+    current : Uorc.Product.Control::State,
+    measurements : Measurements,
+    snapshot : Uorc.Wire.ArchiveSnapshot::Snapshot,
+    profile : Uorc.Integrity.Profile::Kind,
+    paid : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: Uorc.Product.Api::Report,
+  body: (record Uorc.Product.Api::Report {accounting := (record Uorc.Product.Api::Accounting {inputBytes := (prim to_nat (project snapshot archiveLength) : Nat), exactArchiveBytes := (prim to_nat (project snapshot archiveLength) : Nat), transportBytes := (project measurements transportBytes), externalBasisBytes := (project measurements externalBasisBytes), basisTransferBytes := (project measurements basisTransferBytes), decodeWork := 0, checkerWork := (prim to_nat (project paid work) : Nat), replayWork := 0, searchWork := 0, peakOwnedBytes := (prim to_nat (project paid peakOwnedBytes) : Nat), objects := (prim to_nat (project (project snapshot lengths) count) : Nat), outputBytes := 0, storage := (project (project current storage) usage), physical := (project measurements physical)}), facts := (record Uorc.Product.Evidence::EvidenceFacts {parsed := true, integrityChecked := false, executed := false, originalCompared := false, certificateChecked := false}), boundariesComplete := false, originalsAvailable := false, finalCheck := (ctor Uorc.Product.Evidence::FinalCheck.incomplete), certificate := (ctor Uorc.Product.Api::Certificate.absent), search := (ctor Uorc.Product.Api::SearchStatus.notRequested), artifactChecked := false, output := (ctor Option.none [Uorc.Product.Api::ResourceRef]), details := (ctor Option.some [Uorc.Product.Api::Details] (ctor Uorc.Product.Api::Details.inspection (record Uorc.Product.Api::ArchiveSummary {formatIdentity := (Uorc.Integrity.Profile::archivePrefix profile), profileIdentity := (Uorc.Integrity.Sha256::byteBytes (project snapshot profile)), integrityIdentity := (prim append (Uorc.Integrity.Sha256::byteBytes (project snapshot format)) (Uorc.Integrity.Sha256::byteBytes (project snapshot profile)) : Bytes), objects := (prim to_nat (project (project snapshot lengths) count) : Nat), exactArchiveBytes := (prim to_nat (project snapshot archiveLength) : Nat), externalBasisRequired := (match (project snapshot scope)
+    | Uorc.Wire.FrameEventContract::Scope.selfContained => false
+    | Uorc.Wire.FrameEventContract::Scope.conditional => true)})))}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: project,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    current : Uorc.Product.Control::State,
+    measurements : Measurements,
+    s : State,
+    wire : Uorc.Wire.ArchiveSnapshot::Transition,
+    control : (Option Uorc.Core.RuntimeValue::Handle),
+    ticket : Uorc.Core.RuntimeValue::Handle,
+    snapshot : Uorc.Wire.ArchiveSnapshot::Snapshot
+  ],
+  result: Attempt,
+  body: (match (projectionWork)
+    | Option.none => (ctor Attempt.refused (ctor Uorc.Core.RuntimeResources::Error.workLimit) s)
+    | Option.some work => (match (Uorc.Core.RuntimeResources::observeArena budget (project (project wire session) usage) (project (project wire session) arena))
+      | Result.error reason => (ctor Attempt.refused reason s)
+      | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := work, emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error reason => (ctor Attempt.refused reason (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := observed}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (project s failure)}))
+        | Result.ok paid => (match (Uorc.Integrity.Profile::select (prim to_nat (project snapshot format) : Nat) (prim to_nat (project snapshot profile) : Nat))
+          | Result.error error => (ctor Attempt.failed (ctor Error.profile error) (record State {run := (project s run), owner := (ctor Owner.holding (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) control), pendingDelta := (project s pendingDelta), failure := (ctor Option.some [Error] (ctor Error.profile error))}))
+          | Result.ok profile => (ctor Attempt.ready (record State {run := (project s run), owner := (ctor Owner.ready (record Uorc.Wire.ArchiveSnapshot::Transition {session := (record Uorc.Wire.ArchiveSnapshot::Session {state := (project (project wire session) state), arena := (project (project wire session) arena), usage := paid}), signal := (project wire signal)}) ticket (buildReport current measurements snapshot profile paid)), pendingDelta := (project s pendingDelta), failure := (project s failure)})))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: completeHolding,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    current : Uorc.Product.Control::State,
+    measurements : Measurements,
+    s : State,
+    wire : Uorc.Wire.ArchiveSnapshot::Transition,
+    control : (Option Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: Attempt,
+  body: (match (project current request)
+    | Option.none => (ctor Attempt.failed (ctor Error.wrongOperation) s)
+    | Option.some operation => (match operation
+      | Uorc.Product.Api::Request.compress request => (ctor Attempt.failed (ctor Error.wrongOperation) s)
+      | Uorc.Product.Api::Request.decompress request => (ctor Attempt.failed (ctor Error.wrongOperation) s)
+      | Uorc.Product.Api::Request.inspect request => (if (not ((Uorc.Product.ResourceIO::sameRunIdentity (project measurements run) (project s run)) && ((Uorc.Product.Api::sameResource (project measurements archive) (project request archive)) && true))) then (ctor Attempt.failed (ctor Error.measurementScope) s) else (if (not ((project (project current stream) producedBytes) =? 0)) then (ctor Attempt.failed (ctor Error.outputAlreadyStaged) s) else (if (((project (project current stream) producedBytes) =? 0) && (((Uorc.Product.Storage::reservedBytes (project (project current storage) usage)) =? 0) && ((match (project (project current storage) error)
+        | Option.none => true
+        | Option.some error => false) && true))) then (match (project (project (project wire session) state) failure)
+        | Option.some why => (ctor Attempt.failed (ctor Error.upstream why) s)
+        | Option.none => (match (project (project (project (project wire session) state) frame) failure)
+          | Option.some why => (ctor Attempt.failed (ctor Error.frame why) s)
+          | Option.none => (match (project (project (project (project wire session) state) lengths) failure)
+            | Option.some why => (ctor Attempt.failed (ctor Error.lengths why) s)
+            | Option.none => (match (project wire signal)
+              | Uorc.Wire.ArchiveSnapshot::Signal.advanced => (ctor Attempt.waiting s)
+              | Uorc.Wire.ArchiveSnapshot::Signal.complete => (ctor Attempt.waiting s)
+              | Uorc.Wire.ArchiveSnapshot::Signal.failed => (ctor Attempt.failed (ctor Error.wireFailed) s)
+              | Uorc.Wire.ArchiveSnapshot::Signal.clean => (ctor Attempt.waiting s)
+              | Uorc.Wire.ArchiveSnapshot::Signal.paused reason => (ctor Attempt.refused reason s)
+              | Uorc.Wire.ArchiveSnapshot::Signal.snapshot snapshot => (if (not (match (project (project (project wire session) state) phase)
+                | Uorc.Wire.ArchiveSnapshot::Phase.start => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.frame => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.length => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.lengthAck => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.read => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.feed => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.retire => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.frameClean => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.complete => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.cleanupFrame => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.cleanupLengths => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.cleanupRoot => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.drainRoot => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.clean => false
+                | Uorc.Wire.ArchiveSnapshot::Phase.transferred => true)) then (ctor Attempt.failed (ctor Error.notTaken) s) else (if (not (Uorc.Core.RuntimeValue::sameHandle (project snapshot archive) (project measurements archiveRoot))) then (ctor Attempt.failed (ctor Error.snapshotBinding) s) else (match control
+                | Option.none => (allocate budget s wire control)
+                | Option.some ticket => call{
+                  arguments: [budget, current, measurements, s, wire, control, ticket, snapshot],
+                  function: project
+                }))))))) else (ctor Attempt.failed (ctor Error.unsettledStorage) s))))
+      | Uorc.Product.Api::Request.verify request => (ctor Attempt.failed (ctor Error.wrongOperation) s)
+      | Uorc.Product.Api::Request.resume request => (ctor Attempt.failed (ctor Error.wrongOperation) s)
+      | Uorc.Product.Api::Request.buildBasis request => (ctor Attempt.failed (ctor Error.wrongOperation) s)
+      | Uorc.Product.Api::Request.analyzeFrontier request => (ctor Attempt.failed (ctor Error.wrongOperation) s)
+      | Uorc.Product.Api::Request.compare request => (ctor Attempt.failed (ctor Error.wrongOperation) s)
+      | Uorc.Product.Api::Request.runAcceptance request => (ctor Attempt.failed (ctor Error.wrongOperation) s)
+      | Uorc.Product.Api::Request.runCoreRequest request => (ctor Attempt.failed (ctor Error.wrongOperation) s))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: takenWire,
+  parameters: [wire : Uorc.Wire.ArchiveSnapshot::Transition],
+  result: Bool,
+  body: ((match (project (project (project wire session) state) failure)
+    | Option.none => true
+    | Option.some presentFailure => false) && ((match (project (project (project (project wire session) state) frame) failure)
+    | Option.none => true
+    | Option.some presentFailure => false) && ((match (project (project (project (project wire session) state) lengths) failure)
+    | Option.none => true
+    | Option.some presentFailure => false) && ((match (project (project (project wire session) state) phase)
+    | Uorc.Wire.ArchiveSnapshot::Phase.start => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.frame => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.length => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.lengthAck => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.read => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.feed => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.retire => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.frameClean => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.complete => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.cleanupFrame => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.cleanupLengths => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.cleanupRoot => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.drainRoot => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.clean => false
+    | Uorc.Wire.ArchiveSnapshot::Phase.transferred => true) && ((match (project wire signal)
+    | Uorc.Wire.ArchiveSnapshot::Signal.advanced => false
+    | Uorc.Wire.ArchiveSnapshot::Signal.complete => false
+    | Uorc.Wire.ArchiveSnapshot::Signal.failed => false
+    | Uorc.Wire.ArchiveSnapshot::Signal.clean => false
+    | Uorc.Wire.ArchiveSnapshot::Signal.paused pauseReason => false
+    | Uorc.Wire.ArchiveSnapshot::Signal.snapshot takenSnapshot => true) && true))))),
+  axioms: []
+}
+
+definition{
+  name: complete,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    current : Uorc.Product.Control::State,
+    measurements : Measurements,
+    s : State
+  ],
+  result: Attempt,
+  body: (if (Uorc.Product.Control::owns current (project s run)) then (match (project s failure)
+    | Option.some reason => (ctor Attempt.failed reason s)
+    | Option.none => (match (project s pendingDelta)
+      | Option.some delta => (ctor Attempt.awaitDelta s)
+      | Option.none => (match (project s owner)
+        | Owner.holding wire control => (completeHolding budget current measurements s wire control)
+        | Owner.ready wire ticket report => (if (takenWire wire) then (ctor Attempt.ready s) else (ctor Attempt.failed (ctor Error.wireFailed) s))
+        | Owner.handedOff achieved => (ctor Attempt.waiting s)))) else (ctor Attempt.stale s)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: acknowledgeDelta,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: State,
+  body: (if (Uorc.Product.ResourceIO::sameRunIdentity (project s run) run) then (record State {run := (project s run), owner := (project s owner), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta]), failure := (project s failure)}) else s),
+  axioms: []
+}
+
+definition{
+  name: take,
+  parameters: [current : Uorc.Product.Control::State, s : State],
+  result: Movement,
+  body: (if (Uorc.Product.Control::owns current (project s run)) then (match (project s pendingDelta)
+    | Option.some delta => (ctor Movement.notReady s)
+    | Option.none => (match (project s owner)
+      | Owner.holding wire control => (ctor Movement.notReady s)
+      | Owner.ready wire ticket report => (if ((takenWire wire) && ((match (project s failure)
+        | Option.none => true
+        | Option.some presentFailure => false) && true)) then (ctor Movement.moved (record State {run := (project s run), owner := (ctor Owner.handedOff (project (project wire session) usage)), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta]), failure := (project s failure)}) (record Envelope {run := (project s run), wire := wire, control := ticket, report := report})) else (ctor Movement.notReady s))
+      | Owner.handedOff achieved => (ctor Movement.notReady s))) else (ctor Movement.stale s)),
+  axioms: []
+}
+
+definition{
+  name: moveWire,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: WireMovement,
+  body: (if (Uorc.Product.ResourceIO::sameRunIdentity (project s run) run) then (match (project s owner)
+    | Owner.holding wire control => (ctor WireMovement.moved (record State {run := (project s run), owner := (ctor Owner.handedOff (project (project wire session) usage)), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta]), failure := (project s failure)}) (record Retained {run := (project s run), wire := wire, control := control, pendingDelta := (project s pendingDelta)}))
+    | Owner.ready wire ticket report => (ctor WireMovement.moved (record State {run := (project s run), owner := (ctor Owner.handedOff (project (project wire session) usage)), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta]), failure := (project s failure)}) (record Retained {run := (project s run), wire := wire, control := (ctor Option.some [Uorc.Core.RuntimeValue::Handle] ticket), pendingDelta := (project s pendingDelta)}))
+    | Owner.handedOff achieved => (ctor WireMovement.notReady s)) else (ctor WireMovement.stale s)),
+  axioms: []
+}
+
+definition{
+  name: wireRoots,
+  parameters: [wire : Uorc.Wire.ArchiveSnapshot::Transition],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project wire signal)
+    | Uorc.Wire.ArchiveSnapshot::Signal.advanced => (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) archive) (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) wire) (Uorc.Core.RuntimeSequence::addRoot (project (project (project (project wire session) state) frame) wireRoot) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) table) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) old) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) control) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) tableCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) leafCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) subtree) (nil Uorc.Core.RuntimeValue::Handle))))))))))
+    | Uorc.Wire.ArchiveSnapshot::Signal.complete => (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) archive) (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) wire) (Uorc.Core.RuntimeSequence::addRoot (project (project (project (project wire session) state) frame) wireRoot) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) table) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) old) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) control) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) tableCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) leafCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) subtree) (nil Uorc.Core.RuntimeValue::Handle))))))))))
+    | Uorc.Wire.ArchiveSnapshot::Signal.failed => (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) archive) (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) wire) (Uorc.Core.RuntimeSequence::addRoot (project (project (project (project wire session) state) frame) wireRoot) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) table) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) old) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) control) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) tableCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) leafCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) subtree) (nil Uorc.Core.RuntimeValue::Handle))))))))))
+    | Uorc.Wire.ArchiveSnapshot::Signal.clean => (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) archive) (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) wire) (Uorc.Core.RuntimeSequence::addRoot (project (project (project (project wire session) state) frame) wireRoot) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) table) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) old) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) control) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) tableCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) leafCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) subtree) (nil Uorc.Core.RuntimeValue::Handle))))))))))
+    | Uorc.Wire.ArchiveSnapshot::Signal.paused reason => (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) archive) (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) wire) (Uorc.Core.RuntimeSequence::addRoot (project (project (project (project wire session) state) frame) wireRoot) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) table) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) old) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) control) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) tableCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) leafCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) subtree) (nil Uorc.Core.RuntimeValue::Handle))))))))))
+    | Uorc.Wire.ArchiveSnapshot::Signal.snapshot snapshot => (Uorc.Core.RuntimeSequence::addRoot (project snapshot archive) (Uorc.Core.RuntimeSequence::addRoot (project (project (project snapshot lengths) table) root) (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) archive) (Uorc.Core.RuntimeSequence::addRoot (project (project (project wire session) state) wire) (Uorc.Core.RuntimeSequence::addRoot (project (project (project (project wire session) state) frame) wireRoot) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) table) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) old) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) control) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) tableCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) leafCapture) (Uorc.Core.RuntimeSequence::addRoot (project (Uorc.Wire.LengthStore::roots (project (project (project wire session) state) lengths)) subtree) (nil Uorc.Core.RuntimeValue::Handle))))))))))))),
+  axioms: []
+}
+
+definition{
+  name: ownedRoots,
+  parameters: [s : State],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project s owner)
+    | Owner.holding wire control => (match control
+      | Option.none => (wireRoots wire)
+      | Option.some ticket => (Uorc.Core.RuntimeSequence::addRoot ticket (wireRoots wire)))
+    | Owner.ready wire ticket report => (Uorc.Core.RuntimeSequence::addRoot ticket (wireRoots wire))
+    | Owner.handedOff achieved => (nil Uorc.Core.RuntimeValue::Handle)),
+  axioms: []
+}
+
+definition{
+  name: envelopeRoots,
+  parameters: [envelope : Envelope],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Core.RuntimeSequence::addRoot (project envelope control) (wireRoots (project envelope wire))),
+  axioms: []
+}
+
+definition{
+  name: retainedRoots,
+  parameters: [retained : Retained],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project retained control)
+    | Option.none => (wireRoots (project retained wire))
+    | Option.some ticket => (Uorc.Core.RuntimeSequence::addRoot ticket (wireRoots (project retained wire)))),
+  axioms: []
+}
+
+definition{
+  name: releaseDisposition,
+  parameters: [s : State],
+  result: Uorc.Product.Api::ReleaseDisposition,
+  body: (match (project s owner)
+    | Owner.holding wire control => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
+    | Owner.ready wire ticket report => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
+    | Owner.handedOff achieved => (ctor Uorc.Product.Api::ReleaseDisposition.releasable)),
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}
