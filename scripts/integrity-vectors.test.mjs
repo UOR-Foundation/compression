@@ -51,5 +51,5 @@ test('gate audits reject skipped, conditional and prematurely ended execution',a
   const just=fs.readFileSync('Justfile','utf8'),harness=fs.readFileSync('scripts/integrity-validation.mjs','utf8');
   assert.doesNotThrow(()=>auditRun(just,harness));
   for(const bad of [harness.replaceAll('for(const mutation of mutations){','for(const mutation of mutations.filter(()=>false)){'),harness.replaceAll('expectedFailure(failed,mutation,generated);',''),harness.replace('const cases=loadCorpus(root)','return; const cases=loadCorpus(root)'),harness.replaceAll('expectedFailure(failed,mutation,generated);','if(false) expectedFailure(failed,mutation,generated);')])assert.throws(()=>auditRun(just,bad),/UC-SHA-01/);
-  assert.throws(()=>auditRun(just.replace(/^vv:.*$/m,line=>line.replace(/\bintegrity\b/,'')),harness),/UC-SHA-01/);
+  assert.throws(()=>auditRun(just.replace('varint-proofs integrity reproducibility','varint-proofs reproducibility'),harness),/UC-SHA-01/);
 });
