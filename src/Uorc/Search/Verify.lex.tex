@@ -1,6 +1,226 @@
 \begin{lexlean}{Uorc.Search.Verify}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"objectCount"},{"fields":[],"name":"objectLength"},{"fields":[],"name":"byteValue"},{"fields":[],"name":"invalidCursor"}],"kind":"inductive","name":"MismatchKind","parameters":[],"type_parameters":[]},{"fields":[{"name":"kind","type":{"arguments":[],"kind":"named","member":{"name":"MismatchKind"}}},{"name":"objectIndex","type":{"kind":"nat"}},{"name":"byteOffset","type":{"kind":"nat"}}],"kind":"structure","name":"Mismatch","parameters":[],"type_parameters":[]},{"fields":[{"name":"expected","type":{"element":{"kind":"bytes"},"kind":"list"}},{"name":"actual","type":{"element":{"kind":"bytes"},"kind":"list"}},{"name":"objectIndex","type":{"kind":"nat"}},{"name":"byteOffset","type":{"kind":"nat"}},{"name":"bytesCompared","type":{"kind":"nat"}},{"name":"boundariesChecked","type":{"kind":"nat"}}],"kind":"structure","name":"Cursor","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"pending"},{"fields":[{"kind":"nat"},{"kind":"nat"}],"name":"matched"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Mismatch"}}],"name":"mismatch"}],"kind":"inductive","name":"Step","parameters":[],"type_parameters":[]},{"fields":[{"name":"wire","type":{"kind":"bytes"}},{"name":"bytesCompared","type":{"kind":"nat"}},{"name":"boundariesChecked","type":{"kind":"nat"}}],"kind":"structure","name":"CheckedArchive","parameters":[],"type_parameters":[]},{"fields":[{"name":"wire","type":{"kind":"bytes"}},{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"kind":"structure","name":"Trial","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Trial"}}],"name":"pending"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"CheckedArchive"}}],"name":"eligible"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Mismatch"}}],"name":"rejected"}],"kind":"inductive","name":"TrialStep","parameters":[],"type_parameters":[]},{"body":{"fields":[{"field":"expected","value":{"kind":"var","name":"expected"}},{"field":"actual","value":{"kind":"var","name":"actual"}},{"field":"objectIndex","value":{"kind":"nat","value":"0"}},{"field":"byteOffset","value":{"kind":"nat","value":"0"}},{"field":"bytesCompared","value":{"kind":"nat","value":"0"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}},"kind":"definition","name":"start","parameters":[{"name":"expected","type":{"element":{"kind":"bytes"},"kind":"list"}},{"name":"actual","type":{"element":{"kind":"bytes"},"kind":"list"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"body":{"arguments":[{"fields":[{"field":"kind","value":{"kind":"var","name":"kind"}},{"field":"objectIndex","value":{"field":"objectIndex","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"byteOffset","value":{"field":"byteOffset","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Mismatch"}}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"},"kind":"definition","name":"failure","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"name":"kind","type":{"arguments":[],"kind":"named","member":{"name":"MismatchKind"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"branches":[{"binders":[],"body":{"branches":[{"binders":[],"body":{"condition":{"kind":"beq","left":{"field":"byteOffset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"0"}},"else_value":{"arguments":[{"kind":"var","name":"cursor"},{"arguments":[],"constructor":{"name":"MismatchKind.invalidCursor"},"kind":"constructor"}],"function":{"name":"failure"},"kind":"call"},"kind":"if","then_value":{"arguments":[{"field":"bytesCompared","kind":"project","value":{"kind":"var","name":"cursor"}},{"field":"boundariesChecked","kind":"project","value":{"kind":"var","name":"cursor"}}],"constructor":{"name":"Step.matched"},"kind":"constructor"}},"constructor":{"name":"List.nil"}},{"binders":["unexpectedHead","unexpectedTail"],"body":{"arguments":[{"kind":"var","name":"cursor"},{"arguments":[],"constructor":{"name":"MismatchKind.objectCount"},"kind":"constructor"}],"function":{"name":"failure"},"kind":"call"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"actual","kind":"project","value":{"kind":"var","name":"cursor"}}},"constructor":{"name":"List.nil"}},{"binders":["expectedHead","expectedRest"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"var","name":"cursor"},{"arguments":[],"constructor":{"name":"MismatchKind.objectCount"},"kind":"constructor"}],"function":{"name":"failure"},"kind":"call"},"constructor":{"name":"List.nil"}},{"binders":["actualHead","actualRest"],"body":{"condition":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"expectedHead"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"arguments":[{"kind":"var","name":"actualHead"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"arguments":[{"kind":"var","name":"cursor"},{"arguments":[],"constructor":{"name":"MismatchKind.objectLength"},"kind":"constructor"}],"function":{"name":"failure"},"kind":"call"},"kind":"if","then_value":{"condition":{"kind":"blt","left":{"field":"byteOffset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"arguments":[{"kind":"var","name":"expectedHead"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"condition":{"kind":"beq","left":{"field":"byteOffset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"arguments":[{"kind":"var","name":"expectedHead"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"arguments":[{"kind":"var","name":"cursor"},{"arguments":[],"constructor":{"name":"MismatchKind.invalidCursor"},"kind":"constructor"}],"function":{"name":"failure"},"kind":"call"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"expected","value":{"kind":"var","name":"expectedRest"}},{"field":"actual","value":{"kind":"var","name":"actualRest"}},{"field":"objectIndex","value":{"kind":"add","left":{"field":"objectIndex","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}},{"field":"byteOffset","value":{"kind":"nat","value":"0"}},{"field":"bytesCompared","value":{"field":"bytesCompared","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"boundariesChecked","value":{"kind":"add","left":{"field":"boundariesChecked","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"}},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"var","name":"cursor"},{"arguments":[],"constructor":{"name":"MismatchKind.invalidCursor"},"kind":"constructor"}],"function":{"name":"failure"},"kind":"call"},"constructor":{"name":"Option.none"}},{"binders":["expectedByte"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"var","name":"cursor"},{"arguments":[],"constructor":{"name":"MismatchKind.invalidCursor"},"kind":"constructor"}],"function":{"name":"failure"},"kind":"call"},"constructor":{"name":"Option.none"}},{"binders":["actualByte"],"body":{"condition":{"arguments":[{"kind":"var","name":"expectedByte"},{"kind":"var","name":"actualByte"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"arguments":[{"kind":"var","name":"cursor"},{"arguments":[],"constructor":{"name":"MismatchKind.byteValue"},"kind":"constructor"}],"function":{"name":"failure"},"kind":"call"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"expected","value":{"field":"expected","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"actual","value":{"field":"actual","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"objectIndex","value":{"field":"objectIndex","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"byteOffset","value":{"kind":"add","left":{"field":"byteOffset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}},{"field":"bytesCompared","value":{"kind":"add","left":{"field":"bytesCompared","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}},{"field":"boundariesChecked","value":{"field":"boundariesChecked","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"actualHead"},{"field":"byteOffset","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"index","result":{"kind":"option","value":{"kind":"uint8"}}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"expectedHead"},{"field":"byteOffset","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"index","result":{"kind":"option","value":{"kind":"uint8"}}}}}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"actual","kind":"project","value":{"kind":"var","name":"cursor"}}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"expected","kind":"project","value":{"kind":"var","name":"cursor"}}},"kind":"definition","name":"step","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"var","name":"cursor"}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"name":"Nat.zero"}},{"binders":["restFuel"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"restFuel"},{"kind":"var","name":"next"}],"function":{"name":"run"},"kind":"call"},"constructor":{"name":"Step.pending"}},{"binders":["bytes","boundaries"],"body":{"arguments":[{"kind":"var","name":"bytes"},{"kind":"var","name":"boundaries"}],"constructor":{"name":"Step.matched"},"kind":"constructor"},"constructor":{"name":"Step.matched"}},{"binders":["mismatch"],"body":{"arguments":[{"kind":"var","name":"mismatch"}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"},"constructor":{"name":"Step.mismatch"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"run","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"recursive_argument":"fuel","result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"fields":[{"field":"wire","value":{"kind":"var","name":"wire"}},{"field":"cursor","value":{"arguments":[{"kind":"var","name":"expected"},{"kind":"var","name":"actual"}],"function":{"name":"start"},"kind":"call"}}],"kind":"record","type":{"name":"Trial"}},"kind":"definition","name":"startTrial","parameters":[{"name":"wire","type":{"kind":"bytes"}},{"name":"expected","type":{"element":{"kind":"bytes"},"kind":"list"}},{"name":"actual","type":{"element":{"kind":"bytes"},"kind":"list"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Trial"}}},{"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"fields":[{"field":"wire","value":{"field":"wire","kind":"project","value":{"kind":"var","name":"trial"}}},{"field":"cursor","value":{"kind":"var","name":"next"}}],"kind":"record","type":{"name":"Trial"}}],"constructor":{"name":"TrialStep.pending"},"kind":"constructor"},"constructor":{"name":"Step.pending"}},{"binders":["bytes","boundaries"],"body":{"arguments":[{"fields":[{"field":"wire","value":{"field":"wire","kind":"project","value":{"kind":"var","name":"trial"}}},{"field":"bytesCompared","value":{"kind":"var","name":"bytes"}},{"field":"boundariesChecked","value":{"kind":"var","name":"boundaries"}}],"kind":"record","type":{"name":"CheckedArchive"}}],"constructor":{"name":"TrialStep.eligible"},"kind":"constructor"},"constructor":{"name":"Step.matched"}},{"binders":["mismatch"],"body":{"arguments":[{"kind":"var","name":"mismatch"}],"constructor":{"name":"TrialStep.rejected"},"kind":"constructor"},"constructor":{"name":"Step.mismatch"}}],"kind":"match","scrutinee":{"arguments":[{"field":"cursor","kind":"project","value":{"kind":"var","name":"trial"}}],"function":{"name":"step"},"kind":"call"}},"kind":"definition","name":"stepTrial","parameters":[{"name":"trial","type":{"arguments":[],"kind":"named","member":{"name":"Trial"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"TrialStep"}}},{"body":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"var","name":"trial"}],"constructor":{"name":"TrialStep.pending"},"kind":"constructor"},"constructor":{"name":"Nat.zero"}},{"binders":["restFuel"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"restFuel"},{"kind":"var","name":"next"}],"function":{"name":"runTrial"},"kind":"call"},"constructor":{"name":"TrialStep.pending"}},{"binders":["checked"],"body":{"arguments":[{"kind":"var","name":"checked"}],"constructor":{"name":"TrialStep.eligible"},"kind":"constructor"},"constructor":{"name":"TrialStep.eligible"}},{"binders":["mismatch"],"body":{"arguments":[{"kind":"var","name":"mismatch"}],"constructor":{"name":"TrialStep.rejected"},"kind":"constructor"},"constructor":{"name":"TrialStep.rejected"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"trial"}],"function":{"name":"stepTrial"},"kind":"call"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"runTrial","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"trial","type":{"arguments":[],"kind":"named","member":{"name":"Trial"}}}],"recursive_argument":"fuel","result":{"arguments":[],"kind":"named","member":{"name":"TrialStep"}}},{"kind":"theorem","name":"empty_snapshot","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"element":{"kind":"bytes"},"kind":"nil"},{"element":{"kind":"bytes"},"kind":"nil"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"name":"Step.matched"},"kind":"constructor"}}},{"kind":"theorem","name":"zero_length_objects_are_boundaries","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"head":{"hex":"","kind":"bytes"},"kind":"cons","tail":{"head":{"hex":"","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}},{"head":{"hex":"","kind":"bytes"},"kind":"cons","tail":{"head":{"hex":"","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"2"}],"constructor":{"name":"Step.matched"},"kind":"constructor"}}},{"kind":"theorem","name":"same_flattening_different_boundary_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"head":{"hex":"01","kind":"bytes"},"kind":"cons","tail":{"head":{"hex":"02","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}},{"head":{"hex":"0102","kind":"bytes"},"kind":"cons","tail":{"head":{"hex":"","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"kind","value":{"arguments":[],"constructor":{"name":"MismatchKind.objectLength"},"kind":"constructor"}},{"field":"objectIndex","value":{"kind":"nat","value":"0"}},{"field":"byteOffset","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Mismatch"}}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"}}},{"kind":"theorem","name":"extra_empty_object_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"element":{"kind":"bytes"},"kind":"nil"},{"head":{"hex":"","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"kind","value":{"arguments":[],"constructor":{"name":"MismatchKind.objectCount"},"kind":"constructor"}},{"field":"objectIndex","value":{"kind":"nat","value":"0"}},{"field":"byteOffset","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Mismatch"}}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"}}},{"kind":"theorem","name":"full_bytes_not_digest_equality","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"head":{"hex":"01020304","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}},{"head":{"hex":"01020904","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"kind","value":{"arguments":[],"constructor":{"name":"MismatchKind.byteValue"},"kind":"constructor"}},{"field":"objectIndex","value":{"kind":"nat","value":"0"}},{"field":"byteOffset","value":{"kind":"nat","value":"2"}}],"kind":"record","type":{"name":"Mismatch"}}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"}}},{"kind":"theorem","name":"all_bytes_including_zero_and_ff","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"head":{"hex":"0001ff80","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}},{"head":{"hex":"0001ff80","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"kind":"nat","value":"4"},{"kind":"nat","value":"1"}],"constructor":{"name":"Step.matched"},"kind":"constructor"}}},{"kind":"theorem","name":"zero_work_is_paused","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"0"},{"arguments":[{"head":{"hex":"00","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}},{"head":{"hex":"00","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"arguments":[{"head":{"hex":"00","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}},{"head":{"hex":"00","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}],"function":{"name":"start"},"kind":"call"}],"constructor":{"name":"Step.pending"},"kind":"constructor"}}},{"kind":"theorem","name":"resumed_prefix_matches_uninterrupted","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"nat","value":"7"},{"kind":"var","name":"next"}],"function":{"name":"run"},"kind":"call"},"constructor":{"name":"Step.pending"}},{"binders":["bytes","bounds"],"body":{"arguments":[{"kind":"var","name":"bytes"},{"kind":"var","name":"bounds"}],"constructor":{"name":"Step.matched"},"kind":"constructor"},"constructor":{"name":"Step.matched"}},{"binders":["m"],"body":{"arguments":[{"kind":"var","name":"m"}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"},"constructor":{"name":"Step.mismatch"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"nat","value":"3"},{"arguments":[{"head":{"hex":"0001ff80","kind":"bytes"},"kind":"cons","tail":{"head":{"hex":"0203","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}},{"head":{"hex":"0001ff80","kind":"bytes"},"kind":"cons","tail":{"head":{"hex":"0203","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"}},"right":{"arguments":[{"kind":"nat","value":"10"},{"arguments":[{"head":{"hex":"0001ff80","kind":"bytes"},"kind":"cons","tail":{"head":{"hex":"0203","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}},{"head":{"hex":"0001ff80","kind":"bytes"},"kind":"cons","tail":{"head":{"hex":"0203","kind":"bytes"},"kind":"cons","tail":{"element":{"kind":"bytes"},"kind":"nil"}}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: MismatchKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: objectCount, fields: []},
+    {name: objectLength, fields: []},
+    {name: byteValue, fields: []},
+    {name: invalidCursor, fields: []}
+  ]
+}
+
+structure{
+  name: Mismatch,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: kind, type: MismatchKind},
+    {name: objectIndex, type: Nat},
+    {name: byteOffset, type: Nat}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: expected, type: (List Bytes)},
+    {name: actual, type: (List Bytes)},
+    {name: objectIndex, type: Nat},
+    {name: byteOffset, type: Nat},
+    {name: bytesCompared, type: Nat},
+    {name: boundariesChecked, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: matched, fields: [Nat, Nat]},
+    {name: mismatch, fields: [Mismatch]}
+  ]
+}
+
+structure{
+  name: CheckedArchive,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: wire, type: Bytes},
+    {name: bytesCompared, type: Nat},
+    {name: boundariesChecked, type: Nat}
+  ]
+}
+
+structure{
+  name: Trial,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: wire, type: Bytes}, {name: cursor, type: Cursor}]
+}
+
+inductive{
+  name: TrialStep,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Trial]},
+    {name: eligible, fields: [CheckedArchive]},
+    {name: rejected, fields: [Mismatch]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [expected : (List Bytes), actual : (List Bytes)],
+  result: Cursor,
+  body: (record Cursor {expected := expected, actual := actual, objectIndex := 0, byteOffset := 0, bytesCompared := 0, boundariesChecked := 0})
+}
+
+definition{
+  name: failure,
+  parameters: [cursor : Cursor, kind : MismatchKind],
+  result: Step,
+  body: (ctor Step.mismatch (record Mismatch {kind := kind, objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset)}))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor expected)
+    | List.nil => (match (project cursor actual)
+      | List.nil => (if ((project cursor byteOffset) =? 0) then (ctor Step.matched (project cursor bytesCompared) (project cursor boundariesChecked)) else (failure cursor (ctor MismatchKind.invalidCursor)))
+      | List.cons unexpectedHead unexpectedTail => (failure cursor (ctor MismatchKind.objectCount)))
+    | List.cons expectedHead expectedRest => (match (project cursor actual)
+      | List.nil => (failure cursor (ctor MismatchKind.objectCount))
+      | List.cons actualHead actualRest => (if ((prim length expectedHead : Nat) =? (prim length actualHead : Nat)) then (if ((project cursor byteOffset) <? (prim length expectedHead : Nat)) then (match (prim index expectedHead (project cursor byteOffset) : (Option UInt8))
+        | Option.none => (failure cursor (ctor MismatchKind.invalidCursor))
+        | Option.some expectedByte => (match (prim index actualHead (project cursor byteOffset) : (Option UInt8))
+          | Option.none => (failure cursor (ctor MismatchKind.invalidCursor))
+          | Option.some actualByte => (if (prim equal expectedByte actualByte : Bool) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), objectIndex := (project cursor objectIndex), byteOffset := ((project cursor byteOffset) + 1), bytesCompared := ((project cursor bytesCompared) + 1), boundariesChecked := (project cursor boundariesChecked)})) else (failure cursor (ctor MismatchKind.byteValue))))) else (if ((project cursor byteOffset) =? (prim length expectedHead : Nat)) then (ctor Step.pending (record Cursor {expected := expectedRest, actual := actualRest, objectIndex := ((project cursor objectIndex) + 1), byteOffset := 0, bytesCompared := (project cursor bytesCompared), boundariesChecked := ((project cursor boundariesChecked) + 1)})) else (failure cursor (ctor MismatchKind.invalidCursor)))) else (failure cursor (ctor MismatchKind.objectLength)))))
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, cursor : Cursor],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => (ctor Step.pending cursor)
+    | Nat.succ restFuel => (match (step cursor)
+      | Step.pending next => (run restFuel next)
+      | Step.matched bytes boundaries => (ctor Step.matched bytes boundaries)
+      | Step.mismatch mismatch => (ctor Step.mismatch mismatch))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: startTrial,
+  parameters: [wire : Bytes, expected : (List Bytes), actual : (List Bytes)],
+  result: Trial,
+  body: (record Trial {wire := wire, cursor := (start expected actual)})
+}
+
+definition{
+  name: stepTrial,
+  parameters: [trial : Trial],
+  result: TrialStep,
+  body: (match (step (project trial cursor))
+    | Step.pending next => (ctor TrialStep.pending (record Trial {wire := (project trial wire), cursor := next}))
+    | Step.matched bytes boundaries => (ctor TrialStep.eligible (record CheckedArchive {wire := (project trial wire), bytesCompared := bytes, boundariesChecked := boundaries}))
+    | Step.mismatch mismatch => (ctor TrialStep.rejected mismatch))
+}
+
+definition{
+  name: runTrial,
+  parameters: [fuel : Nat, trial : Trial],
+  result: TrialStep,
+  body: (match fuel
+    | Nat.zero => (ctor TrialStep.pending trial)
+    | Nat.succ restFuel => match{
+      branches: [
+        {body: (runTrial restFuel next), binders: [next], constructor: TrialStep.pending},
+        {
+          body: (ctor TrialStep.eligible var{name: checked}),
+          binders: [checked],
+          constructor: TrialStep.eligible
+        },
+        {
+          body: (ctor TrialStep.rejected mismatch),
+          binders: [mismatch],
+          constructor: TrialStep.rejected
+        }
+      ],
+      scrutinee: (stepTrial trial)
+    }),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: empty_snapshot,
+  parameters: [],
+  statement: ((run 20 (start (nil Bytes) (nil Bytes))) = (ctor Step.matched 0 0)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_length_objects_are_boundaries,
+  parameters: [],
+  statement: ((run 20 (start (cons 0x (cons 0x (nil Bytes))) (cons 0x (cons 0x (nil Bytes))))) = (ctor Step.matched 0 2)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: same_flattening_different_boundary_rejected,
+  parameters: [],
+  statement: ((run 20 (start (cons 0x01 (cons 0x02 (nil Bytes))) (cons 0x0102 (cons 0x (nil Bytes))))) = (ctor Step.mismatch (record Mismatch {kind := (ctor MismatchKind.objectLength), objectIndex := 0, byteOffset := 0}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: extra_empty_object_rejected,
+  parameters: [],
+  statement: ((run 20 (start (nil Bytes) (cons 0x (nil Bytes)))) = (ctor Step.mismatch (record Mismatch {kind := (ctor MismatchKind.objectCount), objectIndex := 0, byteOffset := 0}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: full_bytes_not_digest_equality,
+  parameters: [],
+  statement: ((run 20 (start (cons 0x01020304 (nil Bytes)) (cons 0x01020904 (nil Bytes)))) = (ctor Step.mismatch (record Mismatch {kind := (ctor MismatchKind.byteValue), objectIndex := 0, byteOffset := 2}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: all_bytes_including_zero_and_ff,
+  parameters: [],
+  statement: ((run 20 (start (cons 0x0001ff80 (nil Bytes)) (cons 0x0001ff80 (nil Bytes)))) = (ctor Step.matched 4 1)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_work_is_paused,
+  parameters: [],
+  statement: ((run 0 (start (cons 0x00 (nil Bytes)) (cons 0x00 (nil Bytes)))) = (ctor Step.pending (start (cons 0x00 (nil Bytes)) (cons 0x00 (nil Bytes))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: resumed_prefix_matches_uninterrupted,
+  parameters: [],
+  statement: ((match (run 3 (start (cons 0x0001ff80 (cons 0x0203 (nil Bytes))) (cons 0x0001ff80 (cons 0x0203 (nil Bytes)))))
+    | Step.pending next => (run 7 next)
+    | Step.matched bytes bounds => (ctor Step.matched bytes bounds)
+    | Step.mismatch m => (ctor Step.mismatch m)) = (run 10 (start (cons 0x0001ff80 (cons 0x0203 (nil Bytes))) (cons 0x0001ff80 (cons 0x0203 (nil Bytes)))))),
+  proof: reflexivity{}
+}
 \end{semanticmodule}
 \end{lexlean}

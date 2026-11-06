@@ -5,6 +5,60 @@
 \importmodule{Uorc.Search.Verify}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"less"},{"fields":[],"name":"equal"},{"fields":[],"name":"greater"}],"kind":"inductive","name":"ByteOrder","parameters":[],"type_parameters":[]},{"fields":[{"name":"left","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}}},{"name":"right","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}}},{"name":"comparison","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.VerifyRope","name":"Cursor"}}}],"kind":"structure","name":"Cursor","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"pending"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ByteOrder"}}],"name":"ordered"},{"fields":[],"name":"invalidCursor"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"RopeError"}}],"name":"ropeFailure"}],"kind":"inductive","name":"Step","parameters":[],"type_parameters":[]},{"body":{"fields":[{"field":"left","value":{"kind":"var","name":"left"}},{"field":"right","value":{"kind":"var","name":"right"}},{"field":"comparison","value":{"arguments":[{"head":{"kind":"var","name":"left"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}},"kind":"nil"}},{"head":{"kind":"var","name":"right"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}},"kind":"nil"}}],"function":{"module":"Uorc.Search.VerifyRope","name":"start"},"kind":"call"}}],"kind":"record","type":{"name":"Cursor"}},"kind":"definition","name":"start","parameters":[{"name":"left","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}}},{"name":"right","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"fields":[{"field":"left","value":{"field":"left","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"right","value":{"field":"right","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"comparison","value":{"kind":"var","name":"next"}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.VerifyRope","name":"Step.pending"}},{"binders":["compared","boundaries"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ByteOrder.equal"},"kind":"constructor"}],"constructor":{"name":"Step.ordered"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.VerifyRope","name":"Step.matched"}},{"binders":["mismatch"],"body":{"branches":[{"binders":[],"body":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Verify","name":"MismatchKind.objectCount"}},{"binders":[],"body":{"condition":{"kind":"blt","left":{"arguments":[{"field":"left","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"},"right":{"arguments":[{"field":"right","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"}},"else_value":{"condition":{"kind":"blt","left":{"arguments":[{"field":"right","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"},"right":{"arguments":[{"field":"left","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"}},"else_value":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"ByteOrder.greater"},"kind":"constructor"}],"constructor":{"name":"Step.ordered"},"kind":"constructor"}},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"ByteOrder.less"},"kind":"constructor"}],"constructor":{"name":"Step.ordered"},"kind":"constructor"}},"constructor":{"module":"Uorc.Search.Verify","name":"MismatchKind.objectLength"}},{"binders":[],"body":{"branches":[{"binders":[],"body":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["leftByte"],"body":{"branches":[{"binders":[],"body":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["rightByte"],"body":{"condition":{"arguments":[{"kind":"var","name":"leftByte"},{"kind":"var","name":"rightByte"}],"function":{"module":"Uorc.Search.Order","name":"byteLess"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"ByteOrder.greater"},"kind":"constructor"}],"constructor":{"name":"Step.ordered"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"ByteOrder.less"},"kind":"constructor"}],"constructor":{"name":"Step.ordered"},"kind":"constructor"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"field":"actualByte","kind":"project","value":{"field":"comparison","kind":"project","value":{"kind":"var","name":"cursor"}}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"field":"expectedByte","kind":"project","value":{"field":"comparison","kind":"project","value":{"kind":"var","name":"cursor"}}}},"constructor":{"module":"Uorc.Search.Verify","name":"MismatchKind.byteValue"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Verify","name":"MismatchKind.invalidCursor"}}],"kind":"match","scrutinee":{"field":"kind","kind":"project","value":{"kind":"var","name":"mismatch"}}},"constructor":{"module":"Uorc.Search.VerifyRope","name":"Step.mismatch"}},{"binders":["error"],"body":{"arguments":[{"kind":"var","name":"error"}],"constructor":{"name":"Step.ropeFailure"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.VerifyRope","name":"Step.ropeFailure"}}],"kind":"match","scrutinee":{"arguments":[{"field":"comparison","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Search.VerifyRope","name":"step"},"kind":"call"}},"kind":"definition","name":"step","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: ByteOrder,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: less, fields: []}, {name: equal, fields: []}, {name: greater, fields: []}]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: left, type: Uorc.Core.Bytes::Rope},
+    {name: right, type: Uorc.Core.Bytes::Rope},
+    {name: comparison, type: Uorc.Search.VerifyRope::Cursor}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: ordered, fields: [ByteOrder]},
+    {name: invalidCursor, fields: []},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [left : Uorc.Core.Bytes::Rope, right : Uorc.Core.Bytes::Rope],
+  result: Cursor,
+  body: (record Cursor {left := left, right := right, comparison := (Uorc.Search.VerifyRope::start (cons left (nil Uorc.Core.Bytes::Rope)) (cons right (nil Uorc.Core.Bytes::Rope)))})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (Uorc.Search.VerifyRope::step (project cursor comparison))
+    | Uorc.Search.VerifyRope::Step.pending next => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), comparison := next}))
+    | Uorc.Search.VerifyRope::Step.matched compared boundaries => (ctor Step.ordered (ctor ByteOrder.equal))
+    | Uorc.Search.VerifyRope::Step.mismatch mismatch => (match (project mismatch kind)
+      | Uorc.Search.Verify::MismatchKind.objectCount => (ctor Step.invalidCursor)
+      | Uorc.Search.Verify::MismatchKind.objectLength => (if ((Uorc.Core.Bytes::length (project cursor left)) <? (Uorc.Core.Bytes::length (project cursor right))) then (ctor Step.ordered (ctor ByteOrder.less)) else (if ((Uorc.Core.Bytes::length (project cursor right)) <? (Uorc.Core.Bytes::length (project cursor left))) then (ctor Step.ordered (ctor ByteOrder.greater)) else (ctor Step.invalidCursor)))
+      | Uorc.Search.Verify::MismatchKind.byteValue => (match (project (project cursor comparison) expectedByte)
+        | Option.none => (ctor Step.invalidCursor)
+        | Option.some leftByte => (match (project (project cursor comparison) actualByte)
+          | Option.none => (ctor Step.invalidCursor)
+          | Option.some rightByte => (if (Uorc.Search.Order::byteLess leftByte rightByte) then (ctor Step.ordered (ctor ByteOrder.less)) else (ctor Step.ordered (ctor ByteOrder.greater)))))
+      | Uorc.Search.Verify::MismatchKind.invalidCursor => (ctor Step.invalidCursor))
+    | Uorc.Search.VerifyRope::Step.ropeFailure error => (ctor Step.ropeFailure error))
+}
 \end{semanticmodule}
 \end{lexlean}

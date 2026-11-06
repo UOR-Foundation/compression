@@ -1,8 +1,68 @@
 \begin{lexlean}{Uorc.Product.InputModel}
-\useglossary{lexlean.std.bool@1.1.0}
+\useglossary{lexlean.std.bool@1.2.0}
 \importmodule{Uorc.Product.Api}
 \title{Boolean}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"fields":[{"name":"nextObject","type":{"kind":"nat"}},{"name":"inObject","type":{"kind":"bool"}},{"name":"ended","type":{"kind":"bool"}},{"name":"totalBytes","type":{"kind":"nat"}}],"kind":"structure","name":"State","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"kind":"nat"}],"name":"beginObject"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Api","name":"Span"}}],"name":"chunk"},{"fields":[{"kind":"nat"}],"name":"endObject"},{"fields":[],"name":"endInput"}],"kind":"inductive","name":"Piece","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"afterEnd"},{"fields":[],"name":"objectAlreadyOpen"},{"fields":[],"name":"noObject"},{"fields":[],"name":"wrongObject"},{"fields":[],"name":"objectStillOpen"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"body":{"fields":[{"field":"nextObject","value":{"kind":"nat","value":"0"}},{"field":"inObject","value":{"kind":"bool","value":false}},{"field":"ended","value":{"kind":"bool","value":false}},{"field":"totalBytes","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"State"}},"kind":"definition","name":"initial","parameters":[],"result":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"body":{"condition":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"branches":[{"binders":["index"],"body":{"condition":{"field":"inObject","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"condition":{"kind":"beq","left":{"kind":"var","name":"index"},"right":{"field":"nextObject","kind":"project","value":{"kind":"var","name":"s"}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.wrongObject"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"nextObject","value":{"field":"nextObject","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"inObject","value":{"kind":"bool","value":true}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"totalBytes","value":{"field":"totalBytes","kind":"project","value":{"kind":"var","name":"s"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.objectAlreadyOpen"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}},"constructor":{"name":"Piece.beginObject"}},{"binders":["span"],"body":{"condition":{"field":"inObject","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.noObject"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"nextObject","value":{"field":"nextObject","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"inObject","value":{"field":"inObject","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"totalBytes","value":{"kind":"add","left":{"field":"totalBytes","kind":"project","value":{"kind":"var","name":"s"}},"right":{"field":"length","kind":"project","value":{"kind":"var","name":"span"}}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}},"constructor":{"name":"Piece.chunk"}},{"binders":["index"],"body":{"condition":{"field":"inObject","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.noObject"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"condition":{"kind":"beq","left":{"kind":"var","name":"index"},"right":{"field":"nextObject","kind":"project","value":{"kind":"var","name":"s"}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.wrongObject"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"nextObject","value":{"kind":"add","left":{"field":"nextObject","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}},{"field":"inObject","value":{"kind":"bool","value":false}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"totalBytes","value":{"field":"totalBytes","kind":"project","value":{"kind":"var","name":"s"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},"constructor":{"name":"Piece.endObject"}},{"binders":[],"body":{"condition":{"field":"inObject","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"arguments":[{"fields":[{"field":"nextObject","value":{"field":"nextObject","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"inObject","value":{"field":"inObject","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"totalBytes","value":{"field":"totalBytes","kind":"project","value":{"kind":"var","name":"s"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.objectStillOpen"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}},"constructor":{"name":"Piece.endInput"}}],"kind":"match","scrutinee":{"kind":"var","name":"piece"}},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.afterEnd"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]}},"kind":"definition","name":"accept","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"piece","type":{"arguments":[],"kind":"named","member":{"name":"Piece"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"body":{"kind":"string","value":"The adapter validates each charged span against the resource instance and backing extent before admission. InputModel checks ordered object boundaries, including empties, and explicit end-of-input. Lengths and identities are control metadata and do not prove any byte equality. No aggregate input-size or media-type limit is imposed here."},"kind":"definition","name":"boundary","parameters":[],"result":{"kind":"string"}}],"spec":"lexlean/semantic-module/1"}}
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: nextObject, type: Nat},
+    {name: inObject, type: Bool},
+    {name: ended, type: Bool},
+    {name: totalBytes, type: Nat}
+  ]
+}
+
+inductive{
+  name: Piece,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: beginObject, fields: [Nat]},
+    {name: chunk, fields: [Uorc.Product.Api::Span]},
+    {name: endObject, fields: [Nat]},
+    {name: endInput, fields: []}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: afterEnd, fields: []},
+    {name: objectAlreadyOpen, fields: []},
+    {name: noObject, fields: []},
+    {name: wrongObject, fields: []},
+    {name: objectStillOpen, fields: []}
+  ]
+}
+
+definition{
+  name: initial,
+  parameters: [],
+  result: State,
+  body: (record State {nextObject := 0, inObject := false, ended := false, totalBytes := 0})
+}
+
+definition{
+  name: accept,
+  parameters: [s : State, piece : Piece],
+  result: (Result State Error),
+  body: (if (project s ended) then (ctor Result.error [State, Error] (ctor Error.afterEnd)) else (match piece
+    | Piece.beginObject index => (if (project s inObject) then (ctor Result.error [State, Error] (ctor Error.objectAlreadyOpen)) else (if (index =? (project s nextObject)) then (ctor Result.ok [State, Error] (record State {nextObject := (project s nextObject), inObject := true, ended := (project s ended), totalBytes := (project s totalBytes)})) else (ctor Result.error [State, Error] (ctor Error.wrongObject))))
+    | Piece.chunk span => (if (project s inObject) then (ctor Result.ok [State, Error] (record State {nextObject := (project s nextObject), inObject := (project s inObject), ended := (project s ended), totalBytes := ((project s totalBytes) + (project span length))})) else (ctor Result.error [State, Error] (ctor Error.noObject)))
+    | Piece.endObject index => (if (project s inObject) then (if (index =? (project s nextObject)) then (ctor Result.ok [State, Error] (record State {nextObject := ((project s nextObject) + 1), inObject := false, ended := (project s ended), totalBytes := (project s totalBytes)})) else (ctor Result.error [State, Error] (ctor Error.wrongObject))) else (ctor Result.error [State, Error] (ctor Error.noObject)))
+    | Piece.endInput => (if (project s inObject) then (ctor Result.error [State, Error] (ctor Error.objectStillOpen)) else (ctor Result.ok [State, Error] (record State {nextObject := (project s nextObject), inObject := (project s inObject), ended := true, totalBytes := (project s totalBytes)})))))
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "The adapter validates each charged span against the resource instance and backing extent before admission. InputModel checks ordered object boundaries, including empties, and explicit end-of-input. Lengths and identities are control metadata and do not prove any byte equality. No aggregate input-size or media-type limit is imposed here."
+}
 \end{semanticmodule}
 \end{lexlean}

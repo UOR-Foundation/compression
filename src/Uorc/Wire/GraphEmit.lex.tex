@@ -4,6 +4,675 @@
 \importmodule{Uorc.Core.Bytes}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"invalidQuantum"},{"fields":[],"name":"invalidByte"},{"fields":[],"name":"invalidRope"}],"kind":"inductive","name":"EmitError","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"kind":"nat"}],"name":"byte"},{"fields":[{"kind":"nat"}],"name":"number"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Cursor"}},{"kind":"nat"}],"name":"rope"},{"fields":[{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Types","name":"ValueType"}},"kind":"list"}],"name":"types"},{"fields":[{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Types","name":"ValueType"}},"kind":"list"},{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Types","name":"ValueType"}},"kind":"list"},{"kind":"nat"}],"name":"countTypes"},{"fields":[{"element":{"kind":"nat"},"kind":"list"}],"name":"references"},{"fields":[{"element":{"kind":"nat"},"kind":"list"},{"element":{"kind":"nat"},"kind":"list"},{"kind":"nat"}],"name":"countReferences"},{"fields":[{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}},"kind":"list"}],"name":"instructions"},{"fields":[{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}},"kind":"list"},{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}},"kind":"list"},{"kind":"nat"}],"name":"countInstructions"},{"fields":[{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Block"}},"kind":"list"}],"name":"blocks"},{"fields":[{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Block"}},"kind":"list"},{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Block"}},"kind":"list"},{"kind":"nat"}],"name":"countBlocks"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}}],"name":"instruction"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Block"}}],"name":"block"}],"kind":"inductive","name":"Task","parameters":[],"type_parameters":[]},{"fields":[{"name":"pending","type":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"list"}},{"name":"position","type":{"kind":"nat"}},{"name":"work","type":{"kind":"nat"}}],"kind":"structure","name":"State","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"State"}}],"name":"advanced"},{"fields":[{"kind":"bytes"},{"arguments":[],"kind":"named","member":{"name":"State"}}],"name":"produced"},{"fields":[{"kind":"nat"},{"kind":"nat"}],"name":"complete"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"EmitError"}},{"kind":"nat"},{"kind":"nat"}],"name":"failed"}],"kind":"inductive","name":"Event","parameters":[],"type_parameters":[]},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"0"},"constructor":{"module":"Uorc.Core.Types","name":"ValueType.natural"}},{"binders":[],"body":{"kind":"nat","value":"1"},"constructor":{"module":"Uorc.Core.Types","name":"ValueType.byte"}},{"binders":[],"body":{"kind":"nat","value":"2"},"constructor":{"module":"Uorc.Core.Types","name":"ValueType.predicate"}},{"binders":[],"body":{"kind":"nat","value":"3"},"constructor":{"module":"Uorc.Core.Types","name":"ValueType.sequence"}},{"binders":[],"body":{"kind":"nat","value":"4"},"constructor":{"module":"Uorc.Core.Types","name":"ValueType.store"}}],"kind":"match","scrutinee":{"kind":"var","name":"value"}},"kind":"definition","name":"typeCode","parameters":[{"name":"value","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Types","name":"ValueType"}}}],"result":{"kind":"nat"}},{"body":{"branches":[{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"kind":"var","name":"x0"}],"function":{"module":"Uorc.Core.Types","name":"wordToNat"},"kind":"call"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalConstant"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"1"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"kind":"var","name":"x0"}],"kind":"primitive","operation":"to_nat","result":{"kind":"nat"}}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteConstant"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"2"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"condition":{"kind":"var","name":"x0"},"else_value":{"kind":"nat","value":"0"},"kind":"if","then_value":{"kind":"nat","value":"1"}}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateConstant"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"3"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"arguments":[{"kind":"var","name":"x0"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"arguments":[{"kind":"var","name":"x0"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"function":{"module":"Uorc.Core.Bytes","name":"cursor"},"kind":"call"},{"arguments":[{"arguments":[{"kind":"var","name":"x0"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"}],"constructor":{"name":"Task.rope"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceConstant"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"4"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalAdd"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"5"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalSubtract"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"6"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalMultiply"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"7"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalDivide"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"8"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalRemainder"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"9"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalAnd"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"10"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalOr"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"11"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalXor"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"12"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalNot"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"13"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalShiftLeft"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"14"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalShiftRight"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"15"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalEqual"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"16"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalLess"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"17"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteEqual"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"18"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteLess"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"19"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalToByte"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"20"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteToNatural"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"21"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateNot"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"22"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateAnd"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"23"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateOr"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"24"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceLength"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"25"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceIndex"}},{"binders":["x0","x1","x2"],"body":{"head":{"arguments":[{"kind":"nat","value":"26"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x2"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceSlice"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"27"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceConcat"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"28"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceEqual"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"29"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.singletonSequence"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"30"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.basisGet"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"31"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeNew"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"32"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeRead"}},{"binders":["x0","x1","x2"],"body":{"head":{"arguments":[{"kind":"nat","value":"33"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x2"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeWrite"}},{"binders":["x0","x1","x2"],"body":{"head":{"arguments":[{"kind":"nat","value":"34"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x2"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.choose"}},{"binders":["x0","x1"],"body":{"head":{"arguments":[{"kind":"nat","value":"35"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"},{"kind":"var","name":"x1"},{"kind":"nat","value":"0"}],"constructor":{"name":"Task.countReferences"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.apply"}},{"binders":["x0","x1","x2"],"body":{"head":{"arguments":[{"kind":"nat","value":"36"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x2"},{"kind":"var","name":"x2"},{"kind":"nat","value":"0"}],"constructor":{"name":"Task.countReferences"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.tabulate"}},{"binders":["x0","x1","x2","x3"],"body":{"head":{"arguments":[{"kind":"nat","value":"37"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x2"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x3"},{"kind":"var","name":"x3"},{"kind":"nat","value":"0"}],"constructor":{"name":"Task.countReferences"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.fold"}},{"binders":["x0","x1","x2","x3","x4","x5"],"body":{"head":{"arguments":[{"kind":"nat","value":"38"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x0"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x1"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x2"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x3"},{"kind":"var","name":"x3"},{"kind":"nat","value":"0"}],"constructor":{"name":"Task.countReferences"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x4"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"x5"},{"kind":"var","name":"x5"},{"kind":"nat","value":"0"}],"constructor":{"name":"Task.countReferences"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}}}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.scan"}},{"binders":["x0"],"body":{"head":{"arguments":[{"kind":"nat","value":"3"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"kind":"var","name":"x0"}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"kind":"var","name":"x0"}],"function":{"module":"Uorc.Core.Bytes","name":"cursor"},"kind":"call"},{"arguments":[{"kind":"var","name":"x0"}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"}],"constructor":{"name":"Task.rope"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceRopeConstant"}}],"kind":"match","scrutinee":{"kind":"var","name":"value"}},"kind":"definition","name":"instructionTasks","parameters":[{"name":"value","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}}}],"result":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"list"}},{"body":{"branches":[{"binders":["ignored0"],"body":{"kind":"nat","value":"0"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalConstant"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"1"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteConstant"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"2"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateConstant"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"3"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceConstant"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"4"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalAdd"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"5"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalSubtract"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"6"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalMultiply"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"7"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalDivide"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"8"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalRemainder"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"9"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalAnd"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"10"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalOr"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"11"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalXor"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"12"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalNot"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"13"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalShiftLeft"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"14"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalShiftRight"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"15"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalEqual"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"16"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalLess"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"17"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteEqual"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"18"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteLess"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"19"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalToByte"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"20"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteToNatural"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"21"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateNot"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"22"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateAnd"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"23"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateOr"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"24"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceLength"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"25"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceIndex"}},{"binders":["ignored0","ignored1","ignored2"],"body":{"kind":"nat","value":"26"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceSlice"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"27"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceConcat"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"28"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceEqual"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"29"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.singletonSequence"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"30"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.basisGet"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"31"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeNew"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"32"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeRead"}},{"binders":["ignored0","ignored1","ignored2"],"body":{"kind":"nat","value":"33"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeWrite"}},{"binders":["ignored0","ignored1","ignored2"],"body":{"kind":"nat","value":"34"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.choose"}},{"binders":["ignored0","ignored1"],"body":{"kind":"nat","value":"35"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.apply"}},{"binders":["ignored0","ignored1","ignored2"],"body":{"kind":"nat","value":"36"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.tabulate"}},{"binders":["ignored0","ignored1","ignored2","ignored3"],"body":{"kind":"nat","value":"37"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.fold"}},{"binders":["ignored0","ignored1","ignored2","ignored3","ignored4","ignored5"],"body":{"kind":"nat","value":"38"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.scan"}},{"binders":["ignored0"],"body":{"kind":"nat","value":"3"},"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceRopeConstant"}}],"kind":"match","scrutinee":{"kind":"var","name":"value"}},"kind":"definition","name":"opcode","parameters":[{"name":"value","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}}}],"result":{"kind":"nat"}},{"body":{"fields":[{"field":"pending","value":{"head":{"arguments":[{"field":"blocks","kind":"project","value":{"kind":"var","name":"graph"}},{"field":"blocks","kind":"project","value":{"kind":"var","name":"graph"}},{"kind":"nat","value":"0"}],"constructor":{"name":"Task.countBlocks"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"entry","kind":"project","value":{"kind":"var","name":"graph"}}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"nil"}}}},{"field":"position","value":{"kind":"nat","value":"0"}},{"field":"work","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"State"}},"kind":"definition","name":"start","parameters":[{"name":"graph","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Graph"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"body":{"condition":{"kind":"beq","left":{"kind":"var","name":"quantum"},"right":{"kind":"nat","value":"0"}},"else_value":{"branches":[{"binders":[],"body":{"arguments":[{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"field":"work","kind":"project","value":{"kind":"var","name":"s"}}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["head","tail"],"body":{"branches":[{"binders":["value"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"EmitError.invalidByte"},"kind":"constructor"},{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["byteWord"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"EmitError.invalidByte"},"kind":"constructor"},{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["byteValue"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"byteValue"}],"function":{"module":"Uorc.Core.Types","name":"singletonSequence"},"kind":"call"},{"fields":[{"field":"pending","value":{"kind":"var","name":"tail"}},{"field":"position","value":{"kind":"add","left":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.produced"},"kind":"constructor"},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"byteWord"}],"kind":"primitive","operation":"checked_convert","result":{"kind":"option","value":{"kind":"uint8"}}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"nat","value":"8"},{"kind":"var","name":"value"}],"function":{"module":"Uorc.Core.Types","name":"wordOfNatAux"},"kind":"call"}},"constructor":{"name":"Task.byte"}},{"binders":["value"],"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"128"}},"else_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"EmitError.invalidByte"},"kind":"constructor"},{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["byteWord"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"EmitError.invalidByte"},"kind":"constructor"},{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["byteValue"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"byteValue"}],"function":{"module":"Uorc.Core.Types","name":"singletonSequence"},"kind":"call"},{"fields":[{"field":"pending","value":{"head":{"arguments":[{"arguments":[{"kind":"var","name":"value"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"quotient","result":{"kind":"nat"}}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}},{"field":"position","value":{"kind":"add","left":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.produced"},"kind":"constructor"},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"byteWord"}],"kind":"primitive","operation":"checked_convert","result":{"kind":"option","value":{"kind":"uint8"}}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"nat","value":"8"},{"kind":"add","left":{"arguments":[{"kind":"var","name":"value"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"128"}}],"function":{"module":"Uorc.Core.Types","name":"wordOfNatAux"},"kind":"call"}},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"EmitError.invalidByte"},"kind":"constructor"},{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["byteWord"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"EmitError.invalidByte"},"kind":"constructor"},{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["byteValue"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"byteValue"}],"function":{"module":"Uorc.Core.Types","name":"singletonSequence"},"kind":"call"},{"fields":[{"field":"pending","value":{"kind":"var","name":"tail"}},{"field":"position","value":{"kind":"add","left":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.produced"},"kind":"constructor"},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"byteWord"}],"kind":"primitive","operation":"checked_convert","result":{"kind":"option","value":{"kind":"uint8"}}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"nat","value":"8"},{"kind":"var","name":"value"}],"function":{"module":"Uorc.Core.Types","name":"wordOfNatAux"},"kind":"call"}}},"constructor":{"name":"Task.number"}},{"binders":["value","remaining"],"body":{"branches":[{"binders":["ignored"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"EmitError.invalidRope"},"kind":"constructor"},{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Result.error"}},{"binders":["ropeEvent"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"next"},{"kind":"var","name":"remaining"}],"constructor":{"name":"Task.rope"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"CursorEvent.advanced"}},{"binders":["chunk","next"],"body":{"arguments":[{"kind":"var","name":"chunk"},{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"next"},{"arguments":[{"kind":"var","name":"remaining"},{"arguments":[{"kind":"var","name":"chunk"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}],"kind":"primitive","operation":"subtract","result":{"kind":"nat"}}],"constructor":{"name":"Task.rope"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}},{"field":"position","value":{"kind":"add","left":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},"right":{"arguments":[{"kind":"var","name":"chunk"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.produced"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"CursorEvent.produced"}},{"binders":[],"body":{"arguments":[{"fields":[{"field":"pending","value":{"kind":"var","name":"tail"}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"CursorEvent.done"}}],"kind":"match","scrutinee":{"kind":"var","name":"ropeEvent"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"value"},{"kind":"var","name":"quantum"}],"function":{"module":"Uorc.Core.Bytes","name":"nextChunk"},"kind":"call"}},"constructor":{"name":"Task.rope"}},{"binders":["remaining","original","count"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"count"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"original"}],"constructor":{"name":"Task.types"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["ignoredItemHead","rest"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"original"},{"kind":"add","left":{"kind":"var","name":"count"},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Task.countTypes"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"remaining"}},"constructor":{"name":"Task.countTypes"}},{"binders":["values"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"pending","value":{"kind":"var","name":"tail"}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["itemHead","rest"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"arguments":[{"kind":"var","name":"itemHead"}],"function":{"name":"typeCode"},"kind":"call"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"rest"}],"constructor":{"name":"Task.types"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"values"}},"constructor":{"name":"Task.types"}},{"binders":["remaining","original","count"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"count"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"original"}],"constructor":{"name":"Task.references"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["ignoredItemHead","rest"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"original"},{"kind":"add","left":{"kind":"var","name":"count"},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Task.countReferences"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"remaining"}},"constructor":{"name":"Task.countReferences"}},{"binders":["values"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"pending","value":{"kind":"var","name":"tail"}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["itemHead","rest"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"itemHead"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"rest"}],"constructor":{"name":"Task.references"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"values"}},"constructor":{"name":"Task.references"}},{"binders":["remaining","original","count"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"count"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"original"}],"constructor":{"name":"Task.instructions"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["ignoredItemHead","rest"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"original"},{"kind":"add","left":{"kind":"var","name":"count"},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Task.countInstructions"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"remaining"}},"constructor":{"name":"Task.countInstructions"}},{"binders":["values"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"pending","value":{"kind":"var","name":"tail"}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["itemHead","rest"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"itemHead"}],"constructor":{"name":"Task.instruction"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"rest"}],"constructor":{"name":"Task.instructions"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"values"}},"constructor":{"name":"Task.instructions"}},{"binders":["remaining","original","count"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"count"}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"original"}],"constructor":{"name":"Task.blocks"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["ignoredItemHead","rest"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"original"},{"kind":"add","left":{"kind":"var","name":"count"},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Task.countBlocks"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"remaining"}},"constructor":{"name":"Task.countBlocks"}},{"binders":["values"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"pending","value":{"kind":"var","name":"tail"}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["itemHead","rest"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"itemHead"}],"constructor":{"name":"Task.block"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"rest"}],"constructor":{"name":"Task.blocks"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"values"}},"constructor":{"name":"Task.blocks"}},{"binders":["value"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"arguments":[{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"instructionTasks"},"kind":"call"},{"kind":"var","name":"tail"}],"kind":"primitive","operation":"append","result":{"element":{"arguments":[],"kind":"named","member":{"name":"Task"}},"kind":"list"}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Task.instruction"}},{"binders":["value"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"head":{"arguments":[{"field":"parameters","kind":"project","value":{"kind":"var","name":"value"}},{"field":"parameters","kind":"project","value":{"kind":"var","name":"value"}},{"kind":"nat","value":"0"}],"constructor":{"name":"Task.countTypes"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"field":"result","kind":"project","value":{"kind":"var","name":"value"}}],"function":{"name":"typeCode"},"kind":"call"}],"constructor":{"name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"instructions","kind":"project","value":{"kind":"var","name":"value"}},{"field":"instructions","kind":"project","value":{"kind":"var","name":"value"}},{"kind":"nat","value":"0"}],"constructor":{"name":"Task.countInstructions"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"returnDistance","kind":"project","value":{"kind":"var","name":"value"}}],"constructor":{"name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}}}}},{"field":"position","value":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Task.block"}}],"kind":"match","scrutinee":{"kind":"var","name":"head"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"pending","kind":"project","value":{"kind":"var","name":"s"}}},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"EmitError.invalidQuantum"},"kind":"constructor"},{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Event.failed"},"kind":"constructor"}},"kind":"definition","name":"step","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"quantum","type":{"kind":"nat"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Event"}}},{"body":{"branches":[{"binders":[],"body":{"arguments":[{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},{"field":"work","kind":"project","value":{"kind":"var","name":"s"}}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["head","tail"],"body":{"branches":[{"binders":["ignored0"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.byte"}},{"binders":["ignored0"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.number"}},{"binders":["ignoredCursor","remainingBytes"],"body":{"arguments":[{"fields":[{"field":"pending","value":{"kind":"var","name":"tail"}},{"field":"position","value":{"kind":"add","left":{"field":"position","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"var","name":"remainingBytes"}}},{"field":"work","value":{"kind":"add","left":{"field":"work","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Task.rope"}},{"binders":["ignored0"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.types"}},{"binders":["ignored0","ignored1","ignored2"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.countTypes"}},{"binders":["ignored0"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.references"}},{"binders":["ignored0","ignored1","ignored2"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.countReferences"}},{"binders":["ignored0"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.instructions"}},{"binders":["ignored0","ignored1","ignored2"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.countInstructions"}},{"binders":["ignored0"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.blocks"}},{"binders":["ignored0","ignored1","ignored2"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.countBlocks"}},{"binders":["ignored0"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.instruction"}},{"binders":["ignored0"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"name":"Event.produced"}},{"binders":["count","events"],"body":{"arguments":[{"kind":"var","name":"count"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.complete"},"kind":"constructor"},"constructor":{"name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"offset"},{"kind":"var","name":"events"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"1"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Task.block"}}],"kind":"match","scrutinee":{"kind":"var","name":"head"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"pending","kind":"project","value":{"kind":"var","name":"s"}}},"kind":"definition","name":"measureStep","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Event"}}},{"body":{"branches":[{"binders":[],"body":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]},"constructor":{"name":"Nat.zero"}},{"binders":["remaining"],"body":{"branches":[{"binders":["size","work"],"body":{"arguments":[{"kind":"var","name":"acc"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]},"constructor":{"name":"Event.complete"}},{"binders":["reason","position","work"],"body":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]},"constructor":{"name":"Event.failed"}},{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"remaining"},{"kind":"var","name":"next"},{"kind":"var","name":"acc"}],"function":{"name":"collectFixture"},"kind":"call"},"constructor":{"name":"Event.advanced"}},{"binders":["chunk","next"],"body":{"arguments":[{"kind":"var","name":"remaining"},{"kind":"var","name":"next"},{"arguments":[{"kind":"var","name":"acc"},{"kind":"var","name":"chunk"}],"kind":"primitive","operation":"append","result":{"kind":"bytes"}}],"function":{"name":"collectFixture"},"kind":"call"},"constructor":{"name":"Event.produced"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"},{"kind":"nat","value":"16"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"collectFixture","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"acc","type":{"kind":"bytes"}}],"recursive_argument":"fuel","result":{"kind":"option","value":{"kind":"bytes"}}},{"axioms":[],"kind":"theorem","name":"literal_empty","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"1000"},{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Graph","name":"literalGraph"},"kind":"call"}],"function":{"name":"start"},"kind":"call"},{"hex":"","kind":"bytes"}],"function":{"name":"collectFixture"},"kind":"call"},"right":{"arguments":[{"hex":"0100030103000100","kind":"bytes"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]}}},{"axioms":[],"kind":"theorem","name":"literal_00","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"1000"},{"arguments":[{"arguments":[{"hex":"00","kind":"bytes"}],"function":{"module":"Uorc.Core.Graph","name":"literalGraph"},"kind":"call"}],"function":{"name":"start"},"kind":"call"},{"hex":"","kind":"bytes"}],"function":{"name":"collectFixture"},"kind":"call"},"right":{"arguments":[{"hex":"010003010301000100","kind":"bytes"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]}}},{"axioms":[],"kind":"theorem","name":"literal_00ff80","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"1000"},{"arguments":[{"arguments":[{"hex":"00ff80","kind":"bytes"}],"function":{"module":"Uorc.Core.Graph","name":"literalGraph"},"kind":"call"}],"function":{"name":"start"},"kind":"call"},{"hex":"","kind":"bytes"}],"function":{"name":"collectFixture"},"kind":"call"},"right":{"arguments":[{"hex":"01000301030300ff800100","kind":"bytes"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]}}},{"axioms":[],"kind":"theorem","name":"literal_00017f80ff","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"1000"},{"arguments":[{"arguments":[{"hex":"00017f80ff","kind":"bytes"}],"function":{"module":"Uorc.Core.Graph","name":"literalGraph"},"kind":"call"}],"function":{"name":"start"},"kind":"call"},{"hex":"","kind":"bytes"}],"function":{"name":"collectFixture"},"kind":"call"},"right":{"arguments":[{"hex":"01000301030500017f80ff0100","kind":"bytes"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]}}},{"axioms":[],"kind":"theorem","name":"partition_independent_literal","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"1000"},{"arguments":[{"arguments":[{"arguments":[{"arguments":[{"hex":"00","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"arguments":[{"hex":"ff80","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"function":{"module":"Uorc.Core.Bytes","name":"join"},"kind":"call"}],"function":{"module":"Uorc.Core.Graph","name":"literalRopeGraph"},"kind":"call"}],"function":{"name":"start"},"kind":"call"},{"hex":"","kind":"bytes"}],"function":{"name":"collectFixture"},"kind":"call"},"right":{"arguments":[{"hex":"01000301030300ff800100","kind":"bytes"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalConstant","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"integer","representation":"uint64","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalConstant"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"0"}}},{"axioms":[],"kind":"theorem","name":"opcode_byteConstant","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"integer","representation":"uint8","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteConstant"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"1"}}},{"axioms":[],"kind":"theorem","name":"opcode_predicateConstant","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"bool","value":false}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateConstant"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"2"}}},{"axioms":[],"kind":"theorem","name":"opcode_sequenceConstant","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceConstant"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"3"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalAdd","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalAdd"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"4"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalSubtract","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalSubtract"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"5"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalMultiply","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalMultiply"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"6"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalDivide","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalDivide"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"7"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalRemainder","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalRemainder"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"8"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalAnd","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalAnd"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"9"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalOr","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalOr"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"10"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalXor","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalXor"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"11"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalNot","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalNot"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"12"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalShiftLeft","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalShiftLeft"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"13"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalShiftRight","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalShiftRight"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"14"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalEqual","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalEqual"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"15"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalLess","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalLess"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"16"}}},{"axioms":[],"kind":"theorem","name":"opcode_byteEqual","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteEqual"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"17"}}},{"axioms":[],"kind":"theorem","name":"opcode_byteLess","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteLess"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"18"}}},{"axioms":[],"kind":"theorem","name":"opcode_naturalToByte","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalToByte"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"19"}}},{"axioms":[],"kind":"theorem","name":"opcode_byteToNatural","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteToNatural"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"20"}}},{"axioms":[],"kind":"theorem","name":"opcode_predicateNot","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateNot"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"21"}}},{"axioms":[],"kind":"theorem","name":"opcode_predicateAnd","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateAnd"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"22"}}},{"axioms":[],"kind":"theorem","name":"opcode_predicateOr","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.predicateOr"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"23"}}},{"axioms":[],"kind":"theorem","name":"opcode_sequenceLength","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceLength"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"24"}}},{"axioms":[],"kind":"theorem","name":"opcode_sequenceIndex","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceIndex"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"25"}}},{"axioms":[],"kind":"theorem","name":"opcode_sequenceSlice","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceSlice"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"26"}}},{"axioms":[],"kind":"theorem","name":"opcode_sequenceConcat","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceConcat"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"27"}}},{"axioms":[],"kind":"theorem","name":"opcode_sequenceEqual","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.sequenceEqual"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"28"}}},{"axioms":[],"kind":"theorem","name":"opcode_singletonSequence","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.singletonSequence"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"29"}}},{"axioms":[],"kind":"theorem","name":"opcode_basisGet","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.basisGet"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"30"}}},{"axioms":[],"kind":"theorem","name":"opcode_storeNew","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeNew"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"31"}}},{"axioms":[],"kind":"theorem","name":"opcode_storeRead","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeRead"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"32"}}},{"axioms":[],"kind":"theorem","name":"opcode_storeWrite","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeWrite"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"33"}}},{"axioms":[],"kind":"theorem","name":"opcode_choose","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"},{"kind":"nat","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.choose"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"34"}}},{"axioms":[],"kind":"theorem","name":"opcode_apply","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"element":{"kind":"nat"},"kind":"nil"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.apply"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"35"}}},{"axioms":[],"kind":"theorem","name":"opcode_tabulate","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"},{"element":{"kind":"nat"},"kind":"nil"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.tabulate"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"36"}}},{"axioms":[],"kind":"theorem","name":"opcode_fold","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"},{"kind":"nat","value":"0"},{"element":{"kind":"nat"},"kind":"nil"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.fold"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"37"}}},{"axioms":[],"kind":"theorem","name":"opcode_scan","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"0"},{"kind":"nat","value":"0"},{"kind":"nat","value":"0"},{"element":{"kind":"nat"},"kind":"nil"},{"kind":"nat","value":"0"},{"element":{"kind":"nat"},"kind":"nil"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.scan"},"kind":"constructor"}],"function":{"name":"opcode"},"kind":"call"},"right":{"kind":"nat","value":"38"}}},{"body":{"kind":"string","value":"This source assigns new explicit graph opcode and type tags. It does not assert compatibility with unavailable draft01 or draft02 graph vectors. Numeric structural fields use shortest unsigned base128 naturals; naturalConstant is additionally checked UInt64. Byte literals serialize by logical bytes independent of rope shape. Entry is a zero-based block index; local and called-block references retain validated backward-distance semantics. Production start/step emits bounded chunks and never accumulates the entire wire output."},"kind":"definition","name":"profileBoundary","parameters":[],"result":{"kind":"string"}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: EmitError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidQuantum, fields: []},
+    {name: invalidByte, fields: []},
+    {name: invalidRope, fields: []}
+  ]
+}
+
+inductive{
+  name: Task,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: byte, fields: [Nat]},
+    {name: number, fields: [Nat]},
+    {name: rope, fields: [Uorc.Core.Bytes::Cursor, Nat]},
+    {name: types, fields: [(List Uorc.Core.Types::ValueType)]},
+    {
+      name: countTypes,
+      fields: [(List Uorc.Core.Types::ValueType), (List Uorc.Core.Types::ValueType), Nat]
+    },
+    {name: references, fields: [(List Nat)]},
+    {name: countReferences, fields: [(List Nat), (List Nat), Nat]},
+    {name: instructions, fields: [(List Uorc.Core.Graph::Instruction)]},
+    {
+      name: countInstructions,
+      fields: [(List Uorc.Core.Graph::Instruction), (List Uorc.Core.Graph::Instruction), Nat]
+    },
+    {name: blocks, fields: [(List Uorc.Core.Graph::Block)]},
+    {
+      name: countBlocks,
+      fields: [(List Uorc.Core.Graph::Block), (List Uorc.Core.Graph::Block), Nat]
+    },
+    {name: instruction, fields: [Uorc.Core.Graph::Instruction]},
+    {name: block, fields: [Uorc.Core.Graph::Block]}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: pending, type: (List Task)}, {name: position, type: Nat}, {name: work, type: Nat}]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [State]},
+    {name: produced, fields: [Bytes, State]},
+    {name: complete, fields: [Nat, Nat]},
+    {name: failed, fields: [EmitError, Nat, Nat]}
+  ]
+}
+
+definition{
+  name: typeCode,
+  parameters: [value : Uorc.Core.Types::ValueType],
+  result: Nat,
+  body: (match value
+    | Uorc.Core.Types::ValueType.natural => 0
+    | Uorc.Core.Types::ValueType.byte => 1
+    | Uorc.Core.Types::ValueType.predicate => 2
+    | Uorc.Core.Types::ValueType.sequence => 3
+    | Uorc.Core.Types::ValueType.store => 4)
+}
+
+definition{
+  name: instructionTasks,
+  parameters: [value : Uorc.Core.Graph::Instruction],
+  result: (List Task),
+  body: (match value
+    | Uorc.Core.Graph::Instruction.naturalConstant x0 => (cons (ctor Task.byte 0) (cons (ctor Task.number (Uorc.Core.Types::wordToNat x0)) (nil Task)))
+    | Uorc.Core.Graph::Instruction.byteConstant x0 => (cons (ctor Task.byte 1) (cons (ctor Task.byte (prim to_nat x0 : Nat)) (nil Task)))
+    | Uorc.Core.Graph::Instruction.predicateConstant x0 => (cons (ctor Task.byte 2) (cons (ctor Task.byte (if x0 then 1 else 0)) (nil Task)))
+    | Uorc.Core.Graph::Instruction.sequenceConstant x0 => (cons (ctor Task.byte 3) (cons (ctor Task.number (Uorc.Core.Bytes::length (Uorc.Core.Bytes::fromBytes x0))) (cons (ctor Task.rope (Uorc.Core.Bytes::cursor (Uorc.Core.Bytes::fromBytes x0)) (Uorc.Core.Bytes::length (Uorc.Core.Bytes::fromBytes x0))) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalAdd x0 x1 => (cons (ctor Task.byte 4) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalSubtract x0 x1 => (cons (ctor Task.byte 5) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalMultiply x0 x1 => (cons (ctor Task.byte 6) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalDivide x0 x1 => (cons (ctor Task.byte 7) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalRemainder x0 x1 => (cons (ctor Task.byte 8) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalAnd x0 x1 => (cons (ctor Task.byte 9) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalOr x0 x1 => (cons (ctor Task.byte 10) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalXor x0 x1 => (cons (ctor Task.byte 11) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalNot x0 => (cons (ctor Task.byte 12) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft x0 x1 => (cons (ctor Task.byte 13) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalShiftRight x0 x1 => (cons (ctor Task.byte 14) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalEqual x0 x1 => (cons (ctor Task.byte 15) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalLess x0 x1 => (cons (ctor Task.byte 16) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.byteEqual x0 x1 => (cons (ctor Task.byte 17) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.byteLess x0 x1 => (cons (ctor Task.byte 18) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalToByte x0 => (cons (ctor Task.byte 19) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.byteToNatural x0 => (cons (ctor Task.byte 20) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.predicateNot x0 => (cons (ctor Task.byte 21) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.predicateAnd x0 x1 => (cons (ctor Task.byte 22) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.predicateOr x0 x1 => (cons (ctor Task.byte 23) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.sequenceLength x0 => (cons (ctor Task.byte 24) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.sequenceIndex x0 x1 => (cons (ctor Task.byte 25) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.sequenceSlice x0 x1 x2 => (cons (ctor Task.byte 26) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (nil Task)))))
+    | Uorc.Core.Graph::Instruction.sequenceConcat x0 x1 => (cons (ctor Task.byte 27) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.sequenceEqual x0 x1 => (cons (ctor Task.byte 28) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.singletonSequence x0 => (cons (ctor Task.byte 29) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.basisGet x0 => (cons (ctor Task.byte 30) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.storeNew x0 => (cons (ctor Task.byte 31) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.storeRead x0 x1 => (cons (ctor Task.byte 32) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.storeWrite x0 x1 x2 => (cons (ctor Task.byte 33) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (nil Task)))))
+    | Uorc.Core.Graph::Instruction.choose x0 x1 x2 => (cons (ctor Task.byte 34) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (nil Task)))))
+    | Uorc.Core.Graph::Instruction.apply x0 x1 => (cons (ctor Task.byte 35) (cons (ctor Task.number x0) (cons (ctor Task.countReferences x1 x1 0) (nil Task))))
+    | Uorc.Core.Graph::Instruction.tabulate x0 x1 x2 => (cons (ctor Task.byte 36) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.countReferences x2 x2 0) (nil Task)))))
+    | Uorc.Core.Graph::Instruction.fold x0 x1 x2 x3 => (cons (ctor Task.byte 37) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (cons (ctor Task.countReferences x3 x3 0) (nil Task))))))
+    | Uorc.Core.Graph::Instruction.scan x0 x1 x2 x3 x4 x5 => (cons (ctor Task.byte 38) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (cons (ctor Task.countReferences x3 x3 0) (cons (ctor Task.number x4) (cons (ctor Task.countReferences x5 x5 0) (nil Task))))))))
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant x0 => (cons (ctor Task.byte 3) (cons (ctor Task.number (Uorc.Core.Bytes::length x0)) (cons (ctor Task.rope (Uorc.Core.Bytes::cursor x0) (Uorc.Core.Bytes::length x0)) (nil Task)))))
+}
+
+definition{
+  name: opcode,
+  parameters: [value : Uorc.Core.Graph::Instruction],
+  result: Nat,
+  body: (match value
+    | Uorc.Core.Graph::Instruction.naturalConstant ignored0 => 0
+    | Uorc.Core.Graph::Instruction.byteConstant ignored0 => 1
+    | Uorc.Core.Graph::Instruction.predicateConstant ignored0 => 2
+    | Uorc.Core.Graph::Instruction.sequenceConstant ignored0 => 3
+    | Uorc.Core.Graph::Instruction.naturalAdd ignored0 ignored1 => 4
+    | Uorc.Core.Graph::Instruction.naturalSubtract ignored0 ignored1 => 5
+    | Uorc.Core.Graph::Instruction.naturalMultiply ignored0 ignored1 => 6
+    | Uorc.Core.Graph::Instruction.naturalDivide ignored0 ignored1 => 7
+    | Uorc.Core.Graph::Instruction.naturalRemainder ignored0 ignored1 => 8
+    | Uorc.Core.Graph::Instruction.naturalAnd ignored0 ignored1 => 9
+    | Uorc.Core.Graph::Instruction.naturalOr ignored0 ignored1 => 10
+    | Uorc.Core.Graph::Instruction.naturalXor ignored0 ignored1 => 11
+    | Uorc.Core.Graph::Instruction.naturalNot ignored0 => 12
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft ignored0 ignored1 => 13
+    | Uorc.Core.Graph::Instruction.naturalShiftRight ignored0 ignored1 => 14
+    | Uorc.Core.Graph::Instruction.naturalEqual ignored0 ignored1 => 15
+    | Uorc.Core.Graph::Instruction.naturalLess ignored0 ignored1 => 16
+    | Uorc.Core.Graph::Instruction.byteEqual ignored0 ignored1 => 17
+    | Uorc.Core.Graph::Instruction.byteLess ignored0 ignored1 => 18
+    | Uorc.Core.Graph::Instruction.naturalToByte ignored0 => 19
+    | Uorc.Core.Graph::Instruction.byteToNatural ignored0 => 20
+    | Uorc.Core.Graph::Instruction.predicateNot ignored0 => 21
+    | Uorc.Core.Graph::Instruction.predicateAnd ignored0 ignored1 => 22
+    | Uorc.Core.Graph::Instruction.predicateOr ignored0 ignored1 => 23
+    | Uorc.Core.Graph::Instruction.sequenceLength ignored0 => 24
+    | Uorc.Core.Graph::Instruction.sequenceIndex ignored0 ignored1 => 25
+    | Uorc.Core.Graph::Instruction.sequenceSlice ignored0 ignored1 ignored2 => 26
+    | Uorc.Core.Graph::Instruction.sequenceConcat ignored0 ignored1 => 27
+    | Uorc.Core.Graph::Instruction.sequenceEqual ignored0 ignored1 => 28
+    | Uorc.Core.Graph::Instruction.singletonSequence ignored0 => 29
+    | Uorc.Core.Graph::Instruction.basisGet ignored0 => 30
+    | Uorc.Core.Graph::Instruction.storeNew ignored0 => 31
+    | Uorc.Core.Graph::Instruction.storeRead ignored0 ignored1 => 32
+    | Uorc.Core.Graph::Instruction.storeWrite ignored0 ignored1 ignored2 => 33
+    | Uorc.Core.Graph::Instruction.choose ignored0 ignored1 ignored2 => 34
+    | Uorc.Core.Graph::Instruction.apply ignored0 ignored1 => 35
+    | Uorc.Core.Graph::Instruction.tabulate ignored0 ignored1 ignored2 => 36
+    | Uorc.Core.Graph::Instruction.fold ignored0 ignored1 ignored2 ignored3 => 37
+    | Uorc.Core.Graph::Instruction.scan ignored0 ignored1 ignored2 ignored3 ignored4 ignored5 => 38
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant ignored0 => 3)
+}
+
+definition{
+  name: start,
+  parameters: [graph : Uorc.Core.Graph::Graph],
+  result: State,
+  body: (record State {pending := (cons (ctor Task.countBlocks (project graph blocks) (project graph blocks) 0) (cons (ctor Task.number (project graph entry)) (nil Task))), position := 0, work := 0})
+}
+
+definition{
+  name: step,
+  parameters: [s : State, quantum : Nat],
+  result: Event,
+  body: (if (quantum =? 0) then (ctor Event.failed (ctor EmitError.invalidQuantum) (project s position) ((project s work) + 1)) else (match (project s pending)
+    | List.nil => (ctor Event.complete (project s position) (project s work))
+    | List.cons head tail => (match head
+      | Task.byte value => (match (Uorc.Core.Types::wordOfNatAux 8 value)
+        | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+        | Option.some byteWord => (match (prim checked_convert byteWord : (Option UInt8))
+          | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+          | Option.some byteValue => (ctor Event.produced (Uorc.Core.Types::singletonSequence byteValue) (record State {pending := tail, position := ((project s position) + 1), work := ((project s work) + 1)}))))
+      | Task.number value => (if (value <? 128) then (match (Uorc.Core.Types::wordOfNatAux 8 value)
+        | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+        | Option.some byteWord => (match (prim checked_convert byteWord : (Option UInt8))
+          | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+          | Option.some byteValue => (ctor Event.produced (Uorc.Core.Types::singletonSequence byteValue) (record State {pending := tail, position := ((project s position) + 1), work := ((project s work) + 1)})))) else (match (Uorc.Core.Types::wordOfNatAux 8 ((prim remainder value 128 0 : Nat) + 128))
+        | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+        | Option.some byteWord => (match (prim checked_convert byteWord : (Option UInt8))
+          | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+          | Option.some byteValue => (ctor Event.produced (Uorc.Core.Types::singletonSequence byteValue) (record State {pending := (cons (ctor Task.number (prim quotient value 128 0 : Nat)) tail), position := ((project s position) + 1), work := ((project s work) + 1)})))))
+      | Task.rope value remaining => (match (Uorc.Core.Bytes::nextChunk value quantum)
+        | Result.error ignored => (ctor Event.failed (ctor EmitError.invalidRope) (project s position) ((project s work) + 1))
+        | Result.ok ropeEvent => (match ropeEvent
+          | Uorc.Core.Bytes::CursorEvent.advanced next => (ctor Event.advanced (record State {pending := (cons (ctor Task.rope next remaining) tail), position := (project s position), work := ((project s work) + 1)}))
+          | Uorc.Core.Bytes::CursorEvent.produced chunk next => (ctor Event.produced chunk (record State {pending := (cons (ctor Task.rope next (prim subtract remaining (prim length chunk : Nat) : Nat)) tail), position := ((project s position) + (prim length chunk : Nat)), work := ((project s work) + 1)}))
+          | Uorc.Core.Bytes::CursorEvent.done => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))))
+      | Task.countTypes remaining original count => (match remaining
+        | List.nil => (ctor Event.advanced (record State {pending := (cons (ctor Task.number count) (cons (ctor Task.types original) tail)), position := (project s position), work := ((project s work) + 1)}))
+        | List.cons ignoredItemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.countTypes rest original (count + 1)) tail), position := (project s position), work := ((project s work) + 1)})))
+      | Task.types values => (match values
+        | List.nil => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))
+        | List.cons itemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.byte (typeCode itemHead)) (cons (ctor Task.types rest) tail)), position := (project s position), work := ((project s work) + 1)})))
+      | Task.countReferences remaining original count => (match remaining
+        | List.nil => (ctor Event.advanced (record State {pending := (cons (ctor Task.number count) (cons (ctor Task.references original) tail)), position := (project s position), work := ((project s work) + 1)}))
+        | List.cons ignoredItemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.countReferences rest original (count + 1)) tail), position := (project s position), work := ((project s work) + 1)})))
+      | Task.references values => (match values
+        | List.nil => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))
+        | List.cons itemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.number itemHead) (cons (ctor Task.references rest) tail)), position := (project s position), work := ((project s work) + 1)})))
+      | Task.countInstructions remaining original count => (match remaining
+        | List.nil => (ctor Event.advanced (record State {pending := (cons (ctor Task.number count) (cons (ctor Task.instructions original) tail)), position := (project s position), work := ((project s work) + 1)}))
+        | List.cons ignoredItemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.countInstructions rest original (count + 1)) tail), position := (project s position), work := ((project s work) + 1)})))
+      | Task.instructions values => (match values
+        | List.nil => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))
+        | List.cons itemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.instruction itemHead) (cons (ctor Task.instructions rest) tail)), position := (project s position), work := ((project s work) + 1)})))
+      | Task.countBlocks remaining original count => (match remaining
+        | List.nil => (ctor Event.advanced (record State {pending := (cons (ctor Task.number count) (cons (ctor Task.blocks original) tail)), position := (project s position), work := ((project s work) + 1)}))
+        | List.cons ignoredItemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.countBlocks rest original (count + 1)) tail), position := (project s position), work := ((project s work) + 1)})))
+      | Task.blocks values => (match values
+        | List.nil => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))
+        | List.cons itemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.block itemHead) (cons (ctor Task.blocks rest) tail)), position := (project s position), work := ((project s work) + 1)})))
+      | Task.instruction value => (ctor Event.advanced (record State {pending := (prim append (instructionTasks value) tail : (List Task)), position := (project s position), work := ((project s work) + 1)}))
+      | Task.block value => (ctor Event.advanced (record State {pending := (cons (ctor Task.countTypes (project value parameters) (project value parameters) 0) (cons (ctor Task.byte (typeCode (project value result))) (cons (ctor Task.countInstructions (project value instructions) (project value instructions) 0) (cons (ctor Task.number (project value returnDistance)) tail)))), position := (project s position), work := ((project s work) + 1)})))))
+}
+
+definition{
+  name: measureStep,
+  parameters: [s : State],
+  result: Event,
+  body: (match (project s pending)
+    | List.nil => (ctor Event.complete (project s position) (project s work))
+    | List.cons head tail => (match head
+      | Task.byte ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.number ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.rope ignoredCursor remainingBytes => (ctor Event.advanced (record State {pending := tail, position := ((project s position) + remainingBytes), work := ((project s work) + 1)}))
+      | Task.types ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.countTypes ignored0 ignored1 ignored2 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.references ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.countReferences ignored0 ignored1 ignored2 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.instructions ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.countInstructions ignored0 ignored1 ignored2 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.blocks ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.countBlocks ignored0 ignored1 ignored2 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.instruction ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.block ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))))
+}
+
+definition{
+  name: collectFixture,
+  parameters: [fuel : Nat, s : State, acc : Bytes],
+  result: (Option Bytes),
+  body: (match fuel
+    | Nat.zero => (ctor Option.none [Bytes])
+    | Nat.succ remaining => (match (step s 16)
+      | Event.complete size work => (ctor Option.some [Bytes] acc)
+      | Event.failed reason position work => (ctor Option.none [Bytes])
+      | Event.advanced next => (collectFixture remaining next acc)
+      | Event.produced chunk next => (collectFixture remaining next (prim append acc chunk : Bytes)))),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: literal_empty,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x)) 0x) = (ctor Option.some [Bytes] 0x0100030103000100)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: literal_00,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x00)) 0x) = (ctor Option.some [Bytes] 0x010003010301000100)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: literal_00ff80,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x00ff80)) 0x) = (ctor Option.some [Bytes] 0x01000301030300ff800100)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: literal_00017f80ff,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x00017f80ff)) 0x) = (ctor Option.some [Bytes] 0x01000301030500017f80ff0100)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: partition_independent_literal,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalRopeGraph (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0xff80)))) 0x) = (ctor Option.some [Bytes] 0x01000301030300ff800100)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalConstant,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64))) = 0),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_byteConstant,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8))) = 1),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_predicateConstant,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.predicateConstant false)) = 2),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceConstant,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0x)) = 3),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalAdd,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalAdd 0 0)) = 4),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalSubtract,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalSubtract 0 0)) = 5),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalMultiply,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalMultiply 0 0)) = 6),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalDivide,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalDivide 0 0)) = 7),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalRemainder,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalRemainder 0 0)) = 8),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalAnd,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalAnd 0 0)) = 9),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalOr,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalOr 0 0)) = 10),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalXor,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalXor 0 0)) = 11),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalNot,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalNot 0)) = 12),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalShiftLeft,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalShiftLeft 0 0)) = 13),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalShiftRight,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalShiftRight 0 0)) = 14),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalEqual,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalEqual 0 0)) = 15),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalLess,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalLess 0 0)) = 16),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_byteEqual,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.byteEqual 0 0)) = 17),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_byteLess,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.byteLess 0 0)) = 18),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalToByte,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalToByte 0)) = 19),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_byteToNatural,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.byteToNatural 0)) = 20),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_predicateNot,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.predicateNot 0)) = 21),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_predicateAnd,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.predicateAnd 0 0)) = 22),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_predicateOr,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.predicateOr 0 0)) = 23),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceLength,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceLength 0)) = 24),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceIndex,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceIndex 0 0)) = 25),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceSlice,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceSlice 0 0 0)) = 26),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceConcat,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceConcat 0 0)) = 27),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceEqual,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceEqual 0 0)) = 28),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_singletonSequence,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.singletonSequence 0)) = 29),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_basisGet,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.basisGet 0)) = 30),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_storeNew,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.storeNew 0)) = 31),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_storeRead,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.storeRead 0 0)) = 32),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_storeWrite,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.storeWrite 0 0 0)) = 33),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_choose,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.choose 0 0 0)) = 34),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_apply,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.apply 0 (nil Nat))) = 35),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_tabulate,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.tabulate 0 0 (nil Nat))) = 36),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_fold,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.fold 0 0 0 (nil Nat))) = 37),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_scan,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.scan 0 0 0 (nil Nat) 0 (nil Nat))) = 38),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: profileBoundary,
+  parameters: [],
+  result: String,
+  body: "This source assigns new explicit graph opcode and type tags. It does not assert compatibility with unavailable draft01 or draft02 graph vectors. Numeric structural fields use shortest unsigned base128 naturals; naturalConstant is additionally checked UInt64. Byte literals serialize by logical bytes independent of rope shape. Entry is a zero-based block index; local and called-block references retain validated backward-distance semantics. Production start/step emits bounded chunks and never accumulates the entire wire output."
+}
 \end{semanticmodule}
 \end{lexlean}

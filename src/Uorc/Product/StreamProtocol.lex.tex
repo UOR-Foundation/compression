@@ -1,6 +1,317 @@
 \begin{lexlean}{Uorc.Product.StreamProtocol}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"working"},{"fields":[],"name":"awaitingInput"},{"fields":[],"name":"complete"},{"fields":[],"name":"cancelled"},{"fields":[],"name":"failed"}],"kind":"inductive","name":"Phase","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"staged"},{"fields":[],"name":"published"},{"fields":[],"name":"notPublished"},{"fields":[],"name":"unknown"}],"kind":"inductive","name":"Publication","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"inputNotRequested"},{"fields":[],"name":"endAlreadySeen"},{"fields":[],"name":"notWorking"},{"fields":[],"name":"notReady"},{"fields":[],"name":"outputLimit"}],"kind":"inductive","name":"ProtocolError","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"tick"},{"fields":[],"name":"chunk"},{"fields":[],"name":"endOfInput"},{"fields":[],"name":"cancel"}],"kind":"inductive","name":"Input","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"run"},{"fields":[],"name":"admitChunk"},{"fields":[],"name":"sealInput"},{"fields":[],"name":"cancel"},{"fields":[],"name":"ignoreTerminal"}],"kind":"inductive","name":"InputAction","parameters":[],"type_parameters":[]},{"fields":[{"name":"phase","type":{"arguments":[],"kind":"named","member":{"name":"Phase"}}},{"name":"ended","type":{"kind":"bool"}},{"name":"producedBytes","type":{"kind":"nat"}},{"name":"verified","type":{"kind":"bool"}},{"name":"publication","type":{"arguments":[],"kind":"named","member":{"name":"Publication"}}}],"kind":"structure","name":"State","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"InputAction"}},{"arguments":[],"kind":"named","member":{"name":"State"}}],"name":"accepted"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}],"name":"rejected"}],"kind":"inductive","name":"Decision","parameters":[],"type_parameters":[]},{"body":{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.working"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":false}},{"field":"producedBytes","value":{"kind":"nat","value":"0"}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}},"kind":"definition","name":"initial","parameters":[],"result":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"body":{"branches":[{"binders":[],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.run"},"kind":"constructor"},{"kind":"var","name":"s"}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"},"constructor":{"name":"Phase.working"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.awaitingInput"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.complete"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.cancelled"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.failed"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},"constructor":{"name":"Input.tick"}},{"binders":[],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.working"}},{"binders":[],"body":{"condition":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.admitChunk"},"kind":"constructor"},{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.working"},"kind":"constructor"}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"field":"verified","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"publication","value":{"field":"publication","kind":"project","value":{"kind":"var","name":"s"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.endAlreadySeen"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"}},"constructor":{"name":"Phase.awaitingInput"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.complete"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.cancelled"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.failed"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},"constructor":{"name":"Input.chunk"}},{"binders":[],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.working"}},{"binders":[],"body":{"condition":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.sealInput"},"kind":"constructor"},{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.working"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"field":"verified","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"publication","value":{"field":"publication","kind":"project","value":{"kind":"var","name":"s"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.endAlreadySeen"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"}},"constructor":{"name":"Phase.awaitingInput"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.complete"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.cancelled"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"},"constructor":{"name":"Phase.failed"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},"constructor":{"name":"Input.endOfInput"}},{"binders":[],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.cancel"},"kind":"constructor"},{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.cancelled"},"kind":"constructor"}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.notPublished"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"},"constructor":{"name":"Phase.working"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.cancel"},"kind":"constructor"},{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.cancelled"},"kind":"constructor"}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.notPublished"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"},"constructor":{"name":"Phase.awaitingInput"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.ignoreTerminal"},"kind":"constructor"},{"kind":"var","name":"s"}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"},"constructor":{"name":"Phase.complete"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.ignoreTerminal"},"kind":"constructor"},{"kind":"var","name":"s"}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"},"constructor":{"name":"Phase.cancelled"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.ignoreTerminal"},"kind":"constructor"},{"kind":"var","name":"s"}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"},"constructor":{"name":"Phase.failed"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},"constructor":{"name":"Input.cancel"}}],"kind":"match","scrutinee":{"kind":"var","name":"input"}},"kind":"definition","name":"acceptInput","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"input","type":{"arguments":[],"kind":"named","member":{"name":"Input"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Decision"}}},{"body":{"branches":[{"binders":[],"body":{"condition":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.awaitingInput"},"kind":"constructor"}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"field":"verified","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"publication","value":{"field":"publication","kind":"project","value":{"kind":"var","name":"s"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.endAlreadySeen"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}},"constructor":{"name":"Phase.working"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.awaitingInput"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.complete"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.cancelled"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.failed"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},"kind":"definition","name":"requestInput","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"body":{"branches":[{"binders":[],"body":{"condition":{"kind":"and","left":{"kind":"ble","left":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"var","name":"limit"}},"right":{"kind":"and","left":{"kind":"ble","left":{"kind":"var","name":"bytesProduced"},"right":{"arguments":[{"kind":"var","name":"limit"},{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}],"kind":"primitive","operation":"subtract","result":{"kind":"nat"}}},"right":{"kind":"bool","value":true}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.outputLimit"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"phase","value":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"kind":"add","left":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"var","name":"bytesProduced"}}},{"field":"verified","value":{"field":"verified","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"publication","value":{"field":"publication","kind":"project","value":{"kind":"var","name":"s"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}},"constructor":{"name":"Phase.working"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.awaitingInput"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.complete"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.cancelled"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.failed"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},"kind":"definition","name":"stageOutput","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"bytesProduced","type":{"kind":"nat"}},{"name":"limit","type":{"kind":"nat"}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"body":{"branches":[{"binders":[],"body":{"condition":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notReady"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.complete"},"kind":"constructor"}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"kind":"bool","value":true}},{"field":"publication","value":{"field":"publication","kind":"project","value":{"kind":"var","name":"s"}}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}},"constructor":{"name":"Phase.working"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.awaitingInput"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.complete"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.cancelled"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notWorking"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Phase.failed"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},"kind":"definition","name":"completeVerified","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"body":{"branches":[{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"Phase.working"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"Phase.awaitingInput"}},{"binders":[],"body":{"kind":"and","left":{"field":"verified","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"and","left":{"branches":[{"binders":[],"body":{"kind":"bool","value":true},"constructor":{"name":"Publication.staged"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"Publication.published"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"Publication.notPublished"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"Publication.unknown"}}],"kind":"match","scrutinee":{"field":"publication","kind":"project","value":{"kind":"var","name":"s"}}},"right":{"kind":"bool","value":true}}},"constructor":{"name":"Phase.complete"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"Phase.cancelled"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"Phase.failed"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},"kind":"definition","name":"canCommit","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}}],"result":{"kind":"bool"}},{"body":{"condition":{"arguments":[{"kind":"var","name":"s"}],"function":{"name":"canCommit"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notReady"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notReady"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Publication.staged"}},{"binders":[],"body":{"arguments":[{"fields":[{"field":"phase","value":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"field":"verified","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.published"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Publication.published"}},{"binders":[],"body":{"arguments":[{"fields":[{"field":"phase","value":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"field":"verified","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.notPublished"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Publication.notPublished"}},{"binders":[],"body":{"arguments":[{"fields":[{"field":"phase","value":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"field":"verified","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.unknown"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]},"constructor":{"name":"Publication.unknown"}}],"kind":"match","scrutinee":{"kind":"var","name":"outcome"}}},"kind":"definition","name":"recordPublication","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"outcome","type":{"arguments":[],"kind":"named","member":{"name":"Publication"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"State"}}}},{"body":{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.failed"},"kind":"constructor"}},{"field":"ended","value":{"field":"ended","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"producedBytes","value":{"field":"producedBytes","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"kind":"var","name":"outcome"}}],"kind":"record","type":{"name":"State"}},"kind":"definition","name":"fail","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"name":"outcome","type":{"arguments":[],"kind":"named","member":{"name":"Publication"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"State"}}},{"axioms":[],"kind":"theorem","name":"initial_cannot_commit","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"canCommit"},"kind":"call"},"right":{"kind":"bool","value":false}}},{"axioms":[],"kind":"theorem","name":"chunk_needs_demand","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"},{"arguments":[],"constructor":{"name":"Input.chunk"},"kind":"constructor"}],"function":{"name":"acceptInput"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"}}},{"axioms":[],"kind":"theorem","name":"eof_needs_demand","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"},{"arguments":[],"constructor":{"name":"Input.endOfInput"},"kind":"constructor"}],"function":{"name":"acceptInput"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.inputNotRequested"},"kind":"constructor"}],"constructor":{"name":"Decision.rejected"},"kind":"constructor"}}},{"axioms":[],"kind":"theorem","name":"request_admits_chunk","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.awaitingInput"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":false}},{"field":"producedBytes","value":{"kind":"nat","value":"0"}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}},{"arguments":[],"constructor":{"name":"Input.chunk"},"kind":"constructor"}],"function":{"name":"acceptInput"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.admitChunk"},"kind":"constructor"},{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"}}},{"axioms":[],"kind":"theorem","name":"seal_is_once","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.working"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"function":{"name":"requestInput"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.endAlreadySeen"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}}},{"axioms":[],"kind":"theorem","name":"cannot_complete_before_eof","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"completeVerified"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notReady"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}}},{"axioms":[],"kind":"theorem","name":"verified_complete_can_commit","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.complete"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":true}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"function":{"name":"canCommit"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"axioms":[],"kind":"theorem","name":"completion_preserves_staging","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.working"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"function":{"name":"completeVerified"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.complete"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":true}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}}},{"axioms":[],"kind":"theorem","name":"cancellation_never_commits","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.cancelled"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.notPublished"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"function":{"name":"canCommit"},"kind":"call"},"right":{"kind":"bool","value":false}}},{"axioms":[],"kind":"theorem","name":"late_cancel_ignored","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.complete"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":true}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}},{"arguments":[],"constructor":{"name":"Input.cancel"},"kind":"constructor"}],"function":{"name":"acceptInput"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"InputAction.ignoreTerminal"},"kind":"constructor"},{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.complete"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":true}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Decision.accepted"},"kind":"constructor"}}},{"axioms":[],"kind":"theorem","name":"staged_output_is_not_publication","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"},{"kind":"nat","value":"7"},{"kind":"nat","value":"7"}],"function":{"name":"stageOutput"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.working"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":false}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}}},{"axioms":[],"kind":"theorem","name":"output_over_limit_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.working"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}},{"kind":"nat","value":"1"},{"kind":"nat","value":"7"}],"function":{"name":"stageOutput"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.outputLimit"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}}},{"axioms":[],"kind":"theorem","name":"max_counter_rejected_before_add","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.working"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":false}},{"field":"producedBytes","value":{"kind":"nat","value":"18446744073709551615"}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}},{"kind":"nat","value":"1"},{"kind":"nat","value":"18446744073709551615"}],"function":{"name":"stageOutput"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.outputLimit"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}}},{"axioms":[],"kind":"theorem","name":"early_publication_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"fields":[{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.working"},"kind":"constructor"}},{"field":"ended","value":{"kind":"bool","value":true}},{"field":"producedBytes","value":{"kind":"nat","value":"7"}},{"field":"verified","value":{"kind":"bool","value":false}},{"field":"publication","value":{"arguments":[],"constructor":{"name":"Publication.staged"},"kind":"constructor"}}],"kind":"record","type":{"name":"State"}},{"arguments":[],"constructor":{"name":"Publication.published"},"kind":"constructor"}],"function":{"name":"recordPublication"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"ProtocolError.notReady"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"State"}},{"arguments":[],"kind":"named","member":{"name":"ProtocolError"}}]}}},{"body":{"kind":"string","value":"The source controller uses this protocol around its actual operation state. An input chunk is accepted only on demand; EOF is one-shot; output remains staged until a verified completed operation permits host publication. completeVerified is called only by the independently verified operation path, never by an untrusted request flag. Atomic no-replace file publication, stdout partial-write risk, cancellation cleanup, and host outcome unknown remain distinct adapter obligations. This protocol does not itself verify archive content or prove host filesystem behavior."},"kind":"definition","name":"boundary","parameters":[],"result":{"kind":"string"}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: working, fields: []},
+    {name: awaitingInput, fields: []},
+    {name: complete, fields: []},
+    {name: cancelled, fields: []},
+    {name: failed, fields: []}
+  ]
+}
+
+inductive{
+  name: Publication,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: staged, fields: []},
+    {name: published, fields: []},
+    {name: notPublished, fields: []},
+    {name: unknown, fields: []}
+  ]
+}
+
+inductive{
+  name: ProtocolError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: inputNotRequested, fields: []},
+    {name: endAlreadySeen, fields: []},
+    {name: notWorking, fields: []},
+    {name: notReady, fields: []},
+    {name: outputLimit, fields: []}
+  ]
+}
+
+inductive{
+  name: Input,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: tick, fields: []},
+    {name: chunk, fields: []},
+    {name: endOfInput, fields: []},
+    {name: cancel, fields: []}
+  ]
+}
+
+inductive{
+  name: InputAction,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: run, fields: []},
+    {name: admitChunk, fields: []},
+    {name: sealInput, fields: []},
+    {name: cancel, fields: []},
+    {name: ignoreTerminal, fields: []}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: phase, type: Phase},
+    {name: ended, type: Bool},
+    {name: producedBytes, type: Nat},
+    {name: verified, type: Bool},
+    {name: publication, type: Publication}
+  ]
+}
+
+inductive{
+  name: Decision,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: accepted, fields: [InputAction, State]},
+    {name: rejected, fields: [ProtocolError]}
+  ]
+}
+
+definition{
+  name: initial,
+  parameters: [],
+  result: State,
+  body: (record State {phase := (ctor Phase.working), ended := false, producedBytes := 0, verified := false, publication := (ctor Publication.staged)})
+}
+
+definition{
+  name: acceptInput,
+  parameters: [s : State, input : Input],
+  result: Decision,
+  body: (match input
+    | Input.tick => (match (project s phase)
+      | Phase.working => (ctor Decision.accepted (ctor InputAction.run) s)
+      | Phase.awaitingInput => (ctor Decision.rejected (ctor ProtocolError.notWorking))
+      | Phase.complete => (ctor Decision.rejected (ctor ProtocolError.notWorking))
+      | Phase.cancelled => (ctor Decision.rejected (ctor ProtocolError.notWorking))
+      | Phase.failed => (ctor Decision.rejected (ctor ProtocolError.notWorking)))
+    | Input.chunk => (match (project s phase)
+      | Phase.working => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.awaitingInput => (if (project s ended) then (ctor Decision.rejected (ctor ProtocolError.endAlreadySeen)) else (ctor Decision.accepted (ctor InputAction.admitChunk) (record State {phase := (ctor Phase.working), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (project s publication)})))
+      | Phase.complete => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.cancelled => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.failed => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested)))
+    | Input.endOfInput => (match (project s phase)
+      | Phase.working => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.awaitingInput => (if (project s ended) then (ctor Decision.rejected (ctor ProtocolError.endAlreadySeen)) else (ctor Decision.accepted (ctor InputAction.sealInput) (record State {phase := (ctor Phase.working), ended := true, producedBytes := (project s producedBytes), verified := (project s verified), publication := (project s publication)})))
+      | Phase.complete => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.cancelled => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.failed => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested)))
+    | Input.cancel => (match (project s phase)
+      | Phase.working => (ctor Decision.accepted (ctor InputAction.cancel) (record State {phase := (ctor Phase.cancelled), ended := (project s ended), producedBytes := (project s producedBytes), verified := false, publication := (ctor Publication.notPublished)}))
+      | Phase.awaitingInput => (ctor Decision.accepted (ctor InputAction.cancel) (record State {phase := (ctor Phase.cancelled), ended := (project s ended), producedBytes := (project s producedBytes), verified := false, publication := (ctor Publication.notPublished)}))
+      | Phase.complete => (ctor Decision.accepted (ctor InputAction.ignoreTerminal) s)
+      | Phase.cancelled => (ctor Decision.accepted (ctor InputAction.ignoreTerminal) s)
+      | Phase.failed => (ctor Decision.accepted (ctor InputAction.ignoreTerminal) s)))
+}
+
+definition{
+  name: requestInput,
+  parameters: [s : State],
+  result: (Result State ProtocolError),
+  body: (match (project s phase)
+    | Phase.working => (if (project s ended) then (ctor Result.error [State, ProtocolError] (ctor ProtocolError.endAlreadySeen)) else (ctor Result.ok [State, ProtocolError] (record State {phase := (ctor Phase.awaitingInput), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (project s publication)})))
+    | Phase.awaitingInput => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.complete => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.cancelled => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.failed => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking)))
+}
+
+definition{
+  name: stageOutput,
+  parameters: [s : State, bytesProduced : Nat, limit : Nat],
+  result: (Result State ProtocolError),
+  body: (match (project s phase)
+    | Phase.working => (if (((project s producedBytes) <=? limit) && ((bytesProduced <=? (prim subtract limit (project s producedBytes) : Nat)) && true)) then (ctor Result.ok [State, ProtocolError] (record State {phase := (project s phase), ended := (project s ended), producedBytes := ((project s producedBytes) + bytesProduced), verified := (project s verified), publication := (project s publication)})) else (ctor Result.error [State, ProtocolError] (ctor ProtocolError.outputLimit)))
+    | Phase.awaitingInput => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.complete => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.cancelled => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.failed => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking)))
+}
+
+definition{
+  name: completeVerified,
+  parameters: [s : State],
+  result: (Result State ProtocolError),
+  body: (match (project s phase)
+    | Phase.working => (if (project s ended) then (ctor Result.ok [State, ProtocolError] (record State {phase := (ctor Phase.complete), ended := (project s ended), producedBytes := (project s producedBytes), verified := true, publication := (project s publication)})) else (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady)))
+    | Phase.awaitingInput => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.complete => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.cancelled => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.failed => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking)))
+}
+
+definition{
+  name: canCommit,
+  parameters: [s : State],
+  result: Bool,
+  body: (match (project s phase)
+    | Phase.working => false
+    | Phase.awaitingInput => false
+    | Phase.complete => ((project s verified) && ((match (project s publication)
+      | Publication.staged => true
+      | Publication.published => false
+      | Publication.notPublished => false
+      | Publication.unknown => false) && true))
+    | Phase.cancelled => false
+    | Phase.failed => false)
+}
+
+definition{
+  name: recordPublication,
+  parameters: [s : State, outcome : Publication],
+  result: (Result State ProtocolError),
+  body: (if (canCommit s) then (match outcome
+    | Publication.staged => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady))
+    | Publication.published => (ctor Result.ok [State, ProtocolError] (record State {phase := (project s phase), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (ctor Publication.published)}))
+    | Publication.notPublished => (ctor Result.ok [State, ProtocolError] (record State {phase := (project s phase), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (ctor Publication.notPublished)}))
+    | Publication.unknown => (ctor Result.ok [State, ProtocolError] (record State {phase := (project s phase), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (ctor Publication.unknown)}))) else (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady)))
+}
+
+definition{
+  name: fail,
+  parameters: [s : State, outcome : Publication],
+  result: State,
+  body: (record State {phase := (ctor Phase.failed), ended := (project s ended), producedBytes := (project s producedBytes), verified := false, publication := outcome})
+}
+
+theorem{
+  name: initial_cannot_commit,
+  parameters: [],
+  statement: ((canCommit (initial)) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: chunk_needs_demand,
+  parameters: [],
+  statement: ((acceptInput (initial) (ctor Input.chunk)) = (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: eof_needs_demand,
+  parameters: [],
+  statement: ((acceptInput (initial) (ctor Input.endOfInput)) = (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: request_admits_chunk,
+  parameters: [],
+  statement: ((acceptInput (record State {phase := (ctor Phase.awaitingInput), ended := false, producedBytes := 0, verified := false, publication := (ctor Publication.staged)}) (ctor Input.chunk)) = (ctor Decision.accepted (ctor InputAction.admitChunk) (initial))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: seal_is_once,
+  parameters: [],
+  statement: ((requestInput (record State {phase := (ctor Phase.working), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.staged)})) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.endAlreadySeen))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: cannot_complete_before_eof,
+  parameters: [],
+  statement: ((completeVerified (initial)) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: verified_complete_can_commit,
+  parameters: [],
+  statement: ((canCommit (record State {phase := (ctor Phase.complete), ended := true, producedBytes := 7, verified := true, publication := (ctor Publication.staged)})) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: completion_preserves_staging,
+  parameters: [],
+  statement: ((completeVerified (record State {phase := (ctor Phase.working), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.staged)})) = (ctor Result.ok [State, ProtocolError] (record State {phase := (ctor Phase.complete), ended := true, producedBytes := 7, verified := true, publication := (ctor Publication.staged)}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: cancellation_never_commits,
+  parameters: [],
+  statement: ((canCommit (record State {phase := (ctor Phase.cancelled), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.notPublished)})) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: late_cancel_ignored,
+  parameters: [],
+  statement: ((acceptInput (record State {phase := (ctor Phase.complete), ended := true, producedBytes := 7, verified := true, publication := (ctor Publication.staged)}) (ctor Input.cancel)) = (ctor Decision.accepted (ctor InputAction.ignoreTerminal) (record State {phase := (ctor Phase.complete), ended := true, producedBytes := 7, verified := true, publication := (ctor Publication.staged)}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: staged_output_is_not_publication,
+  parameters: [],
+  statement: ((stageOutput (initial) 7 7) = (ctor Result.ok [State, ProtocolError] (record State {phase := (ctor Phase.working), ended := false, producedBytes := 7, verified := false, publication := (ctor Publication.staged)}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: output_over_limit_rejected,
+  parameters: [],
+  statement: ((stageOutput (record State {phase := (ctor Phase.working), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.staged)}) 1 7) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.outputLimit))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: max_counter_rejected_before_add,
+  parameters: [],
+  statement: ((stageOutput (record State {phase := (ctor Phase.working), ended := false, producedBytes := 18446744073709551615, verified := false, publication := (ctor Publication.staged)}) 1 18446744073709551615) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.outputLimit))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: early_publication_rejected,
+  parameters: [],
+  statement: ((recordPublication (record State {phase := (ctor Phase.working), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.staged)}) (ctor Publication.published)) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "The source controller uses this protocol around its actual operation state. An input chunk is accepted only on demand; EOF is one-shot; output remains staged until a verified completed operation permits host publication. completeVerified is called only by the independently verified operation path, never by an untrusted request flag. Atomic no-replace file publication, stdout partial-write risk, cancellation cleanup, and host outcome unknown remain distinct adapter obligations. This protocol does not itself verify archive content or prove host filesystem behavior."
+}
 \end{semanticmodule}
 \end{lexlean}

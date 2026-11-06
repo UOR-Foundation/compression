@@ -5,6 +5,1271 @@
 \importmodule{Uorc.Wire.GraphEmit}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"body":{"kind":"nat","value":"32"},"kind":"definition","name":"integrityBytes","parameters":[],"result":{"kind":"nat"}},{"body":{"kind":"nat","value":"8"},"kind":"definition","name":"fixedPrefixBytes","parameters":[],"result":{"kind":"nat"}},{"body":{"kind":"nat","value":"7"},"kind":"definition","name":"representationOffset","parameters":[],"result":{"kind":"nat"}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"0"},"constructor":{"module":"Uorc.Wire.Frame","name":"Scope.selfContained"}},{"binders":["identity"],"body":{"kind":"nat","value":"1"},"constructor":{"module":"Uorc.Wire.Frame","name":"Scope.conditional"}}],"kind":"match","scrutinee":{"kind":"var","name":"scope"}},"kind":"definition","name":"scopeTag","parameters":[{"name":"scope","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Scope"}}}],"result":{"kind":"nat"}},{"body":{"branches":[{"binders":["raw"],"body":{"kind":"nat","value":"0"},"constructor":{"module":"Uorc.Wire.Frame","name":"Body.raw"}},{"binders":["graph"],"body":{"kind":"nat","value":"1"},"constructor":{"module":"Uorc.Wire.Frame","name":"Body.program"}}],"kind":"match","scrutinee":{"kind":"var","name":"body"}},"kind":"definition","name":"representationTag","parameters":[{"name":"body","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Body"}}}],"result":{"kind":"nat"}},{"body":{"branches":[{"binders":[],"body":{"kind":"var","name":"tasks"},"constructor":{"name":"Nat.zero"}},{"binders":["rest"],"body":{"branches":[{"binders":[],"body":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"nil"},"constructor":{"name":"List.nil"}},{"binders":["head","tail"],"body":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"tail"}],"function":{"name":"dropTasks"},"kind":"call"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"tasks"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"count"}},"kind":"definition","name":"dropTasks","parameters":[{"name":"count","type":{"kind":"nat"}},{"name":"tasks","type":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"list"}}],"recursive_argument":"count","result":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"list"}},{"body":{"branches":[{"binders":[],"body":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}}]},"constructor":{"name":"List.nil"}},{"binders":["head","tail"],"body":{"arguments":[{"kind":"var","name":"head"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}}]},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"tasks"}},"kind":"definition","name":"firstTask","parameters":[{"name":"tasks","type":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"list"}}],"result":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}}}},{"body":{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"representationOffset"},"kind":"call"},{"field":"pending","kind":"project","value":{"arguments":[{"kind":"var","name":"prepared"}],"function":{"module":"Uorc.Wire.Frame","name":"preimageStart"},"kind":"call"}}],"function":{"name":"dropTasks"},"kind":"call"}],"function":{"name":"firstTask"},"kind":"call"},"kind":"definition","name":"preparedRepresentationTask","parameters":[{"name":"prepared","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Prepared"}}}],"result":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}}}},{"kind":"theorem","name":"representation_precedes_lengths_and_body","parameters":[{"name":"prepared","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Prepared"}}}],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"prepared"}],"function":{"name":"preparedRepresentationTask"},"kind":"call"},"right":{"arguments":[{"arguments":[{"arguments":[{"field":"body","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}],"function":{"name":"representationTag"},"kind":"call"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}}]}}},{"kind":"theorem","name":"raw_tag_zero","parameters":[{"name":"raw","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}}}],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"raw"}],"constructor":{"module":"Uorc.Wire.Frame","name":"Body.raw"},"kind":"constructor"}],"function":{"name":"representationTag"},"kind":"call"},"right":{"kind":"nat","value":"0"}}},{"kind":"theorem","name":"actual_frame_fixed_header_prefix","parameters":[{"name":"prepared","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Prepared"}}}],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"field":"pending","kind":"project","value":{"arguments":[{"kind":"var","name":"prepared"}],"function":{"module":"Uorc.Wire.Frame","name":"preimageStart"},"kind":"call"}},"right":{"head":{"arguments":[{"kind":"nat","value":"85"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"79"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"82"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"67"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[],"function":{"module":"Uorc.Wire.Frame","name":"formatVersion"},"kind":"call"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[],"function":{"module":"Uorc.Wire.Frame","name":"machineProfile"},"kind":"call"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"field":"scope","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}],"function":{"name":"scopeTag"},"kind":"call"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"field":"body","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}],"function":{"name":"representationTag"},"kind":"call"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"arguments":[{"kind":"nat","value":"8"},{"field":"pending","kind":"project","value":{"arguments":[{"kind":"var","name":"prepared"}],"function":{"module":"Uorc.Wire.Frame","name":"preimageStart"},"kind":"call"}}],"function":{"name":"dropTasks"},"kind":"call"}}}}}}}}}}},{"kind":"theorem","name":"actual_frame_length_tasks_follow_representation","parameters":[{"name":"prepared","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Prepared"}}}],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"8"},{"field":"pending","kind":"project","value":{"arguments":[{"kind":"var","name":"prepared"}],"function":{"module":"Uorc.Wire.Frame","name":"preimageStart"},"kind":"call"}}],"function":{"name":"dropTasks"},"kind":"call"},"right":{"head":{"arguments":[{"field":"objectCount","kind":"project","value":{"kind":"var","name":"prepared"}}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"objectLengths","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.references"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"bodyLength","kind":"project","value":{"kind":"var","name":"prepared"}}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"arguments":[{"kind":"nat","value":"11"},{"field":"pending","kind":"project","value":{"arguments":[{"kind":"var","name":"prepared"}],"function":{"module":"Uorc.Wire.Frame","name":"preimageStart"},"kind":"call"}}],"function":{"name":"dropTasks"},"kind":"call"}}}}}},{"kind":"theorem","name":"program_tag_one","parameters":[{"name":"graph","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Graph"}}}],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"graph"}],"constructor":{"module":"Uorc.Wire.Frame","name":"Body.program"},"kind":"constructor"}],"function":{"name":"representationTag"},"kind":"call"},"right":{"kind":"nat","value":"1"}}},{"body":{"kind":"add","left":{"kind":"add","left":{"kind":"add","left":{"kind":"var","name":"header"},"right":{"kind":"var","name":"bodyLength"}},"right":{"kind":"var","name":"ulebLength"}},"right":{"arguments":[],"function":{"name":"integrityBytes"},"kind":"call"}},"kind":"definition","name":"completeSize","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"bodyLength","type":{"kind":"nat"}},{"name":"ulebLength","type":{"kind":"nat"}}],"result":{"kind":"nat"}},{"body":{"kind":"and","left":{"kind":"or","left":{"kind":"not","value":{"kind":"blt","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}}},"right":{"kind":"ble","left":{"kind":"var","name":"leftWidth"},"right":{"kind":"var","name":"rightWidth"}}},"right":{"kind":"and","left":{"kind":"or","left":{"kind":"not","value":{"kind":"blt","left":{"kind":"var","name":"right"},"right":{"kind":"var","name":"left"}}},"right":{"kind":"ble","left":{"kind":"var","name":"rightWidth"},"right":{"kind":"var","name":"leftWidth"}}},"right":{"kind":"or","left":{"kind":"not","value":{"kind":"beq","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}}},"right":{"kind":"beq","left":{"kind":"var","name":"leftWidth"},"right":{"kind":"var","name":"rightWidth"}}}}},"kind":"definition","name":"widthOrderCompatible","parameters":[{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"result":{"kind":"bool"}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"complete_size_strict_mono_given_width_mono","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"completeSize"},{"name":"integrityBytes"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"conclusion":{"kind":"lt","left":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"left"},{"kind":"var","name":"leftWidth"}],"function":{"name":"completeSize"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"right"},{"kind":"var","name":"rightWidth"}],"function":{"name":"completeSize"},"kind":"call"}},"kind":"implies","premise":{"kind":"le","left":{"kind":"var","name":"leftWidth"},"right":{"kind":"var","name":"rightWidth"}}},"kind":"implies","premise":{"kind":"lt","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}}}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"equal_complete_sizes_force_equal_body_lengths","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"completeSize"},{"name":"integrityBytes"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"conclusion":{"kind":"eq","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"left"},{"kind":"var","name":"leftWidth"}],"function":{"name":"completeSize"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"right"},{"kind":"var","name":"rightWidth"}],"function":{"name":"completeSize"},"kind":"call"}}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"left"},{"kind":"var","name":"right"},{"kind":"var","name":"leftWidth"},{"kind":"var","name":"rightWidth"}],"function":{"name":"widthOrderCompatible"},"kind":"call"},"right":{"kind":"bool","value":true}}}},{"kind":"theorem","name":"complete_size_order_reflects_body_order","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"completeSize"},{"name":"integrityBytes"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"kind":"iff","left":{"kind":"lt","left":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"left"},{"kind":"var","name":"leftWidth"}],"function":{"name":"completeSize"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"right"},{"kind":"var","name":"rightWidth"}],"function":{"name":"completeSize"},"kind":"call"}},"right":{"kind":"lt","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"left"},{"kind":"var","name":"right"},{"kind":"var","name":"leftWidth"},{"kind":"var","name":"rightWidth"}],"function":{"name":"widthOrderCompatible"},"kind":"call"},"right":{"kind":"bool","value":true}}}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"body_length_is_strictly_below_complete_size","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"bodyLength","type":{"kind":"nat"}},{"name":"ulebLength","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"completeSize"},{"name":"integrityBytes"}],"kind":"linear_arithmetic"},"statement":{"kind":"lt","left":{"kind":"var","name":"bodyLength"},"right":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"bodyLength"},{"kind":"var","name":"ulebLength"}],"function":{"name":"completeSize"},"kind":"call"}}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"1"},"constructor":{"name":"List.nil"}},{"binders":["threshold","rest"],"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"var","name":"threshold"}},"else_value":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"value"}],"function":{"name":"widthAtThresholds"},"kind":"call"}},"kind":"if","then_value":{"kind":"nat","value":"1"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"thresholds"}},"kind":"definition","name":"widthAtThresholds","parameters":[{"name":"thresholds","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"value","type":{"kind":"nat"}}],"recursive_argument":"thresholds","result":{"kind":"nat"}},{"kind":"theorem","name":"width_at_thresholds_monotone","parameters":[{"name":"thresholds","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}}],"proof":{"branches":[{"binders":[],"constructor":"nil","proof":{"definitions":[{"name":"widthAtThresholds"}],"kind":"linear_arithmetic"}},{"binders":["threshold","rest","ih"],"constructor":"cons","proof":{"definitions":[{"name":"widthAtThresholds"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"thresholds"},"statement":{"conclusion":{"kind":"le","left":{"arguments":[{"kind":"var","name":"thresholds"},{"kind":"var","name":"left"}],"function":{"name":"widthAtThresholds"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"thresholds"},{"kind":"var","name":"right"}],"function":{"name":"widthAtThresholds"},"kind":"call"}},"kind":"implies","premise":{"kind":"le","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}}}},{"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"128"}},"else_value":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"16384"}},"else_value":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"2097152"}},"else_value":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"268435456"}},"else_value":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"34359738368"}},"else_value":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"4398046511104"}},"else_value":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"562949953421312"}},"else_value":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"72057594037927936"}},"else_value":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"9223372036854775808"}},"else_value":{"kind":"nat","value":"10"},"kind":"if","then_value":{"kind":"nat","value":"9"}},"kind":"if","then_value":{"kind":"nat","value":"8"}},"kind":"if","then_value":{"kind":"nat","value":"7"}},"kind":"if","then_value":{"kind":"nat","value":"6"}},"kind":"if","then_value":{"kind":"nat","value":"5"}},"kind":"if","then_value":{"kind":"nat","value":"4"}},"kind":"if","then_value":{"kind":"nat","value":"3"}},"kind":"if","then_value":{"kind":"nat","value":"2"}},"kind":"if","then_value":{"kind":"nat","value":"1"}},"kind":"definition","name":"u64WidthFormula","parameters":[{"name":"value","type":{"kind":"nat"}}],"result":{"kind":"nat"}},{"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"18446744073709551616"}},"else_value":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"kind":"nat"}]},"kind":"if","then_value":{"arguments":[{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"u64WidthFormula"},"kind":"call"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}},"kind":"definition","name":"checkedU64ULEBLength","parameters":[{"name":"value","type":{"kind":"nat"}}],"result":{"kind":"option","value":{"kind":"nat"}}},{"kind":"theorem","name":"u64_width_formula_matches_thresholds","parameters":[{"name":"value","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"u64WidthFormula"},{"name":"widthAtThresholds"}],"kind":"linear_arithmetic"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"u64WidthFormula"},"kind":"call"},"right":{"arguments":[{"head":{"kind":"nat","value":"128"},"kind":"cons","tail":{"head":{"kind":"nat","value":"16384"},"kind":"cons","tail":{"head":{"kind":"nat","value":"2097152"},"kind":"cons","tail":{"head":{"kind":"nat","value":"268435456"},"kind":"cons","tail":{"head":{"kind":"nat","value":"34359738368"},"kind":"cons","tail":{"head":{"kind":"nat","value":"4398046511104"},"kind":"cons","tail":{"head":{"kind":"nat","value":"562949953421312"},"kind":"cons","tail":{"head":{"kind":"nat","value":"72057594037927936"},"kind":"cons","tail":{"head":{"kind":"nat","value":"9223372036854775808"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}}}}}}}}},{"kind":"var","name":"value"}],"function":{"name":"widthAtThresholds"},"kind":"call"}}},{"kind":"theorem","name":"u64_width_formula_monotone","parameters":[{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"u64_width_formula_matches_thresholds"},{"name":"width_at_thresholds_monotone"}],"kind":"simplify"},"statement":{"conclusion":{"kind":"le","left":{"arguments":[{"kind":"var","name":"left"}],"function":{"name":"u64WidthFormula"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"right"}],"function":{"name":"u64WidthFormula"},"kind":"call"}},"kind":"implies","premise":{"kind":"le","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}}}},{"kind":"theorem","name":"checked_uleb_success_is_representable","parameters":[{"name":"value","type":{"kind":"nat"}},{"name":"width","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"checkedU64ULEBLength"},{"name":"u64WidthFormula"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"kind":"prop_and","left":{"kind":"lt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"18446744073709551616"}},"right":{"kind":"prop_and","left":{"kind":"le","left":{"kind":"nat","value":"1"},"right":{"kind":"var","name":"width"}},"right":{"kind":"le","left":{"kind":"var","name":"width"},"right":{"kind":"nat","value":"10"}}}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"checkedU64ULEBLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"width"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}}}},{"kind":"theorem","name":"checked_uleb_pair_width_compatible","parameters":[{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"checkedU64ULEBLength"},{"name":"u64WidthFormula"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"conclusion":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"left"},{"kind":"var","name":"right"},{"kind":"var","name":"leftWidth"},{"kind":"var","name":"rightWidth"}],"function":{"name":"widthOrderCompatible"},"kind":"call"},"right":{"kind":"bool","value":true}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"right"}],"function":{"name":"checkedU64ULEBLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"rightWidth"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"left"}],"function":{"name":"checkedU64ULEBLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"leftWidth"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}}}},{"kind":"theorem","name":"checked_uleb_complete_size_strict_mono","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"checkedU64ULEBLength"},{"name":"completeSize"},{"name":"integrityBytes"},{"name":"u64WidthFormula"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"conclusion":{"conclusion":{"kind":"lt","left":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"left"},{"kind":"var","name":"leftWidth"}],"function":{"name":"completeSize"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"right"},{"kind":"var","name":"rightWidth"}],"function":{"name":"completeSize"},"kind":"call"}},"kind":"implies","premise":{"kind":"lt","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"right"}],"function":{"name":"checkedU64ULEBLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"rightWidth"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"left"}],"function":{"name":"checkedU64ULEBLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"leftWidth"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}}}},{"kind":"theorem","name":"checked_uleb_equal_complete_sizes_equal_body_lengths","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"checkedU64ULEBLength"},{"name":"completeSize"},{"name":"integrityBytes"},{"name":"u64WidthFormula"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"conclusion":{"conclusion":{"kind":"eq","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"left"},{"kind":"var","name":"leftWidth"}],"function":{"name":"completeSize"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"right"},{"kind":"var","name":"rightWidth"}],"function":{"name":"completeSize"},"kind":"call"}}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"right"}],"function":{"name":"checkedU64ULEBLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"rightWidth"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"left"}],"function":{"name":"checkedU64ULEBLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"leftWidth"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}}}},{"body":{"condition":{"kind":"blt","left":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"bodyLength"},{"kind":"var","name":"ulebLength"}],"function":{"name":"completeSize"},"kind":"call"},"right":{"kind":"nat","value":"18446744073709551616"}},"else_value":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"kind":"nat"}]},"kind":"if","then_value":{"arguments":[{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"bodyLength"},{"kind":"var","name":"ulebLength"}],"function":{"name":"completeSize"},"kind":"call"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}},"kind":"definition","name":"checkedU64TotalSize","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"bodyLength","type":{"kind":"nat"}},{"name":"ulebLength","type":{"kind":"nat"}}],"result":{"kind":"option","value":{"kind":"nat"}}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"0"},"constructor":{"name":"Nat.zero"}},{"binders":["restFuel"],"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"128"}},"else_value":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"restFuel"},{"arguments":[{"kind":"var","name":"value"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"quotient","result":{"kind":"nat"}}],"function":{"name":"natULEBLengthFuel"},"kind":"call"}},"kind":"if","then_value":{"kind":"nat","value":"1"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"natULEBLengthFuel","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"value","type":{"kind":"nat"}}],"recursive_argument":"fuel","result":{"kind":"nat"}},{"body":{"arguments":[{"kind":"add","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"1"}},{"kind":"var","name":"value"}],"function":{"name":"natULEBLengthFuel"},"kind":"call"},"kind":"definition","name":"natULEBLengthCandidate","parameters":[{"name":"value","type":{"kind":"nat"}}],"result":{"kind":"nat"}},{"body":{"binder":{"name":"left","type":{"kind":"nat"}},"body":{"binder":{"name":"right","type":{"kind":"nat"}},"body":{"conclusion":{"kind":"le","left":{"arguments":[{"kind":"var","name":"left"}],"function":{"name":"natULEBLengthCandidate"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"right"}],"function":{"name":"natULEBLengthCandidate"},"kind":"call"}},"kind":"implies","premise":{"kind":"le","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}}},"kind":"forall"},"kind":"forall"},"kind":"definition","name":"natULEBMonotonicityObligation","parameters":[],"result":{"kind":"prop"}},{"body":{"binder":{"name":"value","type":{"kind":"nat"}},"body":{"binder":{"name":"width","type":{"kind":"nat"}},"body":{"conclusion":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"natULEBLengthCandidate"},"kind":"call"},"right":{"kind":"var","name":"width"}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"checkedU64ULEBLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"width"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}}},"kind":"forall"},"kind":"forall"},"kind":"definition","name":"checkedULEBAdequacyObligation","parameters":[],"result":{"kind":"prop"}},{"body":{"branches":[{"binders":[],"body":{"kind":"var","name":"right"},"constructor":{"name":"List.nil"}},{"binders":["head","tail"],"body":{"head":{"kind":"var","name":"head"},"kind":"cons","tail":{"arguments":[{"kind":"var","name":"tail"},{"kind":"var","name":"right"}],"function":{"name":"appendWords"},"kind":"call"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"left"}},"kind":"definition","name":"appendWords","parameters":[{"name":"left","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"right","type":{"element":{"kind":"nat"},"kind":"list"}}],"recursive_argument":"left","result":{"element":{"kind":"nat"},"kind":"list"}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"0"},"constructor":{"name":"List.nil"}},{"binders":["head","tail"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"tail"}],"function":{"name":"wordLength"},"kind":"call"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"words"}},"kind":"definition","name":"wordLength","parameters":[{"name":"words","type":{"element":{"kind":"nat"},"kind":"list"}}],"recursive_argument":"words","result":{"kind":"nat"}},{"body":{"branches":[{"binders":[],"body":{"kind":"bool","value":true},"constructor":{"name":"List.nil"}},{"binders":["head","tail"],"body":{"kind":"and","left":{"kind":"blt","left":{"kind":"var","name":"head"},"right":{"kind":"nat","value":"256"}},"right":{"arguments":[{"kind":"var","name":"tail"}],"function":{"name":"unsignedByteWords"},"kind":"call"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"words"}},"kind":"definition","name":"unsignedByteWords","parameters":[{"name":"words","type":{"element":{"kind":"nat"},"kind":"list"}}],"recursive_argument":"words","result":{"kind":"bool"}},{"body":{"branches":[{"binders":[],"body":{"branches":[{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"List.nil"}},{"binders":["rightHead","rightTail"],"body":{"kind":"bool","value":true},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"right"}},"constructor":{"name":"List.nil"}},{"binders":["leftHead","leftTail"],"body":{"branches":[{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"List.nil"}},{"binders":["rightHead","rightTail"],"body":{"condition":{"kind":"beq","left":{"kind":"var","name":"leftHead"},"right":{"kind":"var","name":"rightHead"}},"else_value":{"kind":"blt","left":{"kind":"var","name":"leftHead"},"right":{"kind":"var","name":"rightHead"}},"kind":"if","then_value":{"arguments":[{"kind":"var","name":"leftTail"},{"kind":"var","name":"rightTail"}],"function":{"name":"wordLess"},"kind":"call"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"right"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"left"}},"kind":"definition","name":"wordLess","parameters":[{"name":"left","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"right","type":{"element":{"kind":"nat"},"kind":"list"}}],"recursive_argument":"left","result":{"kind":"bool"}},{"kind":"theorem","name":"nat_beq_self","parameters":[{"name":"value","type":{"kind":"nat"}}],"proof":{"kind":"linear_arithmetic"},"statement":{"kind":"eq","left":{"kind":"beq","left":{"kind":"var","name":"value"},"right":{"kind":"var","name":"value"}},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"common_prefix_preserves_word_order","parameters":[{"name":"prefix","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"left","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"right","type":{"element":{"kind":"nat"},"kind":"list"}}],"proof":{"branches":[{"binders":[],"constructor":"nil","proof":{"definitions":[{"name":"appendWords"}],"kind":"simplify"}},{"binders":["head","tail","ih"],"constructor":"cons","proof":{"definitions":[{"name":"appendWords"},{"name":"ih"},{"name":"nat_beq_self"},{"name":"wordLess"}],"kind":"simplify"}}],"kind":"induction","scrutinee":"prefix"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"prefix"},{"kind":"var","name":"left"}],"function":{"name":"appendWords"},"kind":"call"},{"arguments":[{"kind":"var","name":"prefix"},{"kind":"var","name":"right"}],"function":{"name":"appendWords"},"kind":"call"}],"function":{"name":"wordLess"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"left"},{"kind":"var","name":"right"}],"function":{"name":"wordLess"},"kind":"call"}}},{"kind":"theorem","name":"smaller_first_word_decides","parameters":[{"name":"leftWord","type":{"kind":"nat"}},{"name":"rightWord","type":{"kind":"nat"}},{"name":"leftTail","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"rightTail","type":{"element":{"kind":"nat"},"kind":"list"}}],"proof":{"definitions":[{"name":"wordLess"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"kind":"eq","left":{"arguments":[{"head":{"kind":"var","name":"leftWord"},"kind":"cons","tail":{"kind":"var","name":"leftTail"}},{"head":{"kind":"var","name":"rightWord"},"kind":"cons","tail":{"kind":"var","name":"rightTail"}}],"function":{"name":"wordLess"},"kind":"call"},"right":{"kind":"bool","value":true}},"kind":"implies","premise":{"kind":"lt","left":{"kind":"var","name":"leftWord"},"right":{"kind":"var","name":"rightWord"}}}},{"constructors":[{"fields":[{"kind":"nat"},{"kind":"nat"},{"element":{"kind":"nat"},"kind":"list"},{"element":{"kind":"nat"},"kind":"list"}],"name":"here"},{"fields":[{"kind":"nat"},{"arguments":[],"kind":"named","member":{"name":"FirstDifference"}}],"name":"next"}],"kind":"inductive","name":"FirstDifference","parameters":[],"type_parameters":[]},{"body":{"branches":[{"binders":["low","gap","leftTail","rightTail"],"body":{"head":{"kind":"var","name":"low"},"kind":"cons","tail":{"arguments":[{"kind":"var","name":"leftTail"},{"kind":"var","name":"suffix"}],"function":{"name":"appendWords"},"kind":"call"}},"constructor":{"name":"FirstDifference.here"}},{"binders":["head","rest"],"body":{"head":{"kind":"var","name":"head"},"kind":"cons","tail":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"suffix"}],"function":{"name":"differenceLeft"},"kind":"call"}},"constructor":{"name":"FirstDifference.next"}}],"kind":"match","scrutinee":{"kind":"var","name":"difference"}},"kind":"definition","name":"differenceLeft","parameters":[{"name":"difference","type":{"arguments":[],"kind":"named","member":{"name":"FirstDifference"}}},{"name":"suffix","type":{"element":{"kind":"nat"},"kind":"list"}}],"recursive_argument":"difference","result":{"element":{"kind":"nat"},"kind":"list"}},{"body":{"branches":[{"binders":["low","gap","leftTail","rightTail"],"body":{"head":{"kind":"add","left":{"kind":"add","left":{"kind":"var","name":"low"},"right":{"kind":"var","name":"gap"}},"right":{"kind":"nat","value":"1"}},"kind":"cons","tail":{"arguments":[{"kind":"var","name":"rightTail"},{"kind":"var","name":"suffix"}],"function":{"name":"appendWords"},"kind":"call"}},"constructor":{"name":"FirstDifference.here"}},{"binders":["head","rest"],"body":{"head":{"kind":"var","name":"head"},"kind":"cons","tail":{"arguments":[{"kind":"var","name":"rest"},{"kind":"var","name":"suffix"}],"function":{"name":"differenceRight"},"kind":"call"}},"constructor":{"name":"FirstDifference.next"}}],"kind":"match","scrutinee":{"kind":"var","name":"difference"}},"kind":"definition","name":"differenceRight","parameters":[{"name":"difference","type":{"arguments":[],"kind":"named","member":{"name":"FirstDifference"}}},{"name":"suffix","type":{"element":{"kind":"nat"},"kind":"list"}}],"recursive_argument":"difference","result":{"element":{"kind":"nat"},"kind":"list"}},{"kind":"theorem","name":"first_difference_beats_arbitrary_integrity","parameters":[{"name":"difference","type":{"arguments":[],"kind":"named","member":{"name":"FirstDifference"}}},{"name":"leftIntegrity","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"rightIntegrity","type":{"element":{"kind":"nat"},"kind":"list"}}],"proof":{"branches":[{"binders":["low","gap","leftTail","rightTail"],"constructor":"here","proof":{"definitions":[{"name":"differenceLeft"},{"name":"differenceRight"},{"name":"wordLess"}],"kind":"linear_arithmetic"}},{"binders":["head","rest","ih"],"constructor":"next","proof":{"definitions":[{"name":"differenceLeft"},{"name":"differenceRight"},{"name":"ih"},{"name":"nat_beq_self"},{"name":"wordLess"}],"kind":"simplify"}}],"kind":"induction","scrutinee":"difference"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"difference"},{"kind":"var","name":"leftIntegrity"}],"function":{"name":"differenceLeft"},"kind":"call"},{"arguments":[{"kind":"var","name":"difference"},{"kind":"var","name":"rightIntegrity"}],"function":{"name":"differenceRight"},"kind":"call"}],"function":{"name":"wordLess"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"body":{"arguments":[{"arguments":[{"kind":"var","name":"prefix"},{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"kind":"var","name":"rawTail"}}],"function":{"name":"appendWords"},"kind":"call"},{"arguments":[{"kind":"var","name":"prefix"},{"head":{"kind":"nat","value":"1"},"kind":"cons","tail":{"kind":"var","name":"programTail"}}],"function":{"name":"appendWords"},"kind":"call"}],"function":{"name":"wordLess"},"kind":"call"},"kind":"definition","name":"rawProgramTagComparison","parameters":[{"name":"prefix","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"rawTail","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"programTail","type":{"element":{"kind":"nat"},"kind":"list"}}],"result":{"kind":"bool"}},{"kind":"theorem","name":"raw_tag_beats_program_tag_for_any_tails","parameters":[{"name":"prefix","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"rawTail","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"programTail","type":{"element":{"kind":"nat"},"kind":"list"}}],"proof":{"definitions":[{"name":"common_prefix_preserves_word_order"},{"name":"rawProgramTagComparison"},{"name":"wordLess"}],"kind":"simplify"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"prefix"},{"kind":"var","name":"rawTail"},{"kind":"var","name":"programTail"}],"function":{"name":"rawProgramTagComparison"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"body":{"arguments":[{"kind":"var","name":"preimage"}],"function":{"kind":"var","name":"digest"},"kind":"apply"},"kind":"definition","name":"digestOf","parameters":[{"name":"digest","type":{"kind":"function","parameters":[{"kind":"bytes"}],"result":{"kind":"bytes"}}},{"name":"preimage","type":{"kind":"bytes"}}],"result":{"kind":"bytes"}},{"kind":"theorem","name":"identical_preimages_have_identical_deterministic_digest","parameters":[{"name":"digest","type":{"kind":"function","parameters":[{"kind":"bytes"}],"result":{"kind":"bytes"}}},{"name":"leftPreimage","type":{"kind":"bytes"}},{"name":"rightPreimage","type":{"kind":"bytes"}}],"proof":{"definitions":[{"name":"digestOf"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"digest"},{"kind":"var","name":"leftPreimage"}],"function":{"name":"digestOf"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"digest"},{"kind":"var","name":"rightPreimage"}],"function":{"name":"digestOf"},"kind":"call"}},"kind":"implies","premise":{"kind":"eq","left":{"kind":"var","name":"leftPreimage"},"right":{"kind":"var","name":"rightPreimage"}}}},{"body":{"kind":"add","left":{"kind":"add","left":{"arguments":[],"function":{"name":"fixedPrefixBytes"},"kind":"call"},"right":{"kind":"var","name":"objectCountWidth"}},"right":{"kind":"add","left":{"kind":"var","name":"objectLengthsWidth"},"right":{"branches":[{"binders":[],"body":{"kind":"nat","value":"0"},"constructor":{"module":"Uorc.Wire.Frame","name":"Scope.selfContained"}},{"binders":["identity"],"body":{"kind":"nat","value":"32"},"constructor":{"module":"Uorc.Wire.Frame","name":"Scope.conditional"}}],"kind":"match","scrutinee":{"kind":"var","name":"scope"}}}},"kind":"definition","name":"fixedHeaderSize","parameters":[{"name":"scope","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Scope"}}},{"name":"objectCountWidth","type":{"kind":"nat"}},{"name":"objectLengthsWidth","type":{"kind":"nat"}}],"result":{"kind":"nat"}},{"body":{"kind":"eq","left":{"kind":"var","name":"measuredPreimageLength"},"right":{"kind":"add","left":{"kind":"add","left":{"kind":"var","name":"header"},"right":{"field":"bodyLength","kind":"project","value":{"kind":"var","name":"prepared"}}},"right":{"arguments":[{"field":"bodyLength","kind":"project","value":{"kind":"var","name":"prepared"}}],"function":{"name":"natULEBLengthCandidate"},"kind":"call"}}},"kind":"definition","name":"frameSizeLinkObligation","parameters":[{"name":"prepared","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Prepared"}}},{"name":"header","type":{"kind":"nat"}},{"name":"measuredPreimageLength","type":{"kind":"nat"}}],"result":{"kind":"prop"}},{"body":{"kind":"prop_and","left":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"leftBody"}],"function":{"name":"wordLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"rightBody"}],"function":{"name":"wordLength"},"kind":"call"}},"right":{"kind":"prop_and","left":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"leftBody"}],"function":{"name":"unsignedByteWords"},"kind":"call"},"right":{"kind":"bool","value":true}},"right":{"kind":"prop_and","left":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"rightBody"}],"function":{"name":"unsignedByteWords"},"kind":"call"},"right":{"kind":"bool","value":true}},"right":{"kind":"prop_and","left":{"kind":"eq","left":{"kind":"var","name":"leftBody"},"right":{"arguments":[{"kind":"var","name":"difference"},{"element":{"kind":"nat"},"kind":"nil"}],"function":{"name":"differenceLeft"},"kind":"call"}},"right":{"kind":"eq","left":{"kind":"var","name":"rightBody"},"right":{"arguments":[{"kind":"var","name":"difference"},{"element":{"kind":"nat"},"kind":"nil"}],"function":{"name":"differenceRight"},"kind":"call"}}}}}},"kind":"definition","name":"programBodyOrderLinkObligation","parameters":[{"name":"leftBody","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"rightBody","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"difference","type":{"arguments":[],"kind":"named","member":{"name":"FirstDifference"}}}],"result":{"kind":"prop"}},{"body":{"kind":"string","value":"These are source-owned general proof candidates, not SDK or kernel verification evidence. Exact source-Nat framing uses H + bodyLength + shortestULEBLength(bodyLength) + 32. The conditional arithmetic lemmas require width monotonicity explicitly. u64WidthFormula is exact only for the checked U64 domain; it saturates beyond that domain, while checkedU64ULEBLength rejects unrepresentable values. natULEBLengthCandidate uses value+1 structural fuel and has no arbitrary input cap, but its fuel adequacy, shortestness, general monotonicity, and equality with GraphEmit Task.number emission remain open linking obligations. Frame.preimageStart itself is imported for the representation-offset theorem, so the source order is byte 7 tag before object count, object lengths, body length, optional 32-byte basis identity, and body. The List Nat comparison lemmas need a canonical unsigned-byte/rope-emitter bridge, common-header equality, exact size/ULEB correspondence, and first-difference witness extraction before they may justify certificate replay. Program bodies of equal length differ before integrity; a strict-prefix case is excluded only after exact length equality is established. Digest determinism proves equal preimages give equal digests, never digest injectivity. Hash binding is a separate computational security claim. Native Nat arithmetic and checkedU64 realizations remain distinct; target overflow is a typed refusal, not an input restriction on the mathematical theorem."},"kind":"definition","name":"linkingBoundary","parameters":[],"result":{"kind":"string"}},{"kind":"theorem","name":"exact_preimage_factorization_gives_complete_size","parameters":[{"name":"prepared","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Prepared"}}},{"name":"header","type":{"kind":"nat"}},{"name":"measuredPreimageLength","type":{"kind":"nat"}},{"name":"archiveLength","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"completeSize"},{"name":"frameSizeLinkObligation"},{"name":"integrityBytes"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"conclusion":{"kind":"eq","left":{"kind":"var","name":"archiveLength"},"right":{"arguments":[{"kind":"var","name":"header"},{"field":"bodyLength","kind":"project","value":{"kind":"var","name":"prepared"}},{"arguments":[{"field":"bodyLength","kind":"project","value":{"kind":"var","name":"prepared"}}],"function":{"name":"natULEBLengthCandidate"},"kind":"call"}],"function":{"name":"completeSize"},"kind":"call"}},"kind":"implies","premise":{"kind":"eq","left":{"kind":"var","name":"archiveLength"},"right":{"kind":"add","left":{"kind":"var","name":"measuredPreimageLength"},"right":{"arguments":[],"function":{"name":"integrityBytes"},"kind":"call"}}}},"kind":"implies","premise":{"arguments":[{"kind":"var","name":"prepared"},{"kind":"var","name":"header"},{"kind":"var","name":"measuredPreimageLength"}],"function":{"name":"frameSizeLinkObligation"},"kind":"call"}}},{"kind":"theorem","name":"nat_uleb_quotient_decreases","parameters":[{"name":"value","type":{"kind":"nat"}}],"proof":{"kind":"linear_arithmetic"},"statement":{"conclusion":{"kind":"lt","left":{"arguments":[{"kind":"var","name":"value"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"quotient","result":{"kind":"nat"}},"right":{"kind":"var","name":"value"}},"kind":"implies","premise":{"kind":"eq","left":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"128"}},"right":{"kind":"bool","value":false}}}},{"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"128"}},"else_value":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"arguments":[{"kind":"var","name":"value"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"quotient","result":{"kind":"nat"}}],"function":{"name":"natShortestULEBLength"},"kind":"call"}},"kind":"if","then_value":{"kind":"nat","value":"1"}},"kind":"definition","name":"natShortestULEBLength","parameters":[{"name":"value","type":{"kind":"nat"}}],"result":{"kind":"nat"},"termination":{"evidence":[{"name":"nat_uleb_quotient_decreases"}],"measure":{"kind":"var","name":"value"}}},{"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"128"}},"else_value":{"head":{"kind":"add","left":{"arguments":[{"kind":"var","name":"value"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"128"}},"kind":"cons","tail":{"arguments":[{"arguments":[{"kind":"var","name":"value"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"quotient","result":{"kind":"nat"}}],"function":{"name":"natCanonicalULEBWords"},"kind":"call"}},"kind":"if","then_value":{"head":{"kind":"var","name":"value"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}},"kind":"definition","name":"natCanonicalULEBWords","parameters":[{"name":"value","type":{"kind":"nat"}}],"result":{"element":{"kind":"nat"},"kind":"list"},"termination":{"evidence":[{"name":"nat_uleb_quotient_decreases"}],"measure":{"kind":"var","name":"value"}}},{"kind":"theorem","name":"canonical_uleb_terminal_digit","parameters":[{"name":"value","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"natCanonicalULEBWords"},{"name":"natShortestULEBLength"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"kind":"prop_and","left":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"natShortestULEBLength"},"kind":"call"},"right":{"kind":"nat","value":"1"}},"right":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"natCanonicalULEBWords"},"kind":"call"},"right":{"head":{"kind":"var","name":"value"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}}},"kind":"implies","premise":{"kind":"eq","left":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"128"}},"right":{"kind":"bool","value":true}}}},{"constructors":[{"fields":[{"kind":"nat"}],"name":"terminal"},{"fields":[{"kind":"nat"},{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}],"name":"continuation"}],"kind":"inductive","name":"PositiveULEBDigits","parameters":[],"type_parameters":[]},{"body":{"branches":[{"binders":["payload"],"body":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"constructor":{"name":"PositiveULEBDigits.terminal"}},{"binders":["payload","rest"],"body":{"kind":"add","left":{"kind":"add","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"right":{"arguments":[{"kind":"nat","value":"128"},{"arguments":[{"kind":"var","name":"rest"}],"function":{"name":"positiveDigitRank"},"kind":"call"}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}}},"constructor":{"name":"PositiveULEBDigits.continuation"}}],"kind":"match","scrutinee":{"kind":"var","name":"digits"}},"kind":"definition","name":"positiveDigitRank","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"recursive_argument":"digits","result":{"kind":"nat"}},{"body":{"branches":[{"binders":["payload"],"body":{"kind":"nat","value":"0"},"constructor":{"name":"PositiveULEBDigits.terminal"}},{"binders":["payload","rest"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"rest"}],"function":{"name":"positiveDigitExtra"},"kind":"call"}},"constructor":{"name":"PositiveULEBDigits.continuation"}}],"kind":"match","scrutinee":{"kind":"var","name":"digits"}},"kind":"definition","name":"positiveDigitExtra","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"recursive_argument":"digits","result":{"kind":"nat"}},{"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"digits"}],"function":{"name":"positiveDigitRank"},"kind":"call"}},"kind":"definition","name":"positiveDigitValue","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"result":{"kind":"nat"}},{"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"digits"}],"function":{"name":"positiveDigitExtra"},"kind":"call"}},"kind":"definition","name":"positiveDigitCount","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"result":{"kind":"nat"}},{"constructors":[{"fields":[{"kind":"nat"},{"kind":"nat"}],"name":"terminalPair"},{"fields":[{"kind":"nat"},{"kind":"nat"},{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}],"name":"leftTerminal"},{"fields":[{"kind":"nat"},{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}},{"kind":"nat"}],"name":"rightTerminal"},{"fields":[{"kind":"nat"},{"kind":"nat"},{"arguments":[],"kind":"named","member":{"name":"PositiveULEBPair"}}],"name":"continuationPair"}],"kind":"inductive","name":"PositiveULEBPair","parameters":[],"type_parameters":[]},{"body":{"branches":[{"binders":["leftPayload","rightPayload"],"body":{"arguments":[{"kind":"var","name":"leftPayload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"constructor":{"name":"PositiveULEBPair.terminalPair"}},{"binders":["leftPayload","rightPayload","rightRest"],"body":{"arguments":[{"kind":"var","name":"leftPayload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"constructor":{"name":"PositiveULEBPair.leftTerminal"}},{"binders":["leftPayload","leftRest","rightPayload"],"body":{"kind":"add","left":{"kind":"add","left":{"arguments":[{"kind":"var","name":"leftPayload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"right":{"arguments":[{"kind":"nat","value":"128"},{"arguments":[{"kind":"var","name":"leftRest"}],"function":{"name":"positiveDigitRank"},"kind":"call"}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}}},"constructor":{"name":"PositiveULEBPair.rightTerminal"}},{"binders":["leftPayload","rightPayload","rest"],"body":{"kind":"add","left":{"kind":"add","left":{"arguments":[{"kind":"var","name":"leftPayload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"right":{"arguments":[{"kind":"nat","value":"128"},{"arguments":[{"kind":"var","name":"rest"}],"function":{"name":"pairLeftRank"},"kind":"call"}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}}},"constructor":{"name":"PositiveULEBPair.continuationPair"}}],"kind":"match","scrutinee":{"kind":"var","name":"pair"}},"kind":"definition","name":"pairLeftRank","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBPair"}}}],"recursive_argument":"pair","result":{"kind":"nat"}},{"body":{"branches":[{"binders":["leftPayload","rightPayload"],"body":{"arguments":[{"kind":"var","name":"rightPayload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"constructor":{"name":"PositiveULEBPair.terminalPair"}},{"binders":["leftPayload","rightPayload","rightRest"],"body":{"kind":"add","left":{"kind":"add","left":{"arguments":[{"kind":"var","name":"rightPayload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"right":{"arguments":[{"kind":"nat","value":"128"},{"arguments":[{"kind":"var","name":"rightRest"}],"function":{"name":"positiveDigitRank"},"kind":"call"}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}}},"constructor":{"name":"PositiveULEBPair.leftTerminal"}},{"binders":["leftPayload","leftRest","rightPayload"],"body":{"arguments":[{"kind":"var","name":"rightPayload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"constructor":{"name":"PositiveULEBPair.rightTerminal"}},{"binders":["leftPayload","rightPayload","rest"],"body":{"kind":"add","left":{"kind":"add","left":{"arguments":[{"kind":"var","name":"rightPayload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"right":{"arguments":[{"kind":"nat","value":"128"},{"arguments":[{"kind":"var","name":"rest"}],"function":{"name":"pairRightRank"},"kind":"call"}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}}},"constructor":{"name":"PositiveULEBPair.continuationPair"}}],"kind":"match","scrutinee":{"kind":"var","name":"pair"}},"kind":"definition","name":"pairRightRank","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBPair"}}}],"recursive_argument":"pair","result":{"kind":"nat"}},{"body":{"branches":[{"binders":["leftPayload","rightPayload"],"body":{"kind":"nat","value":"0"},"constructor":{"name":"PositiveULEBPair.terminalPair"}},{"binders":["leftPayload","rightPayload","rightRest"],"body":{"kind":"nat","value":"0"},"constructor":{"name":"PositiveULEBPair.leftTerminal"}},{"binders":["leftPayload","leftRest","rightPayload"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"leftRest"}],"function":{"name":"positiveDigitExtra"},"kind":"call"}},"constructor":{"name":"PositiveULEBPair.rightTerminal"}},{"binders":["leftPayload","rightPayload","rest"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"rest"}],"function":{"name":"pairLeftExtra"},"kind":"call"}},"constructor":{"name":"PositiveULEBPair.continuationPair"}}],"kind":"match","scrutinee":{"kind":"var","name":"pair"}},"kind":"definition","name":"pairLeftExtra","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBPair"}}}],"recursive_argument":"pair","result":{"kind":"nat"}},{"body":{"branches":[{"binders":["leftPayload","rightPayload"],"body":{"kind":"nat","value":"0"},"constructor":{"name":"PositiveULEBPair.terminalPair"}},{"binders":["leftPayload","rightPayload","rightRest"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"rightRest"}],"function":{"name":"positiveDigitExtra"},"kind":"call"}},"constructor":{"name":"PositiveULEBPair.leftTerminal"}},{"binders":["leftPayload","leftRest","rightPayload"],"body":{"kind":"nat","value":"0"},"constructor":{"name":"PositiveULEBPair.rightTerminal"}},{"binders":["leftPayload","rightPayload","rest"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"rest"}],"function":{"name":"pairRightExtra"},"kind":"call"}},"constructor":{"name":"PositiveULEBPair.continuationPair"}}],"kind":"match","scrutinee":{"kind":"var","name":"pair"}},"kind":"definition","name":"pairRightExtra","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBPair"}}}],"recursive_argument":"pair","result":{"kind":"nat"}},{"kind":"theorem","name":"canonical_positive_pair_digit_count_order","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBPair"}}}],"proof":{"branches":[{"binders":["leftPayload","rightPayload"],"constructor":"terminalPair","proof":{"definitions":[{"name":"pairLeftExtra"},{"name":"pairLeftRank"},{"name":"pairRightExtra"},{"name":"pairRightRank"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"}},{"binders":["leftPayload","rightPayload","rightRest"],"constructor":"leftTerminal","proof":{"definitions":[{"name":"pairLeftExtra"},{"name":"pairLeftRank"},{"name":"pairRightExtra"},{"name":"pairRightRank"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"}},{"binders":["leftPayload","leftRest","rightPayload"],"constructor":"rightTerminal","proof":{"definitions":[{"name":"pairLeftExtra"},{"name":"pairLeftRank"},{"name":"pairRightExtra"},{"name":"pairRightRank"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"}},{"binders":["leftPayload","rightPayload","rest","ih"],"constructor":"continuationPair","proof":{"definitions":[{"name":"pairLeftExtra"},{"name":"pairLeftRank"},{"name":"pairRightExtra"},{"name":"pairRightRank"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"pair"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"pairLeftRank"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"pairRightRank"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"pairLeftExtra"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"pairRightExtra"},"kind":"call"}],"function":{"name":"widthOrderCompatible"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"canonical_positive_pair_digit_count_monotone","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBPair"}}}],"proof":{"branches":[{"binders":["leftPayload","rightPayload"],"constructor":"terminalPair","proof":{"definitions":[{"name":"pairLeftExtra"},{"name":"pairLeftRank"},{"name":"pairRightExtra"},{"name":"pairRightRank"}],"kind":"linear_arithmetic"}},{"binders":["leftPayload","rightPayload","rightRest"],"constructor":"leftTerminal","proof":{"definitions":[{"name":"pairLeftExtra"},{"name":"pairLeftRank"},{"name":"pairRightExtra"},{"name":"pairRightRank"}],"kind":"linear_arithmetic"}},{"binders":["leftPayload","leftRest","rightPayload"],"constructor":"rightTerminal","proof":{"definitions":[{"name":"pairLeftExtra"},{"name":"pairLeftRank"},{"name":"pairRightExtra"},{"name":"pairRightRank"}],"kind":"linear_arithmetic"}},{"binders":["leftPayload","rightPayload","rest","ih"],"constructor":"continuationPair","proof":{"definitions":[{"name":"pairLeftExtra"},{"name":"pairLeftRank"},{"name":"pairRightExtra"},{"name":"pairRightRank"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"pair"},"statement":{"conclusion":{"kind":"le","left":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"pairLeftExtra"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"pairRightExtra"},"kind":"call"}},"kind":"implies","premise":{"kind":"le","left":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"pairLeftRank"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"pairRightRank"},"kind":"call"}}}},{"constructors":[{"fields":[],"name":"bothZero"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}],"name":"leftZero"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}],"name":"rightZero"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"PositiveULEBPair"}}],"name":"bothPositive"}],"kind":"inductive","name":"CanonicalULEBPair","parameters":[],"type_parameters":[]},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"0"},"constructor":{"name":"CanonicalULEBPair.bothZero"}},{"binders":["rightDigits"],"body":{"kind":"nat","value":"0"},"constructor":{"name":"CanonicalULEBPair.leftZero"}},{"binders":["leftDigits"],"body":{"arguments":[{"kind":"var","name":"leftDigits"}],"function":{"name":"positiveDigitValue"},"kind":"call"},"constructor":{"name":"CanonicalULEBPair.rightZero"}},{"binders":["positivePair"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"positivePair"}],"function":{"name":"pairLeftRank"},"kind":"call"}},"constructor":{"name":"CanonicalULEBPair.bothPositive"}}],"kind":"match","scrutinee":{"kind":"var","name":"pair"}},"kind":"definition","name":"canonicalPairLeftValue","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"CanonicalULEBPair"}}}],"result":{"kind":"nat"}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"0"},"constructor":{"name":"CanonicalULEBPair.bothZero"}},{"binders":["rightDigits"],"body":{"arguments":[{"kind":"var","name":"rightDigits"}],"function":{"name":"positiveDigitValue"},"kind":"call"},"constructor":{"name":"CanonicalULEBPair.leftZero"}},{"binders":["leftDigits"],"body":{"kind":"nat","value":"0"},"constructor":{"name":"CanonicalULEBPair.rightZero"}},{"binders":["positivePair"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"positivePair"}],"function":{"name":"pairRightRank"},"kind":"call"}},"constructor":{"name":"CanonicalULEBPair.bothPositive"}}],"kind":"match","scrutinee":{"kind":"var","name":"pair"}},"kind":"definition","name":"canonicalPairRightValue","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"CanonicalULEBPair"}}}],"result":{"kind":"nat"}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"1"},"constructor":{"name":"CanonicalULEBPair.bothZero"}},{"binders":["rightDigits"],"body":{"kind":"nat","value":"1"},"constructor":{"name":"CanonicalULEBPair.leftZero"}},{"binders":["leftDigits"],"body":{"arguments":[{"kind":"var","name":"leftDigits"}],"function":{"name":"positiveDigitCount"},"kind":"call"},"constructor":{"name":"CanonicalULEBPair.rightZero"}},{"binders":["positivePair"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"positivePair"}],"function":{"name":"pairLeftExtra"},"kind":"call"}},"constructor":{"name":"CanonicalULEBPair.bothPositive"}}],"kind":"match","scrutinee":{"kind":"var","name":"pair"}},"kind":"definition","name":"canonicalPairLeftCount","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"CanonicalULEBPair"}}}],"result":{"kind":"nat"}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"1"},"constructor":{"name":"CanonicalULEBPair.bothZero"}},{"binders":["rightDigits"],"body":{"arguments":[{"kind":"var","name":"rightDigits"}],"function":{"name":"positiveDigitCount"},"kind":"call"},"constructor":{"name":"CanonicalULEBPair.leftZero"}},{"binders":["leftDigits"],"body":{"kind":"nat","value":"1"},"constructor":{"name":"CanonicalULEBPair.rightZero"}},{"binders":["positivePair"],"body":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"positivePair"}],"function":{"name":"pairRightExtra"},"kind":"call"}},"constructor":{"name":"CanonicalULEBPair.bothPositive"}}],"kind":"match","scrutinee":{"kind":"var","name":"pair"}},"kind":"definition","name":"canonicalPairRightCount","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"CanonicalULEBPair"}}}],"result":{"kind":"nat"}},{"kind":"theorem","name":"word_length_append_additive","parameters":[{"name":"left","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"right","type":{"element":{"kind":"nat"},"kind":"list"}}],"proof":{"branches":[{"binders":[],"constructor":"nil","proof":{"definitions":[{"name":"appendWords"},{"name":"wordLength"}],"kind":"linear_arithmetic"}},{"binders":["head","tail","ih"],"constructor":"cons","proof":{"definitions":[{"name":"appendWords"},{"name":"wordLength"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"left"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"left"},{"kind":"var","name":"right"}],"function":{"name":"appendWords"},"kind":"call"}],"function":{"name":"wordLength"},"kind":"call"},"right":{"kind":"add","left":{"arguments":[{"kind":"var","name":"left"}],"function":{"name":"wordLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"right"}],"function":{"name":"wordLength"},"kind":"call"}}}},{"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.advanced"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.advanced"}},{"binders":["bytes","next"],"body":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.advanced"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.produced"}},{"binders":["size","work"],"body":{"arguments":[{"kind":"var","name":"size"},{"kind":"var","name":"work"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.complete"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.complete"}},{"binders":["error","position","work"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"position"},{"kind":"var","name":"work"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.failed"}}],"kind":"match","scrutinee":{"kind":"var","name":"event"}},"kind":"definition","name":"eraseEmission","parameters":[{"name":"event","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Event"}}}],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Event"}}},{"body":{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"var","name":"value"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}}},{"field":"position","value":{"kind":"var","name":"position"}},{"field":"work","value":{"kind":"var","name":"work"}}],"kind":"record","type":{"module":"Uorc.Wire.GraphEmit","name":"State"}},"kind":"definition","name":"numberState","parameters":[{"name":"value","type":{"kind":"nat"}},{"name":"tail","type":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"list"}},{"name":"position","type":{"kind":"nat"}},{"name":"work","type":{"kind":"nat"}}],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"State"}}},{"kind":"theorem","name":"number_measure_is_exact_emission_erasure","parameters":[{"name":"value","type":{"kind":"nat"}},{"name":"tail","type":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"list"}},{"name":"position","type":{"kind":"nat"}},{"name":"work","type":{"kind":"nat"}}],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"value"},{"kind":"var","name":"tail"},{"kind":"var","name":"position"},{"kind":"var","name":"work"}],"function":{"name":"numberState"},"kind":"call"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"measureStep"},"kind":"call"},"right":{"arguments":[{"arguments":[{"arguments":[{"kind":"var","name":"value"},{"kind":"var","name":"tail"},{"kind":"var","name":"position"},{"kind":"var","name":"work"}],"function":{"name":"numberState"},"kind":"call"},{"kind":"nat","value":"1"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"step"},"kind":"call"}],"function":{"name":"eraseEmission"},"kind":"call"}}},{"body":{"branches":[{"binders":["next"],"body":{"kind":"eq","left":{"kind":"nat","value":"0"},"right":{"kind":"nat","value":"1"}},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.advanced"}},{"binders":["bytes","next"],"body":{"kind":"prop_and","left":{"kind":"eq","left":{"field":"position","kind":"project","value":{"kind":"var","name":"next"}},"right":{"kind":"add","left":{"kind":"var","name":"position"},"right":{"kind":"nat","value":"1"}}},"right":{"kind":"eq","left":{"field":"work","kind":"project","value":{"kind":"var","name":"next"}},"right":{"kind":"add","left":{"kind":"var","name":"work"},"right":{"kind":"nat","value":"1"}}}},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.produced"}},{"binders":["size","events"],"body":{"kind":"eq","left":{"kind":"nat","value":"0"},"right":{"kind":"nat","value":"1"}},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"kind":"prop_and","left":{"kind":"eq","left":{"kind":"var","name":"offset"},"right":{"kind":"var","name":"position"}},"right":{"kind":"eq","left":{"kind":"var","name":"events"},"right":{"kind":"add","left":{"kind":"var","name":"work"},"right":{"kind":"nat","value":"1"}}}},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.failed"}}],"kind":"match","scrutinee":{"kind":"var","name":"event"}},"kind":"definition","name":"numberEmissionPositionLaw","parameters":[{"name":"event","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Event"}}},{"name":"position","type":{"kind":"nat"}},{"name":"work","type":{"kind":"nat"}}],"result":{"kind":"prop"}},{"kind":"theorem","name":"number_emission_advances_exactly_one_or_fails","parameters":[{"name":"value","type":{"kind":"nat"}},{"name":"tail","type":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"list"}},{"name":"position","type":{"kind":"nat"}},{"name":"work","type":{"kind":"nat"}}],"proof":{"definitions":[{"module":"Uorc.Wire.GraphEmit","name":"step"},{"name":"numberEmissionPositionLaw"},{"name":"numberState"}],"kind":"linear_arithmetic"},"statement":{"arguments":[{"arguments":[{"arguments":[{"kind":"var","name":"value"},{"kind":"var","name":"tail"},{"kind":"var","name":"position"},{"kind":"var","name":"work"}],"function":{"name":"numberState"},"kind":"call"},{"kind":"nat","value":"1"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"step"},"kind":"call"},{"kind":"var","name":"position"},{"kind":"var","name":"work"}],"function":{"name":"numberEmissionPositionLaw"},"kind":"call"}},{"body":{"kind":"prop_and","left":{"kind":"prop_and","left":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftValue"},"kind":"call"},"right":{"kind":"var","name":"left"}},"right":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightValue"},"kind":"call"},"right":{"kind":"var","name":"right"}}},"right":{"kind":"prop_and","left":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftCount"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"left"}],"function":{"name":"natShortestULEBLength"},"kind":"call"}},"right":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightCount"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"right"}],"function":{"name":"natShortestULEBLength"},"kind":"call"}}}},"kind":"definition","name":"canonicalPairRepresentsNatWidths","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"CanonicalULEBPair"}}},{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}}],"result":{"kind":"prop"}},{"body":{"kind":"string","value":"The direct natShortestULEBLength and natCanonicalULEBWords recurrences cover all mathematical Nat and use exact quotient-decrease evidence, not a fixed fuel cap. Canonical positive digit trees exclude leading zero by construction. PositiveULEBPair synchronizes both digit chains so structural induction proves order compatibility and monotonic digit count for unbounded represented values. Linking that structural representation to the direct quotient recurrences remains a separate adequacy obligation; no theorem here assumes that obligation implicitly. number_measure_is_exact_emission_erasure refers directly to actual GraphEmit.measureStep and GraphEmit.step for arbitrary Nat values, tails, positions, and work, including conversion failures. A total emitted-size formula additionally needs conversion-success, termination, and repeated-emission/concatenation invariants. All new proof candidates still need the official SDK kernel build and exact observed axiom audit."},"kind":"definition","name":"structuralLinkBoundary","parameters":[],"result":{"kind":"string"}},{"kind":"theorem","name":"width_order_compatible_successor_invariant","parameters":[{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"kind":"var","name":"left"}},{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"kind":"var","name":"right"}},{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"kind":"var","name":"leftWidth"}},{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"kind":"var","name":"rightWidth"}}],"function":{"name":"widthOrderCompatible"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"left"},{"kind":"var","name":"right"},{"kind":"var","name":"leftWidth"},{"kind":"var","name":"rightWidth"}],"function":{"name":"widthOrderCompatible"},"kind":"call"}}},{"kind":"theorem","name":"canonical_pair_digit_count_order","parameters":[{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"CanonicalULEBPair"}}}],"proof":{"branches":[{"binders":[],"constructor":"bothZero","proof":{"definitions":[{"name":"canonicalPairLeftCount"},{"name":"canonicalPairLeftValue"},{"name":"canonicalPairRightCount"},{"name":"canonicalPairRightValue"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"}},{"binders":["rightDigits"],"constructor":"leftZero","proof":{"definitions":[{"name":"canonicalPairLeftCount"},{"name":"canonicalPairLeftValue"},{"name":"canonicalPairRightCount"},{"name":"canonicalPairRightValue"},{"name":"positiveDigitCount"},{"name":"positiveDigitValue"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"}},{"binders":["leftDigits"],"constructor":"rightZero","proof":{"definitions":[{"name":"canonicalPairLeftCount"},{"name":"canonicalPairLeftValue"},{"name":"canonicalPairRightCount"},{"name":"canonicalPairRightValue"},{"name":"positiveDigitCount"},{"name":"positiveDigitValue"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"}},{"binders":["positivePair"],"constructor":"bothPositive","proof":{"definitions":[{"name":"canonicalPairLeftCount"},{"name":"canonicalPairLeftValue"},{"name":"canonicalPairRightCount"},{"name":"canonicalPairRightValue"},{"name":"canonical_positive_pair_digit_count_order"},{"name":"width_order_compatible_successor_invariant"}],"kind":"simplify"}}],"kind":"cases","scrutinee":"pair"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftValue"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightValue"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftCount"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightCount"},"kind":"call"}],"function":{"name":"widthOrderCompatible"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"complete_size_beq_reflects_body_beq","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"completeSize"},{"name":"integrityBytes"},{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"kind":"eq","left":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"left"},{"kind":"var","name":"leftWidth"}],"function":{"name":"completeSize"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"header"},{"kind":"var","name":"right"},{"kind":"var","name":"rightWidth"}],"function":{"name":"completeSize"},"kind":"call"}},"right":{"kind":"beq","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}}},"kind":"implies","premise":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"left"},{"kind":"var","name":"right"},{"kind":"var","name":"leftWidth"},{"kind":"var","name":"rightWidth"}],"function":{"name":"widthOrderCompatible"},"kind":"call"},"right":{"kind":"bool","value":true}}}},{"kind":"theorem","name":"canonical_pair_complete_size_preserves_strict_order","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"CanonicalULEBPair"}}}],"proof":{"definitions":[{"name":"canonical_pair_digit_count_order"},{"name":"complete_size_order_reflects_body_order"}],"kind":"simplify"},"statement":{"kind":"iff","left":{"kind":"lt","left":{"arguments":[{"kind":"var","name":"header"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftValue"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftCount"},"kind":"call"}],"function":{"name":"completeSize"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"header"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightValue"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightCount"},"kind":"call"}],"function":{"name":"completeSize"},"kind":"call"}},"right":{"kind":"lt","left":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftValue"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightValue"},"kind":"call"}}}},{"kind":"theorem","name":"canonical_pair_equal_complete_size_iff_equal_value","parameters":[{"name":"header","type":{"kind":"nat"}},{"name":"pair","type":{"arguments":[],"kind":"named","member":{"name":"CanonicalULEBPair"}}}],"proof":{"definitions":[{"name":"canonical_pair_digit_count_order"},{"name":"complete_size_beq_reflects_body_beq"}],"kind":"simplify"},"statement":{"kind":"eq","left":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"header"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftValue"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftCount"},"kind":"call"}],"function":{"name":"completeSize"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"header"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightValue"},"kind":"call"},{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightCount"},"kind":"call"}],"function":{"name":"completeSize"},"kind":"call"}},"right":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairLeftValue"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"pair"}],"function":{"name":"canonicalPairRightValue"},"kind":"call"}}}},{"body":{"branches":[{"binders":["payload"],"body":{"head":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}}},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}},"constructor":{"name":"PositiveULEBDigits.terminal"}},{"binders":["payload","rest"],"body":{"head":{"kind":"add","left":{"kind":"nat","value":"128"},"right":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}}},"kind":"cons","tail":{"arguments":[{"kind":"var","name":"rest"}],"function":{"name":"positiveDigitWords"},"kind":"call"}},"constructor":{"name":"PositiveULEBDigits.continuation"}}],"kind":"match","scrutinee":{"kind":"var","name":"digits"}},"kind":"definition","name":"positiveDigitWords","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"recursive_argument":"digits","result":{"element":{"kind":"nat"},"kind":"list"}},{"kind":"theorem","name":"canonical_positive_digit_count_is_word_length","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"proof":{"branches":[{"binders":["payload"],"constructor":"terminal","proof":{"definitions":[{"name":"positiveDigitCount"},{"name":"positiveDigitExtra"},{"name":"positiveDigitWords"},{"name":"wordLength"}],"kind":"linear_arithmetic"}},{"binders":["payload","rest","ih"],"constructor":"continuation","proof":{"definitions":[{"name":"positiveDigitCount"},{"name":"positiveDigitExtra"},{"name":"positiveDigitWords"},{"name":"wordLength"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"digits"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"digits"}],"function":{"name":"positiveDigitWords"},"kind":"call"}],"function":{"name":"wordLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"digits"}],"function":{"name":"positiveDigitCount"},"kind":"call"}}},{"kind":"theorem","name":"canonical_continuation_quotient","parameters":[{"name":"payload","type":{"kind":"nat"}},{"name":"tailRank","type":{"kind":"nat"}}],"proof":{"kind":"linear_arithmetic"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"kind":"add","left":{"kind":"add","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"right":{"arguments":[{"kind":"nat","value":"128"},{"kind":"var","name":"tailRank"}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}}}},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"quotient","result":{"kind":"nat"}},"right":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"kind":"var","name":"tailRank"}}}},{"kind":"theorem","name":"canonical_continuation_remainder","parameters":[{"name":"payload","type":{"kind":"nat"}},{"name":"tailRank","type":{"kind":"nat"}}],"proof":{"kind":"linear_arithmetic"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"kind":"add","left":{"kind":"add","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"right":{"arguments":[{"kind":"nat","value":"128"},{"kind":"var","name":"tailRank"}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}}}},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}}}},{"kind":"theorem","name":"canonical_continuation_requires_more_digit","parameters":[{"name":"payload","type":{"kind":"nat"}},{"name":"tailRank","type":{"kind":"nat"}}],"proof":{"kind":"linear_arithmetic"},"statement":{"kind":"eq","left":{"kind":"blt","left":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"kind":"add","left":{"kind":"add","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"right":{"arguments":[{"kind":"nat","value":"128"},{"kind":"var","name":"tailRank"}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}}}},"right":{"kind":"nat","value":"128"}},"right":{"kind":"bool","value":false}}},{"kind":"theorem","name":"canonical_terminal_requires_one_digit","parameters":[{"name":"payload","type":{"kind":"nat"}}],"proof":{"kind":"linear_arithmetic"},"statement":{"kind":"eq","left":{"kind":"blt","left":{"kind":"add","left":{"kind":"nat","value":"1"},"right":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}}},"right":{"kind":"nat","value":"128"}},"right":{"kind":"bool","value":true}}},{"body":{"branches":[{"binders":["next"],"body":{"kind":"eq","left":{"kind":"nat","value":"0"},"right":{"kind":"nat","value":"1"}},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.advanced"}},{"binders":["bytes","next"],"body":{"kind":"eq","left":{"field":"pending","kind":"project","value":{"kind":"var","name":"next"}},"right":{"condition":{"kind":"blt","left":{"kind":"var","name":"value"},"right":{"kind":"nat","value":"128"}},"else_value":{"head":{"arguments":[{"arguments":[{"kind":"var","name":"value"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"quotient","result":{"kind":"nat"}}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"kind":"var","name":"tail"}},"kind":"if","then_value":{"kind":"var","name":"tail"}}},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.produced"}},{"binders":["size","events"],"body":{"kind":"eq","left":{"kind":"nat","value":"0"},"right":{"kind":"nat","value":"1"}},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.complete"}},{"binders":["error","offset","events"],"body":{"kind":"eq","left":{"kind":"nat","value":"0"},"right":{"kind":"nat","value":"0"}},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.failed"}}],"kind":"match","scrutinee":{"kind":"var","name":"event"}},"kind":"definition","name":"numberEmissionQueueLaw","parameters":[{"name":"event","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Event"}}},{"name":"value","type":{"kind":"nat"}},{"name":"tail","type":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"list"}}],"result":{"kind":"prop"}},{"kind":"theorem","name":"number_emission_has_exact_canonical_next_queue","parameters":[{"name":"value","type":{"kind":"nat"}},{"name":"tail","type":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"list"}},{"name":"position","type":{"kind":"nat"}},{"name":"work","type":{"kind":"nat"}}],"proof":{"definitions":[{"module":"Uorc.Wire.GraphEmit","name":"step"},{"name":"numberEmissionQueueLaw"},{"name":"numberState"}],"kind":"linear_arithmetic"},"statement":{"arguments":[{"arguments":[{"arguments":[{"kind":"var","name":"value"},{"kind":"var","name":"tail"},{"kind":"var","name":"position"},{"kind":"var","name":"work"}],"function":{"name":"numberState"},"kind":"call"},{"kind":"nat","value":"1"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"step"},"kind":"call"},{"kind":"var","name":"value"},{"kind":"var","name":"tail"}],"function":{"name":"numberEmissionQueueLaw"},"kind":"call"}},{"body":{"branches":[{"binders":["payload"],"body":{"condition":{"kind":"blt","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"126"}},"else_value":{"arguments":[{"kind":"nat","value":"0"},{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"name":"PositiveULEBDigits.terminal"},"kind":"constructor"}],"constructor":{"name":"PositiveULEBDigits.continuation"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"kind":"add","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"PositiveULEBDigits.terminal"},"kind":"constructor"}},"constructor":{"name":"PositiveULEBDigits.terminal"}},{"binders":["payload","rest"],"body":{"condition":{"kind":"blt","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"else_value":{"arguments":[{"kind":"nat","value":"0"},{"arguments":[{"kind":"var","name":"rest"}],"function":{"name":"incrementPositiveDigits"},"kind":"call"}],"constructor":{"name":"PositiveULEBDigits.continuation"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"kind":"add","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"1"}},{"kind":"var","name":"rest"}],"constructor":{"name":"PositiveULEBDigits.continuation"},"kind":"constructor"}},"constructor":{"name":"PositiveULEBDigits.continuation"}}],"kind":"match","scrutinee":{"kind":"var","name":"digits"}},"kind":"definition","name":"incrementPositiveDigits","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"recursive_argument":"digits","result":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}},{"body":{"branches":[{"binders":["payload"],"body":{"condition":{"kind":"blt","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"127"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"126"}},"else_value":{"kind":"nat","value":"1"},"kind":"if","then_value":{"kind":"nat","value":"0"}},"constructor":{"name":"PositiveULEBDigits.terminal"}},{"binders":["payload","rest"],"body":{"condition":{"kind":"blt","left":{"arguments":[{"kind":"var","name":"payload"},{"kind":"nat","value":"128"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"127"}},"else_value":{"arguments":[{"kind":"var","name":"rest"}],"function":{"name":"positiveIncrementExtra"},"kind":"call"},"kind":"if","then_value":{"kind":"nat","value":"0"}},"constructor":{"name":"PositiveULEBDigits.continuation"}}],"kind":"match","scrutinee":{"kind":"var","name":"digits"}},"kind":"definition","name":"positiveIncrementExtra","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"recursive_argument":"digits","result":{"kind":"nat"}},{"kind":"theorem","name":"canonical_positive_successor_value","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"proof":{"branches":[{"binders":["payload"],"constructor":"terminal","proof":{"definitions":[{"name":"incrementPositiveDigits"},{"name":"positiveDigitRank"},{"name":"positiveDigitValue"}],"kind":"linear_arithmetic"}},{"binders":["payload","rest","ih"],"constructor":"continuation","proof":{"definitions":[{"name":"incrementPositiveDigits"},{"name":"positiveDigitRank"},{"name":"positiveDigitValue"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"digits"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"digits"}],"function":{"name":"incrementPositiveDigits"},"kind":"call"}],"function":{"name":"positiveDigitValue"},"kind":"call"},"right":{"kind":"add","left":{"arguments":[{"kind":"var","name":"digits"}],"function":{"name":"positiveDigitValue"},"kind":"call"},"right":{"kind":"nat","value":"1"}}}},{"kind":"theorem","name":"canonical_positive_successor_count_additive","parameters":[{"name":"digits","type":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}}],"proof":{"branches":[{"binders":["payload"],"constructor":"terminal","proof":{"definitions":[{"name":"incrementPositiveDigits"},{"name":"positiveDigitCount"},{"name":"positiveDigitExtra"},{"name":"positiveIncrementExtra"}],"kind":"linear_arithmetic"}},{"binders":["payload","rest","ih"],"constructor":"continuation","proof":{"definitions":[{"name":"incrementPositiveDigits"},{"name":"positiveDigitCount"},{"name":"positiveDigitExtra"},{"name":"positiveIncrementExtra"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"digits"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"digits"}],"function":{"name":"incrementPositiveDigits"},"kind":"call"}],"function":{"name":"positiveDigitCount"},"kind":"call"},"right":{"kind":"add","left":{"arguments":[{"kind":"var","name":"digits"}],"function":{"name":"positiveDigitCount"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"digits"}],"function":{"name":"positiveIncrementExtra"},"kind":"call"}}}},{"body":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"name":"PositiveULEBDigits.terminal"},"kind":"constructor"},"constructor":{"name":"Nat.zero"}},{"binders":["previous"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"previous"}],"function":{"name":"digitsOfRank"},"kind":"call"}],"function":{"name":"incrementPositiveDigits"},"kind":"call"},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"rank"}},"kind":"definition","name":"digitsOfRank","parameters":[{"name":"rank","type":{"kind":"nat"}}],"recursive_argument":"rank","result":{"arguments":[],"kind":"named","member":{"name":"PositiveULEBDigits"}}},{"kind":"theorem","name":"every_positive_nat_has_canonical_digits","parameters":[{"name":"rank","type":{"kind":"nat"}}],"proof":{"branches":[{"binders":[],"constructor":"zero","proof":{"kind":"reflexivity"}},{"binders":["previous","ih"],"constructor":"succ","proof":{"definitions":[{"name":"canonical_positive_successor_value"},{"name":"digitsOfRank"},{"name":"ih"}],"kind":"simplify"}}],"kind":"induction","scrutinee":"rank"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"rank"}],"function":{"name":"digitsOfRank"},"kind":"call"}],"function":{"name":"positiveDigitValue"},"kind":"call"},"right":{"kind":"add","left":{"kind":"var","name":"rank"},"right":{"kind":"nat","value":"1"}}}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"1"},"constructor":{"name":"Nat.zero"}},{"binders":["previous"],"body":{"kind":"add","left":{"arguments":[{"kind":"var","name":"previous"}],"function":{"name":"digitCountByRank"},"kind":"call"},"right":{"arguments":[{"arguments":[{"kind":"var","name":"previous"}],"function":{"name":"digitsOfRank"},"kind":"call"}],"function":{"name":"positiveIncrementExtra"},"kind":"call"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"rank"}},"kind":"definition","name":"digitCountByRank","parameters":[{"name":"rank","type":{"kind":"nat"}}],"recursive_argument":"rank","result":{"kind":"nat"}},{"kind":"theorem","name":"unbounded_nat_digit_count_adequacy","parameters":[{"name":"rank","type":{"kind":"nat"}}],"proof":{"branches":[{"binders":[],"constructor":"zero","proof":{"kind":"reflexivity"}},{"binders":["previous","ih"],"constructor":"succ","proof":{"definitions":[{"name":"canonical_positive_successor_count_additive"},{"name":"digitCountByRank"},{"name":"digitsOfRank"},{"name":"ih"}],"kind":"simplify"}}],"kind":"induction","scrutinee":"rank"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"rank"}],"function":{"name":"digitCountByRank"},"kind":"call"},"right":{"arguments":[{"arguments":[{"kind":"var","name":"rank"}],"function":{"name":"digitsOfRank"},"kind":"call"}],"function":{"name":"positiveDigitCount"},"kind":"call"}}},{"kind":"theorem","name":"unbounded_nat_digit_count_monotone_add","parameters":[{"name":"rank","type":{"kind":"nat"}},{"name":"gap","type":{"kind":"nat"}}],"proof":{"branches":[{"binders":[],"constructor":"zero","proof":{"definitions":[{"name":"digitCountByRank"}],"kind":"linear_arithmetic"}},{"binders":["previousGap","ih"],"constructor":"succ","proof":{"definitions":[{"name":"digitCountByRank"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"gap"},"statement":{"kind":"le","left":{"arguments":[{"kind":"var","name":"rank"}],"function":{"name":"digitCountByRank"},"kind":"call"},"right":{"arguments":[{"kind":"add","left":{"kind":"var","name":"rank"},"right":{"kind":"var","name":"gap"}}],"function":{"name":"digitCountByRank"},"kind":"call"}}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"1"},"constructor":{"name":"Nat.zero"}},{"binders":["previous"],"body":{"condition":{"kind":"beq","left":{"kind":"var","name":"previous"},"right":{"kind":"nat","value":"0"}},"else_value":{"kind":"add","left":{"arguments":[{"kind":"var","name":"previous"}],"function":{"name":"natCanonicalULEBCount"},"kind":"call"},"right":{"arguments":[{"arguments":[{"arguments":[{"kind":"var","name":"previous"},{"kind":"nat","value":"1"}],"kind":"primitive","operation":"subtract","result":{"kind":"nat"}}],"function":{"name":"digitsOfRank"},"kind":"call"}],"function":{"name":"positiveIncrementExtra"},"kind":"call"}},"kind":"if","then_value":{"kind":"nat","value":"1"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"value"}},"kind":"definition","name":"natCanonicalULEBCount","parameters":[{"name":"value","type":{"kind":"nat"}}],"recursive_argument":"value","result":{"kind":"nat"}},{"kind":"theorem","name":"nat_canonical_positive_count_adequacy","parameters":[{"name":"rank","type":{"kind":"nat"}}],"proof":{"branches":[{"binders":[],"constructor":"zero","proof":{"kind":"reflexivity"}},{"binders":["previous","ih"],"constructor":"succ","proof":{"definitions":[{"name":"digitCountByRank"},{"name":"natCanonicalULEBCount"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"rank"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"rank"}],"constructor":{"name":"Nat.succ"},"kind":"constructor"}],"function":{"name":"natCanonicalULEBCount"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"rank"}],"function":{"name":"digitCountByRank"},"kind":"call"}}},{"kind":"theorem","name":"nat_canonical_uleb_count_monotone_add","parameters":[{"name":"value","type":{"kind":"nat"}},{"name":"gap","type":{"kind":"nat"}}],"proof":{"branches":[{"binders":[],"constructor":"zero","proof":{"definitions":[{"name":"natCanonicalULEBCount"}],"kind":"linear_arithmetic"}},{"binders":["previousGap","ih"],"constructor":"succ","proof":{"definitions":[{"name":"natCanonicalULEBCount"}],"kind":"linear_arithmetic"}}],"kind":"induction","scrutinee":"gap"},"statement":{"kind":"le","left":{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"natCanonicalULEBCount"},"kind":"call"},"right":{"arguments":[{"kind":"add","left":{"kind":"var","name":"value"},"right":{"kind":"var","name":"gap"}}],"function":{"name":"natCanonicalULEBCount"},"kind":"call"}}},{"body":{"branches":[{"binders":[],"body":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}},"constructor":{"name":"Nat.zero"}},{"binders":["rank"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"rank"}],"function":{"name":"digitsOfRank"},"kind":"call"}],"function":{"name":"positiveDigitWords"},"kind":"call"},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"value"}},"kind":"definition","name":"natCanonicalWordsBySuccessor","parameters":[{"name":"value","type":{"kind":"nat"}}],"result":{"element":{"kind":"nat"},"kind":"list"}},{"kind":"theorem","name":"nat_canonical_word_length_exact","parameters":[{"name":"value","type":{"kind":"nat"}}],"proof":{"branches":[{"binders":[],"constructor":"zero","proof":{"kind":"reflexivity"}},{"binders":["rank"],"constructor":"succ","proof":{"definitions":[{"name":"canonical_positive_digit_count_is_word_length"},{"name":"natCanonicalWordsBySuccessor"},{"name":"nat_canonical_positive_count_adequacy"},{"name":"unbounded_nat_digit_count_adequacy"}],"kind":"simplify"}}],"kind":"cases","scrutinee":"value"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"natCanonicalWordsBySuccessor"},"kind":"call"}],"function":{"name":"wordLength"},"kind":"call"},"right":{"arguments":[{"kind":"var","name":"value"}],"function":{"name":"natCanonicalULEBCount"},"kind":"call"}}},{"body":{"kind":"string","value":"digitsOfRank is an unbounded mathematical witness construction, not a production encoder or input cap. every_positive_nat_has_canonical_digits proves its exact represented Nat value. unbounded_nat_digit_count_adequacy and nat_canonical_word_length_exact connect the structurally accumulated count to canonical word length, including zero. The monotone_add theorems quantify every starting Nat and every additive gap and thus express the full unbounded monotonicity property. Separate proof work still links this canonical structural count to natShortestULEBLength direct quotient recursion and to successful complete actual GraphEmit runs. No SDK or exact axiom audit is claimed by source-execution checks."},"kind":"definition","name":"successorAdequacyBoundary","parameters":[],"result":{"kind":"string"}},{"kind":"theorem","name":"width_order_normal_form_preserves_branch_meaning","parameters":[{"name":"left","type":{"kind":"nat"}},{"name":"right","type":{"kind":"nat"}},{"name":"leftWidth","type":{"kind":"nat"}},{"name":"rightWidth","type":{"kind":"nat"}}],"proof":{"definitions":[{"name":"widthOrderCompatible"}],"kind":"linear_arithmetic"},"statement":{"kind":"iff","left":{"kind":"eq","left":{"condition":{"kind":"blt","left":{"kind":"var","name":"left"},"right":{"kind":"var","name":"right"}},"else_value":{"condition":{"kind":"blt","left":{"kind":"var","name":"right"},"right":{"kind":"var","name":"left"}},"else_value":{"kind":"beq","left":{"kind":"var","name":"leftWidth"},"right":{"kind":"var","name":"rightWidth"}},"kind":"if","then_value":{"kind":"ble","left":{"kind":"var","name":"rightWidth"},"right":{"kind":"var","name":"leftWidth"}}},"kind":"if","then_value":{"kind":"ble","left":{"kind":"var","name":"leftWidth"},"right":{"kind":"var","name":"rightWidth"}}},"right":{"kind":"bool","value":true}},"right":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"left"},{"kind":"var","name":"right"},{"kind":"var","name":"leftWidth"},{"kind":"var","name":"rightWidth"}],"function":{"name":"widthOrderCompatible"},"kind":"call"},"right":{"kind":"bool","value":true}}}}],"spec":"lexlean/semantic-module/1"}}
+definition{name: integrityBytes, parameters: [], result: Nat, body: 32}
+
+definition{name: fixedPrefixBytes, parameters: [], result: Nat, body: 8}
+
+definition{name: representationOffset, parameters: [], result: Nat, body: 7}
+
+definition{
+  name: scopeTag,
+  parameters: [scope : Uorc.Wire.Frame::Scope],
+  result: Nat,
+  body: (match scope
+    | Uorc.Wire.Frame::Scope.selfContained => 0
+    | Uorc.Wire.Frame::Scope.conditional identity => 1)
+}
+
+definition{
+  name: representationTag,
+  parameters: [body : Uorc.Wire.Frame::Body],
+  result: Nat,
+  body: (match body | Uorc.Wire.Frame::Body.raw raw => 0 | Uorc.Wire.Frame::Body.program graph => 1)
+}
+
+definition{
+  name: dropTasks,
+  parameters: [count : Nat, tasks : (List Uorc.Wire.GraphEmit::Task)],
+  result: (List Uorc.Wire.GraphEmit::Task),
+  body: (match count
+    | Nat.zero => tasks
+    | Nat.succ rest => (match tasks
+      | List.nil => (nil Uorc.Wire.GraphEmit::Task)
+      | List.cons head tail => (dropTasks rest tail))),
+  recursive_argument: count
+}
+
+definition{
+  name: firstTask,
+  parameters: [tasks : (List Uorc.Wire.GraphEmit::Task)],
+  result: (Option Uorc.Wire.GraphEmit::Task),
+  body: (match tasks
+    | List.nil => (ctor Option.none [Uorc.Wire.GraphEmit::Task])
+    | List.cons head tail => (ctor Option.some [Uorc.Wire.GraphEmit::Task] head))
+}
+
+definition{
+  name: preparedRepresentationTask,
+  parameters: [prepared : Uorc.Wire.Frame::Prepared],
+  result: (Option Uorc.Wire.GraphEmit::Task),
+  body: (firstTask (dropTasks (representationOffset) (project (Uorc.Wire.Frame::preimageStart prepared) pending)))
+}
+
+theorem{
+  name: representation_precedes_lengths_and_body,
+  parameters: [prepared : Uorc.Wire.Frame::Prepared],
+  statement: ((preparedRepresentationTask prepared) = (ctor Option.some [Uorc.Wire.GraphEmit::Task] (ctor Uorc.Wire.GraphEmit::Task.byte (representationTag (project (project prepared frame) body))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: raw_tag_zero,
+  parameters: [raw : Uorc.Core.Bytes::Rope],
+  statement: ((representationTag (ctor Uorc.Wire.Frame::Body.raw raw)) = 0),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: actual_frame_fixed_header_prefix,
+  parameters: [prepared : Uorc.Wire.Frame::Prepared],
+  statement: ((project (Uorc.Wire.Frame::preimageStart prepared) pending) = (cons (ctor Uorc.Wire.GraphEmit::Task.byte 85) (cons (ctor Uorc.Wire.GraphEmit::Task.byte 79) (cons (ctor Uorc.Wire.GraphEmit::Task.byte 82) (cons (ctor Uorc.Wire.GraphEmit::Task.byte 67) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (Uorc.Wire.Frame::formatVersion)) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (Uorc.Wire.Frame::machineProfile)) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (scopeTag (project (project prepared frame) scope))) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (representationTag (project (project prepared frame) body))) (dropTasks 8 (project (Uorc.Wire.Frame::preimageStart prepared) pending))))))))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: actual_frame_length_tasks_follow_representation,
+  parameters: [prepared : Uorc.Wire.Frame::Prepared],
+  statement: ((dropTasks 8 (project (Uorc.Wire.Frame::preimageStart prepared) pending)) = (cons (ctor Uorc.Wire.GraphEmit::Task.number (project prepared objectCount)) (cons (ctor Uorc.Wire.GraphEmit::Task.references (project (project prepared frame) objectLengths)) (cons (ctor Uorc.Wire.GraphEmit::Task.number (project prepared bodyLength)) (dropTasks 11 (project (Uorc.Wire.Frame::preimageStart prepared) pending)))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: program_tag_one,
+  parameters: [graph : Uorc.Core.Graph::Graph],
+  statement: ((representationTag (ctor Uorc.Wire.Frame::Body.program graph)) = 1),
+  proof: reflexivity{}
+}
+
+definition{
+  name: completeSize,
+  parameters: [header : Nat, bodyLength : Nat, ulebLength : Nat],
+  result: Nat,
+  body: (((header + bodyLength) + ulebLength) + (integrityBytes))
+}
+
+definition{
+  name: widthOrderCompatible,
+  parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  result: Bool,
+  body: (((not (left <? right)) || (leftWidth <=? rightWidth)) && (((not (right <? left)) || (rightWidth <=? leftWidth)) && ((not (left =? right)) || (leftWidth =? rightWidth))))
+}
+
+theorem{
+  name: complete_size_strict_mono_given_width_mono,
+  parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: ((left < right) -> ((leftWidth <= rightWidth) -> ((completeSize header left leftWidth) < (completeSize header right rightWidth)))),
+  proof: linear_arithmetic{definitions: [completeSize, integrityBytes]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: equal_complete_sizes_force_equal_body_lengths,
+  parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((widthOrderCompatible left right leftWidth rightWidth) = true) -> (((completeSize header left leftWidth) = (completeSize header right rightWidth)) -> (left = right))),
+  proof: linear_arithmetic{definitions: [completeSize, integrityBytes, widthOrderCompatible]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: complete_size_order_reflects_body_order,
+  parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((widthOrderCompatible left right leftWidth rightWidth) = true) -> (((completeSize header left leftWidth) < (completeSize header right rightWidth)) <-> (left < right))),
+  proof: linear_arithmetic{definitions: [completeSize, integrityBytes, widthOrderCompatible]}
+}
+
+theorem{
+  name: body_length_is_strictly_below_complete_size,
+  parameters: [header : Nat, bodyLength : Nat, ulebLength : Nat],
+  statement: (bodyLength < (completeSize header bodyLength ulebLength)),
+  proof: linear_arithmetic{definitions: [completeSize, integrityBytes]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: widthAtThresholds,
+  parameters: [thresholds : (List Nat), value : Nat],
+  result: Nat,
+  body: (match thresholds
+    | List.nil => 1
+    | List.cons threshold rest => (if (value <? threshold) then 1 else (1 + (widthAtThresholds rest value)))),
+  recursive_argument: thresholds
+}
+
+theorem{
+  name: width_at_thresholds_monotone,
+  parameters: [thresholds : (List Nat), left : Nat, right : Nat],
+  statement: ((left <= right) -> ((widthAtThresholds thresholds left) <= (widthAtThresholds thresholds right))),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [widthAtThresholds]}, binders: [], constructor: nil},
+      {
+        proof: linear_arithmetic{definitions: [widthAtThresholds]},
+        binders: [threshold, rest, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: thresholds
+  }
+}
+
+definition{
+  name: u64WidthFormula,
+  parameters: [value : Nat],
+  result: Nat,
+  body: (if (value <? 128) then 1 else (if (value <? 16384) then 2 else (if (value <? 2097152) then 3 else (if (value <? 268435456) then 4 else (if (value <? 34359738368) then 5 else (if (value <? 4398046511104) then 6 else (if (value <? 562949953421312) then 7 else (if (value <? 72057594037927936) then 8 else (if (value <? 9223372036854775808) then 9 else 10)))))))))
+}
+
+definition{
+  name: checkedU64ULEBLength,
+  parameters: [value : Nat],
+  result: (Option Nat),
+  body: (if (value <? 18446744073709551616) then (ctor Option.some [Nat] (u64WidthFormula value)) else (ctor Option.none [Nat]))
+}
+
+theorem{
+  name: u64_width_formula_matches_thresholds,
+  parameters: [value : Nat],
+  statement: ((u64WidthFormula value) = (widthAtThresholds (cons 128 (cons 16384 (cons 2097152 (cons 268435456 (cons 34359738368 (cons 4398046511104 (cons 562949953421312 (cons 72057594037927936 (cons 9223372036854775808 (nil Nat)))))))))) value)),
+  proof: linear_arithmetic{definitions: [u64WidthFormula, widthAtThresholds]}
+}
+
+theorem{
+  name: u64_width_formula_monotone,
+  parameters: [left : Nat, right : Nat],
+  statement: ((left <= right) -> ((u64WidthFormula left) <= (u64WidthFormula right))),
+  proof: simplify{definitions: [u64_width_formula_matches_thresholds, width_at_thresholds_monotone]}
+}
+
+theorem{
+  name: checked_uleb_success_is_representable,
+  parameters: [value : Nat, width : Nat],
+  statement: (((checkedU64ULEBLength value) = (ctor Option.some [Nat] width)) -> ((value < 18446744073709551616) /\ ((1 <= width) /\ (width <= 10)))),
+  proof: linear_arithmetic{definitions: [checkedU64ULEBLength, u64WidthFormula]}
+}
+
+theorem{
+  name: checked_uleb_pair_width_compatible,
+  parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((checkedU64ULEBLength left) = (ctor Option.some [Nat] leftWidth)) -> (((checkedU64ULEBLength right) = (ctor Option.some [Nat] rightWidth)) -> ((widthOrderCompatible left right leftWidth rightWidth) = true))),
+  proof: linear_arithmetic{
+    definitions: [checkedU64ULEBLength, u64WidthFormula, widthOrderCompatible]
+  }
+}
+
+theorem{
+  name: checked_uleb_complete_size_strict_mono,
+  parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((checkedU64ULEBLength left) = (ctor Option.some [Nat] leftWidth)) -> (((checkedU64ULEBLength right) = (ctor Option.some [Nat] rightWidth)) -> ((left < right) -> ((completeSize header left leftWidth) < (completeSize header right rightWidth))))),
+  proof: linear_arithmetic{
+    definitions: [checkedU64ULEBLength, completeSize, integrityBytes, u64WidthFormula]
+  }
+}
+
+theorem{
+  name: checked_uleb_equal_complete_sizes_equal_body_lengths,
+  parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((checkedU64ULEBLength left) = (ctor Option.some [Nat] leftWidth)) -> (((checkedU64ULEBLength right) = (ctor Option.some [Nat] rightWidth)) -> (((completeSize header left leftWidth) = (completeSize header right rightWidth)) -> (left = right)))),
+  proof: linear_arithmetic{
+    definitions: [checkedU64ULEBLength, completeSize, integrityBytes, u64WidthFormula]
+  }
+}
+
+definition{
+  name: checkedU64TotalSize,
+  parameters: [header : Nat, bodyLength : Nat, ulebLength : Nat],
+  result: (Option Nat),
+  body: (if ((completeSize header bodyLength ulebLength) <? 18446744073709551616) then (ctor Option.some [Nat] (completeSize header bodyLength ulebLength)) else (ctor Option.none [Nat]))
+}
+
+definition{
+  name: natULEBLengthFuel,
+  parameters: [fuel : Nat, value : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => 0
+    | Nat.succ restFuel => (if (value <? 128) then 1 else (1 + (natULEBLengthFuel restFuel (prim quotient value 128 0 : Nat))))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: natULEBLengthCandidate,
+  parameters: [value : Nat],
+  result: Nat,
+  body: (natULEBLengthFuel (value + 1) value)
+}
+
+definition{
+  name: natULEBMonotonicityObligation,
+  parameters: [],
+  result: Prop,
+  body: (forall (left : Nat), (forall (right : Nat), ((left <= right) -> ((natULEBLengthCandidate left) <= (natULEBLengthCandidate right)))))
+}
+
+definition{
+  name: checkedULEBAdequacyObligation,
+  parameters: [],
+  result: Prop,
+  body: (forall (value : Nat), (forall (width : Nat), (((checkedU64ULEBLength value) = (ctor Option.some [Nat] width)) -> ((natULEBLengthCandidate value) = width))))
+}
+
+definition{
+  name: appendWords,
+  parameters: [left : (List Nat), right : (List Nat)],
+  result: (List Nat),
+  body: (match left
+    | List.nil => right
+    | List.cons head tail => (cons head (appendWords tail right))),
+  recursive_argument: left
+}
+
+definition{
+  name: wordLength,
+  parameters: [words : (List Nat)],
+  result: Nat,
+  body: (match words | List.nil => 0 | List.cons head tail => (1 + (wordLength tail))),
+  recursive_argument: words
+}
+
+definition{
+  name: unsignedByteWords,
+  parameters: [words : (List Nat)],
+  result: Bool,
+  body: (match words
+    | List.nil => true
+    | List.cons head tail => ((head <? 256) && (unsignedByteWords tail))),
+  recursive_argument: words
+}
+
+definition{
+  name: wordLess,
+  parameters: [left : (List Nat), right : (List Nat)],
+  result: Bool,
+  body: (match left
+    | List.nil => (match right | List.nil => false | List.cons rightHead rightTail => true)
+    | List.cons leftHead leftTail => (match right
+      | List.nil => false
+      | List.cons rightHead rightTail => (if (leftHead =? rightHead) then (wordLess leftTail rightTail) else (leftHead <? rightHead)))),
+  recursive_argument: left
+}
+
+theorem{
+  name: nat_beq_self,
+  parameters: [value : Nat],
+  statement: ((value =? value) = true),
+  proof: linear_arithmetic{}
+}
+
+theorem{
+  name: common_prefix_preserves_word_order,
+  parameters: [prefix : (List Nat), left : (List Nat), right : (List Nat)],
+  statement: ((wordLess (appendWords prefix left) (appendWords prefix right)) = (wordLess left right)),
+  proof: induction{
+    branches: [
+      {proof: simplify{definitions: [appendWords]}, binders: [], constructor: nil},
+      {
+        proof: simplify{definitions: [appendWords, ih, nat_beq_self, wordLess]},
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: prefix
+  }
+}
+
+theorem{
+  name: smaller_first_word_decides,
+  parameters: [leftWord : Nat, rightWord : Nat, leftTail : (List Nat), rightTail : (List Nat)],
+  statement: ((leftWord < rightWord) -> ((wordLess (cons leftWord leftTail) (cons rightWord rightTail)) = true)),
+  proof: linear_arithmetic{definitions: [wordLess]}
+}
+
+inductive{
+  name: FirstDifference,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: here, fields: [Nat, Nat, (List Nat), (List Nat)]},
+    {name: next, fields: [Nat, FirstDifference]}
+  ]
+}
+
+definition{
+  name: differenceLeft,
+  parameters: [difference : FirstDifference, suffix : (List Nat)],
+  result: (List Nat),
+  body: (match difference
+    | FirstDifference.here low gap leftTail rightTail => (cons low (appendWords leftTail suffix))
+    | FirstDifference.next head rest => (cons head (differenceLeft rest suffix))),
+  recursive_argument: difference
+}
+
+definition{
+  name: differenceRight,
+  parameters: [difference : FirstDifference, suffix : (List Nat)],
+  result: (List Nat),
+  body: (match difference
+    | FirstDifference.here low gap leftTail rightTail => (cons ((low + gap) + 1) (appendWords rightTail suffix))
+    | FirstDifference.next head rest => (cons head (differenceRight rest suffix))),
+  recursive_argument: difference
+}
+
+theorem{
+  name: first_difference_beats_arbitrary_integrity,
+  parameters: [
+    difference : FirstDifference,
+    leftIntegrity : (List Nat),
+    rightIntegrity : (List Nat)
+  ],
+  statement: ((wordLess (differenceLeft difference leftIntegrity) (differenceRight difference rightIntegrity)) = true),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [differenceLeft, differenceRight, wordLess]},
+        binders: [low, gap, leftTail, rightTail],
+        constructor: here
+      },
+      {
+        proof: simplify{definitions: [differenceLeft, differenceRight, ih, nat_beq_self, wordLess]},
+        binders: [head, rest, ih],
+        constructor: next
+      }
+    ],
+    scrutinee: difference
+  }
+}
+
+definition{
+  name: rawProgramTagComparison,
+  parameters: [prefix : (List Nat), rawTail : (List Nat), programTail : (List Nat)],
+  result: Bool,
+  body: (wordLess (appendWords prefix (cons 0 rawTail)) (appendWords prefix (cons 1 programTail)))
+}
+
+theorem{
+  name: raw_tag_beats_program_tag_for_any_tails,
+  parameters: [prefix : (List Nat), rawTail : (List Nat), programTail : (List Nat)],
+  statement: ((rawProgramTagComparison prefix rawTail programTail) = true),
+  proof: simplify{
+    definitions: [common_prefix_preserves_word_order, rawProgramTagComparison, wordLess]
+  }
+}
+
+definition{
+  name: digestOf,
+  parameters: [digest : (Fn (Bytes) Bytes), preimage : Bytes],
+  result: Bytes,
+  body: (apply digest preimage)
+}
+
+theorem{
+  name: identical_preimages_have_identical_deterministic_digest,
+  parameters: [digest : (Fn (Bytes) Bytes), leftPreimage : Bytes, rightPreimage : Bytes],
+  statement: ((leftPreimage = rightPreimage) -> ((digestOf digest leftPreimage) = (digestOf digest rightPreimage))),
+  proof: linear_arithmetic{definitions: [digestOf]}
+}
+
+definition{
+  name: fixedHeaderSize,
+  parameters: [scope : Uorc.Wire.Frame::Scope, objectCountWidth : Nat, objectLengthsWidth : Nat],
+  result: Nat,
+  body: (((fixedPrefixBytes) + objectCountWidth) + (objectLengthsWidth + (match scope
+    | Uorc.Wire.Frame::Scope.selfContained => 0
+    | Uorc.Wire.Frame::Scope.conditional identity => 32)))
+}
+
+definition{
+  name: frameSizeLinkObligation,
+  parameters: [prepared : Uorc.Wire.Frame::Prepared, header : Nat, measuredPreimageLength : Nat],
+  result: Prop,
+  body: (measuredPreimageLength = ((header + (project prepared bodyLength)) + (natULEBLengthCandidate (project prepared bodyLength))))
+}
+
+definition{
+  name: programBodyOrderLinkObligation,
+  parameters: [leftBody : (List Nat), rightBody : (List Nat), difference : FirstDifference],
+  result: Prop,
+  body: (((wordLength leftBody) = (wordLength rightBody)) /\ (((unsignedByteWords leftBody) = true) /\ (((unsignedByteWords rightBody) = true) /\ ((leftBody = (differenceLeft difference (nil Nat))) /\ (rightBody = (differenceRight difference (nil Nat)))))))
+}
+
+definition{
+  name: linkingBoundary,
+  parameters: [],
+  result: String,
+  body: "These are source-owned general proof candidates, not SDK or kernel verification evidence. Exact source-Nat framing uses H + bodyLength + shortestULEBLength(bodyLength) + 32. The conditional arithmetic lemmas require width monotonicity explicitly. u64WidthFormula is exact only for the checked U64 domain; it saturates beyond that domain, while checkedU64ULEBLength rejects unrepresentable values. natULEBLengthCandidate uses value+1 structural fuel and has no arbitrary input cap, but its fuel adequacy, shortestness, general monotonicity, and equality with GraphEmit Task.number emission remain open linking obligations. Frame.preimageStart itself is imported for the representation-offset theorem, so the source order is byte 7 tag before object count, object lengths, body length, optional 32-byte basis identity, and body. The List Nat comparison lemmas need a canonical unsigned-byte/rope-emitter bridge, common-header equality, exact size/ULEB correspondence, and first-difference witness extraction before they may justify certificate replay. Program bodies of equal length differ before integrity; a strict-prefix case is excluded only after exact length equality is established. Digest determinism proves equal preimages give equal digests, never digest injectivity. Hash binding is a separate computational security claim. Native Nat arithmetic and checkedU64 realizations remain distinct; target overflow is a typed refusal, not an input restriction on the mathematical theorem."
+}
+
+theorem{
+  name: exact_preimage_factorization_gives_complete_size,
+  parameters: [
+    prepared : Uorc.Wire.Frame::Prepared,
+    header : Nat,
+    measuredPreimageLength : Nat,
+    archiveLength : Nat
+  ],
+  statement: ((frameSizeLinkObligation prepared header measuredPreimageLength) -> ((archiveLength = (measuredPreimageLength + (integrityBytes))) -> (archiveLength = (completeSize header (project prepared bodyLength) (natULEBLengthCandidate (project prepared bodyLength)))))),
+  proof: linear_arithmetic{definitions: [completeSize, frameSizeLinkObligation, integrityBytes]}
+}
+
+theorem{
+  name: nat_uleb_quotient_decreases,
+  parameters: [value : Nat],
+  statement: (((value <? 128) = false) -> ((prim quotient value 128 0 : Nat) < value)),
+  proof: linear_arithmetic{}
+}
+
+definition{
+  name: natShortestULEBLength,
+  parameters: [value : Nat],
+  result: Nat,
+  body: (if (value <? 128) then 1 else (1 + (natShortestULEBLength (prim quotient value 128 0 : Nat)))),
+  termination: {evidence: [nat_uleb_quotient_decreases], measure: value}
+}
+
+definition{
+  name: natCanonicalULEBWords,
+  parameters: [value : Nat],
+  result: (List Nat),
+  body: (if (value <? 128) then (cons value (nil Nat)) else (cons ((prim remainder value 128 0 : Nat) + 128) (natCanonicalULEBWords (prim quotient value 128 0 : Nat)))),
+  termination: {evidence: [nat_uleb_quotient_decreases], measure: value}
+}
+
+theorem{
+  name: canonical_uleb_terminal_digit,
+  parameters: [value : Nat],
+  statement: (((value <? 128) = true) -> (((natShortestULEBLength value) = 1) /\ ((natCanonicalULEBWords value) = (cons value (nil Nat))))),
+  proof: linear_arithmetic{definitions: [natCanonicalULEBWords, natShortestULEBLength]}
+}
+
+inductive{
+  name: PositiveULEBDigits,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: terminal, fields: [Nat]},
+    {name: continuation, fields: [Nat, PositiveULEBDigits]}
+  ]
+}
+
+definition{
+  name: positiveDigitRank,
+  parameters: [digits : PositiveULEBDigits],
+  result: Nat,
+  body: (match digits
+    | PositiveULEBDigits.terminal payload => (prim remainder payload 127 0 : Nat)
+    | PositiveULEBDigits.continuation payload rest => (((prim remainder payload 128 0 : Nat) + 127) + (prim multiply 128 (positiveDigitRank rest) : Nat))),
+  recursive_argument: digits
+}
+
+definition{
+  name: positiveDigitExtra,
+  parameters: [digits : PositiveULEBDigits],
+  result: Nat,
+  body: (match digits
+    | PositiveULEBDigits.terminal payload => 0
+    | PositiveULEBDigits.continuation payload rest => (1 + (positiveDigitExtra rest))),
+  recursive_argument: digits
+}
+
+definition{
+  name: positiveDigitValue,
+  parameters: [digits : PositiveULEBDigits],
+  result: Nat,
+  body: (1 + (positiveDigitRank digits))
+}
+
+definition{
+  name: positiveDigitCount,
+  parameters: [digits : PositiveULEBDigits],
+  result: Nat,
+  body: (1 + (positiveDigitExtra digits))
+}
+
+inductive{
+  name: PositiveULEBPair,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: terminalPair, fields: [Nat, Nat]},
+    {name: leftTerminal, fields: [Nat, Nat, PositiveULEBDigits]},
+    {name: rightTerminal, fields: [Nat, PositiveULEBDigits, Nat]},
+    {name: continuationPair, fields: [Nat, Nat, PositiveULEBPair]}
+  ]
+}
+
+definition{
+  name: pairLeftRank,
+  parameters: [pair : PositiveULEBPair],
+  result: Nat,
+  body: (match pair
+    | PositiveULEBPair.terminalPair leftPayload rightPayload => (prim remainder leftPayload 127 0 : Nat)
+    | PositiveULEBPair.leftTerminal leftPayload rightPayload rightRest => (prim remainder leftPayload 127 0 : Nat)
+    | PositiveULEBPair.rightTerminal leftPayload leftRest rightPayload => (((prim remainder leftPayload 128 0 : Nat) + 127) + (prim multiply 128 (positiveDigitRank leftRest) : Nat))
+    | PositiveULEBPair.continuationPair leftPayload rightPayload rest => (((prim remainder leftPayload 128 0 : Nat) + 127) + (prim multiply 128 (pairLeftRank rest) : Nat))),
+  recursive_argument: pair
+}
+
+definition{
+  name: pairRightRank,
+  parameters: [pair : PositiveULEBPair],
+  result: Nat,
+  body: (match pair
+    | PositiveULEBPair.terminalPair leftPayload rightPayload => (prim remainder rightPayload 127 0 : Nat)
+    | PositiveULEBPair.leftTerminal leftPayload rightPayload rightRest => (((prim remainder rightPayload 128 0 : Nat) + 127) + (prim multiply 128 (positiveDigitRank rightRest) : Nat))
+    | PositiveULEBPair.rightTerminal leftPayload leftRest rightPayload => (prim remainder rightPayload 127 0 : Nat)
+    | PositiveULEBPair.continuationPair leftPayload rightPayload rest => (((prim remainder rightPayload 128 0 : Nat) + 127) + (prim multiply 128 (pairRightRank rest) : Nat))),
+  recursive_argument: pair
+}
+
+definition{
+  name: pairLeftExtra,
+  parameters: [pair : PositiveULEBPair],
+  result: Nat,
+  body: (match pair
+    | PositiveULEBPair.terminalPair leftPayload rightPayload => 0
+    | PositiveULEBPair.leftTerminal leftPayload rightPayload rightRest => 0
+    | PositiveULEBPair.rightTerminal leftPayload leftRest rightPayload => (1 + (positiveDigitExtra leftRest))
+    | PositiveULEBPair.continuationPair leftPayload rightPayload rest => (1 + (pairLeftExtra rest))),
+  recursive_argument: pair
+}
+
+definition{
+  name: pairRightExtra,
+  parameters: [pair : PositiveULEBPair],
+  result: Nat,
+  body: (match pair
+    | PositiveULEBPair.terminalPair leftPayload rightPayload => 0
+    | PositiveULEBPair.leftTerminal leftPayload rightPayload rightRest => (1 + (positiveDigitExtra rightRest))
+    | PositiveULEBPair.rightTerminal leftPayload leftRest rightPayload => 0
+    | PositiveULEBPair.continuationPair leftPayload rightPayload rest => (1 + (pairRightExtra rest))),
+  recursive_argument: pair
+}
+
+theorem{
+  name: canonical_positive_pair_digit_count_order,
+  parameters: [pair : PositiveULEBPair],
+  statement: ((widthOrderCompatible (pairLeftRank pair) (pairRightRank pair) (pairLeftExtra pair) (pairRightExtra pair)) = true),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            pairLeftExtra,
+            pairLeftRank,
+            pairRightExtra,
+            pairRightRank,
+            widthOrderCompatible
+          ]
+        },
+        binders: [leftPayload, rightPayload],
+        constructor: terminalPair
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            pairLeftExtra,
+            pairLeftRank,
+            pairRightExtra,
+            pairRightRank,
+            widthOrderCompatible
+          ]
+        },
+        binders: [leftPayload, rightPayload, rightRest],
+        constructor: leftTerminal
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            pairLeftExtra,
+            pairLeftRank,
+            pairRightExtra,
+            pairRightRank,
+            widthOrderCompatible
+          ]
+        },
+        binders: [leftPayload, leftRest, rightPayload],
+        constructor: rightTerminal
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            pairLeftExtra,
+            pairLeftRank,
+            pairRightExtra,
+            pairRightRank,
+            widthOrderCompatible
+          ]
+        },
+        binders: [leftPayload, rightPayload, rest, ih],
+        constructor: continuationPair
+      }
+    ],
+    scrutinee: pair
+  }
+}
+
+theorem{
+  name: canonical_positive_pair_digit_count_monotone,
+  parameters: [pair : PositiveULEBPair],
+  statement: (((pairLeftRank pair) <= (pairRightRank pair)) -> ((pairLeftExtra pair) <= (pairRightExtra pair))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{
+          definitions: [pairLeftExtra, pairLeftRank, pairRightExtra, pairRightRank]
+        },
+        binders: [leftPayload, rightPayload],
+        constructor: terminalPair
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [pairLeftExtra, pairLeftRank, pairRightExtra, pairRightRank]
+        },
+        binders: [leftPayload, rightPayload, rightRest],
+        constructor: leftTerminal
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [pairLeftExtra, pairLeftRank, pairRightExtra, pairRightRank]
+        },
+        binders: [leftPayload, leftRest, rightPayload],
+        constructor: rightTerminal
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [pairLeftExtra, pairLeftRank, pairRightExtra, pairRightRank]
+        },
+        binders: [leftPayload, rightPayload, rest, ih],
+        constructor: continuationPair
+      }
+    ],
+    scrutinee: pair
+  }
+}
+
+inductive{
+  name: CanonicalULEBPair,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: bothZero, fields: []},
+    {name: leftZero, fields: [PositiveULEBDigits]},
+    {name: rightZero, fields: [PositiveULEBDigits]},
+    {name: bothPositive, fields: [PositiveULEBPair]}
+  ]
+}
+
+definition{
+  name: canonicalPairLeftValue,
+  parameters: [pair : CanonicalULEBPair],
+  result: Nat,
+  body: (match pair
+    | CanonicalULEBPair.bothZero => 0
+    | CanonicalULEBPair.leftZero rightDigits => 0
+    | CanonicalULEBPair.rightZero leftDigits => (positiveDigitValue leftDigits)
+    | CanonicalULEBPair.bothPositive positivePair => (1 + (pairLeftRank positivePair)))
+}
+
+definition{
+  name: canonicalPairRightValue,
+  parameters: [pair : CanonicalULEBPair],
+  result: Nat,
+  body: (match pair
+    | CanonicalULEBPair.bothZero => 0
+    | CanonicalULEBPair.leftZero rightDigits => (positiveDigitValue rightDigits)
+    | CanonicalULEBPair.rightZero leftDigits => 0
+    | CanonicalULEBPair.bothPositive positivePair => (1 + (pairRightRank positivePair)))
+}
+
+definition{
+  name: canonicalPairLeftCount,
+  parameters: [pair : CanonicalULEBPair],
+  result: Nat,
+  body: (match pair
+    | CanonicalULEBPair.bothZero => 1
+    | CanonicalULEBPair.leftZero rightDigits => 1
+    | CanonicalULEBPair.rightZero leftDigits => (positiveDigitCount leftDigits)
+    | CanonicalULEBPair.bothPositive positivePair => (1 + (pairLeftExtra positivePair)))
+}
+
+definition{
+  name: canonicalPairRightCount,
+  parameters: [pair : CanonicalULEBPair],
+  result: Nat,
+  body: (match pair
+    | CanonicalULEBPair.bothZero => 1
+    | CanonicalULEBPair.leftZero rightDigits => (positiveDigitCount rightDigits)
+    | CanonicalULEBPair.rightZero leftDigits => 1
+    | CanonicalULEBPair.bothPositive positivePair => (1 + (pairRightExtra positivePair)))
+}
+
+theorem{
+  name: word_length_append_additive,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: ((wordLength (appendWords left right)) = ((wordLength left) + (wordLength right))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [appendWords, wordLength]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: linear_arithmetic{definitions: [appendWords, wordLength]},
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: left
+  }
+}
+
+definition{
+  name: eraseEmission,
+  parameters: [event : Uorc.Wire.GraphEmit::Event],
+  result: Uorc.Wire.GraphEmit::Event,
+  body: (match event
+    | Uorc.Wire.GraphEmit::Event.advanced next => (ctor Uorc.Wire.GraphEmit::Event.advanced next)
+    | Uorc.Wire.GraphEmit::Event.produced bytes next => (ctor Uorc.Wire.GraphEmit::Event.advanced next)
+    | Uorc.Wire.GraphEmit::Event.complete size work => (ctor Uorc.Wire.GraphEmit::Event.complete size work)
+    | Uorc.Wire.GraphEmit::Event.failed error position work => (ctor Uorc.Wire.GraphEmit::Event.failed error position work))
+}
+
+definition{
+  name: numberState,
+  parameters: [value : Nat, tail : (List Uorc.Wire.GraphEmit::Task), position : Nat, work : Nat],
+  result: Uorc.Wire.GraphEmit::State,
+  body: (record Uorc.Wire.GraphEmit::State {pending := (cons (ctor Uorc.Wire.GraphEmit::Task.number value) tail), position := position, work := work})
+}
+
+theorem{
+  name: number_measure_is_exact_emission_erasure,
+  parameters: [value : Nat, tail : (List Uorc.Wire.GraphEmit::Task), position : Nat, work : Nat],
+  statement: ((Uorc.Wire.GraphEmit::measureStep (numberState value tail position work)) = (eraseEmission (Uorc.Wire.GraphEmit::step (numberState value tail position work) 1))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: numberEmissionPositionLaw,
+  parameters: [event : Uorc.Wire.GraphEmit::Event, position : Nat, work : Nat],
+  result: Prop,
+  body: (match event
+    | Uorc.Wire.GraphEmit::Event.advanced next => (0 = 1)
+    | Uorc.Wire.GraphEmit::Event.produced bytes next => (((project next position) = (position + 1)) /\ ((project next work) = (work + 1)))
+    | Uorc.Wire.GraphEmit::Event.complete size events => (0 = 1)
+    | Uorc.Wire.GraphEmit::Event.failed error offset events => ((offset = position) /\ (events = (work + 1))))
+}
+
+theorem{
+  name: number_emission_advances_exactly_one_or_fails,
+  parameters: [value : Nat, tail : (List Uorc.Wire.GraphEmit::Task), position : Nat, work : Nat],
+  statement: (numberEmissionPositionLaw (Uorc.Wire.GraphEmit::step (numberState value tail position work) 1) position work),
+  proof: linear_arithmetic{
+    definitions: [Uorc.Wire.GraphEmit::step, numberEmissionPositionLaw, numberState]
+  }
+}
+
+definition{
+  name: canonicalPairRepresentsNatWidths,
+  parameters: [pair : CanonicalULEBPair, left : Nat, right : Nat],
+  result: Prop,
+  body: ((((canonicalPairLeftValue pair) = left) /\ ((canonicalPairRightValue pair) = right)) /\ (((canonicalPairLeftCount pair) = (natShortestULEBLength left)) /\ ((canonicalPairRightCount pair) = (natShortestULEBLength right))))
+}
+
+definition{
+  name: structuralLinkBoundary,
+  parameters: [],
+  result: String,
+  body: "The direct natShortestULEBLength and natCanonicalULEBWords recurrences cover all mathematical Nat and use exact quotient-decrease evidence, not a fixed fuel cap. Canonical positive digit trees exclude leading zero by construction. PositiveULEBPair synchronizes both digit chains so structural induction proves order compatibility and monotonic digit count for unbounded represented values. Linking that structural representation to the direct quotient recurrences remains a separate adequacy obligation; no theorem here assumes that obligation implicitly. number_measure_is_exact_emission_erasure refers directly to actual GraphEmit.measureStep and GraphEmit.step for arbitrary Nat values, tails, positions, and work, including conversion failures. A total emitted-size formula additionally needs conversion-success, termination, and repeated-emission/concatenation invariants. All new proof candidates still need the official SDK kernel build and exact observed axiom audit."
+}
+
+theorem{
+  name: width_order_compatible_successor_invariant,
+  parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: ((widthOrderCompatible (1 + left) (1 + right) (1 + leftWidth) (1 + rightWidth)) = (widthOrderCompatible left right leftWidth rightWidth)),
+  proof: linear_arithmetic{definitions: [widthOrderCompatible]}
+}
+
+theorem{
+  name: canonical_pair_digit_count_order,
+  parameters: [pair : CanonicalULEBPair],
+  statement: ((widthOrderCompatible (canonicalPairLeftValue pair) (canonicalPairRightValue pair) (canonicalPairLeftCount pair) (canonicalPairRightCount pair)) = true),
+  proof: cases{
+    branches: [
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            canonicalPairLeftCount,
+            canonicalPairLeftValue,
+            canonicalPairRightCount,
+            canonicalPairRightValue,
+            widthOrderCompatible
+          ]
+        },
+        binders: [],
+        constructor: bothZero
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            canonicalPairLeftCount,
+            canonicalPairLeftValue,
+            canonicalPairRightCount,
+            canonicalPairRightValue,
+            positiveDigitCount,
+            positiveDigitValue,
+            widthOrderCompatible
+          ]
+        },
+        binders: [rightDigits],
+        constructor: leftZero
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            canonicalPairLeftCount,
+            canonicalPairLeftValue,
+            canonicalPairRightCount,
+            canonicalPairRightValue,
+            positiveDigitCount,
+            positiveDigitValue,
+            widthOrderCompatible
+          ]
+        },
+        binders: [leftDigits],
+        constructor: rightZero
+      },
+      {
+        proof: simplify{
+          definitions: [
+            canonicalPairLeftCount,
+            canonicalPairLeftValue,
+            canonicalPairRightCount,
+            canonicalPairRightValue,
+            canonical_positive_pair_digit_count_order,
+            width_order_compatible_successor_invariant
+          ]
+        },
+        binders: [positivePair],
+        constructor: bothPositive
+      }
+    ],
+    scrutinee: pair
+  }
+}
+
+theorem{
+  name: complete_size_beq_reflects_body_beq,
+  parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((widthOrderCompatible left right leftWidth rightWidth) = true) -> (((completeSize header left leftWidth) =? (completeSize header right rightWidth)) = (left =? right))),
+  proof: linear_arithmetic{definitions: [completeSize, integrityBytes, widthOrderCompatible]}
+}
+
+theorem{
+  name: canonical_pair_complete_size_preserves_strict_order,
+  parameters: [header : Nat, pair : CanonicalULEBPair],
+  statement: (((completeSize header (canonicalPairLeftValue pair) (canonicalPairLeftCount pair)) < (completeSize header (canonicalPairRightValue pair) (canonicalPairRightCount pair))) <-> ((canonicalPairLeftValue pair) < (canonicalPairRightValue pair))),
+  proof: simplify{
+    definitions: [canonical_pair_digit_count_order, complete_size_order_reflects_body_order]
+  }
+}
+
+theorem{
+  name: canonical_pair_equal_complete_size_iff_equal_value,
+  parameters: [header : Nat, pair : CanonicalULEBPair],
+  statement: (((completeSize header (canonicalPairLeftValue pair) (canonicalPairLeftCount pair)) =? (completeSize header (canonicalPairRightValue pair) (canonicalPairRightCount pair))) = ((canonicalPairLeftValue pair) =? (canonicalPairRightValue pair))),
+  proof: simplify{
+    definitions: [canonical_pair_digit_count_order, complete_size_beq_reflects_body_beq]
+  }
+}
+
+definition{
+  name: positiveDigitWords,
+  parameters: [digits : PositiveULEBDigits],
+  result: (List Nat),
+  body: (match digits
+    | PositiveULEBDigits.terminal payload => (cons (1 + (prim remainder payload 127 0 : Nat)) (nil Nat))
+    | PositiveULEBDigits.continuation payload rest => (cons (128 + (prim remainder payload 128 0 : Nat)) (positiveDigitWords rest))),
+  recursive_argument: digits
+}
+
+theorem{
+  name: canonical_positive_digit_count_is_word_length,
+  parameters: [digits : PositiveULEBDigits],
+  statement: ((wordLength (positiveDigitWords digits)) = (positiveDigitCount digits)),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{
+          definitions: [positiveDigitCount, positiveDigitExtra, positiveDigitWords, wordLength]
+        },
+        binders: [payload],
+        constructor: terminal
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [positiveDigitCount, positiveDigitExtra, positiveDigitWords, wordLength]
+        },
+        binders: [payload, rest, ih],
+        constructor: continuation
+      }
+    ],
+    scrutinee: digits
+  }
+}
+
+theorem{
+  name: canonical_continuation_quotient,
+  parameters: [payload : Nat, tailRank : Nat],
+  statement: ((prim quotient (1 + (((prim remainder payload 128 0 : Nat) + 127) + (prim multiply 128 tailRank : Nat))) 128 0 : Nat) = (1 + tailRank)),
+  proof: linear_arithmetic{}
+}
+
+theorem{
+  name: canonical_continuation_remainder,
+  parameters: [payload : Nat, tailRank : Nat],
+  statement: ((prim remainder (1 + (((prim remainder payload 128 0 : Nat) + 127) + (prim multiply 128 tailRank : Nat))) 128 0 : Nat) = (prim remainder payload 128 0 : Nat)),
+  proof: linear_arithmetic{}
+}
+
+theorem{
+  name: canonical_continuation_requires_more_digit,
+  parameters: [payload : Nat, tailRank : Nat],
+  statement: (((1 + (((prim remainder payload 128 0 : Nat) + 127) + (prim multiply 128 tailRank : Nat))) <? 128) = false),
+  proof: linear_arithmetic{}
+}
+
+theorem{
+  name: canonical_terminal_requires_one_digit,
+  parameters: [payload : Nat],
+  statement: (((1 + (prim remainder payload 127 0 : Nat)) <? 128) = true),
+  proof: linear_arithmetic{}
+}
+
+definition{
+  name: numberEmissionQueueLaw,
+  parameters: [
+    event : Uorc.Wire.GraphEmit::Event,
+    value : Nat,
+    tail : (List Uorc.Wire.GraphEmit::Task)
+  ],
+  result: Prop,
+  body: (match event
+    | Uorc.Wire.GraphEmit::Event.advanced next => (0 = 1)
+    | Uorc.Wire.GraphEmit::Event.produced bytes next => ((project next pending) = (if (value <? 128) then tail else (cons (ctor Uorc.Wire.GraphEmit::Task.number (prim quotient value 128 0 : Nat)) tail)))
+    | Uorc.Wire.GraphEmit::Event.complete size events => (0 = 1)
+    | Uorc.Wire.GraphEmit::Event.failed error offset events => (0 = 0))
+}
+
+theorem{
+  name: number_emission_has_exact_canonical_next_queue,
+  parameters: [value : Nat, tail : (List Uorc.Wire.GraphEmit::Task), position : Nat, work : Nat],
+  statement: (numberEmissionQueueLaw (Uorc.Wire.GraphEmit::step (numberState value tail position work) 1) value tail),
+  proof: linear_arithmetic{
+    definitions: [Uorc.Wire.GraphEmit::step, numberEmissionQueueLaw, numberState]
+  }
+}
+
+definition{
+  name: incrementPositiveDigits,
+  parameters: [digits : PositiveULEBDigits],
+  result: PositiveULEBDigits,
+  body: (match digits
+    | PositiveULEBDigits.terminal payload => (if ((prim remainder payload 127 0 : Nat) <? 126) then (ctor PositiveULEBDigits.terminal ((prim remainder payload 127 0 : Nat) + 1)) else (ctor PositiveULEBDigits.continuation 0 (ctor PositiveULEBDigits.terminal 0)))
+    | PositiveULEBDigits.continuation payload rest => (if ((prim remainder payload 128 0 : Nat) <? 127) then (ctor PositiveULEBDigits.continuation ((prim remainder payload 128 0 : Nat) + 1) rest) else (ctor PositiveULEBDigits.continuation 0 (incrementPositiveDigits rest)))),
+  recursive_argument: digits
+}
+
+definition{
+  name: positiveIncrementExtra,
+  parameters: [digits : PositiveULEBDigits],
+  result: Nat,
+  body: (match digits
+    | PositiveULEBDigits.terminal payload => (if ((prim remainder payload 127 0 : Nat) <? 126) then 0 else 1)
+    | PositiveULEBDigits.continuation payload rest => (if ((prim remainder payload 128 0 : Nat) <? 127) then 0 else (positiveIncrementExtra rest))),
+  recursive_argument: digits
+}
+
+theorem{
+  name: canonical_positive_successor_value,
+  parameters: [digits : PositiveULEBDigits],
+  statement: ((positiveDigitValue (incrementPositiveDigits digits)) = ((positiveDigitValue digits) + 1)),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{
+          definitions: [incrementPositiveDigits, positiveDigitRank, positiveDigitValue]
+        },
+        binders: [payload],
+        constructor: terminal
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [incrementPositiveDigits, positiveDigitRank, positiveDigitValue]
+        },
+        binders: [payload, rest, ih],
+        constructor: continuation
+      }
+    ],
+    scrutinee: digits
+  }
+}
+
+theorem{
+  name: canonical_positive_successor_count_additive,
+  parameters: [digits : PositiveULEBDigits],
+  statement: ((positiveDigitCount (incrementPositiveDigits digits)) = ((positiveDigitCount digits) + (positiveIncrementExtra digits))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            incrementPositiveDigits,
+            positiveDigitCount,
+            positiveDigitExtra,
+            positiveIncrementExtra
+          ]
+        },
+        binders: [payload],
+        constructor: terminal
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            incrementPositiveDigits,
+            positiveDigitCount,
+            positiveDigitExtra,
+            positiveIncrementExtra
+          ]
+        },
+        binders: [payload, rest, ih],
+        constructor: continuation
+      }
+    ],
+    scrutinee: digits
+  }
+}
+
+definition{
+  name: digitsOfRank,
+  parameters: [rank : Nat],
+  result: PositiveULEBDigits,
+  body: (match rank
+    | Nat.zero => (ctor PositiveULEBDigits.terminal 0)
+    | Nat.succ previous => (incrementPositiveDigits (digitsOfRank previous))),
+  recursive_argument: rank
+}
+
+theorem{
+  name: every_positive_nat_has_canonical_digits,
+  parameters: [rank : Nat],
+  statement: ((positiveDigitValue (digitsOfRank rank)) = (rank + 1)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: simplify{definitions: [canonical_positive_successor_value, digitsOfRank, ih]},
+        binders: [previous, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: rank
+  }
+}
+
+definition{
+  name: digitCountByRank,
+  parameters: [rank : Nat],
+  result: Nat,
+  body: (match rank
+    | Nat.zero => 1
+    | Nat.succ previous => ((digitCountByRank previous) + (positiveIncrementExtra (digitsOfRank previous)))),
+  recursive_argument: rank
+}
+
+theorem{
+  name: unbounded_nat_digit_count_adequacy,
+  parameters: [rank : Nat],
+  statement: ((digitCountByRank rank) = (positiveDigitCount (digitsOfRank rank))),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: simplify{
+          definitions: [
+            canonical_positive_successor_count_additive,
+            digitCountByRank,
+            digitsOfRank,
+            ih
+          ]
+        },
+        binders: [previous, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: rank
+  }
+}
+
+theorem{
+  name: unbounded_nat_digit_count_monotone_add,
+  parameters: [rank : Nat, gap : Nat],
+  statement: ((digitCountByRank rank) <= (digitCountByRank (rank + gap))),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [digitCountByRank]}, binders: [], constructor: zero},
+      {
+        proof: linear_arithmetic{definitions: [digitCountByRank]},
+        binders: [previousGap, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: gap
+  }
+}
+
+definition{
+  name: natCanonicalULEBCount,
+  parameters: [value : Nat],
+  result: Nat,
+  body: (match value
+    | Nat.zero => 1
+    | Nat.succ previous => (if (previous =? 0) then 1 else ((natCanonicalULEBCount previous) + (positiveIncrementExtra (digitsOfRank (prim subtract previous 1 : Nat)))))),
+  recursive_argument: value
+}
+
+theorem{
+  name: nat_canonical_positive_count_adequacy,
+  parameters: [rank : Nat],
+  statement: ((natCanonicalULEBCount (ctor Nat.succ rank)) = (digitCountByRank rank)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: linear_arithmetic{definitions: [digitCountByRank, natCanonicalULEBCount]},
+        binders: [previous, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: rank
+  }
+}
+
+theorem{
+  name: nat_canonical_uleb_count_monotone_add,
+  parameters: [value : Nat, gap : Nat],
+  statement: ((natCanonicalULEBCount value) <= (natCanonicalULEBCount (value + gap))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [natCanonicalULEBCount]},
+        binders: [],
+        constructor: zero
+      },
+      {
+        proof: linear_arithmetic{definitions: [natCanonicalULEBCount]},
+        binders: [previousGap, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: gap
+  }
+}
+
+definition{
+  name: natCanonicalWordsBySuccessor,
+  parameters: [value : Nat],
+  result: (List Nat),
+  body: (match value
+    | Nat.zero => (cons 0 (nil Nat))
+    | Nat.succ rank => (positiveDigitWords (digitsOfRank rank)))
+}
+
+theorem{
+  name: nat_canonical_word_length_exact,
+  parameters: [value : Nat],
+  statement: ((wordLength (natCanonicalWordsBySuccessor value)) = (natCanonicalULEBCount value)),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: simplify{
+          definitions: [
+            canonical_positive_digit_count_is_word_length,
+            natCanonicalWordsBySuccessor,
+            nat_canonical_positive_count_adequacy,
+            unbounded_nat_digit_count_adequacy
+          ]
+        },
+        binders: [rank],
+        constructor: succ
+      }
+    ],
+    scrutinee: value
+  }
+}
+
+definition{
+  name: successorAdequacyBoundary,
+  parameters: [],
+  result: String,
+  body: "digitsOfRank is an unbounded mathematical witness construction, not a production encoder or input cap. every_positive_nat_has_canonical_digits proves its exact represented Nat value. unbounded_nat_digit_count_adequacy and nat_canonical_word_length_exact connect the structurally accumulated count to canonical word length, including zero. The monotone_add theorems quantify every starting Nat and every additive gap and thus express the full unbounded monotonicity property. Separate proof work still links this canonical structural count to natShortestULEBLength direct quotient recursion and to successful complete actual GraphEmit runs. No SDK or exact axiom audit is claimed by source-execution checks."
+}
+
+theorem{
+  name: width_order_normal_form_preserves_branch_meaning,
+  parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((if (left <? right) then (leftWidth <=? rightWidth) else (if (right <? left) then (rightWidth <=? leftWidth) else (leftWidth =? rightWidth))) = true) <-> ((widthOrderCompatible left right leftWidth rightWidth) = true)),
+  proof: linear_arithmetic{definitions: [widthOrderCompatible]}
+}
 \end{semanticmodule}
 \end{lexlean}

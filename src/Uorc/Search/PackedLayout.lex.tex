@@ -4,6 +4,269 @@
 \importmodule{Uorc.Search.Effort}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"fields":[{"name":"payload","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}}},{"name":"wordCount","type":{"kind":"nat"}},{"name":"bitsPerIndex","type":{"kind":"nat"}},{"name":"bitCount","type":{"kind":"nat"}},{"name":"payloadBytes","type":{"kind":"nat"}},{"name":"unusedHighBits","type":{"kind":"nat"}}],"kind":"structure","name":"Layout","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}},"kind":"list"}],"name":"validating"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Cursor"}}],"name":"reading"}],"kind":"inductive","name":"Phase","parameters":[],"type_parameters":[]},{"fields":[{"name":"layout","type":{"arguments":[],"kind":"named","member":{"name":"Layout"}}},{"name":"phase","type":{"arguments":[],"kind":"named","member":{"name":"Phase"}}},{"name":"observedBytes","type":{"kind":"nat"}},{"name":"lastByte","type":{"kind":"option","value":{"kind":"uint8"}}},{"name":"completedEvents","type":{"kind":"nat"}}],"kind":"structure","name":"Cursor","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"addressSpaceExhausted"},{"fields":[],"name":"invalidRope"},{"fields":[],"name":"invalidCursor"},{"fields":[],"name":"truncatedPayload"},{"fields":[],"name":"trailingPayload"},{"fields":[],"name":"nonzeroPadding"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"RopeError"}}],"name":"rope"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"pending"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Layout"}},{"kind":"nat"}],"name":"complete"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}},{"kind":"nat"}],"name":"rejected"}],"kind":"inductive","name":"Step","parameters":[],"type_parameters":[]},{"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.addressSpaceExhausted"},"kind":"constructor"},{"kind":"nat","value":"0"}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"constructor":{"name":"Result.error"}},{"binders":["words"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.addressSpaceExhausted"},"kind":"constructor"},{"kind":"nat","value":"0"}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"constructor":{"name":"Result.error"}},{"binders":["bits"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.addressSpaceExhausted"},"kind":"constructor"},{"kind":"nat","value":"0"}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["bitWord"],"body":{"binder":{"name":"bitCount","type":{"kind":"nat"}},"body":{"binder":{"name":"layoutValue","type":{"arguments":[],"kind":"named","member":{"name":"Layout"}}},"body":{"arguments":[{"fields":[{"field":"layout","value":{"kind":"var","name":"layoutValue"}},{"field":"phase","value":{"arguments":[{"head":{"kind":"var","name":"payload"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}},"kind":"nil"}}],"constructor":{"name":"Phase.validating"},"kind":"constructor"}},{"field":"observedBytes","value":{"kind":"nat","value":"0"}},{"field":"lastByte","value":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"kind":"uint8"}]}},{"field":"completedEvents","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"kind":"let","value":{"fields":[{"field":"payload","value":{"kind":"var","name":"payload"}},{"field":"wordCount","value":{"kind":"var","name":"wordCount"}},{"field":"bitsPerIndex","value":{"kind":"var","name":"bitsPerIndex"}},{"field":"bitCount","value":{"kind":"var","name":"bitCount"}},{"field":"payloadBytes","value":{"kind":"add","left":{"arguments":[{"kind":"var","name":"bitCount"},{"kind":"nat","value":"8"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"quotient","result":{"kind":"nat"}},"right":{"condition":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"bitCount"},{"kind":"nat","value":"8"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"0"}},"else_value":{"kind":"nat","value":"1"},"kind":"if","then_value":{"kind":"nat","value":"0"}}}},{"field":"unusedHighBits","value":{"condition":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"bitCount"},{"kind":"nat","value":"8"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}},"right":{"kind":"nat","value":"0"}},"else_value":{"arguments":[{"kind":"nat","value":"8"},{"arguments":[{"kind":"var","name":"bitCount"},{"kind":"nat","value":"8"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"remainder","result":{"kind":"nat"}}],"kind":"primitive","operation":"subtract","result":{"kind":"nat"}},"kind":"if","then_value":{"kind":"nat","value":"0"}}}],"kind":"record","type":{"name":"Layout"}}},"kind":"let","value":{"arguments":[{"kind":"var","name":"bitWord"}],"function":{"module":"Uorc.Core.Types","name":"wordToNat"},"kind":"call"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"words"},{"kind":"var","name":"bits"}],"kind":"primitive","operation":"checked_multiply","result":{"kind":"option","value":{"kind":"uint64"}}}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"bitsPerIndex"}],"function":{"module":"Uorc.Search.Effort","name":"checkedU64"},"kind":"call"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"wordCount"}],"function":{"module":"Uorc.Search.Effort","name":"checkedU64"},"kind":"call"}},"kind":"definition","name":"start","parameters":[{"name":"payload","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}}},{"name":"wordCount","type":{"kind":"nat"}},{"name":"bitsPerIndex","type":{"kind":"nat"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"branches":[{"binders":[],"body":{"kind":"nat","value":"1"},"constructor":{"name":"Nat.zero"}},{"binders":["remaining"],"body":{"arguments":[{"kind":"nat","value":"2"},{"arguments":[{"kind":"var","name":"remaining"}],"function":{"name":"powerTwo"},"kind":"call"}],"kind":"primitive","operation":"multiply","result":{"kind":"nat"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"exponent"}},"kind":"definition","name":"powerTwo","parameters":[{"name":"exponent","type":{"kind":"nat"}}],"recursive_argument":"exponent","result":{"kind":"nat"}},{"body":{"branches":[{"binders":["remaining"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"layout","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"arguments":[{"field":"payload","kind":"project","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}}],"function":{"module":"Uorc.Core.Bytes","name":"cursor"},"kind":"call"}],"constructor":{"name":"Phase.reading"},"kind":"constructor"}},{"field":"observedBytes","value":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"lastByte","value":{"field":"lastByte","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["node","rest"],"body":{"branches":[{"binders":[],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"layout","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"kind":"var","name":"rest"}],"constructor":{"name":"Phase.validating"},"kind":"constructor"}},{"field":"observedBytes","value":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"lastByte","value":{"field":"lastByte","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"Rope.empty"}},{"binders":["leafBytes"],"body":{"arguments":[{"fields":[{"field":"layout","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"kind":"var","name":"rest"}],"constructor":{"name":"Phase.validating"},"kind":"constructor"}},{"field":"observedBytes","value":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"lastByte","value":{"field":"lastByte","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"Rope.leaf"}},{"binders":["backing","offset","size"],"body":{"arguments":[{"fields":[{"field":"layout","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"kind":"var","name":"rest"}],"constructor":{"name":"Phase.validating"},"kind":"constructor"}},{"field":"observedBytes","value":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"lastByte","value":{"field":"lastByte","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"Rope.view"}},{"binders":["cachedLength","cachedHeight","leftChild","rightChild"],"body":{"arguments":[{"fields":[{"field":"layout","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"head":{"kind":"var","name":"leftChild"},"kind":"cons","tail":{"head":{"kind":"var","name":"rightChild"},"kind":"cons","tail":{"kind":"var","name":"rest"}}}],"constructor":{"name":"Phase.validating"},"kind":"constructor"}},{"field":"observedBytes","value":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"lastByte","value":{"field":"lastByte","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"Rope.branch"}}],"kind":"match","scrutinee":{"kind":"var","name":"node"}},"constructor":{"module":"Uorc.Core.Bytes","name":"NodeStatus.valid"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidRope"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"NodeStatus.invalid"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.addressSpaceExhausted"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"NodeStatus.addressSpaceExhausted"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"node"}],"function":{"module":"Uorc.Core.Bytes","name":"checkNode"},"kind":"call"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"remaining"}},"constructor":{"name":"Phase.validating"}},{"binders":["reader"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Error.rope"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"constructor":{"name":"Result.error"}},{"binders":["event"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"fields":[{"field":"layout","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Phase.reading"},"kind":"constructor"}},{"field":"observedBytes","value":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"lastByte","value":{"field":"lastByte","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.Bytes","name":"CursorEvent.advanced"}},{"binders":["chunk","next"],"body":{"condition":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"chunk"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"kind":"nat","value":"1"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["byte"],"body":{"condition":{"kind":"blt","left":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"field":"payloadBytes","kind":"project","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.trailingPayload"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"layout","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Phase.reading"},"kind":"constructor"}},{"field":"observedBytes","value":{"kind":"add","left":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}},{"field":"lastByte","value":{"arguments":[{"kind":"var","name":"byte"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"uint8"}]}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"chunk"},{"kind":"nat","value":"0"}],"kind":"primitive","operation":"index","result":{"kind":"option","value":{"kind":"uint8"}}}}},"constructor":{"module":"Uorc.Core.Bytes","name":"CursorEvent.produced"}},{"binders":[],"body":{"condition":{"kind":"blt","left":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"field":"payloadBytes","kind":"project","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}}},"else_value":{"condition":{"kind":"beq","left":{"field":"observedBytes","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"field":"payloadBytes","kind":"project","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.trailingPayload"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"kind":"if","then_value":{"condition":{"kind":"beq","left":{"field":"unusedHighBits","kind":"project","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}},"right":{"kind":"nat","value":"0"}},"else_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["last"],"body":{"condition":{"kind":"blt","left":{"arguments":[{"arguments":[{"kind":"var","name":"last"}],"function":{"module":"Uorc.Core.Types","name":"byteToNatural"},"kind":"call"}],"function":{"module":"Uorc.Core.Types","name":"wordToNat"},"kind":"call"},"right":{"arguments":[{"arguments":[{"kind":"nat","value":"8"},{"field":"unusedHighBits","kind":"project","value":{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"primitive","operation":"subtract","result":{"kind":"nat"}}],"function":{"name":"powerTwo"},"kind":"call"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.nonzeroPadding"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.complete"},"kind":"constructor"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"field":"lastByte","kind":"project","value":{"kind":"var","name":"cursor"}}},"kind":"if","then_value":{"arguments":[{"field":"layout","kind":"project","value":{"kind":"var","name":"cursor"}},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.complete"},"kind":"constructor"}}},"kind":"if","then_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.truncatedPayload"},"kind":"constructor"},{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Step.rejected"},"kind":"constructor"}},"constructor":{"module":"Uorc.Core.Bytes","name":"CursorEvent.done"}}],"kind":"match","scrutinee":{"kind":"var","name":"event"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"reader"},{"kind":"nat","value":"1"}],"function":{"module":"Uorc.Core.Bytes","name":"nextChunk"},"kind":"call"}},"constructor":{"name":"Phase.reading"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"cursor"}}},"kind":"definition","name":"step","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"branches":[{"binders":[],"body":{"kind":"var","name":"state"},"constructor":{"name":"Nat.zero"}},{"binders":["remainingWork"],"body":{"branches":[{"binders":["cursor"],"body":{"arguments":[{"kind":"var","name":"remainingWork"},{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"step"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"},"constructor":{"name":"Step.pending"}},{"binders":["layout","events"],"body":{"arguments":[{"kind":"var","name":"layout"},{"kind":"var","name":"events"}],"constructor":{"name":"Step.complete"},"kind":"constructor"},"constructor":{"name":"Step.complete"}},{"binders":["failure","events"],"body":{"arguments":[{"kind":"var","name":"failure"},{"kind":"var","name":"events"}],"constructor":{"name":"Step.rejected"},"kind":"constructor"},"constructor":{"name":"Step.rejected"}}],"kind":"match","scrutinee":{"kind":"var","name":"state"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"work"}},"kind":"definition","name":"runWork","parameters":[{"name":"work","type":{"kind":"nat"}},{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"Step"}}}],"recursive_argument":"work","result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"branches":[{"binders":["cursor"],"body":{"kind":"bool","value":false},"constructor":{"name":"Step.pending"}},{"binders":["layout","events"],"body":{"kind":"bool","value":true},"constructor":{"name":"Step.complete"}},{"binders":["failure","events"],"body":{"kind":"bool","value":false},"constructor":{"name":"Step.rejected"}}],"kind":"match","scrutinee":{"kind":"var","name":"state"}},"kind":"definition","name":"accepted","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"Step"}}}],"result":{"kind":"bool"}},{"body":{"branches":[{"binders":["cursor"],"body":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Step.pending"}},{"binders":["layout","events"],"body":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Step.complete"}},{"binders":["failure","events"],"body":{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Step.rejected"}}],"kind":"match","scrutinee":{"kind":"var","name":"state"}},"kind":"definition","name":"rejection","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"Step"}}}],"result":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"Error"}}}},{"kind":"theorem","name":"alphabet1_canonical_layout","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"17"},{"kind":"nat","value":"0"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"accepted"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"alphabet2_canonical_layout","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"55","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"8"},{"kind":"nat","value":"1"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"accepted"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"alphabet3_canonical_layout","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"24","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"3"},{"kind":"nat","value":"2"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"accepted"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"alphabet127_canonical_layout","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"7e","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"7"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"accepted"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"alphabet128_canonical_layout","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"7f","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"7"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"accepted"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"alphabet129_canonical_layout","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"80","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"8"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"accepted"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"alphabet256_canonical_layout","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"ff","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"8"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"accepted"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"alphabet257_canonical_layout","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"0001","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"9"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"accepted"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"alphabet65537_canonical_layout","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"000001","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"17"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"accepted"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"kind":"theorem","name":"truncated_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"1"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"rejection"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"Error.truncatedPayload"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},{"kind":"theorem","name":"truncated_partial_code_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"ff","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"9"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"rejection"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"Error.truncatedPayload"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},{"kind":"theorem","name":"trailing_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"0000","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"8"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"rejection"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"Error.trailingPayload"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},{"kind":"theorem","name":"zero_width_nonempty_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"00","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"8"},{"kind":"nat","value":"0"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"rejection"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"Error.trailingPayload"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},{"kind":"theorem","name":"high_padding_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"80","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"7"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"rejection"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"Error.nonzeroPadding"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},{"kind":"theorem","name":"partial_padding_rejected","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"100"},{"arguments":[{"arguments":[{"hex":"0402","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"9"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"rejection"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"Error.nonzeroPadding"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}},{"kind":"theorem","name":"layout_resume_is_exact","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"7"},{"arguments":[{"kind":"nat","value":"3"},{"arguments":[{"arguments":[{"hex":"0001","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"9"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"},"right":{"arguments":[{"kind":"nat","value":"10"},{"arguments":[{"arguments":[{"hex":"0001","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"9"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"runWork"},"kind":"call"}}},{"kind":"theorem","name":"native_product_exhaustion_is_operational","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"},{"kind":"nat","value":"18446744073709551615"},{"kind":"nat","value":"2"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"rejection"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"Error.addressSpaceExhausted"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}}],"spec":"lexlean/semantic-module/1"}}
+structure{
+  name: Layout,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: payload, type: Uorc.Core.Bytes::Rope},
+    {name: wordCount, type: Nat},
+    {name: bitsPerIndex, type: Nat},
+    {name: bitCount, type: Nat},
+    {name: payloadBytes, type: Nat},
+    {name: unusedHighBits, type: Nat}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: validating, fields: [(List Uorc.Core.Bytes::Rope)]},
+    {name: reading, fields: [Uorc.Core.Bytes::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: layout, type: Layout},
+    {name: phase, type: Phase},
+    {name: observedBytes, type: Nat},
+    {name: lastByte, type: (Option UInt8)},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: addressSpaceExhausted, fields: []},
+    {name: invalidRope, fields: []},
+    {name: invalidCursor, fields: []},
+    {name: truncatedPayload, fields: []},
+    {name: trailingPayload, fields: []},
+    {name: nonzeroPadding, fields: []},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [Layout, Nat]},
+    {name: rejected, fields: [Error, Nat]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [payload : Uorc.Core.Bytes::Rope, wordCount : Nat, bitsPerIndex : Nat],
+  result: Step,
+  body: (match (Uorc.Search.Effort::checkedU64 wordCount)
+    | Result.error failure => (ctor Step.rejected (ctor Error.addressSpaceExhausted) 0)
+    | Result.ok words => (match (Uorc.Search.Effort::checkedU64 bitsPerIndex)
+      | Result.error failure => (ctor Step.rejected (ctor Error.addressSpaceExhausted) 0)
+      | Result.ok bits => (match (prim checked_multiply words bits : (Option UInt64))
+        | Option.none => (ctor Step.rejected (ctor Error.addressSpaceExhausted) 0)
+        | Option.some bitWord => (let bitCount : Nat := (Uorc.Core.Types::wordToNat bitWord); (let layoutValue : Layout := (record Layout {payload := payload, wordCount := wordCount, bitsPerIndex := bitsPerIndex, bitCount := bitCount, payloadBytes := ((prim quotient bitCount 8 0 : Nat) + (if ((prim remainder bitCount 8 0 : Nat) =? 0) then 0 else 1)), unusedHighBits := (if ((prim remainder bitCount 8 0 : Nat) =? 0) then 0 else (prim subtract 8 (prim remainder bitCount 8 0 : Nat) : Nat))}); (ctor Step.pending (record Cursor {layout := layoutValue, phase := (ctor Phase.validating (cons payload (nil Uorc.Core.Bytes::Rope))), observedBytes := 0, lastByte := (ctor Option.none [UInt8]), completedEvents := 0})))))))
+}
+
+definition{
+  name: powerTwo,
+  parameters: [exponent : Nat],
+  result: Nat,
+  body: (match exponent
+    | Nat.zero => 1
+    | Nat.succ remaining => (prim multiply 2 (powerTwo remaining) : Nat)),
+  recursive_argument: exponent
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.validating remaining => (match remaining
+      | List.nil => (ctor Step.pending (record Cursor {layout := (project cursor layout), phase := (ctor Phase.reading (Uorc.Core.Bytes::cursor (project (project cursor layout) payload))), observedBytes := (project cursor observedBytes), lastByte := (project cursor lastByte), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons node rest => (match (Uorc.Core.Bytes::checkNode node)
+        | Uorc.Core.Bytes::NodeStatus.valid => (match node
+          | Uorc.Core.Bytes::Rope.empty => (ctor Step.pending (record Cursor {layout := (project cursor layout), phase := (ctor Phase.validating rest), observedBytes := (project cursor observedBytes), lastByte := (project cursor lastByte), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Core.Bytes::Rope.leaf leafBytes => (ctor Step.pending (record Cursor {layout := (project cursor layout), phase := (ctor Phase.validating rest), observedBytes := (project cursor observedBytes), lastByte := (project cursor lastByte), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Core.Bytes::Rope.view backing offset size => (ctor Step.pending (record Cursor {layout := (project cursor layout), phase := (ctor Phase.validating rest), observedBytes := (project cursor observedBytes), lastByte := (project cursor lastByte), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Core.Bytes::Rope.branch cachedLength cachedHeight leftChild rightChild => (ctor Step.pending (record Cursor {layout := (project cursor layout), phase := (ctor Phase.validating (cons leftChild (cons rightChild rest))), observedBytes := (project cursor observedBytes), lastByte := (project cursor lastByte), completedEvents := ((project cursor completedEvents) + 1)})))
+        | Uorc.Core.Bytes::NodeStatus.invalid => (ctor Step.rejected (ctor Error.invalidRope) ((project cursor completedEvents) + 1))
+        | Uorc.Core.Bytes::NodeStatus.addressSpaceExhausted => (ctor Step.rejected (ctor Error.addressSpaceExhausted) ((project cursor completedEvents) + 1))))
+    | Phase.reading reader => (match (Uorc.Core.Bytes::nextChunk reader 1)
+      | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))
+      | Result.ok event => (match event
+        | Uorc.Core.Bytes::CursorEvent.advanced next => (ctor Step.pending (record Cursor {layout := (project cursor layout), phase := (ctor Phase.reading next), observedBytes := (project cursor observedBytes), lastByte := (project cursor lastByte), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Core.Bytes::CursorEvent.produced chunk next => (if ((prim length chunk : Nat) =? 1) then (match (prim index chunk 0 : (Option UInt8))
+          | Option.none => (ctor Step.rejected (ctor Error.invalidCursor) ((project cursor completedEvents) + 1))
+          | Option.some byte => (if ((project cursor observedBytes) <? (project (project cursor layout) payloadBytes)) then (ctor Step.pending (record Cursor {layout := (project cursor layout), phase := (ctor Phase.reading next), observedBytes := ((project cursor observedBytes) + 1), lastByte := (ctor Option.some [UInt8] byte), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.rejected (ctor Error.trailingPayload) ((project cursor completedEvents) + 1)))) else (ctor Step.rejected (ctor Error.invalidCursor) ((project cursor completedEvents) + 1)))
+        | Uorc.Core.Bytes::CursorEvent.done => (if ((project cursor observedBytes) <? (project (project cursor layout) payloadBytes)) then (ctor Step.rejected (ctor Error.truncatedPayload) ((project cursor completedEvents) + 1)) else (if ((project cursor observedBytes) =? (project (project cursor layout) payloadBytes)) then (if ((project (project cursor layout) unusedHighBits) =? 0) then (ctor Step.complete (project cursor layout) ((project cursor completedEvents) + 1)) else (match (project cursor lastByte)
+          | Option.none => (ctor Step.rejected (ctor Error.invalidCursor) ((project cursor completedEvents) + 1))
+          | Option.some last => (if ((Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural last)) <? (powerTwo (prim subtract 8 (project (project cursor layout) unusedHighBits) : Nat))) then (ctor Step.complete (project cursor layout) ((project cursor completedEvents) + 1)) else (ctor Step.rejected (ctor Error.nonzeroPadding) ((project cursor completedEvents) + 1))))) else (ctor Step.rejected (ctor Error.trailingPayload) ((project cursor completedEvents) + 1)))))))
+}
+
+definition{
+  name: runWork,
+  parameters: [work : Nat, state : Step],
+  result: Step,
+  body: (match work
+    | Nat.zero => state
+    | Nat.succ remainingWork => (match state
+      | Step.pending cursor => (runWork remainingWork (step cursor))
+      | Step.complete layout events => (ctor Step.complete layout events)
+      | Step.rejected failure events => (ctor Step.rejected failure events))),
+  recursive_argument: work
+}
+
+definition{
+  name: accepted,
+  parameters: [state : Step],
+  result: Bool,
+  body: (match state
+    | Step.pending cursor => false
+    | Step.complete layout events => true
+    | Step.rejected failure events => false)
+}
+
+definition{
+  name: rejection,
+  parameters: [state : Step],
+  result: (Option Error),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [Error])
+    | Step.complete layout events => (ctor Option.none [Error])
+    | Step.rejected failure events => (ctor Option.some [Error] failure))
+}
+
+theorem{
+  name: alphabet1_canonical_layout,
+  parameters: [],
+  statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x) 17 0))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet2_canonical_layout,
+  parameters: [],
+  statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x55) 8 1))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet3_canonical_layout,
+  parameters: [],
+  statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x24) 3 2))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet127_canonical_layout,
+  parameters: [],
+  statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x7e) 1 7))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet128_canonical_layout,
+  parameters: [],
+  statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x7f) 1 7))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet129_canonical_layout,
+  parameters: [],
+  statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x80) 1 8))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet256_canonical_layout,
+  parameters: [],
+  statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0xff) 1 8))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet257_canonical_layout,
+  parameters: [],
+  statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x0001) 1 9))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet65537_canonical_layout,
+  parameters: [],
+  statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x000001) 1 17))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: truncated_rejected,
+  parameters: [],
+  statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x) 1 1))) = (ctor Option.some [Error] (ctor Error.truncatedPayload))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: truncated_partial_code_rejected,
+  parameters: [],
+  statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0xff) 1 9))) = (ctor Option.some [Error] (ctor Error.truncatedPayload))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: trailing_rejected,
+  parameters: [],
+  statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x0000) 1 8))) = (ctor Option.some [Error] (ctor Error.trailingPayload))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_width_nonempty_rejected,
+  parameters: [],
+  statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x00) 8 0))) = (ctor Option.some [Error] (ctor Error.trailingPayload))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: high_padding_rejected,
+  parameters: [],
+  statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x80) 1 7))) = (ctor Option.some [Error] (ctor Error.nonzeroPadding))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: partial_padding_rejected,
+  parameters: [],
+  statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x0402) 1 9))) = (ctor Option.some [Error] (ctor Error.nonzeroPadding))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: layout_resume_is_exact,
+  parameters: [],
+  statement: ((runWork 7 (runWork 3 (start (Uorc.Core.Bytes::fromBytes 0x0001) 1 9))) = (runWork 10 (start (Uorc.Core.Bytes::fromBytes 0x0001) 1 9))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: native_product_exhaustion_is_operational,
+  parameters: [],
+  statement: ((rejection (start (Uorc.Core.Bytes::fromBytes 0x) 18446744073709551615 2)) = (ctor Option.some [Error] (ctor Error.addressSpaceExhausted))),
+  proof: reflexivity{}
+}
 \end{semanticmodule}
 \end{lexlean}

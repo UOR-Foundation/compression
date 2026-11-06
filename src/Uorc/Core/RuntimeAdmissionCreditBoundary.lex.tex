@@ -8,6 +8,158 @@
 \importmodule{Uorc.Core.RuntimeValue}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"fields":[{"name":"consumedCredits","type":{"kind":"uint64"}},{"name":"attemptedOperations","type":{"kind":"uint64"}}],"kind":"structure","name":"Accounting","parameters":[],"type_parameters":[]},{"fields":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"AwaitingState"}}},{"name":"accounting","type":{"arguments":[],"kind":"named","member":{"name":"Accounting"}}}],"kind":"structure","name":"Detached","parameters":[],"type_parameters":[]},{"fields":[{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"usage","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeResources","name":"Usage"}}},{"name":"caller","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeProgram","name":"CallerRoots"}}},{"name":"session","type":{"arguments":[],"kind":"named","member":{"name":"Detached"}}}],"kind":"structure","name":"Taken","parameters":[],"type_parameters":[]},{"fields":[{"name":"boundary","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"ReturnCursor"}}},{"name":"accounting","type":{"arguments":[],"kind":"named","member":{"name":"Accounting"}}}],"kind":"structure","name":"Returning","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"busy"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"Error"}}],"name":"boundary"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Error"}}],"name":"credit"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Taken"}}],"name":"taken"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Cursor"}}],"name":"failed"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}},{"arguments":[],"kind":"named","member":{"name":"Taken"}}],"name":"retainedFailure"}],"kind":"inductive","name":"TakeEvent","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Returning"}}],"name":"pending"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Cursor"}}],"name":"restored"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}},{"arguments":[],"kind":"named","member":{"name":"Returning"}}],"name":"failed"}],"kind":"inductive","name":"ReturnEvent","parameters":[],"type_parameters":[]},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":[],"body":{"condition":{"kind":"and","left":{"arguments":[{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}},{"kind":"integer","representation":"uint64","value":"0"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"right":{"arguments":[{"field":"paidCost","kind":"project","value":{"kind":"var","name":"cursor"}},{"kind":"integer","representation":"uint64","value":"0"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"},{"kind":"var","name":"cursor"}],"constructor":{"name":"TakeEvent.failed"},"kind":"constructor"},"kind":"if","then_value":{"branches":[{"binders":["budget","arena","basis","caller","usage"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"},{"kind":"var","name":"cursor"}],"constructor":{"name":"TakeEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Intent.initialize"}},{"binders":["state"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"},{"kind":"var","name":"cursor"}],"constructor":{"name":"TakeEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Intent.execute"}},{"binders":["state","event"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"},{"kind":"var","name":"cursor"}],"constructor":{"name":"TakeEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Intent.offer"}},{"binders":["outcome"],"body":{"branches":[{"binders":["state"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"},{"kind":"var","name":"cursor"}],"constructor":{"name":"TakeEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.pending"}},{"binders":["state"],"body":{"branches":[{"binders":["loan"],"body":{"arguments":[{"fields":[{"field":"arena","value":{"field":"arena","kind":"project","value":{"kind":"var","name":"loan"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"loan"}}},{"field":"caller","value":{"field":"caller","kind":"project","value":{"kind":"var","name":"loan"}}},{"field":"session","value":{"fields":[{"field":"state","value":{"field":"state","kind":"project","value":{"kind":"var","name":"loan"}}},{"field":"accounting","value":{"fields":[{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Accounting"}}}],"kind":"record","type":{"name":"Detached"}}}],"kind":"record","type":{"name":"Taken"}}],"constructor":{"name":"TakeEvent.taken"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"TakeEvent.taken"}},{"binders":["failure","next"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Error.boundary"},"kind":"constructor"},{"fields":[{"field":"intent","value":{"arguments":[{"arguments":[{"kind":"var","name":"next"}],"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"},"kind":"constructor"}],"constructor":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Intent.terminal"},"kind":"constructor"}},{"field":"activeCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"paidCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"fields":[{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Accounting"}}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"fields":[{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Accounting"}}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"next"}}},{"field":"error","value":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Error"}}]}}],"kind":"record","type":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Cursor"}}],"constructor":{"name":"TakeEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"TakeEvent.failed"}},{"binders":["failure","loan"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Error.boundary"},"kind":"constructor"},{"fields":[{"field":"arena","value":{"field":"arena","kind":"project","value":{"kind":"var","name":"loan"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"loan"}}},{"field":"caller","value":{"field":"caller","kind":"project","value":{"kind":"var","name":"loan"}}},{"field":"session","value":{"fields":[{"field":"state","value":{"field":"state","kind":"project","value":{"kind":"var","name":"loan"}}},{"field":"accounting","value":{"fields":[{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Accounting"}}}],"kind":"record","type":{"name":"Detached"}}}],"kind":"record","type":{"name":"Taken"}}],"constructor":{"name":"TakeEvent.retainedFailure"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"TakeEvent.retainedFailure"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"state"},{"kind":"var","name":"role"}],"function":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"take"},"kind":"call"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"}},{"binders":["failure","state"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"},{"kind":"var","name":"cursor"}],"constructor":{"name":"TakeEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.failed"}},{"binders":["ready"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"},{"kind":"var","name":"cursor"}],"constructor":{"name":"TakeEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.ready"}}],"kind":"match","scrutinee":{"kind":"var","name":"outcome"}},"constructor":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Intent.terminal"}}],"kind":"match","scrutinee":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}}},"constructor":{"name":"Option.none"}},{"binders":["failure"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Error.credit"},"kind":"constructor"},{"kind":"var","name":"cursor"}],"constructor":{"name":"TakeEvent.failed"},"kind":"constructor"},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}},"executable":true,"kind":"definition","name":"take","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Cursor"}}},{"name":"role","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"ProducerRole"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"TakeEvent"}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["pending"],"body":{"arguments":[{"fields":[{"field":"boundary","value":{"kind":"var","name":"pending"}},{"field":"accounting","value":{"field":"accounting","kind":"project","value":{"kind":"var","name":"session"}}}],"kind":"record","type":{"name":"Returning"}}],"constructor":{"name":"ReturnEvent.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"ReturnEvent.pending"}},{"binders":["state"],"body":{"arguments":[{"fields":[{"field":"intent","value":{"arguments":[{"arguments":[{"kind":"var","name":"state"}],"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"},"kind":"constructor"}],"constructor":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Intent.terminal"},"kind":"constructor"}},{"field":"activeCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"paidCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"field":"accounting","kind":"project","value":{"kind":"var","name":"session"}}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"field":"accounting","kind":"project","value":{"kind":"var","name":"session"}}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"error","value":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Error"}}]}}],"kind":"record","type":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Cursor"}}],"constructor":{"name":"ReturnEvent.restored"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"ReturnEvent.restored"}},{"binders":["failure","pending"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Error.boundary"},"kind":"constructor"},{"fields":[{"field":"boundary","value":{"kind":"var","name":"pending"}},{"field":"accounting","value":{"field":"accounting","kind":"project","value":{"kind":"var","name":"session"}}}],"kind":"record","type":{"name":"Returning"}}],"constructor":{"name":"ReturnEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"ReturnEvent.failed"}}],"kind":"match","scrutinee":{"arguments":[{"field":"state","kind":"project","value":{"kind":"var","name":"session"}},{"kind":"var","name":"role"},{"kind":"var","name":"arena"},{"kind":"var","name":"usage"},{"kind":"var","name":"caller"}],"function":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"reattach"},"kind":"call"}},"executable":true,"kind":"definition","name":"reattach","parameters":[{"name":"session","type":{"arguments":[],"kind":"named","member":{"name":"Detached"}}},{"name":"role","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"ProducerRole"}}},{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"usage","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeResources","name":"Usage"}}},{"name":"caller","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeProgram","name":"CallerRoots"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"ReturnEvent"}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["pending"],"body":{"arguments":[{"fields":[{"field":"boundary","value":{"kind":"var","name":"pending"}},{"field":"accounting","value":{"field":"accounting","kind":"project","value":{"kind":"var","name":"returning"}}}],"kind":"record","type":{"name":"Returning"}}],"constructor":{"name":"ReturnEvent.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"ReturnEvent.pending"}},{"binders":["state"],"body":{"arguments":[{"fields":[{"field":"intent","value":{"arguments":[{"arguments":[{"kind":"var","name":"state"}],"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"},"kind":"constructor"}],"constructor":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Intent.terminal"},"kind":"constructor"}},{"field":"activeCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"paidCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"field":"accounting","kind":"project","value":{"kind":"var","name":"returning"}}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"field":"accounting","kind":"project","value":{"kind":"var","name":"returning"}}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"error","value":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Error"}}]}}],"kind":"record","type":{"module":"Uorc.Core.RuntimeAdmissionCredit","name":"Cursor"}}],"constructor":{"name":"ReturnEvent.restored"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"ReturnEvent.restored"}},{"binders":["failure","pending"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Error.boundary"},"kind":"constructor"},{"fields":[{"field":"boundary","value":{"kind":"var","name":"pending"}},{"field":"accounting","value":{"field":"accounting","kind":"project","value":{"kind":"var","name":"returning"}}}],"kind":"record","type":{"name":"Returning"}}],"constructor":{"name":"ReturnEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"ReturnEvent.failed"}}],"kind":"match","scrutinee":{"arguments":[{"field":"boundary","kind":"project","value":{"kind":"var","name":"returning"}}],"function":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"returnStep"},"kind":"call"}},"executable":true,"kind":"definition","name":"returnStep","parameters":[{"name":"returning","type":{"arguments":[],"kind":"named","member":{"name":"Returning"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"ReturnEvent"}}},{"axioms":[],"body":{"arguments":[{"field":"state","kind":"project","value":{"field":"session","kind":"project","value":{"kind":"var","name":"taken"}}},{"field":"caller","kind":"project","value":{"kind":"var","name":"taken"}}],"function":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"rootInventory"},"kind":"call"},"executable":true,"kind":"definition","name":"takenRootInventory","parameters":[{"name":"taken","type":{"arguments":[],"kind":"named","member":{"name":"Taken"}}}],"result":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"list"}},{"axioms":[],"body":{"arguments":[{"field":"state","kind":"project","value":{"kind":"var","name":"session"}},{"kind":"var","name":"caller"}],"function":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"rootInventory"},"kind":"call"},"executable":true,"kind":"definition","name":"detachedRootInventory","parameters":[{"name":"session","type":{"arguments":[],"kind":"named","member":{"name":"Detached"}}},{"name":"caller","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeProgram","name":"CallerRoots"}}}],"result":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"list"}},{"axioms":[],"body":{"arguments":[{"field":"boundary","kind":"project","value":{"kind":"var","name":"returning"}}],"function":{"module":"Uorc.Core.RuntimeAdmissionBoundary","name":"returnRootInventory"},"kind":"call"},"executable":true,"kind":"definition","name":"returnRootInventory","parameters":[{"name":"returning","type":{"arguments":[],"kind":"named","member":{"name":"Returning"}}}],"result":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"list"}}],"spec":"lexlean/semantic-module/1"}}
+structure{
+  name: Accounting,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: consumedCredits, type: UInt64}, {name: attemptedOperations, type: UInt64}]
+}
+
+structure{
+  name: Detached,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: state, type: Uorc.Core.RuntimeAdmissionBoundary::AwaitingState},
+    {name: accounting, type: Accounting}
+  ]
+}
+
+structure{
+  name: Taken,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: caller, type: Uorc.Core.RuntimeProgram::CallerRoots},
+    {name: session, type: Detached}
+  ]
+}
+
+structure{
+  name: Returning,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: boundary, type: Uorc.Core.RuntimeAdmissionBoundary::ReturnCursor},
+    {name: accounting, type: Accounting}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: busy, fields: []},
+    {name: boundary, fields: [Uorc.Core.RuntimeAdmissionBoundary::Error]},
+    {name: credit, fields: [Uorc.Core.RuntimeAdmissionCredit::Error]}
+  ]
+}
+
+inductive{
+  name: TakeEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: taken, fields: [Taken]},
+    {name: failed, fields: [Error, Uorc.Core.RuntimeAdmissionCredit::Cursor]},
+    {name: retainedFailure, fields: [Error, Taken]}
+  ]
+}
+
+inductive{
+  name: ReturnEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Returning]},
+    {name: restored, fields: [Uorc.Core.RuntimeAdmissionCredit::Cursor]},
+    {name: failed, fields: [Error, Returning]}
+  ]
+}
+
+definition{
+  name: take,
+  parameters: [
+    cursor : Uorc.Core.RuntimeAdmissionCredit::Cursor,
+    role : Uorc.Core.RuntimeAdmissionBoundary::ProducerRole
+  ],
+  result: TakeEvent,
+  body: (match (project cursor error)
+    | Option.none => (if ((prim equal (project cursor activeCost) (0 : UInt64) : Bool) && (prim equal (project cursor paidCost) (0 : UInt64) : Bool)) then (match (project cursor intent)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.initialize budget arena basis caller usage => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.execute state => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.offer state event => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.terminal outcome => (match outcome
+        | Uorc.Core.RuntimeAdmission::Step.pending state => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+        | Uorc.Core.RuntimeAdmission::Step.awaiting state => (match (Uorc.Core.RuntimeAdmissionBoundary::take state role)
+          | Uorc.Core.RuntimeAdmissionBoundary::TakeEvent.taken loan => (ctor TakeEvent.taken (record Taken {arena := (project loan arena), usage := (project loan usage), caller := (project loan caller), session := (record Detached {state := (project loan state), accounting := (record Accounting {consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations)})})}))
+          | Uorc.Core.RuntimeAdmissionBoundary::TakeEvent.failed failure next => (ctor TakeEvent.failed (ctor Error.boundary failure) (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (ctor Uorc.Core.RuntimeAdmissionCredit::Intent.terminal (ctor Uorc.Core.RuntimeAdmission::Step.awaiting next)), activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (project (record Accounting {consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations)}) consumedCredits), attemptedOperations := (project (record Accounting {consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations)}) attemptedOperations), usage := (project next usage), error := (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Error])}))
+          | Uorc.Core.RuntimeAdmissionBoundary::TakeEvent.retainedFailure failure loan => (ctor TakeEvent.retainedFailure (ctor Error.boundary failure) (record Taken {arena := (project loan arena), usage := (project loan usage), caller := (project loan caller), session := (record Detached {state := (project loan state), accounting := (record Accounting {consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations)})})})))
+        | Uorc.Core.RuntimeAdmission::Step.failed failure state => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+        | Uorc.Core.RuntimeAdmission::Step.ready ready => (ctor TakeEvent.failed (ctor Error.busy) cursor))) else (ctor TakeEvent.failed (ctor Error.busy) cursor))
+    | Option.some failure => (ctor TakeEvent.failed (ctor Error.credit failure) cursor)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: reattach,
+  parameters: [
+    session : Detached,
+    role : Uorc.Core.RuntimeAdmissionBoundary::ProducerRole,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    caller : Uorc.Core.RuntimeProgram::CallerRoots
+  ],
+  result: ReturnEvent,
+  body: (match (Uorc.Core.RuntimeAdmissionBoundary::reattach (project session state) role arena usage caller)
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.pending pending => (ctor ReturnEvent.pending (record Returning {boundary := pending, accounting := (project session accounting)}))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.restored state => (ctor ReturnEvent.restored (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (ctor Uorc.Core.RuntimeAdmissionCredit::Intent.terminal (ctor Uorc.Core.RuntimeAdmission::Step.awaiting state)), activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (project (project session accounting) consumedCredits), attemptedOperations := (project (project session accounting) attemptedOperations), usage := (project state usage), error := (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Error])}))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.failed failure pending => (ctor ReturnEvent.failed (ctor Error.boundary failure) (record Returning {boundary := pending, accounting := (project session accounting)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: returnStep,
+  parameters: [returning : Returning],
+  result: ReturnEvent,
+  body: (match (Uorc.Core.RuntimeAdmissionBoundary::returnStep (project returning boundary))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.pending pending => (ctor ReturnEvent.pending (record Returning {boundary := pending, accounting := (project returning accounting)}))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.restored state => (ctor ReturnEvent.restored (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (ctor Uorc.Core.RuntimeAdmissionCredit::Intent.terminal (ctor Uorc.Core.RuntimeAdmission::Step.awaiting state)), activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (project (project returning accounting) consumedCredits), attemptedOperations := (project (project returning accounting) attemptedOperations), usage := (project state usage), error := (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Error])}))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.failed failure pending => (ctor ReturnEvent.failed (ctor Error.boundary failure) (record Returning {boundary := pending, accounting := (project returning accounting)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: takenRootInventory,
+  parameters: [taken : Taken],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Core.RuntimeAdmissionBoundary::rootInventory (project (project taken session) state) (project taken caller)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: detachedRootInventory,
+  parameters: [session : Detached, caller : Uorc.Core.RuntimeProgram::CallerRoots],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Core.RuntimeAdmissionBoundary::rootInventory (project session state) caller),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: returnRootInventory,
+  parameters: [returning : Returning],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Core.RuntimeAdmissionBoundary::returnRootInventory (project returning boundary)),
+  axioms: [],
+  executable: true
+}
 \end{semanticmodule}
 \end{lexlean}

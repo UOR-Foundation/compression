@@ -2,6 +2,136 @@
 \importmodule{Uorc.Search.Verify}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"fields":[{"name":"incumbent","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}},{"name":"challenger","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}},{"name":"offset","type":{"kind":"nat"}}],"kind":"structure","name":"Cursor","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"pending"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"name":"selected"},{"fields":[],"name":"invalidCursor"}],"kind":"inductive","name":"Step","parameters":[],"type_parameters":[]},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":[],"body":{"kind":"bool","value":true},"constructor":{"name":"Option.none"}},{"binders":["difference"],"body":{"kind":"bool","value":false},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"left"},{"kind":"var","name":"right"}],"kind":"primitive","operation":"checked_subtract","result":{"kind":"option","value":{"kind":"uint8"}}}},"kind":"definition","name":"byteLess","parameters":[{"name":"left","type":{"kind":"uint8"}},{"name":"right","type":{"kind":"uint8"}}],"result":{"kind":"bool"}},{"body":{"condition":{"kind":"blt","left":{"arguments":[{"field":"wire","kind":"project","value":{"kind":"var","name":"challenger"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"arguments":[{"field":"wire","kind":"project","value":{"kind":"var","name":"incumbent"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"condition":{"kind":"blt","left":{"arguments":[{"field":"wire","kind":"project","value":{"kind":"var","name":"incumbent"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"arguments":[{"field":"wire","kind":"project","value":{"kind":"var","name":"challenger"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"arguments":[{"fields":[{"field":"incumbent","value":{"kind":"var","name":"incumbent"}},{"field":"challenger","value":{"kind":"var","name":"challenger"}},{"field":"offset","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"kind":"var","name":"incumbent"}],"constructor":{"name":"Step.selected"},"kind":"constructor"}},"kind":"if","then_value":{"arguments":[{"kind":"var","name":"challenger"}],"constructor":{"name":"Step.selected"},"kind":"constructor"}},"kind":"definition","name":"start","parameters":[{"name":"incumbent","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}},{"name":"challenger","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"arguments":[{"field":"wire","kind":"project","value":{"field":"incumbent","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},{"arguments":[{"field":"wire","kind":"project","value":{"field":"challenger","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"kind":"if","then_value":{"condition":{"kind":"blt","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"arguments":[{"field":"wire","kind":"project","value":{"field":"incumbent","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"condition":{"kind":"beq","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"arguments":[{"field":"wire","kind":"project","value":{"field":"incumbent","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"field":"incumbent","kind":"project","value":{"kind":"var","name":"cursor"}}],"constructor":{"name":"Step.selected"},"kind":"constructor"}},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["oldByte"],"body":{"branches":[{"binders":[],"body":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["newByte"],"body":{"condition":{"arguments":[{"kind":"var","name":"oldByte"},{"kind":"var","name":"newByte"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"condition":{"arguments":[{"kind":"var","name":"newByte"},{"kind":"var","name":"oldByte"}],"function":{"name":"byteLess"},"kind":"call"},"else_value":{"arguments":[{"field":"incumbent","kind":"project","value":{"kind":"var","name":"cursor"}}],"constructor":{"name":"Step.selected"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"field":"challenger","kind":"project","value":{"kind":"var","name":"cursor"}}],"constructor":{"name":"Step.selected"},"kind":"constructor"}},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"incumbent","value":{"field":"incumbent","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"challenger","value":{"field":"challenger","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"offset","value":{"kind":"add","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"wire","kind":"project","value":{"field":"challenger","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"index","result":{"kind":"option","value":{"kind":"uint8"}}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"wire","kind":"project","value":{"field":"incumbent","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"index","result":{"kind":"option","value":{"kind":"uint8"}}}}}},"kind":"definition","name":"step","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":[],"body":{"kind":"var","name":"state"},"constructor":{"name":"Nat.zero"}},{"binders":["restFuel"],"body":{"branches":[{"binders":["cursor"],"body":{"arguments":[{"kind":"var","name":"restFuel"},{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"step"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"constructor":{"name":"Step.pending"}},{"binders":["checked"],"body":{"arguments":[{"kind":"var","name":"checked"}],"constructor":{"name":"Step.selected"},"kind":"constructor"},"constructor":{"name":"Step.selected"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Step.invalidCursor"},"kind":"constructor"},"constructor":{"name":"Step.invalidCursor"}}],"kind":"match","scrutinee":{"kind":"var","name":"state"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"run","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"Step"}}}],"recursive_argument":"fuel","result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"shorter_wins","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"fields":[{"field":"wire","value":{"hex":"0000","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}},{"fields":[{"field":"wire","value":{"hex":"ff","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"wire","value":{"hex":"ff","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"constructor":{"name":"Step.selected"},"kind":"constructor"}}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"longer_never_wins","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"fields":[{"field":"wire","value":{"hex":"00","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}},{"fields":[{"field":"wire","value":{"hex":"0000","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"wire","value":{"hex":"00","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"constructor":{"name":"Step.selected"},"kind":"constructor"}}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"unsigned_full_archive_lex_tie","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"fields":[{"field":"wire","value":{"hex":"ff00","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}},{"fields":[{"field":"wire","value":{"hex":"80ff","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"wire","value":{"hex":"80ff","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"constructor":{"name":"Step.selected"},"kind":"constructor"}}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"lex_later_byte","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"fields":[{"field":"wire","value":{"hex":"01020304","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}},{"fields":[{"field":"wire","value":{"hex":"010202ff","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"wire","value":{"hex":"010202ff","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"constructor":{"name":"Step.selected"},"kind":"constructor"}}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"identical_keeps_incumbent","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"fields":[{"field":"wire","value":{"hex":"0102","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}},{"fields":[{"field":"wire","value":{"hex":"0102","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"wire","value":{"hex":"0102","kind":"bytes"}},{"field":"bytesCompared","value":{"kind":"nat","value":"4"}},{"field":"boundariesChecked","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Verify","name":"CheckedArchive"}}],"constructor":{"name":"Step.selected"},"kind":"constructor"}}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"byte_00_lt_ff","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"integer","representation":"uint8","value":"0"},{"kind":"integer","representation":"uint8","value":"255"}],"function":{"name":"byteLess"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"byte_ff_not_lt_00","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"integer","representation":"uint8","value":"255"},{"kind":"integer","representation":"uint8","value":"0"}],"function":{"name":"byteLess"},"kind":"call"},"right":{"kind":"bool","value":false}}}],"spec":"lexlean/semantic-module/1"}}
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: incumbent, type: Uorc.Search.Verify::CheckedArchive},
+    {name: challenger, type: Uorc.Search.Verify::CheckedArchive},
+    {name: offset, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: selected, fields: [Uorc.Search.Verify::CheckedArchive]},
+    {name: invalidCursor, fields: []}
+  ]
+}
+
+definition{
+  name: byteLess,
+  parameters: [left : UInt8, right : UInt8],
+  result: Bool,
+  body: (match (prim checked_subtract left right : (Option UInt8))
+    | Option.none => true
+    | Option.some difference => false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: start,
+  parameters: [
+    incumbent : Uorc.Search.Verify::CheckedArchive,
+    challenger : Uorc.Search.Verify::CheckedArchive
+  ],
+  result: Step,
+  body: (if ((prim length (project challenger wire) : Nat) <? (prim length (project incumbent wire) : Nat)) then (ctor Step.selected challenger) else (if ((prim length (project incumbent wire) : Nat) <? (prim length (project challenger wire) : Nat)) then (ctor Step.selected incumbent) else (ctor Step.pending (record Cursor {incumbent := incumbent, challenger := challenger, offset := 0}))))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (if (prim equal (prim length (project (project cursor incumbent) wire) : Nat) (prim length (project (project cursor challenger) wire) : Nat) : Bool) then (if ((project cursor offset) <? (prim length (project (project cursor incumbent) wire) : Nat)) then (match (prim index (project (project cursor incumbent) wire) (project cursor offset) : (Option UInt8))
+    | Option.none => (ctor Step.invalidCursor)
+    | Option.some oldByte => (match (prim index (project (project cursor challenger) wire) (project cursor offset) : (Option UInt8))
+      | Option.none => (ctor Step.invalidCursor)
+      | Option.some newByte => (if (prim equal oldByte newByte : Bool) then (ctor Step.pending (record Cursor {incumbent := (project cursor incumbent), challenger := (project cursor challenger), offset := ((project cursor offset) + 1)})) else (if (byteLess newByte oldByte) then (ctor Step.selected (project cursor challenger)) else (ctor Step.selected (project cursor incumbent)))))) else (if ((project cursor offset) =? (prim length (project (project cursor incumbent) wire) : Nat)) then (ctor Step.selected (project cursor incumbent)) else (ctor Step.invalidCursor))) else (ctor Step.invalidCursor)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ restFuel => match{
+      branches: [
+        {body: (run restFuel (step cursor)), binders: [cursor], constructor: Step.pending},
+        {
+          body: (ctor Step.selected var{name: checked}),
+          binders: [checked],
+          constructor: Step.selected
+        },
+        {body: (ctor Step.invalidCursor), binders: [], constructor: Step.invalidCursor}
+      ],
+      scrutinee: state
+    }),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+theorem{
+  name: shorter_wins,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0x0000, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0xff, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0xff, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: longer_never_wins,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0x00, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0x0000, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0x00, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: unsigned_full_archive_lex_tie,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0xff00, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0x80ff, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0x80ff, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: lex_later_byte,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0x01020304, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0x010202ff, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0x010202ff, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: identical_keeps_incumbent,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0x0102, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0x0102, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0x0102, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: byte_00_lt_ff,
+  parameters: [],
+  statement: ((byteLess (0 : UInt8) (255 : UInt8)) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: byte_ff_not_lt_00,
+  parameters: [],
+  statement: ((byteLess (255 : UInt8) (0 : UInt8)) = false),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

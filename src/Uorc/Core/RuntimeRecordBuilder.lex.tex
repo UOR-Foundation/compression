@@ -4,6 +4,86 @@
 \importmodule{Uorc.Core.RuntimeMetadata}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeMetadata","name":"Error"}}],"name":"metadata"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"HeapError"}}],"name":"heap"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeMetadata","name":"WriteCursor"}}],"name":"writing"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}}],"name":"beginRelease"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}}],"name":"releasing"}],"kind":"inductive","name":"Cursor","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}},{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Delta"}}],"name":"advanced"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Delta"}}],"name":"done"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}},{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"failed"}],"kind":"inductive","name":"Event","parameters":[],"type_parameters":[]},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["metadataError"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"metadataError"}],"constructor":{"name":"Error.metadata"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.error"}},{"binders":["writeCursor"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"writeCursor"}],"constructor":{"name":"Cursor.writing"},"kind":"constructor"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"oldOwnedRoot"},{"kind":"var","name":"kind"},{"kind":"var","name":"key"},{"kind":"var","name":"field"}],"function":{"module":"Uorc.Core.RuntimeMetadata","name":"startWrite"},"kind":"call"}},"executable":true,"kind":"definition","name":"start","parameters":[{"name":"oldOwnedRoot","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}}},{"name":"kind","type":{"kind":"uint64"}},{"name":"key","type":{"kind":"uint64"}},{"name":"field","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeMetadata","name":"Field"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["writeCursor"],"body":{"branches":[{"binders":["metadataError","nextArena","nextWrite"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"metadataError"}],"constructor":{"name":"Error.metadata"},"kind":"constructor"},{"kind":"var","name":"nextArena"},{"arguments":[{"kind":"var","name":"nextWrite"}],"constructor":{"name":"Cursor.writing"},"kind":"constructor"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeMetadata","name":"WriteEvent.failed"}},{"binders":["nextArena","nextWrite","delta"],"body":{"arguments":[{"kind":"var","name":"nextArena"},{"arguments":[{"kind":"var","name":"nextWrite"}],"constructor":{"name":"Cursor.writing"},"kind":"constructor"},{"kind":"var","name":"delta"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeMetadata","name":"WriteEvent.advanced"}},{"binders":["nextArena","newRoot","delta"],"body":{"condition":{"arguments":[{"field":"oldRoot","kind":"project","value":{"kind":"var","name":"writeCursor"}}],"function":{"module":"Uorc.Core.RuntimeValue","name":"isNull"},"kind":"call"},"else_value":{"arguments":[{"kind":"var","name":"nextArena"},{"arguments":[{"kind":"var","name":"newRoot"},{"field":"oldRoot","kind":"project","value":{"kind":"var","name":"writeCursor"}}],"constructor":{"name":"Cursor.beginRelease"},"kind":"constructor"},{"kind":"var","name":"delta"}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"kind":"var","name":"nextArena"},{"kind":"var","name":"newRoot"},{"kind":"var","name":"delta"}],"constructor":{"name":"Event.done"},"kind":"constructor"}},"constructor":{"module":"Uorc.Core.RuntimeMetadata","name":"WriteEvent.done"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"kind":"var","name":"writeCursor"}],"function":{"module":"Uorc.Core.RuntimeMetadata","name":"writeStep"},"kind":"call"}},"constructor":{"name":"Cursor.writing"}},{"binders":["newRoot","oldRoot"],"body":{"branches":[{"binders":["heapError"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"heapError"}],"constructor":{"name":"Error.heap"},"kind":"constructor"},{"kind":"var","name":"arena"},{"kind":"var","name":"cursor"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Result.error"}},{"binders":["transition"],"body":{"condition":{"field":"complete","kind":"project","value":{"kind":"var","name":"transition"}},"else_value":{"arguments":[{"field":"arena","kind":"project","value":{"kind":"var","name":"transition"}},{"arguments":[{"kind":"var","name":"newRoot"}],"constructor":{"name":"Cursor.releasing"},"kind":"constructor"},{"field":"delta","kind":"project","value":{"kind":"var","name":"transition"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"field":"arena","kind":"project","value":{"kind":"var","name":"transition"}},{"kind":"var","name":"newRoot"},{"field":"delta","kind":"project","value":{"kind":"var","name":"transition"}}],"constructor":{"name":"Event.done"},"kind":"constructor"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"},{"kind":"var","name":"oldRoot"}],"function":{"module":"Uorc.Core.Heap","name":"release"},"kind":"call"}},"constructor":{"name":"Cursor.beginRelease"}},{"binders":["newRoot"],"body":{"branches":[{"binders":["heapError"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"heapError"}],"constructor":{"name":"Error.heap"},"kind":"constructor"},{"kind":"var","name":"arena"},{"kind":"var","name":"cursor"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"name":"Result.error"}},{"binders":["transition"],"body":{"condition":{"field":"complete","kind":"project","value":{"kind":"var","name":"transition"}},"else_value":{"arguments":[{"field":"arena","kind":"project","value":{"kind":"var","name":"transition"}},{"kind":"var","name":"cursor"},{"field":"delta","kind":"project","value":{"kind":"var","name":"transition"}}],"constructor":{"name":"Event.advanced"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"field":"arena","kind":"project","value":{"kind":"var","name":"transition"}},{"kind":"var","name":"newRoot"},{"field":"delta","kind":"project","value":{"kind":"var","name":"transition"}}],"constructor":{"name":"Event.done"},"kind":"constructor"}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"arena"}],"function":{"module":"Uorc.Core.Heap","name":"releaseStep"},"kind":"call"}},"constructor":{"name":"Cursor.releasing"}}],"kind":"match","scrutinee":{"kind":"var","name":"cursor"}},"executable":true,"kind":"definition","name":"step","parameters":[{"name":"arena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Event"}}},{"axioms":["Quot.sound","propext"],"body":{"branches":[{"binders":["writeCursor"],"body":{"condition":{"arguments":[{"field":"oldRoot","kind":"project","value":{"kind":"var","name":"writeCursor"}}],"function":{"module":"Uorc.Core.RuntimeValue","name":"isNull"},"kind":"call"},"else_value":{"head":{"field":"oldRoot","kind":"project","value":{"kind":"var","name":"writeCursor"}},"kind":"cons","tail":{"arguments":[{"kind":"var","name":"writeCursor"}],"function":{"module":"Uorc.Core.RuntimeMetadata","name":"temporaryRoots"},"kind":"call"}},"kind":"if","then_value":{"arguments":[{"kind":"var","name":"writeCursor"}],"function":{"module":"Uorc.Core.RuntimeMetadata","name":"temporaryRoots"},"kind":"call"}},"constructor":{"name":"Cursor.writing"}},{"binders":["newRoot","oldRoot"],"body":{"condition":{"arguments":[{"kind":"var","name":"newRoot"}],"function":{"module":"Uorc.Core.RuntimeValue","name":"isNull"},"kind":"call"},"else_value":{"head":{"kind":"var","name":"newRoot"},"kind":"cons","tail":{"condition":{"arguments":[{"kind":"var","name":"oldRoot"}],"function":{"module":"Uorc.Core.RuntimeValue","name":"isNull"},"kind":"call"},"else_value":{"head":{"kind":"var","name":"oldRoot"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"nil"}},"kind":"if","then_value":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"nil"}}},"kind":"if","then_value":{"condition":{"arguments":[{"kind":"var","name":"oldRoot"}],"function":{"module":"Uorc.Core.RuntimeValue","name":"isNull"},"kind":"call"},"else_value":{"head":{"kind":"var","name":"oldRoot"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"nil"}},"kind":"if","then_value":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"nil"}}},"constructor":{"name":"Cursor.beginRelease"}},{"binders":["newRoot"],"body":{"condition":{"arguments":[{"kind":"var","name":"newRoot"}],"function":{"module":"Uorc.Core.RuntimeValue","name":"isNull"},"kind":"call"},"else_value":{"head":{"kind":"var","name":"newRoot"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"nil"}},"kind":"if","then_value":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"nil"}},"constructor":{"name":"Cursor.releasing"}}],"kind":"match","scrutinee":{"kind":"var","name":"cursor"}},"executable":true,"kind":"definition","name":"rootInventory","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"list"}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: metadata, fields: [Uorc.Core.RuntimeMetadata::Error]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]}
+  ]
+}
+
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: writing, fields: [Uorc.Core.RuntimeMetadata::WriteCursor]},
+    {name: beginRelease, fields: [Uorc.Core.RuntimeValue::Handle, Uorc.Core.RuntimeValue::Handle]},
+    {name: releasing, fields: [Uorc.Core.RuntimeValue::Handle]}
+  ]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [Uorc.Core.Heap::Arena, Cursor, Uorc.Core.Heap::Delta]},
+    {
+      name: done,
+      fields: [Uorc.Core.Heap::Arena, Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::Delta]
+    },
+    {name: failed, fields: [Error, Uorc.Core.Heap::Arena, Cursor]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    oldOwnedRoot : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64,
+    field : Uorc.Core.RuntimeMetadata::Field
+  ],
+  result: (Result Cursor Error),
+  body: (match (Uorc.Core.RuntimeMetadata::startWrite oldOwnedRoot kind key field)
+    | Result.error metadataError => (ctor Result.error [Cursor, Error] (ctor Error.metadata metadataError))
+    | Result.ok writeCursor => (ctor Result.ok [Cursor, Error] (ctor Cursor.writing writeCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: step,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Event,
+  body: (match cursor
+    | Cursor.writing writeCursor => (match (Uorc.Core.RuntimeMetadata::writeStep arena writeCursor)
+      | Uorc.Core.RuntimeMetadata::WriteEvent.failed metadataError nextArena nextWrite => (ctor Event.failed (ctor Error.metadata metadataError) nextArena (ctor Cursor.writing nextWrite))
+      | Uorc.Core.RuntimeMetadata::WriteEvent.advanced nextArena nextWrite delta => (ctor Event.advanced nextArena (ctor Cursor.writing nextWrite) delta)
+      | Uorc.Core.RuntimeMetadata::WriteEvent.done nextArena newRoot delta => (if (Uorc.Core.RuntimeValue::isNull (project writeCursor oldRoot)) then (ctor Event.done nextArena newRoot delta) else (ctor Event.advanced nextArena (ctor Cursor.beginRelease newRoot (project writeCursor oldRoot)) delta)))
+    | Cursor.beginRelease newRoot oldRoot => (match (Uorc.Core.Heap::release arena oldRoot)
+      | Result.error heapError => (ctor Event.failed (ctor Error.heap heapError) arena cursor)
+      | Result.ok transition => (if (project transition complete) then (ctor Event.done (project transition arena) newRoot (project transition delta)) else (ctor Event.advanced (project transition arena) (ctor Cursor.releasing newRoot) (project transition delta))))
+    | Cursor.releasing newRoot => (match (Uorc.Core.Heap::releaseStep arena)
+      | Result.error heapError => (ctor Event.failed (ctor Error.heap heapError) arena cursor)
+      | Result.ok transition => (if (project transition complete) then (ctor Event.done (project transition arena) newRoot (project transition delta)) else (ctor Event.advanced (project transition arena) cursor (project transition delta))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: rootInventory,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match cursor
+    | Cursor.writing writeCursor => (if (Uorc.Core.RuntimeValue::isNull (project writeCursor oldRoot)) then (Uorc.Core.RuntimeMetadata::temporaryRoots writeCursor) else (cons (project writeCursor oldRoot) (Uorc.Core.RuntimeMetadata::temporaryRoots writeCursor)))
+    | Cursor.beginRelease newRoot oldRoot => (if (Uorc.Core.RuntimeValue::isNull newRoot) then (if (Uorc.Core.RuntimeValue::isNull oldRoot) then (nil Uorc.Core.RuntimeValue::Handle) else (cons oldRoot (nil Uorc.Core.RuntimeValue::Handle))) else (cons newRoot (if (Uorc.Core.RuntimeValue::isNull oldRoot) then (nil Uorc.Core.RuntimeValue::Handle) else (cons oldRoot (nil Uorc.Core.RuntimeValue::Handle)))))
+    | Cursor.releasing newRoot => (if (Uorc.Core.RuntimeValue::isNull newRoot) then (nil Uorc.Core.RuntimeValue::Handle) else (cons newRoot (nil Uorc.Core.RuntimeValue::Handle)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
 \end{semanticmodule}
 \end{lexlean}

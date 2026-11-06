@@ -5,6 +5,230 @@
 \importmodule{Uorc.Wire.GraphEmit}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"selfContained"},{"fields":[{"kind":"bytes"}],"name":"conditional"}],"kind":"inductive","name":"Scope","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}}],"name":"raw"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Graph"}}],"name":"program"}],"kind":"inductive","name":"Body","parameters":[],"type_parameters":[]},{"fields":[{"name":"objectLengths","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"scope","type":{"arguments":[],"kind":"named","member":{"name":"Scope"}}},{"name":"body","type":{"arguments":[],"kind":"named","member":{"name":"Body"}}}],"kind":"structure","name":"Frame","parameters":[],"type_parameters":[]},{"fields":[{"name":"frame","type":{"arguments":[],"kind":"named","member":{"name":"Frame"}}},{"name":"objectCount","type":{"kind":"nat"}},{"name":"outputLength","type":{"kind":"nat"}},{"name":"bodyLength","type":{"kind":"nat"}}],"kind":"structure","name":"Prepared","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"basisIdentityLength"},{"fields":[],"name":"rawLengthMismatch"},{"fields":[],"name":"invalidEmitter"}],"kind":"inductive","name":"PrepareError","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"lengths"},{"fields":[],"name":"body"}],"kind":"inductive","name":"PreparePhase","parameters":[],"type_parameters":[]},{"fields":[{"name":"frame","type":{"arguments":[],"kind":"named","member":{"name":"Frame"}}},{"name":"remainingLengths","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"objectCount","type":{"kind":"nat"}},{"name":"outputLength","type":{"kind":"nat"}},{"name":"measure","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"State"}}},{"name":"phase","type":{"arguments":[],"kind":"named","member":{"name":"PreparePhase"}}}],"kind":"structure","name":"PrepareState","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"PrepareState"}}],"name":"advanced"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Prepared"}}],"name":"complete"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"PrepareError"}}],"name":"failed"}],"kind":"inductive","name":"PrepareEvent","parameters":[],"type_parameters":[]},{"body":{"fields":[{"field":"frame","value":{"kind":"var","name":"frame"}},{"field":"remainingLengths","value":{"field":"objectLengths","kind":"project","value":{"kind":"var","name":"frame"}}},{"field":"objectCount","value":{"kind":"nat","value":"0"}},{"field":"outputLength","value":{"kind":"nat","value":"0"}},{"field":"measure","value":{"branches":[{"binders":["ignoredRaw"],"body":{"fields":[{"field":"pending","value":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"nil"}},{"field":"position","value":{"kind":"nat","value":"0"}},{"field":"work","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"module":"Uorc.Wire.GraphEmit","name":"State"}},"constructor":{"name":"Body.raw"}},{"binders":["graph"],"body":{"arguments":[{"kind":"var","name":"graph"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"start"},"kind":"call"},"constructor":{"name":"Body.program"}}],"kind":"match","scrutinee":{"field":"body","kind":"project","value":{"kind":"var","name":"frame"}}}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"PreparePhase.lengths"},"kind":"constructor"}}],"kind":"record","type":{"name":"PrepareState"}},"kind":"definition","name":"startPreparation","parameters":[{"name":"frame","type":{"arguments":[],"kind":"named","member":{"name":"Frame"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"PrepareState"}}},{"body":{"branches":[{"binders":[],"body":{"branches":[{"binders":[],"body":{"condition":{"branches":[{"binders":[],"body":{"kind":"bool","value":true},"constructor":{"name":"Scope.selfContained"}},{"binders":["identity"],"body":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"identity"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"kind":"nat","value":"32"}},"constructor":{"name":"Scope.conditional"}}],"kind":"match","scrutinee":{"field":"scope","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"s"}}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"PrepareError.basisIdentityLength"},"kind":"constructor"}],"constructor":{"name":"PrepareEvent.failed"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"frame","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"remainingLengths","value":{"element":{"kind":"nat"},"kind":"nil"}},{"field":"objectCount","value":{"field":"objectCount","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"outputLength","value":{"field":"outputLength","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"measure","value":{"field":"measure","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"PreparePhase.body"},"kind":"constructor"}}],"kind":"record","type":{"name":"PrepareState"}}],"constructor":{"name":"PrepareEvent.advanced"},"kind":"constructor"}},"constructor":{"name":"List.nil"}},{"binders":["headLength","tailLengths"],"body":{"arguments":[{"fields":[{"field":"frame","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"remainingLengths","value":{"kind":"var","name":"tailLengths"}},{"field":"objectCount","value":{"kind":"add","left":{"field":"objectCount","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}},{"field":"outputLength","value":{"kind":"add","left":{"field":"outputLength","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"var","name":"headLength"}}},{"field":"measure","value":{"field":"measure","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"PreparePhase.lengths"},"kind":"constructor"}}],"kind":"record","type":{"name":"PrepareState"}}],"constructor":{"name":"PrepareEvent.advanced"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"remainingLengths","kind":"project","value":{"kind":"var","name":"s"}}},"constructor":{"name":"PreparePhase.lengths"}},{"binders":[],"body":{"branches":[{"binders":["rawBytes"],"body":{"condition":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"rawBytes"}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"},"right":{"field":"outputLength","kind":"project","value":{"kind":"var","name":"s"}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"PrepareError.rawLengthMismatch"},"kind":"constructor"}],"constructor":{"name":"PrepareEvent.failed"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"frame","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"objectCount","value":{"field":"objectCount","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"outputLength","value":{"field":"outputLength","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"bodyLength","value":{"field":"outputLength","kind":"project","value":{"kind":"var","name":"s"}}}],"kind":"record","type":{"name":"Prepared"}}],"constructor":{"name":"PrepareEvent.complete"},"kind":"constructor"}},"constructor":{"name":"Body.raw"}},{"binders":["ignoredGraph"],"body":{"branches":[{"binders":["nextMeasure"],"body":{"arguments":[{"fields":[{"field":"frame","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"remainingLengths","value":{"element":{"kind":"nat"},"kind":"nil"}},{"field":"objectCount","value":{"field":"objectCount","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"outputLength","value":{"field":"outputLength","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"measure","value":{"kind":"var","name":"nextMeasure"}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"PreparePhase.body"},"kind":"constructor"}}],"kind":"record","type":{"name":"PrepareState"}}],"constructor":{"name":"PrepareEvent.advanced"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.advanced"}},{"binders":["unexpectedBytes","nextMeasure"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"PrepareError.invalidEmitter"},"kind":"constructor"}],"constructor":{"name":"PrepareEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.produced"}},{"binders":["reason","position","events"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"PrepareError.invalidEmitter"},"kind":"constructor"}],"constructor":{"name":"PrepareEvent.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.failed"}},{"binders":["size","events"],"body":{"arguments":[{"fields":[{"field":"frame","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"objectCount","value":{"field":"objectCount","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"outputLength","value":{"field":"outputLength","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"bodyLength","value":{"kind":"var","name":"size"}}],"kind":"record","type":{"name":"Prepared"}}],"constructor":{"name":"PrepareEvent.complete"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.complete"}}],"kind":"match","scrutinee":{"arguments":[{"field":"measure","kind":"project","value":{"kind":"var","name":"s"}}],"function":{"module":"Uorc.Wire.GraphEmit","name":"measureStep"},"kind":"call"}},"constructor":{"name":"Body.program"}}],"kind":"match","scrutinee":{"field":"body","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"s"}}}},"constructor":{"name":"PreparePhase.body"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"s"}}},"kind":"definition","name":"prepareStep","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"PrepareState"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"PrepareEvent"}}},{"body":{"kind":"nat","value":"2"},"kind":"definition","name":"formatVersion","parameters":[],"result":{"kind":"nat"}},{"body":{"kind":"nat","value":"1"},"kind":"definition","name":"machineProfile","parameters":[],"result":{"kind":"nat"}},{"body":{"kind":"string","value":"0.1"},"kind":"definition","name":"productGeneration","parameters":[],"result":{"kind":"string"}},{"body":{"fields":[{"field":"pending","value":{"head":{"arguments":[{"kind":"nat","value":"85"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"79"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"82"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"67"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[],"function":{"name":"formatVersion"},"kind":"call"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[],"function":{"name":"machineProfile"},"kind":"call"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"branches":[{"binders":[],"body":{"kind":"nat","value":"0"},"constructor":{"name":"Scope.selfContained"}},{"binders":["ignoredIdentity"],"body":{"kind":"nat","value":"1"},"constructor":{"name":"Scope.conditional"}}],"kind":"match","scrutinee":{"field":"scope","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"branches":[{"binders":["ignoredRaw"],"body":{"kind":"nat","value":"0"},"constructor":{"name":"Body.raw"}},{"binders":["ignoredGraph"],"body":{"kind":"nat","value":"1"},"constructor":{"name":"Body.program"}}],"kind":"match","scrutinee":{"field":"body","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.byte"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"objectCount","kind":"project","value":{"kind":"var","name":"prepared"}}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"objectLengths","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.references"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"bodyLength","kind":"project","value":{"kind":"var","name":"prepared"}}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.number"},"kind":"constructor"},"kind":"cons","tail":{"branches":[{"binders":[],"body":{"branches":[{"binders":["rawBytes"],"body":{"head":{"arguments":[{"arguments":[{"kind":"var","name":"rawBytes"}],"function":{"module":"Uorc.Core.Bytes","name":"cursor"},"kind":"call"},{"arguments":[{"kind":"var","name":"rawBytes"}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.rope"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"nil"}},"constructor":{"name":"Body.raw"}},{"binders":["graph"],"body":{"field":"pending","kind":"project","value":{"arguments":[{"kind":"var","name":"graph"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"start"},"kind":"call"}},"constructor":{"name":"Body.program"}}],"kind":"match","scrutinee":{"field":"body","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}},"constructor":{"name":"Scope.selfContained"}},{"binders":["identity"],"body":{"head":{"arguments":[{"arguments":[{"arguments":[{"kind":"var","name":"identity"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"function":{"module":"Uorc.Core.Bytes","name":"cursor"},"kind":"call"},{"kind":"nat","value":"32"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.rope"},"kind":"constructor"},"kind":"cons","tail":{"branches":[{"binders":["rawBytes"],"body":{"head":{"arguments":[{"arguments":[{"kind":"var","name":"rawBytes"}],"function":{"module":"Uorc.Core.Bytes","name":"cursor"},"kind":"call"},{"arguments":[{"kind":"var","name":"rawBytes"}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"}],"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Task.rope"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"Task"}},"kind":"nil"}},"constructor":{"name":"Body.raw"}},{"binders":["graph"],"body":{"field":"pending","kind":"project","value":{"arguments":[{"kind":"var","name":"graph"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"start"},"kind":"call"}},"constructor":{"name":"Body.program"}}],"kind":"match","scrutinee":{"field":"body","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}}},"constructor":{"name":"Scope.conditional"}}],"kind":"match","scrutinee":{"field":"scope","kind":"project","value":{"field":"frame","kind":"project","value":{"kind":"var","name":"prepared"}}}}}}}}}}}}}}}},{"field":"position","value":{"kind":"nat","value":"0"}},{"field":"work","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"module":"Uorc.Wire.GraphEmit","name":"State"}},"kind":"definition","name":"preimageStart","parameters":[{"name":"prepared","type":{"arguments":[],"kind":"named","member":{"name":"Prepared"}}}],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"State"}}},{"body":{"kind":"string","value":"This module emits the archive preimage only: UORC magic, format2, machine profile1, scope tag, representation tag, shortest-natural object count, ordered object lengths, body length, optional exact32-byte basis identity, and exact body. Integrity bytes and final verification are composed by the integrity/framing boundary before publication. It neither accepts legacy formats nor claims a completed archive. Product generation0.1 is independent of wire identifiers. Raw length equals the aggregate ordered object lengths; zero-length objects and empty collections remain distinct. Program output length and exact reconstruction are checked by execution, not inferred from metadata."},"kind":"definition","name":"preimageBoundary","parameters":[],"result":{"kind":"string"}},{"body":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"var","name":"s"}],"constructor":{"name":"PrepareEvent.advanced"},"kind":"constructor"},"constructor":{"name":"Nat.zero"}},{"binders":["remaining"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"remaining"},{"kind":"var","name":"next"}],"function":{"name":"prepareFixture"},"kind":"call"},"constructor":{"name":"PrepareEvent.advanced"}},{"binders":["preparedValue"],"body":{"arguments":[{"kind":"var","name":"preparedValue"}],"constructor":{"name":"PrepareEvent.complete"},"kind":"constructor"},"constructor":{"name":"PrepareEvent.complete"}},{"binders":["reason"],"body":{"arguments":[{"kind":"var","name":"reason"}],"constructor":{"name":"PrepareEvent.failed"},"kind":"constructor"},"constructor":{"name":"PrepareEvent.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"s"}],"function":{"name":"prepareStep"},"kind":"call"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"prepareFixture","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"PrepareState"}}}],"recursive_argument":"fuel","result":{"arguments":[],"kind":"named","member":{"name":"PrepareEvent"}}},{"axioms":[],"kind":"theorem","name":"prepare_empty_collection","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"30"},{"arguments":[{"fields":[{"field":"objectLengths","value":{"element":{"kind":"nat"},"kind":"nil"}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}],"function":{"name":"startPreparation"},"kind":"call"}],"function":{"name":"prepareFixture"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"frame","value":{"fields":[{"field":"objectLengths","value":{"element":{"kind":"nat"},"kind":"nil"}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}},{"field":"objectCount","value":{"kind":"nat","value":"0"}},{"field":"outputLength","value":{"kind":"nat","value":"0"}},{"field":"bodyLength","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Prepared"}}],"constructor":{"name":"PrepareEvent.complete"},"kind":"constructor"}}},{"axioms":[],"kind":"theorem","name":"preimage_empty_collection","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"300"},{"arguments":[{"fields":[{"field":"frame","value":{"fields":[{"field":"objectLengths","value":{"element":{"kind":"nat"},"kind":"nil"}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}},{"field":"objectCount","value":{"kind":"nat","value":"0"}},{"field":"outputLength","value":{"kind":"nat","value":"0"}},{"field":"bodyLength","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Prepared"}}],"function":{"name":"preimageStart"},"kind":"call"},{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"collectFixture"},"kind":"call"},"right":{"arguments":[{"hex":"554f5243020100000000","kind":"bytes"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]}}},{"axioms":[],"kind":"theorem","name":"prepare_empty_object","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"30"},{"arguments":[{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}],"function":{"name":"startPreparation"},"kind":"call"}],"function":{"name":"prepareFixture"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"frame","value":{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}},{"field":"objectCount","value":{"kind":"nat","value":"1"}},{"field":"outputLength","value":{"kind":"nat","value":"0"}},{"field":"bodyLength","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Prepared"}}],"constructor":{"name":"PrepareEvent.complete"},"kind":"constructor"}}},{"axioms":[],"kind":"theorem","name":"preimage_empty_object","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"300"},{"arguments":[{"fields":[{"field":"frame","value":{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}},{"field":"objectCount","value":{"kind":"nat","value":"1"}},{"field":"outputLength","value":{"kind":"nat","value":"0"}},{"field":"bodyLength","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Prepared"}}],"function":{"name":"preimageStart"},"kind":"call"},{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"collectFixture"},"kind":"call"},"right":{"arguments":[{"hex":"554f524302010000010000","kind":"bytes"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]}}},{"axioms":[],"kind":"theorem","name":"prepare_binary","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"30"},{"arguments":[{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"3"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"00ff80","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}],"function":{"name":"startPreparation"},"kind":"call"}],"function":{"name":"prepareFixture"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"frame","value":{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"3"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"00ff80","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}},{"field":"objectCount","value":{"kind":"nat","value":"1"}},{"field":"outputLength","value":{"kind":"nat","value":"3"}},{"field":"bodyLength","value":{"kind":"nat","value":"3"}}],"kind":"record","type":{"name":"Prepared"}}],"constructor":{"name":"PrepareEvent.complete"},"kind":"constructor"}}},{"axioms":[],"kind":"theorem","name":"preimage_binary","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"300"},{"arguments":[{"fields":[{"field":"frame","value":{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"3"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"00ff80","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}},{"field":"objectCount","value":{"kind":"nat","value":"1"}},{"field":"outputLength","value":{"kind":"nat","value":"3"}},{"field":"bodyLength","value":{"kind":"nat","value":"3"}}],"kind":"record","type":{"name":"Prepared"}}],"function":{"name":"preimageStart"},"kind":"call"},{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"collectFixture"},"kind":"call"},"right":{"arguments":[{"hex":"554f52430201000001030300ff80","kind":"bytes"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]}}},{"axioms":[],"kind":"theorem","name":"prepare_empty_boundaries","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"30"},{"arguments":[{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"head":{"kind":"nat","value":"1"},"kind":"cons","tail":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"head":{"kind":"nat","value":"1"},"kind":"cons","tail":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}}}}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"00ff","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}],"function":{"name":"startPreparation"},"kind":"call"}],"function":{"name":"prepareFixture"},"kind":"call"},"right":{"arguments":[{"fields":[{"field":"frame","value":{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"head":{"kind":"nat","value":"1"},"kind":"cons","tail":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"head":{"kind":"nat","value":"1"},"kind":"cons","tail":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}}}}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"00ff","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}},{"field":"objectCount","value":{"kind":"nat","value":"5"}},{"field":"outputLength","value":{"kind":"nat","value":"2"}},{"field":"bodyLength","value":{"kind":"nat","value":"2"}}],"kind":"record","type":{"name":"Prepared"}}],"constructor":{"name":"PrepareEvent.complete"},"kind":"constructor"}}},{"axioms":[],"kind":"theorem","name":"preimage_empty_boundaries","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"300"},{"arguments":[{"fields":[{"field":"frame","value":{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"head":{"kind":"nat","value":"1"},"kind":"cons","tail":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"head":{"kind":"nat","value":"1"},"kind":"cons","tail":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}}}}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"00ff","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}},{"field":"objectCount","value":{"kind":"nat","value":"5"}},{"field":"outputLength","value":{"kind":"nat","value":"2"}},{"field":"bodyLength","value":{"kind":"nat","value":"2"}}],"kind":"record","type":{"name":"Prepared"}}],"function":{"name":"preimageStart"},"kind":"call"},{"hex":"","kind":"bytes"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"collectFixture"},"kind":"call"},"right":{"arguments":[{"hex":"554f5243020100000500010001000200ff","kind":"bytes"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"bytes"}]}}},{"axioms":[],"kind":"theorem","name":"reject_raw_mismatch","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"30"},{"arguments":[{"fields":[{"field":"objectLengths","value":{"head":{"kind":"nat","value":"2"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}},{"field":"scope","value":{"arguments":[],"constructor":{"name":"Scope.selfContained"},"kind":"constructor"}},{"field":"body","value":{"arguments":[{"arguments":[{"hex":"00","kind":"bytes"}],"function":{"module":"Uorc.Core.Bytes","name":"fromBytes"},"kind":"call"}],"constructor":{"name":"Body.raw"},"kind":"constructor"}}],"kind":"record","type":{"name":"Frame"}}],"function":{"name":"startPreparation"},"kind":"call"}],"function":{"name":"prepareFixture"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"PrepareError.rawLengthMismatch"},"kind":"constructor"}],"constructor":{"name":"PrepareEvent.failed"},"kind":"constructor"}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Scope,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: selfContained, fields: []}, {name: conditional, fields: [Bytes]}]
+}
+
+inductive{
+  name: Body,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: raw, fields: [Uorc.Core.Bytes::Rope]},
+    {name: program, fields: [Uorc.Core.Graph::Graph]}
+  ]
+}
+
+structure{
+  name: Frame,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: objectLengths, type: (List Nat)},
+    {name: scope, type: Scope},
+    {name: body, type: Body}
+  ]
+}
+
+structure{
+  name: Prepared,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frame, type: Frame},
+    {name: objectCount, type: Nat},
+    {name: outputLength, type: Nat},
+    {name: bodyLength, type: Nat}
+  ]
+}
+
+inductive{
+  name: PrepareError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: basisIdentityLength, fields: []},
+    {name: rawLengthMismatch, fields: []},
+    {name: invalidEmitter, fields: []}
+  ]
+}
+
+inductive{
+  name: PreparePhase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: lengths, fields: []}, {name: body, fields: []}]
+}
+
+structure{
+  name: PrepareState,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frame, type: Frame},
+    {name: remainingLengths, type: (List Nat)},
+    {name: objectCount, type: Nat},
+    {name: outputLength, type: Nat},
+    {name: measure, type: Uorc.Wire.GraphEmit::State},
+    {name: phase, type: PreparePhase}
+  ]
+}
+
+inductive{
+  name: PrepareEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [PrepareState]},
+    {name: complete, fields: [Prepared]},
+    {name: failed, fields: [PrepareError]}
+  ]
+}
+
+definition{
+  name: startPreparation,
+  parameters: [frame : Frame],
+  result: PrepareState,
+  body: (record PrepareState {frame := frame, remainingLengths := (project frame objectLengths), objectCount := 0, outputLength := 0, measure := (match (project frame body)
+    | Body.raw ignoredRaw => (record Uorc.Wire.GraphEmit::State {pending := (nil Uorc.Wire.GraphEmit::Task), position := 0, work := 0})
+    | Body.program graph => (Uorc.Wire.GraphEmit::start graph)), phase := (ctor PreparePhase.lengths)})
+}
+
+definition{
+  name: prepareStep,
+  parameters: [s : PrepareState],
+  result: PrepareEvent,
+  body: (match (project s phase)
+    | PreparePhase.lengths => (match (project s remainingLengths)
+      | List.nil => (if (match (project (project s frame) scope)
+        | Scope.selfContained => true
+        | Scope.conditional identity => ((prim length identity : Nat) =? 32)) then (ctor PrepareEvent.advanced (record PrepareState {frame := (project s frame), remainingLengths := (nil Nat), objectCount := (project s objectCount), outputLength := (project s outputLength), measure := (project s measure), phase := (ctor PreparePhase.body)})) else (ctor PrepareEvent.failed (ctor PrepareError.basisIdentityLength)))
+      | List.cons headLength tailLengths => (ctor PrepareEvent.advanced (record PrepareState {frame := (project s frame), remainingLengths := tailLengths, objectCount := ((project s objectCount) + 1), outputLength := ((project s outputLength) + headLength), measure := (project s measure), phase := (ctor PreparePhase.lengths)})))
+    | PreparePhase.body => (match (project (project s frame) body)
+      | Body.raw rawBytes => (if ((Uorc.Core.Bytes::length rawBytes) =? (project s outputLength)) then (ctor PrepareEvent.complete (record Prepared {frame := (project s frame), objectCount := (project s objectCount), outputLength := (project s outputLength), bodyLength := (project s outputLength)})) else (ctor PrepareEvent.failed (ctor PrepareError.rawLengthMismatch)))
+      | Body.program ignoredGraph => (match (Uorc.Wire.GraphEmit::measureStep (project s measure))
+        | Uorc.Wire.GraphEmit::Event.advanced nextMeasure => (ctor PrepareEvent.advanced (record PrepareState {frame := (project s frame), remainingLengths := (nil Nat), objectCount := (project s objectCount), outputLength := (project s outputLength), measure := nextMeasure, phase := (ctor PreparePhase.body)}))
+        | Uorc.Wire.GraphEmit::Event.produced unexpectedBytes nextMeasure => (ctor PrepareEvent.failed (ctor PrepareError.invalidEmitter))
+        | Uorc.Wire.GraphEmit::Event.failed reason position events => (ctor PrepareEvent.failed (ctor PrepareError.invalidEmitter))
+        | Uorc.Wire.GraphEmit::Event.complete size events => (ctor PrepareEvent.complete (record Prepared {frame := (project s frame), objectCount := (project s objectCount), outputLength := (project s outputLength), bodyLength := size})))))
+}
+
+definition{name: formatVersion, parameters: [], result: Nat, body: 2}
+
+definition{name: machineProfile, parameters: [], result: Nat, body: 1}
+
+definition{name: productGeneration, parameters: [], result: String, body: "0.1"}
+
+definition{
+  name: preimageStart,
+  parameters: [prepared : Prepared],
+  result: Uorc.Wire.GraphEmit::State,
+  body: (record Uorc.Wire.GraphEmit::State {pending := (cons (ctor Uorc.Wire.GraphEmit::Task.byte 85) (cons (ctor Uorc.Wire.GraphEmit::Task.byte 79) (cons (ctor Uorc.Wire.GraphEmit::Task.byte 82) (cons (ctor Uorc.Wire.GraphEmit::Task.byte 67) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (formatVersion)) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (machineProfile)) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (match (project (project prepared frame) scope)
+    | Scope.selfContained => 0
+    | Scope.conditional ignoredIdentity => 1)) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (match (project (project prepared frame) body)
+    | Body.raw ignoredRaw => 0
+    | Body.program ignoredGraph => 1)) (cons (ctor Uorc.Wire.GraphEmit::Task.number (project prepared objectCount)) (cons (ctor Uorc.Wire.GraphEmit::Task.references (project (project prepared frame) objectLengths)) (cons (ctor Uorc.Wire.GraphEmit::Task.number (project prepared bodyLength)) (match (project (project prepared frame) scope)
+    | Scope.selfContained => (match (project (project prepared frame) body)
+      | Body.raw rawBytes => (cons (ctor Uorc.Wire.GraphEmit::Task.rope (Uorc.Core.Bytes::cursor rawBytes) (Uorc.Core.Bytes::length rawBytes)) (nil Uorc.Wire.GraphEmit::Task))
+      | Body.program graph => (project (Uorc.Wire.GraphEmit::start graph) pending))
+    | Scope.conditional identity => (cons (ctor Uorc.Wire.GraphEmit::Task.rope (Uorc.Core.Bytes::cursor (Uorc.Core.Bytes::fromBytes identity)) 32) (match (project (project prepared frame) body)
+      | Body.raw rawBytes => (cons (ctor Uorc.Wire.GraphEmit::Task.rope (Uorc.Core.Bytes::cursor rawBytes) (Uorc.Core.Bytes::length rawBytes)) (nil Uorc.Wire.GraphEmit::Task))
+      | Body.program graph => (project (Uorc.Wire.GraphEmit::start graph) pending))))))))))))))), position := 0, work := 0})
+}
+
+definition{
+  name: preimageBoundary,
+  parameters: [],
+  result: String,
+  body: "This module emits the archive preimage only: UORC magic, format2, machine profile1, scope tag, representation tag, shortest-natural object count, ordered object lengths, body length, optional exact32-byte basis identity, and exact body. Integrity bytes and final verification are composed by the integrity/framing boundary before publication. It neither accepts legacy formats nor claims a completed archive. Product generation0.1 is independent of wire identifiers. Raw length equals the aggregate ordered object lengths; zero-length objects and empty collections remain distinct. Program output length and exact reconstruction are checked by execution, not inferred from metadata."
+}
+
+definition{
+  name: prepareFixture,
+  parameters: [fuel : Nat, s : PrepareState],
+  result: PrepareEvent,
+  body: (match fuel
+    | Nat.zero => (ctor PrepareEvent.advanced s)
+    | Nat.succ remaining => (match (prepareStep s)
+      | PrepareEvent.advanced next => (prepareFixture remaining next)
+      | PrepareEvent.complete preparedValue => (ctor PrepareEvent.complete preparedValue)
+      | PrepareEvent.failed reason => (ctor PrepareEvent.failed reason))),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: prepare_empty_collection,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (nil Nat), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (nil Nat), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 0, outputLength := 0, bodyLength := 0}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: preimage_empty_collection,
+  parameters: [],
+  statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (nil Nat), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 0, outputLength := 0, bodyLength := 0})) 0x) = (ctor Option.some [Bytes] 0x554f5243020100000000)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: prepare_empty_object,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 0 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (cons 0 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 1, outputLength := 0, bodyLength := 0}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: preimage_empty_object,
+  parameters: [],
+  statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (cons 0 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 1, outputLength := 0, bodyLength := 0})) 0x) = (ctor Option.some [Bytes] 0x554f524302010000010000)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: prepare_binary,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 3 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff80))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (cons 3 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff80))}), objectCount := 1, outputLength := 3, bodyLength := 3}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: preimage_binary,
+  parameters: [],
+  statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (cons 3 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff80))}), objectCount := 1, outputLength := 3, bodyLength := 3})) 0x) = (ctor Option.some [Bytes] 0x554f52430201000001030300ff80)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: prepare_empty_boundaries,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 0 (cons 1 (cons 0 (cons 1 (cons 0 (nil Nat)))))), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (cons 0 (cons 1 (cons 0 (cons 1 (cons 0 (nil Nat)))))), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}), objectCount := 5, outputLength := 2, bodyLength := 2}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: preimage_empty_boundaries,
+  parameters: [],
+  statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (cons 0 (cons 1 (cons 0 (cons 1 (cons 0 (nil Nat)))))), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}), objectCount := 5, outputLength := 2, bodyLength := 2})) 0x) = (ctor Option.some [Bytes] 0x554f5243020100000500010001000200ff)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: reject_raw_mismatch,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 2 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00))}))) = (ctor PrepareEvent.failed (ctor PrepareError.rawLengthMismatch))),
+  proof: reflexivity{},
+  axioms: []
+}
 \end{semanticmodule}
 \end{lexlean}

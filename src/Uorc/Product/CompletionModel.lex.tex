@@ -2,6 +2,116 @@
 \importmodule{Uorc.Product.Session}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"fields":[{"name":"session","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Session","name":"Session"}}},{"name":"runSerial","type":{"kind":"nat"}},{"name":"runRevision","type":{"kind":"nat"}},{"name":"result","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Session","name":"ResultKind"}}}],"kind":"structure","name":"CompletionRequest","parameters":[],"type_parameters":[]},{"body":{"kind":"eq","left":{"arguments":[{"field":"session","kind":"project","value":{"kind":"var","name":"request"}},{"field":"runSerial","kind":"project","value":{"kind":"var","name":"request"}},{"field":"runRevision","kind":"project","value":{"kind":"var","name":"request"}}],"function":{"module":"Uorc.Product.Session","name":"ownsRun"},"kind":"call"},"right":{"kind":"bool","value":false}},"kind":"definition","name":"isStaleCompletion","parameters":[{"name":"request","type":{"arguments":[],"kind":"named","member":{"name":"CompletionRequest"}}}],"result":{"kind":"prop"}},{"body":{"kind":"eq","left":{"kind":"var","name":"output"},"right":{"field":"session","kind":"project","value":{"kind":"var","name":"request"}}},"kind":"definition","name":"preservesSession","parameters":[{"name":"request","type":{"arguments":[],"kind":"named","member":{"name":"CompletionRequest"}}},{"name":"output","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Session","name":"Session"}}}],"result":{"kind":"prop"}},{"axioms":[],"input":{"name":"request","type":{"arguments":[],"kind":"named","member":{"name":"CompletionRequest"}}},"kind":"contract","name":"StaleCompletionContract","output":{"name":"output","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Session","name":"Session"}}},"postcondition":{"name":"preservesSession"},"precondition":{"name":"isStaleCompletion"},"validators":[]},{"axioms":[],"descriptor":{"body":{"arguments":[{"field":"session","kind":"project","value":{"kind":"var","name":"request"}},{"field":"runSerial","kind":"project","value":{"kind":"var","name":"request"}},{"field":"runRevision","kind":"project","value":{"kind":"var","name":"request"}},{"field":"result","kind":"project","value":{"kind":"var","name":"request"}}],"function":{"module":"Uorc.Product.Session","name":"finish"},"kind":"call"},"kind":"deterministic"},"executable":true,"input":{"name":"request","type":{"arguments":[],"kind":"named","member":{"name":"CompletionRequest"}}},"kind":"realization","name":"CompletionTransition","output":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Session","name":"Session"}}},{"axioms":["propext"],"kind":"theorem","name":"stale_completion_preserves_session","parameters":[{"name":"request","type":{"arguments":[],"kind":"named","member":{"name":"CompletionRequest"}}}],"proof":{"definitions":[{"name":"CompletionTransition"},{"module":"Uorc.Product.Session","name":"finish"},{"name":"isStaleCompletion"},{"name":"preservesSession"}],"kind":"linear_arithmetic"},"statement":{"conclusion":{"arguments":[{"kind":"var","name":"request"},{"arguments":[{"kind":"var","name":"request"}],"function":{"name":"CompletionTransition"},"kind":"call"}],"function":{"name":"preservesSession"},"kind":"call"},"kind":"implies","premise":{"arguments":[{"kind":"var","name":"request"}],"function":{"name":"isStaleCompletion"},"kind":"call"}}},{"axioms":["propext"],"claims":[{"kind":"satisfies_contract","theorem":{"name":"stale_completion_preserves_session"}}],"contract":{"member":{"name":"StaleCompletionContract"}},"kind":"evidence","name":"CompletionEvidence","realization":{"member":{"name":"CompletionTransition"}}},{"axioms":["propext"],"contract":{"member":{"name":"StaleCompletionContract"}},"evidence":[{"member":{"name":"CompletionEvidence"}}],"kind":"model","name":"CompletionModel","realization":{"member":{"name":"CompletionTransition"}}},{"body":{"kind":"string","value":"This Prism model binds the actual session-completion transition to the stale-run preservation contract. Its theorem obligation is universal over the request, not a finite UI example. Kernel acceptance of the theorem/evidence remains required; source declaration does not claim it has passed. This component contract does not substitute for wire, decoding, search, ownership, publication, or full-product contracts."},"kind":"definition","name":"boundary","parameters":[],"result":{"kind":"string"}}],"spec":"lexlean/semantic-module/1"}}
+structure{
+  name: CompletionRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: session, type: Uorc.Product.Session::Session},
+    {name: runSerial, type: Nat},
+    {name: runRevision, type: Nat},
+    {name: result, type: Uorc.Product.Session::ResultKind}
+  ]
+}
+
+definition{
+  name: isStaleCompletion,
+  parameters: [request : CompletionRequest],
+  result: Prop,
+  body: ((Uorc.Product.Session::ownsRun (project request session) (project request runSerial) (project request runRevision)) = false)
+}
+
+definition{
+  name: preservesSession,
+  parameters: [request : CompletionRequest, output : Uorc.Product.Session::Session],
+  result: Prop,
+  body: (output = (project request session))
+}
+
+contract{
+  name: StaleCompletionContract,
+  axioms: [],
+  input: {name: request, type: CompletionRequest},
+  output: {name: output, type: Uorc.Product.Session::Session},
+  postcondition: preservesSession,
+  precondition: isStaleCompletion,
+  validators: []
+}
+
+realization{
+  name: CompletionTransition,
+  axioms: [],
+  descriptor: deterministic{
+    body: (Uorc.Product.Session::finish (project request session) (project request runSerial) (project request runRevision) (project request result))
+  },
+  executable: true,
+  input: {name: request, type: CompletionRequest},
+  output: Uorc.Product.Session::Session
+}
+
+definition{
+  name: select_session,
+  parameters: [
+    owned : Bool,
+    updated : Uorc.Product.Session::Session,
+    current : Uorc.Product.Session::Session
+  ],
+  result: Uorc.Product.Session::Session,
+  body: (if owned then updated else current)
+}
+
+theorem{
+  name: select_false_preserves,
+  parameters: [request : CompletionRequest, updated : Uorc.Product.Session::Session],
+  statement: (preservesSession request (select_session false updated (project request session))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: stale_completion_branches,
+  parameters: [request : CompletionRequest, owned : Bool, updated : Uorc.Product.Session::Session],
+  statement: ((owned = false) -> (preservesSession request (select_session owned updated (project request session)))),
+  proof: simplify{definitions: [select_false_preserves]},
+  axioms: []
+}
+
+theorem{
+  name: stale_completion_preserves_session,
+  parameters: [request : CompletionRequest],
+  statement: ((isStaleCompletion request) -> (preservesSession request (CompletionTransition request))),
+  proof: apply{
+    arguments: [
+      request,
+      (Uorc.Product.Session::ownsRun (project request session) (project request runSerial) (project request runRevision)),
+      (record Uorc.Product.Session::Session {revision := (project (project request session) revision), serial := (project (project request session) serial), active := false, hasResult := true, phase := (Uorc.Product.Session::resultPhase (project request result)), result := (project request result)})
+    ],
+    theorem: stale_completion_branches
+  },
+  axioms: [propext]
+}
+
+evidence{
+  name: CompletionEvidence,
+  axioms: [propext],
+  claims: [satisfies_contract{theorem: stale_completion_preserves_session}],
+  contract: {member: StaleCompletionContract},
+  realization: {member: CompletionTransition}
+}
+
+model{
+  name: CompletionModel,
+  axioms: [propext],
+  contract: {member: StaleCompletionContract},
+  evidence: [{member: CompletionEvidence}],
+  realization: {member: CompletionTransition}
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "This Prism model binds the actual session-completion transition to the stale-run preservation contract. Its theorem obligation is universal over the request, not a finite UI example. Kernel acceptance of the theorem/evidence remains required; source declaration does not claim it has passed. This component contract does not substitute for wire, decoding, search, ownership, publication, or full-product contracts."
+}
 \end{semanticmodule}
 \end{lexlean}

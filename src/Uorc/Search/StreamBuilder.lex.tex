@@ -3,6 +3,110 @@
 \importmodule{Uorc.Core.Bytes}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"fields":[{"name":"bytes","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.ByteBuilder","name":"Builder"}}},{"name":"byteCount","type":{"kind":"nat"}}],"kind":"structure","name":"Builder","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.ByteBuilder","name":"Builder"}},{"kind":"bytes"},{"kind":"nat"},{"kind":"nat"}],"name":"chunk"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.ByteBuilder","name":"Work"}},{"kind":"bytes"},{"kind":"nat"},{"kind":"nat"}],"name":"byteWork"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.ByteBuilder","name":"Work"}},{"kind":"nat"}],"name":"finishing"}],"kind":"inductive","name":"Work","parameters":[],"type_parameters":[]},{"fields":[{"name":"work","type":{"arguments":[],"kind":"named","member":{"name":"Work"}}},{"name":"eventCredit","type":{"kind":"nat"}}],"kind":"structure","name":"Cursor","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.ByteBuilder","name":"Error"}}],"name":"builder"},{"fields":[],"name":"invalidState"},{"fields":[],"name":"addressSpaceExhausted"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"pending"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Builder"}}],"name":"appended"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}},{"kind":"nat"}],"name":"finished"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}}],"name":"failed"}],"kind":"inductive","name":"Step","parameters":[],"type_parameters":[]},{"body":{"fields":[{"field":"bytes","value":{"arguments":[],"function":{"module":"Uorc.Core.ByteBuilder","name":"empty"},"kind":"call"}},{"field":"byteCount","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Builder"}},"kind":"definition","name":"empty","parameters":[],"result":{"arguments":[],"kind":"named","member":{"name":"Builder"}}},{"body":{"fields":[{"field":"work","value":{"arguments":[{"field":"bytes","kind":"project","value":{"kind":"var","name":"builder"}},{"kind":"var","name":"chunk"},{"kind":"nat","value":"0"},{"field":"byteCount","kind":"project","value":{"kind":"var","name":"builder"}}],"constructor":{"name":"Work.chunk"},"kind":"constructor"}},{"field":"eventCredit","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}},"kind":"definition","name":"appendChunk","parameters":[{"name":"builder","type":{"arguments":[],"kind":"named","member":{"name":"Builder"}}},{"name":"chunk","type":{"kind":"bytes"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"body":{"fields":[{"field":"work","value":{"arguments":[{"arguments":[{"field":"bytes","kind":"project","value":{"kind":"var","name":"builder"}}],"function":{"module":"Uorc.Core.ByteBuilder","name":"finish"},"kind":"call"},{"field":"byteCount","kind":"project","value":{"kind":"var","name":"builder"}}],"constructor":{"name":"Work.finishing"},"kind":"constructor"}},{"field":"eventCredit","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}},"kind":"definition","name":"finish","parameters":[{"name":"builder","type":{"arguments":[],"kind":"named","member":{"name":"Builder"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"body":{"branches":[{"binders":["builder","chunk","offset","byteCount"],"body":{"kind":"nat","value":"1"},"constructor":{"name":"Work.chunk"}},{"binders":["builderWork","chunk","offset","byteCount"],"body":{"arguments":[{"kind":"var","name":"builderWork"}],"function":{"module":"Uorc.Core.ByteBuilder","name":"eventWork"},"kind":"call"},"constructor":{"name":"Work.byteWork"}},{"binders":["builderWork","byteCount"],"body":{"arguments":[{"kind":"var","name":"builderWork"}],"function":{"module":"Uorc.Core.ByteBuilder","name":"eventWork"},"kind":"call"},"constructor":{"name":"Work.finishing"}}],"kind":"match","scrutinee":{"kind":"var","name":"work"}},"kind":"definition","name":"eventWork","parameters":[{"name":"work","type":{"arguments":[],"kind":"named","member":{"name":"Work"}}}],"result":{"kind":"nat"}},{"body":{"branches":[{"binders":["builder","chunk","offset","byteCount"],"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"offset"},"right":{"arguments":[{"kind":"var","name":"chunk"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"condition":{"kind":"beq","left":{"kind":"var","name":"offset"},"right":{"arguments":[{"kind":"var","name":"chunk"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"bytes","value":{"kind":"var","name":"builder"}},{"field":"byteCount","value":{"kind":"var","name":"byteCount"}}],"kind":"record","type":{"name":"Builder"}}],"constructor":{"name":"Step.appended"},"kind":"constructor"}},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["byte"],"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"byteCount"},"right":{"kind":"nat","value":"18446744073709551615"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.addressSpaceExhausted"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"work","value":{"arguments":[{"arguments":[{"kind":"var","name":"builder"},{"kind":"var","name":"byte"}],"function":{"module":"Uorc.Core.ByteBuilder","name":"appendByte"},"kind":"call"},{"kind":"var","name":"chunk"},{"kind":"add","left":{"kind":"var","name":"offset"},"right":{"kind":"nat","value":"1"}},{"kind":"add","left":{"kind":"var","name":"byteCount"},"right":{"kind":"nat","value":"1"}}],"constructor":{"name":"Work.byteWork"},"kind":"constructor"}},{"field":"eventCredit","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"chunk"},{"kind":"var","name":"offset"}],"kind":"primitive","operation":"index","result":{"kind":"option","value":{"kind":"uint8"}}}}},"constructor":{"name":"Work.chunk"}},{"binders":["builderWork","chunk","offset","byteCount"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"fields":[{"field":"work","value":{"arguments":[{"kind":"var","name":"next"},{"kind":"var","name":"chunk"},{"kind":"var","name":"offset"},{"kind":"var","name":"byteCount"}],"constructor":{"name":"Work.byteWork"},"kind":"constructor"}},{"field":"eventCredit","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.ByteBuilder","name":"Event.advanced"}},{"binders":["builder"],"body":{"arguments":[{"fields":[{"field":"work","value":{"arguments":[{"kind":"var","name":"builder"},{"kind":"var","name":"chunk"},{"kind":"var","name":"offset"},{"kind":"var","name":"byteCount"}],"constructor":{"name":"Work.chunk"},"kind":"constructor"}},{"field":"eventCredit","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.ByteBuilder","name":"Event.appended"}},{"binders":["rope"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.ByteBuilder","name":"Event.finished"}},{"binders":["error"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"error"}],"constructor":{"name":"Error.builder"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.ByteBuilder","name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"builderWork"}],"function":{"module":"Uorc.Core.ByteBuilder","name":"step"},"kind":"call"}},"constructor":{"name":"Work.byteWork"}},{"binders":["builderWork","byteCount"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"fields":[{"field":"work","value":{"arguments":[{"kind":"var","name":"next"},{"kind":"var","name":"byteCount"}],"constructor":{"name":"Work.finishing"},"kind":"constructor"}},{"field":"eventCredit","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.ByteBuilder","name":"Event.advanced"}},{"binders":["builder"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidState"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.ByteBuilder","name":"Event.appended"}},{"binders":["rope"],"body":{"arguments":[{"kind":"var","name":"rope"},{"kind":"var","name":"byteCount"}],"constructor":{"name":"Step.finished"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.ByteBuilder","name":"Event.finished"}},{"binders":["error"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"error"}],"constructor":{"name":"Error.builder"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.ByteBuilder","name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"builderWork"}],"function":{"module":"Uorc.Core.ByteBuilder","name":"step"},"kind":"call"}},"constructor":{"name":"Work.finishing"}}],"kind":"match","scrutinee":{"kind":"var","name":"work"}},"kind":"definition","name":"perform","parameters":[{"name":"work","type":{"arguments":[],"kind":"named","member":{"name":"Work"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"condition":{"kind":"blt","left":{"kind":"add","left":{"field":"eventCredit","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}},"right":{"arguments":[{"field":"work","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"name":"eventWork"},"kind":"call"}},"else_value":{"arguments":[{"field":"work","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"name":"perform"},"kind":"call"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"work","value":{"field":"work","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"eventCredit","value":{"kind":"add","left":{"field":"eventCredit","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"}},"kind":"definition","name":"tick","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}}],"spec":"lexlean/semantic-module/1"}}
+structure{
+  name: Builder,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: bytes, type: Uorc.Core.ByteBuilder::Builder}, {name: byteCount, type: Nat}]
+}
+
+inductive{
+  name: Work,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: chunk, fields: [Uorc.Core.ByteBuilder::Builder, Bytes, Nat, Nat]},
+    {name: byteWork, fields: [Uorc.Core.ByteBuilder::Work, Bytes, Nat, Nat]},
+    {name: finishing, fields: [Uorc.Core.ByteBuilder::Work, Nat]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: work, type: Work}, {name: eventCredit, type: Nat}]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: builder, fields: [Uorc.Core.ByteBuilder::Error]},
+    {name: invalidState, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: appended, fields: [Builder]},
+    {name: finished, fields: [Uorc.Core.Bytes::Rope, Nat]},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: empty,
+  parameters: [],
+  result: Builder,
+  body: (record Builder {bytes := (Uorc.Core.ByteBuilder::empty), byteCount := 0})
+}
+
+definition{
+  name: appendChunk,
+  parameters: [builder : Builder, chunk : Bytes],
+  result: Cursor,
+  body: (record Cursor {work := (ctor Work.chunk (project builder bytes) chunk 0 (project builder byteCount)), eventCredit := 0})
+}
+
+definition{
+  name: finish,
+  parameters: [builder : Builder],
+  result: Cursor,
+  body: (record Cursor {work := (ctor Work.finishing (Uorc.Core.ByteBuilder::finish (project builder bytes)) (project builder byteCount)), eventCredit := 0})
+}
+
+definition{
+  name: eventWork,
+  parameters: [work : Work],
+  result: Nat,
+  body: (match work
+    | Work.chunk builder chunk offset byteCount => 1
+    | Work.byteWork builderWork chunk offset byteCount => (Uorc.Core.ByteBuilder::eventWork builderWork)
+    | Work.finishing builderWork byteCount => (Uorc.Core.ByteBuilder::eventWork builderWork))
+}
+
+definition{
+  name: perform,
+  parameters: [work : Work],
+  result: Step,
+  body: (match work
+    | Work.chunk builder chunk offset byteCount => (if (offset <? (prim length chunk : Nat)) then (match (prim index chunk offset : (Option UInt8))
+      | Option.none => (ctor Step.failed (ctor Error.invalidState))
+      | Option.some byte => (if (byteCount <? 18446744073709551615) then (ctor Step.pending (record Cursor {work := (ctor Work.byteWork (Uorc.Core.ByteBuilder::appendByte builder byte) chunk (offset + 1) (byteCount + 1)), eventCredit := 0})) else (ctor Step.failed (ctor Error.addressSpaceExhausted)))) else (if (offset =? (prim length chunk : Nat)) then (ctor Step.appended (record Builder {bytes := builder, byteCount := byteCount})) else (ctor Step.failed (ctor Error.invalidState))))
+    | Work.byteWork builderWork chunk offset byteCount => (match (Uorc.Core.ByteBuilder::step builderWork)
+      | Uorc.Core.ByteBuilder::Event.advanced next => (ctor Step.pending (record Cursor {work := (ctor Work.byteWork next chunk offset byteCount), eventCredit := 0}))
+      | Uorc.Core.ByteBuilder::Event.appended builder => (ctor Step.pending (record Cursor {work := (ctor Work.chunk builder chunk offset byteCount), eventCredit := 0}))
+      | Uorc.Core.ByteBuilder::Event.finished rope => (ctor Step.failed (ctor Error.invalidState))
+      | Uorc.Core.ByteBuilder::Event.failed error => (ctor Step.failed (ctor Error.builder error)))
+    | Work.finishing builderWork byteCount => (match (Uorc.Core.ByteBuilder::step builderWork)
+      | Uorc.Core.ByteBuilder::Event.advanced next => (ctor Step.pending (record Cursor {work := (ctor Work.finishing next byteCount), eventCredit := 0}))
+      | Uorc.Core.ByteBuilder::Event.appended builder => (ctor Step.failed (ctor Error.invalidState))
+      | Uorc.Core.ByteBuilder::Event.finished rope => (ctor Step.finished rope byteCount)
+      | Uorc.Core.ByteBuilder::Event.failed error => (ctor Step.failed (ctor Error.builder error))))
+}
+
+definition{
+  name: tick,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (if (((project cursor eventCredit) + 1) <? (eventWork (project cursor work))) then (ctor Step.pending (record Cursor {work := (project cursor work), eventCredit := ((project cursor eventCredit) + 1)})) else (perform (project cursor work)))
+}
 \end{semanticmodule}
 \end{lexlean}

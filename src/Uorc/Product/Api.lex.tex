@@ -1,10 +1,612 @@
 \begin{lexlean}{Uorc.Product.Api}
-\useglossary{lexlean.std.bool@1.1.0}
+\useglossary{lexlean.std.bool@1.2.0}
 \importmodule{Uorc.Product.Evidence}
 \importmodule{Uorc.Product.Storage}
 \importmodule{Uorc.Product.StreamProtocol}
 \title{Boolean}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"fields":[{"name":"instance","type":{"kind":"nat"}},{"name":"slot","type":{"kind":"nat"}},{"name":"generation","type":{"kind":"nat"}}],"kind":"structure","name":"ResourceRef","parameters":[],"type_parameters":[]},{"fields":[{"name":"resource","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"offset","type":{"kind":"nat"}},{"name":"length","type":{"kind":"nat"}}],"kind":"structure","name":"Span","parameters":[],"type_parameters":[]},{"fields":[{"name":"decodeWork","type":{"kind":"nat"}},{"name":"checkerWork","type":{"kind":"nat"}},{"name":"replayWork","type":{"kind":"nat"}},{"name":"searchWork","type":{"kind":"nat"}},{"name":"outputBytes","type":{"kind":"option","value":{"kind":"nat"}}},{"name":"ownedBytes","type":{"kind":"nat"}},{"name":"storage","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Storage","name":"Limits"}}}],"kind":"structure","name":"Limits","parameters":[],"type_parameters":[]},{"fields":[{"name":"identity","type":{"kind":"bytes"}},{"name":"domain","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"basis","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}}},{"name":"limits","type":{"arguments":[],"kind":"named","member":{"name":"Limits"}}}],"kind":"structure","name":"Scope","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"absent"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Scope"}}],"name":"open"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Scope"}}],"name":"failed"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Scope"}}],"name":"incomplete"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Scope"}}],"name":"checked"}],"kind":"inductive","name":"Certificate","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"notRequested"},{"fields":[],"name":"running"},{"fields":[],"name":"effortEnded"},{"fields":[],"name":"exhausted"},{"fields":[],"name":"incomplete"}],"kind":"inductive","name":"SearchStatus","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"busy"},{"fields":[],"name":"closed"},{"fields":[],"name":"detached"},{"fields":[],"name":"noRequest"},{"fields":[],"name":"noCheckpoint"},{"fields":[],"name":"noOutput"},{"fields":[],"name":"publicationPending"},{"fields":[],"name":"publicationUnknown"},{"fields":[],"name":"inputOrder"},{"fields":[],"name":"inputAfterEnd"},{"fields":[],"name":"noDemand"},{"fields":[],"name":"wrongInstance"},{"fields":[],"name":"invalidEffort"},{"fields":[],"name":"noPublicationPending"},{"fields":[],"name":"missingInput"},{"fields":[],"name":"missingArchive"},{"fields":[],"name":"missingComparison"},{"fields":[],"name":"invalidLimit"}],"kind":"inductive","name":"ControlError","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"memory"},{"fields":[],"name":"work"},{"fields":[],"name":"output"},{"fields":[],"name":"handle"},{"fields":[],"name":"chunk"}],"kind":"inductive","name":"ResourceKind","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"kind":"nat"},{"kind":"string"}],"name":"malformedArchive"},{"fields":[{"kind":"nat"},{"kind":"string"}],"name":"semanticDecode"},{"fields":[{"kind":"bytes"}],"name":"missingBasis"},{"fields":[{"kind":"bytes"}],"name":"wrongBasis"},{"fields":[],"name":"incompleteSearch"},{"fields":[],"name":"incompleteProof"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ResourceKind"}},{"kind":"nat"}],"name":"resourceRefusal"},{"fields":[],"name":"cancelled"},{"fields":[{"kind":"string"}],"name":"inputIo"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.StreamProtocol","name":"Publication"}},{"kind":"string"}],"name":"publicationIo"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ControlError"}}],"name":"control"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.StreamProtocol","name":"ProtocolError"}}],"name":"protocol"},{"fields":[],"name":"byteMismatch"},{"fields":[],"name":"verificationIncomplete"},{"fields":[{"kind":"string"}],"name":"invalidCheckpoint"},{"fields":[{"kind":"string"}],"name":"invalidReport"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Storage","name":"Error"}}],"name":"storage"}],"kind":"inductive","name":"Failure","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"computeError"},{"fields":[],"name":"fatal"},{"fields":[],"name":"unknown"}],"kind":"inductive","name":"HostFailure","parameters":[],"type_parameters":[]},{"fields":[{"name":"limits","type":{"arguments":[],"kind":"named","member":{"name":"Limits"}}},{"name":"basis","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}}}],"kind":"structure","name":"Common","parameters":[],"type_parameters":[]},{"fields":[{"name":"input","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"options","type":{"arguments":[],"kind":"named","member":{"name":"Common"}}}],"kind":"structure","name":"CompressRequest","parameters":[],"type_parameters":[]},{"fields":[{"name":"archive","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"options","type":{"arguments":[],"kind":"named","member":{"name":"Common"}}}],"kind":"structure","name":"ArchiveRequest","parameters":[],"type_parameters":[]},{"fields":[{"name":"archive","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"originals","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}}},{"name":"certificate","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}}},{"name":"options","type":{"arguments":[],"kind":"named","member":{"name":"Common"}}}],"kind":"structure","name":"VerifyRequest","parameters":[],"type_parameters":[]},{"fields":[{"name":"input","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"checkpoint","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"options","type":{"arguments":[],"kind":"named","member":{"name":"Common"}}}],"kind":"structure","name":"ResumeRequest","parameters":[],"type_parameters":[]},{"fields":[{"name":"input","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"options","type":{"arguments":[],"kind":"named","member":{"name":"Common"}}}],"kind":"structure","name":"BasisRequest","parameters":[],"type_parameters":[]},{"fields":[{"name":"input","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"incumbent","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}}},{"name":"options","type":{"arguments":[],"kind":"named","member":{"name":"Common"}}}],"kind":"structure","name":"FrontierRequest","parameters":[],"type_parameters":[]},{"fields":[{"name":"left","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"right","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"originals","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}}},{"name":"options","type":{"arguments":[],"kind":"named","member":{"name":"Common"}}}],"kind":"structure","name":"CompareRequest","parameters":[],"type_parameters":[]},{"fields":[{"name":"input","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"options","type":{"arguments":[],"kind":"named","member":{"name":"Common"}}}],"kind":"structure","name":"ToolRequest","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"CompressRequest"}}],"name":"compress"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ArchiveRequest"}}],"name":"decompress"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ArchiveRequest"}}],"name":"inspect"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"VerifyRequest"}}],"name":"verify"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ResumeRequest"}}],"name":"resume"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"BasisRequest"}}],"name":"buildBasis"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"FrontierRequest"}}],"name":"analyzeFrontier"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"CompareRequest"}}],"name":"compare"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ToolRequest"}}],"name":"runAcceptance"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ToolRequest"}}],"name":"runCoreRequest"}],"kind":"inductive","name":"Request","parameters":[],"type_parameters":[]},{"fields":[{"name":"inputBytes","type":{"kind":"nat"}},{"name":"objects","type":{"kind":"nat"}},{"name":"candidates","type":{"kind":"nat"}},{"name":"checkedCandidates","type":{"kind":"nat"}},{"name":"work","type":{"kind":"nat"}},{"name":"stage","type":{"kind":"string"}}],"kind":"structure","name":"Progress","parameters":[],"type_parameters":[]},{"fields":[{"name":"instance","type":{"kind":"nat"}},{"name":"serial","type":{"kind":"nat"}},{"name":"revision","type":{"kind":"nat"}}],"kind":"structure","name":"Run","parameters":[],"type_parameters":[]},{"body":{"branches":[{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.compress"},"kind":"constructor"},"constructor":{"name":"Request.compress"}},{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.decompress"},"kind":"constructor"},"constructor":{"name":"Request.decompress"}},{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.inspect"},"kind":"constructor"},"constructor":{"name":"Request.inspect"}},{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.verify"},"kind":"constructor"},"constructor":{"name":"Request.verify"}},{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.resume"},"kind":"constructor"},"constructor":{"name":"Request.resume"}},{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.buildBasis"},"kind":"constructor"},"constructor":{"name":"Request.buildBasis"}},{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.analyzeFrontier"},"kind":"constructor"},"constructor":{"name":"Request.analyzeFrontier"}},{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.compare"},"kind":"constructor"},"constructor":{"name":"Request.compare"}},{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.runAcceptance"},"kind":"constructor"},"constructor":{"name":"Request.runAcceptance"}},{"binders":["r"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.runCoreRequest"},"kind":"constructor"},"constructor":{"name":"Request.runCoreRequest"}}],"kind":"match","scrutinee":{"kind":"var","name":"request"}},"kind":"definition","name":"operation","parameters":[{"name":"request","type":{"arguments":[],"kind":"named","member":{"name":"Request"}}}],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Evidence","name":"Operation"}}},{"body":{"branches":[{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.compress"}},{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.decompress"}},{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.inspect"}},{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.verify"}},{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.resume"}},{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.buildBasis"}},{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.analyzeFrontier"}},{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.compare"}},{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.runAcceptance"}},{"binders":["r"],"body":{"field":"options","kind":"project","value":{"kind":"var","name":"r"}},"constructor":{"name":"Request.runCoreRequest"}}],"kind":"match","scrutinee":{"kind":"var","name":"request"}},"kind":"definition","name":"options","parameters":[{"name":"request","type":{"arguments":[],"kind":"named","member":{"name":"Request"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Common"}}},{"body":{"branches":[{"binders":[],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"CertificateCheck.absent"},"kind":"constructor"},"constructor":{"name":"Certificate.absent"}},{"binders":["scope"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"CertificateCheck.incomplete"},"kind":"constructor"},"constructor":{"name":"Certificate.open"}},{"binders":["scope"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"CertificateCheck.invalid"},"kind":"constructor"},"constructor":{"name":"Certificate.failed"}},{"binders":["scope"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"CertificateCheck.incomplete"},"kind":"constructor"},"constructor":{"name":"Certificate.incomplete"}},{"binders":["scope"],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"CertificateCheck.valid"},"kind":"constructor"},"constructor":{"name":"Certificate.checked"}}],"kind":"match","scrutinee":{"kind":"var","name":"certificate"}},"kind":"definition","name":"certificateCheck","parameters":[{"name":"certificate","type":{"arguments":[],"kind":"named","member":{"name":"Certificate"}}}],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Evidence","name":"CertificateCheck"}}},{"body":{"kind":"string","value":"ResourceRef is an adapter lease identified by instance, slot and generation. It carries actual charged bytes or a source-owned job, never a basis-name substitution. The host validates ownership and span extent before borrowing and accounts transferred roots. These pure request/admission roots do not execute an archive or establish observations. Native Library/V1 may return modeled Result inside the generated outer ComputeError; SDK errors are not UORC semantic decode failures. The persistent adapter remains a separate versioned contract."},"kind":"definition","name":"boundary","parameters":[],"result":{"kind":"string"}},{"body":{"kind":"and","left":{"kind":"beq","left":{"field":"instance","kind":"project","value":{"kind":"var","name":"left"}},"right":{"field":"instance","kind":"project","value":{"kind":"var","name":"right"}}},"right":{"kind":"and","left":{"kind":"beq","left":{"field":"slot","kind":"project","value":{"kind":"var","name":"left"}},"right":{"field":"slot","kind":"project","value":{"kind":"var","name":"right"}}},"right":{"kind":"and","left":{"kind":"beq","left":{"field":"generation","kind":"project","value":{"kind":"var","name":"left"}},"right":{"field":"generation","kind":"project","value":{"kind":"var","name":"right"}}},"right":{"kind":"bool","value":true}}}},"kind":"definition","name":"sameResource","parameters":[{"name":"left","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"right","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}}],"result":{"kind":"bool"}},{"body":{"branches":[{"binders":["r"],"body":{"kind":"bool","value":true},"constructor":{"name":"Request.compress"}},{"binders":["r"],"body":{"kind":"bool","value":false},"constructor":{"name":"Request.decompress"}},{"binders":["r"],"body":{"kind":"bool","value":false},"constructor":{"name":"Request.inspect"}},{"binders":["r"],"body":{"branches":[{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"Option.none"}},{"binders":["originals"],"body":{"kind":"bool","value":true},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"field":"originals","kind":"project","value":{"kind":"var","name":"r"}}},"constructor":{"name":"Request.verify"}},{"binders":["r"],"body":{"kind":"bool","value":true},"constructor":{"name":"Request.resume"}},{"binders":["r"],"body":{"kind":"bool","value":false},"constructor":{"name":"Request.buildBasis"}},{"binders":["r"],"body":{"kind":"bool","value":false},"constructor":{"name":"Request.analyzeFrontier"}},{"binders":["r"],"body":{"branches":[{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"Option.none"}},{"binders":["originals"],"body":{"kind":"bool","value":true},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"field":"originals","kind":"project","value":{"kind":"var","name":"r"}}},"constructor":{"name":"Request.compare"}},{"binders":["r"],"body":{"kind":"bool","value":false},"constructor":{"name":"Request.runAcceptance"}},{"binders":["r"],"body":{"kind":"bool","value":false},"constructor":{"name":"Request.runCoreRequest"}}],"kind":"match","scrutinee":{"kind":"var","name":"request"}},"kind":"definition","name":"originalsAvailable","parameters":[{"name":"request","type":{"arguments":[],"kind":"named","member":{"name":"Request"}}}],"result":{"kind":"bool"}},{"fields":[{"name":"formatIdentity","type":{"kind":"bytes"}},{"name":"profileIdentity","type":{"kind":"bytes"}},{"name":"integrityIdentity","type":{"kind":"bytes"}},{"name":"objects","type":{"kind":"nat"}},{"name":"exactArchiveBytes","type":{"kind":"nat"}},{"name":"externalBasisRequired","type":{"kind":"bool"}}],"kind":"structure","name":"ArchiveSummary","parameters":[],"type_parameters":[]},{"fields":[{"name":"identity","type":{"kind":"bytes"}},{"name":"objects","type":{"kind":"nat"}},{"name":"bytes","type":{"kind":"nat"}}],"kind":"structure","name":"BasisManifest","parameters":[],"type_parameters":[]},{"fields":[{"name":"points","type":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}},{"name":"pointCount","type":{"kind":"nat"}},{"name":"checkedPoints","type":{"kind":"nat"}},{"name":"incompletePoints","type":{"kind":"nat"}}],"kind":"structure","name":"FrontierReport","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"leftSmaller"},{"fields":[],"name":"equal"},{"fields":[],"name":"rightSmaller"}],"kind":"inductive","name":"SizeRelation","parameters":[],"type_parameters":[]},{"fields":[{"name":"sourceIdentity","type":{"kind":"bytes"}},{"name":"compilerIdentity","type":{"kind":"bytes"}},{"name":"sdkIdentity","type":{"kind":"bytes"}},{"name":"checks","type":{"kind":"nat"}},{"name":"failures","type":{"kind":"nat"}},{"name":"executed","type":{"kind":"bool"}}],"kind":"structure","name":"DeveloperReport","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"process"},{"fields":[],"name":"instance"},{"fields":[],"name":"host"}],"kind":"inductive","name":"PhysicalScope","parameters":[],"type_parameters":[]},{"fields":[{"name":"rssBytes","type":{"kind":"option","value":{"kind":"nat"}}},{"name":"allocatedStorageBytes","type":{"kind":"option","value":{"kind":"nat"}}},{"name":"scope","type":{"arguments":[],"kind":"named","member":{"name":"PhysicalScope"}}},{"name":"sequence","type":{"kind":"nat"}}],"kind":"structure","name":"PhysicalObservation","parameters":[],"type_parameters":[]},{"fields":[{"name":"inputBytes","type":{"kind":"nat"}},{"name":"exactArchiveBytes","type":{"kind":"nat"}},{"name":"transportBytes","type":{"kind":"nat"}},{"name":"externalBasisBytes","type":{"kind":"nat"}},{"name":"basisTransferBytes","type":{"kind":"nat"}},{"name":"decodeWork","type":{"kind":"nat"}},{"name":"checkerWork","type":{"kind":"nat"}},{"name":"replayWork","type":{"kind":"nat"}},{"name":"searchWork","type":{"kind":"nat"}},{"name":"peakOwnedBytes","type":{"kind":"nat"}},{"name":"objects","type":{"kind":"nat"}},{"name":"outputBytes","type":{"kind":"nat"}},{"name":"storage","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Storage","name":"Usage"}}},{"name":"physical","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"PhysicalObservation"}}}}],"kind":"structure","name":"Accounting","parameters":[],"type_parameters":[]},{"fields":[{"name":"accounting","type":{"arguments":[],"kind":"named","member":{"name":"Accounting"}}},{"name":"facts","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Evidence","name":"EvidenceFacts"}}},{"name":"originalsAvailable","type":{"kind":"bool"}},{"name":"certificate","type":{"arguments":[],"kind":"named","member":{"name":"Certificate"}}}],"kind":"structure","name":"ComparedArchive","parameters":[],"type_parameters":[]},{"fields":[{"name":"left","type":{"arguments":[],"kind":"named","member":{"name":"ComparedArchive"}}},{"name":"right","type":{"arguments":[],"kind":"named","member":{"name":"ComparedArchive"}}},{"name":"originalsComparedEqual","type":{"kind":"bool"}}],"kind":"structure","name":"ComparisonReport","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"ArchiveSummary"}}],"name":"archive"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ArchiveSummary"}}],"name":"reconstruction"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ArchiveSummary"}}],"name":"inspection"},{"fields":[{"kind":"nat"}],"name":"verification"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"BasisManifest"}}],"name":"basis"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"FrontierReport"}}],"name":"frontier"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"ComparisonReport"}}],"name":"comparison"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"DeveloperReport"}}],"name":"developer"}],"kind":"inductive","name":"Details","parameters":[],"type_parameters":[]},{"fields":[{"name":"accounting","type":{"arguments":[],"kind":"named","member":{"name":"Accounting"}}},{"name":"facts","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Evidence","name":"EvidenceFacts"}}},{"name":"boundariesComplete","type":{"kind":"bool"}},{"name":"originalsAvailable","type":{"kind":"bool"}},{"name":"finalCheck","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Evidence","name":"FinalCheck"}}},{"name":"certificate","type":{"arguments":[],"kind":"named","member":{"name":"Certificate"}}},{"name":"search","type":{"arguments":[],"kind":"named","member":{"name":"SearchStatus"}}},{"name":"artifactChecked","type":{"kind":"bool"}},{"name":"output","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"ResourceRef"}}}},{"name":"details","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"Details"}}}}],"kind":"structure","name":"Report","parameters":[],"type_parameters":[]},{"body":{"branches":[{"binders":[],"body":{"condition":{"kind":"and","left":{"field":"parsed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"integrityChecked","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"executed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"boundariesComplete","kind":"project","value":{"kind":"var","name":"report"}},"right":{"kind":"and","left":{"field":"originalsAvailable","kind":"project","value":{"kind":"var","name":"report"}},"right":{"kind":"and","left":{"field":"originalCompared","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"bool","value":true}}}}}}},"else_value":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.verificationIncomplete"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"field":"finalCheck","kind":"project","value":{"kind":"var","name":"report"}},{"kind":"bool","value":false},{"arguments":[{"field":"certificate","kind":"project","value":{"kind":"var","name":"report"}}],"function":{"name":"certificateCheck"},"kind":"call"}],"function":{"module":"Uorc.Product.Evidence","name":"publicationDecision"},"kind":"call"}},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.compress"}},{"binders":[],"body":{"arguments":[{"field":"parsed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"integrityChecked","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"executed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"boundariesComplete","kind":"project","value":{"kind":"var","name":"report"}},{"kind":"bool","value":false}],"function":{"module":"Uorc.Product.Evidence","name":"decompressionPublicationDecision"},"kind":"call"},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.decompress"}},{"binders":[],"body":{"condition":{"field":"parsed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"else_value":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.verificationIncomplete"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.publish"},"kind":"constructor"}},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.inspect"}},{"binders":[],"body":{"condition":{"field":"originalsAvailable","kind":"project","value":{"kind":"var","name":"report"}},"else_value":{"arguments":[{"field":"parsed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"integrityChecked","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"executed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"boundariesComplete","kind":"project","value":{"kind":"var","name":"report"}},{"kind":"bool","value":false}],"function":{"module":"Uorc.Product.Evidence","name":"decompressionPublicationDecision"},"kind":"call"},"kind":"if","then_value":{"condition":{"kind":"and","left":{"field":"parsed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"integrityChecked","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"executed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"originalCompared","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"boundariesComplete","kind":"project","value":{"kind":"var","name":"report"}},"right":{"kind":"bool","value":true}}}}}},"else_value":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.verificationIncomplete"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"field":"finalCheck","kind":"project","value":{"kind":"var","name":"report"}},{"kind":"bool","value":false},{"arguments":[{"field":"certificate","kind":"project","value":{"kind":"var","name":"report"}}],"function":{"name":"certificateCheck"},"kind":"call"}],"function":{"module":"Uorc.Product.Evidence","name":"publicationDecision"},"kind":"call"}}},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.verify"}},{"binders":[],"body":{"condition":{"kind":"and","left":{"field":"parsed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"integrityChecked","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"executed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"boundariesComplete","kind":"project","value":{"kind":"var","name":"report"}},"right":{"kind":"and","left":{"field":"originalsAvailable","kind":"project","value":{"kind":"var","name":"report"}},"right":{"kind":"and","left":{"field":"originalCompared","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"bool","value":true}}}}}}},"else_value":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.verificationIncomplete"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"field":"finalCheck","kind":"project","value":{"kind":"var","name":"report"}},{"kind":"bool","value":false},{"arguments":[{"field":"certificate","kind":"project","value":{"kind":"var","name":"report"}}],"function":{"name":"certificateCheck"},"kind":"call"}],"function":{"module":"Uorc.Product.Evidence","name":"publicationDecision"},"kind":"call"}},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.resume"}},{"binders":[],"body":{"condition":{"field":"artifactChecked","kind":"project","value":{"kind":"var","name":"report"}},"else_value":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.verificationIncomplete"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.publish"},"kind":"constructor"}},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.buildBasis"}},{"binders":[],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.publish"},"kind":"constructor"},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.analyzeFrontier"}},{"binders":[],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.publish"},"kind":"constructor"},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.compare"}},{"binders":[],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.publish"},"kind":"constructor"},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.runAcceptance"}},{"binders":[],"body":{"arguments":[],"constructor":{"module":"Uorc.Product.Evidence","name":"PublicationDecision.publish"},"kind":"constructor"},"constructor":{"module":"Uorc.Product.Evidence","name":"Operation.runCoreRequest"}}],"kind":"match","scrutinee":{"kind":"var","name":"argOperation"}},"kind":"definition","name":"admission","parameters":[{"name":"argOperation","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Evidence","name":"Operation"}}},{"name":"report","type":{"arguments":[],"kind":"named","member":{"name":"Report"}}}],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Evidence","name":"PublicationDecision"}}},{"body":{"arguments":[{"kind":"var","name":"argOperation"},{"field":"originalsAvailable","kind":"project","value":{"kind":"var","name":"report"}},{"fields":[{"field":"parsed","value":{"field":"parsed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}}},{"field":"integrityChecked","value":{"field":"integrityChecked","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}}},{"field":"executed","value":{"kind":"and","left":{"field":"executed","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"field":"boundariesComplete","kind":"project","value":{"kind":"var","name":"report"}},"right":{"kind":"bool","value":true}}}},{"field":"originalCompared","value":{"kind":"and","left":{"field":"originalCompared","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"branches":[{"binders":[],"body":{"kind":"bool","value":true},"constructor":{"module":"Uorc.Product.Evidence","name":"FinalCheck.equal"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"module":"Uorc.Product.Evidence","name":"FinalCheck.different"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"module":"Uorc.Product.Evidence","name":"FinalCheck.incomplete"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"module":"Uorc.Product.Evidence","name":"FinalCheck.cancelled"}}],"kind":"match","scrutinee":{"field":"finalCheck","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"bool","value":true}}}},{"field":"certificateChecked","value":{"kind":"and","left":{"field":"certificateChecked","kind":"project","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},"right":{"kind":"and","left":{"branches":[{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"module":"Uorc.Product.Evidence","name":"CertificateCheck.absent"}},{"binders":[],"body":{"kind":"bool","value":true},"constructor":{"module":"Uorc.Product.Evidence","name":"CertificateCheck.valid"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"module":"Uorc.Product.Evidence","name":"CertificateCheck.invalid"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"module":"Uorc.Product.Evidence","name":"CertificateCheck.incomplete"}}],"kind":"match","scrutinee":{"arguments":[{"field":"certificate","kind":"project","value":{"kind":"var","name":"report"}}],"function":{"name":"certificateCheck"},"kind":"call"}},"right":{"kind":"bool","value":true}}}}],"kind":"record","type":{"module":"Uorc.Product.Evidence","name":"EvidenceFacts"}}],"function":{"module":"Uorc.Product.Evidence","name":"presentEvidence"},"kind":"call"},"kind":"definition","name":"evidenceView","parameters":[{"name":"argOperation","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Evidence","name":"Operation"}}},{"name":"report","type":{"arguments":[],"kind":"named","member":{"name":"Report"}}}],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.Evidence","name":"EvidenceView"}}},{"body":{"fields":[{"field":"accounting","value":{"field":"accounting","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"facts","value":{"field":"facts","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"boundariesComplete","value":{"field":"boundariesComplete","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"originalsAvailable","value":{"arguments":[{"kind":"var","name":"request"}],"function":{"name":"originalsAvailable"},"kind":"call"}},{"field":"finalCheck","value":{"field":"finalCheck","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"certificate","value":{"field":"certificate","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"search","value":{"field":"search","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"artifactChecked","value":{"field":"artifactChecked","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"output","value":{"field":"output","kind":"project","value":{"kind":"var","name":"report"}}},{"field":"details","value":{"field":"details","kind":"project","value":{"kind":"var","name":"report"}}}],"kind":"record","type":{"name":"Report"}},"kind":"definition","name":"bindReport","parameters":[{"name":"request","type":{"arguments":[],"kind":"named","member":{"name":"Request"}}},{"name":"report","type":{"arguments":[],"kind":"named","member":{"name":"Report"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Report"}}},{"body":{"condition":{"kind":"blt","left":{"field":"exactArchiveBytes","kind":"project","value":{"kind":"var","name":"left"}},"right":{"field":"exactArchiveBytes","kind":"project","value":{"kind":"var","name":"right"}}},"else_value":{"condition":{"kind":"beq","left":{"field":"exactArchiveBytes","kind":"project","value":{"kind":"var","name":"left"}},"right":{"field":"exactArchiveBytes","kind":"project","value":{"kind":"var","name":"right"}}},"else_value":{"arguments":[],"constructor":{"name":"SizeRelation.rightSmaller"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[],"constructor":{"name":"SizeRelation.equal"},"kind":"constructor"}},"kind":"if","then_value":{"arguments":[],"constructor":{"name":"SizeRelation.leftSmaller"},"kind":"constructor"}},"kind":"definition","name":"compareExactArchiveBytes","parameters":[{"name":"left","type":{"arguments":[],"kind":"named","member":{"name":"Accounting"}}},{"name":"right","type":{"arguments":[],"kind":"named","member":{"name":"Accounting"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"SizeRelation"}}},{"body":{"kind":"add","left":{"field":"exactArchiveBytes","kind":"project","value":{"kind":"var","name":"accounting"}},"right":{"field":"basisTransferBytes","kind":"project","value":{"kind":"var","name":"accounting"}}},"kind":"definition","name":"archivePlusBasisTransfer","parameters":[{"name":"accounting","type":{"arguments":[],"kind":"named","member":{"name":"Accounting"}}}],"result":{"kind":"nat"}},{"axioms":[],"kind":"theorem","name":"archive_basis_transfer_is_explicit","parameters":[{"name":"accounting","type":{"arguments":[],"kind":"named","member":{"name":"Accounting"}}}],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"accounting"}],"function":{"name":"archivePlusBasisTransfer"},"kind":"call"},"right":{"kind":"add","left":{"field":"exactArchiveBytes","kind":"project","value":{"kind":"var","name":"accounting"}},"right":{"field":"basisTransferBytes","kind":"project","value":{"kind":"var","name":"accounting"}}}}},{"fields":[{"name":"failure","type":{"arguments":[],"kind":"named","member":{"name":"Failure"}}},{"name":"achieved","type":{"arguments":[],"kind":"named","member":{"name":"Accounting"}}},{"name":"publication","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Product.StreamProtocol","name":"Publication"}}}],"kind":"structure","name":"FailureReport","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"open"},{"fields":[],"name":"pendingIo"},{"fields":[],"name":"imageTicket"},{"fields":[],"name":"storage"},{"fields":[],"name":"resourceLease"},{"fields":[],"name":"job"},{"fields":[],"name":"arena"},{"fields":[],"name":"receipt"},{"fields":[],"name":"effect"},{"fields":[],"name":"quarantine"}],"kind":"inductive","name":"CustodyReason","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"CustodyReason"}}],"name":"retain"},{"fields":[],"name":"releasable"}],"kind":"inductive","name":"ReleaseDisposition","parameters":[],"type_parameters":[]}],"spec":"lexlean/semantic-module/1"}}
+structure{
+  name: ResourceRef,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: instance, type: Nat}, {name: slot, type: Nat}, {name: generation, type: Nat}]
+}
+
+structure{
+  name: Span,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: resource, type: ResourceRef},
+    {name: offset, type: Nat},
+    {name: length, type: Nat}
+  ]
+}
+
+structure{
+  name: Limits,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: decodeWork, type: Nat},
+    {name: checkerWork, type: Nat},
+    {name: replayWork, type: Nat},
+    {name: searchWork, type: Nat},
+    {name: outputBytes, type: (Option Nat)},
+    {name: ownedBytes, type: Nat},
+    {name: storage, type: Uorc.Product.Storage::Limits}
+  ]
+}
+
+structure{
+  name: Scope,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: identity, type: Bytes},
+    {name: domain, type: ResourceRef},
+    {name: basis, type: (Option ResourceRef)},
+    {name: limits, type: Limits}
+  ]
+}
+
+inductive{
+  name: Certificate,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: absent, fields: []},
+    {name: open, fields: [Scope]},
+    {name: failed, fields: [Scope]},
+    {name: incomplete, fields: [Scope]},
+    {name: checked, fields: [Scope]}
+  ]
+}
+
+inductive{
+  name: SearchStatus,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: notRequested, fields: []},
+    {name: running, fields: []},
+    {name: effortEnded, fields: []},
+    {name: exhausted, fields: []},
+    {name: incomplete, fields: []}
+  ]
+}
+
+inductive{
+  name: ControlError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: busy, fields: []},
+    {name: closed, fields: []},
+    {name: detached, fields: []},
+    {name: noRequest, fields: []},
+    {name: noCheckpoint, fields: []},
+    {name: noOutput, fields: []},
+    {name: publicationPending, fields: []},
+    {name: publicationUnknown, fields: []},
+    {name: inputOrder, fields: []},
+    {name: inputAfterEnd, fields: []},
+    {name: noDemand, fields: []},
+    {name: wrongInstance, fields: []},
+    {name: invalidEffort, fields: []},
+    {name: noPublicationPending, fields: []},
+    {name: missingInput, fields: []},
+    {name: missingArchive, fields: []},
+    {name: missingComparison, fields: []},
+    {name: invalidLimit, fields: []}
+  ]
+}
+
+inductive{
+  name: ResourceKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: memory, fields: []},
+    {name: work, fields: []},
+    {name: output, fields: []},
+    {name: handle, fields: []},
+    {name: chunk, fields: []}
+  ]
+}
+
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: malformedArchive, fields: [Nat, String]},
+    {name: semanticDecode, fields: [Nat, String]},
+    {name: missingBasis, fields: [Bytes]},
+    {name: wrongBasis, fields: [Bytes]},
+    {name: incompleteSearch, fields: []},
+    {name: incompleteProof, fields: []},
+    {name: resourceRefusal, fields: [ResourceKind, Nat]},
+    {name: cancelled, fields: []},
+    {name: inputIo, fields: [String]},
+    {name: publicationIo, fields: [Uorc.Product.StreamProtocol::Publication, String]},
+    {name: control, fields: [ControlError]},
+    {name: protocol, fields: [Uorc.Product.StreamProtocol::ProtocolError]},
+    {name: byteMismatch, fields: []},
+    {name: verificationIncomplete, fields: []},
+    {name: invalidCheckpoint, fields: [String]},
+    {name: invalidReport, fields: [String]},
+    {name: storage, fields: [Uorc.Product.Storage::Error]}
+  ]
+}
+
+inductive{
+  name: HostFailure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: computeError, fields: []},
+    {name: fatal, fields: []},
+    {name: unknown, fields: []}
+  ]
+}
+
+structure{
+  name: Common,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: limits, type: Limits}, {name: basis, type: (Option ResourceRef)}]
+}
+
+structure{
+  name: CompressRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: input, type: ResourceRef}, {name: options, type: Common}]
+}
+
+structure{
+  name: ArchiveRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: archive, type: ResourceRef}, {name: options, type: Common}]
+}
+
+structure{
+  name: VerifyRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: archive, type: ResourceRef},
+    {name: originals, type: (Option ResourceRef)},
+    {name: certificate, type: (Option ResourceRef)},
+    {name: options, type: Common}
+  ]
+}
+
+structure{
+  name: ResumeRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: input, type: ResourceRef},
+    {name: checkpoint, type: ResourceRef},
+    {name: options, type: Common}
+  ]
+}
+
+structure{
+  name: BasisRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: input, type: ResourceRef}, {name: options, type: Common}]
+}
+
+structure{
+  name: FrontierRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: input, type: ResourceRef},
+    {name: incumbent, type: (Option ResourceRef)},
+    {name: options, type: Common}
+  ]
+}
+
+structure{
+  name: CompareRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: left, type: ResourceRef},
+    {name: right, type: ResourceRef},
+    {name: originals, type: (Option ResourceRef)},
+    {name: options, type: Common}
+  ]
+}
+
+structure{
+  name: ToolRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: input, type: ResourceRef}, {name: options, type: Common}]
+}
+
+inductive{
+  name: Request,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: compress, fields: [CompressRequest]},
+    {name: decompress, fields: [ArchiveRequest]},
+    {name: inspect, fields: [ArchiveRequest]},
+    {name: verify, fields: [VerifyRequest]},
+    {name: resume, fields: [ResumeRequest]},
+    {name: buildBasis, fields: [BasisRequest]},
+    {name: analyzeFrontier, fields: [FrontierRequest]},
+    {name: compare, fields: [CompareRequest]},
+    {name: runAcceptance, fields: [ToolRequest]},
+    {name: runCoreRequest, fields: [ToolRequest]}
+  ]
+}
+
+structure{
+  name: Progress,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: inputBytes, type: Nat},
+    {name: objects, type: Nat},
+    {name: candidates, type: Nat},
+    {name: checkedCandidates, type: Nat},
+    {name: work, type: Nat},
+    {name: stage, type: String}
+  ]
+}
+
+structure{
+  name: Run,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: instance, type: Nat}, {name: serial, type: Nat}, {name: revision, type: Nat}]
+}
+
+definition{
+  name: operation,
+  parameters: [request : Request],
+  result: Uorc.Product.Evidence::Operation,
+  body: (match request
+    | Request.compress r => (ctor Uorc.Product.Evidence::Operation.compress)
+    | Request.decompress r => (ctor Uorc.Product.Evidence::Operation.decompress)
+    | Request.inspect r => (ctor Uorc.Product.Evidence::Operation.inspect)
+    | Request.verify r => (ctor Uorc.Product.Evidence::Operation.verify)
+    | Request.resume r => (ctor Uorc.Product.Evidence::Operation.resume)
+    | Request.buildBasis r => (ctor Uorc.Product.Evidence::Operation.buildBasis)
+    | Request.analyzeFrontier r => (ctor Uorc.Product.Evidence::Operation.analyzeFrontier)
+    | Request.compare r => (ctor Uorc.Product.Evidence::Operation.compare)
+    | Request.runAcceptance r => (ctor Uorc.Product.Evidence::Operation.runAcceptance)
+    | Request.runCoreRequest r => (ctor Uorc.Product.Evidence::Operation.runCoreRequest))
+}
+
+definition{
+  name: options,
+  parameters: [request : Request],
+  result: Common,
+  body: (match request
+    | Request.compress r => (project r options)
+    | Request.decompress r => (project r options)
+    | Request.inspect r => (project r options)
+    | Request.verify r => (project r options)
+    | Request.resume r => (project r options)
+    | Request.buildBasis r => (project r options)
+    | Request.analyzeFrontier r => (project r options)
+    | Request.compare r => (project r options)
+    | Request.runAcceptance r => (project r options)
+    | Request.runCoreRequest r => (project r options))
+}
+
+definition{
+  name: certificateCheck,
+  parameters: [certificate : Certificate],
+  result: Uorc.Product.Evidence::CertificateCheck,
+  body: (match certificate
+    | Certificate.absent => (ctor Uorc.Product.Evidence::CertificateCheck.absent)
+    | Certificate.open scope => (ctor Uorc.Product.Evidence::CertificateCheck.incomplete)
+    | Certificate.failed scope => (ctor Uorc.Product.Evidence::CertificateCheck.invalid)
+    | Certificate.incomplete scope => (ctor Uorc.Product.Evidence::CertificateCheck.incomplete)
+    | Certificate.checked scope => (ctor Uorc.Product.Evidence::CertificateCheck.valid))
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "ResourceRef is an adapter lease identified by instance, slot and generation. It carries actual charged bytes or a source-owned job, never a basis-name substitution. The host validates ownership and span extent before borrowing and accounts transferred roots. These pure request/admission roots do not execute an archive or establish observations. Native Library/V1 may return modeled Result inside the generated outer ComputeError; SDK errors are not UORC semantic decode failures. The persistent adapter remains a separate versioned contract."
+}
+
+definition{
+  name: sameResource,
+  parameters: [left : ResourceRef, right : ResourceRef],
+  result: Bool,
+  body: (((project left instance) =? (project right instance)) && (((project left slot) =? (project right slot)) && (((project left generation) =? (project right generation)) && true)))
+}
+
+definition{
+  name: originalsAvailable,
+  parameters: [request : Request],
+  result: Bool,
+  body: (match request
+    | Request.compress r => true
+    | Request.decompress r => false
+    | Request.inspect r => false
+    | Request.verify r => (match (project r originals)
+      | Option.none => false
+      | Option.some originals => true)
+    | Request.resume r => true
+    | Request.buildBasis r => false
+    | Request.analyzeFrontier r => false
+    | Request.compare r => (match (project r originals)
+      | Option.none => false
+      | Option.some originals => true)
+    | Request.runAcceptance r => false
+    | Request.runCoreRequest r => false)
+}
+
+structure{
+  name: ArchiveSummary,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: formatIdentity, type: Bytes},
+    {name: profileIdentity, type: Bytes},
+    {name: integrityIdentity, type: Bytes},
+    {name: objects, type: Nat},
+    {name: exactArchiveBytes, type: Nat},
+    {name: externalBasisRequired, type: Bool}
+  ]
+}
+
+structure{
+  name: BasisManifest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: identity, type: Bytes}, {name: objects, type: Nat}, {name: bytes, type: Nat}]
+}
+
+structure{
+  name: FrontierReport,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: points, type: ResourceRef},
+    {name: pointCount, type: Nat},
+    {name: checkedPoints, type: Nat},
+    {name: incompletePoints, type: Nat}
+  ]
+}
+
+inductive{
+  name: SizeRelation,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: leftSmaller, fields: []},
+    {name: equal, fields: []},
+    {name: rightSmaller, fields: []}
+  ]
+}
+
+structure{
+  name: DeveloperReport,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: sourceIdentity, type: Bytes},
+    {name: compilerIdentity, type: Bytes},
+    {name: sdkIdentity, type: Bytes},
+    {name: checks, type: Nat},
+    {name: failures, type: Nat},
+    {name: executed, type: Bool}
+  ]
+}
+
+inductive{
+  name: PhysicalScope,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: process, fields: []},
+    {name: instance, fields: []},
+    {name: host, fields: []}
+  ]
+}
+
+structure{
+  name: PhysicalObservation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: rssBytes, type: (Option Nat)},
+    {name: allocatedStorageBytes, type: (Option Nat)},
+    {name: scope, type: PhysicalScope},
+    {name: sequence, type: Nat}
+  ]
+}
+
+structure{
+  name: Accounting,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: inputBytes, type: Nat},
+    {name: exactArchiveBytes, type: Nat},
+    {name: transportBytes, type: Nat},
+    {name: externalBasisBytes, type: Nat},
+    {name: basisTransferBytes, type: Nat},
+    {name: decodeWork, type: Nat},
+    {name: checkerWork, type: Nat},
+    {name: replayWork, type: Nat},
+    {name: searchWork, type: Nat},
+    {name: peakOwnedBytes, type: Nat},
+    {name: objects, type: Nat},
+    {name: outputBytes, type: Nat},
+    {name: storage, type: Uorc.Product.Storage::Usage},
+    {name: physical, type: (Option PhysicalObservation)}
+  ]
+}
+
+structure{
+  name: ComparedArchive,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: accounting, type: Accounting},
+    {name: facts, type: Uorc.Product.Evidence::EvidenceFacts},
+    {name: originalsAvailable, type: Bool},
+    {name: certificate, type: Certificate}
+  ]
+}
+
+structure{
+  name: ComparisonReport,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: left, type: ComparedArchive},
+    {name: right, type: ComparedArchive},
+    {name: originalsComparedEqual, type: Bool}
+  ]
+}
+
+inductive{
+  name: Details,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: archive, fields: [ArchiveSummary]},
+    {name: reconstruction, fields: [ArchiveSummary]},
+    {name: inspection, fields: [ArchiveSummary]},
+    {name: verification, fields: [Nat]},
+    {name: basis, fields: [BasisManifest]},
+    {name: frontier, fields: [FrontierReport]},
+    {name: comparison, fields: [ComparisonReport]},
+    {name: developer, fields: [DeveloperReport]}
+  ]
+}
+
+structure{
+  name: Report,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: accounting, type: Accounting},
+    {name: facts, type: Uorc.Product.Evidence::EvidenceFacts},
+    {name: boundariesComplete, type: Bool},
+    {name: originalsAvailable, type: Bool},
+    {name: finalCheck, type: Uorc.Product.Evidence::FinalCheck},
+    {name: certificate, type: Certificate},
+    {name: search, type: SearchStatus},
+    {name: artifactChecked, type: Bool},
+    {name: output, type: (Option ResourceRef)},
+    {name: details, type: (Option Details)}
+  ]
+}
+
+definition{
+  name: admission,
+  parameters: [argOperation : Uorc.Product.Evidence::Operation, report : Report],
+  result: Uorc.Product.Evidence::PublicationDecision,
+  body: (match argOperation
+    | Uorc.Product.Evidence::Operation.compress => (if ((project (project report facts) parsed) && ((project (project report facts) integrityChecked) && ((project (project report facts) executed) && ((project report boundariesComplete) && ((project report originalsAvailable) && ((project (project report facts) originalCompared) && true)))))) then (Uorc.Product.Evidence::publicationDecision (project report finalCheck) false (certificateCheck (project report certificate))) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete))
+    | Uorc.Product.Evidence::Operation.decompress => (Uorc.Product.Evidence::decompressionPublicationDecision (project (project report facts) parsed) (project (project report facts) integrityChecked) (project (project report facts) executed) (project report boundariesComplete) false)
+    | Uorc.Product.Evidence::Operation.inspect => (if (project (project report facts) parsed) then (ctor Uorc.Product.Evidence::PublicationDecision.publish) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete))
+    | Uorc.Product.Evidence::Operation.verify => (if (project report originalsAvailable) then (if ((project (project report facts) parsed) && ((project (project report facts) integrityChecked) && ((project (project report facts) executed) && ((project (project report facts) originalCompared) && ((project report boundariesComplete) && true))))) then (Uorc.Product.Evidence::publicationDecision (project report finalCheck) false (certificateCheck (project report certificate))) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete)) else (Uorc.Product.Evidence::decompressionPublicationDecision (project (project report facts) parsed) (project (project report facts) integrityChecked) (project (project report facts) executed) (project report boundariesComplete) false))
+    | Uorc.Product.Evidence::Operation.resume => (if ((project (project report facts) parsed) && ((project (project report facts) integrityChecked) && ((project (project report facts) executed) && ((project report boundariesComplete) && ((project report originalsAvailable) && ((project (project report facts) originalCompared) && true)))))) then (Uorc.Product.Evidence::publicationDecision (project report finalCheck) false (certificateCheck (project report certificate))) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete))
+    | Uorc.Product.Evidence::Operation.buildBasis => (if (project report artifactChecked) then (ctor Uorc.Product.Evidence::PublicationDecision.publish) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete))
+    | Uorc.Product.Evidence::Operation.analyzeFrontier => (ctor Uorc.Product.Evidence::PublicationDecision.publish)
+    | Uorc.Product.Evidence::Operation.compare => (ctor Uorc.Product.Evidence::PublicationDecision.publish)
+    | Uorc.Product.Evidence::Operation.runAcceptance => (ctor Uorc.Product.Evidence::PublicationDecision.publish)
+    | Uorc.Product.Evidence::Operation.runCoreRequest => (ctor Uorc.Product.Evidence::PublicationDecision.publish))
+}
+
+definition{
+  name: evidenceView,
+  parameters: [argOperation : Uorc.Product.Evidence::Operation, report : Report],
+  result: Uorc.Product.Evidence::EvidenceView,
+  body: (Uorc.Product.Evidence::presentEvidence argOperation (project report originalsAvailable) (record Uorc.Product.Evidence::EvidenceFacts {parsed := (project (project report facts) parsed), integrityChecked := (project (project report facts) integrityChecked), executed := ((project (project report facts) executed) && ((project report boundariesComplete) && true)), originalCompared := ((project (project report facts) originalCompared) && ((match (project report finalCheck)
+    | Uorc.Product.Evidence::FinalCheck.equal => true
+    | Uorc.Product.Evidence::FinalCheck.different => false
+    | Uorc.Product.Evidence::FinalCheck.incomplete => false
+    | Uorc.Product.Evidence::FinalCheck.cancelled => false) && true)), certificateChecked := ((project (project report facts) certificateChecked) && ((match (certificateCheck (project report certificate))
+    | Uorc.Product.Evidence::CertificateCheck.absent => false
+    | Uorc.Product.Evidence::CertificateCheck.valid => true
+    | Uorc.Product.Evidence::CertificateCheck.invalid => false
+    | Uorc.Product.Evidence::CertificateCheck.incomplete => false) && true))}))
+}
+
+definition{
+  name: bindReport,
+  parameters: [request : Request, report : Report],
+  result: Report,
+  body: (record Report {accounting := (project report accounting), facts := (project report facts), boundariesComplete := (project report boundariesComplete), originalsAvailable := (originalsAvailable request), finalCheck := (project report finalCheck), certificate := (project report certificate), search := (project report search), artifactChecked := (project report artifactChecked), output := (project report output), details := (project report details)})
+}
+
+definition{
+  name: compareExactArchiveBytes,
+  parameters: [left : Accounting, right : Accounting],
+  result: SizeRelation,
+  body: (if ((project left exactArchiveBytes) <? (project right exactArchiveBytes)) then (ctor SizeRelation.leftSmaller) else (if ((project left exactArchiveBytes) =? (project right exactArchiveBytes)) then (ctor SizeRelation.equal) else (ctor SizeRelation.rightSmaller)))
+}
+
+definition{
+  name: archivePlusBasisTransfer,
+  parameters: [accounting : Accounting],
+  result: Nat,
+  body: ((project accounting exactArchiveBytes) + (project accounting basisTransferBytes))
+}
+
+theorem{
+  name: archive_basis_transfer_is_explicit,
+  parameters: [accounting : Accounting],
+  statement: ((archivePlusBasisTransfer accounting) = ((project accounting exactArchiveBytes) + (project accounting basisTransferBytes))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+structure{
+  name: FailureReport,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: failure, type: Failure},
+    {name: achieved, type: Accounting},
+    {name: publication, type: Uorc.Product.StreamProtocol::Publication}
+  ]
+}
+
+inductive{
+  name: CustodyReason,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: open, fields: []},
+    {name: pendingIo, fields: []},
+    {name: imageTicket, fields: []},
+    {name: storage, fields: []},
+    {name: resourceLease, fields: []},
+    {name: job, fields: []},
+    {name: arena, fields: []},
+    {name: receipt, fields: []},
+    {name: effect, fields: []},
+    {name: quarantine, fields: []}
+  ]
+}
+
+inductive{
+  name: ReleaseDisposition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: retain, fields: [CustodyReason]}, {name: releasable, fields: []}]
+}
 \end{semanticmodule}
 \end{lexlean}

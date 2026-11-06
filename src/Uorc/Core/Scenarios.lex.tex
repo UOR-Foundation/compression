@@ -2,6 +2,45 @@
 \importmodule{Uorc.Core.Bytes}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"partitionedEqualityFailed"},{"fields":[],"name":"plantedMutationWasAccepted"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"RopeError"}}],"name":"comparisonFailed"},{"fields":[],"name":"unexpectedMutationFailure"}],"kind":"inductive","name":"ScenarioError","parameters":[],"type_parameters":[]},{"body":{"branches":[{"binders":["ropeError"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"ropeError"}],"constructor":{"name":"ScenarioError.comparisonFailed"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]},"constructor":{"name":"Result.error"}},{"binders":["equalResult"],"body":{"condition":{"kind":"var","name":"equalResult"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"ScenarioError.partitionedEqualityFailed"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]},"kind":"if","then_value":{"arguments":[{"kind":"unit"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]}},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"firstPair"}],"function":{"module":"Uorc.Core.Bytes","name":"partitionEqualityFixture"},"kind":"call"}},"kind":"definition","name":"checkRopeComparisonFixture","parameters":[{"name":"firstPair","type":{"kind":"bytes"}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}},"kind":"result","ok":{"kind":"unit"}}},{"body":{"condition":{"arguments":[],"function":{"module":"Uorc.Core.Bytes","name":"partition_independent_equality_vector"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"ScenarioError.partitionedEqualityFailed"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]},"kind":"if","then_value":{"condition":{"arguments":[],"function":{"module":"Uorc.Core.Bytes","name":"planted_byte_mutation_is_detected"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"ScenarioError.plantedMutationWasAccepted"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]},"kind":"if","then_value":{"arguments":[{"kind":"unit"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]}}},"kind":"definition","name":"runRopeComparisonScenario","parameters":[],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}},"kind":"result","ok":{"kind":"unit"}}},{"body":{"branches":[{"binders":["scenarioError"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"unit"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]},"constructor":{"name":"ScenarioError.partitionedEqualityFailed"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ScenarioError.unexpectedMutationFailure"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]},"constructor":{"name":"ScenarioError.plantedMutationWasAccepted"}},{"binders":["ropeError"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"ropeError"}],"constructor":{"name":"ScenarioError.comparisonFailed"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]},"constructor":{"name":"ScenarioError.comparisonFailed"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ScenarioError.unexpectedMutationFailure"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]},"constructor":{"name":"ScenarioError.unexpectedMutationFailure"}}],"kind":"match","scrutinee":{"kind":"var","name":"scenarioError"}},"constructor":{"name":"Result.error"}},{"binders":["unexpectedSuccess"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"ScenarioError.plantedMutationWasAccepted"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}}]},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"hex":"00fe","kind":"bytes"}],"function":{"name":"checkRopeComparisonFixture"},"kind":"call"}},"kind":"definition","name":"runPlantedRopeComparisonMutation","parameters":[],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"ScenarioError"}},"kind":"result","ok":{"kind":"unit"}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: partitionedEqualityFailed, fields: []},
+    {name: plantedMutationWasAccepted, fields: []},
+    {name: comparisonFailed, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: unexpectedMutationFailure, fields: []}
+  ]
+}
+
+definition{
+  name: checkRopeComparisonFixture,
+  parameters: [firstPair : Bytes],
+  result: (Result Unit ScenarioError),
+  body: (match (Uorc.Core.Bytes::partitionEqualityFixture firstPair)
+    | Result.error ropeError => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.comparisonFailed ropeError))
+    | Result.ok equalResult => (if equalResult then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.partitionedEqualityFailed))))
+}
+
+definition{
+  name: runRopeComparisonScenario,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if (Uorc.Core.Bytes::partition_independent_equality_vector) then (if (Uorc.Core.Bytes::planted_byte_mutation_is_detected) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.plantedMutationWasAccepted))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.partitionedEqualityFailed)))
+}
+
+definition{
+  name: runPlantedRopeComparisonMutation,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (match (checkRopeComparisonFixture 0x00fe)
+    | Result.error scenarioError => (match scenarioError
+      | ScenarioError.partitionedEqualityFailed => (ctor Result.ok [Unit, ScenarioError] ())
+      | ScenarioError.plantedMutationWasAccepted => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.unexpectedMutationFailure))
+      | ScenarioError.comparisonFailed ropeError => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.comparisonFailed ropeError))
+      | ScenarioError.unexpectedMutationFailure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.unexpectedMutationFailure)))
+    | Result.ok unexpectedSuccess => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.plantedMutationWasAccepted)))
+}
 \end{semanticmodule}
 \end{lexlean}

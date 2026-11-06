@@ -5,6 +5,90 @@
 \importmodule{Uorc.Core.Validation}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"PrepareState"}}],"name":"preparing"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Prepared"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"State"}}],"name":"measuring"}],"kind":"inductive","name":"Cursor","parameters":[],"type_parameters":[]},{"fields":[{"name":"prepared","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Prepared"}}},{"name":"preimageLength","type":{"kind":"nat"}},{"name":"archiveLength","type":{"kind":"nat"}}],"kind":"structure","name":"Measurement","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"PrepareError"}}],"name":"prepare"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.GraphEmit","name":"EmitError"}}],"name":"emit"},{"fields":[],"name":"addressSpaceExhausted"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"pending"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Measurement"}}],"name":"complete"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}}],"name":"failed"}],"kind":"inductive","name":"Step","parameters":[],"type_parameters":[]},{"body":{"arguments":[{"arguments":[{"kind":"var","name":"frame"}],"function":{"module":"Uorc.Wire.Frame","name":"startPreparation"},"kind":"call"}],"constructor":{"name":"Cursor.preparing"},"kind":"constructor"},"kind":"definition","name":"start","parameters":[{"name":"frame","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Frame"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"body":{"branches":[{"binders":["preparation"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"next"}],"constructor":{"name":"Cursor.preparing"},"kind":"constructor"}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.Frame","name":"PrepareEvent.advanced"}},{"binders":["prepared"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"prepared"},{"arguments":[{"kind":"var","name":"prepared"}],"function":{"module":"Uorc.Wire.Frame","name":"preimageStart"},"kind":"call"}],"constructor":{"name":"Cursor.measuring"},"kind":"constructor"}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.Frame","name":"PrepareEvent.complete"}},{"binders":["failure"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Error.prepare"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.Frame","name":"PrepareEvent.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"preparation"}],"function":{"module":"Uorc.Wire.Frame","name":"prepareStep"},"kind":"call"}},"constructor":{"name":"Cursor.preparing"}},{"binders":["prepared","emitter"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"prepared"},{"kind":"var","name":"next"}],"constructor":{"name":"Cursor.measuring"},"kind":"constructor"}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.advanced"}},{"binders":["ignoredBytes","next"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"prepared"},{"kind":"var","name":"next"}],"constructor":{"name":"Cursor.measuring"},"kind":"constructor"}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.produced"}},{"binders":["preimageLength","work"],"body":{"condition":{"arguments":[{"kind":"nat","value":"18446744073709551615"},{"kind":"var","name":"preimageLength"},{"kind":"nat","value":"32"}],"function":{"module":"Uorc.Core.Resources","name":"fitsAddition"},"kind":"call"},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.addressSpaceExhausted"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"prepared","value":{"kind":"var","name":"prepared"}},{"field":"preimageLength","value":{"kind":"var","name":"preimageLength"}},{"field":"archiveLength","value":{"kind":"add","left":{"kind":"var","name":"preimageLength"},"right":{"kind":"nat","value":"32"}}}],"kind":"record","type":{"name":"Measurement"}}],"constructor":{"name":"Step.complete"},"kind":"constructor"}},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.complete"}},{"binders":["failure","position","work"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Error.emit"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Wire.GraphEmit","name":"Event.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"emitter"}],"function":{"module":"Uorc.Wire.GraphEmit","name":"measureStep"},"kind":"call"}},"constructor":{"name":"Cursor.measuring"}}],"kind":"match","scrutinee":{"kind":"var","name":"cursor"}},"kind":"definition","name":"step","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"kind":"string","value":"Cached literal rope lengths may be used only after independent checked graph validation or source-owned canonical raw construction. An untrusted metadata cache is not certificate exclusion evidence. Archive integrity remains32 bytes in this provisional unshipped profile."},"kind":"definition","name":"admissionPrecondition","parameters":[],"result":{"kind":"string"}},{"body":{"arguments":[{"fields":[{"field":"objectLengths","value":{"kind":"var","name":"objectLengths"}},{"field":"scope","value":{"kind":"var","name":"scope"}},{"field":"body","value":{"arguments":[{"field":"graph","kind":"project","value":{"kind":"var","name":"checked"}}],"constructor":{"module":"Uorc.Wire.Frame","name":"Body.program"},"kind":"constructor"}}],"kind":"record","type":{"module":"Uorc.Wire.Frame","name":"Frame"}}],"function":{"name":"start"},"kind":"call"},"kind":"definition","name":"startProgram","parameters":[{"name":"checked","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Validation","name":"CheckedGraph"}}},{"name":"objectLengths","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"scope","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Wire.Frame","name":"Scope"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: preparing, fields: [Uorc.Wire.Frame::PrepareState]},
+    {name: measuring, fields: [Uorc.Wire.Frame::Prepared, Uorc.Wire.GraphEmit::State]}
+  ]
+}
+
+structure{
+  name: Measurement,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: prepared, type: Uorc.Wire.Frame::Prepared},
+    {name: preimageLength, type: Nat},
+    {name: archiveLength, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: prepare, fields: [Uorc.Wire.Frame::PrepareError]},
+    {name: emit, fields: [Uorc.Wire.GraphEmit::EmitError]},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [Measurement]},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [frame : Uorc.Wire.Frame::Frame],
+  result: Cursor,
+  body: (ctor Cursor.preparing (Uorc.Wire.Frame::startPreparation frame))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match cursor
+    | Cursor.preparing preparation => (match (Uorc.Wire.Frame::prepareStep preparation)
+      | Uorc.Wire.Frame::PrepareEvent.advanced next => (ctor Step.pending (ctor Cursor.preparing next))
+      | Uorc.Wire.Frame::PrepareEvent.complete prepared => (ctor Step.pending (ctor Cursor.measuring prepared (Uorc.Wire.Frame::preimageStart prepared)))
+      | Uorc.Wire.Frame::PrepareEvent.failed failure => (ctor Step.failed (ctor Error.prepare failure)))
+    | Cursor.measuring prepared emitter => (match (Uorc.Wire.GraphEmit::measureStep emitter)
+      | Uorc.Wire.GraphEmit::Event.advanced next => (ctor Step.pending (ctor Cursor.measuring prepared next))
+      | Uorc.Wire.GraphEmit::Event.produced ignoredBytes next => (ctor Step.pending (ctor Cursor.measuring prepared next))
+      | Uorc.Wire.GraphEmit::Event.complete preimageLength work => (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 preimageLength 32) then (ctor Step.complete (record Measurement {prepared := prepared, preimageLength := preimageLength, archiveLength := (preimageLength + 32)})) else (ctor Step.failed (ctor Error.addressSpaceExhausted)))
+      | Uorc.Wire.GraphEmit::Event.failed failure position work => (ctor Step.failed (ctor Error.emit failure))))
+}
+
+definition{
+  name: admissionPrecondition,
+  parameters: [],
+  result: String,
+  body: "Cached literal rope lengths may be used only after independent checked graph validation or source-owned canonical raw construction. An untrusted metadata cache is not certificate exclusion evidence. Archive integrity remains32 bytes in this provisional unshipped profile."
+}
+
+definition{
+  name: startProgram,
+  parameters: [
+    checked : Uorc.Core.Validation::CheckedGraph,
+    objectLengths : (List Nat),
+    scope : Uorc.Wire.Frame::Scope
+  ],
+  result: Cursor,
+  body: (start (record Uorc.Wire.Frame::Frame {objectLengths := objectLengths, scope := scope, body := (ctor Uorc.Wire.Frame::Body.program (project var{
+    name: checked
+  } graph))}))
+}
 \end{semanticmodule}
 \end{lexlean}

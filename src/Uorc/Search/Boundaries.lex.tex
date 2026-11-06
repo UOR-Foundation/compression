@@ -1,6 +1,80 @@
 \begin{lexlean}{Uorc.Search.Boundaries}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"fields":[{"name":"expected","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"actual","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"objectIndex","type":{"kind":"nat"}}],"kind":"structure","name":"Cursor","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"pending"},{"fields":[{"kind":"nat"}],"name":"matched"},{"fields":[{"kind":"nat"}],"name":"mismatch"}],"kind":"inductive","name":"Step","parameters":[],"type_parameters":[]},{"body":{"fields":[{"field":"expected","value":{"kind":"var","name":"expected"}},{"field":"actual","value":{"kind":"var","name":"actual"}},{"field":"objectIndex","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}},"kind":"definition","name":"start","parameters":[{"name":"expected","type":{"element":{"kind":"nat"},"kind":"list"}},{"name":"actual","type":{"element":{"kind":"nat"},"kind":"list"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"body":{"branches":[{"binders":[],"body":{"branches":[{"binders":[],"body":{"arguments":[{"field":"objectIndex","kind":"project","value":{"kind":"var","name":"cursor"}}],"constructor":{"name":"Step.matched"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["extra","remainingExtra"],"body":{"arguments":[{"field":"objectIndex","kind":"project","value":{"kind":"var","name":"cursor"}}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"actual","kind":"project","value":{"kind":"var","name":"cursor"}}},"constructor":{"name":"List.nil"}},{"binders":["expectedLength","remainingExpected"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"field":"objectIndex","kind":"project","value":{"kind":"var","name":"cursor"}}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["actualLength","remainingActual"],"body":{"condition":{"kind":"beq","left":{"kind":"var","name":"expectedLength"},"right":{"kind":"var","name":"actualLength"}},"else_value":{"arguments":[{"field":"objectIndex","kind":"project","value":{"kind":"var","name":"cursor"}}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"expected","value":{"kind":"var","name":"remainingExpected"}},{"field":"actual","value":{"kind":"var","name":"remainingActual"}},{"field":"objectIndex","value":{"kind":"add","left":{"field":"objectIndex","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"actual","kind":"project","value":{"kind":"var","name":"cursor"}}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"expected","kind":"project","value":{"kind":"var","name":"cursor"}}},"kind":"definition","name":"step","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"branches":[{"binders":[],"body":{"kind":"var","name":"state"},"constructor":{"name":"Nat.zero"}},{"binders":["remainingFuel"],"body":{"branches":[{"binders":["cursor"],"body":{"arguments":[{"kind":"var","name":"remainingFuel"},{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"step"},"kind":"call"}],"function":{"name":"run"},"kind":"call"},"constructor":{"name":"Step.pending"}},{"binders":["objects"],"body":{"arguments":[{"kind":"var","name":"objects"}],"constructor":{"name":"Step.matched"},"kind":"constructor"},"constructor":{"name":"Step.matched"}},{"binders":["index"],"body":{"arguments":[{"kind":"var","name":"index"}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"},"constructor":{"name":"Step.mismatch"}}],"kind":"match","scrutinee":{"kind":"var","name":"state"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"run","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"Step"}}}],"recursive_argument":"fuel","result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"kind":"theorem","name":"empty_objects_remain_ordered_boundaries","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"arguments":[{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"head":{"kind":"nat","value":"2"},"kind":"cons","tail":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}}},{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"head":{"kind":"nat","value":"2"},"kind":"cons","tail":{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}}}],"function":{"name":"start"},"kind":"call"}],"constructor":{"name":"Step.pending"},"kind":"constructor"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"kind":"nat","value":"3"}],"constructor":{"name":"Step.matched"},"kind":"constructor"}}},{"kind":"theorem","name":"same_flat_bytes_do_not_hide_different_partition","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"arguments":[{"head":{"kind":"nat","value":"1"},"kind":"cons","tail":{"head":{"kind":"nat","value":"2"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}},{"head":{"kind":"nat","value":"2"},"kind":"cons","tail":{"head":{"kind":"nat","value":"1"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}}],"function":{"name":"start"},"kind":"call"}],"constructor":{"name":"Step.pending"},"kind":"constructor"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"}}},{"kind":"theorem","name":"empty_collection_is_not_one_empty_object","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"20"},{"arguments":[{"arguments":[{"element":{"kind":"nat"},"kind":"nil"},{"head":{"kind":"nat","value":"0"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}],"function":{"name":"start"},"kind":"call"}],"constructor":{"name":"Step.pending"},"kind":"constructor"}],"function":{"name":"run"},"kind":"call"},"right":{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"name":"Step.mismatch"},"kind":"constructor"}}}],"spec":"lexlean/semantic-module/1"}}
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: expected, type: (List Nat)},
+    {name: actual, type: (List Nat)},
+    {name: objectIndex, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: matched, fields: [Nat]},
+    {name: mismatch, fields: [Nat]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [expected : (List Nat), actual : (List Nat)],
+  result: Cursor,
+  body: (record Cursor {expected := expected, actual := actual, objectIndex := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor expected)
+    | List.nil => (match (project cursor actual)
+      | List.nil => (ctor Step.matched (project cursor objectIndex))
+      | List.cons extra remainingExtra => (ctor Step.mismatch (project cursor objectIndex)))
+    | List.cons expectedLength remainingExpected => (match (project cursor actual)
+      | List.nil => (ctor Step.mismatch (project cursor objectIndex))
+      | List.cons actualLength remainingActual => (if (expectedLength =? actualLength) then (ctor Step.pending (record Cursor {expected := remainingExpected, actual := remainingActual, objectIndex := ((project cursor objectIndex) + 1)})) else (ctor Step.mismatch (project cursor objectIndex)))))
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ remainingFuel => (match state
+      | Step.pending cursor => (run remainingFuel (step cursor))
+      | Step.matched objects => (ctor Step.matched objects)
+      | Step.mismatch index => (ctor Step.mismatch index))),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: empty_objects_remain_ordered_boundaries,
+  parameters: [],
+  statement: ((run 20 (ctor Step.pending (start (cons 0 (cons 2 (cons 0 (nil Nat)))) (cons 0 (cons 2 (cons 0 (nil Nat))))))) = (ctor Step.matched 3)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: same_flat_bytes_do_not_hide_different_partition,
+  parameters: [],
+  statement: ((run 20 (ctor Step.pending (start (cons 1 (cons 2 (nil Nat))) (cons 2 (cons 1 (nil Nat)))))) = (ctor Step.mismatch 0)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_collection_is_not_one_empty_object,
+  parameters: [],
+  statement: ((run 20 (ctor Step.pending (start (nil Nat) (cons 0 (nil Nat))))) = (ctor Step.mismatch 0)),
+  proof: reflexivity{}
+}
 \end{semanticmodule}
 \end{lexlean}

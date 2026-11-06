@@ -5,6 +5,115 @@
 \importmodule{Uorc.Search.Normalize}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"enumerating"},{"fields":[{"element":{"kind":"nat"},"kind":"list"},{"element":{"kind":"nat"},"kind":"list"}],"name":"reversing"},{"fields":[{"element":{"kind":"nat"},"kind":"list"},{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.RopeBuilder","name":"Builder"}}],"name":"emitting"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.Normalize","name":"Cursor"}}],"name":"building"}],"kind":"inductive","name":"Phase","parameters":[],"type_parameters":[]},{"fields":[{"name":"maximumLength","type":{"kind":"nat"}},{"name":"enumerator","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.Enumerate","name":"Cursor"}}},{"name":"phase","type":{"arguments":[],"kind":"named","member":{"name":"Phase"}}},{"name":"completedEvents","type":{"kind":"nat"}}],"kind":"structure","name":"Cursor","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"invalidDigit"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Search.Normalize","name":"Error"}}],"name":"normalization"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"RopeError"}}],"name":"rope"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"pending"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Bytes","name":"Rope"}},{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"word"},{"fields":[],"name":"finished"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}}],"name":"failed"}],"kind":"inductive","name":"Step","parameters":[],"type_parameters":[]},{"body":{"fields":[{"field":"maximumLength","value":{"kind":"var","name":"maximumLength"}},{"field":"enumerator","value":{"arguments":[],"function":{"module":"Uorc.Search.Enumerate","name":"initial"},"kind":"call"}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.enumerating"},"kind":"constructor"}},{"field":"completedEvents","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"Cursor"}},"kind":"definition","name":"start","parameters":[{"name":"maximumLength","type":{"kind":"nat"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"body":{"branches":[{"binders":[],"body":{"branches":[{"binders":["enumerator"],"body":{"arguments":[{"fields":[{"field":"maximumLength","value":{"field":"maximumLength","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"enumerator","value":{"kind":"var","name":"enumerator"}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.enumerating"},"kind":"constructor"}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Enumerate","name":"Step.pending"}},{"binders":["word","enumerator"],"body":{"arguments":[{"fields":[{"field":"maximumLength","value":{"field":"maximumLength","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"enumerator","value":{"kind":"var","name":"enumerator"}},{"field":"phase","value":{"arguments":[{"field":"reversedDigits","kind":"project","value":{"kind":"var","name":"word"}},{"element":{"kind":"nat"},"kind":"nil"}],"constructor":{"name":"Phase.reversing"},"kind":"constructor"}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Enumerate","name":"Step.word"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Step.finished"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Enumerate","name":"Step.finished"}},{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidDigit"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Enumerate","name":"Step.invalidDigit"}}],"kind":"match","scrutinee":{"arguments":[{"field":"maximumLength","kind":"project","value":{"kind":"var","name":"cursor"}},{"field":"enumerator","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Search.Enumerate","name":"step"},"kind":"call"}},"constructor":{"name":"Phase.enumerating"}},{"binders":["remaining","forward"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"maximumLength","value":{"field":"maximumLength","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"enumerator","value":{"field":"enumerator","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"kind":"var","name":"forward"},{"arguments":[],"function":{"module":"Uorc.Search.RopeBuilder","name":"empty"},"kind":"call"}],"constructor":{"name":"Phase.emitting"},"kind":"constructor"}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["digit","tail"],"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"digit"},"right":{"kind":"nat","value":"256"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidDigit"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"maximumLength","value":{"field":"maximumLength","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"enumerator","value":{"field":"enumerator","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"kind":"var","name":"tail"},{"head":{"kind":"var","name":"digit"},"kind":"cons","tail":{"kind":"var","name":"forward"}}],"constructor":{"name":"Phase.reversing"},"kind":"constructor"}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"remaining"}},"constructor":{"name":"Phase.reversing"}},{"binders":["remaining","builder"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"maximumLength","value":{"field":"maximumLength","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"enumerator","value":{"field":"enumerator","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"arguments":[{"kind":"var","name":"builder"}],"function":{"module":"Uorc.Search.RopeBuilder","name":"finish"},"kind":"call"}],"constructor":{"name":"Phase.building"},"kind":"constructor"}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["digit","tail"],"body":{"condition":{"kind":"blt","left":{"kind":"var","name":"digit"},"right":{"kind":"nat","value":"256"}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidDigit"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidDigit"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["singleton"],"body":{"arguments":[{"fields":[{"field":"maximumLength","value":{"field":"maximumLength","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"enumerator","value":{"field":"enumerator","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"kind":"var","name":"tail"},{"arguments":[{"kind":"var","name":"builder"},{"kind":"var","name":"singleton"}],"function":{"module":"Uorc.Search.RopeBuilder","name":"appendChunk"},"kind":"call"}],"constructor":{"name":"Phase.emitting"},"kind":"constructor"}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"arguments":[],"function":{"module":"Uorc.Search.Enumerate","name":"alphabet"},"kind":"call"},{"kind":"var","name":"digit"},{"kind":"nat","value":"1"}],"kind":"primitive","operation":"slice","result":{"kind":"option","value":{"kind":"bytes"}}}}},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"remaining"}},"constructor":{"name":"Phase.emitting"}},{"binders":["builderCursor"],"body":{"branches":[{"binders":["nextBuilder"],"body":{"arguments":[{"fields":[{"field":"maximumLength","value":{"field":"maximumLength","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"enumerator","value":{"field":"enumerator","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[{"kind":"var","name":"nextBuilder"}],"constructor":{"name":"Phase.building"},"kind":"constructor"}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Normalize","name":"Step.pending"}},{"binders":["normalized","physical"],"body":{"arguments":[{"field":"rope","kind":"project","value":{"kind":"var","name":"normalized"}},{"fields":[{"field":"maximumLength","value":{"field":"maximumLength","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"enumerator","value":{"field":"enumerator","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.enumerating"},"kind":"constructor"}},{"field":"completedEvents","value":{"kind":"add","left":{"field":"completedEvents","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Step.word"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Normalize","name":"Step.done"}},{"binders":["error"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"error"}],"constructor":{"name":"Error.normalization"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Normalize","name":"Step.rejected"}},{"binders":["error"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"error"}],"constructor":{"name":"Error.rope"},"kind":"constructor"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Search.Normalize","name":"Step.ropeFailure"}}],"kind":"match","scrutinee":{"arguments":[{"fields":[{"field":"blockBytes","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Normalize","name":"Policy"}},{"kind":"var","name":"builderCursor"}],"function":{"module":"Uorc.Search.Normalize","name":"step"},"kind":"call"}},"constructor":{"name":"Phase.building"}}],"kind":"match","scrutinee":{"field":"phase","kind":"project","value":{"kind":"var","name":"cursor"}}},"kind":"definition","name":"step","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"branches":[{"binders":[],"body":{"arguments":[{"kind":"var","name":"cursor"}],"constructor":{"name":"Step.pending"},"kind":"constructor"},"constructor":{"name":"Nat.zero"}},{"binders":["remainingFuel"],"body":{"branches":[{"binders":["next"],"body":{"arguments":[{"kind":"var","name":"remainingFuel"},{"kind":"var","name":"next"}],"function":{"name":"firstWord"},"kind":"call"},"constructor":{"name":"Step.pending"}},{"binders":["word","next"],"body":{"arguments":[{"kind":"var","name":"word"},{"kind":"var","name":"next"}],"constructor":{"name":"Step.word"},"kind":"constructor"},"constructor":{"name":"Step.word"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Step.finished"},"kind":"constructor"},"constructor":{"name":"Step.finished"}},{"binders":["error"],"body":{"arguments":[{"kind":"var","name":"error"}],"constructor":{"name":"Step.failed"},"kind":"constructor"},"constructor":{"name":"Step.failed"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"step"},"kind":"call"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"firstWord","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"recursive_argument":"fuel","result":{"arguments":[],"kind":"named","member":{"name":"Step"}}},{"body":{"branches":[{"binders":["cursor"],"body":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"kind":"nat"}]},"constructor":{"name":"Step.pending"}},{"binders":["word","cursor"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"word"}],"function":{"module":"Uorc.Core.Bytes","name":"length"},"kind":"call"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]},"constructor":{"name":"Step.word"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"kind":"nat"}]},"constructor":{"name":"Step.finished"}},{"binders":["error"],"body":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"kind":"nat"}]},"constructor":{"name":"Step.failed"}}],"kind":"match","scrutinee":{"kind":"var","name":"state"}},"kind":"definition","name":"wordLength","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"Step"}}}],"result":{"kind":"option","value":{"kind":"nat"}}},{"kind":"theorem","name":"empty_word_is_a_real_rope_candidate","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"kind":"nat","value":"30"},{"arguments":[{"kind":"nat","value":"2"}],"function":{"name":"start"},"kind":"call"}],"function":{"name":"firstWord"},"kind":"call"}],"function":{"name":"wordLength"},"kind":"call"},"right":{"arguments":[{"kind":"nat","value":"0"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"kind":"nat"}]}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: enumerating, fields: []},
+    {name: reversing, fields: [(List Nat), (List Nat)]},
+    {name: emitting, fields: [(List Nat), Uorc.Search.RopeBuilder::Builder]},
+    {name: building, fields: [Uorc.Search.Normalize::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: maximumLength, type: Nat},
+    {name: enumerator, type: Uorc.Search.Enumerate::Cursor},
+    {name: phase, type: Phase},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidDigit, fields: []},
+    {name: normalization, fields: [Uorc.Search.Normalize::Error]},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: word, fields: [Uorc.Core.Bytes::Rope, Cursor]},
+    {name: finished, fields: []},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [maximumLength : Nat],
+  result: Cursor,
+  body: (record Cursor {maximumLength := maximumLength, enumerator := (Uorc.Search.Enumerate::initial), phase := (ctor Phase.enumerating), completedEvents := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.enumerating => (match (Uorc.Search.Enumerate::step (project cursor maximumLength) (project cursor enumerator))
+      | Uorc.Search.Enumerate::Step.pending enumerator => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := enumerator, phase := (ctor Phase.enumerating), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Enumerate::Step.word word enumerator => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := enumerator, phase := (ctor Phase.reversing (project word reversedDigits) (nil Nat)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Enumerate::Step.finished => (ctor Step.finished)
+      | Uorc.Search.Enumerate::Step.invalidDigit => (ctor Step.failed (ctor Error.invalidDigit)))
+    | Phase.reversing remaining forward => (match remaining
+      | List.nil => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.emitting forward (Uorc.Search.RopeBuilder::empty)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons digit tail => (if (digit <? 256) then (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.reversing tail (cons digit forward)), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.failed (ctor Error.invalidDigit))))
+    | Phase.emitting remaining builder => (match remaining
+      | List.nil => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.building (Uorc.Search.RopeBuilder::finish builder)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons digit tail => (if (digit <? 256) then (match (Uorc.Search.Enumerate::natByteSlice digit)
+        | Option.none => (ctor Step.failed (ctor Error.invalidDigit))
+        | Option.some singleton => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.emitting tail (Uorc.Search.RopeBuilder::appendChunk builder singleton)), completedEvents := ((project cursor completedEvents) + 1)}))) else (ctor Step.failed (ctor Error.invalidDigit))))
+    | Phase.building builderCursor => (match (Uorc.Search.Normalize::step (record Uorc.Search.Normalize::Policy {blockBytes := 1}) builderCursor)
+      | Uorc.Search.Normalize::Step.pending nextBuilder => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.building nextBuilder), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Normalize::Step.done normalized physical => (ctor Step.word (project normalized rope) (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.enumerating), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Normalize::Step.rejected error => (ctor Step.failed (ctor Error.normalization error))
+      | Uorc.Search.Normalize::Step.ropeFailure error => (ctor Step.failed (ctor Error.rope error))))
+}
+
+definition{
+  name: firstWord,
+  parameters: [fuel : Nat, cursor : Cursor],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => (ctor Step.pending cursor)
+    | Nat.succ remainingFuel => (match (step cursor)
+      | Step.pending next => (firstWord remainingFuel next)
+      | Step.word word next => (ctor Step.word word next)
+      | Step.finished => (ctor Step.finished)
+      | Step.failed error => (ctor Step.failed error))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: wordLength,
+  parameters: [state : Step],
+  result: (Option Nat),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [Nat])
+    | Step.word word cursor => (ctor Option.some [Nat] (Uorc.Core.Bytes::length word))
+    | Step.finished => (ctor Option.none [Nat])
+    | Step.failed error => (ctor Option.none [Nat]))
+}
+
+theorem{
+  name: empty_word_is_a_real_rope_candidate,
+  parameters: [],
+  statement: ((wordLength (firstWord 30 (start 2))) = (ctor Option.some [Nat] 0)),
+  proof: reflexivity{}
+}
 \end{semanticmodule}
 \end{lexlean}

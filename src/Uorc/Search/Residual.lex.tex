@@ -5,6 +5,181 @@
 \importmodule{Uorc.Search.Charts}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"lengthMismatch"},{"fields":[],"name":"invalidCursor"},{"fields":[],"name":"coordinateOverflow"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"fields":[{"name":"coordinate","type":{"kind":"uint64"}},{"name":"value","type":{"kind":"uint8"}}],"kind":"structure","name":"Exception","parameters":[],"type_parameters":[]},{"fields":[{"name":"target","type":{"kind":"bytes"}},{"name":"prediction","type":{"kind":"bytes"}},{"name":"offset","type":{"kind":"nat"}},{"name":"exceptionsReversed","type":{"element":{"arguments":[],"kind":"named","member":{"name":"Exception"}},"kind":"list"}},{"name":"bytesCompared","type":{"kind":"nat"}}],"kind":"structure","name":"CollectCursor","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"CollectCursor"}}],"name":"pending"},{"fields":[{"element":{"arguments":[],"kind":"named","member":{"name":"Exception"}},"kind":"list"},{"kind":"nat"}],"name":"done"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}}],"name":"rejected"}],"kind":"inductive","name":"CollectStep","parameters":[],"type_parameters":[]},{"fields":[{"name":"generator","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Block"}}},{"name":"count","type":{"kind":"uint64"}},{"name":"remaining","type":{"element":{"arguments":[],"kind":"named","member":{"name":"Exception"}},"kind":"list"}},{"name":"reversedInstructions","type":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}},"kind":"list"}},{"name":"slots","type":{"kind":"nat"}},{"name":"presenceSlot","type":{"kind":"nat"}},{"name":"valueSlot","type":{"kind":"nat"}}],"kind":"structure","name":"Build","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Build"}}],"name":"building"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Block"}},{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}},"kind":"list"},{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}},"kind":"list"}],"name":"reversing"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Graph"}}],"name":"done"}],"kind":"inductive","name":"Finish","parameters":[],"type_parameters":[]},{"body":{"condition":{"kind":"beq","left":{"arguments":[{"kind":"var","name":"target"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"arguments":[{"kind":"var","name":"prediction"}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.lengthMismatch"},"kind":"constructor"}],"constructor":{"name":"CollectStep.rejected"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"target","value":{"kind":"var","name":"target"}},{"field":"prediction","value":{"kind":"var","name":"prediction"}},{"field":"offset","value":{"kind":"nat","value":"0"}},{"field":"exceptionsReversed","value":{"element":{"arguments":[],"kind":"named","member":{"name":"Exception"}},"kind":"nil"}},{"field":"bytesCompared","value":{"kind":"nat","value":"0"}}],"kind":"record","type":{"name":"CollectCursor"}}],"constructor":{"name":"CollectStep.pending"},"kind":"constructor"}},"kind":"definition","name":"beginCollect","parameters":[{"name":"target","type":{"kind":"bytes"}},{"name":"prediction","type":{"kind":"bytes"}}],"result":{"arguments":[],"kind":"named","member":{"name":"CollectStep"}}},{"body":{"condition":{"kind":"beq","left":{"arguments":[{"field":"target","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}},"right":{"arguments":[{"field":"prediction","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.lengthMismatch"},"kind":"constructor"}],"constructor":{"name":"CollectStep.rejected"},"kind":"constructor"},"kind":"if","then_value":{"condition":{"kind":"blt","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"arguments":[{"field":"target","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"condition":{"kind":"beq","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"arguments":[{"field":"target","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"length","result":{"kind":"nat"}}},"else_value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"}],"constructor":{"name":"CollectStep.rejected"},"kind":"constructor"},"kind":"if","then_value":{"arguments":[{"field":"exceptionsReversed","kind":"project","value":{"kind":"var","name":"cursor"}},{"field":"bytesCompared","kind":"project","value":{"kind":"var","name":"cursor"}}],"constructor":{"name":"CollectStep.done"},"kind":"constructor"}},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"}],"constructor":{"name":"CollectStep.rejected"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["targetByte"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"}],"constructor":{"name":"CollectStep.rejected"},"kind":"constructor"},"constructor":{"name":"Option.none"}},{"binders":["predictedByte"],"body":{"condition":{"arguments":[{"kind":"var","name":"targetByte"},{"kind":"var","name":"predictedByte"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"branches":[{"binders":["coordinateError"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.coordinateOverflow"},"kind":"constructor"}],"constructor":{"name":"CollectStep.rejected"},"kind":"constructor"},"constructor":{"name":"Result.error"}},{"binders":["coordinate"],"body":{"arguments":[{"fields":[{"field":"target","value":{"field":"target","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"prediction","value":{"field":"prediction","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"offset","value":{"kind":"add","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}},{"field":"exceptionsReversed","value":{"head":{"fields":[{"field":"coordinate","value":{"kind":"var","name":"coordinate"}},{"field":"value","value":{"kind":"var","name":"targetByte"}}],"kind":"record","type":{"name":"Exception"}},"kind":"cons","tail":{"field":"exceptionsReversed","kind":"project","value":{"kind":"var","name":"cursor"}}}},{"field":"bytesCompared","value":{"kind":"add","left":{"field":"bytesCompared","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"CollectCursor"}}],"constructor":{"name":"CollectStep.pending"},"kind":"constructor"},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Search.Effort","name":"checkedU64"},"kind":"call"}},"kind":"if","then_value":{"arguments":[{"fields":[{"field":"target","value":{"field":"target","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"prediction","value":{"field":"prediction","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"offset","value":{"kind":"add","left":{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}},{"field":"exceptionsReversed","value":{"field":"exceptionsReversed","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"bytesCompared","value":{"kind":"add","left":{"field":"bytesCompared","kind":"project","value":{"kind":"var","name":"cursor"}},"right":{"kind":"nat","value":"1"}}}],"kind":"record","type":{"name":"CollectCursor"}}],"constructor":{"name":"CollectStep.pending"},"kind":"constructor"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"prediction","kind":"project","value":{"kind":"var","name":"cursor"}},{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"index","result":{"kind":"option","value":{"kind":"uint8"}}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"target","kind":"project","value":{"kind":"var","name":"cursor"}},{"field":"offset","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"index","result":{"kind":"option","value":{"kind":"uint8"}}}}}},"kind":"definition","name":"collectStep","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"CollectCursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"CollectStep"}}},{"body":{"branches":[{"binders":[],"body":{"kind":"var","name":"state"},"constructor":{"name":"Nat.zero"}},{"binders":["restFuel"],"body":{"branches":[{"binders":["cursor"],"body":{"arguments":[{"kind":"var","name":"restFuel"},{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"collectStep"},"kind":"call"}],"function":{"name":"runCollect"},"kind":"call"},"constructor":{"name":"CollectStep.pending"}},{"binders":["exceptions","compared"],"body":{"arguments":[{"kind":"var","name":"exceptions"},{"kind":"var","name":"compared"}],"constructor":{"name":"CollectStep.done"},"kind":"constructor"},"constructor":{"name":"CollectStep.done"}},{"binders":["error"],"body":{"arguments":[{"kind":"var","name":"error"}],"constructor":{"name":"CollectStep.rejected"},"kind":"constructor"},"constructor":{"name":"CollectStep.rejected"}}],"kind":"match","scrutinee":{"kind":"var","name":"state"}},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"runCollect","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"state","type":{"arguments":[],"kind":"named","member":{"name":"CollectStep"}}}],"recursive_argument":"fuel","result":{"arguments":[],"kind":"named","member":{"name":"CollectStep"}}},{"body":{"fields":[{"field":"parameters","value":{"head":{"arguments":[],"constructor":{"module":"Uorc.Core.Types","name":"ValueType.natural"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[],"constructor":{"module":"Uorc.Core.Types","name":"ValueType.store"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[],"constructor":{"module":"Uorc.Core.Types","name":"ValueType.store"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Types","name":"ValueType"}},"kind":"nil"}}}}},{"field":"result","value":{"arguments":[],"constructor":{"module":"Uorc.Core.Types","name":"ValueType.byte"},"kind":"constructor"}},{"field":"instructions","value":{"head":{"arguments":[{"kind":"integer","representation":"uint8","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteConstant"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"3"},{"kind":"nat","value":"4"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeRead"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"1"},{"kind":"nat","value":"2"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteEqual"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"4"},{"kind":"nat","value":"6"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeRead"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"1"},{"head":{"kind":"nat","value":"7"},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.apply"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"3"},{"kind":"nat","value":"1"},{"kind":"nat","value":"2"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.choose"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}},"kind":"nil"}}}}}}}},{"field":"returnDistance","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Core.Graph","name":"Block"}},"kind":"definition","name":"repairBlock","parameters":[],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Block"}}},{"body":{"arguments":[{"fields":[{"field":"generator","value":{"kind":"var","name":"generator"}},{"field":"count","value":{"kind":"var","name":"count"}},{"field":"remaining","value":{"kind":"var","name":"exceptions"}},{"field":"reversedInstructions","value":{"head":{"arguments":[{"kind":"nat","value":"2"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeNew"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"nat","value":"1"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeNew"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"integer","representation":"uint8","value":"0"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteConstant"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"var","name":"count"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalConstant"},"kind":"constructor"},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}},"kind":"nil"}}}}}},{"field":"slots","value":{"kind":"nat","value":"4"}},{"field":"presenceSlot","value":{"kind":"nat","value":"2"}},{"field":"valueSlot","value":{"kind":"nat","value":"3"}}],"kind":"record","type":{"name":"Build"}}],"constructor":{"name":"Finish.building"},"kind":"constructor"},"kind":"definition","name":"beginBuild","parameters":[{"name":"generator","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Block"}}},{"name":"count","type":{"kind":"uint64"}},{"name":"exceptions","type":{"element":{"arguments":[],"kind":"named","member":{"name":"Exception"}},"kind":"list"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Finish"}}},{"body":{"branches":[{"binders":[],"body":{"arguments":[{"field":"generator","kind":"project","value":{"kind":"var","name":"build"}},{"head":{"arguments":[{"field":"slots","kind":"project","value":{"kind":"var","name":"build"}},{"kind":"nat","value":"1"},{"head":{"arguments":[{"field":"slots","kind":"project","value":{"kind":"var","name":"build"}},{"field":"presenceSlot","kind":"project","value":{"kind":"var","name":"build"}}],"kind":"primitive","operation":"subtract","result":{"kind":"nat"}},"kind":"cons","tail":{"head":{"arguments":[{"field":"slots","kind":"project","value":{"kind":"var","name":"build"}},{"field":"valueSlot","kind":"project","value":{"kind":"var","name":"build"}}],"kind":"primitive","operation":"subtract","result":{"kind":"nat"}},"kind":"cons","tail":{"element":{"kind":"nat"},"kind":"nil"}}}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.tabulate"},"kind":"constructor"},"kind":"cons","tail":{"field":"reversedInstructions","kind":"project","value":{"kind":"var","name":"build"}}},{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Instruction"}},"kind":"nil"}],"constructor":{"name":"Finish.reversing"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["exception","rest"],"body":{"arguments":[{"fields":[{"field":"generator","value":{"field":"generator","kind":"project","value":{"kind":"var","name":"build"}}},{"field":"count","value":{"field":"count","kind":"project","value":{"kind":"var","name":"build"}}},{"field":"remaining","value":{"kind":"var","name":"rest"}},{"field":"reversedInstructions","value":{"head":{"arguments":[{"arguments":[{"kind":"add","left":{"field":"slots","kind":"project","value":{"kind":"var","name":"build"}},"right":{"kind":"nat","value":"4"}},{"field":"valueSlot","kind":"project","value":{"kind":"var","name":"build"}}],"kind":"primitive","operation":"subtract","result":{"kind":"nat"}},{"kind":"nat","value":"4"},{"kind":"nat","value":"1"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeWrite"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"value","kind":"project","value":{"kind":"var","name":"exception"}}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteConstant"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"arguments":[{"kind":"add","left":{"field":"slots","kind":"project","value":{"kind":"var","name":"build"}},"right":{"kind":"nat","value":"2"}},{"field":"presenceSlot","kind":"project","value":{"kind":"var","name":"build"}}],"kind":"primitive","operation":"subtract","result":{"kind":"nat"}},{"kind":"nat","value":"2"},{"kind":"nat","value":"1"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.storeWrite"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"kind":"integer","representation":"uint8","value":"1"}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.byteConstant"},"kind":"constructor"},"kind":"cons","tail":{"head":{"arguments":[{"field":"coordinate","kind":"project","value":{"kind":"var","name":"exception"}}],"constructor":{"module":"Uorc.Core.Graph","name":"Instruction.naturalConstant"},"kind":"constructor"},"kind":"cons","tail":{"field":"reversedInstructions","kind":"project","value":{"kind":"var","name":"build"}}}}}}}},{"field":"slots","value":{"kind":"add","left":{"field":"slots","kind":"project","value":{"kind":"var","name":"build"}},"right":{"kind":"nat","value":"5"}}},{"field":"presenceSlot","value":{"kind":"add","left":{"field":"slots","kind":"project","value":{"kind":"var","name":"build"}},"right":{"kind":"nat","value":"2"}}},{"field":"valueSlot","value":{"kind":"add","left":{"field":"slots","kind":"project","value":{"kind":"var","name":"build"}},"right":{"kind":"nat","value":"4"}}}],"kind":"record","type":{"name":"Build"}}],"constructor":{"name":"Finish.building"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"field":"remaining","kind":"project","value":{"kind":"var","name":"build"}}},"kind":"definition","name":"buildStep","parameters":[{"name":"build","type":{"arguments":[],"kind":"named","member":{"name":"Build"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Finish"}}},{"body":{"branches":[{"binders":["build"],"body":{"arguments":[{"kind":"var","name":"build"}],"function":{"name":"buildStep"},"kind":"call"},"constructor":{"name":"Finish.building"}},{"binders":["generator","remaining","forward"],"body":{"branches":[{"binders":[],"body":{"arguments":[{"fields":[{"field":"blocks","value":{"head":{"kind":"var","name":"generator"},"kind":"cons","tail":{"head":{"arguments":[],"function":{"name":"repairBlock"},"kind":"call"},"kind":"cons","tail":{"head":{"fields":[{"field":"parameters","value":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Types","name":"ValueType"}},"kind":"nil"}},{"field":"result","value":{"arguments":[],"constructor":{"module":"Uorc.Core.Types","name":"ValueType.sequence"},"kind":"constructor"}},{"field":"instructions","value":{"kind":"var","name":"forward"}},{"field":"returnDistance","value":{"kind":"nat","value":"1"}}],"kind":"record","type":{"module":"Uorc.Core.Graph","name":"Block"}},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Graph","name":"Block"}},"kind":"nil"}}}}},{"field":"entry","value":{"kind":"nat","value":"2"}}],"kind":"record","type":{"module":"Uorc.Core.Graph","name":"Graph"}}],"constructor":{"name":"Finish.done"},"kind":"constructor"},"constructor":{"name":"List.nil"}},{"binders":["instruction","rest"],"body":{"arguments":[{"kind":"var","name":"generator"},{"kind":"var","name":"rest"},{"head":{"kind":"var","name":"instruction"},"kind":"cons","tail":{"kind":"var","name":"forward"}}],"constructor":{"name":"Finish.reversing"},"kind":"constructor"},"constructor":{"name":"List.cons"}}],"kind":"match","scrutinee":{"kind":"var","name":"remaining"}},"constructor":{"name":"Finish.reversing"}},{"binders":["graph"],"body":{"arguments":[{"kind":"var","name":"graph"}],"constructor":{"name":"Finish.done"},"kind":"constructor"},"constructor":{"name":"Finish.done"}}],"kind":"match","scrutinee":{"kind":"var","name":"finish"}},"kind":"definition","name":"stepFinish","parameters":[{"name":"finish","type":{"arguments":[],"kind":"named","member":{"name":"Finish"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Finish"}}},{"body":{"branches":[{"binders":[],"body":{"kind":"var","name":"finish"},"constructor":{"name":"Nat.zero"}},{"binders":["restFuel"],"body":{"arguments":[{"kind":"var","name":"restFuel"},{"arguments":[{"kind":"var","name":"finish"}],"function":{"name":"stepFinish"},"kind":"call"}],"function":{"name":"runBuild"},"kind":"call"},"constructor":{"name":"Nat.succ"}}],"kind":"match","scrutinee":{"kind":"var","name":"fuel"}},"kind":"definition","name":"runBuild","parameters":[{"name":"fuel","type":{"kind":"nat"}},{"name":"finish","type":{"arguments":[],"kind":"named","member":{"name":"Finish"}}}],"recursive_argument":"fuel","result":{"arguments":[],"kind":"named","member":{"name":"Finish"}}},{"kind":"theorem","name":"residual_records_ff_and_zero_exactly","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"nat","value":"8"},{"arguments":[{"hex":"00ff0200","kind":"bytes"},{"hex":"00010203","kind":"bytes"}],"function":{"name":"beginCollect"},"kind":"call"}],"function":{"name":"runCollect"},"kind":"call"},"right":{"arguments":[{"head":{"fields":[{"field":"coordinate","value":{"kind":"integer","representation":"uint64","value":"3"}},{"field":"value","value":{"kind":"integer","representation":"uint8","value":"0"}}],"kind":"record","type":{"name":"Exception"}},"kind":"cons","tail":{"head":{"fields":[{"field":"coordinate","value":{"kind":"integer","representation":"uint64","value":"1"}},{"field":"value","value":{"kind":"integer","representation":"uint8","value":"255"}}],"kind":"record","type":{"name":"Exception"}},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Exception"}},"kind":"nil"}}},{"kind":"nat","value":"4"}],"constructor":{"name":"CollectStep.done"},"kind":"constructor"}}},{"kind":"theorem","name":"residual_length_mismatch_is_not_repairable","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"hex":"0102","kind":"bytes"},{"hex":"01","kind":"bytes"}],"function":{"name":"beginCollect"},"kind":"call"},"right":{"arguments":[{"arguments":[],"constructor":{"name":"Error.lengthMismatch"},"kind":"constructor"}],"constructor":{"name":"CollectStep.rejected"},"kind":"constructor"}}},{"kind":"theorem","name":"residual_is_fully_explicit_typed_store_program","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"branches":[{"binders":["unfinished"],"body":{"arguments":[{"arguments":[],"constructor":{"module":"Uorc.Core.Types","name":"StaticError.returnMismatch"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Types","name":"StaticError"}}]},"constructor":{"name":"Finish.building"}},{"binders":["generator","remaining","forward"],"body":{"arguments":[{"arguments":[],"constructor":{"module":"Uorc.Core.Types","name":"StaticError.returnMismatch"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Types","name":"StaticError"}}]},"constructor":{"name":"Finish.reversing"}},{"binders":["graph"],"body":{"arguments":[{"kind":"var","name":"graph"}],"function":{"module":"Uorc.Core.Graph","name":"validateGraph"},"kind":"call"},"constructor":{"name":"Finish.done"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"nat","value":"50"},{"arguments":[{"arguments":[{"fields":[{"field":"base","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"slope","value":{"kind":"integer","representation":"uint64","value":"1"}}],"kind":"record","type":{"module":"Uorc.Search.Charts","name":"AffineParameters"}}],"function":{"module":"Uorc.Search.Charts","name":"affineBlock"},"kind":"call"},{"kind":"integer","representation":"uint64","value":"4"},{"head":{"fields":[{"field":"coordinate","value":{"kind":"integer","representation":"uint64","value":"1"}},{"field":"value","value":{"kind":"integer","representation":"uint8","value":"255"}}],"kind":"record","type":{"name":"Exception"}},"kind":"cons","tail":{"head":{"fields":[{"field":"coordinate","value":{"kind":"integer","representation":"uint64","value":"3"}},{"field":"value","value":{"kind":"integer","representation":"uint8","value":"0"}}],"kind":"record","type":{"name":"Exception"}},"kind":"cons","tail":{"element":{"arguments":[],"kind":"named","member":{"name":"Exception"}},"kind":"nil"}}}],"function":{"name":"beginBuild"},"kind":"call"}],"function":{"name":"runBuild"},"kind":"call"}},"right":{"arguments":[{"kind":"unit"}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"kind":"unit"},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Types","name":"StaticError"}}]}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: lengthMismatch, fields: []},
+    {name: invalidCursor, fields: []},
+    {name: coordinateOverflow, fields: []}
+  ]
+}
+
+structure{
+  name: Exception,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: coordinate, type: UInt64}, {name: value, type: UInt8}]
+}
+
+structure{
+  name: CollectCursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: target, type: Bytes},
+    {name: prediction, type: Bytes},
+    {name: offset, type: Nat},
+    {name: exceptionsReversed, type: (List Exception)},
+    {name: bytesCompared, type: Nat}
+  ]
+}
+
+inductive{
+  name: CollectStep,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [CollectCursor]},
+    {name: done, fields: [(List Exception), Nat]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+structure{
+  name: Build,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: generator, type: Uorc.Core.Graph::Block},
+    {name: count, type: UInt64},
+    {name: remaining, type: (List Exception)},
+    {name: reversedInstructions, type: (List Uorc.Core.Graph::Instruction)},
+    {name: slots, type: Nat},
+    {name: presenceSlot, type: Nat},
+    {name: valueSlot, type: Nat}
+  ]
+}
+
+inductive{
+  name: Finish,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: building, fields: [Build]},
+    {
+      name: reversing,
+      fields: [
+        Uorc.Core.Graph::Block,
+        (List Uorc.Core.Graph::Instruction),
+        (List Uorc.Core.Graph::Instruction)
+      ]
+    },
+    {name: done, fields: [Uorc.Core.Graph::Graph]}
+  ]
+}
+
+definition{
+  name: beginCollect,
+  parameters: [target : Bytes, prediction : Bytes],
+  result: CollectStep,
+  body: (if ((prim length target : Nat) =? (prim length prediction : Nat)) then (ctor CollectStep.pending (record CollectCursor {target := target, prediction := prediction, offset := 0, exceptionsReversed := (nil Exception), bytesCompared := 0})) else (ctor CollectStep.rejected (ctor Error.lengthMismatch)))
+}
+
+definition{
+  name: collectStep,
+  parameters: [cursor : CollectCursor],
+  result: CollectStep,
+  body: (if ((prim length (project cursor target) : Nat) =? (prim length (project cursor prediction) : Nat)) then (if ((project cursor offset) <? (prim length (project cursor target) : Nat)) then (match (prim index (project cursor target) (project cursor offset) : (Option UInt8))
+    | Option.none => (ctor CollectStep.rejected (ctor Error.invalidCursor))
+    | Option.some targetByte => (match (prim index (project cursor prediction) (project cursor offset) : (Option UInt8))
+      | Option.none => (ctor CollectStep.rejected (ctor Error.invalidCursor))
+      | Option.some predictedByte => (if (prim equal targetByte predictedByte : Bool) then (ctor CollectStep.pending (record CollectCursor {target := (project cursor target), prediction := (project cursor prediction), offset := ((project cursor offset) + 1), exceptionsReversed := (project cursor exceptionsReversed), bytesCompared := ((project cursor bytesCompared) + 1)})) else (match (Uorc.Search.Effort::checkedU64 (project cursor offset))
+        | Result.error coordinateError => (ctor CollectStep.rejected (ctor Error.coordinateOverflow))
+        | Result.ok coordinate => (ctor CollectStep.pending (record CollectCursor {target := (project cursor target), prediction := (project cursor prediction), offset := ((project cursor offset) + 1), exceptionsReversed := (cons (record Exception {coordinate := coordinate, value := targetByte}) (project cursor exceptionsReversed)), bytesCompared := ((project cursor bytesCompared) + 1)})))))) else (if ((project cursor offset) =? (prim length (project cursor target) : Nat)) then (ctor CollectStep.done (project cursor exceptionsReversed) (project cursor bytesCompared)) else (ctor CollectStep.rejected (ctor Error.invalidCursor)))) else (ctor CollectStep.rejected (ctor Error.lengthMismatch)))
+}
+
+definition{
+  name: runCollect,
+  parameters: [fuel : Nat, state : CollectStep],
+  result: CollectStep,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ restFuel => (match state
+      | CollectStep.pending cursor => (runCollect restFuel (collectStep cursor))
+      | CollectStep.done exceptions compared => (ctor CollectStep.done exceptions compared)
+      | CollectStep.rejected error => (ctor CollectStep.rejected error))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: repairBlock,
+  parameters: [],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.store) (cons (ctor Uorc.Core.Types::ValueType.store) (nil Uorc.Core.Types::ValueType)))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.storeRead 3 4) (cons (ctor Uorc.Core.Graph::Instruction.byteEqual 1 2) (cons (ctor Uorc.Core.Graph::Instruction.storeRead 4 6) (cons (ctor Uorc.Core.Graph::Instruction.apply 1 (cons 7 (nil Nat))) (cons (ctor Uorc.Core.Graph::Instruction.choose 3 1 2) (nil Uorc.Core.Graph::Instruction))))))), returnDistance := 1})
+}
+
+definition{
+  name: beginBuild,
+  parameters: [generator : Uorc.Core.Graph::Block, count : UInt64, exceptions : (List Exception)],
+  result: Finish,
+  body: (ctor Finish.building (record Build {generator := generator, count := count, remaining := exceptions, reversedInstructions := (cons (ctor Uorc.Core.Graph::Instruction.storeNew 2) (cons (ctor Uorc.Core.Graph::Instruction.storeNew 1) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (nil Uorc.Core.Graph::Instruction))))), slots := 4, presenceSlot := 2, valueSlot := 3}))
+}
+
+definition{
+  name: buildStep,
+  parameters: [build : Build],
+  result: Finish,
+  body: (match (project build remaining)
+    | List.nil => (ctor Finish.reversing (project build generator) (cons (ctor Uorc.Core.Graph::Instruction.tabulate (project build slots) 1 (cons (prim subtract (project build slots) (project build presenceSlot) : Nat) (cons (prim subtract (project build slots) (project build valueSlot) : Nat) (nil Nat)))) (project build reversedInstructions)) (nil Uorc.Core.Graph::Instruction))
+    | List.cons exception rest => (ctor Finish.building (record Build {generator := (project build generator), count := (project build count), remaining := rest, reversedInstructions := (cons (ctor Uorc.Core.Graph::Instruction.storeWrite (prim subtract ((project build slots) + 4) (project build valueSlot) : Nat) 4 1) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (project exception value)) (cons (ctor Uorc.Core.Graph::Instruction.storeWrite (prim subtract ((project build slots) + 2) (project build presenceSlot) : Nat) 2 1) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (1 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project exception coordinate)) (project build reversedInstructions)))))), slots := ((project build slots) + 5), presenceSlot := ((project build slots) + 2), valueSlot := ((project build slots) + 4)})))
+}
+
+definition{
+  name: stepFinish,
+  parameters: [finish : Finish],
+  result: Finish,
+  body: (match finish
+    | Finish.building build => (buildStep build)
+    | Finish.reversing generator remaining forward => (match remaining
+      | List.nil => (ctor Finish.done (record Uorc.Core.Graph::Graph {blocks := (cons generator (cons (repairBlock) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := forward, returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2}))
+      | List.cons instruction rest => (ctor Finish.reversing generator rest (cons instruction forward)))
+    | Finish.done graph => (ctor Finish.done graph))
+}
+
+definition{
+  name: runBuild,
+  parameters: [fuel : Nat, finish : Finish],
+  result: Finish,
+  body: (match fuel
+    | Nat.zero => finish
+    | Nat.succ restFuel => (runBuild restFuel (stepFinish finish))),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: residual_records_ff_and_zero_exactly,
+  parameters: [],
+  statement: ((runCollect 8 (beginCollect 0x00ff0200 0x00010203)) = (ctor CollectStep.done (cons (record Exception {coordinate := (3 : UInt64), value := (0 : UInt8)}) (cons (record Exception {coordinate := (1 : UInt64), value := (255 : UInt8)}) (nil Exception))) 4)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: residual_length_mismatch_is_not_repairable,
+  parameters: [],
+  statement: ((beginCollect 0x0102 0x01) = (ctor CollectStep.rejected (ctor Error.lengthMismatch))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: residual_is_fully_explicit_typed_store_program,
+  parameters: [],
+  statement: ((match (runBuild 50 (beginBuild (Uorc.Search.Charts::affineBlock (record Uorc.Search.Charts::AffineParameters {base := (0 : UInt64), slope := (1 : UInt64)})) (4 : UInt64) (cons (record Exception {coordinate := (1 : UInt64), value := (255 : UInt8)}) (cons (record Exception {coordinate := (3 : UInt64), value := (0 : UInt8)}) (nil Exception)))))
+    | Finish.building unfinished => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.returnMismatch))
+    | Finish.reversing generator remaining forward => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.returnMismatch))
+    | Finish.done graph => (Uorc.Core.Graph::validateGraph graph)) = (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ())),
+  proof: reflexivity{}
+}
 \end{semanticmodule}
 \end{lexlean}

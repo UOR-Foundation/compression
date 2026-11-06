@@ -8,6 +8,298 @@
 \importmodule{Uorc.Core.RuntimeWork}
 \title{Parameters}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"counterExhausted"},{"fields":[],"name":"invalidCursor"},{"fields":[],"name":"busy"}],"kind":"inductive","name":"Error","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeResources","name":"Budget"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeTable","name":"Table"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeProgram","name":"CallerRoots"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeResources","name":"Usage"}}],"name":"initialize"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Cursor"}}],"name":"execute"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Cursor"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeProgram","name":"Event"}}],"name":"offer"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Step"}}],"name":"terminal"}],"kind":"inductive","name":"Intent","parameters":[],"type_parameters":[]},{"fields":[{"name":"intent","type":{"arguments":[],"kind":"named","member":{"name":"Intent"}}},{"name":"activeCost","type":{"kind":"uint64"}},{"name":"paidCost","type":{"kind":"uint64"}},{"name":"consumedCredits","type":{"kind":"uint64"}},{"name":"attemptedOperations","type":{"kind":"uint64"}},{"name":"usage","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeResources","name":"Usage"}}},{"name":"error","type":{"kind":"option","value":{"arguments":[],"kind":"named","member":{"name":"Error"}}}}],"kind":"structure","name":"Cursor","parameters":[],"type_parameters":[]},{"fields":[{"name":"activeCost","type":{"kind":"uint64"}},{"name":"paidCost","type":{"kind":"uint64"}},{"name":"consumedCredits","type":{"kind":"uint64"}},{"name":"attemptedOperations","type":{"kind":"uint64"}},{"name":"usage","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeResources","name":"Usage"}}}],"kind":"structure","name":"Ledger","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"pending"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"awaiting"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeProgram","name":"Ready"}},{"arguments":[],"kind":"named","member":{"name":"Ledger"}}],"name":"ready"},{"fields":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Error"}},{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Ledger"}}],"name":"failed"},{"fields":[{"arguments":[],"kind":"named","member":{"name":"Error"}},{"arguments":[],"kind":"named","member":{"name":"Cursor"}}],"name":"rejected"}],"kind":"inductive","name":"Event","parameters":[],"type_parameters":[]},{"fields":[{"name":"event","type":{"arguments":[],"kind":"named","member":{"name":"Event"}}},{"name":"remainingCredits","type":{"kind":"uint64"}}],"kind":"structure","name":"Funded","parameters":[],"type_parameters":[]},{"axioms":[],"body":{"fields":[{"field":"activeCost","value":{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"paidCost","value":{"field":"paidCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Ledger"}},"executable":true,"kind":"definition","name":"ledger","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Ledger"}}},{"axioms":[],"body":{"branches":[{"binders":["state"],"body":{"field":"usage","kind":"project","value":{"kind":"var","name":"state"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.pending"}},{"binders":["state"],"body":{"field":"usage","kind":"project","value":{"kind":"var","name":"state"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"}},{"binders":["failure","state"],"body":{"field":"usage","kind":"project","value":{"kind":"var","name":"state"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.failed"}},{"binders":["ready"],"body":{"field":"usage","kind":"project","value":{"kind":"var","name":"ready"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.ready"}}],"kind":"match","scrutinee":{"kind":"var","name":"outcome"}},"executable":true,"kind":"definition","name":"stepUsage","parameters":[{"name":"outcome","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Step"}}}],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeResources","name":"Usage"}}},{"axioms":[],"body":{"kind":"integer","representation":"uint64","value":"1"},"executable":true,"kind":"definition","name":"zeroFeeAttemptCredit","parameters":[],"result":{"kind":"uint64"}},{"axioms":[],"body":{"condition":{"arguments":[{"arguments":[{"kind":"var","name":"task"}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"taskWork"},"kind":"call"},{"kind":"integer","representation":"uint64","value":"0"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"kind":"integer","representation":"uint64","value":"0"},"kind":"if","then_value":{"arguments":[],"function":{"name":"zeroFeeAttemptCredit"},"kind":"call"}},"executable":true,"kind":"definition","name":"observationCredit","parameters":[{"name":"task","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Task"}}}],"result":{"kind":"uint64"}},{"axioms":[],"body":{"binder":{"name":"cost","type":{"kind":"uint64"}},"body":{"condition":{"arguments":[{"kind":"var","name":"cost"},{"kind":"integer","representation":"uint64","value":"0"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"kind":"var","name":"cost"},"kind":"if","then_value":{"arguments":[],"function":{"name":"zeroFeeAttemptCredit"},"kind":"call"}},"kind":"let","value":{"arguments":[{"field":"task","kind":"project","value":{"kind":"var","name":"state"}}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"taskWork"},"kind":"call"}},"executable":true,"kind":"definition","name":"nextCost","parameters":[{"name":"state","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Cursor"}}}],"result":{"kind":"uint64"}},{"axioms":[],"body":{"branches":[{"binders":["state"],"body":{"fields":[{"field":"intent","value":{"arguments":[{"kind":"var","name":"state"}],"constructor":{"name":"Intent.execute"},"kind":"constructor"}},{"field":"activeCost","value":{"arguments":[{"kind":"var","name":"state"}],"function":{"name":"nextCost"},"kind":"call"}},{"field":"paidCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"error","value":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.pending"}},{"binders":["state"],"body":{"fields":[{"field":"intent","value":{"arguments":[{"kind":"var","name":"outcome"}],"constructor":{"name":"Intent.terminal"},"kind":"constructor"}},{"field":"activeCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"paidCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"error","value":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"}},{"binders":["failure","state"],"body":{"fields":[{"field":"intent","value":{"arguments":[{"kind":"var","name":"outcome"}],"constructor":{"name":"Intent.terminal"},"kind":"constructor"}},{"field":"activeCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"paidCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"state"}}},{"field":"error","value":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.failed"}},{"binders":["ready"],"body":{"fields":[{"field":"intent","value":{"arguments":[{"kind":"var","name":"outcome"}],"constructor":{"name":"Intent.terminal"},"kind":"constructor"}},{"field":"activeCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"paidCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"ready"}}},{"field":"error","value":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.ready"}}],"kind":"match","scrutinee":{"kind":"var","name":"outcome"}},"executable":true,"kind":"definition","name":"fromStep","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"name":"outcome","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Step"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"axioms":[],"body":{"branches":[{"binders":[],"body":{"branches":[{"binders":["budget","initialArena","basis","caller","initialUsage"],"body":{"arguments":[{"kind":"var","name":"cursor"}],"constructor":{"name":"Event.pending"},"kind":"constructor"},"constructor":{"name":"Intent.initialize"}},{"binders":["state"],"body":{"arguments":[{"kind":"var","name":"cursor"}],"constructor":{"name":"Event.pending"},"kind":"constructor"},"constructor":{"name":"Intent.execute"}},{"binders":["state","event"],"body":{"arguments":[{"kind":"var","name":"cursor"}],"constructor":{"name":"Event.pending"},"kind":"constructor"},"constructor":{"name":"Intent.offer"}},{"binders":["outcome"],"body":{"branches":[{"binders":["state"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"},{"kind":"var","name":"cursor"}],"constructor":{"name":"Event.rejected"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.pending"}},{"binders":["state"],"body":{"arguments":[{"kind":"var","name":"cursor"}],"constructor":{"name":"Event.awaiting"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"}},{"binders":["failure","state"],"body":{"arguments":[{"kind":"var","name":"failure"},{"kind":"var","name":"state"},{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"ledger"},"kind":"call"}],"constructor":{"name":"Event.failed"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.failed"}},{"binders":["ready"],"body":{"arguments":[{"kind":"var","name":"ready"},{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"ledger"},"kind":"call"}],"constructor":{"name":"Event.ready"},"kind":"constructor"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.ready"}}],"kind":"match","scrutinee":{"kind":"var","name":"outcome"}},"constructor":{"name":"Intent.terminal"}}],"kind":"match","scrutinee":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},"constructor":{"name":"Option.none"}},{"binders":["error"],"body":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"cursor"}],"constructor":{"name":"Event.rejected"},"kind":"constructor"},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}},"executable":true,"kind":"definition","name":"expose","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Event"}}},{"axioms":[],"body":{"fields":[{"field":"intent","value":{"arguments":[{"kind":"var","name":"budget"},{"kind":"var","name":"initialArena"},{"kind":"var","name":"basis"},{"kind":"var","name":"caller"},{"kind":"var","name":"initialUsage"}],"constructor":{"name":"Intent.initialize"},"kind":"constructor"}},{"field":"activeCost","value":{"arguments":[{"arguments":[],"constructor":{"module":"Uorc.Core.RuntimeWork","name":"Operation.admissionInitialization"},"kind":"constructor"}],"function":{"module":"Uorc.Core.RuntimeWork","name":"fee"},"kind":"call"}},{"field":"paidCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"consumedCredits","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"attemptedOperations","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"usage","value":{"kind":"var","name":"initialUsage"}},{"field":"error","value":{"arguments":[],"constructor":{"name":"Option.none"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}],"kind":"record","type":{"name":"Cursor"}},"executable":true,"kind":"definition","name":"start","parameters":[{"name":"budget","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeResources","name":"Budget"}}},{"name":"initialArena","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"name":"basis","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeTable","name":"Table"}}},{"name":"caller","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeProgram","name":"CallerRoots"}}},{"name":"initialUsage","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeResources","name":"Usage"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"axioms":[],"body":{"branches":[{"binders":[],"body":{"branches":[{"binders":["budget","initialArena","basis","caller","initialUsage"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Intent.initialize"}},{"binders":["state"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Intent.execute"}},{"binders":["state","pendingEvent"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Intent.offer"}},{"binders":["outcome"],"body":{"branches":[{"binders":["state"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.pending"}},{"binders":["state"],"body":{"arguments":[{"fields":[{"field":"intent","value":{"arguments":[{"kind":"var","name":"state"},{"kind":"var","name":"event"}],"constructor":{"name":"Intent.offer"},"kind":"constructor"}},{"field":"activeCost","value":{"arguments":[{"arguments":[],"constructor":{"module":"Uorc.Core.RuntimeWork","name":"Operation.admissionOffer"},"kind":"constructor"}],"function":{"module":"Uorc.Core.RuntimeWork","name":"fee"},"kind":"call"}},{"field":"paidCost","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"error","value":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Result.ok"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"}},{"binders":["failure","state"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.failed"}},{"binders":["ready"],"body":{"arguments":[{"arguments":[],"constructor":{"name":"Error.busy"},"kind":"constructor"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.ready"}}],"kind":"match","scrutinee":{"kind":"var","name":"outcome"}},"constructor":{"name":"Intent.terminal"}}],"kind":"match","scrutinee":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},"constructor":{"name":"Option.none"}},{"binders":["error"],"body":{"arguments":[{"kind":"var","name":"error"}],"constructor":{"name":"Result.error"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Cursor"}},{"arguments":[],"kind":"named","member":{"name":"Error"}}]},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}},"executable":true,"kind":"definition","name":"offer","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"name":"event","type":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeProgram","name":"Event"}}}],"result":{"error":{"arguments":[],"kind":"named","member":{"name":"Error"}},"kind":"result","ok":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}},{"axioms":["Quot.sound","propext"],"body":{"arguments":[{"arguments":[{"kind":"var","name":"cursor"},{"branches":[{"binders":["budget","initialArena","basis","caller","initialUsage"],"body":{"arguments":[{"kind":"var","name":"budget"},{"kind":"var","name":"initialArena"},{"kind":"var","name":"basis"},{"kind":"var","name":"caller"},{"kind":"var","name":"initialUsage"}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"start"},"kind":"call"},"constructor":{"name":"Intent.initialize"}},{"binders":["state"],"body":{"arguments":[{"kind":"var","name":"state"}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"step"},"kind":"call"},"constructor":{"name":"Intent.execute"}},{"binders":["state","event"],"body":{"branches":[{"binders":["failure"],"body":{"arguments":[{"kind":"var","name":"failure"},{"arguments":[{"kind":"var","name":"state"},{"arguments":[{"kind":"var","name":"failure"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeAdmission","name":"Error"}}]}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"with_failure"},"kind":"call"}],"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.failed"},"kind":"constructor"},"constructor":{"name":"Result.error"}},{"binders":["nextState"],"body":{"arguments":[{"kind":"var","name":"nextState"}],"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.pending"},"kind":"constructor"},"constructor":{"name":"Result.ok"}}],"kind":"match","scrutinee":{"arguments":[{"kind":"var","name":"state"},{"kind":"var","name":"event"}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"offer"},"kind":"call"}},"constructor":{"name":"Intent.offer"}},{"binders":["outcome"],"body":{"kind":"var","name":"outcome"},"constructor":{"name":"Intent.terminal"}}],"kind":"match","scrutinee":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}}],"function":{"name":"fromStep"},"kind":"call"}],"function":{"name":"expose"},"kind":"call"},"executable":true,"kind":"definition","name":"execute","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Event"}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"field":"paidCost","kind":"project","value":{"kind":"var","name":"cursor"}},{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Core.Heap","name":"less"},"kind":"call"},"else_value":{"fields":[{"field":"event","value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"},{"fields":[{"field":"intent","value":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"activeCost","value":{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"paidCost","value":{"field":"paidCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"error","value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.invalidCursor"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Event.rejected"},"kind":"constructor"}},{"field":"remainingCredits","value":{"kind":"var","name":"availableCredits"}}],"kind":"record","type":{"name":"Funded"}},"kind":"if","then_value":{"binder":{"name":"needed","type":{"kind":"uint64"}},"body":{"binder":{"name":"used","type":{"kind":"uint64"}},"body":{"binder":{"name":"remaining","type":{"kind":"uint64"}},"body":{"branches":[{"binders":[],"body":{"fields":[{"field":"event","value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.counterExhausted"},"kind":"constructor"},{"fields":[{"field":"intent","value":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"activeCost","value":{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"paidCost","value":{"field":"paidCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"error","value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.counterExhausted"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Event.rejected"},"kind":"constructor"}},{"field":"remainingCredits","value":{"kind":"var","name":"availableCredits"}}],"kind":"record","type":{"name":"Funded"}},"constructor":{"name":"Option.none"}},{"binders":["nextPaid"],"body":{"branches":[{"binders":[],"body":{"fields":[{"field":"event","value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.counterExhausted"},"kind":"constructor"},{"fields":[{"field":"intent","value":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"activeCost","value":{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"paidCost","value":{"field":"paidCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"consumedCredits","value":{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"error","value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.counterExhausted"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Event.rejected"},"kind":"constructor"}},{"field":"remainingCredits","value":{"kind":"var","name":"availableCredits"}}],"kind":"record","type":{"name":"Funded"}},"constructor":{"name":"Option.none"}},{"binders":["nextConsumed"],"body":{"condition":{"arguments":[{"kind":"var","name":"nextPaid"},{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"fields":[{"field":"event","value":{"arguments":[{"fields":[{"field":"intent","value":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"activeCost","value":{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"paidCost","value":{"kind":"var","name":"nextPaid"}},{"field":"consumedCredits","value":{"kind":"var","name":"nextConsumed"}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"error","value":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Event.pending"},"kind":"constructor"}},{"field":"remainingCredits","value":{"kind":"var","name":"remaining"}}],"kind":"record","type":{"name":"Funded"}},"kind":"if","then_value":{"branches":[{"binders":[],"body":{"fields":[{"field":"event","value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.counterExhausted"},"kind":"constructor"},{"fields":[{"field":"intent","value":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"activeCost","value":{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"paidCost","value":{"kind":"var","name":"nextPaid"}},{"field":"consumedCredits","value":{"kind":"var","name":"nextConsumed"}},{"field":"attemptedOperations","value":{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"error","value":{"arguments":[{"arguments":[],"constructor":{"name":"Error.counterExhausted"},"kind":"constructor"}],"constructor":{"name":"Option.some"},"kind":"constructor","type_arguments":[{"arguments":[],"kind":"named","member":{"name":"Error"}}]}}],"kind":"record","type":{"name":"Cursor"}}],"constructor":{"name":"Event.rejected"},"kind":"constructor"}},{"field":"remainingCredits","value":{"kind":"var","name":"remaining"}}],"kind":"record","type":{"name":"Funded"}},"constructor":{"name":"Option.none"}},{"binders":["nextAttempts"],"body":{"fields":[{"field":"event","value":{"arguments":[{"fields":[{"field":"intent","value":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"activeCost","value":{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"paidCost","value":{"kind":"var","name":"nextPaid"}},{"field":"consumedCredits","value":{"kind":"var","name":"nextConsumed"}},{"field":"attemptedOperations","value":{"kind":"var","name":"nextAttempts"}},{"field":"usage","value":{"field":"usage","kind":"project","value":{"kind":"var","name":"cursor"}}},{"field":"error","value":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}}],"kind":"record","type":{"name":"Cursor"}}],"function":{"name":"execute"},"kind":"call"}},{"field":"remainingCredits","value":{"kind":"var","name":"remaining"}}],"kind":"record","type":{"name":"Funded"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"attemptedOperations","kind":"project","value":{"kind":"var","name":"cursor"}},{"kind":"integer","representation":"uint64","value":"1"}],"kind":"primitive","operation":"checked_add","result":{"kind":"option","value":{"kind":"uint64"}}}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"consumedCredits","kind":"project","value":{"kind":"var","name":"cursor"}},{"kind":"var","name":"used"}],"kind":"primitive","operation":"checked_add","result":{"kind":"option","value":{"kind":"uint64"}}}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"arguments":[{"field":"paidCost","kind":"project","value":{"kind":"var","name":"cursor"}},{"kind":"var","name":"used"}],"kind":"primitive","operation":"checked_add","result":{"kind":"option","value":{"kind":"uint64"}}}},"kind":"let","value":{"arguments":[{"kind":"var","name":"availableCredits"},{"kind":"var","name":"used"}],"function":{"module":"Uorc.Core.Heap","name":"wordSub"},"kind":"call"}},"kind":"let","value":{"condition":{"arguments":[{"kind":"var","name":"availableCredits"},{"kind":"var","name":"needed"}],"function":{"module":"Uorc.Core.Heap","name":"less"},"kind":"call"},"else_value":{"kind":"var","name":"needed"},"kind":"if","then_value":{"kind":"var","name":"availableCredits"}}},"kind":"let","value":{"arguments":[{"field":"activeCost","kind":"project","value":{"kind":"var","name":"cursor"}},{"field":"paidCost","kind":"project","value":{"kind":"var","name":"cursor"}}],"function":{"module":"Uorc.Core.Heap","name":"wordSub"},"kind":"call"}}},"executable":true,"kind":"definition","name":"fundActive","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"name":"availableCredits","type":{"kind":"uint64"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Funded"}}},{"axioms":["Quot.sound","propext"],"body":{"condition":{"arguments":[{"kind":"var","name":"availableCredits"},{"kind":"integer","representation":"uint64","value":"0"}],"kind":"primitive","operation":"equal","result":{"kind":"bool"}},"else_value":{"branches":[{"binders":[],"body":{"branches":[{"binders":["budget","initialArena","basis","caller","initialUsage"],"body":{"arguments":[{"kind":"var","name":"cursor"},{"kind":"var","name":"availableCredits"}],"function":{"name":"fundActive"},"kind":"call"},"constructor":{"name":"Intent.initialize"}},{"binders":["state"],"body":{"arguments":[{"kind":"var","name":"cursor"},{"kind":"var","name":"availableCredits"}],"function":{"name":"fundActive"},"kind":"call"},"constructor":{"name":"Intent.execute"}},{"binders":["state","event"],"body":{"arguments":[{"kind":"var","name":"cursor"},{"kind":"var","name":"availableCredits"}],"function":{"name":"fundActive"},"kind":"call"},"constructor":{"name":"Intent.offer"}},{"binders":["outcome"],"body":{"fields":[{"field":"event","value":{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"expose"},"kind":"call"}},{"field":"remainingCredits","value":{"kind":"var","name":"availableCredits"}}],"kind":"record","type":{"name":"Funded"}},"constructor":{"name":"Intent.terminal"}}],"kind":"match","scrutinee":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},"constructor":{"name":"Option.none"}},{"binders":["error"],"body":{"fields":[{"field":"event","value":{"arguments":[{"kind":"var","name":"error"},{"kind":"var","name":"cursor"}],"constructor":{"name":"Event.rejected"},"kind":"constructor"}},{"field":"remainingCredits","value":{"kind":"var","name":"availableCredits"}}],"kind":"record","type":{"name":"Funded"}},"constructor":{"name":"Option.some"}}],"kind":"match","scrutinee":{"field":"error","kind":"project","value":{"kind":"var","name":"cursor"}}},"kind":"if","then_value":{"fields":[{"field":"event","value":{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"expose"},"kind":"call"}},{"field":"remainingCredits","value":{"kind":"integer","representation":"uint64","value":"0"}}],"kind":"record","type":{"name":"Funded"}}},"executable":true,"kind":"definition","name":"fund","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}},{"name":"availableCredits","type":{"kind":"uint64"}}],"result":{"arguments":[],"kind":"named","member":{"name":"Funded"}}},{"axioms":["Quot.sound","propext"],"body":{"field":"event","kind":"project","value":{"arguments":[{"kind":"var","name":"cursor"},{"kind":"integer","representation":"uint64","value":"1"}],"function":{"name":"fund"},"kind":"call"}},"executable":true,"kind":"definition","name":"tick","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Event"}}},{"axioms":[],"body":{"branches":[{"binders":["budget","initialArena","basis","caller","initialUsage"],"body":{"kind":"var","name":"initialArena"},"constructor":{"name":"Intent.initialize"}},{"binders":["state"],"body":{"field":"arena","kind":"project","value":{"kind":"var","name":"state"}},"constructor":{"name":"Intent.execute"}},{"binders":["state","event"],"body":{"field":"arena","kind":"project","value":{"kind":"var","name":"state"}},"constructor":{"name":"Intent.offer"}},{"binders":["outcome"],"body":{"branches":[{"binders":["state"],"body":{"field":"arena","kind":"project","value":{"kind":"var","name":"state"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.pending"}},{"binders":["state"],"body":{"field":"arena","kind":"project","value":{"kind":"var","name":"state"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"}},{"binders":["failure","state"],"body":{"field":"arena","kind":"project","value":{"kind":"var","name":"state"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.failed"}},{"binders":["ready"],"body":{"field":"arena","kind":"project","value":{"kind":"var","name":"ready"}},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.ready"}}],"kind":"match","scrutinee":{"kind":"var","name":"outcome"}},"constructor":{"name":"Intent.terminal"}}],"kind":"match","scrutinee":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},"executable":true,"kind":"definition","name":"arena","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.Heap","name":"Arena"}}},{"axioms":[],"body":{"branches":[{"binders":["budget","initialArena","basis","caller","initialUsage"],"body":{"arguments":[{"fields":[{"field":"blocks","value":{"arguments":[{"arguments":[{"kind":"integer","representation":"uint64","value":"0"}],"constructor":{"module":"Uorc.Core.RuntimeTable","name":"TableKind.metadata"},"kind":"constructor"}],"function":{"module":"Uorc.Core.RuntimeTable","name":"emptyTable"},"kind":"call"}},{"field":"basis","value":{"kind":"var","name":"basis"}},{"field":"entry","value":{"kind":"integer","representation":"uint64","value":"0"}},{"field":"blockCount","value":{"kind":"integer","representation":"uint64","value":"0"}}],"kind":"record","type":{"module":"Uorc.Core.RuntimeProgram","name":"Program"}},{"kind":"var","name":"caller"}],"function":{"module":"Uorc.Core.RuntimeProgram","name":"rootInventory"},"kind":"call"},"constructor":{"name":"Intent.initialize"}},{"binders":["state"],"body":{"arguments":[{"kind":"var","name":"state"}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"rootInventory"},"kind":"call"},"constructor":{"name":"Intent.execute"}},{"binders":["state","event"],"body":{"arguments":[{"kind":"var","name":"state"}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"rootInventory"},"kind":"call"},"constructor":{"name":"Intent.offer"}},{"binders":["outcome"],"body":{"branches":[{"binders":["state"],"body":{"arguments":[{"kind":"var","name":"state"}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"rootInventory"},"kind":"call"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.pending"}},{"binders":["state"],"body":{"arguments":[{"kind":"var","name":"state"}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"rootInventory"},"kind":"call"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.awaiting"}},{"binders":["failure","state"],"body":{"arguments":[{"kind":"var","name":"state"}],"function":{"module":"Uorc.Core.RuntimeAdmission","name":"rootInventory"},"kind":"call"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.failed"}},{"binders":["ready"],"body":{"arguments":[{"field":"program","kind":"project","value":{"kind":"var","name":"ready"}},{"field":"caller","kind":"project","value":{"kind":"var","name":"ready"}}],"function":{"module":"Uorc.Core.RuntimeProgram","name":"rootInventory"},"kind":"call"},"constructor":{"module":"Uorc.Core.RuntimeAdmission","name":"Step.ready"}}],"kind":"match","scrutinee":{"kind":"var","name":"outcome"}},"constructor":{"name":"Intent.terminal"}}],"kind":"match","scrutinee":{"field":"intent","kind":"project","value":{"kind":"var","name":"cursor"}}},"executable":true,"kind":"definition","name":"rootInventory","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"result":{"element":{"arguments":[],"kind":"named","member":{"module":"Uorc.Core.RuntimeValue","name":"Handle"}},"kind":"list"}},{"axioms":["Quot.sound","propext"],"kind":"theorem","name":"fund_without_credit_is_observation","parameters":[{"name":"cursor","type":{"arguments":[],"kind":"named","member":{"name":"Cursor"}}}],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"kind":"var","name":"cursor"},{"kind":"integer","representation":"uint64","value":"0"}],"function":{"name":"fund"},"kind":"call"},"right":{"fields":[{"field":"event","value":{"arguments":[{"kind":"var","name":"cursor"}],"function":{"name":"expose"},"kind":"call"}},{"field":"remainingCredits","value":{"kind":"integer","representation":"uint64","value":"0"}}],"kind":"record","type":{"name":"Funded"}}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: counterExhausted, fields: []},
+    {name: invalidCursor, fields: []},
+    {name: busy, fields: []}
+  ]
+}
+
+inductive{
+  name: Intent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: initialize,
+      fields: [
+        Uorc.Core.RuntimeResources::Budget,
+        Uorc.Core.Heap::Arena,
+        Uorc.Core.RuntimeTable::Table,
+        Uorc.Core.RuntimeProgram::CallerRoots,
+        Uorc.Core.RuntimeResources::Usage
+      ]
+    },
+    {name: execute, fields: [Uorc.Core.RuntimeAdmission::Cursor]},
+    {name: offer, fields: [Uorc.Core.RuntimeAdmission::Cursor, Uorc.Core.RuntimeProgram::Event]},
+    {name: terminal, fields: [Uorc.Core.RuntimeAdmission::Step]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: intent, type: Intent},
+    {name: activeCost, type: UInt64},
+    {name: paidCost, type: UInt64},
+    {name: consumedCredits, type: UInt64},
+    {name: attemptedOperations, type: UInt64},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: error, type: (Option Error)}
+  ]
+}
+
+structure{
+  name: Ledger,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: activeCost, type: UInt64},
+    {name: paidCost, type: UInt64},
+    {name: consumedCredits, type: UInt64},
+    {name: attemptedOperations, type: UInt64},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage}
+  ]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: awaiting, fields: [Cursor]},
+    {name: ready, fields: [Uorc.Core.RuntimeProgram::Ready, Ledger]},
+    {
+      name: failed,
+      fields: [Uorc.Core.RuntimeAdmission::Error, Uorc.Core.RuntimeAdmission::Cursor, Ledger]
+    },
+    {name: rejected, fields: [Error, Cursor]}
+  ]
+}
+
+structure{
+  name: Funded,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: event, type: Event}, {name: remainingCredits, type: UInt64}]
+}
+
+definition{
+  name: ledger,
+  parameters: [cursor : Cursor],
+  result: Ledger,
+  body: (record Ledger {activeCost := (project cursor activeCost), paidCost := (project cursor paidCost), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), usage := (project cursor usage)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: stepUsage,
+  parameters: [outcome : Uorc.Core.RuntimeAdmission::Step],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match outcome
+    | Uorc.Core.RuntimeAdmission::Step.pending state => (project state usage)
+    | Uorc.Core.RuntimeAdmission::Step.awaiting state => (project state usage)
+    | Uorc.Core.RuntimeAdmission::Step.failed failure state => (project state usage)
+    | Uorc.Core.RuntimeAdmission::Step.ready ready => (project ready usage)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: zeroFeeAttemptCredit,
+  parameters: [],
+  result: UInt64,
+  body: (1 : UInt64),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: observationCredit,
+  parameters: [task : Uorc.Core.RuntimeAdmission::Task],
+  result: UInt64,
+  body: (if (prim equal (Uorc.Core.RuntimeAdmission::taskWork task) (0 : UInt64) : Bool) then (zeroFeeAttemptCredit) else (0 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: nextCost,
+  parameters: [state : Uorc.Core.RuntimeAdmission::Cursor],
+  result: UInt64,
+  body: (let cost : UInt64 := (Uorc.Core.RuntimeAdmission::taskWork (project state task)); (if (prim equal cost (0 : UInt64) : Bool) then (zeroFeeAttemptCredit) else cost)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: fromStep,
+  parameters: [cursor : Cursor, outcome : Uorc.Core.RuntimeAdmission::Step],
+  result: Cursor,
+  body: (match outcome
+    | Uorc.Core.RuntimeAdmission::Step.pending state => (record Cursor {intent := (ctor Intent.execute state), activeCost := (nextCost state), paidCost := (0 : UInt64), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), usage := (project state usage), error := (project cursor error)})
+    | Uorc.Core.RuntimeAdmission::Step.awaiting state => (record Cursor {intent := (ctor Intent.terminal outcome), activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), usage := (project state usage), error := (project cursor error)})
+    | Uorc.Core.RuntimeAdmission::Step.failed failure state => (record Cursor {intent := (ctor Intent.terminal outcome), activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), usage := (project state usage), error := (project cursor error)})
+    | Uorc.Core.RuntimeAdmission::Step.ready ready => (record Cursor {intent := (ctor Intent.terminal outcome), activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), usage := (project ready usage), error := (project cursor error)})),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: expose,
+  parameters: [cursor : Cursor],
+  result: Event,
+  body: (match (project cursor error)
+    | Option.none => (match (project cursor intent)
+      | Intent.initialize budget initialArena basis caller initialUsage => (ctor Event.pending cursor)
+      | Intent.execute state => (ctor Event.pending cursor)
+      | Intent.offer state event => (ctor Event.pending cursor)
+      | Intent.terminal outcome => (match outcome
+        | Uorc.Core.RuntimeAdmission::Step.pending state => (ctor Event.rejected (ctor Error.invalidCursor) cursor)
+        | Uorc.Core.RuntimeAdmission::Step.awaiting state => (ctor Event.awaiting cursor)
+        | Uorc.Core.RuntimeAdmission::Step.failed failure state => (ctor Event.failed failure state (ledger cursor))
+        | Uorc.Core.RuntimeAdmission::Step.ready ready => (ctor Event.ready ready (ledger cursor))))
+    | Option.some error => (ctor Event.rejected error cursor)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: start,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    initialArena : Uorc.Core.Heap::Arena,
+    basis : Uorc.Core.RuntimeTable::Table,
+    caller : Uorc.Core.RuntimeProgram::CallerRoots,
+    initialUsage : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: Cursor,
+  body: (record Cursor {intent := (ctor Intent.initialize budget initialArena basis caller initialUsage), activeCost := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.admissionInitialization)), paidCost := (0 : UInt64), consumedCredits := (0 : UInt64), attemptedOperations := (0 : UInt64), usage := initialUsage, error := (ctor Option.none [Error])}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: offer,
+  parameters: [cursor : Cursor, event : Uorc.Core.RuntimeProgram::Event],
+  result: (Result Cursor Error),
+  body: (match (project cursor error)
+    | Option.none => (match (project cursor intent)
+      | Intent.initialize budget initialArena basis caller initialUsage => (ctor Result.error [Cursor, Error] (ctor Error.busy))
+      | Intent.execute state => (ctor Result.error [Cursor, Error] (ctor Error.busy))
+      | Intent.offer state pendingEvent => (ctor Result.error [Cursor, Error] (ctor Error.busy))
+      | Intent.terminal outcome => (match outcome
+        | Uorc.Core.RuntimeAdmission::Step.pending state => (ctor Result.error [Cursor, Error] (ctor Error.invalidCursor))
+        | Uorc.Core.RuntimeAdmission::Step.awaiting state => (ctor Result.ok [Cursor, Error] (record Cursor {intent := (ctor Intent.offer state event), activeCost := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.admissionOffer)), paidCost := (0 : UInt64), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), usage := (project cursor usage), error := (project cursor error)}))
+        | Uorc.Core.RuntimeAdmission::Step.failed failure state => (ctor Result.error [Cursor, Error] (ctor Error.busy))
+        | Uorc.Core.RuntimeAdmission::Step.ready ready => (ctor Result.error [Cursor, Error] (ctor Error.busy))))
+    | Option.some error => (ctor Result.error [Cursor, Error] error)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: execute,
+  parameters: [cursor : Cursor],
+  result: Event,
+  body: (expose (fromStep cursor (match (project cursor intent)
+    | Intent.initialize budget initialArena basis caller initialUsage => (Uorc.Core.RuntimeAdmission::start budget initialArena basis caller initialUsage)
+    | Intent.execute state => (Uorc.Core.RuntimeAdmission::step state)
+    | Intent.offer state event => (match (Uorc.Core.RuntimeAdmission::offer state event)
+      | Result.error failure => (ctor Uorc.Core.RuntimeAdmission::Step.failed failure (Uorc.Core.RuntimeAdmission::with_failure state (ctor Option.some [Uorc.Core.RuntimeAdmission::Error] failure)))
+      | Result.ok nextState => (ctor Uorc.Core.RuntimeAdmission::Step.pending nextState))
+    | Intent.terminal outcome => outcome))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: fundActive,
+  parameters: [cursor : Cursor, availableCredits : UInt64],
+  result: Funded,
+  body: (if (Uorc.Core.Heap::less (project cursor paidCost) (project cursor activeCost)) then (let needed : UInt64 := (Uorc.Core.Heap::wordSub (project cursor activeCost) (project cursor paidCost)); (let used : UInt64 := (if (Uorc.Core.Heap::less availableCredits needed) then availableCredits else needed); (let remaining : UInt64 := (Uorc.Core.Heap::wordSub availableCredits used); (match (prim checked_add (project cursor paidCost) used : (Option UInt64))
+    | Option.none => (record Funded {event := (ctor Event.rejected (ctor Error.counterExhausted) (record Cursor {intent := (project cursor intent), activeCost := (project cursor activeCost), paidCost := (project cursor paidCost), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), usage := (project cursor usage), error := (ctor Option.some [Error] (ctor Error.counterExhausted))})), remainingCredits := availableCredits})
+    | Option.some nextPaid => (match (prim checked_add (project cursor consumedCredits) used : (Option UInt64))
+      | Option.none => (record Funded {event := (ctor Event.rejected (ctor Error.counterExhausted) (record Cursor {intent := (project cursor intent), activeCost := (project cursor activeCost), paidCost := (project cursor paidCost), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), usage := (project cursor usage), error := (ctor Option.some [Error] (ctor Error.counterExhausted))})), remainingCredits := availableCredits})
+      | Option.some nextConsumed => (if (prim equal nextPaid (project cursor activeCost) : Bool) then (match (prim checked_add (project cursor attemptedOperations) (1 : UInt64) : (Option UInt64))
+        | Option.none => (record Funded {event := (ctor Event.rejected (ctor Error.counterExhausted) (record Cursor {intent := (project cursor intent), activeCost := (project cursor activeCost), paidCost := nextPaid, consumedCredits := nextConsumed, attemptedOperations := (project cursor attemptedOperations), usage := (project cursor usage), error := (ctor Option.some [Error] (ctor Error.counterExhausted))})), remainingCredits := remaining})
+        | Option.some nextAttempts => (record Funded {event := (execute (record Cursor {intent := (project cursor intent), activeCost := (project cursor activeCost), paidCost := nextPaid, consumedCredits := nextConsumed, attemptedOperations := nextAttempts, usage := (project cursor usage), error := (project cursor error)})), remainingCredits := remaining})) else (record Funded {event := (ctor Event.pending (record Cursor {intent := (project cursor intent), activeCost := (project cursor activeCost), paidCost := nextPaid, consumedCredits := nextConsumed, attemptedOperations := (project cursor attemptedOperations), usage := (project cursor usage), error := (project cursor error)})), remainingCredits := remaining}))))))) else (record Funded {event := (ctor Event.rejected (ctor Error.invalidCursor) (record Cursor {intent := (project cursor intent), activeCost := (project cursor activeCost), paidCost := (project cursor paidCost), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), usage := (project cursor usage), error := (ctor Option.some [Error] (ctor Error.invalidCursor))})), remainingCredits := availableCredits})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: fund,
+  parameters: [cursor : Cursor, availableCredits : UInt64],
+  result: Funded,
+  body: (if (prim equal availableCredits (0 : UInt64) : Bool) then (record Funded {event := (expose cursor), remainingCredits := (0 : UInt64)}) else (match (project cursor error)
+    | Option.none => (match (project cursor intent)
+      | Intent.initialize budget initialArena basis caller initialUsage => (fundActive cursor availableCredits)
+      | Intent.execute state => (fundActive cursor availableCredits)
+      | Intent.offer state event => (fundActive cursor availableCredits)
+      | Intent.terminal outcome => (record Funded {event := (expose cursor), remainingCredits := availableCredits}))
+    | Option.some error => (record Funded {event := (ctor Event.rejected error cursor), remainingCredits := availableCredits}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: tick,
+  parameters: [cursor : Cursor],
+  result: Event,
+  body: (project (fund cursor (1 : UInt64)) event),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: arena,
+  parameters: [cursor : Cursor],
+  result: Uorc.Core.Heap::Arena,
+  body: (match (project cursor intent)
+    | Intent.initialize budget initialArena basis caller initialUsage => initialArena
+    | Intent.execute state => (project state arena)
+    | Intent.offer state event => (project state arena)
+    | Intent.terminal outcome => (match outcome
+      | Uorc.Core.RuntimeAdmission::Step.pending state => (project state arena)
+      | Uorc.Core.RuntimeAdmission::Step.awaiting state => (project state arena)
+      | Uorc.Core.RuntimeAdmission::Step.failed failure state => (project state arena)
+      | Uorc.Core.RuntimeAdmission::Step.ready ready => (project ready arena))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: rootInventory,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project cursor intent)
+    | Intent.initialize budget initialArena basis caller initialUsage => (Uorc.Core.RuntimeProgram::rootInventory (record Uorc.Core.RuntimeProgram::Program {blocks := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (0 : UInt64))), basis := basis, entry := (0 : UInt64), blockCount := (0 : UInt64)}) caller)
+    | Intent.execute state => (Uorc.Core.RuntimeAdmission::rootInventory state)
+    | Intent.offer state event => (Uorc.Core.RuntimeAdmission::rootInventory state)
+    | Intent.terminal outcome => (match outcome
+      | Uorc.Core.RuntimeAdmission::Step.pending state => (Uorc.Core.RuntimeAdmission::rootInventory state)
+      | Uorc.Core.RuntimeAdmission::Step.awaiting state => (Uorc.Core.RuntimeAdmission::rootInventory state)
+      | Uorc.Core.RuntimeAdmission::Step.failed failure state => (Uorc.Core.RuntimeAdmission::rootInventory state)
+      | Uorc.Core.RuntimeAdmission::Step.ready ready => (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)))),
+  axioms: [],
+  executable: true
+}
+
+theorem{
+  name: fund_without_credit_is_observation,
+  parameters: [cursor : Cursor],
+  statement: ((fund cursor (0 : UInt64)) = (record Funded {event := (expose cursor), remainingCredits := (0 : UInt64)})),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}

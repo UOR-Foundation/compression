@@ -1,7 +1,199 @@
 \begin{lexlean}{Uorc.Product.Session}
-\useglossary{lexlean.std.bool@1.1.0}
+\useglossary{lexlean.std.bool@1.2.0}
 \title{Boolean}
 \begin{semanticmodule}
-\semanticdata{{"declarations":[{"constructors":[{"fields":[],"name":"idle"},{"fields":[],"name":"admitting"},{"fields":[],"name":"searching"},{"fields":[],"name":"verifying"},{"fields":[],"name":"complete"},{"fields":[],"name":"cancelled"},{"fields":[],"name":"failed"}],"kind":"inductive","name":"Phase","parameters":[],"type_parameters":[]},{"constructors":[{"fields":[],"name":"none"},{"fields":[],"name":"inspection"},{"fields":[],"name":"checkedArchive"},{"fields":[],"name":"checkedReconstruction"},{"fields":[],"name":"checkedMinimum"},{"fields":[],"name":"failure"}],"kind":"inductive","name":"ResultKind","parameters":[],"type_parameters":[]},{"fields":[{"name":"revision","type":{"kind":"nat"}},{"name":"serial","type":{"kind":"nat"}},{"name":"active","type":{"kind":"bool"}},{"name":"hasResult","type":{"kind":"bool"}},{"name":"phase","type":{"arguments":[],"kind":"named","member":{"name":"Phase"}}},{"name":"result","type":{"arguments":[],"kind":"named","member":{"name":"ResultKind"}}}],"kind":"structure","name":"Session","parameters":[],"type_parameters":[]},{"body":{"fields":[{"field":"revision","value":{"kind":"nat","value":"0"}},{"field":"serial","value":{"kind":"nat","value":"0"}},{"field":"active","value":{"kind":"bool","value":false}},{"field":"hasResult","value":{"kind":"bool","value":false}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.idle"},"kind":"constructor"}},{"field":"result","value":{"arguments":[],"constructor":{"name":"ResultKind.none"},"kind":"constructor"}}],"kind":"record","type":{"name":"Session"}},"kind":"definition","name":"initial","parameters":[],"result":{"arguments":[],"kind":"named","member":{"name":"Session"}}},{"body":{"fields":[{"field":"revision","value":{"field":"revision","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"serial","value":{"kind":"add","left":{"field":"serial","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}},{"field":"active","value":{"kind":"bool","value":true}},{"field":"hasResult","value":{"kind":"bool","value":false}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.admitting"},"kind":"constructor"}},{"field":"result","value":{"arguments":[],"constructor":{"name":"ResultKind.none"},"kind":"constructor"}}],"kind":"record","type":{"name":"Session"}},"kind":"definition","name":"begin","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"Session"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Session"}}},{"body":{"fields":[{"field":"revision","value":{"kind":"add","left":{"field":"revision","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"nat","value":"1"}}},{"field":"serial","value":{"field":"serial","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"active","value":{"kind":"bool","value":false}},{"field":"hasResult","value":{"kind":"bool","value":false}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.idle"},"kind":"constructor"}},{"field":"result","value":{"arguments":[],"constructor":{"name":"ResultKind.none"},"kind":"constructor"}}],"kind":"record","type":{"name":"Session"}},"kind":"definition","name":"edit","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"Session"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Session"}}},{"body":{"condition":{"field":"active","kind":"project","value":{"kind":"var","name":"s"}},"else_value":{"kind":"var","name":"s"},"kind":"if","then_value":{"fields":[{"field":"revision","value":{"field":"revision","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"serial","value":{"field":"serial","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"active","value":{"kind":"bool","value":false}},{"field":"hasResult","value":{"kind":"bool","value":false}},{"field":"phase","value":{"arguments":[],"constructor":{"name":"Phase.cancelled"},"kind":"constructor"}},{"field":"result","value":{"arguments":[],"constructor":{"name":"ResultKind.none"},"kind":"constructor"}}],"kind":"record","type":{"name":"Session"}}},"kind":"definition","name":"cancel","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"Session"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Session"}}},{"body":{"kind":"and","left":{"field":"active","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"and","left":{"kind":"beq","left":{"field":"serial","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"var","name":"runSerial"}},"right":{"kind":"and","left":{"kind":"beq","left":{"field":"revision","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"var","name":"runRevision"}},"right":{"kind":"bool","value":true}}}},"executable":true,"kind":"definition","name":"ownsRun","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"Session"}}},{"name":"runSerial","type":{"kind":"nat"}},{"name":"runRevision","type":{"kind":"nat"}}],"result":{"kind":"bool"}},{"body":{"condition":{"arguments":[{"kind":"var","name":"s"},{"kind":"var","name":"runSerial"},{"kind":"var","name":"runRevision"}],"function":{"name":"ownsRun"},"kind":"call"},"else_value":{"kind":"var","name":"s"},"kind":"if","then_value":{"fields":[{"field":"revision","value":{"field":"revision","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"serial","value":{"field":"serial","kind":"project","value":{"kind":"var","name":"s"}}},{"field":"active","value":{"kind":"bool","value":false}},{"field":"hasResult","value":{"kind":"bool","value":true}},{"field":"phase","value":{"branches":[{"binders":[],"body":{"arguments":[],"constructor":{"name":"Phase.failed"},"kind":"constructor"},"constructor":{"name":"ResultKind.none"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Phase.complete"},"kind":"constructor"},"constructor":{"name":"ResultKind.inspection"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Phase.complete"},"kind":"constructor"},"constructor":{"name":"ResultKind.checkedArchive"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Phase.complete"},"kind":"constructor"},"constructor":{"name":"ResultKind.checkedReconstruction"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Phase.complete"},"kind":"constructor"},"constructor":{"name":"ResultKind.checkedMinimum"}},{"binders":[],"body":{"arguments":[],"constructor":{"name":"Phase.failed"},"kind":"constructor"},"constructor":{"name":"ResultKind.failure"}}],"kind":"match","scrutinee":{"kind":"var","name":"result"}}},{"field":"result","value":{"kind":"var","name":"result"}}],"kind":"record","type":{"name":"Session"}}},"executable":true,"kind":"definition","name":"finish","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"Session"}}},{"name":"runSerial","type":{"kind":"nat"}},{"name":"runRevision","type":{"kind":"nat"}},{"name":"result","type":{"arguments":[],"kind":"named","member":{"name":"ResultKind"}}}],"result":{"arguments":[],"kind":"named","member":{"name":"Session"}}},{"body":{"kind":"and","left":{"field":"hasResult","kind":"project","value":{"kind":"var","name":"s"}},"right":{"kind":"and","left":{"branches":[{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"ResultKind.none"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"ResultKind.inspection"}},{"binders":[],"body":{"kind":"bool","value":true},"constructor":{"name":"ResultKind.checkedArchive"}},{"binders":[],"body":{"kind":"bool","value":true},"constructor":{"name":"ResultKind.checkedReconstruction"}},{"binders":[],"body":{"kind":"bool","value":true},"constructor":{"name":"ResultKind.checkedMinimum"}},{"binders":[],"body":{"kind":"bool","value":false},"constructor":{"name":"ResultKind.failure"}}],"kind":"match","scrutinee":{"field":"result","kind":"project","value":{"kind":"var","name":"s"}}},"right":{"kind":"bool","value":true}}},"kind":"definition","name":"hasDownload","parameters":[{"name":"s","type":{"arguments":[],"kind":"named","member":{"name":"Session"}}}],"result":{"kind":"bool"}},{"axioms":[],"kind":"theorem","name":"initial_has_no_download","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"hasDownload"},"kind":"call"},"right":{"kind":"bool","value":false}}},{"axioms":[],"kind":"theorem","name":"first_run_serial","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"field":"serial","kind":"project","value":{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"}},"right":{"kind":"nat","value":"1"}}},{"axioms":[],"kind":"theorem","name":"edit_invalidates_running_result","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"}],"function":{"name":"edit"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"0"},{"arguments":[],"constructor":{"name":"ResultKind.checkedArchive"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"},"right":{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"}],"function":{"name":"edit"},"kind":"call"}}},{"axioms":[],"kind":"theorem","name":"cancel_invalidates_running_result","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"}],"function":{"name":"cancel"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"0"},{"arguments":[],"constructor":{"name":"ResultKind.checkedArchive"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"},"right":{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"}],"function":{"name":"cancel"},"kind":"call"}}},{"axioms":[],"kind":"theorem","name":"retry_invalidates_previous_result","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"0"},{"arguments":[],"constructor":{"name":"ResultKind.checkedArchive"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"},"right":{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"}}},{"axioms":[],"kind":"theorem","name":"current_checked_result_has_download","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"0"},{"arguments":[],"constructor":{"name":"ResultKind.checkedArchive"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"}],"function":{"name":"hasDownload"},"kind":"call"},"right":{"kind":"bool","value":true}}},{"axioms":[],"kind":"theorem","name":"inspection_has_no_archive_download","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"0"},{"arguments":[],"constructor":{"name":"ResultKind.inspection"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"}],"function":{"name":"hasDownload"},"kind":"call"},"right":{"kind":"bool","value":false}}},{"axioms":[],"kind":"theorem","name":"failure_has_no_archive_download","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"0"},{"arguments":[],"constructor":{"name":"ResultKind.failure"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"}],"function":{"name":"hasDownload"},"kind":"call"},"right":{"kind":"bool","value":false}}},{"axioms":[],"kind":"theorem","name":"late_wrong_revision_is_ignored","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"1"},{"arguments":[],"constructor":{"name":"ResultKind.checkedArchive"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"},"right":{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"}}},{"axioms":[],"kind":"theorem","name":"completion_is_idempotent","parameters":[],"proof":{"kind":"reflexivity"},"statement":{"kind":"eq","left":{"arguments":[{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"0"},{"arguments":[],"constructor":{"name":"ResultKind.checkedArchive"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"0"},{"arguments":[],"constructor":{"name":"ResultKind.failure"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"},"right":{"arguments":[{"arguments":[{"arguments":[],"function":{"name":"initial"},"kind":"call"}],"function":{"name":"begin"},"kind":"call"},{"kind":"nat","value":"1"},{"kind":"nat","value":"0"},{"arguments":[],"constructor":{"name":"ResultKind.checkedArchive"},"kind":"constructor"}],"function":{"name":"finish"},"kind":"call"}}}],"spec":"lexlean/semantic-module/1"}}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: idle, fields: []},
+    {name: admitting, fields: []},
+    {name: searching, fields: []},
+    {name: verifying, fields: []},
+    {name: complete, fields: []},
+    {name: cancelled, fields: []},
+    {name: failed, fields: []}
+  ]
+}
+
+inductive{
+  name: ResultKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: none, fields: []},
+    {name: inspection, fields: []},
+    {name: checkedArchive, fields: []},
+    {name: checkedReconstruction, fields: []},
+    {name: checkedMinimum, fields: []},
+    {name: failure, fields: []}
+  ]
+}
+
+structure{
+  name: Session,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: revision, type: Nat},
+    {name: serial, type: Nat},
+    {name: active, type: Bool},
+    {name: hasResult, type: Bool},
+    {name: phase, type: Phase},
+    {name: result, type: ResultKind}
+  ]
+}
+
+definition{
+  name: initial,
+  parameters: [],
+  result: Session,
+  body: (record Session {revision := 0, serial := 0, active := false, hasResult := false, phase := (ctor Phase.idle), result := (ctor ResultKind.none)})
+}
+
+definition{
+  name: begin,
+  parameters: [s : Session],
+  result: Session,
+  body: (record Session {revision := (project s revision), serial := ((project s serial) + 1), active := true, hasResult := false, phase := (ctor Phase.admitting), result := (ctor ResultKind.none)})
+}
+
+definition{
+  name: edit,
+  parameters: [s : Session],
+  result: Session,
+  body: (record Session {revision := ((project s revision) + 1), serial := (project s serial), active := false, hasResult := false, phase := (ctor Phase.idle), result := (ctor ResultKind.none)})
+}
+
+definition{
+  name: cancel,
+  parameters: [s : Session],
+  result: Session,
+  body: (if (project s active) then (record Session {revision := (project s revision), serial := (project s serial), active := false, hasResult := false, phase := (ctor Phase.cancelled), result := (ctor ResultKind.none)}) else s)
+}
+
+definition{
+  name: ownsRun,
+  parameters: [s : Session, runSerial : Nat, runRevision : Nat],
+  result: Bool,
+  body: ((project s active) && (((project s serial) =? runSerial) && (((project s revision) =? runRevision) && true))),
+  executable: true
+}
+
+definition{
+  name: resultPhase,
+  parameters: [result : ResultKind],
+  result: Phase,
+  body: (match result
+    | ResultKind.none => (ctor Phase.failed)
+    | ResultKind.inspection => (ctor Phase.complete)
+    | ResultKind.checkedArchive => (ctor Phase.complete)
+    | ResultKind.checkedReconstruction => (ctor Phase.complete)
+    | ResultKind.checkedMinimum => (ctor Phase.complete)
+    | ResultKind.failure => (ctor Phase.failed)),
+  executable: true
+}
+
+definition{
+  name: finish,
+  parameters: [s : Session, runSerial : Nat, runRevision : Nat, result : ResultKind],
+  result: Session,
+  body: (if (ownsRun s runSerial runRevision) then (record Session {revision := (project s revision), serial := (project s serial), active := false, hasResult := true, phase := (resultPhase result), result := result}) else s),
+  executable: true
+}
+
+definition{
+  name: hasDownload,
+  parameters: [s : Session],
+  result: Bool,
+  body: ((project s hasResult) && ((match (project s result)
+    | ResultKind.none => false
+    | ResultKind.inspection => false
+    | ResultKind.checkedArchive => true
+    | ResultKind.checkedReconstruction => true
+    | ResultKind.checkedMinimum => true
+    | ResultKind.failure => false) && true))
+}
+
+theorem{
+  name: initial_has_no_download,
+  parameters: [],
+  statement: ((hasDownload (initial)) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: first_run_serial,
+  parameters: [],
+  statement: ((project (begin (initial)) serial) = 1),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: edit_invalidates_running_result,
+  parameters: [],
+  statement: ((finish (edit (begin (initial))) 1 0 (ctor ResultKind.checkedArchive)) = (edit (begin (initial)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: cancel_invalidates_running_result,
+  parameters: [],
+  statement: ((finish (cancel (begin (initial))) 1 0 (ctor ResultKind.checkedArchive)) = (cancel (begin (initial)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: retry_invalidates_previous_result,
+  parameters: [],
+  statement: ((finish (begin (begin (initial))) 1 0 (ctor ResultKind.checkedArchive)) = (begin (begin (initial)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: current_checked_result_has_download,
+  parameters: [],
+  statement: ((hasDownload (finish (begin (initial)) 1 0 (ctor ResultKind.checkedArchive))) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: inspection_has_no_archive_download,
+  parameters: [],
+  statement: ((hasDownload (finish (begin (initial)) 1 0 (ctor ResultKind.inspection))) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: failure_has_no_archive_download,
+  parameters: [],
+  statement: ((hasDownload (finish (begin (initial)) 1 0 (ctor ResultKind.failure))) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: late_wrong_revision_is_ignored,
+  parameters: [],
+  statement: ((finish (begin (initial)) 1 1 (ctor ResultKind.checkedArchive)) = (begin (initial))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: completion_is_idempotent,
+  parameters: [],
+  statement: ((finish (finish (begin (initial)) 1 0 (ctor ResultKind.checkedArchive)) 1 0 (ctor ResultKind.failure)) = (finish (begin (initial)) 1 0 (ctor ResultKind.checkedArchive))),
+  proof: reflexivity{},
+  axioms: []
+}
 \end{semanticmodule}
 \end{lexlean}
