@@ -1,0 +1,200 @@
+\begin{lexlean}{Uorc.Wire.ClosedArchiveScenarios}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Wire.ArchiveIntegrity}
+\importmodule{Uorc.Wire.ArchiveSnapshot}
+\importmodule{Uorc.Wire.ArchiveSnapshotScenarios}
+\importmodule{Uorc.Integrity.Profile}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Wire.FrameEventContract}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Wire.OwnedRead}
+\importmodule{Uorc.Wire.ClosedArchiveContract}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: wire, fields: []},
+    {name: fuel, fields: []},
+    {name: assertion, fields: []},
+    {name: ownership, fields: []},
+    {name: paused, fields: []}
+  ]
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (Uorc.Wire.ArchiveSnapshotScenarios::budget),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wire,
+  parameters: [stream : Bool, bad : Bool],
+  result: (Result Bytes Error),
+  body: (let preimageLocal1 : Bytes := (if stream then 0x554f5243030100000500010001000202ff else 0x554f5243020100000500010001000202ff); (match (Uorc.Integrity.Profile::hash (if stream then (ctor Uorc.Integrity.Profile::Kind.format3Stream) else (ctor Uorc.Integrity.Profile::Kind.format2Chain)) (ctor Uorc.Integrity.Profile::Purpose.archivePreimage) preimageLocal1)
+    | Result.error whyLocal2 => (ctor Result.error [Bytes, Error] (ctor Error.wire))
+    | Result.ok valueLocal3 => (ctor Result.ok [Bytes, Error] (prim append preimageLocal1 (if bad then 0x0000000000000000000000000000000000000000000000000000000000000000 else valueLocal3) : Bytes)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: makeArchive,
+  parameters: [bytes : Bytes, split : UInt64],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.archive) bytes))
+    | Result.error whyLocal4 => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.wire))
+    | Result.ok valueLocal5 => (let imageLocal6 : Uorc.Core.Heap::Allocation := valueLocal5; (if (prim equal split (0 : UInt64) : Bool) then (match (Uorc.Core.Heap::allocateMoved (project imageLocal6 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal6 handle) (0 : UInt64) (49 : UInt64)) true false)
+      | Result.error whyLocal7 => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.wire))
+      | Result.ok valueLocal8 => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] valueLocal8)) else (match (Uorc.Core.Heap::allocateMoved (project imageLocal6 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal6 handle) (0 : UInt64) split) false false)
+      | Result.error whyLocal9 => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.wire))
+      | Result.ok valueLocal10 => (let leftLocal11 : Uorc.Core.Heap::Allocation := valueLocal10; (match (Uorc.Core.Heap::allocateMoved (project leftLocal11 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal6 handle) split (Uorc.Core.Heap::wordSub (49 : UInt64) split)) true false)
+        | Result.error whyLocal12 => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.wire))
+        | Result.ok valueLocal13 => (let rightLocal14 : Uorc.Core.Heap::Allocation := valueLocal13; (match (Uorc.Core.Heap::allocateMoved (project rightLocal14 arena) (ctor Uorc.Core.Heap::Node.sequenceBranch (49 : UInt64) (2 : UInt64) (project leftLocal11 handle) (project rightLocal14 handle)) true true)
+          | Result.error whyLocal15 => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.wire))
+          | Result.ok valueLocal16 => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] valueLocal16))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: setup,
+  parameters: [stream : Bool, bad : Bool, split : UInt64],
+  result: (Result Uorc.Wire.ArchiveIntegrity::Session Error),
+  body: (match (wire stream bad)
+    | Result.error whyLocal17 => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+    | Result.ok valueLocal18 => (match (makeArchive valueLocal18 split)
+      | Result.error whyLocal19 => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+      | Result.ok valueLocal20 => (let ownedLocal21 : Uorc.Core.Heap::Allocation := valueLocal20; (match (Uorc.Core.RuntimeResources::observeArena (budget) (Uorc.Core.RuntimeResources::zeroUsage) (project ownedLocal21 arena))
+        | Result.error whyLocal22 => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+        | Result.ok valueLocal23 => (match (Uorc.Wire.ArchiveSnapshot::begin (project ownedLocal21 arena) valueLocal23 (project ownedLocal21 handle))
+          | Result.error whyLocal24 => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+          | Result.ok valueLocal25 => (match (Uorc.Wire.ArchiveSnapshotScenarios::drive 40000 valueLocal25)
+            | Result.error whyLocal26 => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+            | Result.ok valueLocal27 => (let tLocal28 : Uorc.Wire.ArchiveSnapshot::Transition := (Uorc.Wire.ArchiveSnapshot::takeSnapshot valueLocal27); (match (project tLocal28 signal)
+              | Uorc.Wire.ArchiveSnapshot::Signal.advanced => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+              | Uorc.Wire.ArchiveSnapshot::Signal.complete => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+              | Uorc.Wire.ArchiveSnapshot::Signal.failed => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+              | Uorc.Wire.ArchiveSnapshot::Signal.clean => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+              | Uorc.Wire.ArchiveSnapshot::Signal.paused whyLocal29 => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+              | Uorc.Wire.ArchiveSnapshot::Signal.snapshot snapshotLocal30 => (ctor Result.ok [Uorc.Wire.ArchiveIntegrity::Session, Error] (Uorc.Wire.ArchiveIntegrity::begin (project (project tLocal28 session) arena) (project (project tLocal28 session) usage) snapshotLocal30)))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drive,
+  parameters: [fuel : Nat, x : Uorc.Wire.ArchiveIntegrity::Session],
+  result: (Result Uorc.Wire.ArchiveIntegrity::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal31 => (let tLocal32 : Uorc.Wire.ArchiveIntegrity::Transition := (Uorc.Wire.ArchiveIntegrity::advance (budget) x); (match (project tLocal32 signal)
+      | Uorc.Wire.ArchiveIntegrity::Signal.advanced => (drive restLocal31 (project tLocal32 session))
+      | Uorc.Wire.ArchiveIntegrity::Signal.verified => (ctor Result.ok [Uorc.Wire.ArchiveIntegrity::Session, Error] (project tLocal32 session))
+      | Uorc.Wire.ArchiveIntegrity::Signal.failed => (ctor Result.ok [Uorc.Wire.ArchiveIntegrity::Session, Error] (project tLocal32 session))
+      | Uorc.Wire.ArchiveIntegrity::Signal.clean => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.wire))
+      | Uorc.Wire.ArchiveIntegrity::Signal.paused whyLocal33 => (ctor Result.error [Uorc.Wire.ArchiveIntegrity::Session, Error] (ctor Error.paused))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: ticks,
+  parameters: [fuel : Nat, x : Uorc.Wire.ArchiveIntegrity::Session],
+  result: Uorc.Wire.ArchiveIntegrity::Session,
+  body: (match fuel
+    | Nat.zero => x
+    | Nat.succ restLocal34 => (ticks restLocal34 (project (Uorc.Wire.ArchiveIntegrity::advance (budget) x) session))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: audit,
+  parameters: [x : Uorc.Wire.ArchiveIntegrity::Session],
+  result: (Result Unit Error),
+  body: (if (Uorc.Core.HeapAudit::auditRoots (project x arena) (cons (project (project (project x state) snapshot) archive) (cons (project (project (project (project (project x state) snapshot) lengths) table) root) (nil Uorc.Core.RuntimeValue::Handle)))) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: clean,
+  parameters: [fuel : Nat, x : Uorc.Wire.ArchiveIntegrity::Session],
+  result: (Result Unit Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Unit, Error] (ctor Error.fuel))
+    | Nat.succ restLocal35 => (let tLocal36 : Uorc.Wire.ArchiveIntegrity::Transition := (Uorc.Wire.ArchiveIntegrity::cleanup (budget) x); (match (project tLocal36 signal)
+      | Uorc.Wire.ArchiveIntegrity::Signal.advanced => (clean restLocal35 (project tLocal36 session))
+      | Uorc.Wire.ArchiveIntegrity::Signal.verified => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Uorc.Wire.ArchiveIntegrity::Signal.failed => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Uorc.Wire.ArchiveIntegrity::Signal.clean => (audit (project tLocal36 session))
+      | Uorc.Wire.ArchiveIntegrity::Signal.paused whyLocal37 => (ctor Result.error [Unit, Error] (ctor Error.wire))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: check,
+  parameters: [stream : Bool, bad : Bool, split : UInt64],
+  result: (Result Unit Error),
+  body: (match (setup stream bad split)
+    | Result.error whyLocal38 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal39 => (match (drive 40000 valueLocal39)
+      | Result.error whyLocal40 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal41 => (let xLocal42 : Uorc.Wire.ArchiveIntegrity::Session := valueLocal41; (match (project (project xLocal42 state) failure)
+        | Option.none => (if bad then (ctor Result.error [Unit, Error] (ctor Error.assertion)) else (audit xLocal42))
+        | Option.some whyLocal43 => (if bad then (clean 40000 xLocal42) else (ctor Result.error [Unit, Error] (ctor Error.assertion))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: splits,
+  parameters: [remaining : Nat, stream : Bool],
+  result: (Result Unit Error),
+  body: (match remaining
+    | Nat.zero => (ctor Result.ok [Unit, Error] ())
+    | Nat.succ restLocal44 => (match (Uorc.Core.Heap::wordOfNat restLocal44)
+      | Option.none => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Option.some splitLocal45 => (match (check stream false splitLocal45)
+        | Result.error whyLocal46 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+        | Result.ok valueLocal47 => (splits restLocal44 stream)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: remaining
+}
+
+definition{
+  name: prefixes,
+  parameters: [remaining : Nat],
+  result: (Result Unit Error),
+  body: (match remaining
+    | Nat.zero => (ctor Result.ok [Unit, Error] ())
+    | Nat.succ restLocal48 => (match (setup true false (20 : UInt64))
+      | Result.error whyLocal49 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal50 => (match (clean 40000 (ticks (restLocal48 + 1) valueLocal50))
+        | Result.error whyLocal51 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+        | Result.ok valueLocal52 => (prefixes restLocal48)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: remaining
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (splits 49 false)
+    | Result.error whyLocal53 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal54 => (match (splits 49 true)
+      | Result.error whyLocal55 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal56 => (match (check false true (30 : UInt64))
+        | Result.error whyLocal57 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+        | Result.ok valueLocal58 => (match (check true true (30 : UInt64))
+          | Result.error whyLocal59 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+          | Result.ok valueLocal60 => (prefixes 80))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}
