@@ -1,0 +1,1234 @@
+\begin{lexlean}{Uorc.Search.WaitingEquality}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Search.FixedTemplates}
+\importmodule{Uorc.Search.TemplateStream}
+\importmodule{Uorc.Search.TemplateFunding}
+\importmodule{Uorc.Search.TemplateOwner}
+\importmodule{Uorc.Core.RuntimeResources}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: waitingEqCoreRuntimeValueHandle,
+  parameters: [left : Uorc.Core.RuntimeValue::Handle, right : Uorc.Core.RuntimeValue::Handle],
+  result: Bool,
+  body: (prim equal (project left id) (project right id) : Bool)
+}
+
+definition{
+  name: waitingEqSearchFixedTemplatesTemplate,
+  parameters: [
+    left : Uorc.Search.FixedTemplates::Template,
+    right : Uorc.Search.FixedTemplates::Template
+  ],
+  result: Bool,
+  body: (match left
+    | Uorc.Search.FixedTemplates::Template.affine leftField0 leftField1 leftField2 => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => (((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (prim equal leftField2 rightField2 : Bool))
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => false
+      | Uorc.Search.FixedTemplates::Template.empty => false
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => false)
+    | Uorc.Search.FixedTemplates::Template.state leftField0 leftField1 leftField2 leftField3 => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => false
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => ((((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (prim equal leftField2 rightField2 : Bool)) && (prim equal leftField3 rightField3 : Bool))
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => false
+      | Uorc.Search.FixedTemplates::Template.empty => false
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => false)
+    | Uorc.Search.FixedTemplates::Template.stateFold leftField0 leftField1 leftField2 leftField3 => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => false
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => ((((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (prim equal leftField2 rightField2 : Bool)) && (prim equal leftField3 rightField3 : Bool))
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => false
+      | Uorc.Search.FixedTemplates::Template.empty => false
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => false)
+    | Uorc.Search.FixedTemplates::Template.dictionary leftField0 leftField1 leftField2 leftField3 leftField4 leftField5 => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => false
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => ((((((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (prim equal leftField2 rightField2 : Bool)) && (waitingEqCoreRuntimeValueHandle leftField3 rightField3)) && (waitingEqCoreRuntimeValueHandle leftField4 rightField4)) && (waitingEqCoreRuntimeValueHandle leftField5 rightField5))
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => false
+      | Uorc.Search.FixedTemplates::Template.empty => false
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => false)
+    | Uorc.Search.FixedTemplates::Template.packed leftField0 leftField1 leftField2 leftField3 leftField4 leftField5 => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => false
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => ((((((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (prim equal leftField2 rightField2 : Bool)) && (waitingEqCoreRuntimeValueHandle leftField3 rightField3)) && (waitingEqCoreRuntimeValueHandle leftField4 rightField4)) && (waitingEqCoreRuntimeValueHandle leftField5 rightField5))
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => false
+      | Uorc.Search.FixedTemplates::Template.empty => false
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => false)
+    | Uorc.Search.FixedTemplates::Template.packedSingleton leftField0 leftField1 leftField2 leftField3 => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => false
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => ((((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (waitingEqCoreRuntimeValueHandle leftField2 rightField2)) && (waitingEqCoreRuntimeValueHandle leftField3 rightField3))
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => false
+      | Uorc.Search.FixedTemplates::Template.empty => false
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => false)
+    | Uorc.Search.FixedTemplates::Template.huffman leftField0 leftField1 leftField2 leftField3 leftField4 leftField5 => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => false
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => ((((((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (prim equal leftField2 rightField2 : Bool)) && (prim equal leftField3 rightField3 : Bool)) && (waitingEqCoreRuntimeValueHandle leftField4 rightField4)) && (waitingEqCoreRuntimeValueHandle leftField5 rightField5))
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => false
+      | Uorc.Search.FixedTemplates::Template.empty => false
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => false)
+    | Uorc.Search.FixedTemplates::Template.huffmanSingleton leftField0 leftField1 => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => false
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => ((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool))
+      | Uorc.Search.FixedTemplates::Template.empty => false
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => false)
+    | Uorc.Search.FixedTemplates::Template.empty => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => false
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => false
+      | Uorc.Search.FixedTemplates::Template.empty => true
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => false)
+    | Uorc.Search.FixedTemplates::Template.literalSequence leftField0 => (match right
+      | Uorc.Search.FixedTemplates::Template.affine rightField0 rightField1 rightField2 => false
+      | Uorc.Search.FixedTemplates::Template.state rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.stateFold rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.dictionary rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packed rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.packedSingleton rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Search.FixedTemplates::Template.huffman rightField0 rightField1 rightField2 rightField3 rightField4 rightField5 => false
+      | Uorc.Search.FixedTemplates::Template.huffmanSingleton rightField0 rightField1 => false
+      | Uorc.Search.FixedTemplates::Template.empty => false
+      | Uorc.Search.FixedTemplates::Template.literalSequence rightField0 => (waitingEqCoreRuntimeValueHandle leftField0 rightField0)))
+}
+
+definition{
+  name: waitingEqSearchFixedTemplatesCursor,
+  parameters: [
+    left : Uorc.Search.FixedTemplates::Cursor,
+    right : Uorc.Search.FixedTemplates::Cursor
+  ],
+  result: Bool,
+  body: ((waitingEqSearchFixedTemplatesTemplate (project left template) (project right template)) && (prim equal (project left position) (project right position) : Bool))
+}
+
+definition{
+  name: waitingEqSearchTemplateStreamPhase,
+  parameters: [left : Uorc.Search.TemplateStream::Phase, right : Uorc.Search.TemplateStream::Phase],
+  result: Bool,
+  body: (prim equal (match left
+    | Uorc.Search.TemplateStream::Phase.syntax => (0 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.literalLength => (1 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.spanBegin => (2 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.spanWalking => (3 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.spanRelease => (4 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.spanDrain => (5 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.waiting => (6 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.complete => (7 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.cancelling => (8 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.cancelDrain => (9 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.cancelled => (10 : UInt64)) (match right
+    | Uorc.Search.TemplateStream::Phase.syntax => (0 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.literalLength => (1 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.spanBegin => (2 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.spanWalking => (3 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.spanRelease => (4 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.spanDrain => (5 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.waiting => (6 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.complete => (7 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.cancelling => (8 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.cancelDrain => (9 : UInt64)
+    | Uorc.Search.TemplateStream::Phase.cancelled => (10 : UInt64)) : Bool)
+}
+
+definition{
+  name: waitingEqCoreRuntimeSequenceRef,
+  parameters: [left : Uorc.Core.RuntimeSequence::Ref, right : Uorc.Core.RuntimeSequence::Ref],
+  result: Bool,
+  body: ((waitingEqCoreRuntimeValueHandle (project left handle) (project right handle)) && (prim equal (project left slot) (project right slot) : Bool))
+}
+
+definition{
+  name: waitingEqCoreRuntimeSequenceInstruction,
+  parameters: [
+    left : Uorc.Core.RuntimeSequence::Instruction,
+    right : Uorc.Core.RuntimeSequence::Instruction
+  ],
+  result: Bool,
+  body: (((((prim equal (project left tag) (project right tag) : Bool) && (waitingEqCoreRuntimeSequenceRef (project left first) (project right first))) && (waitingEqCoreRuntimeSequenceRef (project left second) (project right second))) && (prim equal (project left a) (project right a) : Bool)) && (prim equal (project left b) (project right b) : Bool))
+}
+
+definition{
+  name: waitingEqCoreRuntimeSequencePlan,
+  parameters: [left : Uorc.Core.RuntimeSequence::Plan, right : Uorc.Core.RuntimeSequence::Plan],
+  result: Bool,
+  body: ((((((waitingEqCoreRuntimeSequenceInstruction (project left first) (project right first)) && (waitingEqCoreRuntimeSequenceInstruction (project left second) (project right second))) && (waitingEqCoreRuntimeSequenceInstruction (project left third) (project right third))) && (waitingEqCoreRuntimeSequenceInstruction (project left fourth) (project right fourth))) && (prim equal (project left length) (project right length) : Bool)) && (waitingEqCoreRuntimeSequenceRef (project left output) (project right output)))
+}
+
+definition{
+  name: waitingEqCoreRuntimeSequenceCursor,
+  parameters: [left : Uorc.Core.RuntimeSequence::Cursor, right : Uorc.Core.RuntimeSequence::Cursor],
+  result: Bool,
+  body: ((((((((((((((((((((((prim equal (project left phase) (project right phase) : Bool) && (prim equal (project left purpose) (project right purpose) : Bool)) && (waitingEqCoreRuntimeValueHandle (project left capture) (project right capture))) && (waitingEqCoreRuntimeValueHandle (project left garbage) (project right garbage))) && (waitingEqCoreRuntimeValueHandle (project left stack) (project right stack))) && (waitingEqCoreRuntimeValueHandle (project left joins) (project right joins))) && (waitingEqCoreRuntimeValueHandle (project left current) (project right current))) && (waitingEqCoreRuntimeValueHandle (project left left) (project right left))) && (waitingEqCoreRuntimeValueHandle (project left right) (project right right))) && (waitingEqCoreRuntimeValueHandle (project left result) (project right result))) && (prim equal (project left start) (project right start) : Bool)) && (prim equal (project left count) (project right count) : Bool)) && (prim equal (project left byteValue) (project right byteValue) : Bool)) && (waitingEqCoreRuntimeValueHandle (project left fresh) (project right fresh))) && (waitingEqCoreRuntimeValueHandle (project left slot1) (project right slot1))) && (waitingEqCoreRuntimeValueHandle (project left slot2) (project right slot2))) && (waitingEqCoreRuntimeValueHandle (project left slot3) (project right slot3))) && (waitingEqCoreRuntimeValueHandle (project left slot4) (project right slot4))) && (prim equal (project left planPosition) (project right planPosition) : Bool)) && (prim equal (project left planReturn) (project right planReturn) : Bool)) && (prim equal (project left planDest) (project right planDest) : Bool)) && (waitingEqCoreRuntimeSequencePlan (project left plan) (project right plan)))
+}
+
+definition{
+  name: waitingEqOptionCoreRuntimeSequenceCursor,
+  parameters: [
+    left : (Option Uorc.Core.RuntimeSequence::Cursor),
+    right : (Option Uorc.Core.RuntimeSequence::Cursor)
+  ],
+  result: Bool,
+  body: (match left
+    | Option.none => (match right | Option.none => true | Option.some rightField0 => false)
+    | Option.some leftField0 => (match right
+      | Option.none => false
+      | Option.some rightField0 => (waitingEqCoreRuntimeSequenceCursor leftField0 rightField0)))
+}
+
+definition{
+  name: waitingEqCoreRuntimeValueRuntimeType,
+  parameters: [
+    left : Uorc.Core.RuntimeValue::RuntimeType,
+    right : Uorc.Core.RuntimeValue::RuntimeType
+  ],
+  result: Bool,
+  body: (prim equal (match left
+    | Uorc.Core.RuntimeValue::RuntimeType.natural => (0 : UInt64)
+    | Uorc.Core.RuntimeValue::RuntimeType.byte => (1 : UInt64)
+    | Uorc.Core.RuntimeValue::RuntimeType.predicate => (2 : UInt64)
+    | Uorc.Core.RuntimeValue::RuntimeType.sequence => (3 : UInt64)
+    | Uorc.Core.RuntimeValue::RuntimeType.store => (4 : UInt64)) (match right
+    | Uorc.Core.RuntimeValue::RuntimeType.natural => (0 : UInt64)
+    | Uorc.Core.RuntimeValue::RuntimeType.byte => (1 : UInt64)
+    | Uorc.Core.RuntimeValue::RuntimeType.predicate => (2 : UInt64)
+    | Uorc.Core.RuntimeValue::RuntimeType.sequence => (3 : UInt64)
+    | Uorc.Core.RuntimeValue::RuntimeType.store => (4 : UInt64)) : Bool)
+}
+
+definition{
+  name: waitingEqCoreRuntimeOpcodeOpcode,
+  parameters: [left : Uorc.Core.RuntimeOpcode::Opcode, right : Uorc.Core.RuntimeOpcode::Opcode],
+  result: Bool,
+  body: (prim equal (match left
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalConstant => (0 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteConstant => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateConstant => (2 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant => (3 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAdd => (4 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalSubtract => (5 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalMultiply => (6 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalDivide => (7 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalRemainder => (8 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAnd => (9 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalOr => (10 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalXor => (11 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalNot => (12 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftLeft => (13 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftRight => (14 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalEqual => (15 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalLess => (16 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteEqual => (17 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteLess => (18 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalToByte => (19 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteToNatural => (20 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateNot => (21 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateAnd => (22 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateOr => (23 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceLength => (24 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex => (25 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceSlice => (26 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConcat => (27 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceEqual => (28 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.singletonSequence => (29 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.basisGet => (30 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeNew => (31 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeRead => (32 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeWrite => (33 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.choose => (34 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.apply => (35 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.tabulate => (36 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.fold => (37 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.scan => (38 : UInt64)) (match right
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalConstant => (0 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteConstant => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateConstant => (2 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant => (3 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAdd => (4 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalSubtract => (5 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalMultiply => (6 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalDivide => (7 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalRemainder => (8 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAnd => (9 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalOr => (10 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalXor => (11 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalNot => (12 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftLeft => (13 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftRight => (14 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalEqual => (15 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalLess => (16 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteEqual => (17 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteLess => (18 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalToByte => (19 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteToNatural => (20 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateNot => (21 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateAnd => (22 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateOr => (23 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceLength => (24 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex => (25 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceSlice => (26 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConcat => (27 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceEqual => (28 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.singletonSequence => (29 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.basisGet => (30 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeNew => (31 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeRead => (32 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeWrite => (33 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.choose => (34 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.apply => (35 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.tabulate => (36 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.fold => (37 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.scan => (38 : UInt64)) : Bool)
+}
+
+definition{
+  name: waitingEqCoreRuntimeProgramCaptureLane,
+  parameters: [
+    left : Uorc.Core.RuntimeProgram::CaptureLane,
+    right : Uorc.Core.RuntimeProgram::CaptureLane
+  ],
+  result: Bool,
+  body: (prim equal (match left
+    | Uorc.Core.RuntimeProgram::CaptureLane.first => (0 : UInt64)
+    | Uorc.Core.RuntimeProgram::CaptureLane.second => (1 : UInt64)) (match right
+    | Uorc.Core.RuntimeProgram::CaptureLane.first => (0 : UInt64)
+    | Uorc.Core.RuntimeProgram::CaptureLane.second => (1 : UInt64)) : Bool)
+}
+
+definition{
+  name: waitingEqCoreRuntimeProgramEvent,
+  parameters: [left : Uorc.Core.RuntimeProgram::Event, right : Uorc.Core.RuntimeProgram::Event],
+  result: Bool,
+  body: (match left
+    | Uorc.Core.RuntimeProgram::Event.beginBlock leftField0 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => (prim equal leftField0 rightField0 : Bool)
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.parameter leftField0 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => (waitingEqCoreRuntimeValueRuntimeType leftField0 rightField0)
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.beginBody leftField0 leftField1 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => ((waitingEqCoreRuntimeValueRuntimeType leftField0 rightField0) && (prim equal leftField1 rightField1 : Bool))
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.beginInstruction leftField0 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => (waitingEqCoreRuntimeOpcodeOpcode leftField0 rightField0)
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.scalar leftField0 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => (prim equal leftField0 rightField0 : Bool)
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.beginCaptures leftField0 leftField1 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => ((waitingEqCoreRuntimeProgramCaptureLane leftField0 rightField0) && (prim equal leftField1 rightField1 : Bool))
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.capture leftField0 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => (prim equal leftField0 rightField0 : Bool)
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.beginLiteral leftField0 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => (prim equal leftField0 rightField0 : Bool)
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.literalSpan leftField0 leftField1 leftField2 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => (((waitingEqCoreRuntimeValueHandle leftField0 rightField0) && (prim equal leftField1 rightField1 : Bool)) && (prim equal leftField2 rightField2 : Bool))
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.endInstruction => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => true
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.endBlock leftField0 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => (prim equal leftField0 rightField0 : Bool)
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => false)
+    | Uorc.Core.RuntimeProgram::Event.seal leftField0 => (match right
+      | Uorc.Core.RuntimeProgram::Event.beginBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.parameter rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.scalar rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures rightField0 rightField1 => false
+      | Uorc.Core.RuntimeProgram::Event.capture rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan rightField0 rightField1 rightField2 => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock rightField0 => false
+      | Uorc.Core.RuntimeProgram::Event.seal rightField0 => (prim equal leftField0 rightField0 : Bool)))
+}
+
+definition{
+  name: waitingEqOptionCoreRuntimeProgramEvent,
+  parameters: [
+    left : (Option Uorc.Core.RuntimeProgram::Event),
+    right : (Option Uorc.Core.RuntimeProgram::Event)
+  ],
+  result: Bool,
+  body: (match left
+    | Option.none => (match right | Option.none => true | Option.some rightField0 => false)
+    | Option.some leftField0 => (match right
+      | Option.none => false
+      | Option.some rightField0 => (waitingEqCoreRuntimeProgramEvent leftField0 rightField0)))
+}
+
+definition{
+  name: waitingEqSearchTemplateStreamState,
+  parameters: [left : Uorc.Search.TemplateStream::State, right : Uorc.Search.TemplateStream::State],
+  result: Bool,
+  body: (((((((((((waitingEqSearchFixedTemplatesCursor (project left template) (project right template)) && (waitingEqSearchTemplateStreamPhase (project left phase) (project right phase))) && (waitingEqSearchTemplateStreamPhase (project left resume) (project right resume))) && (waitingEqCoreRuntimeValueHandle (project left literalRoot) (project right literalRoot))) && (prim equal (project left literalLength) (project right literalLength) : Bool)) && (prim equal (project left offset) (project right offset) : Bool)) && (waitingEqOptionCoreRuntimeSequenceCursor (project left navigation) (project right navigation))) && (waitingEqCoreRuntimeValueHandle (project left spanTicket) (project right spanTicket))) && (waitingEqOptionCoreRuntimeProgramEvent (project left offered) (project right offered))) && (prim equal (project left consumed) (project right consumed) : Bool)) && (prim equal (project left acknowledgments) (project right acknowledgments) : Bool))
+}
+
+definition{
+  name: waitingEqCoreHeapImageKind,
+  parameters: [left : Uorc.Core.Heap::ImageKind, right : Uorc.Core.Heap::ImageKind],
+  result: Bool,
+  body: (prim equal (match left
+    | Uorc.Core.Heap::ImageKind.input => (0 : UInt64)
+    | Uorc.Core.Heap::ImageKind.archive => (1 : UInt64)
+    | Uorc.Core.Heap::ImageKind.basis => (2 : UInt64)
+    | Uorc.Core.Heap::ImageKind.runtime => (3 : UInt64)
+    | Uorc.Core.Heap::ImageKind.control => (4 : UInt64)) (match right
+    | Uorc.Core.Heap::ImageKind.input => (0 : UInt64)
+    | Uorc.Core.Heap::ImageKind.archive => (1 : UInt64)
+    | Uorc.Core.Heap::ImageKind.basis => (2 : UInt64)
+    | Uorc.Core.Heap::ImageKind.runtime => (3 : UInt64)
+    | Uorc.Core.Heap::ImageKind.control => (4 : UInt64)) : Bool)
+}
+
+definition{
+  name: waitingEqCoreRuntimeValueRootRole,
+  parameters: [left : Uorc.Core.RuntimeValue::RootRole, right : Uorc.Core.RuntimeValue::RootRole],
+  result: Bool,
+  body: (prim equal (match left
+    | Uorc.Core.RuntimeValue::RootRole.frame => (0 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.continuation => (1 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.basis => (2 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.output => (3 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.checkpoint => (4 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.input => (5 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.archive => (6 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.checkedGraph => (7 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.typeCache => (8 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.bodyCache => (9 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.lifetimeCache => (10 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.admission => (11 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.search => (12 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.certificate => (13 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.verification => (14 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.wire => (15 : UInt64)) (match right
+    | Uorc.Core.RuntimeValue::RootRole.frame => (0 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.continuation => (1 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.basis => (2 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.output => (3 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.checkpoint => (4 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.input => (5 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.archive => (6 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.checkedGraph => (7 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.typeCache => (8 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.bodyCache => (9 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.lifetimeCache => (10 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.admission => (11 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.search => (12 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.certificate => (13 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.verification => (14 : UInt64)
+    | Uorc.Core.RuntimeValue::RootRole.wire => (15 : UInt64)) : Bool)
+}
+
+definition{
+  name: waitingEqCoreRuntimeValueRuntimeValue,
+  parameters: [
+    left : Uorc.Core.RuntimeValue::RuntimeValue,
+    right : Uorc.Core.RuntimeValue::RuntimeValue
+  ],
+  result: Bool,
+  body: (match left
+    | Uorc.Core.RuntimeValue::RuntimeValue.natural leftField0 => (match right
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural rightField0 => (prim equal leftField0 rightField0 : Bool)
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.store rightField0 rightField1 => false)
+    | Uorc.Core.RuntimeValue::RuntimeValue.byte leftField0 => (match right
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte rightField0 => (prim equal leftField0 rightField0 : Bool)
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.store rightField0 rightField1 => false)
+    | Uorc.Core.RuntimeValue::RuntimeValue.predicate leftField0 => (match right
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate rightField0 => (prim equal leftField0 rightField0 : Bool)
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.store rightField0 rightField1 => false)
+    | Uorc.Core.RuntimeValue::RuntimeValue.sequence leftField0 => (match right
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence rightField0 => (waitingEqCoreRuntimeValueHandle leftField0 rightField0)
+      | Uorc.Core.RuntimeValue::RuntimeValue.store rightField0 rightField1 => false)
+    | Uorc.Core.RuntimeValue::RuntimeValue.store leftField0 leftField1 => (match right
+      | Uorc.Core.RuntimeValue::RuntimeValue.natural rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.byte rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.predicate rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.sequence rightField0 => false
+      | Uorc.Core.RuntimeValue::RuntimeValue.store rightField0 rightField1 => ((prim equal leftField0 rightField0 : Bool) && (waitingEqCoreRuntimeValueHandle leftField1 rightField1))))
+}
+
+definition{
+  name: waitingEqBytesAt,
+  parameters: [remaining : Nat, left : Bytes, right : Bytes],
+  result: Bool,
+  body: (match remaining
+    | Nat.zero => true
+    | Nat.succ idx => ((match (prim index left idx : (Option UInt8))
+      | Option.none => (match (prim index right idx : (Option UInt8))
+        | Option.none => true
+        | Option.some rightByte => false)
+      | Option.some leftByte => (match (prim index right idx : (Option UInt8))
+        | Option.none => false
+        | Option.some rightByte => (prim equal leftByte rightByte : Bool))) && (waitingEqBytesAt idx left right))),
+  recursive_argument: remaining
+}
+
+definition{
+  name: waitingEqBytes,
+  parameters: [left : Bytes, right : Bytes],
+  result: Bool,
+  body: ((prim equal (prim length left : Nat) (prim length right : Nat) : Bool) && (waitingEqBytesAt (prim length left : Nat) left right))
+}
+
+definition{
+  name: waitingEqCoreHeapNode,
+  parameters: [left : Uorc.Core.Heap::Node, right : Uorc.Core.Heap::Node],
+  result: Bool,
+  body: (match left
+    | Uorc.Core.Heap::Node.image leftField0 leftField1 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => ((waitingEqCoreHeapImageKind leftField0 rightField0) && (waitingEqBytes leftField1 rightField1))
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.sequenceLeaf leftField0 leftField1 leftField2 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => (((waitingEqCoreRuntimeValueHandle leftField0 rightField0) && (prim equal leftField1 rightField1 : Bool)) && (prim equal leftField2 rightField2 : Bool))
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.sequenceBranch leftField0 leftField1 leftField2 leftField3 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => ((((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (waitingEqCoreRuntimeValueHandle leftField2 rightField2)) && (waitingEqCoreRuntimeValueHandle leftField3 rightField3))
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.storeLeaf leftField0 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => (prim equal leftField0 rightField0 : Bool)
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.storeBranch leftField0 leftField1 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => ((waitingEqCoreRuntimeValueHandle leftField0 rightField0) && (waitingEqCoreRuntimeValueHandle leftField1 rightField1))
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.slot leftField0 leftField1 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => ((waitingEqCoreRuntimeValueRootRole leftField0 rightField0) && (waitingEqCoreRuntimeValueRuntimeValue leftField1 rightField1))
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.rootBranch leftField0 leftField1 leftField2 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => (((waitingEqCoreRuntimeValueRootRole leftField0 rightField0) && (waitingEqCoreRuntimeValueHandle leftField1 rightField1)) && (waitingEqCoreRuntimeValueHandle leftField2 rightField2))
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.metadataWord leftField0 leftField1 leftField2 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => (((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (prim equal leftField2 rightField2 : Bool))
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.metadataLink leftField0 leftField1 leftField2 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => (((prim equal leftField0 rightField0 : Bool) && (prim equal leftField1 rightField1 : Bool)) && (waitingEqCoreRuntimeValueHandle leftField2 rightField2))
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.metadataBranch leftField0 leftField1 leftField2 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => (((prim equal leftField0 rightField0 : Bool) && (waitingEqCoreRuntimeValueHandle leftField1 rightField1)) && (waitingEqCoreRuntimeValueHandle leftField2 rightField2))
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.ownerRoot leftField0 leftField1 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => ((waitingEqCoreRuntimeValueRootRole leftField0 rightField0) && (waitingEqCoreRuntimeValueHandle leftField1 rightField1))
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Node.imageReservation leftField0 leftField1 => (match right
+      | Uorc.Core.Heap::Node.image rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch rightField0 rightField1 rightField2 rightField3 => false
+      | Uorc.Core.Heap::Node.storeLeaf rightField0 => false
+      | Uorc.Core.Heap::Node.storeBranch rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.slot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.rootBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataWord rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataLink rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.metadataBranch rightField0 rightField1 rightField2 => false
+      | Uorc.Core.Heap::Node.ownerRoot rightField0 rightField1 => false
+      | Uorc.Core.Heap::Node.imageReservation rightField0 rightField1 => ((waitingEqCoreHeapImageKind leftField0 rightField0) && (prim equal leftField1 rightField1 : Bool))))
+}
+
+definition{
+  name: waitingEqCoreHeapEntry,
+  parameters: [left : Uorc.Core.Heap::Entry, right : Uorc.Core.Heap::Entry],
+  result: Bool,
+  body: ((((waitingEqCoreHeapNode (project left node) (project right node)) && (prim equal (project left incoming) (project right incoming) : Bool)) && (prim equal (project left roots) (project right roots) : Bool)) && (prim equal (project left weight) (project right weight) : Bool))
+}
+
+definition{
+  name: waitingEqCoreHeapIndex,
+  parameters: [left : Uorc.Core.Heap::Index, right : Uorc.Core.Heap::Index],
+  result: Bool,
+  body: (match left
+    | Uorc.Core.Heap::Index.empty => (match right
+      | Uorc.Core.Heap::Index.empty => true
+      | Uorc.Core.Heap::Index.leaf rightField0 => false
+      | Uorc.Core.Heap::Index.branch rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Index.leaf leftField0 => (match right
+      | Uorc.Core.Heap::Index.empty => false
+      | Uorc.Core.Heap::Index.leaf rightField0 => (waitingEqCoreHeapEntry leftField0 rightField0)
+      | Uorc.Core.Heap::Index.branch rightField0 rightField1 => false)
+    | Uorc.Core.Heap::Index.branch leftField0 leftField1 => (match right
+      | Uorc.Core.Heap::Index.empty => false
+      | Uorc.Core.Heap::Index.leaf rightField0 => false
+      | Uorc.Core.Heap::Index.branch rightField0 rightField1 => ((waitingEqCoreHeapIndex leftField0 rightField0) && (waitingEqCoreHeapIndex leftField1 rightField1)))),
+  recursive_argument: left
+}
+
+definition{
+  name: waitingEqListCoreRuntimeValueHandle,
+  parameters: [
+    left : (List Uorc.Core.RuntimeValue::Handle),
+    right : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: Bool,
+  body: (match left
+    | List.nil => (match right | List.nil => true | List.cons rightField0 rightField1 => false)
+    | List.cons leftField0 leftField1 => (match right
+      | List.nil => false
+      | List.cons rightField0 rightField1 => ((waitingEqCoreRuntimeValueHandle leftField0 rightField0) && (waitingEqListCoreRuntimeValueHandle leftField1 rightField1)))),
+  recursive_argument: left
+}
+
+definition{
+  name: waitingEqCoreHeapReleaseCursor,
+  parameters: [left : Uorc.Core.Heap::ReleaseCursor, right : Uorc.Core.Heap::ReleaseCursor],
+  result: Bool,
+  body: (((waitingEqListCoreRuntimeValueHandle (project left pending) (project right pending)) && (prim equal (project left pendingCount) (project right pendingCount) : Bool)) && (prim equal (project left rootStep) (project right rootStep) : Bool))
+}
+
+definition{
+  name: waitingEqCoreHeapArena,
+  parameters: [left : Uorc.Core.Heap::Arena, right : Uorc.Core.Heap::Arena],
+  result: Bool,
+  body: (((((((waitingEqCoreHeapIndex (project left index) (project right index)) && (prim equal (project left nextHandle) (project right nextHandle) : Bool)) && (prim equal (project left exhausted) (project right exhausted) : Bool)) && (prim equal (project left ownedBytes) (project right ownedBytes) : Bool)) && (prim equal (project left liveEntries) (project right liveEntries) : Bool)) && (prim equal (project left maxOwnedBytes) (project right maxOwnedBytes) : Bool)) && (waitingEqCoreHeapReleaseCursor (project left cursor) (project right cursor)))
+}
+
+definition{
+  name: waitingEqCoreHeapHeapError,
+  parameters: [left : Uorc.Core.Heap::HeapError, right : Uorc.Core.Heap::HeapError],
+  result: Bool,
+  body: (prim equal (match left
+    | Uorc.Core.Heap::HeapError.malformedHandle => (0 : UInt64)
+    | Uorc.Core.Heap::HeapError.invalidNode => (1 : UInt64)
+    | Uorc.Core.Heap::HeapError.countOverflow => (2 : UInt64)
+    | Uorc.Core.Heap::HeapError.countUnderflow => (3 : UInt64)
+    | Uorc.Core.Heap::HeapError.handleOverflow => (4 : UInt64)
+    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => (5 : UInt64)
+    | Uorc.Core.Heap::HeapError.budgetExceeded => (6 : UInt64)
+    | Uorc.Core.Heap::HeapError.releaseInProgress => (7 : UInt64)
+    | Uorc.Core.Heap::HeapError.releaseNotStarted => (8 : UInt64)
+    | Uorc.Core.Heap::HeapError.invalidRoot => (9 : UInt64)
+    | Uorc.Core.Heap::HeapError.protocolFailure => (10 : UInt64)) (match right
+    | Uorc.Core.Heap::HeapError.malformedHandle => (0 : UInt64)
+    | Uorc.Core.Heap::HeapError.invalidNode => (1 : UInt64)
+    | Uorc.Core.Heap::HeapError.countOverflow => (2 : UInt64)
+    | Uorc.Core.Heap::HeapError.countUnderflow => (3 : UInt64)
+    | Uorc.Core.Heap::HeapError.handleOverflow => (4 : UInt64)
+    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => (5 : UInt64)
+    | Uorc.Core.Heap::HeapError.budgetExceeded => (6 : UInt64)
+    | Uorc.Core.Heap::HeapError.releaseInProgress => (7 : UInt64)
+    | Uorc.Core.Heap::HeapError.releaseNotStarted => (8 : UInt64)
+    | Uorc.Core.Heap::HeapError.invalidRoot => (9 : UInt64)
+    | Uorc.Core.Heap::HeapError.protocolFailure => (10 : UInt64)) : Bool)
+}
+
+definition{
+  name: waitingEqCoreRuntimeResourcesError,
+  parameters: [left : Uorc.Core.RuntimeResources::Error, right : Uorc.Core.RuntimeResources::Error],
+  result: Bool,
+  body: (match left
+    | Uorc.Core.RuntimeResources::Error.workLimit => (match right
+      | Uorc.Core.RuntimeResources::Error.workLimit => true
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap rightField0 => false)
+    | Uorc.Core.RuntimeResources::Error.ownedByteLimit => (match right
+      | Uorc.Core.RuntimeResources::Error.workLimit => false
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => true
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap rightField0 => false)
+    | Uorc.Core.RuntimeResources::Error.outputLimit => (match right
+      | Uorc.Core.RuntimeResources::Error.workLimit => false
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => true
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap rightField0 => false)
+    | Uorc.Core.RuntimeResources::Error.frameLimit => (match right
+      | Uorc.Core.RuntimeResources::Error.workLimit => false
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => true
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap rightField0 => false)
+    | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => (match right
+      | Uorc.Core.RuntimeResources::Error.workLimit => false
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => true
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap rightField0 => false)
+    | Uorc.Core.RuntimeResources::Error.invalidUsage => (match right
+      | Uorc.Core.RuntimeResources::Error.workLimit => false
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => true
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap rightField0 => false)
+    | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => (match right
+      | Uorc.Core.RuntimeResources::Error.workLimit => false
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => true
+      | Uorc.Core.RuntimeResources::Error.heap rightField0 => false)
+    | Uorc.Core.RuntimeResources::Error.heap leftField0 => (match right
+      | Uorc.Core.RuntimeResources::Error.workLimit => false
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap rightField0 => (waitingEqCoreHeapHeapError leftField0 rightField0)))
+}
+
+definition{
+  name: waitingEqCoreRuntimeSequenceSequenceFailure,
+  parameters: [
+    left : Uorc.Core.RuntimeSequence::SequenceFailure,
+    right : Uorc.Core.RuntimeSequence::SequenceFailure
+  ],
+  result: Bool,
+  body: (match left
+    | Uorc.Core.RuntimeSequence::SequenceFailure.heap leftField0 => (match right
+      | Uorc.Core.RuntimeSequence::SequenceFailure.heap rightField0 => (waitingEqCoreHeapHeapError leftField0 rightField0)
+      | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false)
+    | Uorc.Core.RuntimeSequence::SequenceFailure.range => (match right
+      | Uorc.Core.RuntimeSequence::SequenceFailure.heap rightField0 => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.range => true
+      | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false)
+    | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => (match right
+      | Uorc.Core.RuntimeSequence::SequenceFailure.heap rightField0 => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => true
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false)
+    | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => (match right
+      | Uorc.Core.RuntimeSequence::SequenceFailure.heap rightField0 => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => true
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => false)
+    | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => (match right
+      | Uorc.Core.RuntimeSequence::SequenceFailure.heap rightField0 => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.range => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape => false
+      | Uorc.Core.RuntimeSequence::SequenceFailure.invalidCursor => true))
+}
+
+definition{
+  name: waitingEqSearchTemplateStreamError,
+  parameters: [left : Uorc.Search.TemplateStream::Error, right : Uorc.Search.TemplateStream::Error],
+  result: Bool,
+  body: (match left
+    | Uorc.Search.TemplateStream::Error.invalidTemplate => (match right
+      | Uorc.Search.TemplateStream::Error.invalidTemplate => true
+      | Uorc.Search.TemplateStream::Error.sequence rightField0 => false
+      | Uorc.Search.TemplateStream::Error.heap rightField0 => false
+      | Uorc.Search.TemplateStream::Error.invalidNavigationOutcome => false
+      | Uorc.Search.TemplateStream::Error.invalidSpan => false
+      | Uorc.Search.TemplateStream::Error.addressSpaceExhausted => false
+      | Uorc.Search.TemplateStream::Error.notWaiting => false
+      | Uorc.Search.TemplateStream::Error.navigationProfileMismatch => false)
+    | Uorc.Search.TemplateStream::Error.sequence leftField0 => (match right
+      | Uorc.Search.TemplateStream::Error.invalidTemplate => false
+      | Uorc.Search.TemplateStream::Error.sequence rightField0 => (waitingEqCoreRuntimeSequenceSequenceFailure leftField0 rightField0)
+      | Uorc.Search.TemplateStream::Error.heap rightField0 => false
+      | Uorc.Search.TemplateStream::Error.invalidNavigationOutcome => false
+      | Uorc.Search.TemplateStream::Error.invalidSpan => false
+      | Uorc.Search.TemplateStream::Error.addressSpaceExhausted => false
+      | Uorc.Search.TemplateStream::Error.notWaiting => false
+      | Uorc.Search.TemplateStream::Error.navigationProfileMismatch => false)
+    | Uorc.Search.TemplateStream::Error.heap leftField0 => (match right
+      | Uorc.Search.TemplateStream::Error.invalidTemplate => false
+      | Uorc.Search.TemplateStream::Error.sequence rightField0 => false
+      | Uorc.Search.TemplateStream::Error.heap rightField0 => (waitingEqCoreHeapHeapError leftField0 rightField0)
+      | Uorc.Search.TemplateStream::Error.invalidNavigationOutcome => false
+      | Uorc.Search.TemplateStream::Error.invalidSpan => false
+      | Uorc.Search.TemplateStream::Error.addressSpaceExhausted => false
+      | Uorc.Search.TemplateStream::Error.notWaiting => false
+      | Uorc.Search.TemplateStream::Error.navigationProfileMismatch => false)
+    | Uorc.Search.TemplateStream::Error.invalidNavigationOutcome => (match right
+      | Uorc.Search.TemplateStream::Error.invalidTemplate => false
+      | Uorc.Search.TemplateStream::Error.sequence rightField0 => false
+      | Uorc.Search.TemplateStream::Error.heap rightField0 => false
+      | Uorc.Search.TemplateStream::Error.invalidNavigationOutcome => true
+      | Uorc.Search.TemplateStream::Error.invalidSpan => false
+      | Uorc.Search.TemplateStream::Error.addressSpaceExhausted => false
+      | Uorc.Search.TemplateStream::Error.notWaiting => false
+      | Uorc.Search.TemplateStream::Error.navigationProfileMismatch => false)
+    | Uorc.Search.TemplateStream::Error.invalidSpan => (match right
+      | Uorc.Search.TemplateStream::Error.invalidTemplate => false
+      | Uorc.Search.TemplateStream::Error.sequence rightField0 => false
+      | Uorc.Search.TemplateStream::Error.heap rightField0 => false
+      | Uorc.Search.TemplateStream::Error.invalidNavigationOutcome => false
+      | Uorc.Search.TemplateStream::Error.invalidSpan => true
+      | Uorc.Search.TemplateStream::Error.addressSpaceExhausted => false
+      | Uorc.Search.TemplateStream::Error.notWaiting => false
+      | Uorc.Search.TemplateStream::Error.navigationProfileMismatch => false)
+    | Uorc.Search.TemplateStream::Error.addressSpaceExhausted => (match right
+      | Uorc.Search.TemplateStream::Error.invalidTemplate => false
+      | Uorc.Search.TemplateStream::Error.sequence rightField0 => false
+      | Uorc.Search.TemplateStream::Error.heap rightField0 => false
+      | Uorc.Search.TemplateStream::Error.invalidNavigationOutcome => false
+      | Uorc.Search.TemplateStream::Error.invalidSpan => false
+      | Uorc.Search.TemplateStream::Error.addressSpaceExhausted => true
+      | Uorc.Search.TemplateStream::Error.notWaiting => false
+      | Uorc.Search.TemplateStream::Error.navigationProfileMismatch => false)
+    | Uorc.Search.TemplateStream::Error.notWaiting => (match right
+      | Uorc.Search.TemplateStream::Error.invalidTemplate => false
+      | Uorc.Search.TemplateStream::Error.sequence rightField0 => false
+      | Uorc.Search.TemplateStream::Error.heap rightField0 => false
+      | Uorc.Search.TemplateStream::Error.invalidNavigationOutcome => false
+      | Uorc.Search.TemplateStream::Error.invalidSpan => false
+      | Uorc.Search.TemplateStream::Error.addressSpaceExhausted => false
+      | Uorc.Search.TemplateStream::Error.notWaiting => true
+      | Uorc.Search.TemplateStream::Error.navigationProfileMismatch => false)
+    | Uorc.Search.TemplateStream::Error.navigationProfileMismatch => (match right
+      | Uorc.Search.TemplateStream::Error.invalidTemplate => false
+      | Uorc.Search.TemplateStream::Error.sequence rightField0 => false
+      | Uorc.Search.TemplateStream::Error.heap rightField0 => false
+      | Uorc.Search.TemplateStream::Error.invalidNavigationOutcome => false
+      | Uorc.Search.TemplateStream::Error.invalidSpan => false
+      | Uorc.Search.TemplateStream::Error.addressSpaceExhausted => false
+      | Uorc.Search.TemplateStream::Error.notWaiting => false
+      | Uorc.Search.TemplateStream::Error.navigationProfileMismatch => true))
+}
+
+definition{
+  name: waitingEqSearchTemplateFundingError,
+  parameters: [
+    left : Uorc.Search.TemplateFunding::Error,
+    right : Uorc.Search.TemplateFunding::Error
+  ],
+  result: Bool,
+  body: (match left
+    | Uorc.Search.TemplateFunding::Error.resource leftField0 => (match right
+      | Uorc.Search.TemplateFunding::Error.resource rightField0 => (waitingEqCoreRuntimeResourcesError leftField0 rightField0)
+      | Uorc.Search.TemplateFunding::Error.source rightField0 => false
+      | Uorc.Search.TemplateFunding::Error.counterExhausted => false
+      | Uorc.Search.TemplateFunding::Error.invalidFunding => false
+      | Uorc.Search.TemplateFunding::Error.busy => false)
+    | Uorc.Search.TemplateFunding::Error.source leftField0 => (match right
+      | Uorc.Search.TemplateFunding::Error.resource rightField0 => false
+      | Uorc.Search.TemplateFunding::Error.source rightField0 => (waitingEqSearchTemplateStreamError leftField0 rightField0)
+      | Uorc.Search.TemplateFunding::Error.counterExhausted => false
+      | Uorc.Search.TemplateFunding::Error.invalidFunding => false
+      | Uorc.Search.TemplateFunding::Error.busy => false)
+    | Uorc.Search.TemplateFunding::Error.counterExhausted => (match right
+      | Uorc.Search.TemplateFunding::Error.resource rightField0 => false
+      | Uorc.Search.TemplateFunding::Error.source rightField0 => false
+      | Uorc.Search.TemplateFunding::Error.counterExhausted => true
+      | Uorc.Search.TemplateFunding::Error.invalidFunding => false
+      | Uorc.Search.TemplateFunding::Error.busy => false)
+    | Uorc.Search.TemplateFunding::Error.invalidFunding => (match right
+      | Uorc.Search.TemplateFunding::Error.resource rightField0 => false
+      | Uorc.Search.TemplateFunding::Error.source rightField0 => false
+      | Uorc.Search.TemplateFunding::Error.counterExhausted => false
+      | Uorc.Search.TemplateFunding::Error.invalidFunding => true
+      | Uorc.Search.TemplateFunding::Error.busy => false)
+    | Uorc.Search.TemplateFunding::Error.busy => (match right
+      | Uorc.Search.TemplateFunding::Error.resource rightField0 => false
+      | Uorc.Search.TemplateFunding::Error.source rightField0 => false
+      | Uorc.Search.TemplateFunding::Error.counterExhausted => false
+      | Uorc.Search.TemplateFunding::Error.invalidFunding => false
+      | Uorc.Search.TemplateFunding::Error.busy => true))
+}
+
+definition{
+  name: waitingEqSearchTemplateFundingOutcome,
+  parameters: [
+    left : Uorc.Search.TemplateFunding::Outcome,
+    right : Uorc.Search.TemplateFunding::Outcome
+  ],
+  result: Bool,
+  body: (match left
+    | Uorc.Search.TemplateFunding::Outcome.pending => (match right
+      | Uorc.Search.TemplateFunding::Outcome.pending => true
+      | Uorc.Search.TemplateFunding::Outcome.blocked => false
+      | Uorc.Search.TemplateFunding::Outcome.produced rightField0 => false
+      | Uorc.Search.TemplateFunding::Outcome.complete => false
+      | Uorc.Search.TemplateFunding::Outcome.cancelled => false
+      | Uorc.Search.TemplateFunding::Outcome.failed rightField0 => false)
+    | Uorc.Search.TemplateFunding::Outcome.blocked => (match right
+      | Uorc.Search.TemplateFunding::Outcome.pending => false
+      | Uorc.Search.TemplateFunding::Outcome.blocked => true
+      | Uorc.Search.TemplateFunding::Outcome.produced rightField0 => false
+      | Uorc.Search.TemplateFunding::Outcome.complete => false
+      | Uorc.Search.TemplateFunding::Outcome.cancelled => false
+      | Uorc.Search.TemplateFunding::Outcome.failed rightField0 => false)
+    | Uorc.Search.TemplateFunding::Outcome.produced leftField0 => (match right
+      | Uorc.Search.TemplateFunding::Outcome.pending => false
+      | Uorc.Search.TemplateFunding::Outcome.blocked => false
+      | Uorc.Search.TemplateFunding::Outcome.produced rightField0 => (waitingEqCoreRuntimeProgramEvent leftField0 rightField0)
+      | Uorc.Search.TemplateFunding::Outcome.complete => false
+      | Uorc.Search.TemplateFunding::Outcome.cancelled => false
+      | Uorc.Search.TemplateFunding::Outcome.failed rightField0 => false)
+    | Uorc.Search.TemplateFunding::Outcome.complete => (match right
+      | Uorc.Search.TemplateFunding::Outcome.pending => false
+      | Uorc.Search.TemplateFunding::Outcome.blocked => false
+      | Uorc.Search.TemplateFunding::Outcome.produced rightField0 => false
+      | Uorc.Search.TemplateFunding::Outcome.complete => true
+      | Uorc.Search.TemplateFunding::Outcome.cancelled => false
+      | Uorc.Search.TemplateFunding::Outcome.failed rightField0 => false)
+    | Uorc.Search.TemplateFunding::Outcome.cancelled => (match right
+      | Uorc.Search.TemplateFunding::Outcome.pending => false
+      | Uorc.Search.TemplateFunding::Outcome.blocked => false
+      | Uorc.Search.TemplateFunding::Outcome.produced rightField0 => false
+      | Uorc.Search.TemplateFunding::Outcome.complete => false
+      | Uorc.Search.TemplateFunding::Outcome.cancelled => true
+      | Uorc.Search.TemplateFunding::Outcome.failed rightField0 => false)
+    | Uorc.Search.TemplateFunding::Outcome.failed leftField0 => (match right
+      | Uorc.Search.TemplateFunding::Outcome.pending => false
+      | Uorc.Search.TemplateFunding::Outcome.blocked => false
+      | Uorc.Search.TemplateFunding::Outcome.produced rightField0 => false
+      | Uorc.Search.TemplateFunding::Outcome.complete => false
+      | Uorc.Search.TemplateFunding::Outcome.cancelled => false
+      | Uorc.Search.TemplateFunding::Outcome.failed rightField0 => (waitingEqSearchTemplateFundingError leftField0 rightField0)))
+}
+
+definition{
+  name: waitingEqSearchTemplateOwnerError,
+  parameters: [left : Uorc.Search.TemplateOwner::Error, right : Uorc.Search.TemplateOwner::Error],
+  result: Bool,
+  body: (match left
+    | Uorc.Search.TemplateOwner::Error.resource leftField0 => (match right
+      | Uorc.Search.TemplateOwner::Error.resource rightField0 => (waitingEqCoreRuntimeResourcesError leftField0 rightField0)
+      | Uorc.Search.TemplateOwner::Error.heap rightField0 => false
+      | Uorc.Search.TemplateOwner::Error.counterExhausted => false
+      | Uorc.Search.TemplateOwner::Error.invalidFunding => false)
+    | Uorc.Search.TemplateOwner::Error.heap leftField0 => (match right
+      | Uorc.Search.TemplateOwner::Error.resource rightField0 => false
+      | Uorc.Search.TemplateOwner::Error.heap rightField0 => (waitingEqCoreHeapHeapError leftField0 rightField0)
+      | Uorc.Search.TemplateOwner::Error.counterExhausted => false
+      | Uorc.Search.TemplateOwner::Error.invalidFunding => false)
+    | Uorc.Search.TemplateOwner::Error.counterExhausted => (match right
+      | Uorc.Search.TemplateOwner::Error.resource rightField0 => false
+      | Uorc.Search.TemplateOwner::Error.heap rightField0 => false
+      | Uorc.Search.TemplateOwner::Error.counterExhausted => true
+      | Uorc.Search.TemplateOwner::Error.invalidFunding => false)
+    | Uorc.Search.TemplateOwner::Error.invalidFunding => (match right
+      | Uorc.Search.TemplateOwner::Error.resource rightField0 => false
+      | Uorc.Search.TemplateOwner::Error.heap rightField0 => false
+      | Uorc.Search.TemplateOwner::Error.counterExhausted => false
+      | Uorc.Search.TemplateOwner::Error.invalidFunding => true))
+}
+
+definition{
+  name: waitingEqSearchTemplateOwnerOutcome,
+  parameters: [
+    left : Uorc.Search.TemplateOwner::Outcome,
+    right : Uorc.Search.TemplateOwner::Outcome
+  ],
+  result: Bool,
+  body: (match left
+    | Uorc.Search.TemplateOwner::Outcome.pending => (match right
+      | Uorc.Search.TemplateOwner::Outcome.pending => true
+      | Uorc.Search.TemplateOwner::Outcome.ready => false
+      | Uorc.Search.TemplateOwner::Outcome.failed rightField0 => false)
+    | Uorc.Search.TemplateOwner::Outcome.ready => (match right
+      | Uorc.Search.TemplateOwner::Outcome.pending => false
+      | Uorc.Search.TemplateOwner::Outcome.ready => true
+      | Uorc.Search.TemplateOwner::Outcome.failed rightField0 => false)
+    | Uorc.Search.TemplateOwner::Outcome.failed leftField0 => (match right
+      | Uorc.Search.TemplateOwner::Outcome.pending => false
+      | Uorc.Search.TemplateOwner::Outcome.ready => false
+      | Uorc.Search.TemplateOwner::Outcome.failed rightField0 => (waitingEqSearchTemplateOwnerError leftField0 rightField0)))
+}
+\end{semanticmodule}
+\end{lexlean}
