@@ -20,12 +20,12 @@ function runCommand(command,args,cwd,out,label,env={}){
  requireFact(!result.error&&result.status===0&&!result.signal,`${label}: ${result.error??''} ${result.stdout??''} ${result.stderr??''}`);return result;
 }
 function leanFiles(root){return fs.readdirSync(root,{withFileTypes:true}).flatMap(e=>e.isDirectory()?leanFiles(path.join(root,e.name)):e.name.endsWith('.lean')?[path.join(root,e.name)]:[]);}
-export function run(root){
+export function run(root,driverFactory=leanDriver){
  sourceAudit(root);validateFixtures(root);
  fs.mkdirSync(path.join(root,'.prism/uorc'),{recursive:true});
  const out=fs.mkdtempSync(path.join(root,'.prism/uorc/binding.')),temporary=fs.mkdtempSync(path.join(os.tmpdir(),'uorc-binding-'));
  try{
-  const selected=['src/Uorc/Integrity/BindingControls.lex.tex','src/Uorc/Integrity/CollisionEvidence.lex.tex','src/Uorc/Integrity/OwnedTranscript.lex.tex','src/Uorc/Integrity/ChargeContracts.lex.tex','src/Uorc/Integrity/TranscriptControls.lex.tex'];
+  const selected=['src/Uorc/Integrity/BindingControls.lex.tex','src/Uorc/Integrity/CollisionEvidence.lex.tex','src/Uorc/Integrity/OwnedTranscript.lex.tex','src/Uorc/Integrity/ChargeContracts.lex.tex','src/Uorc/Integrity/TranscriptControls.lex.tex','src/Uorc/Integrity/ProfilePartitionLaws.lex.tex','src/Uorc/Integrity/RetainedSourceLaws.lex.tex','src/Uorc/Integrity/CanonicalRefinement.lex.tex','src/Uorc/Integrity/ImagePublicationLaws.lex.tex','src/Uorc/Integrity/HashControlCleanupLaws.lex.tex','src/Uorc/Integrity/ProfileFuelLaws.lex.tex','src/Uorc/Integrity/OwnedControlLifetime.lex.tex','src/Uorc/Integrity/OwnedReadCoverageLaws.lex.tex','src/Uorc/Integrity/ClosedArchiveCallLaws.lex.tex','src/Uorc/Integrity/ArchiveIntegrityTraceLaws.lex.tex'];
   const verification=JSON.parse(runCommand('lexlean',['--project',path.join(root,'lexlean.toml'),'--diagnostic-format','json','verify',...selected],root,out,'source').stdout);
   requireFact(verification.success&&verification.artifacts.length===1,'one verified artifact required');
   const verified=path.resolve(root,verification.artifacts[0]);requireFact(verified.startsWith(path.resolve(root)+path.sep),'verified artifact escaped project');
@@ -40,7 +40,7 @@ export function run(root){
    runCommand('lean',['-R',temporary,'-o',target.slice(0,-5)+'.olean',target],root,out,'compile-'+name,{LEAN_PATH:leanPath});active.delete(name);done.add(name);
   }
   for(const name of files.keys())compile(name);
-  const driver=path.join(temporary,'BindingOracle.lean');fs.writeFileSync(driver,leanDriver(root));
+  const driver=path.join(temporary,'BindingOracle.lean');fs.writeFileSync(driver,driverFactory(root));
   const checked=runCommand('lean',['-R',temporary,driver],root,out,'runtime',{LEAN_PATH:leanPath});
   requireFact(checked.stdout.trim()==='20 independent binding fixtures; 60 span partitions; 10 independent owned reconstructions; ticket, cancellation, copy, digest and source-owned positive/negative controls passed','incomplete runtime inventory');
   const manifest=fs.readFileSync(path.join(verified,'build-manifest.json'));
