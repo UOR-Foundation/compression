@@ -1,0 +1,861 @@
+\begin{lexlean}{Uorc.Product.TargetDescriptorScenarios}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.TargetDescriptor}
+\importmodule{Uorc.Wire.FrameEventContract}
+\importmodule{Uorc.Wire.LengthStore}
+\title{Boolean}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: fixture, fields: []}, {name: exhausted, fields: []}]
+}
+
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
+structure{
+  name: Fixture,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: parts, type: Uorc.Product.TargetDescriptor::Parts}
+  ]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: Uorc.Product.Api::Run,
+  body: (record Uorc.Product.Api::Run {instance := 1, serial := 2, revision := 3}),
+  axioms: []
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (record Uorc.Core.RuntimeResources::Budget {maxWork := (100000000 : UInt64), maxOwnedBytes := (10000000 : UInt64), maxOutputBytes := (10000000 : UInt64), maxFrames := (1000 : UInt64)}),
+  axioms: []
+}
+
+definition{name: sample, parameters: [], result: Bytes, body: 0x0102ff, axioms: []}
+
+definition{
+  name: drainFixture,
+  parameters: [local1_fuel : Nat, local2_arena : Uorc.Core.Heap::Arena],
+  result: (Result Uorc.Core.Heap::Arena Error),
+  body: (match local1_fuel
+    | Nat.zero => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.fixture))
+    | Nat.succ local3_rest => (if (Uorc.Core.Heap::isReleasing local2_arena) then (match (Uorc.Core.Heap::releaseStep local2_arena)
+      | Result.error local4_why => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.fixture))
+      | Result.ok local5_changed => (drainFixture local3_rest (project local5_changed arena))) else (ctor Result.ok [Uorc.Core.Heap::Arena, Error] local2_arena))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: local1_fuel
+}
+
+definition{
+  name: releaseFixture,
+  parameters: [local6_arena : Uorc.Core.Heap::Arena, local7_root : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Uorc.Core.Heap::Arena Error),
+  body: (match (Uorc.Core.Heap::release local6_arena local7_root)
+    | Result.error local8_why => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.fixture))
+    | Result.ok local9_changed => (drainFixture 2048 (project local9_changed arena))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lengthIdle,
+  parameters: [local10_fuel : Nat, local11_session : Uorc.Wire.LengthStore::Session],
+  result: (Result Uorc.Wire.LengthStore::Session Error),
+  body: (match local10_fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.LengthStore::Session, Error] (ctor Error.fixture))
+    | Nat.succ local12_rest => (if (prim equal (Uorc.Wire.LengthStore::phaseCode (project (project local11_session state) phase)) (0 : UInt64) : Bool) then (ctor Result.ok [Uorc.Wire.LengthStore::Session, Error] local11_session) else (let local13_advanced : Uorc.Wire.LengthStore::Transition := (Uorc.Wire.LengthStore::advance (budget) local11_session); (match (project local13_advanced signal)
+      | Uorc.Wire.LengthStore::Signal.advanced => (lengthIdle local12_rest (project local13_advanced session))
+      | Uorc.Wire.LengthStore::Signal.stored => (lengthIdle local12_rest (project local13_advanced session))
+      | Uorc.Wire.LengthStore::Signal.failed => (ctor Result.error [Uorc.Wire.LengthStore::Session, Error] (ctor Error.fixture))
+      | Uorc.Wire.LengthStore::Signal.clean => (ctor Result.error [Uorc.Wire.LengthStore::Session, Error] (ctor Error.fixture))
+      | Uorc.Wire.LengthStore::Signal.paused local14_why => (ctor Result.error [Uorc.Wire.LengthStore::Session, Error] (ctor Error.fixture)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: local10_fuel
+}
+
+definition{
+  name: appendLengths,
+  parameters: [local15_values : (List UInt64), local16_session : Uorc.Wire.LengthStore::Session],
+  result: (Result Uorc.Wire.LengthStore::Session Error),
+  body: (match local15_values
+    | List.nil => (ctor Result.ok [Uorc.Wire.LengthStore::Session, Error] local16_session)
+    | List.cons local17_head local18_tail => (let local19_offered : Uorc.Wire.LengthStore::Transition := (Uorc.Wire.LengthStore::accept (budget) local16_session (project (project local16_session state) count) local17_head); (match (lengthIdle 1000 (project local19_offered session))
+      | Result.error local20_why => (ctor Result.error [Uorc.Wire.LengthStore::Session, Error] (ctor Error.fixture))
+      | Result.ok local21_ready => (appendLengths local18_tail local21_ready)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: local15_values
+}
+
+definition{
+  name: finishFixture,
+  parameters: [
+    local22_arena : Uorc.Core.Heap::Arena,
+    local23_sequence : Uorc.Core.RuntimeValue::Handle,
+    local24_values : (List UInt64)
+  ],
+  result: (Result Fixture Error),
+  body: (match (appendLengths local24_values (Uorc.Wire.LengthStore::begin local22_arena (Uorc.Core.RuntimeResources::zeroUsage)))
+    | Result.error local25_why => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+    | Result.ok local26_ls => (match (Uorc.Core.RuntimeResources::observeArena (budget) (project local26_ls usage) (project local26_ls arena))
+      | Result.error local27_why => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Result.ok local28_observed => (ctor Result.ok [Fixture, Error] (record Fixture {arena := (project local26_ls arena), usage := local28_observed, parts := (record Uorc.Product.TargetDescriptor::Parts {sequence := local23_sequence, lengths := (Uorc.Wire.LengthStore::lengths (project local26_ls state))})})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: fixture,
+  parameters: [local29_bytes : Bytes, local30_values : (List UInt64)],
+  result: (Result Fixture Error),
+  body: (if ((prim length local29_bytes : Nat) =? 0) then (finishFixture (Uorc.Core.Heap::emptyArena (10000000 : UInt64)) (Uorc.Core.RuntimeValue::nullHandle) local30_values) else (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (10000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) local29_bytes))
+    | Result.error local31_why => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+    | Result.ok local32_image => (match (Uorc.Core.Heap::wordOfNat (prim length local29_bytes : Nat))
+      | Option.none => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Option.some local33_length => (match (Uorc.Core.Heap::allocate (project local32_image arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project local32_image handle) (0 : UInt64) local33_length))
+        | Result.error local34_why => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+        | Result.ok local35_sequence => (match (releaseFixture (project local35_sequence arena) (project local32_image handle))
+          | Result.error local36_why => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+          | Result.ok local37_arena => (finishFixture local37_arena (project local35_sequence handle) local30_values)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ordinaryFixture,
+  parameters: [],
+  result: (Result Fixture Error),
+  body: (fixture (sample) (cons (1 : UInt64) (cons (2 : UInt64) (nil UInt64)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: delivered,
+  parameters: [local38_cursor : Uorc.Product.TargetDescriptor::Cursor],
+  result: Uorc.Product.TargetDescriptor::Cursor,
+  body: (match (Uorc.Product.TargetDescriptor::takeDelta local38_cursor (run))
+    | Uorc.Product.TargetDescriptor::DeltaTake.stale local39_retained => local39_retained
+    | Uorc.Product.TargetDescriptor::DeltaTake.empty local40_retained => local40_retained
+    | Uorc.Product.TargetDescriptor::DeltaTake.taken local41_retained local42_actualEvent => local41_retained),
+  axioms: []
+}
+
+definition{
+  name: advance,
+  parameters: [local43_t : Uorc.Product.TargetDescriptor::Transition],
+  result: Uorc.Product.TargetDescriptor::Transition,
+  body: (Uorc.Product.TargetDescriptor::tick (budget) (project local43_t arena) (project local43_t usage) (delivered (project local43_t cursor)) (run)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drive,
+  parameters: [local44_fuel : Nat, local45_t : Uorc.Product.TargetDescriptor::Transition],
+  result: Uorc.Product.TargetDescriptor::Transition,
+  body: (match local44_fuel
+    | Nat.zero => local45_t
+    | Nat.succ local46_rest => (if ((match (project local45_t outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => true
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local47_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local48_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local49_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local50_v0 => false) || ((match (project local45_t outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => true
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local51_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local52_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local53_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local54_v0 => false) || ((match (project local45_t outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local55_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local56_v0 => true
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local57_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local58_v0 => false) || (match (project local45_t outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local59_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local60_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => true
+      | Uorc.Product.TargetDescriptor::Outcome.refused local61_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local62_v0 => false)))) then local45_t else (drive local46_rest (advance local45_t)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: local44_fuel
+}
+
+definition{
+  name: initial,
+  parameters: [local63_f : Fixture],
+  result: Uorc.Product.TargetDescriptor::Transition,
+  body: (record Uorc.Product.TargetDescriptor::Transition {arena := (project local63_f arena), usage := (project local63_f usage), cursor := (Uorc.Product.TargetDescriptor::begin (run) (project local63_f parts)), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Uorc.Product.TargetDescriptor::Outcome.advanced)}),
+  axioms: []
+}
+
+definition{
+  name: take,
+  parameters: [local64_t : Uorc.Product.TargetDescriptor::Transition],
+  result: Uorc.Product.TargetDescriptor::Transition,
+  body: (Uorc.Product.TargetDescriptor::take (budget) (project local64_t arena) (project local64_t usage) (delivered (project local64_t cursor)) (run)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: appendRoots,
+  parameters: [
+    local65_left : (List Uorc.Core.RuntimeValue::Handle),
+    local66_right : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match local65_left
+    | List.nil => local66_right
+    | List.cons local67_head local68_tail => (cons local67_head (appendRoots local68_tail local66_right))),
+  axioms: [],
+  recursive_argument: local65_left
+}
+
+definition{
+  name: beginPinsActualPartsControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local69_why => false
+    | Result.ok local70_f => (let local71_initial : Uorc.Product.TargetDescriptor::Transition := (initial local70_f); (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local71_initial cursor))) =? 2) && ((Uorc.Core.HeapAudit::auditRoots (project local71_initial arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local71_initial cursor))) && ((prim equal (project (project local71_initial arena) liveEntries) (project (project local70_f arena) liveEntries) : Bool) && ((prim equal (project (project local71_initial usage) work) (project (project local70_f usage) work) : Bool) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: zeroWorkNoHeapControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local72_why => false
+    | Result.ok local73_f => (let local74_initial : Uorc.Product.TargetDescriptor::Transition := (initial local73_f); (let local75_limited : Uorc.Product.TargetDescriptor::Transition := (Uorc.Product.TargetDescriptor::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project local74_initial usage) work), maxOwnedBytes := (10000000 : UInt64), maxOutputBytes := (10000000 : UInt64), maxFrames := (1000 : UInt64)}) (project local74_initial arena) (project local74_initial usage) (project local74_initial cursor) (run)); ((match (project local75_limited outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local76_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local77_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local78_v0 => (match local78_v0
+        | Uorc.Core.RuntimeResources::Error.workLimit => true
+        | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+        | Uorc.Core.RuntimeResources::Error.outputLimit => false
+        | Uorc.Core.RuntimeResources::Error.frameLimit => false
+        | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+        | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+        | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+        | Uorc.Core.RuntimeResources::Error.heap local79_v0 => false)
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local80_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local75_limited cursor))) =? 2) && ((Uorc.Core.HeapAudit::auditRoots (project local75_limited arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local75_limited cursor))) && ((prim equal (project (project local75_limited arena) liveEntries) (project (project local74_initial arena) liveEntries) : Bool) && ((Uorc.Core.RuntimeValue::isNull (project (project local75_limited cursor) control)) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: actualControlReservationControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local81_why => false
+    | Result.ok local82_f => (let local83_initial : Uorc.Product.TargetDescriptor::Transition := (initial local82_f); (let local84_paid : Uorc.Product.TargetDescriptor::Transition := (advance local83_initial); ((prim equal (project (project local84_paid usage) work) (Uorc.Core.Heap::wordAdd (project (project local83_initial usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) : Bool) && ((prim equal (project (project local84_paid delta) allocatedEntries) (1 : UInt64) : Bool) && ((not (Uorc.Core.Heap::less (project (project local84_paid delta) allocatedBytes) (Uorc.Core.RuntimeOwnerRoots::controlBytes))) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local84_paid cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project local84_paid arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local84_paid cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: pendingDeltaBlocksMutationControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local85_why => false
+    | Result.ok local86_f => (let local87_initial : Uorc.Product.TargetDescriptor::Transition := (initial local86_f); (let local88_paid : Uorc.Product.TargetDescriptor::Transition := (advance local87_initial); (let local89_blocked : Uorc.Product.TargetDescriptor::Transition := (Uorc.Product.TargetDescriptor::tick (budget) (project local88_paid arena) (project local88_paid usage) (project local88_paid cursor) (run)); ((match (project local89_blocked outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => true
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local90_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local91_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local92_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local93_v0 => false) && ((prim equal (project (project local89_blocked usage) work) (project (project local88_paid usage) work) : Bool) && ((prim equal (project (project local89_blocked arena) liveEntries) (project (project local88_paid arena) liveEntries) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project local89_blocked arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local89_blocked cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: onceOnlyDeltaTransferControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local94_why => false
+    | Result.ok local95_f => (let local96_initial : Uorc.Product.TargetDescriptor::Transition := (initial local95_f); (let local97_paid : Uorc.Product.TargetDescriptor::Transition := (advance local96_initial); (match (Uorc.Product.TargetDescriptor::takeDelta (project local97_paid cursor) (run))
+      | Uorc.Product.TargetDescriptor::DeltaTake.stale local98_v0 => false
+      | Uorc.Product.TargetDescriptor::DeltaTake.empty local99_v0 => false
+      | Uorc.Product.TargetDescriptor::DeltaTake.taken local100_v0 local101_v1 => ((prim equal (project local101_v1 allocatedEntries) (1 : UInt64) : Bool) && ((match (Uorc.Product.TargetDescriptor::takeDelta local100_v0 (run))
+        | Uorc.Product.TargetDescriptor::DeltaTake.stale local102_v0 => false
+        | Uorc.Product.TargetDescriptor::DeltaTake.empty local103_v0 => true
+        | Uorc.Product.TargetDescriptor::DeltaTake.taken local104_v0 local105_v1 => false) && ((match (Uorc.Product.TargetDescriptor::deltaTakeDisposition (ctor Uorc.Product.TargetDescriptor::DeltaTake.taken local100_v0 local101_v1))
+        | Uorc.Product.Api::ReleaseDisposition.retain local106_v0 => true
+        | Uorc.Product.Api::ReleaseDisposition.releasable => false) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lengthObservationPrepaymentControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local107_why => false
+    | Result.ok local108_f => (let local109_initial : Uorc.Product.TargetDescriptor::Transition := (initial local108_f); (let local110_reader : Uorc.Product.TargetDescriptor::Transition := (advance (advance local109_initial)); (let local111_limited : Uorc.Product.TargetDescriptor::Transition := (Uorc.Product.TargetDescriptor::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordSub (Uorc.Core.Heap::wordAdd (project (project local110_reader usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.scalarCheck))) (1 : UInt64)), maxOwnedBytes := (10000000 : UInt64), maxOutputBytes := (10000000 : UInt64), maxFrames := (1000 : UInt64)}) (project local110_reader arena) (project local110_reader usage) (delivered (project local110_reader cursor)) (run)); ((match (project local111_limited outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local112_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local113_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local114_v0 => true
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local115_v0 => false) && ((prim equal (project (project local111_limited cursor) index) (0 : UInt64) : Bool) && ((prim equal (project (project local111_limited usage) work) (project (project local110_reader usage) work) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project local111_limited arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local111_limited cursor))) && true)))))))),
+  axioms: [propext]
+}
+
+definition{
+  name: singleDescriptorTicketControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local116_why => false
+    | Result.ok local117_f => (let local118_initial : Uorc.Product.TargetDescriptor::Transition := (initial local117_f); (let local119_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local118_initial); ((match (project local119_ready outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => true
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local120_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local121_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local122_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local123_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local119_ready cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project local119_ready arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local119_ready cursor))) && ((prim equal (project (project local119_ready arena) liveEntries) (Uorc.Core.Heap::wordAdd (project (project local118_initial arena) liveEntries) (9 : UInt64)) : Bool) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: viewAndPayloadSurviveCleanupControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local124_why => false
+    | Result.ok local125_f => (let local126_initial : Uorc.Product.TargetDescriptor::Transition := (initial local125_f); (let local127_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local126_initial); (let local128_taken : Uorc.Product.TargetDescriptor::Transition := (take local127_ready); (match (project local128_taken outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local129_v0 => (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local128_taken cursor))) =? 0) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::outcomeRoots (project local128_taken outcome))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project local128_taken arena) (appendRoots (Uorc.Product.TargetDescriptor::ownedRoots (project local128_taken cursor)) (Uorc.Product.TargetDescriptor::outcomeRoots (project local128_taken outcome)))) && ((match (Uorc.Product.TargetDescriptor::view (project local128_taken arena) (project local129_v0 record))
+        | Result.error local130_why => false
+        | Result.ok local131_snapshot => ((prim equal (project (project local131_snapshot lengths) count) (2 : UInt64) : Bool) && ((prim equal (project (project local131_snapshot lengths) totalOutputBytes) (3 : UInt64) : Bool) && ((Uorc.Core.RuntimeValue::sameHandle (project local131_snapshot sequence) (project (project (project local128_taken cursor) parts) sequence)) && true)))) && true))))
+      | Uorc.Product.TargetDescriptor::Outcome.failed local132_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local133_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local134_v0 => false))))),
+  axioms: [propext]
+}
+
+definition{
+  name: oneTimeSnapshotTransferControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local135_why => false
+    | Result.ok local136_f => (let local137_initial : Uorc.Product.TargetDescriptor::Transition := (initial local136_f); (let local138_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local137_initial); (let local139_taken : Uorc.Product.TargetDescriptor::Transition := (take local138_ready); (let local140_again : Uorc.Product.TargetDescriptor::Transition := (take local139_taken); ((match (project local139_taken outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local141_v0 => true
+      | Uorc.Product.TargetDescriptor::Outcome.failed local142_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local143_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local144_v0 => false) && ((match (project local140_again outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local145_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local146_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local147_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local148_v0 => (match local148_v0
+        | Uorc.Product.TargetDescriptor::Error.wrongRun => false
+        | Uorc.Product.TargetDescriptor::Error.notReady => true
+        | Uorc.Product.TargetDescriptor::Error.invalidDescriptor => false
+        | Uorc.Product.TargetDescriptor::Error.invalidLengthsKind => false
+        | Uorc.Product.TargetDescriptor::Error.sumOverflow => false
+        | Uorc.Product.TargetDescriptor::Error.sumMismatch => false
+        | Uorc.Product.TargetDescriptor::Error.sequenceLengthMismatch => false
+        | Uorc.Product.TargetDescriptor::Error.read local149_v0 => false
+        | Uorc.Product.TargetDescriptor::Error.length local150_v0 => false
+        | Uorc.Product.TargetDescriptor::Error.heap local151_v0 => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local140_again cursor))) =? 0) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: viewPrepaymentControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local152_why => false
+    | Result.ok local153_f => (let local154_initial : Uorc.Product.TargetDescriptor::Transition := (initial local153_f); (let local155_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local154_initial); (let local156_view : Uorc.Product.TargetDescriptor::View := (Uorc.Product.TargetDescriptor::readView (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project local155_ready usage) work), maxOwnedBytes := (10000000 : UInt64), maxOutputBytes := (10000000 : UInt64), maxFrames := (1000 : UInt64)}) (project local155_ready arena) (project local155_ready usage) (project (project local155_ready cursor) record)); (match (project local156_view outcome)
+      | Uorc.Product.TargetDescriptor::ViewOutcome.refused local157_v0 => (prim equal (project (project local156_view usage) work) (project (project local155_ready usage) work) : Bool)
+      | Uorc.Product.TargetDescriptor::ViewOutcome.viewed local158_v0 => false))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancelAfterReadyReleasesRecordControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local159_why => false
+    | Result.ok local160_f => (let local161_initial : Uorc.Product.TargetDescriptor::Transition := (initial local160_f); (let local162_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local161_initial); (let local163_cancelled : Uorc.Product.TargetDescriptor::Transition := (Uorc.Product.TargetDescriptor::tick (budget) (project local162_ready arena) (project local162_ready usage) (Uorc.Product.TargetDescriptor::cancel (delivered (project local162_ready cursor)) (run)) (run)); (let local164_clean : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local163_cancelled); ((match (project local164_clean outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local165_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local166_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => true
+      | Uorc.Product.TargetDescriptor::Outcome.refused local167_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local168_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local164_clean cursor))) =? 0) && ((prim equal (project (project local164_clean arena) liveEntries) (0 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project local164_clean arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local164_clean cursor))) && true))))))))),
+  axioms: [propext]
+}
+
+definition{
+  name: wrongTotalRejectedControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local169_why => false
+    | Result.ok local170_f => (let local171_bad : Uorc.Product.TargetDescriptor::Transition := (Uorc.Product.TargetDescriptor::tick (budget) (project local170_f arena) (project local170_f usage) (Uorc.Product.TargetDescriptor::begin (run) (record Uorc.Product.TargetDescriptor::Parts {sequence := (project (project local170_f parts) sequence), lengths := (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (project (project (project local170_f parts) lengths) table), count := (project (project (project local170_f parts) lengths) count), totalOutputBytes := (2 : UInt64)})})) (run)); (let local172_failed : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local171_bad); (match (project local172_failed outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local173_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local174_v0 => (match local174_v0
+        | Uorc.Product.TargetDescriptor::Error.wrongRun => false
+        | Uorc.Product.TargetDescriptor::Error.notReady => false
+        | Uorc.Product.TargetDescriptor::Error.invalidDescriptor => false
+        | Uorc.Product.TargetDescriptor::Error.invalidLengthsKind => false
+        | Uorc.Product.TargetDescriptor::Error.sumOverflow => false
+        | Uorc.Product.TargetDescriptor::Error.sumMismatch => false
+        | Uorc.Product.TargetDescriptor::Error.sequenceLengthMismatch => true
+        | Uorc.Product.TargetDescriptor::Error.read local175_v0 => false
+        | Uorc.Product.TargetDescriptor::Error.length local176_v0 => false
+        | Uorc.Product.TargetDescriptor::Error.heap local177_v0 => false)
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local178_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local179_v0 => false)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cleanupDrive,
+  parameters: [local180_fuel : Nat, local181_t : Uorc.Product.TargetDescriptor::Transition],
+  result: Uorc.Product.TargetDescriptor::Transition,
+  body: (match local180_fuel
+    | Nat.zero => local181_t
+    | Nat.succ local182_rest => (if ((Uorc.Product.TargetDescriptor::phaseCode (project (project local181_t cursor) phase)) =? 15) then local181_t else (cleanupDrive local182_rest (advance local181_t)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: local180_fuel
+}
+
+definition{
+  name: cancelPartialConstructionControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local183_why => false
+    | Result.ok local184_f => (let local185_initial : Uorc.Product.TargetDescriptor::Transition := (initial local184_f); (let local186_partial : Uorc.Product.TargetDescriptor::Transition := (advance (advance (advance (advance (advance local185_initial))))); (let local187_clean : Uorc.Product.TargetDescriptor::Transition := (cleanupDrive 10000 (Uorc.Product.TargetDescriptor::tick (budget) (project local186_partial arena) (project local186_partial usage) (Uorc.Product.TargetDescriptor::cancel (delivered (project local186_partial cursor)) (run)) (run))); ((match (project local187_clean outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local188_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local189_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => true
+      | Uorc.Product.TargetDescriptor::Outcome.refused local190_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local191_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local187_clean cursor))) =? 0) && ((prim equal (project (project local187_clean arena) liveEntries) (0 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project local187_clean arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local187_clean cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emptyObjectListControl,
+  parameters: [],
+  result: Bool,
+  body: (match (fixture 0x (nil UInt64))
+    | Result.error local192_why => false
+    | Result.ok local193_f => (let local194_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 (initial local193_f)); ((match (project local194_ready outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => true
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local195_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local196_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local197_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local198_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local194_ready cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project local194_ready arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local194_ready cursor))) && ((match (Uorc.Product.TargetDescriptor::view (project local194_ready arena) (project (project local194_ready cursor) record))
+      | Result.error local199_why => false
+      | Result.ok local200_snapshot => ((prim equal (project (project local200_snapshot lengths) count) (0 : UInt64) : Bool) && ((prim equal (project (project local200_snapshot lengths) totalOutputBytes) (0 : UInt64) : Bool) && true))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: twoEmptyObjectsControl,
+  parameters: [],
+  result: Bool,
+  body: (match (fixture 0x (cons (0 : UInt64) (cons (0 : UInt64) (nil UInt64))))
+    | Result.error local201_why => false
+    | Result.ok local202_f => (let local203_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 (initial local202_f)); ((match (project local203_ready outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => true
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local204_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local205_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local206_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local207_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local203_ready cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project local203_ready arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local203_ready cursor))) && ((match (Uorc.Product.TargetDescriptor::view (project local203_ready arena) (project (project local203_ready cursor) record))
+      | Result.error local208_why => false
+      | Result.ok local209_snapshot => ((prim equal (project (project local209_snapshot lengths) count) (2 : UInt64) : Bool) && ((prim equal (project (project local209_snapshot lengths) totalOutputBytes) (0 : UInt64) : Bool) && true))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: staleTakePreservesDescriptorControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local210_why => false
+    | Result.ok local211_f => (let local212_initial : Uorc.Product.TargetDescriptor::Transition := (initial local211_f); (let local213_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local212_initial); (let local214_stale : Uorc.Product.TargetDescriptor::Transition := (Uorc.Product.TargetDescriptor::take (budget) (project local213_ready arena) (project local213_ready usage) (project local213_ready cursor) (record Uorc.Product.Api::Run {instance := 1, serial := 9, revision := 3})); ((match (project local214_stale outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local215_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local216_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local217_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local218_v0 => (match local218_v0
+        | Uorc.Product.TargetDescriptor::Error.wrongRun => true
+        | Uorc.Product.TargetDescriptor::Error.notReady => false
+        | Uorc.Product.TargetDescriptor::Error.invalidDescriptor => false
+        | Uorc.Product.TargetDescriptor::Error.invalidLengthsKind => false
+        | Uorc.Product.TargetDescriptor::Error.sumOverflow => false
+        | Uorc.Product.TargetDescriptor::Error.sumMismatch => false
+        | Uorc.Product.TargetDescriptor::Error.sequenceLengthMismatch => false
+        | Uorc.Product.TargetDescriptor::Error.read local219_v0 => false
+        | Uorc.Product.TargetDescriptor::Error.length local220_v0 => false
+        | Uorc.Product.TargetDescriptor::Error.heap local221_v0 => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local214_stale cursor))) =? 1) && ((prim equal (project (project local214_stale usage) work) (project (project local213_ready usage) work) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project local214_stale arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local214_stale cursor))) && true)))))))),
+  axioms: [propext]
+}
+
+definition{
+  name: staleDeltaDoesNotClearControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local222_why => false
+    | Result.ok local223_f => (let local224_initial : Uorc.Product.TargetDescriptor::Transition := (initial local223_f); (let local225_paid : Uorc.Product.TargetDescriptor::Transition := (advance local224_initial); (match (Uorc.Product.TargetDescriptor::takeDelta (project local225_paid cursor) (record Uorc.Product.Api::Run {instance := 1, serial := 9, revision := 3}))
+      | Uorc.Product.TargetDescriptor::DeltaTake.stale local226_v0 => (match (project local226_v0 pendingDelta)
+        | Option.none => false
+        | Option.some local227_actual => (prim equal (project local227_actual allocatedEntries) (1 : UInt64) : Bool))
+      | Uorc.Product.TargetDescriptor::DeltaTake.empty local228_v0 => false
+      | Uorc.Product.TargetDescriptor::DeltaTake.taken local229_v0 local230_v1 => false)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: resourcePauseResumeControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local231_why => false
+    | Result.ok local232_f => (let local233_initial : Uorc.Product.TargetDescriptor::Transition := (initial local232_f); (let local234_limited : Uorc.Product.TargetDescriptor::Transition := (Uorc.Product.TargetDescriptor::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project local233_initial usage) work), maxOwnedBytes := (10000000 : UInt64), maxOutputBytes := (10000000 : UInt64), maxFrames := (1000 : UInt64)}) (project local233_initial arena) (project local233_initial usage) (project local233_initial cursor) (run)); (let local235_extended : Uorc.Product.TargetDescriptor::Transition := (Uorc.Product.TargetDescriptor::extend (budget) (project local234_limited arena) (project local234_limited usage) (project local234_limited cursor) (run)); (let local236_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 (advance local235_extended)); ((match (project local234_limited outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local237_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local238_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local239_v0 => true
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local240_v0 => false) && ((match (project local236_ready outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => true
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local241_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local242_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local243_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local244_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local236_ready cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project local236_ready arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local236_ready cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: payloadByteSurvivesCleanupControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local245_why => false
+    | Result.ok local246_f => (let local247_initial : Uorc.Product.TargetDescriptor::Transition := (initial local246_f); (let local248_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local247_initial); (let local249_taken : Uorc.Product.TargetDescriptor::Transition := (take local248_ready); (match (project local249_taken outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local250_v0 => (match (Uorc.Core.Heap::lookup (project local249_taken arena) (project local250_v0 sequence))
+        | Result.error local251_why => false
+        | Result.ok local252_entry => (match (project local252_entry node)
+          | Uorc.Core.Heap::Node.image local253_n0 local254_n1 => false
+          | Uorc.Core.Heap::Node.sequenceLeaf local255_n0 local256_n1 local257_n2 => (match (Uorc.Core.RuntimeImage::readByte (project local249_taken arena) local255_n0 (Uorc.Core.Heap::wordAdd local256_n1 (2 : UInt64)))
+            | Result.error local258_why => false
+            | Result.ok local259_byte => (prim equal local259_byte (255 : UInt8) : Bool))
+          | Uorc.Core.Heap::Node.sequenceBranch local260_n0 local261_n1 local262_n2 local263_n3 => false
+          | Uorc.Core.Heap::Node.storeLeaf local264_n0 => false
+          | Uorc.Core.Heap::Node.storeBranch local265_n0 local266_n1 => false
+          | Uorc.Core.Heap::Node.slot local267_n0 local268_n1 => false
+          | Uorc.Core.Heap::Node.rootBranch local269_n0 local270_n1 local271_n2 => false
+          | Uorc.Core.Heap::Node.metadataWord local272_n0 local273_n1 local274_n2 => false
+          | Uorc.Core.Heap::Node.metadataLink local275_n0 local276_n1 local277_n2 => false
+          | Uorc.Core.Heap::Node.metadataBranch local278_n0 local279_n1 local280_n2 => false
+          | Uorc.Core.Heap::Node.ownerRoot local281_n0 local282_n1 => false
+          | Uorc.Core.Heap::Node.imageReservation local283_n0 local284_n1 => false))
+      | Uorc.Product.TargetDescriptor::Outcome.failed local285_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local286_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local287_v0 => false))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: orderedLengthsSurviveCleanupControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local288_why => false
+    | Result.ok local289_f => (let local290_initial : Uorc.Product.TargetDescriptor::Transition := (initial local289_f); (let local291_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local290_initial); (let local292_taken : Uorc.Product.TargetDescriptor::Transition := (take local291_ready); (match (project local292_taken outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local293_v0 => (match (Uorc.Wire.FrameEventContract::lengthAt (project local292_taken arena) (project (project local293_v0 lengths) table) (1 : UInt64))
+        | Result.error local294_why => false
+        | Result.ok local295_length => (prim equal local295_length (2 : UInt64) : Bool))
+      | Uorc.Product.TargetDescriptor::Outcome.failed local296_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local297_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local298_v0 => false))))),
+  axioms: [propext]
+}
+
+definition{
+  name: invalidDescriptorPaidViewControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local299_why => false
+    | Result.ok local300_f => (let local301_initial : Uorc.Product.TargetDescriptor::Transition := (initial local300_f); (let local302_view : Uorc.Product.TargetDescriptor::View := (Uorc.Product.TargetDescriptor::readView (budget) (project local301_initial arena) (project local301_initial usage) (project (project (project local301_initial cursor) parts) sequence)); (match (project local302_view outcome)
+      | Uorc.Product.TargetDescriptor::ViewOutcome.refused local303_v0 => false
+      | Uorc.Product.TargetDescriptor::ViewOutcome.viewed local304_v0 => (match local304_v0
+        | Result.ok local305_snapshot => false
+        | Result.error local306_why => (match local306_why
+          | Uorc.Product.TargetDescriptor::Error.wrongRun => false
+          | Uorc.Product.TargetDescriptor::Error.notReady => false
+          | Uorc.Product.TargetDescriptor::Error.invalidDescriptor => true
+          | Uorc.Product.TargetDescriptor::Error.invalidLengthsKind => false
+          | Uorc.Product.TargetDescriptor::Error.sumOverflow => false
+          | Uorc.Product.TargetDescriptor::Error.sumMismatch => false
+          | Uorc.Product.TargetDescriptor::Error.sequenceLengthMismatch => false
+          | Uorc.Product.TargetDescriptor::Error.read local307_v0 => false
+          | Uorc.Product.TargetDescriptor::Error.length local308_v0 => false
+          | Uorc.Product.TargetDescriptor::Error.heap local309_v0 => false)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: takeArenaIdentityControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local310_why => false
+    | Result.ok local311_f => (let local312_initial : Uorc.Product.TargetDescriptor::Transition := (initial local311_f); (let local313_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 local312_initial); (let local314_refused : Uorc.Product.TargetDescriptor::Transition := (Uorc.Product.TargetDescriptor::take (record Uorc.Core.RuntimeResources::Budget {maxWork := (100000000 : UInt64), maxOwnedBytes := (9000000 : UInt64), maxOutputBytes := (10000000 : UInt64), maxFrames := (1000 : UInt64)}) (project local313_ready arena) (project local313_ready usage) (project local313_ready cursor) (run)); ((match (project local314_refused outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local315_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local316_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local317_v0 => (match local317_v0
+        | Uorc.Core.RuntimeResources::Error.workLimit => false
+        | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+        | Uorc.Core.RuntimeResources::Error.outputLimit => false
+        | Uorc.Core.RuntimeResources::Error.frameLimit => false
+        | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+        | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+        | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => true
+        | Uorc.Core.RuntimeResources::Error.heap local318_v0 => false)
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local319_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local314_refused cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project local314_refused arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local314_refused cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emptyMetadataInitial,
+  parameters: [],
+  result: Uorc.Product.TargetDescriptor::Transition,
+  body: (record Uorc.Product.TargetDescriptor::Transition {arena := (Uorc.Core.Heap::emptyArena (10000000 : UInt64)), usage := (Uorc.Core.RuntimeResources::zeroUsage), cursor := (Uorc.Product.TargetDescriptor::begin (run) (record Uorc.Product.TargetDescriptor::Parts {sequence := (Uorc.Core.RuntimeValue::nullHandle), lengths := (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.metadata (Uorc.Wire.FrameEventContract::lengthsMetadataKind)), root := (Uorc.Core.RuntimeValue::nullHandle)}), count := (0 : UInt64), totalOutputBytes := (0 : UInt64)})})), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Uorc.Product.TargetDescriptor::Outcome.advanced)}),
+  axioms: []
+}
+
+definition{
+  name: emptyMetadataKindRoundtripControl,
+  parameters: [],
+  result: Bool,
+  body: (let local320_ready : Uorc.Product.TargetDescriptor::Transition := (drive 10000 (emptyMetadataInitial)); (match (Uorc.Product.TargetDescriptor::view (project local320_ready arena) (project (project local320_ready cursor) record))
+    | Result.error local321_why => false
+    | Result.ok local322_snapshot => (match (project (project (project local322_snapshot lengths) table) kind)
+      | Uorc.Core.RuntimeTable::TableKind.slots local323_role => false
+      | Uorc.Core.RuntimeTable::TableKind.metadata local324_kind => (prim equal local324_kind (Uorc.Wire.FrameEventContract::lengthsMetadataKind) : Bool)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongEmptyKindRejectedControl,
+  parameters: [],
+  result: Bool,
+  body: (let local325_initial : Uorc.Product.TargetDescriptor::Transition := (record Uorc.Product.TargetDescriptor::Transition {arena := (Uorc.Core.Heap::emptyArena (10000000 : UInt64)), usage := (Uorc.Core.RuntimeResources::zeroUsage), cursor := (Uorc.Product.TargetDescriptor::begin (run) (record Uorc.Product.TargetDescriptor::Parts {sequence := (Uorc.Core.RuntimeValue::nullHandle), lengths := (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.metadata (999 : UInt64)), root := (Uorc.Core.RuntimeValue::nullHandle)}), count := (0 : UInt64), totalOutputBytes := (0 : UInt64)})})), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Uorc.Product.TargetDescriptor::Outcome.advanced)}); (let local326_clean : Uorc.Product.TargetDescriptor::Transition := (cleanupDrive 10000 local325_initial); ((match (project local326_clean outcome)
+    | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+    | Uorc.Product.TargetDescriptor::Outcome.ready => false
+    | Uorc.Product.TargetDescriptor::Outcome.clean => false
+    | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+    | Uorc.Product.TargetDescriptor::Outcome.snapshot local327_v0 => false
+    | Uorc.Product.TargetDescriptor::Outcome.failed local328_v0 => (match local328_v0
+      | Uorc.Product.TargetDescriptor::Error.wrongRun => false
+      | Uorc.Product.TargetDescriptor::Error.notReady => false
+      | Uorc.Product.TargetDescriptor::Error.invalidDescriptor => false
+      | Uorc.Product.TargetDescriptor::Error.invalidLengthsKind => true
+      | Uorc.Product.TargetDescriptor::Error.sumOverflow => false
+      | Uorc.Product.TargetDescriptor::Error.sumMismatch => false
+      | Uorc.Product.TargetDescriptor::Error.sequenceLengthMismatch => false
+      | Uorc.Product.TargetDescriptor::Error.read local329_v0 => false
+      | Uorc.Product.TargetDescriptor::Error.length local330_v0 => false
+      | Uorc.Product.TargetDescriptor::Error.heap local331_v0 => false)
+    | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+    | Uorc.Product.TargetDescriptor::Outcome.refused local332_v0 => false
+    | Uorc.Product.TargetDescriptor::Outcome.rejected local333_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local326_clean cursor))) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project local326_clean arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local326_clean cursor))) && ((prim equal (project (project local326_clean arena) liveEntries) (0 : UInt64) : Bool) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: duplicateHandleMultiplicityCleanupControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local334_why => false
+    | Result.ok local335_f => (match (Uorc.Core.Heap::retain (project local335_f arena) (project (project local335_f parts) sequence))
+      | Result.error local336_why => false
+      | Result.ok local337_retained => (match (releaseFixture (project local337_retained arena) (project (project (project (project local335_f parts) lengths) table) root))
+        | Result.error local338_why => false
+        | Result.ok local339_preparedArena => (match (Uorc.Core.RuntimeResources::observeArena (budget) (project local335_f usage) local339_preparedArena)
+          | Result.error local340_why => false
+          | Result.ok local341_observed => (let local342_initial : Uorc.Product.TargetDescriptor::Transition := (record Uorc.Product.TargetDescriptor::Transition {arena := local339_preparedArena, usage := local341_observed, cursor := (Uorc.Product.TargetDescriptor::begin (run) (record Uorc.Product.TargetDescriptor::Parts {sequence := (project (project local335_f parts) sequence), lengths := (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.wire)), root := (project (project local335_f parts) sequence)}), count := (0 : UInt64), totalOutputBytes := (3 : UInt64)})})), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Uorc.Product.TargetDescriptor::Outcome.advanced)}); (let local343_clean : Uorc.Product.TargetDescriptor::Transition := (cleanupDrive 10000 local342_initial); (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local342_initial cursor))) =? 2) && ((Uorc.Core.HeapAudit::auditRoots (project local342_initial arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local342_initial cursor))) && ((match (project local343_clean outcome)
+            | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+            | Uorc.Product.TargetDescriptor::Outcome.ready => false
+            | Uorc.Product.TargetDescriptor::Outcome.clean => false
+            | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+            | Uorc.Product.TargetDescriptor::Outcome.snapshot local344_v0 => false
+            | Uorc.Product.TargetDescriptor::Outcome.failed local345_v0 => (match local345_v0
+              | Uorc.Product.TargetDescriptor::Error.wrongRun => false
+              | Uorc.Product.TargetDescriptor::Error.notReady => false
+              | Uorc.Product.TargetDescriptor::Error.invalidDescriptor => false
+              | Uorc.Product.TargetDescriptor::Error.invalidLengthsKind => false
+              | Uorc.Product.TargetDescriptor::Error.sumOverflow => false
+              | Uorc.Product.TargetDescriptor::Error.sumMismatch => true
+              | Uorc.Product.TargetDescriptor::Error.sequenceLengthMismatch => false
+              | Uorc.Product.TargetDescriptor::Error.read local346_v0 => false
+              | Uorc.Product.TargetDescriptor::Error.length local347_v0 => false
+              | Uorc.Product.TargetDescriptor::Error.heap local348_v0 => false)
+            | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+            | Uorc.Product.TargetDescriptor::Outcome.refused local349_v0 => false
+            | Uorc.Product.TargetDescriptor::Outcome.rejected local350_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local343_clean cursor))) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project local343_clean arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local343_clean cursor))) && ((prim equal (project (project local343_clean arena) liveEntries) (0 : UInt64) : Bool) && ((let local351_twice : Uorc.Product.TargetDescriptor::Transition := (advance local343_clean); (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local351_twice cursor))) =? 0) && ((prim equal (project (project local351_twice arena) liveEntries) (0 : UInt64) : Bool) && ((prim equal (project (project local351_twice delta) releasedEntries) (0 : UInt64) : Bool) && true)))) && true))))))))))))),
+  axioms: [propext]
+}
+
+definition{
+  name: missingOrderedRowRejectedControl,
+  parameters: [],
+  result: Bool,
+  body: (match (ordinaryFixture)
+    | Result.error local352_why => false
+    | Result.ok local353_f => (let local354_initial : Uorc.Product.TargetDescriptor::Transition := (record Uorc.Product.TargetDescriptor::Transition {arena := (project local353_f arena), usage := (project local353_f usage), cursor := (Uorc.Product.TargetDescriptor::begin (run) (record Uorc.Product.TargetDescriptor::Parts {sequence := (project (project local353_f parts) sequence), lengths := (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (project (project (project local353_f parts) lengths) table), count := (3 : UInt64), totalOutputBytes := (3 : UInt64)})})), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Uorc.Product.TargetDescriptor::Outcome.advanced)}); (let local355_clean : Uorc.Product.TargetDescriptor::Transition := (cleanupDrive 10000 local354_initial); ((match (project local355_clean outcome)
+      | Uorc.Product.TargetDescriptor::Outcome.advanced => false
+      | Uorc.Product.TargetDescriptor::Outcome.ready => false
+      | Uorc.Product.TargetDescriptor::Outcome.clean => false
+      | Uorc.Product.TargetDescriptor::Outcome.awaitDelta => false
+      | Uorc.Product.TargetDescriptor::Outcome.snapshot local356_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.failed local357_v0 => (match local357_v0
+        | Uorc.Product.TargetDescriptor::Error.wrongRun => false
+        | Uorc.Product.TargetDescriptor::Error.notReady => false
+        | Uorc.Product.TargetDescriptor::Error.invalidDescriptor => false
+        | Uorc.Product.TargetDescriptor::Error.invalidLengthsKind => false
+        | Uorc.Product.TargetDescriptor::Error.sumOverflow => false
+        | Uorc.Product.TargetDescriptor::Error.sumMismatch => false
+        | Uorc.Product.TargetDescriptor::Error.sequenceLengthMismatch => false
+        | Uorc.Product.TargetDescriptor::Error.read local358_v0 => false
+        | Uorc.Product.TargetDescriptor::Error.length local359_v0 => true
+        | Uorc.Product.TargetDescriptor::Error.heap local360_v0 => false)
+      | Uorc.Product.TargetDescriptor::Outcome.cancelled => false
+      | Uorc.Product.TargetDescriptor::Outcome.refused local361_v0 => false
+      | Uorc.Product.TargetDescriptor::Outcome.rejected local362_v0 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.TargetDescriptor::ownedRoots (project local355_clean cursor))) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project local355_clean arena) (Uorc.Product.TargetDescriptor::ownedRoots (project local355_clean cursor))) && ((prim equal (project (project local355_clean arena) liveEntries) (0 : UInt64) : Bool) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "beginPinsActualPartsControl", passed := (beginPinsActualPartsControl)}) (cons (record Observation {id := "zeroWorkNoHeapControl", passed := (zeroWorkNoHeapControl)}) (cons (record Observation {id := "actualControlReservationControl", passed := (actualControlReservationControl)}) (cons (record Observation {id := "pendingDeltaBlocksMutationControl", passed := (pendingDeltaBlocksMutationControl)}) (cons (record Observation {id := "onceOnlyDeltaTransferControl", passed := (onceOnlyDeltaTransferControl)}) (cons (record Observation {id := "lengthObservationPrepaymentControl", passed := (lengthObservationPrepaymentControl)}) (cons (record Observation {id := "singleDescriptorTicketControl", passed := (singleDescriptorTicketControl)}) (cons (record Observation {id := "viewAndPayloadSurviveCleanupControl", passed := (viewAndPayloadSurviveCleanupControl)}) (cons (record Observation {id := "oneTimeSnapshotTransferControl", passed := (oneTimeSnapshotTransferControl)}) (cons (record Observation {id := "viewPrepaymentControl", passed := (viewPrepaymentControl)}) (cons (record Observation {id := "cancelAfterReadyReleasesRecordControl", passed := (cancelAfterReadyReleasesRecordControl)}) (cons (record Observation {id := "wrongTotalRejectedControl", passed := (wrongTotalRejectedControl)}) (cons (record Observation {id := "cancelPartialConstructionControl", passed := (cancelPartialConstructionControl)}) (cons (record Observation {id := "emptyObjectListControl", passed := (emptyObjectListControl)}) (cons (record Observation {id := "twoEmptyObjectsControl", passed := (twoEmptyObjectsControl)}) (cons (record Observation {id := "staleTakePreservesDescriptorControl", passed := (staleTakePreservesDescriptorControl)}) (cons (record Observation {id := "staleDeltaDoesNotClearControl", passed := (staleDeltaDoesNotClearControl)}) (cons (record Observation {id := "resourcePauseResumeControl", passed := (resourcePauseResumeControl)}) (cons (record Observation {id := "payloadByteSurvivesCleanupControl", passed := (payloadByteSurvivesCleanupControl)}) (cons (record Observation {id := "orderedLengthsSurviveCleanupControl", passed := (orderedLengthsSurviveCleanupControl)}) (cons (record Observation {id := "invalidDescriptorPaidViewControl", passed := (invalidDescriptorPaidViewControl)}) (cons (record Observation {id := "takeArenaIdentityControl", passed := (takeArenaIdentityControl)}) (cons (record Observation {id := "emptyMetadataKindRoundtripControl", passed := (emptyMetadataKindRoundtripControl)}) (cons (record Observation {id := "wrongEmptyKindRejectedControl", passed := (wrongEmptyKindRejectedControl)}) (cons (record Observation {id := "duplicateHandleMultiplicityCleanupControl", passed := (duplicateHandleMultiplicityCleanupControl)}) (cons (record Observation {id := "missingOrderedRowRejectedControl", passed := (missingOrderedRowRejectedControl)}) (nil Observation))))))))))))))))))))))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}
