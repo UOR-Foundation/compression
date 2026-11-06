@@ -1,0 +1,57 @@
+\begin{lexlean}{Uorc.Search.FittedTemplateControls}
+\importmodule{Uorc.Search.OwnedLinearFit}
+\importmodule{Uorc.Search.OwnedLinearFitControls}
+\importmodule{Uorc.Search.FittedTemplate}
+\importmodule{Uorc.Search.TemplateOwner}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Search.LinearFit}
+\importmodule{Uorc.Search.FixedTemplates}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeValue}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: preserved,
+  parameters: [
+    cursor : Uorc.Search.OwnedLinearFit::Cursor,
+    started : Uorc.Search.FittedTemplate::Started
+  ],
+  result: Bool,
+  body: ((((((((((((((((((((((((((true && (Uorc.Core.HeapAudit::auditRoots (project (project started owner) arena) (Uorc.Search.FittedTemplate::rootInventory started))) && (prim equal (project (project started history) consumedCredits) (project cursor consumedCredits) : Bool)) && (prim equal (project (project started history) attemptedOperations) (project cursor attemptedOperations) : Bool)) && (prim equal (project (project started history) readerEvents) (project cursor readerEvents) : Bool)) && (prim equal (project (project started history) getterDispatches) (project cursor getterDispatches) : Bool)) && (prim equal (project (project started history) fittingEvents) (project cursor fittingEvents) : Bool)) && (prim equal (project (project (project started history) usageAtHandoff) work) (project (project cursor usage) work) : Bool)) && (prim equal (project (project (project started owner) usage) work) (project (project cursor usage) work) : Bool)) && (prim equal (project (project (project started history) usageAtHandoff) ownedBytes) (project (project cursor usage) ownedBytes) : Bool)) && (prim equal (project (project (project started owner) usage) ownedBytes) (project (project cursor usage) ownedBytes) : Bool)) && (prim equal (project (project (project started history) usageAtHandoff) peakOwnedBytes) (project (project cursor usage) peakOwnedBytes) : Bool)) && (prim equal (project (project (project started owner) usage) peakOwnedBytes) (project (project cursor usage) peakOwnedBytes) : Bool)) && (prim equal (project (project (project started history) usageAtHandoff) outputBytes) (project (project cursor usage) outputBytes) : Bool)) && (prim equal (project (project (project started owner) usage) outputBytes) (project (project cursor usage) outputBytes) : Bool)) && (prim equal (project (project (project started history) usageAtHandoff) frames) (project (project cursor usage) frames) : Bool)) && (prim equal (project (project (project started owner) usage) frames) (project (project cursor usage) frames) : Bool)) && (prim equal (project (project (project (project started owner) caller) input) id) (project (project (project cursor caller) input) id) : Bool)) && (prim equal (project (project (project (project started owner) caller) archive) id) (project (project (project cursor caller) archive) id) : Bool)) && (prim equal (project (project (project (project started owner) caller) search) id) (project (project (project cursor caller) search) id) : Bool)) && (prim equal (project (project (project (project started owner) caller) checkpoint) id) (project (project (project cursor caller) checkpoint) id) : Bool)) && (prim equal (project (project (project (project started owner) caller) certificate) id) (project (project (project cursor caller) certificate) id) : Bool)) && (prim equal (project (project (project (project started owner) caller) verification) id) (project (project (project cursor caller) verification) id) : Bool)) && (prim equal (project (project (project (project started owner) caller) wire) id) (project (project (project cursor caller) wire) id) : Bool)) && (prim equal (project (project (project started history) control) id) (project (project cursor control) id) : Bool)) && (prim equal (project (project (project started history) owner) id) (project (project (project cursor caller) search) id) : Bool)) && (prim equal (project (project (project started history) originalSearch) id) (project (project cursor originalSearch) id) : Bool))
+}
+
+definition{
+  name: handoffIsPreserved,
+  parameters: [
+    cursor : Uorc.Search.OwnedLinearFit::Cursor,
+    family : Uorc.Search.FittedTemplate::Family
+  ],
+  result: Bool,
+  body: (match (Uorc.Search.FittedTemplate::begin cursor family)
+    | Result.error error => false
+    | Result.ok started => (preserved cursor started))
+}
+
+theorem{
+  name: incomplete_affine_handoff_is_typed,
+  parameters: [],
+  statement: ((Uorc.Search.FittedTemplate::begin (Uorc.Search.OwnedLinearFitControls::emptyCursor) (ctor Uorc.Search.FittedTemplate::Family.affine)) = (ctor Result.error [Uorc.Search.FittedTemplate::Started, Uorc.Search.FittedTemplate::Error] (ctor Uorc.Search.FittedTemplate::Error.observationIncomplete))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: incomplete_state_handoff_is_typed,
+  parameters: [],
+  statement: ((Uorc.Search.FittedTemplate::begin (Uorc.Search.OwnedLinearFitControls::emptyCursor) (ctor Uorc.Search.FittedTemplate::Family.state)) = (ctor Result.error [Uorc.Search.FittedTemplate::Started, Uorc.Search.FittedTemplate::Error] (ctor Uorc.Search.FittedTemplate::Error.observationIncomplete))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: qualification,
+  parameters: [],
+  result: String,
+  body: "The parameterized preservation control consumes actual observer fixtures in diagnostics and checks owning roots plus every retained usage/funding/observation field. Started has one owning Arena only in TemplateOwner; History has none. Typed incomplete/absent proposals are strategy outcomes, never decoder rejection or universe exclusions. No source control establishes archive eligibility, cleanup completion, general refinement or native feasibility."
+}
+\end{semanticmodule}
+\end{lexlean}

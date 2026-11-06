@@ -1,0 +1,107 @@
+\begin{lexlean}{Uorc.Core.CanonicalLiteralTests}
+\importmodule{Uorc.Core.RuntimeAdmission}
+\importmodule{Uorc.Core.RuntimeAdmissionScenarios}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.HeapAudit}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: failed, fields: []}]
+}
+
+definition{
+  name: tailLeaf,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    length : UInt64
+  ],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::lookup arena root)
+    | Result.error lookupFailure => false
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image x0 x1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf x0 x1 x2 => (((true && (prim equal x1 (0 : UInt64) : Bool)) && (prim equal x2 length : Bool)) && (if (prim equal length (2 : UInt64) : Bool) then ((match (Uorc.Core.RuntimeSequence::readByte arena x0 (0 : UInt64))
+        | Result.error readFailure => false
+        | Result.ok read => (prim equal read (97 : UInt8) : Bool)) && (match (Uorc.Core.RuntimeSequence::readByte arena x0 (1 : UInt64))
+        | Result.error readFailure => false
+        | Result.ok read => (prim equal read (98 : UInt8) : Bool))) else (match (Uorc.Core.RuntimeSequence::readByte arena x0 (0 : UInt64))
+        | Result.error readFailure => false
+        | Result.ok read => (prim equal read (99 : UInt8) : Bool))))
+      | Uorc.Core.Heap::Node.sequenceBranch x0 x1 x2 x3 => false
+      | Uorc.Core.Heap::Node.storeLeaf x0 => false
+      | Uorc.Core.Heap::Node.storeBranch x0 x1 => false
+      | Uorc.Core.Heap::Node.slot x0 x1 => false
+      | Uorc.Core.Heap::Node.rootBranch x0 x1 x2 => false
+      | Uorc.Core.Heap::Node.metadataWord x0 x1 x2 => false
+      | Uorc.Core.Heap::Node.metadataLink x0 x1 x2 => false
+      | Uorc.Core.Heap::Node.metadataBranch x0 x1 x2 => false
+      | Uorc.Core.Heap::Node.ownerRoot x0 x1 => false
+      | Uorc.Core.Heap::Node.imageReservation x0 x1 => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: canonicalThree,
+  parameters: [arena : Uorc.Core.Heap::Arena, root : Uorc.Core.RuntimeValue::Handle],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::lookup arena root)
+    | Result.error lookupFailure => false
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image x0 x1 => false
+      | Uorc.Core.Heap::Node.sequenceLeaf x0 x1 x2 => false
+      | Uorc.Core.Heap::Node.sequenceBranch x0 x1 x2 x3 => ((((true && (prim equal x0 (3 : UInt64) : Bool)) && (prim equal x1 (2 : UInt64) : Bool)) && (tailLeaf arena x2 (2 : UInt64))) && (tailLeaf arena x3 (1 : UInt64)))
+      | Uorc.Core.Heap::Node.storeLeaf x0 => false
+      | Uorc.Core.Heap::Node.storeBranch x0 x1 => false
+      | Uorc.Core.Heap::Node.slot x0 x1 => false
+      | Uorc.Core.Heap::Node.rootBranch x0 x1 x2 => false
+      | Uorc.Core.Heap::Node.metadataWord x0 x1 x2 => false
+      | Uorc.Core.Heap::Node.metadataLink x0 x1 x2 => false
+      | Uorc.Core.Heap::Node.metadataBranch x0 x1 x2 => false
+      | Uorc.Core.Heap::Node.ownerRoot x0 x1 => false
+      | Uorc.Core.Heap::Node.imageReservation x0 x1 => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: partition,
+  parameters: [split : Bool],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) 0x616263))
+    | Result.error inputFailure => false
+    | Result.ok input => (match (Uorc.Core.RuntimeAdmission::start (record Uorc.Core.RuntimeResources::Budget {maxWork := (18446744073709551615 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (1000 : UInt64)}) (project input arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project input handle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) (Uorc.Core.RuntimeResources::zeroUsage))
+      | Uorc.Core.RuntimeAdmission::Step.pending state => false
+      | Uorc.Core.RuntimeAdmission::Step.failed failure state => false
+      | Uorc.Core.RuntimeAdmission::Step.ready ready => false
+      | Uorc.Core.RuntimeAdmission::Step.awaiting state => (match (Uorc.Core.RuntimeAdmissionScenarios::feed (prim append (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginLiteral (3 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))))) (prim append (if split then (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (project input handle) (0 : UInt64) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (project input handle) (1 : UInt64) (2 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))) else (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (project input handle) (0 : UInt64) (3 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.seal (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event)))) : (List Uorc.Core.RuntimeProgram::Event)) : (List Uorc.Core.RuntimeProgram::Event)) state)
+        | Result.error scenarioFailure => false
+        | Result.ok ready => (match (Uorc.Core.RuntimeProgram::blockAt (project ready arena) (project ready program) (0 : UInt64))
+          | Result.error blockFailure => false
+          | Result.ok block => (match (Uorc.Core.RuntimeProgram::instructionAt (project ready arena) block (0 : UInt64))
+            | Result.error instructionFailure => false
+            | Result.ok instruction => ((canonicalThree (project ready arena) (project instruction literal)) && (Uorc.Core.HeapAudit::auditRoots (project ready arena) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if ((partition false) && (partition true)) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

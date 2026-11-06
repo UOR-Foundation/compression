@@ -1,0 +1,231 @@
+\begin{lexlean}{Uorc.Core.RuntimeIndexFrameProofs}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeIndexProofs}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: routesDiffer,
+  parameters: [depth : Nat, keyA : UInt64, keyB : UInt64],
+  result: Bool,
+  body: (match depth
+    | Nat.zero => false
+    | Nat.succ remaining => (if (Uorc.Core.Heap::highBit keyA) then (if (Uorc.Core.Heap::highBit keyB) then (routesDiffer remaining (Uorc.Core.Heap::advanceKey keyA) (Uorc.Core.Heap::advanceKey keyB)) else true) else (if (Uorc.Core.Heap::highBit keyB) then true else (routesDiffer remaining (Uorc.Core.Heap::advanceKey keyA) (Uorc.Core.Heap::advanceKey keyB))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: depth
+}
+
+theorem{
+  name: read_compact_left,
+  parameters: [
+    depth : Nat,
+    leftTree : Uorc.Core.Heap::Index,
+    rightTree : Uorc.Core.Heap::Index,
+    key : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::left (Uorc.Core.Heap::compact leftTree rightTree)) key) = (Uorc.Core.Heap::readIndex depth leftTree key)),
+  proof: simplify{definitions: [Uorc.Core.RuntimeIndexProofs::compact_left]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: guarded_read_compact_left,
+  parameters: [
+    condition : Bool,
+    depth : Nat,
+    leftTree : Uorc.Core.Heap::Index,
+    rightTree : Uorc.Core.Heap::Index,
+    key : UInt64,
+    fallback : (Option Uorc.Core.Heap::Entry)
+  ],
+  statement: ((if condition then (Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::left (Uorc.Core.Heap::compact leftTree rightTree)) key) else fallback) = (if condition then (Uorc.Core.Heap::readIndex depth leftTree key) else fallback)),
+  proof: simplify{definitions: [read_compact_left]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: read_compact_right,
+  parameters: [
+    depth : Nat,
+    leftTree : Uorc.Core.Heap::Index,
+    rightTree : Uorc.Core.Heap::Index,
+    key : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::right (Uorc.Core.Heap::compact leftTree rightTree)) key) = (Uorc.Core.Heap::readIndex depth rightTree key)),
+  proof: simplify{definitions: [Uorc.Core.RuntimeIndexProofs::compact_right]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: guarded_read_compact_right,
+  parameters: [
+    condition : Bool,
+    depth : Nat,
+    leftTree : Uorc.Core.Heap::Index,
+    rightTree : Uorc.Core.Heap::Index,
+    key : UInt64,
+    fallback : (Option Uorc.Core.Heap::Entry)
+  ],
+  statement: ((if condition then (Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::right (Uorc.Core.Heap::compact leftTree rightTree)) key) else fallback) = (if condition then (Uorc.Core.Heap::readIndex depth rightTree key) else fallback)),
+  proof: simplify{definitions: [read_compact_right]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: guarded_route_step,
+  parameters: [
+    directionA : Bool,
+    directionB : Bool,
+    recursiveDifference : Bool,
+    depth : Nat,
+    leftTree : Uorc.Core.Heap::Index,
+    rightTree : Uorc.Core.Heap::Index,
+    leftReplacement : Uorc.Core.Heap::Index,
+    rightReplacement : Uorc.Core.Heap::Index,
+    key : UInt64
+  ],
+  statement: ((if (if directionA then (if directionB then recursiveDifference else true) else (if directionB then true else recursiveDifference)) then (if directionB then (Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::right (if directionA then (Uorc.Core.Heap::compact leftTree rightReplacement) else (Uorc.Core.Heap::compact leftReplacement rightTree))) key) else (Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::left (if directionA then (Uorc.Core.Heap::compact leftTree rightReplacement) else (Uorc.Core.Heap::compact leftReplacement rightTree))) key)) else (if directionB then (Uorc.Core.Heap::readIndex depth rightTree key) else (Uorc.Core.Heap::readIndex depth leftTree key))) = (if directionB then (if directionA then (if recursiveDifference then (Uorc.Core.Heap::readIndex depth rightReplacement key) else (Uorc.Core.Heap::readIndex depth rightTree key)) else (Uorc.Core.Heap::readIndex depth rightTree key)) else (if directionA then (Uorc.Core.Heap::readIndex depth leftTree key) else (if recursiveDifference then (Uorc.Core.Heap::readIndex depth leftReplacement key) else (Uorc.Core.Heap::readIndex depth leftTree key))))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: apply{
+                arguments: [
+                  recursiveDifference,
+                  depth,
+                  leftReplacement,
+                  rightTree,
+                  key,
+                  (Uorc.Core.Heap::readIndex depth leftTree key)
+                ],
+                theorem: guarded_read_compact_left
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: apply{
+                arguments: [depth, leftReplacement, rightTree, key],
+                theorem: read_compact_right
+              },
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: directionB
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: apply{
+                arguments: [depth, leftTree, rightReplacement, key],
+                theorem: read_compact_left
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: apply{
+                arguments: [
+                  recursiveDifference,
+                  depth,
+                  leftTree,
+                  rightReplacement,
+                  key,
+                  (Uorc.Core.Heap::readIndex depth rightTree key)
+                ],
+                theorem: guarded_read_compact_right
+              },
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: directionB
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: directionA
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: guarded_readIndex_writeIndex_frame,
+  parameters: [
+    depth : Nat,
+    tree : Uorc.Core.Heap::Index,
+    keyA : UInt64,
+    keyB : UInt64,
+    entry : (Option Uorc.Core.Heap::Entry)
+  ],
+  statement: ((if (routesDiffer depth keyA keyB) then (Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::writeIndex depth tree keyA entry) keyB) else (Uorc.Core.Heap::readIndex depth tree keyB)) = (Uorc.Core.Heap::readIndex depth tree keyB)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: simplify{
+          definitions: [
+            guarded_route_step,
+            ih,
+            routesDiffer,
+            Uorc.Core.Heap::writeIndex,
+            Uorc.Core.RuntimeIndexProofs::choose_same_entry,
+            Uorc.Core.RuntimeIndexProofs::readIndex_choice,
+            Uorc.Core.RuntimeIndexProofs::readIndex_successor
+          ]
+        },
+        binders: [remaining, ih],
+        constructor: succ
+      }
+    ],
+    generalizing: [entry, keyA, keyB, tree],
+    scrutinee: depth
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: guarded_readIndex_writeIndex_none,
+  parameters: [depth : Nat, tree : Uorc.Core.Heap::Index, keyA : UInt64, keyB : UInt64],
+  statement: ((if (routesDiffer depth keyA keyB) then (Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::writeIndex depth tree keyA (ctor Option.none [Uorc.Core.Heap::Entry])) keyB) else (Uorc.Core.Heap::readIndex depth tree keyB)) = (Uorc.Core.Heap::readIndex depth tree keyB)),
+  proof: apply{
+    arguments: [depth, tree, keyA, keyB, (ctor Option.none [Uorc.Core.Heap::Entry])],
+    theorem: guarded_readIndex_writeIndex_frame
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: guarded_readIndex_writeIndex_some,
+  parameters: [
+    depth : Nat,
+    tree : Uorc.Core.Heap::Index,
+    keyA : UInt64,
+    keyB : UInt64,
+    entry : Uorc.Core.Heap::Entry
+  ],
+  statement: ((if (routesDiffer depth keyA keyB) then (Uorc.Core.Heap::readIndex depth (Uorc.Core.Heap::writeIndex depth tree keyA (ctor Option.some [Uorc.Core.Heap::Entry] entry)) keyB) else (Uorc.Core.Heap::readIndex depth tree keyB)) = (Uorc.Core.Heap::readIndex depth tree keyB)),
+  proof: apply{
+    arguments: [depth, tree, keyA, keyB, (ctor Option.some [Uorc.Core.Heap::Entry] entry)],
+    theorem: guarded_readIndex_writeIndex_frame
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: routesDiffer_first_bit_nonvacuous,
+  parameters: [],
+  statement: ((routesDiffer 1 (9223372036854775808 : UInt64) (0 : UInt64)) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

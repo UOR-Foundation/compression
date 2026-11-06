@@ -1,0 +1,264 @@
+\begin{lexlean}{Uorc.Search.Effort}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: defaultOverflow, fields: []},
+    {name: searchExhausted, fields: []},
+    {name: rawReserveExhausted, fields: []},
+    {name: finalReserveExhausted, fields: []},
+    {name: replayIncomplete, fields: []},
+    {name: certificateProductionExhausted, fields: []},
+    {name: checkerExhausted, fields: []},
+    {name: invalidQuantum, fields: []}
+  ]
+}
+
+structure{
+  name: SearchEffort,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: steps, type: Nat}]
+}
+
+structure{
+  name: Allowances,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: search, type: Nat},
+    {name: rawReserve, type: Nat},
+    {name: finalReserve, type: Nat},
+    {name: replay, type: Nat},
+    {name: certificateProduction, type: Nat},
+    {name: checker, type: Nat}
+  ]
+}
+
+structure{
+  name: Ledger,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: search, type: Nat},
+    {name: rawReserve, type: Nat},
+    {name: finalReserve, type: Nat},
+    {name: replay, type: Nat},
+    {name: certificateProduction, type: Nat},
+    {name: checker, type: Nat}
+  ]
+}
+
+inductive{
+  name: Partition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: search, fields: []},
+    {name: rawReserve, fields: []},
+    {name: finalReserve, fields: []},
+    {name: replay, fields: []},
+    {name: certificateProduction, fields: []},
+    {name: checker, fields: []}
+  ]
+}
+
+definition{
+  name: zeroLedger,
+  parameters: [],
+  result: Ledger,
+  body: (record Ledger {search := 0, rawReserve := 0, finalReserve := 0, replay := 0, certificateProduction := 0, checker := 0})
+}
+
+definition{
+  name: nativeWork,
+  parameters: [bytes : Nat, objects : Nat],
+  result: Nat,
+  body: ((1048576 + (prim multiply 2048 bytes : Nat)) + (prim multiply 4096 objects : Nat))
+}
+
+definition{
+  name: viewWork,
+  parameters: [bytes : Nat, objects : Nat],
+  result: Nat,
+  body: ((65536 + (prim multiply 512 bytes : Nat)) + (prim multiply 1024 objects : Nat))
+}
+
+definition{
+  name: appendBit,
+  parameters: [rest : UInt64, bit : Nat],
+  result: (Result UInt64 Error),
+  body: (match (prim checked_add rest rest : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))
+    | Option.some doubled => (if (bit =? 0) then (ctor Result.ok [UInt64, Error] doubled) else (match (prim checked_add doubled (1 : UInt64) : (Option UInt64))
+      | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))
+      | Option.some incremented => (ctor Result.ok [UInt64, Error] incremented)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: natToU64Bits,
+  parameters: [fuel : Nat, value : Nat],
+  result: (Result UInt64 Error),
+  body: (match fuel
+    | Nat.zero => (if (value =? 0) then (ctor Result.ok [UInt64, Error] (0 : UInt64)) else (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow)))
+    | Nat.succ restFuel => (match (natToU64Bits restFuel (prim quotient value 2 0 : Nat))
+      | Result.error error => (ctor Result.error [UInt64, Error] error)
+      | Result.ok higher => (appendBit higher (prim remainder value 2 0 : Nat)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: checkedU64,
+  parameters: [value : Nat],
+  result: (Result UInt64 Error),
+  body: (if (value <=? 18446744073709551615) then (natToU64Bits 64 value) else (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkedDefault,
+  parameters: [
+    bytes : Nat,
+    objects : Nat,
+    base : UInt64,
+    byteFactor : UInt64,
+    objectFactor : UInt64
+  ],
+  result: (Result UInt64 Error),
+  body: (match (checkedU64 bytes)
+    | Result.error error => (ctor Result.error [UInt64, Error] error)
+    | Result.ok byteWord => (match (checkedU64 objects)
+      | Result.error error => (ctor Result.error [UInt64, Error] error)
+      | Result.ok objectWord => (match (prim checked_multiply byteWord byteFactor : (Option UInt64))
+        | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))
+        | Option.some byteWork => (match (prim checked_multiply objectWord objectFactor : (Option UInt64))
+          | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))
+          | Option.some objectWork => (match (prim checked_add base byteWork : (Option UInt64))
+            | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))
+            | Option.some baseWork => (match (prim checked_add baseWork objectWork : (Option UInt64))
+              | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))
+              | Option.some totalWork => (ctor Result.ok [UInt64, Error] totalWork)))))))
+}
+
+definition{
+  name: nativeDefault,
+  parameters: [bytes : Nat, objects : Nat],
+  result: (Result UInt64 Error),
+  body: (checkedDefault bytes objects (1048576 : UInt64) (2048 : UInt64) (4096 : UInt64)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: viewDefault,
+  parameters: [bytes : Nat, objects : Nat],
+  result: (Result UInt64 Error),
+  body: (checkedDefault bytes objects (65536 : UInt64) (512 : UInt64) (1024 : UInt64)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: charge,
+  parameters: [allowance : Allowances, ledger : Ledger, partition : Partition],
+  result: (Result Ledger Error),
+  body: (match partition
+    | Partition.search => (if ((project ledger search) <? (project allowance search)) then (ctor Result.ok [Ledger, Error] (record Ledger {search := ((project ledger search) + 1), rawReserve := (project ledger rawReserve), finalReserve := (project ledger finalReserve), replay := (project ledger replay), certificateProduction := (project ledger certificateProduction), checker := (project ledger checker)})) else (ctor Result.error [Ledger, Error] (ctor Error.searchExhausted)))
+    | Partition.rawReserve => (if ((project ledger rawReserve) <? (project allowance rawReserve)) then (ctor Result.ok [Ledger, Error] (record Ledger {search := (project ledger search), rawReserve := ((project ledger rawReserve) + 1), finalReserve := (project ledger finalReserve), replay := (project ledger replay), certificateProduction := (project ledger certificateProduction), checker := (project ledger checker)})) else (ctor Result.error [Ledger, Error] (ctor Error.rawReserveExhausted)))
+    | Partition.finalReserve => (if ((project ledger finalReserve) <? (project allowance finalReserve)) then (ctor Result.ok [Ledger, Error] (record Ledger {search := (project ledger search), rawReserve := (project ledger rawReserve), finalReserve := ((project ledger finalReserve) + 1), replay := (project ledger replay), certificateProduction := (project ledger certificateProduction), checker := (project ledger checker)})) else (ctor Result.error [Ledger, Error] (ctor Error.finalReserveExhausted)))
+    | Partition.replay => (if ((project ledger replay) <? (project allowance replay)) then (ctor Result.ok [Ledger, Error] (record Ledger {search := (project ledger search), rawReserve := (project ledger rawReserve), finalReserve := (project ledger finalReserve), replay := ((project ledger replay) + 1), certificateProduction := (project ledger certificateProduction), checker := (project ledger checker)})) else (ctor Result.error [Ledger, Error] (ctor Error.replayIncomplete)))
+    | Partition.certificateProduction => (if ((project ledger certificateProduction) <? (project allowance certificateProduction)) then (ctor Result.ok [Ledger, Error] (record Ledger {search := (project ledger search), rawReserve := (project ledger rawReserve), finalReserve := (project ledger finalReserve), replay := (project ledger replay), certificateProduction := ((project ledger certificateProduction) + 1), checker := (project ledger checker)})) else (ctor Result.error [Ledger, Error] (ctor Error.certificateProductionExhausted)))
+    | Partition.checker => (if ((project ledger checker) <? (project allowance checker)) then (ctor Result.ok [Ledger, Error] (record Ledger {search := (project ledger search), rawReserve := (project ledger rawReserve), finalReserve := (project ledger finalReserve), replay := (project ledger replay), certificateProduction := (project ledger certificateProduction), checker := ((project ledger checker) + 1)})) else (ctor Result.error [Ledger, Error] (ctor Error.checkerExhausted))))
+}
+
+definition{
+  name: replaceSearch,
+  parameters: [allowance : Allowances, effort : SearchEffort],
+  result: Allowances,
+  body: (record Allowances {search := (project effort steps), rawReserve := (project allowance rawReserve), finalReserve := (project allowance finalReserve), replay := (project allowance replay), certificateProduction := (project allowance certificateProduction), checker := (project allowance checker)})
+}
+
+theorem{
+  name: native_zero,
+  parameters: [],
+  statement: ((nativeWork 0 0) = 1048576),
+  proof: reflexivity{}
+}
+
+theorem{name: view_zero, parameters: [], statement: ((viewWork 0 0) = 65536), proof: reflexivity{}}
+
+theorem{
+  name: native_scale_16MiB,
+  parameters: [],
+  statement: ((nativeWork 16777216 1) = 34360791040),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: overflow_rejected,
+  parameters: [],
+  statement: ((nativeDefault 18446744073709551615 1) = (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: zero_search_preserves_final,
+  parameters: [],
+  statement: ((project (replaceSearch (record Allowances {search := 7, rawReserve := 7, finalReserve := 7, replay := 7, certificateProduction := 7, checker := 7}) (record SearchEffort {steps := 0})) finalReserve) = 7),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: native_checked_16MiB,
+  parameters: [],
+  statement: ((nativeDefault 16777216 1) = (ctor Result.ok [UInt64, Error] (34360791040 : UInt64))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: object_scale_overflow_rejected_without_nat_formula,
+  parameters: [],
+  statement: ((nativeDefault 0 18446744073709551615) = (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: search_replacement_preserves_rawReserve,
+  parameters: [allowance : Allowances, effort : SearchEffort],
+  statement: ((project (replaceSearch allowance effort) rawReserve) = (project allowance rawReserve)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: search_replacement_preserves_finalReserve,
+  parameters: [allowance : Allowances, effort : SearchEffort],
+  statement: ((project (replaceSearch allowance effort) finalReserve) = (project allowance finalReserve)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: search_replacement_preserves_replay,
+  parameters: [allowance : Allowances, effort : SearchEffort],
+  statement: ((project (replaceSearch allowance effort) replay) = (project allowance replay)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: search_replacement_preserves_certificateProduction,
+  parameters: [allowance : Allowances, effort : SearchEffort],
+  statement: ((project (replaceSearch allowance effort) certificateProduction) = (project allowance certificateProduction)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: search_replacement_preserves_checker,
+  parameters: [allowance : Allowances, effort : SearchEffort],
+  statement: ((project (replaceSearch allowance effort) checker) = (project allowance checker)),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

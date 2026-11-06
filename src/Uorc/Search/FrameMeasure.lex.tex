@@ -1,0 +1,94 @@
+\begin{lexlean}{Uorc.Search.FrameMeasure}
+\importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Wire.GraphEmit}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Core.Validation}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: preparing, fields: [Uorc.Wire.Frame::PrepareState]},
+    {name: measuring, fields: [Uorc.Wire.Frame::Prepared, Uorc.Wire.GraphEmit::State]}
+  ]
+}
+
+structure{
+  name: Measurement,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: prepared, type: Uorc.Wire.Frame::Prepared},
+    {name: preimageLength, type: Nat},
+    {name: archiveLength, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: prepare, fields: [Uorc.Wire.Frame::PrepareError]},
+    {name: emit, fields: [Uorc.Wire.GraphEmit::EmitError]},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [Measurement]},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [frame : Uorc.Wire.Frame::Frame],
+  result: Cursor,
+  body: (ctor Cursor.preparing (Uorc.Wire.Frame::startPreparation frame))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match cursor
+    | Cursor.preparing preparation => (match (Uorc.Wire.Frame::prepareStep preparation)
+      | Uorc.Wire.Frame::PrepareEvent.advanced next => (ctor Step.pending (ctor Cursor.preparing next))
+      | Uorc.Wire.Frame::PrepareEvent.complete prepared => (ctor Step.pending (ctor Cursor.measuring prepared (Uorc.Wire.Frame::preimageStart prepared)))
+      | Uorc.Wire.Frame::PrepareEvent.failed failure => (ctor Step.failed (ctor Error.prepare failure)))
+    | Cursor.measuring prepared emitter => (match (Uorc.Wire.GraphEmit::measureStep emitter)
+      | Uorc.Wire.GraphEmit::Event.advanced next => (ctor Step.pending (ctor Cursor.measuring prepared next))
+      | Uorc.Wire.GraphEmit::Event.produced ignoredBytes next => (ctor Step.pending (ctor Cursor.measuring prepared next))
+      | Uorc.Wire.GraphEmit::Event.complete preimageLength work => (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 preimageLength 32) then (ctor Step.complete (record Measurement {prepared := prepared, preimageLength := preimageLength, archiveLength := (preimageLength + 32)})) else (ctor Step.failed (ctor Error.addressSpaceExhausted)))
+      | Uorc.Wire.GraphEmit::Event.failed failure position work => (ctor Step.failed (ctor Error.emit failure))))
+}
+
+definition{
+  name: admissionPrecondition,
+  parameters: [],
+  result: String,
+  body: "Cached literal rope lengths may be used only after independent checked graph validation or source-owned canonical raw construction. An untrusted metadata cache is not certificate exclusion evidence. Archive integrity remains32 bytes in this provisional unshipped profile."
+}
+
+definition{
+  name: startProgram,
+  parameters: [
+    checked : Uorc.Core.Validation::CheckedGraph,
+    objectLengths : (List Nat),
+    scope : Uorc.Wire.Frame::Scope
+  ],
+  result: Cursor,
+  body: (start (record Uorc.Wire.Frame::Frame {objectLengths := objectLengths, scope := scope, body := (ctor Uorc.Wire.Frame::Body.program (project var{
+    name: checked
+  } graph))}))
+}
+\end{semanticmodule}
+\end{lexlean}

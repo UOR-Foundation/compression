@@ -1,0 +1,283 @@
+\begin{lexlean}{Uorc.Integrity.Contract}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Contract,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: standard, type: String},
+    {name: standardDomain, type: String},
+    {name: state, type: String},
+    {name: events, type: String},
+    {name: reconstruction, type: String},
+    {name: composition, type: String},
+    {name: compositionFrame, type: String},
+    {name: compositionAssurance, type: String},
+    {name: scope, type: String}
+  ]
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: Contract,
+  body: (record Contract {id := "UC-SHA-01", standard := "SHA-256; FIPS PUB 180-4 sections 4.1.2, 4.2.2, 5.1.1, 5.2.1, 5.3.3 and 6.2", standardDomain := "Byte-aligned messages of 0 through 2^61-1 bytes: bit length is strictly below 2^64. This is the standard domain, not an archive size limit.", state := "Eight UInt32 chaining words; a partial block of at most 63 bytes; UInt64 byte count; optional 16-word schedule and one round position; absorbing, finishing or finished phase.", events := "An update event consumes one byte or advances one compression round or feed-forward; finalize events consume one padding byte or advance one round or feed-forward. Fixed block loading and state validation have bounds independent of stream length. Update jobs retain a caller-provided chunk and offset.", reconstruction := "Hash equality is integrity evidence only; exact byte reconstruction comparison remains necessary and is not replaced by hash equality.", composition := "UORC-SHA256-CHAIN-v1 is a separate domain-separated bounded-block construction. It is not standard SHA-256 and is not claimed NIST-validated or universally collision-free.", compositionFrame := "D = UTF-8 UORC-SHA256-CHAIN-v1 followed by 00; C0 = SHA256(D || 00); for each full 64-byte block B: Cnext = SHA256(D || 01 || Cprev || B); terminal = SHA256(D || 02 || Cprev || one byte tail length || remaining 0..63 bytes). Full blocks always precede one terminal frame.", compositionAssurance := "No accumulated stream-length counter; each nested SHA-256 message is at most 118 bytes; buffering and hash work are bounded independently of total stream length. Finite fixtures are evidence, not a security proof.", scope := "Independent CAVP SHA256ShortMsg.rsp and SHA256LongMsg.rsp byte-oriented known-answer corpus, complete within these two locked files. This scope does not include bit-oriented or Monte Carlo certification."})
+}
+
+structure{
+  name: CorpusFile,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: path, type: String},
+    {name: sha256, type: String},
+    {name: bytes, type: Nat},
+    {name: cases, type: Nat},
+    {name: firstBits, type: Nat},
+    {name: strideBits, type: Nat},
+    {name: lastBits, type: Nat}
+  ]
+}
+
+definition{
+  name: SHA256ShortMsg,
+  parameters: [],
+  result: CorpusFile,
+  body: (record CorpusFile {path := "standards/nist-sha256/SHA256ShortMsg.rsp", sha256 := "75e1cb83994638481808e225b9eb0c1ebd0c232d952ac42b61abce6363be283c", bytes := 10299, cases := 65, firstBits := 0, strideBits := 8, lastBits := 512})
+}
+
+definition{
+  name: SHA256LongMsg,
+  parameters: [],
+  result: CorpusFile,
+  body: (record CorpusFile {path := "standards/nist-sha256/SHA256LongMsg.rsp", sha256 := "6fac36f37360bcf74ffcf4465c18e30d6d5a04cc90885b901fc3130c16060974", bytes := 426209, cases := 64, firstBits := 1304, strideBits := 792, lastBits := 51200})
+}
+
+structure{
+  name: Provenance,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: authority, type: String},
+    {name: officialUrl, type: String},
+    {name: acquisition, type: String},
+    {name: mirrorUrl, type: String},
+    {name: archiveSha256, type: String},
+    {name: readmeSha256, type: String},
+    {name: licenseUrl, type: String},
+    {name: licenseRole, type: String},
+    {name: evidenceRole, type: String},
+    {name: archiveBytes, type: Nat}
+  ]
+}
+
+definition{
+  name: provenance,
+  parameters: [],
+  result: Provenance,
+  body: (record Provenance {authority := "National Institute of Standards and Technology (NIST), CAVP SHS byte-oriented vectors, CAVS 11.0 generated 2011-03-15", officialUrl := "https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/shs/shabytetestvectors.zip", acquisition := "Existing public repository mirror; no direct NIST acquisition is claimed.", mirrorUrl := "https://github.com/mad4j/rusted-sha256/blob/0f7d17484d5d77c06f2f2f3e4d61745ce23a0c58/shabytetestvectors.zip", archiveSha256 := "929ef80b7b3418aca026643f6f248815913b60e01741a44bba9e118067f4c9b8", readmeSha256 := "24bf370543f9521f7eb44f49e8d489ac9e45a21126f883d8e32e7fffd1d10227", licenseUrl := "https://www.nist.gov/copyrights-disclaimers", licenseRole := "NIST public information/data, attributed to NIST, not relicensed as this repository code; supplied as-is. Only unmodified NIST data and its Readme are imported, no mirror software.", evidenceRole := "Independent expected digest oracle and partition/boundary test data. Informal correctness checks; neither CAVP certification nor a universal SHA-256 proof. Complete inventory is 65 short and 64 long cases; malformed, duplicated or dropped cases fail.", archiveBytes := 4909729})
+}
+
+structure{
+  name: CitedAuthority,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: name, type: String},
+    {name: citation, type: String},
+    {name: checksum, type: String},
+    {name: checksumReason, type: String},
+    {name: statement, type: String},
+    {name: realizedBy, type: String}
+  ]
+}
+
+definition{
+  name: authority_short,
+  parameters: [],
+  result: CitedAuthority,
+  body: (record CitedAuthority {id := "NIST-SHA256-SHORT", name := "NIST CAVP SHA-256 short byte-oriented known-answer data", citation := "NIST CAVS 11.0, 2011-03-15; SHA256ShortMsg.rsp from https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/shs/shabytetestvectors.zip; acquired from existing public mirror https://github.com/mad4j/rusted-sha256/blob/0f7d17484d5d77c06f2f2f3e4d61745ce23a0c58/shabytetestvectors.zip; NIST public-information terms: https://www.nist.gov/copyrights-disclaimers", checksum := "sha256:75e1cb83994638481808e225b9eb0c1ebd0c232d952ac42b61abce6363be283c", checksumReason := "The committed response bytes have the SHA-256 checksum shown here.", statement := "Independent expected digest oracle only, attributed to NIST. Unmodified response file is committed at standards/nist-sha256/SHA256ShortMsg.rsp. Passing its finite cases is neither CAVP certification nor a universal correctness or collision-freedom proof.", realizedBy := "UC-SHA-01"})
+}
+
+definition{
+  name: authority_long,
+  parameters: [],
+  result: CitedAuthority,
+  body: (record CitedAuthority {id := "NIST-SHA256-LONG", name := "NIST CAVP SHA-256 long byte-oriented known-answer data", citation := "NIST CAVS 11.0, 2011-03-15; SHA256LongMsg.rsp from https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/shs/shabytetestvectors.zip; acquired from existing public mirror https://github.com/mad4j/rusted-sha256/blob/0f7d17484d5d77c06f2f2f3e4d61745ce23a0c58/shabytetestvectors.zip; NIST public-information terms: https://www.nist.gov/copyrights-disclaimers", checksum := "sha256:6fac36f37360bcf74ffcf4465c18e30d6d5a04cc90885b901fc3130c16060974", checksumReason := "The committed response bytes have the SHA-256 checksum shown here.", statement := "Independent expected digest oracle only, attributed to NIST. Unmodified response file is committed at standards/nist-sha256/SHA256LongMsg.rsp. Passing its finite cases is neither CAVP certification nor a universal correctness or collision-freedom proof.", realizedBy := "UC-SHA-01"})
+}
+
+structure{
+  name: ImportedArtifact,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: path, type: String}, {name: sha256, type: String}, {name: role, type: String}]
+}
+
+definition{
+  name: imported_Readme,
+  parameters: [],
+  result: ImportedArtifact,
+  body: (record ImportedArtifact {path := "standards/nist-sha256/Readme.txt", sha256 := "24bf370543f9521f7eb44f49e8d489ac9e45a21126f883d8e32e7fffd1d10227", role := "Exact unmodified imported NIST validation data or upstream notice. It is external evidence, not handwritten project authority."})
+}
+
+definition{
+  name: imported_SHA256ShortMsg,
+  parameters: [],
+  result: ImportedArtifact,
+  body: (record ImportedArtifact {path := "standards/nist-sha256/SHA256ShortMsg.rsp", sha256 := "75e1cb83994638481808e225b9eb0c1ebd0c232d952ac42b61abce6363be283c", role := "Exact unmodified imported NIST validation data or upstream notice. It is external evidence, not handwritten project authority."})
+}
+
+definition{
+  name: imported_SHA256LongMsg,
+  parameters: [],
+  result: ImportedArtifact,
+  body: (record ImportedArtifact {path := "standards/nist-sha256/SHA256LongMsg.rsp", sha256 := "6fac36f37360bcf74ffcf4465c18e30d6d5a04cc90885b901fc3130c16060974", role := "Exact unmodified imported NIST validation data or upstream notice. It is external evidence, not handwritten project authority."})
+}
+
+structure{
+  name: ChainFixture,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: inputHex, type: String},
+    {name: expectedHex, type: String},
+    {name: role, type: String}
+  ]
+}
+
+definition{
+  name: chain_fixture_0,
+  parameters: [],
+  result: ChainFixture,
+  body: (record ChainFixture {inputHex := "", expectedHex := "3be514f4ab95644e6a6fd7040bcda95c773893086bd24297dfcaefdd05a493a3", role := "Independent Python 3.12 hashlib/OpenSSL SHA-256 evaluation of the source-defined frame formula; finite test fixture, not a universal proof or product implementation."})
+}
+
+definition{
+  name: chain_fixture_1,
+  parameters: [],
+  result: ChainFixture,
+  body: (record ChainFixture {inputHex := "00", expectedHex := "97bf85f33b57ce73e591217eef7b858832357e6805b60eb9c17d58887af36af9", role := "Independent Python 3.12 hashlib/OpenSSL SHA-256 evaluation of the source-defined frame formula; finite test fixture, not a universal proof or product implementation."})
+}
+
+definition{
+  name: chain_fixture_63,
+  parameters: [],
+  result: ChainFixture,
+  body: (record ChainFixture {inputHex := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e", expectedHex := "2556aea79be4292778a511a1553cd654c568aea0c7bb464b6d1771dfb8fb4484", role := "Independent Python 3.12 hashlib/OpenSSL SHA-256 evaluation of the source-defined frame formula; finite test fixture, not a universal proof or product implementation."})
+}
+
+definition{
+  name: chain_fixture_64,
+  parameters: [],
+  result: ChainFixture,
+  body: (record ChainFixture {inputHex := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f", expectedHex := "e77c7276faaa1ab118fa3f361c23a5059398d28fe6c99db064c76e0d8e3841e4", role := "Independent Python 3.12 hashlib/OpenSSL SHA-256 evaluation of the source-defined frame formula; finite test fixture, not a universal proof or product implementation."})
+}
+
+definition{
+  name: chain_fixture_65,
+  parameters: [],
+  result: ChainFixture,
+  body: (record ChainFixture {inputHex := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40", expectedHex := "e0f544255a6b717f8d4ccdd32798fb507a2aca3980a66b3a521209c6186ed25e", role := "Independent Python 3.12 hashlib/OpenSSL SHA-256 evaluation of the source-defined frame formula; finite test fixture, not a universal proof or product implementation."})
+}
+
+definition{
+  name: chain_fixture_128,
+  parameters: [],
+  result: ChainFixture,
+  body: (record ChainFixture {inputHex := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f", expectedHex := "27648dea914e0e0bc6dfaeb9c2ce1b3c137c8f2286b9b63129aca4dcef4b003c", role := "Independent Python 3.12 hashlib/OpenSSL SHA-256 evaluation of the source-defined frame formula; finite test fixture, not a universal proof or product implementation."})
+}
+
+definition{
+  name: chain_fixture_257,
+  parameters: [],
+  result: ChainFixture,
+  body: (record ChainFixture {inputHex := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff00", expectedHex := "2f55d36d983f2e78d7e34c2742d220c7dc2008b2ba119795cb9de2a7702eb1c3", role := "Independent Python 3.12 hashlib/OpenSSL SHA-256 evaluation of the source-defined frame formula; finite test fixture, not a universal proof or product implementation."})
+}
+
+structure{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: name, type: String}, {name: meaning, type: String}]
+}
+
+definition{
+  name: failure_invalidState,
+  parameters: [],
+  result: Failure,
+  body: (record Failure {name := "invalidState", meaning := "Rejects invalid buffer, counter, work schedule, round or phase shape."})
+}
+
+definition{
+  name: failure_lengthDomainExceeded,
+  parameters: [],
+  result: Failure,
+  body: (record Failure {name := "lengthDomainExceeded", meaning := "A standard SHA-256 update would exceed the byte-aligned standard length domain; archive streaming may select the separately named chain construction."})
+}
+
+definition{
+  name: failure_workPending,
+  parameters: [],
+  result: Failure,
+  body: (record Failure {name := "workPending", meaning := "Caller must advance bounded pending work before direct absorption; chain finalization requires its preceding update to complete."})
+}
+
+definition{
+  name: failure_updateAfterFinalize,
+  parameters: [],
+  result: Failure,
+  body: (record Failure {name := "updateAfterFinalize", meaning := "Input is rejected after finalization begins."})
+}
+
+definition{
+  name: failure_notFinalized,
+  parameters: [],
+  result: Failure,
+  body: (record Failure {name := "notFinalized", meaning := "Digest is unavailable until finalization completes, or finalization stepping was requested before finalize."})
+}
+
+definition{
+  name: failure_fuelExhausted,
+  parameters: [],
+  result: Failure,
+  body: (record Failure {name := "fuelExhausted", meaning := "Convenience driver allowance exhausted; retained step states remain resumable through the step APIs."})
+}
+
+definition{
+  name: failure_invalidOffset,
+  parameters: [],
+  result: Failure,
+  body: (record Failure {name := "invalidOffset", meaning := "Update offset exceeds the retained chunk length."})
+}
+
+structure{
+  name: Mutation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: definition, type: String},
+    {name: before, type: String},
+    {name: after, type: String},
+    {name: owner, type: String}
+  ]
+}
+
+definition{
+  name: mutation_wrapping_word,
+  parameters: [],
+  result: Mutation,
+  body: (record Mutation {id := "wrapping_word", definition := "wrappingAdd", before := "1", after := "2", owner := "wrapping_double_max"})
+}
+
+definition{
+  name: mutation_length_bits,
+  parameters: [],
+  result: Mutation,
+  body: (record Mutation {id := "length_bits", definition := "bitLengthBytes", before := "3", after := "2", owner := "length_bytes_max"})
+}
+\end{semanticmodule}
+\end{lexlean}

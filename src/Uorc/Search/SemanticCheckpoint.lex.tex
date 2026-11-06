@@ -1,0 +1,185 @@
+\begin{lexlean}{Uorc.Search.SemanticCheckpoint}
+\importmodule{Uorc.Search.SemanticScope}
+\importmodule{Uorc.Search.Checkpoint}
+\importmodule{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Search.Verify}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Schema,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: canonicalSemanticCheckpoint1, fields: []},
+    {name: legacyOperationalDiagnostic1, fields: []},
+    {name: logicalReferenceCheckpoint1, fields: []}
+  ]
+}
+
+structure{
+  name: Record,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: schema, type: Schema},
+    {name: semanticScope, type: Uorc.Search.SemanticScope::Seal},
+    {name: realization, type: Uorc.Search.SemanticScope::Realization},
+    {name: policy, type: Uorc.Search.Checkpoint::PolicySnapshot},
+    {name: effortPrefix, type: Nat},
+    {name: incumbentWireToRecheck, type: (Option Uorc.Core.Bytes::Rope)}
+  ]
+}
+
+inductive{
+  name: Reason,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: recordedPrefixMustBeReplayed, fields: []},
+    {name: realizationChanged, fields: []},
+    {name: policyChanged, fields: []}
+  ]
+}
+
+structure{
+  name: ReplayRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: semanticScope, type: Uorc.Search.SemanticScope::Seal},
+    {name: realization, type: Uorc.Search.SemanticScope::Realization},
+    {name: policy, type: Uorc.Search.Checkpoint::PolicySnapshot},
+    {name: requestedPrefix, type: Nat},
+    {name: incumbentWireToRecheck, type: (Option Uorc.Core.Bytes::Rope)},
+    {name: reason, type: Reason}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: header, fields: []},
+    {name: semantic, fields: [Uorc.Search.SemanticScope::Cursor]},
+    {name: realization, fields: [Uorc.Search.SemanticScope::RealizationCursor]},
+    {name: policy, fields: [Uorc.Search.VerifyRope::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: record, type: Record},
+    {name: semanticScope, type: Uorc.Search.SemanticScope::Seal},
+    {name: realization, type: Uorc.Search.SemanticScope::Realization},
+    {name: policy, type: Uorc.Search.Checkpoint::PolicySnapshot},
+    {name: phase, type: Phase}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: semanticMismatch, fields: [Uorc.Search.SemanticScope::Difference]},
+    {name: legacyInterpretationRequired, fields: []},
+    {name: invalidScope, fields: []},
+    {name: invalidQuantum, fields: []},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: replayRequired, fields: [ReplayRequest]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+definition{
+  name: policyRoots,
+  parameters: [policy : Uorc.Search.Checkpoint::PolicySnapshot],
+  result: (List Uorc.Core.Bytes::Rope),
+  body: (cons (project policy sourceIdentity) (cons (project policy seedInventory) (cons (project policy sharingInventory) (nil Uorc.Core.Bytes::Rope))))
+}
+
+definition{
+  name: start,
+  parameters: [
+    record : Record,
+    semanticScope : Uorc.Search.SemanticScope::Seal,
+    realization : Uorc.Search.SemanticScope::Realization,
+    policy : Uorc.Search.Checkpoint::PolicySnapshot
+  ],
+  result: Cursor,
+  body: (record Cursor {record := var{
+    name: record
+  }, semanticScope := semanticScope, realization := realization, policy := policy, phase := (ctor Phase.header)})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.header => (match (project (project cursor record) schema)
+      | Schema.legacyOperationalDiagnostic1 => (ctor Step.rejected (ctor Error.legacyInterpretationRequired))
+      | Schema.logicalReferenceCheckpoint1 => (if ((project (project cursor policy) quantum) =? 0) then (ctor Step.rejected (ctor Error.invalidQuantum)) else (ctor Step.pending (record Cursor {record := (project cursor record), semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), phase := (ctor Phase.semantic (Uorc.Search.SemanticScope::start (project (project cursor record) semanticScope) (project cursor semanticScope)))})))
+      | Schema.canonicalSemanticCheckpoint1 => (ctor Step.rejected (ctor Error.legacyInterpretationRequired)))
+    | Phase.semantic comparison => (match (Uorc.Search.SemanticScope::step comparison)
+      | Uorc.Search.SemanticScope::Step.pending continued => (ctor Step.pending (record Cursor {record := (project cursor record), semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), phase := (ctor Phase.semantic continued)}))
+      | Uorc.Search.SemanticScope::Step.matched => (ctor Step.pending (record Cursor {record := (project cursor record), semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), phase := (ctor Phase.realization (Uorc.Search.SemanticScope::startRealization (project (project cursor record) realization) (project cursor realization)))}))
+      | Uorc.Search.SemanticScope::Step.different difference => (ctor Step.rejected (ctor Error.semanticMismatch difference))
+      | Uorc.Search.SemanticScope::Step.legacyInterpretationRequired => (ctor Step.rejected (ctor Error.legacyInterpretationRequired))
+      | Uorc.Search.SemanticScope::Step.invalidScope => (ctor Step.rejected (ctor Error.invalidScope))
+      | Uorc.Search.SemanticScope::Step.ropeFailure ropeError => (ctor Step.rejected (ctor Error.rope ropeError)))
+    | Phase.realization comparison => (match (Uorc.Search.SemanticScope::realizationStep comparison)
+      | Uorc.Search.SemanticScope::RealizationStep.pending continued => (ctor Step.pending (record Cursor {record := (project cursor record), semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), phase := (ctor Phase.realization continued)}))
+      | Uorc.Search.SemanticScope::RealizationStep.matched => (if ((project (project cursor policy) quantum) =? (project (project (project cursor record) policy) quantum)) then (ctor Step.pending (record Cursor {record := (project cursor record), semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), phase := (ctor Phase.policy (Uorc.Search.VerifyRope::start (policyRoots (project (project cursor record) policy)) (policyRoots (project cursor policy))))})) else (ctor Step.replayRequired (record ReplayRequest {semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), requestedPrefix := 0, incumbentWireToRecheck := (project (project cursor record) incumbentWireToRecheck), reason := (ctor Reason.policyChanged)})))
+      | Uorc.Search.SemanticScope::RealizationStep.differentEnvelope => (ctor Step.replayRequired (record ReplayRequest {semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), requestedPrefix := 0, incumbentWireToRecheck := (project (project cursor record) incumbentWireToRecheck), reason := (ctor Reason.realizationChanged)}))
+      | Uorc.Search.SemanticScope::RealizationStep.differentIdentities difference => (ctor Step.replayRequired (record ReplayRequest {semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), requestedPrefix := 0, incumbentWireToRecheck := (project (project cursor record) incumbentWireToRecheck), reason := (ctor Reason.realizationChanged)}))
+      | Uorc.Search.SemanticScope::RealizationStep.ropeFailure ropeError => (ctor Step.rejected (ctor Error.rope ropeError)))
+    | Phase.policy comparison => (match (Uorc.Search.VerifyRope::step comparison)
+      | Uorc.Search.VerifyRope::Step.pending continued => (ctor Step.pending (record Cursor {record := (project cursor record), semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), phase := (ctor Phase.policy continued)}))
+      | Uorc.Search.VerifyRope::Step.matched bytesCompared objectsCompared => (ctor Step.replayRequired (record ReplayRequest {semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), requestedPrefix := (project (project cursor record) effortPrefix), incumbentWireToRecheck := (project (project cursor record) incumbentWireToRecheck), reason := (ctor Reason.recordedPrefixMustBeReplayed)}))
+      | Uorc.Search.VerifyRope::Step.mismatch difference => (ctor Step.replayRequired (record ReplayRequest {semanticScope := (project cursor semanticScope), realization := (project cursor realization), policy := (project cursor policy), requestedPrefix := 0, incumbentWireToRecheck := (project (project cursor record) incumbentWireToRecheck), reason := (ctor Reason.policyChanged)}))
+      | Uorc.Search.VerifyRope::Step.ropeFailure ropeError => (ctor Step.rejected (ctor Error.rope ropeError))))
+}
+
+definition{
+  name: run,
+  parameters: [work : Nat, state : Step],
+  result: Step,
+  body: (match work
+    | Nat.zero => state
+    | Nat.succ remaining => (match state
+      | Step.pending continued => (run remaining (step continued))
+      | Step.replayRequired request => state
+      | Step.rejected failure => state)),
+  recursive_argument: work
+}
+
+definition{
+  name: schemaIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.logical-reference-checkpoint/1"
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "The new logical-reference checkpoint schema binds the supported logical semantic seal separately from operational realization and discretionary search policy. Both old canonicalSemanticCheckpoint1 and operational records remain legacy and cannot restore coverage or trusted state. Semantic changes reject a record; realization or strategy changes force a new replay request from zero without changing membership. Even an exact current record only requests independent replay of its claimed prefix; no queue, visited set, prior coverage, resource ledger, token or incumbent is trusted. Exact archive bytes must pass fresh wire/integrity/admission/execution and full output checks. Canonical logical-event/storage refinement and bounded production identity comparison remain required before semantic-budget minimum certification."
+}
+\end{semanticmodule}
+\end{lexlean}

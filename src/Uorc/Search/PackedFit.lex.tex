@@ -1,0 +1,192 @@
+\begin{lexlean}{Uorc.Search.PackedFit}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.DictionaryFit}
+\importmodule{Uorc.Search.PackedDictionary}
+\importmodule{Uorc.Search.PackedLayout}
+\importmodule{Uorc.Search.StreamBuilder}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Graph}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: discovering, fields: [Uorc.Search.DictionaryFit::Cursor]},
+    {name: reversing, fields: [(List Nat), (List Nat)]},
+    {name: codes, fields: [(List Nat)]},
+    {name: bits, fields: [Nat, Nat, (List Nat)]},
+    {name: appending, fields: [Uorc.Search.StreamBuilder::Cursor, Nat, Nat, (List Nat)]},
+    {name: finishing, fields: [Uorc.Search.StreamBuilder::Cursor]},
+    {name: layout, fields: [Uorc.Search.PackedLayout::Cursor, Uorc.Core.Bytes::Rope]},
+    {name: tail, fields: [Uorc.Core.Bytes::Work, Uorc.Core.Bytes::Rope]}
+  ]
+}
+
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: state,
+      fields: [
+        Uorc.Core.Bytes::Rope,
+        Nat,
+        Nat,
+        Uorc.Core.Bytes::Rope,
+        Nat,
+        Uorc.Search.StreamBuilder::Builder,
+        Nat,
+        Nat,
+        Nat,
+        Phase,
+        Nat
+      ]
+    }
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: discovery, fields: [Uorc.Search.DictionaryFit::Error]},
+    {name: builder, fields: [Uorc.Search.StreamBuilder::Error]},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: layout, fields: [Uorc.Search.PackedLayout::Error]},
+    {name: coordinateOverflow, fields: []},
+    {name: invalidState, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Nat]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [target : Uorc.Core.Bytes::Rope, width : Nat],
+  result: Step,
+  body: (match (Uorc.Search.DictionaryFit::start target width)
+    | Uorc.Search.DictionaryFit::Step.pending discovery => (ctor Step.pending (ctor Cursor.state target width 0 (ctor Uorc.Core.Bytes::Rope.empty) 0 (Uorc.Search.StreamBuilder::empty) 0 0 1 (ctor Phase.discovering discovery) 0))
+    | Uorc.Search.DictionaryFit::Step.proposal unexpected events => (ctor Step.rejected (ctor Error.invalidState))
+    | Uorc.Search.DictionaryFit::Step.rejected failure => (ctor Step.rejected (ctor Error.discovery failure)))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match cursor
+    | Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor f_phase f_completedEvents => (match f_phase
+      | Phase.discovering discovery => (match discovery
+        | Uorc.Search.DictionaryFit::Cursor.state d_b0 d_b1 d_offset d_b3 d_nextCode d_assignmentsReversed d_dictionary d_b7 d_b8 d_phase d_b10 => (if (match d_phase
+          | Uorc.Search.DictionaryFit::Phase.nextChunk => false
+          | Uorc.Search.DictionaryFit::Phase.slicing ignoredPart0 => false
+          | Uorc.Search.DictionaryFit::Phase.lookup ignoredPart0 ignoredPart1 => false
+          | Uorc.Search.DictionaryFit::Phase.comparing ignoredPart0 ignoredPart1 ignoredPart2 ignoredPart3 => false
+          | Uorc.Search.DictionaryFit::Phase.reverseEntries ignoredPart0 ignoredPart1 => false
+          | Uorc.Search.DictionaryFit::Phase.dictionary ignoredPart0 => false
+          | Uorc.Search.DictionaryFit::Phase.joinDictionary ignoredPart0 ignoredPart1 => false
+          | Uorc.Search.DictionaryFit::Phase.reverseAssignments ignoredPart0 ignoredPart1 => true
+          | Uorc.Search.DictionaryFit::Phase.codes ignoredPart0 => false
+          | Uorc.Search.DictionaryFit::Phase.codeDigits ignoredPart0 ignoredPart1 ignoredPart2 => false
+          | Uorc.Search.DictionaryFit::Phase.buildCodes ignoredPart0 => false
+          | Uorc.Search.DictionaryFit::Phase.tail ignoredPart0 ignoredPart1 => false) then (ctor Step.pending (ctor Cursor.state f_target f_width d_offset d_dictionary (Uorc.Search.PackedDictionary::indexBits (prim subtract d_nextCode 1 : Nat)) f_builder f_currentByte f_filledBits f_factor (ctor Phase.reversing d_assignmentsReversed (nil Nat)) (f_completedEvents + 1))) else (match (Uorc.Search.DictionaryFit::step discovery)
+          | Uorc.Search.DictionaryFit::Step.pending next => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.discovering next) (f_completedEvents + 1)))
+          | Uorc.Search.DictionaryFit::Step.proposal unexpected events => (ctor Step.rejected (ctor Error.invalidState))
+          | Uorc.Search.DictionaryFit::Step.rejected failure => (ctor Step.rejected (ctor Error.discovery failure)))))
+      | Phase.reversing remaining forward => (match remaining
+        | List.nil => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.codes forward) (f_completedEvents + 1)))
+        | List.cons code rest => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.reversing rest (cons code forward)) (f_completedEvents + 1))))
+      | Phase.codes assignments => (match assignments
+        | List.nil => (if (f_filledBits =? 0) then (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.finishing (Uorc.Search.StreamBuilder::finish f_builder)) (f_completedEvents + 1))) else (match (Uorc.Search.Effort::checkedU64 f_currentByte)
+          | Result.error failure => (ctor Step.rejected (ctor Error.coordinateOverflow))
+          | Result.ok byteWord => (match (Uorc.Core.Types::naturalToByte byteWord)
+            | Result.error failure => (ctor Step.rejected (ctor Error.coordinateOverflow))
+            | Result.ok encodedByte => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder 0 0 1 (ctor Phase.appending (Uorc.Search.StreamBuilder::appendChunk f_builder (Uorc.Core.Types::singletonSequence encodedByte)) 0 0 (nil Nat)) (f_completedEvents + 1))))))
+        | List.cons code rest => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.bits code f_bitsPerIndex rest) (f_completedEvents + 1))))
+      | Phase.bits code remainingBits assignments => (if (remainingBits =? 0) then (if (code =? 0) then (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.codes assignments) (f_completedEvents + 1))) else (ctor Step.rejected (ctor Error.coordinateOverflow))) else (if (f_filledBits =? 7) then (match (Uorc.Search.Effort::checkedU64 (f_currentByte + (prim multiply (prim remainder code 2 0 : Nat) f_factor : Nat)))
+        | Result.error failure => (ctor Step.rejected (ctor Error.coordinateOverflow))
+        | Result.ok byteWord => (match (Uorc.Core.Types::naturalToByte byteWord)
+          | Result.error failure => (ctor Step.rejected (ctor Error.coordinateOverflow))
+          | Result.ok encodedByte => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder 0 0 1 (ctor Phase.appending (Uorc.Search.StreamBuilder::appendChunk f_builder (Uorc.Core.Types::singletonSequence encodedByte)) (prim quotient code 2 0 : Nat) (prim subtract remainingBits 1 : Nat) assignments) (f_completedEvents + 1))))) else (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder (f_currentByte + (prim multiply (prim remainder code 2 0 : Nat) f_factor : Nat)) (f_filledBits + 1) (prim multiply f_factor 2 : Nat) (ctor Phase.bits (prim quotient code 2 0 : Nat) (prim subtract remainingBits 1 : Nat) assignments) (f_completedEvents + 1)))))
+      | Phase.appending appendCursor code remainingBits assignments => (match (Uorc.Search.StreamBuilder::tick appendCursor)
+        | Uorc.Search.StreamBuilder::Step.pending next => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.appending next code remainingBits assignments) (f_completedEvents + 1)))
+        | Uorc.Search.StreamBuilder::Step.appended builder => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex builder f_currentByte f_filledBits f_factor (ctor Phase.bits code remainingBits assignments) (f_completedEvents + 1)))
+        | Uorc.Search.StreamBuilder::Step.finished unexpected count => (ctor Step.rejected (ctor Error.invalidState))
+        | Uorc.Search.StreamBuilder::Step.failed failure => (ctor Step.rejected (ctor Error.builder failure)))
+      | Phase.finishing finishCursor => (match (Uorc.Search.StreamBuilder::tick finishCursor)
+        | Uorc.Search.StreamBuilder::Step.pending next => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.finishing next) (f_completedEvents + 1)))
+        | Uorc.Search.StreamBuilder::Step.appended unexpected => (ctor Step.rejected (ctor Error.invalidState))
+        | Uorc.Search.StreamBuilder::Step.finished codes bytes => (match (Uorc.Search.PackedLayout::start codes (prim quotient f_count f_width 0 : Nat) f_bitsPerIndex)
+          | Uorc.Search.PackedLayout::Step.pending nextLayoutCursor => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.layout nextLayoutCursor codes) (f_completedEvents + 1)))
+          | Uorc.Search.PackedLayout::Step.complete layout events => (match (Uorc.Core.Bytes::startSlice f_target f_count (prim subtract (Uorc.Core.Bytes::length f_target) f_count : Nat))
+            | Result.error failure => (ctor Step.rejected (ctor Error.rope failure))
+            | Result.ok tailWork => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.tail tailWork codes) (f_completedEvents + 1))))
+          | Uorc.Search.PackedLayout::Step.rejected failure events => (ctor Step.rejected (ctor Error.layout failure)))
+        | Uorc.Search.StreamBuilder::Step.failed failure => (ctor Step.rejected (ctor Error.builder failure)))
+      | Phase.layout layoutCursor codes => (match (Uorc.Search.PackedLayout::step layoutCursor)
+        | Uorc.Search.PackedLayout::Step.pending nextLayoutCursor => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.layout nextLayoutCursor codes) (f_completedEvents + 1)))
+        | Uorc.Search.PackedLayout::Step.complete layout events => (match (Uorc.Core.Bytes::startSlice f_target f_count (prim subtract (Uorc.Core.Bytes::length f_target) f_count : Nat))
+          | Result.error failure => (ctor Step.rejected (ctor Error.rope failure))
+          | Result.ok tailWork => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.tail tailWork codes) (f_completedEvents + 1))))
+        | Uorc.Search.PackedLayout::Step.rejected failure events => (ctor Step.rejected (ctor Error.layout failure)))
+      | Phase.tail tailWork codes => (match (Uorc.Core.Bytes::workStep tailWork)
+        | Uorc.Core.Bytes::WorkEvent.advanced next => (ctor Step.pending (ctor Cursor.state f_target f_width f_count f_dictionary f_bitsPerIndex f_builder f_currentByte f_filledBits f_factor (ctor Phase.tail next codes) (f_completedEvents + 1)))
+        | Uorc.Core.Bytes::WorkEvent.sequenceDone tail => (match (Uorc.Search.Effort::checkedU64 f_count)
+          | Result.error failure => (ctor Step.rejected (ctor Error.coordinateOverflow))
+          | Result.ok countWord => (match (Uorc.Search.Effort::checkedU64 f_width)
+            | Result.error failure => (ctor Step.rejected (ctor Error.coordinateOverflow))
+            | Result.ok widthWord => (match (Uorc.Search.Effort::checkedU64 f_bitsPerIndex)
+              | Result.error failure => (ctor Step.rejected (ctor Error.coordinateOverflow))
+              | Result.ok bitsWord => (ctor Step.proposal (Uorc.Search.PackedDictionary::program countWord widthWord bitsWord codes f_dictionary tail) (f_completedEvents + 1)))))
+        | Uorc.Core.Bytes::WorkEvent.byteDone unexpected => (ctor Step.rejected (ctor Error.invalidState))
+        | Uorc.Core.Bytes::WorkEvent.failed failure => (ctor Step.rejected (ctor Error.rope failure)))))
+}
+
+definition{
+  name: runWorkCursor,
+  parameters: [work : Nat, cursor : Cursor],
+  result: Step,
+  body: (match work
+    | Nat.zero => (ctor Step.pending cursor)
+    | Nat.succ remainingWork => (match (step cursor)
+      | Step.pending nextCursor => (runWorkCursor remainingWork nextCursor)
+      | Step.proposal graph events => (ctor Step.proposal graph events)
+      | Step.rejected failure => (ctor Step.rejected failure))),
+  recursive_argument: work
+}
+
+definition{
+  name: runWork,
+  parameters: [work : Nat, state : Step],
+  result: Step,
+  body: (match state
+    | Step.pending cursor => (runWorkCursor work cursor)
+    | Step.proposal graph events => (ctor Step.proposal graph events)
+    | Step.rejected failure => (ctor Step.rejected failure))
+}
+
+definition{
+  name: proposal,
+  parameters: [state : Step],
+  result: (Option Uorc.Core.Graph::Graph),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [Uorc.Core.Graph::Graph])
+    | Step.proposal graph events => (ctor Option.some [Uorc.Core.Graph::Graph] graph)
+    | Step.rejected failure => (ctor Option.none [Uorc.Core.Graph::Graph]))
+}
+\end{semanticmodule}
+\end{lexlean}

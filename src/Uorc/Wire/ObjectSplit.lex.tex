@@ -1,0 +1,479 @@
+\begin{lexlean}{Uorc.Wire.ObjectSplit}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: opening, fields: []},
+    {name: copying, fields: []},
+    {name: closing, fields: []},
+    {name: awaitingEnd, fields: []}
+  ]
+}
+
+inductive{
+  name: SplitError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: inputNotRequested, fields: []},
+    {name: endAlreadySeen, fields: []},
+    {name: invalidCursor, fields: []},
+    {name: invalidQuantum, fields: []},
+    {name: truncated, fields: []},
+    {name: trailingBytes, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+structure{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: kind, type: SplitError},
+    {name: objectIndex, type: Nat},
+    {name: objectOffset, type: Nat}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: lengths, type: (List Nat)},
+    {name: phase, type: Phase},
+    {name: objectIndex, type: Nat},
+    {name: objectLength, type: Nat},
+    {name: remaining, type: Nat},
+    {name: input, type: Bytes},
+    {name: offset, type: Nat},
+    {name: waiting, type: Bool},
+    {name: ended, type: Bool}
+  ]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [State]},
+    {name: needInput, fields: [State]},
+    {name: beginObject, fields: [Nat, Nat, State]},
+    {name: bytes, fields: [Nat, Bytes, State]},
+    {name: endObject, fields: [Nat, State]},
+    {name: complete, fields: [Nat]},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [lengths : (List Nat)],
+  result: State,
+  body: (record State {lengths := lengths, phase := (ctor Phase.opening), objectIndex := 0, objectLength := 0, remaining := 0, input := 0x, offset := 0, waiting := false, ended := false})
+}
+
+definition{
+  name: feed,
+  parameters: [s : State, chunk : Bytes],
+  result: Event,
+  body: (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor SplitError.endAlreadySeen), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)})) else (if (project s waiting) then (ctor Event.advanced (record State {lengths := (project s lengths), phase := (project s phase), objectIndex := (project s objectIndex), objectLength := (project s objectLength), remaining := (project s remaining), input := chunk, offset := 0, waiting := false, ended := (project s ended)})) else (ctor Event.failed (record Error {kind := (ctor SplitError.inputNotRequested), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)}))))
+}
+
+definition{
+  name: finishInput,
+  parameters: [s : State],
+  result: Event,
+  body: (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor SplitError.endAlreadySeen), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)})) else (if (project s waiting) then (ctor Event.advanced (record State {lengths := (project s lengths), phase := (project s phase), objectIndex := (project s objectIndex), objectLength := (project s objectLength), remaining := (project s remaining), input := (project s input), offset := (project s offset), waiting := false, ended := true})) else (ctor Event.failed (record Error {kind := (ctor SplitError.inputNotRequested), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)}))))
+}
+
+definition{
+  name: step,
+  parameters: [s : State, quantum : Nat],
+  result: Event,
+  body: (if (quantum =? 0) then (ctor Event.failed (record Error {kind := (ctor SplitError.invalidQuantum), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)})) else (if ((prim length (project s input) : Nat) <? (project s offset)) then (ctor Event.failed (record Error {kind := (ctor SplitError.invalidCursor), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)})) else (if (project s waiting) then (ctor Event.needInput s) else (match (project s phase)
+    | Phase.opening => (match (project s lengths)
+      | List.nil => (ctor Event.advanced (record State {lengths := (project s lengths), phase := (ctor Phase.awaitingEnd), objectIndex := (project s objectIndex), objectLength := (project s objectLength), remaining := (project s remaining), input := (project s input), offset := (project s offset), waiting := (project s waiting), ended := (project s ended)}))
+      | List.cons nextLength remainingLengths => (ctor Event.beginObject (project s objectIndex) nextLength (record State {lengths := remainingLengths, phase := (ctor Phase.copying), objectIndex := (project s objectIndex), objectLength := nextLength, remaining := nextLength, input := (project s input), offset := (project s offset), waiting := (project s waiting), ended := (project s ended)})))
+    | Phase.copying => (if ((project s remaining) =? 0) then (ctor Event.endObject (project s objectIndex) (record State {lengths := (project s lengths), phase := (ctor Phase.closing), objectIndex := (project s objectIndex), objectLength := (project s objectLength), remaining := (project s remaining), input := (project s input), offset := (project s offset), waiting := (project s waiting), ended := (project s ended)})) else (if ((project s offset) <? (prim length (project s input) : Nat)) then (match (prim slice (project s input) (project s offset) (if ((prim subtract (prim length (project s input) : Nat) (project s offset) : Nat) <? (if ((project s remaining) <? quantum) then (project s remaining) else quantum)) then (prim subtract (prim length (project s input) : Nat) (project s offset) : Nat) else (if ((project s remaining) <? quantum) then (project s remaining) else quantum)) : (Option Bytes))
+      | Option.none => (ctor Event.failed (record Error {kind := (ctor SplitError.invalidCursor), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)}))
+      | Option.some piece => (ctor Event.bytes (project s objectIndex) piece (record State {lengths := (project s lengths), phase := (project s phase), objectIndex := (project s objectIndex), objectLength := (project s objectLength), remaining := (prim subtract (project s remaining) (if ((prim subtract (prim length (project s input) : Nat) (project s offset) : Nat) <? (if ((project s remaining) <? quantum) then (project s remaining) else quantum)) then (prim subtract (prim length (project s input) : Nat) (project s offset) : Nat) else (if ((project s remaining) <? quantum) then (project s remaining) else quantum)) : Nat), input := (project s input), offset := ((project s offset) + (if ((prim subtract (prim length (project s input) : Nat) (project s offset) : Nat) <? (if ((project s remaining) <? quantum) then (project s remaining) else quantum)) then (prim subtract (prim length (project s input) : Nat) (project s offset) : Nat) else (if ((project s remaining) <? quantum) then (project s remaining) else quantum))), waiting := (project s waiting), ended := (project s ended)}))) else (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor SplitError.truncated), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)})) else (ctor Event.needInput (record State {lengths := (project s lengths), phase := (project s phase), objectIndex := (project s objectIndex), objectLength := (project s objectLength), remaining := (project s remaining), input := 0x, offset := 0, waiting := true, ended := (project s ended)})))))
+    | Phase.closing => (if ((project s objectIndex) =? 18446744073709551615) then (ctor Event.failed (record Error {kind := (ctor SplitError.addressSpaceExhausted), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)})) else (ctor Event.advanced (record State {lengths := (project s lengths), phase := (ctor Phase.opening), objectIndex := ((project s objectIndex) + 1), objectLength := 0, remaining := 0, input := (project s input), offset := (project s offset), waiting := (project s waiting), ended := (project s ended)})))
+    | Phase.awaitingEnd => (if ((project s offset) <? (prim length (project s input) : Nat)) then (ctor Event.failed (record Error {kind := (ctor SplitError.trailingBytes), objectIndex := (project s objectIndex), objectOffset := (prim subtract (project s objectLength) (project s remaining) : Nat)})) else (if (project s ended) then (ctor Event.complete (project s objectIndex)) else (ctor Event.needInput (record State {lengths := (project s lengths), phase := (project s phase), objectIndex := (project s objectIndex), objectLength := (project s objectLength), remaining := (project s remaining), input := 0x, offset := 0, waiting := true, ended := (project s ended)}))))))))
+}
+
+inductive{
+  name: FixtureResult,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: done, fields: [(List Bytes)]},
+    {name: failed, fields: [SplitError]}
+  ]
+}
+
+definition{
+  name: reverseObjects,
+  parameters: [xs : (List Bytes), acc : (List Bytes)],
+  result: (List Bytes),
+  body: (match xs
+    | List.nil => acc
+    | List.cons headObject tailObjects => (reverseObjects tailObjects (cons headObject acc))),
+  recursive_argument: xs
+}
+
+definition{
+  name: collectFixture,
+  parameters: [
+    fuel : Nat,
+    event : Event,
+    parts : (List Bytes),
+    quantum : Nat,
+    current : Bytes,
+    objects : (List Bytes)
+  ],
+  result: FixtureResult,
+  body: (match fuel
+    | Nat.zero => (ctor FixtureResult.pending)
+    | Nat.succ fuelLeft => (match event
+      | Event.advanced advancedState => (collectFixture fuelLeft (step advancedState quantum) parts quantum current objects)
+      | Event.needInput demandState => (match parts
+        | List.nil => (collectFixture fuelLeft (finishInput demandState) parts quantum current objects)
+        | List.cons nextPart restParts => (collectFixture fuelLeft (feed demandState nextPart) restParts quantum current objects))
+      | Event.beginObject ignoredIndex ignoredLength beginState => (collectFixture fuelLeft (step beginState quantum) parts quantum 0x objects)
+      | Event.bytes ignoredByteIndex pieceBytes byteState => (collectFixture fuelLeft (step byteState quantum) parts quantum (prim append current pieceBytes : Bytes) objects)
+      | Event.endObject ignoredEndIndex endState => (collectFixture fuelLeft (step endState quantum) parts quantum 0x (cons current objects))
+      | Event.complete ignoredCount => (ctor FixtureResult.done (reverseObjects objects (nil Bytes)))
+      | Event.failed failure => (ctor FixtureResult.failed (project failure kind)))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: runFixture,
+  parameters: [lengths : (List Nat), parts : (List Bytes), quantum : Nat],
+  result: FixtureResult,
+  body: (collectFixture 200 (ctor Event.advanced (start lengths)) parts quantum 0x (nil Bytes))
+}
+
+theorem{
+  name: zero_objects,
+  parameters: [],
+  statement: ((runFixture (nil Nat) (nil Bytes) 2) = (ctor FixtureResult.done (nil Bytes))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: one_empty,
+  parameters: [],
+  statement: ((runFixture (cons 0 (nil Nat)) (nil Bytes) 2) = (ctor FixtureResult.done (cons 0x (nil Bytes)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: three_empty,
+  parameters: [],
+  statement: ((runFixture (cons 0 (cons 0 (cons 0 (nil Nat)))) (cons 0x (cons 0x (nil Bytes))) 2) = (ctor FixtureResult.done (cons 0x (cons 0x (cons 0x (nil Bytes)))))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: fixtureObjectsEqual,
+  parameters: [leftObjects : (List Bytes), rightObjects : (List Bytes)],
+  result: Bool,
+  body: (match leftObjects
+    | List.nil => (match rightObjects
+      | List.nil => true
+      | List.cons ignoredRight ignoredRest => false)
+    | List.cons leftObject leftRest => (match rightObjects
+      | List.nil => false
+      | List.cons rightObject rightRest => (match (Uorc.Core.Bytes::equal (Uorc.Core.Bytes::fromBytes leftObject) (Uorc.Core.Bytes::fromBytes rightObject))
+        | Result.error ignoredCompareError => false
+        | Result.ok sameBytes => (sameBytes && ((fixtureObjectsEqual leftRest rightRest) && true))))),
+  recursive_argument: leftObjects
+}
+
+definition{
+  name: fixtureErrorsEqual,
+  parameters: [leftError : SplitError, rightError : SplitError],
+  result: Bool,
+  body: (match leftError
+    | SplitError.inputNotRequested => (match rightError
+      | SplitError.inputNotRequested => true
+      | SplitError.endAlreadySeen => false
+      | SplitError.invalidCursor => false
+      | SplitError.invalidQuantum => false
+      | SplitError.truncated => false
+      | SplitError.trailingBytes => false
+      | SplitError.addressSpaceExhausted => false)
+    | SplitError.endAlreadySeen => (match rightError
+      | SplitError.inputNotRequested => false
+      | SplitError.endAlreadySeen => true
+      | SplitError.invalidCursor => false
+      | SplitError.invalidQuantum => false
+      | SplitError.truncated => false
+      | SplitError.trailingBytes => false
+      | SplitError.addressSpaceExhausted => false)
+    | SplitError.invalidCursor => (match rightError
+      | SplitError.inputNotRequested => false
+      | SplitError.endAlreadySeen => false
+      | SplitError.invalidCursor => true
+      | SplitError.invalidQuantum => false
+      | SplitError.truncated => false
+      | SplitError.trailingBytes => false
+      | SplitError.addressSpaceExhausted => false)
+    | SplitError.invalidQuantum => (match rightError
+      | SplitError.inputNotRequested => false
+      | SplitError.endAlreadySeen => false
+      | SplitError.invalidCursor => false
+      | SplitError.invalidQuantum => true
+      | SplitError.truncated => false
+      | SplitError.trailingBytes => false
+      | SplitError.addressSpaceExhausted => false)
+    | SplitError.truncated => (match rightError
+      | SplitError.inputNotRequested => false
+      | SplitError.endAlreadySeen => false
+      | SplitError.invalidCursor => false
+      | SplitError.invalidQuantum => false
+      | SplitError.truncated => true
+      | SplitError.trailingBytes => false
+      | SplitError.addressSpaceExhausted => false)
+    | SplitError.trailingBytes => (match rightError
+      | SplitError.inputNotRequested => false
+      | SplitError.endAlreadySeen => false
+      | SplitError.invalidCursor => false
+      | SplitError.invalidQuantum => false
+      | SplitError.truncated => false
+      | SplitError.trailingBytes => true
+      | SplitError.addressSpaceExhausted => false)
+    | SplitError.addressSpaceExhausted => (match rightError
+      | SplitError.inputNotRequested => false
+      | SplitError.endAlreadySeen => false
+      | SplitError.invalidCursor => false
+      | SplitError.invalidQuantum => false
+      | SplitError.truncated => false
+      | SplitError.trailingBytes => false
+      | SplitError.addressSpaceExhausted => true))
+}
+
+definition{
+  name: fixtureMatches,
+  parameters: [actual : FixtureResult, expected : FixtureResult],
+  result: Bool,
+  body: (match actual
+    | FixtureResult.pending => false
+    | FixtureResult.done actualObjects => (match expected
+      | FixtureResult.pending => false
+      | FixtureResult.done expectedObjects => (fixtureObjectsEqual actualObjects expectedObjects)
+      | FixtureResult.failed ignoredExpectedError => false)
+    | FixtureResult.failed actualError => (match expected
+      | FixtureResult.pending => false
+      | FixtureResult.done ignoredExpectedObjects => false
+      | FixtureResult.failed expectedError => (fixtureErrorsEqual actualError expectedError)))
+}
+
+definition{
+  name: binary_single,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 4 (nil Nat)) (cons 0x00ff80c0 (nil Bytes)) 2) (ctor FixtureResult.done (cons 0x00ff80c0 (nil Bytes))))
+}
+
+definition{
+  name: ordered_empty_middle,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 2 (cons 0 (cons 2 (nil Nat)))) (cons 0x01020304 (nil Bytes)) 2) (ctor FixtureResult.done (cons 0x0102 (cons 0x (cons 0x0304 (nil Bytes))))))
+}
+
+definition{
+  name: boundary_across_input,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 3 (cons 2 (nil Nat))) (cons 0x01 (cons 0x020304 (cons 0x05 (nil Bytes)))) 2) (ctor FixtureResult.done (cons 0x010203 (cons 0x0405 (nil Bytes)))))
+}
+
+definition{
+  name: empty_transport_chunks,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 1 (nil Nat))) (cons 0x (cons 0x00 (cons 0x (cons 0xff (cons 0x (nil Bytes)))))) 2) (ctor FixtureResult.done (cons 0x00 (cons 0xff (nil Bytes)))))
+}
+
+definition{
+  name: truncated_first,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 2 (nil Nat)) (cons 0x01 (nil Bytes)) 2) (ctor FixtureResult.failed (ctor SplitError.truncated)))
+}
+
+definition{
+  name: truncated_later,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 2 (nil Nat))) (cons 0x0102 (nil Bytes)) 2) (ctor FixtureResult.failed (ctor SplitError.truncated)))
+}
+
+definition{
+  name: trailing_after_empty,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (nil Nat) (cons 0x01 (nil Bytes)) 2) (ctor FixtureResult.failed (ctor SplitError.trailingBytes)))
+}
+
+definition{
+  name: trailing_after_object,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (nil Nat)) (cons 0x0102 (nil Bytes)) 2) (ctor FixtureResult.failed (ctor SplitError.trailingBytes)))
+}
+
+definition{
+  name: partition_0,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 0 (cons 3 (nil Nat)))) (cons 0x00ff80c0 (nil Bytes)) 2) (ctor FixtureResult.done (cons 0x00 (cons 0x (cons 0xff80c0 (nil Bytes))))))
+}
+
+definition{
+  name: partition_1,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 0 (cons 3 (nil Nat)))) (cons 0x00 (cons 0x (cons 0xff80c0 (nil Bytes)))) 2) (ctor FixtureResult.done (cons 0x00 (cons 0x (cons 0xff80c0 (nil Bytes))))))
+}
+
+definition{
+  name: partition_2,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 0 (cons 3 (nil Nat)))) (cons 0x00ff (cons 0x (cons 0x80c0 (nil Bytes)))) 2) (ctor FixtureResult.done (cons 0x00 (cons 0x (cons 0xff80c0 (nil Bytes))))))
+}
+
+definition{
+  name: partition_3,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 0 (cons 3 (nil Nat)))) (cons 0x00 (cons 0x (cons 0xff (cons 0x (cons 0x80c0 (nil Bytes)))))) 2) (ctor FixtureResult.done (cons 0x00 (cons 0x (cons 0xff80c0 (nil Bytes))))))
+}
+
+definition{
+  name: partition_4,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 0 (cons 3 (nil Nat)))) (cons 0x00ff80 (cons 0x (cons 0xc0 (nil Bytes)))) 2) (ctor FixtureResult.done (cons 0x00 (cons 0x (cons 0xff80c0 (nil Bytes))))))
+}
+
+definition{
+  name: partition_5,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 0 (cons 3 (nil Nat)))) (cons 0x00 (cons 0x (cons 0xff80 (cons 0x (cons 0xc0 (nil Bytes)))))) 2) (ctor FixtureResult.done (cons 0x00 (cons 0x (cons 0xff80c0 (nil Bytes))))))
+}
+
+definition{
+  name: partition_6,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 0 (cons 3 (nil Nat)))) (cons 0x00ff (cons 0x (cons 0x80 (cons 0x (cons 0xc0 (nil Bytes)))))) 2) (ctor FixtureResult.done (cons 0x00 (cons 0x (cons 0xff80c0 (nil Bytes))))))
+}
+
+definition{
+  name: partition_7,
+  parameters: [],
+  result: Bool,
+  body: (fixtureMatches (runFixture (cons 1 (cons 0 (cons 3 (nil Nat)))) (cons 0x00 (cons 0x (cons 0xff (cons 0x (cons 0x80 (cons 0x (cons 0xc0 (nil Bytes)))))))) 2) (ctor FixtureResult.done (cons 0x00 (cons 0x (cons 0xff80c0 (nil Bytes))))))
+}
+
+theorem{
+  name: feed_requires_demand,
+  parameters: [],
+  statement: ((feed (start (cons 1 (nil Nat))) 0x00) = (ctor Event.failed (record Error {kind := (ctor SplitError.inputNotRequested), objectIndex := 0, objectOffset := 0}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: end_requires_demand,
+  parameters: [],
+  statement: ((finishInput (start (cons 1 (nil Nat)))) = (ctor Event.failed (record Error {kind := (ctor SplitError.inputNotRequested), objectIndex := 0, objectOffset := 0}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: positive_quantum_required,
+  parameters: [],
+  statement: ((step (start (cons 1 (nil Nat))) 0) = (ctor Event.failed (record Error {kind := (ctor SplitError.invalidQuantum), objectIndex := 0, objectOffset := 0}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: end_is_one_shot,
+  parameters: [],
+  statement: ((finishInput (record State {lengths := (nil Nat), phase := (ctor Phase.awaitingEnd), objectIndex := 0, objectLength := 0, remaining := 0, input := 0x, offset := 0, waiting := false, ended := true})) = (ctor Event.failed (record Error {kind := (ctor SplitError.endAlreadySeen), objectIndex := 0, objectOffset := 0}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: invalid_cursor_rejected,
+  parameters: [],
+  statement: ((step (record State {lengths := (nil Nat), phase := (ctor Phase.awaitingEnd), objectIndex := 0, objectLength := 0, remaining := 0, input := 0x, offset := 1, waiting := false, ended := false}) 1) = (ctor Event.failed (record Error {kind := (ctor SplitError.invalidCursor), objectIndex := 0, objectOffset := 0}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: object_counter_exhaustion_is_operational,
+  parameters: [],
+  statement: ((step (record State {lengths := (nil Nat), phase := (ctor Phase.closing), objectIndex := 18446744073709551615, objectLength := 0, remaining := 0, input := 0x, offset := 0, waiting := false, ended := false}) 1) = (ctor Event.failed (record Error {kind := (ctor SplitError.addressSpaceExhausted), objectIndex := 18446744073709551615, objectOffset := 0}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "Each tick emits at most one object boundary or one byte span bounded by quantum. Ordered zero-length objects remain distinct. Feed and EOF require an explicit demand, EOF is one-shot, and completion requires exact EOF after all object lengths. There is no format-level object-count or byte-length cap; generated host addressability refusal is operational and distinct from invalid syntax. The bounded fixture collector is not a production materializer. Events are unverified staging output: archive integrity, actual execution, resource accounting, cancellation ownership and publication remain the enclosing controller obligations. Immutable chunk copying costs and backing ownership must be charged by that controller."
+}
+
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: binaryControlFailed, fields: [Nat]}, {name: mutationAccepted, fields: []}]
+}
+
+definition{
+  name: runBinaryScenarios,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if (binary_single) then (if (ordered_empty_middle) then (if (boundary_across_input) then (if (empty_transport_chunks) then (if (truncated_first) then (if (truncated_later) then (if (trailing_after_empty) then (if (trailing_after_object) then (if (partition_0) then (if (partition_1) then (if (partition_2) then (if (partition_3) then (if (partition_4) then (if (partition_5) then (if (partition_6) then (if (partition_7) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 15))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 14))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 13))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 12))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 11))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 10))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 9))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 8))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 7))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 6))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 5))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 4))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 3))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 2))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 1))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.binaryControlFailed 0)))
+}
+
+definition{
+  name: runPlantedByteMutation,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if (fixtureMatches (runFixture (cons 4 (nil Nat)) (cons 0x00ff80c0 (nil Bytes)) 2) (ctor FixtureResult.done (cons 0x00fe80c0 (nil Bytes)))) then (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.mutationAccepted)) else (ctor Result.ok [Unit, ScenarioError] ()))
+}
+
+definition{
+  name: runtimeScenarioBoundary,
+  parameters: [],
+  result: String,
+  body: "The binary fixture controls are executed through runBinaryScenarios, and the planted-byte rejection through runPlantedByteMutation. Both require Result.ok in actual generated/VM acceptance. They replace demonstrated expensive ground rfl reductions, not the general correctness/refinement obligations. Generic source evaluation is diagnostic only; complete pinned acceptance must invoke these roots."
+}
+\end{semanticmodule}
+\end{lexlean}

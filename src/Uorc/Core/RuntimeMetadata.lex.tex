@@ -1,0 +1,360 @@
+\begin{lexlean}{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Kind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: blockIndex, fields: []},
+    {name: blockRecord, fields: []},
+    {name: instructionIndex, fields: []},
+    {name: instructionRecord, fields: []},
+    {name: lifetimeIndex, fields: []},
+    {name: releaseBucket, fields: []},
+    {name: searchOwner, fields: []},
+    {name: wireOwner, fields: []}
+  ]
+}
+
+inductive{
+  name: Field,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: word, fields: [UInt64]},
+    {name: link, fields: [Uorc.Core.RuntimeValue::Handle]}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: invalidKind, fields: []},
+    {name: invalidRecord, fields: []},
+    {name: invalidField, fields: []},
+    {name: missingField, fields: []},
+    {name: wrongFieldType, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+definition{
+  name: schemaVersion,
+  parameters: [],
+  result: UInt64,
+  body: (1 : UInt64),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: kindCode,
+  parameters: [metadataKind : Kind],
+  result: UInt64,
+  body: (match metadataKind
+    | Kind.blockIndex => (0 : UInt64)
+    | Kind.blockRecord => (1 : UInt64)
+    | Kind.instructionIndex => (2 : UInt64)
+    | Kind.instructionRecord => (3 : UInt64)
+    | Kind.lifetimeIndex => (4 : UInt64)
+    | Kind.releaseBucket => (5 : UInt64)
+    | Kind.searchOwner => (6 : UInt64)
+    | Kind.wireOwner => (7 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: branchChildren,
+  parameters: [arena : Uorc.Core.Heap::Arena, root : Uorc.Core.RuntimeValue::Handle, kind : UInt64],
+  result: (Result Uorc.Core.Heap::Children Error),
+  body: (if (Uorc.Core.RuntimeValue::isNull root) then (ctor Result.ok [Uorc.Core.Heap::Children, Error] (record Uorc.Core.Heap::Children {first := (Uorc.Core.RuntimeValue::nullHandle), second := (Uorc.Core.RuntimeValue::nullHandle)})) else (match (Uorc.Core.Heap::lookup arena root)
+    | Result.error heapFailure => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.heap heapFailure))
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image unused_image_0 unused_image_1 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.sequenceLeaf unused_sequenceLeaf_0 unused_sequenceLeaf_1 unused_sequenceLeaf_2 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.sequenceBranch unused_sequenceBranch_0 unused_sequenceBranch_1 unused_sequenceBranch_2 unused_sequenceBranch_3 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.storeLeaf unused_storeLeaf_0 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.storeBranch unused_storeBranch_0 unused_storeBranch_1 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.slot unused_slot_0 unused_slot_1 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.rootBranch unused_rootBranch_0 unused_rootBranch_1 unused_rootBranch_2 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.metadataWord unused_metadataWord_0 unused_metadataWord_1 unused_metadataWord_2 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.metadataLink unused_metadataLink_0 unused_metadataLink_1 unused_metadataLink_2 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.metadataBranch nodeKind leftChild rightChild => (if (prim equal nodeKind kind : Bool) then (ctor Result.ok [Uorc.Core.Heap::Children, Error] (record Uorc.Core.Heap::Children {first := leftChild, second := rightChild})) else (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidKind)))
+      | Uorc.Core.Heap::Node.ownerRoot unused_ownerRoot_0 unused_ownerRoot_1 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))
+      | Uorc.Core.Heap::Node.imageReservation unused_imageReservation_0 unused_imageReservation_1 => (ctor Result.error [Uorc.Core.Heap::Children, Error] (ctor Error.invalidRecord))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: addDelta,
+  parameters: [firstDelta : Uorc.Core.Heap::Delta, secondDelta : Uorc.Core.Heap::Delta],
+  result: (Result Uorc.Core.Heap::Delta Error),
+  body: (match (prim checked_add (project firstDelta allocatedBytes) (project secondDelta allocatedBytes) : (Option UInt64))
+    | Option.none => (ctor Result.error [Uorc.Core.Heap::Delta, Error] (ctor Error.addressSpaceExhausted))
+    | Option.some sum_allocatedBytes => (match (prim checked_add (project firstDelta releasedBytes) (project secondDelta releasedBytes) : (Option UInt64))
+      | Option.none => (ctor Result.error [Uorc.Core.Heap::Delta, Error] (ctor Error.addressSpaceExhausted))
+      | Option.some sum_releasedBytes => (match (prim checked_add (project firstDelta allocatedEntries) (project secondDelta allocatedEntries) : (Option UInt64))
+        | Option.none => (ctor Result.error [Uorc.Core.Heap::Delta, Error] (ctor Error.addressSpaceExhausted))
+        | Option.some sum_allocatedEntries => (match (prim checked_add (project firstDelta releasedEntries) (project secondDelta releasedEntries) : (Option UInt64))
+          | Option.none => (ctor Result.error [Uorc.Core.Heap::Delta, Error] (ctor Error.addressSpaceExhausted))
+          | Option.some sum_releasedEntries => (match (prim checked_add (project firstDelta retainedEdges) (project secondDelta retainedEdges) : (Option UInt64))
+            | Option.none => (ctor Result.error [Uorc.Core.Heap::Delta, Error] (ctor Error.addressSpaceExhausted))
+            | Option.some sum_retainedEdges => (match (prim checked_add (project firstDelta droppedEdges) (project secondDelta droppedEdges) : (Option UInt64))
+              | Option.none => (ctor Result.error [Uorc.Core.Heap::Delta, Error] (ctor Error.addressSpaceExhausted))
+              | Option.some sum_droppedEdges => (match (prim checked_add (project firstDelta retainedRoots) (project secondDelta retainedRoots) : (Option UInt64))
+                | Option.none => (ctor Result.error [Uorc.Core.Heap::Delta, Error] (ctor Error.addressSpaceExhausted))
+                | Option.some sum_retainedRoots => (match (prim checked_add (project firstDelta droppedRoots) (project secondDelta droppedRoots) : (Option UInt64))
+                  | Option.none => (ctor Result.error [Uorc.Core.Heap::Delta, Error] (ctor Error.addressSpaceExhausted))
+                  | Option.some sum_droppedRoots => (match (prim checked_add (project firstDelta work) (project secondDelta work) : (Option UInt64))
+                    | Option.none => (ctor Result.error [Uorc.Core.Heap::Delta, Error] (ctor Error.addressSpaceExhausted))
+                    | Option.some sum_work => (ctor Result.ok [Uorc.Core.Heap::Delta, Error] (record Uorc.Core.Heap::Delta {allocatedBytes := sum_allocatedBytes, releasedBytes := sum_releasedBytes, allocatedEntries := sum_allocatedEntries, releasedEntries := sum_releasedEntries, retainedEdges := sum_retainedEdges, droppedEdges := sum_droppedEdges, retainedRoots := sum_retainedRoots, droppedRoots := sum_droppedRoots, work := sum_work}))))))))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: writePath,
+  parameters: [
+    depth : Nat,
+    mask : UInt64,
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64,
+    field : Field
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match depth
+    | Nat.zero => (match (Uorc.Core.Heap::allocate arena (match field
+        | Field.word wordValue => (ctor Uorc.Core.Heap::Node.metadataWord kind key wordValue)
+        | Field.link target => (ctor Uorc.Core.Heap::Node.metadataLink kind key target)))
+      | Result.error heapFailure => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.heap heapFailure))
+      | Result.ok allocation => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] allocation))
+    | Nat.succ remainingDepth => (match (branchChildren arena root kind)
+      | Result.error branchError => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] branchError)
+      | Result.ok children => (match (writePath remainingDepth (Uorc.Core.Heap::nextKey mask) arena (if (not (prim equal (prim bit_and key mask : UInt64) (0 : UInt64) : Bool)) then (project children second) else (project children first)) kind key field)
+        | Result.error pathError => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] pathError)
+        | Result.ok subtree => (match (Uorc.Core.Heap::allocateMoved (project subtree arena) (ctor Uorc.Core.Heap::Node.metadataBranch kind (if (not (prim equal (prim bit_and key mask : UInt64) (0 : UInt64) : Bool)) then (project children first) else (project subtree handle)) (if (not (prim equal (prim bit_and key mask : UInt64) (0 : UInt64) : Bool)) then (project subtree handle) else (project children second))) (not (not (prim equal (prim bit_and key mask : UInt64) (0 : UInt64) : Bool))) (not (prim equal (prim bit_and key mask : UInt64) (0 : UInt64) : Bool)))
+          | Result.error parentError => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.heap parentError))
+          | Result.ok parent => (match (addDelta (project subtree delta) (project parent delta))
+            | Result.error sumError => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] sumError)
+            | Result.ok combinedDelta => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] (record Uorc.Core.Heap::Allocation {arena := (project parent arena), handle := (project parent handle), delta := combinedDelta}))))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: depth
+}
+
+definition{
+  name: put,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64,
+    field : Field
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (if (Uorc.Core.Heap::less key (16 : UInt64)) then (writePath 4 (8 : UInt64) arena root kind key field) else (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.invalidField))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: readPath,
+  parameters: [
+    depth : Nat,
+    mask : UInt64,
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64
+  ],
+  result: (Result Field Error),
+  body: (match depth
+    | Nat.zero => (if (Uorc.Core.RuntimeValue::isNull root) then (ctor Result.error [Field, Error] (ctor Error.missingField)) else (match (Uorc.Core.Heap::lookup arena root)
+      | Result.error heapFailure => (ctor Result.error [Field, Error] (ctor Error.heap heapFailure))
+      | Result.ok entry => (match (project entry node)
+        | Uorc.Core.Heap::Node.image unused_image_0 unused_image_1 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord))
+        | Uorc.Core.Heap::Node.sequenceLeaf unused_sequenceLeaf_0 unused_sequenceLeaf_1 unused_sequenceLeaf_2 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord))
+        | Uorc.Core.Heap::Node.sequenceBranch unused_sequenceBranch_0 unused_sequenceBranch_1 unused_sequenceBranch_2 unused_sequenceBranch_3 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord))
+        | Uorc.Core.Heap::Node.storeLeaf unused_storeLeaf_0 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord))
+        | Uorc.Core.Heap::Node.storeBranch unused_storeBranch_0 unused_storeBranch_1 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord))
+        | Uorc.Core.Heap::Node.slot unused_slot_0 unused_slot_1 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord))
+        | Uorc.Core.Heap::Node.rootBranch unused_rootBranch_0 unused_rootBranch_1 unused_rootBranch_2 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord))
+        | Uorc.Core.Heap::Node.metadataWord nodeKind nodeTag nodeWord => (if ((prim equal nodeKind kind : Bool) && (prim equal nodeTag key : Bool)) then (ctor Result.ok [Field, Error] (ctor Field.word nodeWord)) else (ctor Result.error [Field, Error] (ctor Error.invalidKind)))
+        | Uorc.Core.Heap::Node.metadataLink nodeKind nodeTag nodeTarget => (if ((prim equal nodeKind kind : Bool) && (prim equal nodeTag key : Bool)) then (ctor Result.ok [Field, Error] (ctor Field.link nodeTarget)) else (ctor Result.error [Field, Error] (ctor Error.invalidKind)))
+        | Uorc.Core.Heap::Node.metadataBranch unused_metadataBranch_0 unused_metadataBranch_1 unused_metadataBranch_2 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord))
+        | Uorc.Core.Heap::Node.ownerRoot unused_ownerRoot_0 unused_ownerRoot_1 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord))
+        | Uorc.Core.Heap::Node.imageReservation unused_imageReservation_0 unused_imageReservation_1 => (ctor Result.error [Field, Error] (ctor Error.invalidRecord)))))
+    | Nat.succ remainingDepth => (match (branchChildren arena root kind)
+      | Result.error branchError => (ctor Result.error [Field, Error] branchError)
+      | Result.ok children => (readPath remainingDepth (Uorc.Core.Heap::nextKey mask) arena (if (not (prim equal (prim bit_and key mask : UInt64) (0 : UInt64) : Bool)) then (project children second) else (project children first)) kind key))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: depth
+}
+
+definition{
+  name: at,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64
+  ],
+  result: (Result Field Error),
+  body: (if (Uorc.Core.Heap::less key (16 : UInt64)) then (readPath 4 (8 : UInt64) arena root kind key) else (ctor Result.error [Field, Error] (ctor Error.invalidField))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: wordAt,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64
+  ],
+  result: (Result UInt64 Error),
+  body: (match (at arena root kind key)
+    | Result.error readError => (ctor Result.error [UInt64, Error] readError)
+    | Result.ok foundField => (match foundField
+      | Field.word foundWord => (ctor Result.ok [UInt64, Error] foundWord)
+      | Field.link foundTarget => (ctor Result.error [UInt64, Error] (ctor Error.wrongFieldType)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: linkAt,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64
+  ],
+  result: (Result Uorc.Core.RuntimeValue::Handle Error),
+  body: (match (at arena root kind key)
+    | Result.error readError => (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Error] readError)
+    | Result.ok foundField => (match foundField
+      | Field.word foundWord => (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Error] (ctor Error.wrongFieldType))
+      | Field.link foundTarget => (ctor Result.ok [Uorc.Core.RuntimeValue::Handle, Error] foundTarget))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+structure{
+  name: WriteFrame,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: left, type: Uorc.Core.RuntimeValue::Handle},
+    {name: right, type: Uorc.Core.RuntimeValue::Handle},
+    {name: takeRight, type: Bool}
+  ]
+}
+
+inductive{
+  name: WriteTask,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: down, fields: [Nat, UInt64, Uorc.Core.RuntimeValue::Handle, (List WriteFrame)]},
+    {name: up, fields: [Uorc.Core.RuntimeValue::Handle, (List WriteFrame)]}
+  ]
+}
+
+structure{
+  name: WriteCursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: oldRoot, type: Uorc.Core.RuntimeValue::Handle},
+    {name: kind, type: UInt64},
+    {name: key, type: UInt64},
+    {name: field, type: Field},
+    {name: task, type: WriteTask}
+  ]
+}
+
+inductive{
+  name: WriteEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [Uorc.Core.Heap::Arena, WriteCursor, Uorc.Core.Heap::Delta]},
+    {
+      name: done,
+      fields: [Uorc.Core.Heap::Arena, Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::Delta]
+    },
+    {name: failed, fields: [Error, Uorc.Core.Heap::Arena, WriteCursor]}
+  ]
+}
+
+definition{
+  name: zeroDelta,
+  parameters: [],
+  result: Uorc.Core.Heap::Delta,
+  body: (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: startWrite,
+  parameters: [
+    oldRoot : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64,
+    field : Field
+  ],
+  result: (Result WriteCursor Error),
+  body: (if (Uorc.Core.Heap::less key (16 : UInt64)) then (ctor Result.ok [WriteCursor, Error] (record WriteCursor {oldRoot := oldRoot, kind := kind, key := key, field := field, task := (ctor WriteTask.down 4 (8 : UInt64) oldRoot (nil WriteFrame))})) else (ctor Result.error [WriteCursor, Error] (ctor Error.invalidField))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: writeStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : WriteCursor],
+  result: WriteEvent,
+  body: (match (project cursor task)
+    | WriteTask.down depth mask currentRoot path => (match depth
+      | Nat.zero => (match (Uorc.Core.Heap::allocate arena (match (project cursor field)
+          | Field.word wordValue => (ctor Uorc.Core.Heap::Node.metadataWord (project cursor kind) (project cursor key) wordValue)
+          | Field.link target => (ctor Uorc.Core.Heap::Node.metadataLink (project cursor kind) (project cursor key) target)))
+        | Result.error heapError => (ctor WriteEvent.failed (ctor Error.heap heapError) arena cursor)
+        | Result.ok allocation => (ctor WriteEvent.advanced (project allocation arena) (record WriteCursor {oldRoot := (project cursor oldRoot), kind := (project cursor kind), key := (project cursor key), field := (project cursor field), task := (ctor WriteTask.up (project allocation handle) path)}) (project allocation delta)))
+      | Nat.succ remainingDepth => (match (branchChildren arena currentRoot (project cursor kind))
+        | Result.error branchError => (ctor WriteEvent.failed branchError arena cursor)
+        | Result.ok children => (ctor WriteEvent.advanced arena (record WriteCursor {oldRoot := (project cursor oldRoot), kind := (project cursor kind), key := (project cursor key), field := (project cursor field), task := (ctor WriteTask.down remainingDepth (Uorc.Core.Heap::nextKey mask) (if (not (prim equal (prim bit_and (project cursor key) mask : UInt64) (0 : UInt64) : Bool)) then (project children second) else (project children first)) (cons (record WriteFrame {left := (project children first), right := (project children second), takeRight := (not (prim equal (prim bit_and (project cursor key) mask : UInt64) (0 : UInt64) : Bool))}) path))}) (zeroDelta))))
+    | WriteTask.up subtree path => (match path
+      | List.nil => (ctor WriteEvent.done arena subtree (zeroDelta))
+      | List.cons parentFrame remainingPath => (match (Uorc.Core.Heap::allocateMoved arena (ctor Uorc.Core.Heap::Node.metadataBranch (project cursor kind) (if (project parentFrame takeRight) then (project parentFrame left) else subtree) (if (project parentFrame takeRight) then subtree else (project parentFrame right))) (not (project parentFrame takeRight)) (project parentFrame takeRight))
+        | Result.error heapError => (ctor WriteEvent.failed (ctor Error.heap heapError) arena cursor)
+        | Result.ok allocation => (ctor WriteEvent.advanced (project allocation arena) (record WriteCursor {oldRoot := (project cursor oldRoot), kind := (project cursor kind), key := (project cursor key), field := (project cursor field), task := (ctor WriteTask.up (project allocation handle) remainingPath)}) (project allocation delta))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: temporaryRoots,
+  parameters: [cursor : WriteCursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project cursor task)
+    | WriteTask.down depth mask currentRoot path => (nil Uorc.Core.RuntimeValue::Handle)
+    | WriteTask.up subtree path => (if (Uorc.Core.RuntimeValue::isNull subtree) then (nil Uorc.Core.RuntimeValue::Handle) else (cons subtree (nil Uorc.Core.RuntimeValue::Handle)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

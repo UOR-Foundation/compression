@@ -1,0 +1,337 @@
+\begin{lexlean}{Uorc.Product.MachineBinding}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeMachine}
+\importmodule{Uorc.Core.RuntimeMachineEngine}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Product.Api}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: OverflowReceipt,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: prefix, type: Uorc.Core.Heap::Delta}, {name: event, type: Uorc.Core.Heap::Delta}]
+}
+
+inductive{
+  name: Owner,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: running, fields: [Uorc.Core.RuntimeMachineEngine::State]},
+    {
+      name: draining,
+      fields: [Uorc.Core.RuntimeMachineEngine::State, (Option Uorc.Core.RuntimeValue::Handle)]
+    },
+    {
+      name: terminal,
+      fields: [Uorc.Core.RuntimeProgram::Ready, (Option Uorc.Core.RuntimeValue::Handle)]
+    },
+    {name: handedOff, fields: [Uorc.Core.RuntimeResources::Usage]}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: owner, type: Owner},
+    {name: stopped, type: Bool},
+    {name: failure, type: (Option Uorc.Core.RuntimeMachine::Failure)},
+    {name: receipt, type: (Option OverflowReceipt)}
+  ]
+}
+
+structure{
+  name: Terminal,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: ready, type: Uorc.Core.RuntimeProgram::Ready},
+    {name: output, type: (Option Uorc.Core.RuntimeValue::Handle)},
+    {name: cancelled, type: Bool},
+    {name: failure, type: (Option Uorc.Core.RuntimeMachine::Failure)},
+    {name: receipt, type: (Option OverflowReceipt)}
+  ]
+}
+
+inductive{
+  name: Movement,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: stale, fields: [State]},
+    {name: notReady, fields: [State]},
+    {name: moved, fields: [State, Terminal]}
+  ]
+}
+
+inductive{
+  name: Status,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: running, fields: []},
+    {name: suspended, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: draining, fields: []},
+    {name: decoded, fields: []},
+    {name: cancelled, fields: []},
+    {name: failed, fields: [Uorc.Core.RuntimeMachine::Failure]},
+    {name: handedOff, fields: []}
+  ]
+}
+
+definition{
+  name: sameRun,
+  parameters: [left : Uorc.Product.Api::Run, right : Uorc.Product.Api::Run],
+  result: Bool,
+  body: (((project left instance) =? (project right instance)) && (((project left serial) =? (project right serial)) && (((project left revision) =? (project right revision)) && true))),
+  axioms: []
+}
+
+definition{
+  name: start,
+  parameters: [
+    run : Uorc.Product.Api::Run,
+    ready : Uorc.Core.RuntimeProgram::Ready,
+    budget : Uorc.Core.RuntimeResources::Budget
+  ],
+  result: State,
+  body: (record State {run := run, owner := (ctor Owner.running (Uorc.Core.RuntimeMachineEngine::start ready budget)), stopped := false, failure := (ctor Option.none [Uorc.Core.RuntimeMachine::Failure]), receipt := (ctor Option.none [OverflowReceipt])}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: finishDrain,
+  parameters: [
+    s : State,
+    core : Uorc.Core.RuntimeMachineEngine::State,
+    output : (Option Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: State,
+  body: (match (project core disposition)
+    | Uorc.Core.RuntimeMachine::Disposition.running => (record State {run := (project s run), owner := (ctor Owner.draining core output), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)})
+    | Uorc.Core.RuntimeMachine::Disposition.suspended reason => (record State {run := (project s run), owner := (ctor Owner.draining core output), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)})
+    | Uorc.Core.RuntimeMachine::Disposition.completed handle => (record State {run := (project s run), owner := (ctor Owner.draining core output), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)})
+    | Uorc.Core.RuntimeMachine::Disposition.failed reason => (record State {run := (project s run), owner := (ctor Owner.draining core output), stopped := (project s stopped), failure := (ctor Option.some [Uorc.Core.RuntimeMachine::Failure] reason), receipt := (project s receipt)})
+    | Uorc.Core.RuntimeMachine::Disposition.cancelling => (record State {run := (project s run), owner := (ctor Owner.draining core output), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)})
+    | Uorc.Core.RuntimeMachine::Disposition.cleaned => (match (Uorc.Core.RuntimeMachineEngine::takeReady core)
+      | Result.error failure => (record State {run := (project s run), owner := (ctor Owner.draining core output), stopped := (project s stopped), failure := (ctor Option.some [Uorc.Core.RuntimeMachine::Failure] failure), receipt := (project s receipt)})
+      | Result.ok ready => (record State {run := (project s run), owner := (ctor Owner.terminal ready output), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)}))),
+  axioms: []
+}
+
+definition{
+  name: afterTick,
+  parameters: [s : State, core : Uorc.Core.RuntimeMachineEngine::State],
+  result: State,
+  body: (match (project core disposition)
+    | Uorc.Core.RuntimeMachine::Disposition.running => (record State {run := (project s run), owner := (ctor Owner.running core), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)})
+    | Uorc.Core.RuntimeMachine::Disposition.suspended reason => (record State {run := (project s run), owner := (ctor Owner.running core), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)})
+    | Uorc.Core.RuntimeMachine::Disposition.completed handle => (match (Uorc.Core.RuntimeMachineEngine::takeOutput core)
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::cancel core) (ctor Option.none [Uorc.Core.RuntimeValue::Handle])), stopped := (project s stopped), failure := (ctor Option.some [Uorc.Core.RuntimeMachine::Failure] reason), receipt := (project s receipt)})
+      | Result.ok transfer => (record State {run := (project s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::cancel (project transfer state)) (ctor Option.some [Uorc.Core.RuntimeValue::Handle] (project transfer handle))), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)}))
+    | Uorc.Core.RuntimeMachine::Disposition.failed reason => (record State {run := (project s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::cancel core) (ctor Option.none [Uorc.Core.RuntimeValue::Handle])), stopped := (project s stopped), failure := (ctor Option.some [Uorc.Core.RuntimeMachine::Failure] reason), receipt := (project s receipt)})
+    | Uorc.Core.RuntimeMachine::Disposition.cancelling => (record State {run := (project s run), owner := (ctor Owner.draining core (ctor Option.none [Uorc.Core.RuntimeValue::Handle])), stopped := true, failure := (project s failure), receipt := (project s receipt)})
+    | Uorc.Core.RuntimeMachine::Disposition.cleaned => (finishDrain s core (ctor Option.none [Uorc.Core.RuntimeValue::Handle]))),
+  axioms: []
+}
+
+definition{
+  name: tick,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: State,
+  body: (if (sameRun (project s run) run) then (match (project s owner)
+    | Owner.running core => (afterTick s (Uorc.Core.RuntimeMachineEngine::tick core))
+    | Owner.draining core output => (finishDrain s (Uorc.Core.RuntimeMachineEngine::tick core) output)
+    | Owner.terminal ready output => s
+    | Owner.handedOff bindingUsage => s) else s),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: extend,
+  parameters: [s : State, run : Uorc.Product.Api::Run, budget : Uorc.Core.RuntimeResources::Budget],
+  result: State,
+  body: (if (sameRun (project s run) run) then (match (project s owner)
+    | Owner.running core => (record State {run := (project s run), owner := (ctor Owner.running (Uorc.Core.RuntimeMachineEngine::extend core budget)), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)})
+    | Owner.draining core output => (record State {run := (project s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::extend core budget) output), stopped := (project s stopped), failure := (project s failure), receipt := (project s receipt)})
+    | Owner.terminal ready output => s
+    | Owner.handedOff bindingUsage => s) else s),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancel,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: State,
+  body: (if (sameRun (project s run) run) then (match (project s owner)
+    | Owner.running core => (record State {run := (project s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::cancel core) (ctor Option.none [Uorc.Core.RuntimeValue::Handle])), stopped := true, failure := (project s failure), receipt := (project s receipt)})
+    | Owner.draining core output => (record State {run := (project s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::cancel core) output), stopped := true, failure := (project s failure), receipt := (project s receipt)})
+    | Owner.terminal ready output => (record State {run := (project s run), owner := (project s owner), stopped := true, failure := (project s failure), receipt := (project s receipt)})
+    | Owner.handedOff bindingUsage => s) else s),
+  axioms: []
+}
+
+definition{
+  name: takeCoreReceipt,
+  parameters: [
+    s : State,
+    core : Uorc.Core.RuntimeMachineEngine::State,
+    output : (Option Uorc.Core.RuntimeValue::Handle),
+    draining : Bool
+  ],
+  result: State,
+  body: (match (Uorc.Core.RuntimeMachineEngine::takeOverflowReceipt core)
+    | Result.error reason => s
+    | Result.ok receipt => (record State {run := (project s run), owner := (if draining then (ctor Owner.draining (project receipt state) output) else (ctor Owner.running (project receipt state))), stopped := (project s stopped), failure := (project s failure), receipt := (ctor Option.some [OverflowReceipt] (record OverflowReceipt {prefix := (project receipt prefix), event := (project receipt event)}))})),
+  axioms: []
+}
+
+definition{
+  name: takeOverflowReceipt,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: State,
+  body: (if (sameRun (project s run) run) then (match (project s receipt)
+    | Option.some pendingReceipt => s
+    | Option.none => (match (project s owner)
+      | Owner.running core => (takeCoreReceipt s core (ctor Option.none [Uorc.Core.RuntimeValue::Handle]) false)
+      | Owner.draining core output => (takeCoreReceipt s core output true)
+      | Owner.terminal ready output => s
+      | Owner.handedOff bindingUsage => s)) else s),
+  axioms: []
+}
+
+definition{
+  name: acknowledgeReceipt,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: State,
+  body: (if (sameRun (project s run) run) then (record State {run := (project s run), owner := (project s owner), stopped := (project s stopped), failure := (project s failure), receipt := (ctor Option.none [OverflowReceipt])}) else s),
+  axioms: []
+}
+
+definition{
+  name: moveTerminal,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: Movement,
+  body: (if (sameRun (project s run) run) then (match (project s owner)
+    | Owner.running core => (ctor Movement.notReady s)
+    | Owner.draining core output => (ctor Movement.notReady s)
+    | Owner.terminal ready output => (ctor Movement.moved (record State {run := (project s run), owner := (ctor Owner.handedOff (project ready usage)), stopped := (project s stopped), failure := (project s failure), receipt := (ctor Option.none [OverflowReceipt])}) (record Terminal {run := (project s run), ready := ready, output := output, cancelled := (project s stopped), failure := (project s failure), receipt := (project s receipt)}))
+    | Owner.handedOff bindingUsage => (ctor Movement.notReady s)) else (ctor Movement.stale s)),
+  axioms: []
+}
+
+definition{
+  name: usage,
+  parameters: [s : State],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (project s owner)
+    | Owner.running core => (project core usage)
+    | Owner.draining core output => (project core usage)
+    | Owner.terminal ready output => (project ready usage)
+    | Owner.handedOff achieved => achieved),
+  axioms: []
+}
+
+definition{
+  name: addOutputRoot,
+  parameters: [
+    output : (Option Uorc.Core.RuntimeValue::Handle),
+    roots : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match output
+    | Option.none => roots
+    | Option.some handle => (Uorc.Core.RuntimeMachineEngine::addRoot handle roots)),
+  axioms: []
+}
+
+definition{
+  name: ownedRoots,
+  parameters: [s : State],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project s owner)
+    | Owner.running core => (Uorc.Core.RuntimeMachineEngine::ownedRoots core)
+    | Owner.draining core output => (addOutputRoot output (Uorc.Core.RuntimeMachineEngine::ownedRoots core))
+    | Owner.terminal ready output => (addOutputRoot output (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)))
+    | Owner.handedOff achieved => (nil Uorc.Core.RuntimeValue::Handle)),
+  axioms: []
+}
+
+definition{
+  name: outputAvailable,
+  parameters: [s : State],
+  result: Bool,
+  body: ((not (project s stopped)) && ((match (project s failure)
+    | Option.some failure => false
+    | Option.none => true) && ((match (project s owner)
+    | Owner.running core => false
+    | Owner.draining core output => false
+    | Owner.terminal ready output => (match output
+      | Option.none => false
+      | Option.some handle => true)
+    | Owner.handedOff achieved => false) && true))),
+  axioms: []
+}
+
+definition{
+  name: status,
+  parameters: [s : State],
+  result: Status,
+  body: (match (project s owner)
+    | Owner.handedOff achieved => (ctor Status.handedOff)
+    | Owner.terminal ready output => (if (project s stopped) then (ctor Status.cancelled) else (match (project s failure)
+      | Option.some failure => (ctor Status.failed failure)
+      | Option.none => (if (outputAvailable s) then (ctor Status.decoded) else (ctor Status.cancelled))))
+    | Owner.running core => (match (project core disposition)
+      | Uorc.Core.RuntimeMachine::Disposition.running => (ctor Status.running)
+      | Uorc.Core.RuntimeMachine::Disposition.suspended reason => (ctor Status.suspended reason)
+      | Uorc.Core.RuntimeMachine::Disposition.completed handle => (ctor Status.running)
+      | Uorc.Core.RuntimeMachine::Disposition.failed reason => (ctor Status.failed reason)
+      | Uorc.Core.RuntimeMachine::Disposition.cancelling => (ctor Status.running)
+      | Uorc.Core.RuntimeMachine::Disposition.cleaned => (ctor Status.running))
+    | Owner.draining core output => (match (project core disposition)
+      | Uorc.Core.RuntimeMachine::Disposition.running => (ctor Status.draining)
+      | Uorc.Core.RuntimeMachine::Disposition.suspended reason => (ctor Status.suspended reason)
+      | Uorc.Core.RuntimeMachine::Disposition.completed handle => (ctor Status.draining)
+      | Uorc.Core.RuntimeMachine::Disposition.failed reason => (ctor Status.failed reason)
+      | Uorc.Core.RuntimeMachine::Disposition.cancelling => (ctor Status.draining)
+      | Uorc.Core.RuntimeMachine::Disposition.cleaned => (ctor Status.draining))),
+  axioms: []
+}
+
+theorem{
+  name: tick_guard_binding,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  statement: ((tick s run) = (if (sameRun (project s run) run) then (match (project s owner)
+    | Owner.running core => (afterTick s (Uorc.Core.RuntimeMachineEngine::tick core))
+    | Owner.draining core output => (finishDrain s (Uorc.Core.RuntimeMachineEngine::tick core) output)
+    | Owner.terminal ready output => s
+    | Owner.handedOff achieved => s) else s)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: releaseDisposition,
+  parameters: [s : State],
+  result: Uorc.Product.Api::ReleaseDisposition,
+  body: (match (project s owner)
+    | Owner.running core => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
+    | Owner.draining core output => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
+    | Owner.terminal ready output => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
+    | Owner.handedOff achieved => (if (match (project s receipt)
+      | Option.none => false
+      | Option.some present => true) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt)) else (ctor Uorc.Product.Api::ReleaseDisposition.releasable)))
+}
+\end{semanticmodule}
+\end{lexlean}

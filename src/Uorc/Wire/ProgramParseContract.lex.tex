@@ -1,0 +1,71 @@
+\begin{lexlean}{Uorc.Wire.ProgramParseContract}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Scenario,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: given, type: String},
+    {name: when, type: String},
+    {name: then, type: String},
+    {name: owner, type: String}
+  ]
+}
+
+definition{
+  name: uc_wire_parse_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-PARSE-01", given := "all 39 opcodes and both source literal carriers", when := "every split including empty spans and ULEB continuation boundaries", then := "exact typed events in authoritative wire field order", owner := "Uorc.Wire.ProgramParseScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_wire_parse_02,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-PARSE-02", given := "nonminimal, overflowing, truncated, trailing and malformed wire", when := "resume after prefixes already acknowledged", then := "typed retained failure with achieved usage and cleanup tickets", owner := "Uorc.Wire.ProgramParseScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_wire_parse_03,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-PARSE-03", given := "a literalSpan pending under the charged wire owner", when := "cancel then clean one ticket at a time with work pauses", then := "no use after release, transfer retains a ticket, no lost owner root", owner := "Uorc.Wire.ProgramParseScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_wire_parse_04,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-PARSE-04", given := "an incorrect acknowledgement or feed outside demand", when := "invoke the production boundary", then := "protocol refusal retains the pending event and wire ownership root", owner := "Uorc.Wire.ProgramParseScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_wire_parse_05,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-PARSE-05", given := "a planted missing admission-ticket retain", when := "run the same ownership scenario owner", then := "the intended root-count assertion rejects the defect", owner := "Uorc.Wire.ProgramParseScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "Program bytes only, archive format 2 / machine profile 1. GraphParse and FrameParse remain independent diagnostic references. Runtime admission and execution are distinct obligations. No old archive-v1/profile02 compatibility or release acceptance is asserted.",
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

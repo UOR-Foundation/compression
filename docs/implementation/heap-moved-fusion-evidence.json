@@ -1,0 +1,282 @@
+{
+  "schema": "uorc/heap-moved-fusion-evidence/1",
+  "capability": "heap-moved-fusion/v1",
+  "sources": {
+    "src/Uorc/Core/Heap.lex.tex": "ee41c3fb11c1f60fc767448760e8020d934c253fc31eec2146413ec1a98b0e1b",
+    "src/Uorc/Core/HeapMovedReference.lex.tex": "89ac46f3eb8c52d8b560b1c50580fa7727051bac8e4bb95804d6624559e619d5",
+    "src/Uorc/Core/HeapMovedTests.lex.tex": "871ba6e67c8e0430dd35242f3d9f7fbaa3d9145a085010a07e132648056f4e93"
+  },
+  "unchanged_definitions": {
+    "allocate": {
+      "byte_identical": true,
+      "sha256": "be8b6492820ede30bb2ae3e11ee836f1dfdc8cc56b8461ceffe713654b0735f6"
+    },
+    "dropRetainedRoot": {
+      "byte_identical": true,
+      "sha256": "0b136736cef412fb4e44fc592b1e54d48ec6d4961bac35c02aecb774f0e673ac"
+    },
+    "preflightMovedRoots": {
+      "byte_identical": true,
+      "sha256": "8f4693ddbc8665550cdd47c7f68053f60f77242a789af92db9e407eef6a0c237"
+    }
+  },
+  "baseline_structural_gate": {
+    "schema": "uorc/heap-moved-structural-source-gate/1",
+    "source_sha256": "8bb1318242ce855b266a7b0f076a0c49f28c7ddd742bd902c937534cfb32fe81",
+    "gate_sha256": "7a3747f1894131d859874698c4067a4d8969cd99ca6dbafe5762441b13c98739",
+    "official_semantic_parser": "read_module + byte-exact write_module roundtrip",
+    "kind": "structural source-call counts; not runtime allocator telemetry",
+    "unchanged": [
+      "allocate",
+      "dropRetainedRoot",
+      "preflightMovedRoots"
+    ],
+    "controls": [
+      {
+        "control": "single_moved",
+        "full_depth_index_writes": 3,
+        "expected": 2
+      },
+      {
+        "control": "distinct_moved",
+        "full_depth_index_writes": 5,
+        "expected": 3
+      },
+      {
+        "control": "twice_aliased_two_tickets",
+        "full_depth_index_writes": 5,
+        "expected": 3
+      },
+      {
+        "control": "moved_and_unmoved_alias",
+        "full_depth_index_writes": 4,
+        "expected": 3
+      }
+    ],
+    "passed": false
+  },
+  "final_structural_gate": {
+    "schema": "uorc/heap-moved-structural-source-gate/1",
+    "source_sha256": "ee41c3fb11c1f60fc767448760e8020d934c253fc31eec2146413ec1a98b0e1b",
+    "gate_sha256": "7a3747f1894131d859874698c4067a4d8969cd99ca6dbafe5762441b13c98739",
+    "official_semantic_parser": "read_module + byte-exact write_module roundtrip",
+    "kind": "structural source-call counts; not runtime allocator telemetry",
+    "unchanged": [
+      "allocate",
+      "dropRetainedRoot",
+      "preflightMovedRoots"
+    ],
+    "controls": [
+      {
+        "control": "single_moved",
+        "full_depth_index_writes": 2,
+        "expected": 2
+      },
+      {
+        "control": "distinct_moved",
+        "full_depth_index_writes": 3,
+        "expected": 3
+      },
+      {
+        "control": "twice_aliased_two_tickets",
+        "full_depth_index_writes": 3,
+        "expected": 3
+      },
+      {
+        "control": "moved_and_unmoved_alias",
+        "full_depth_index_writes": 3,
+        "expected": 3
+      }
+    ],
+    "passed": true
+  },
+  "official_build": {
+    "artifacts": [
+      ".lexlean/build/4cf1df6ebb5b35e23d3543f0e667b34c35211946569ba68369e6b94f10ba3b32"
+    ],
+    "build_id": "4cf1df6ebb5b35e23d3543f0e667b34c35211946569ba68369e6b94f10ba3b32",
+    "command": "build",
+    "diagnostics": [],
+    "exit_code": 0,
+    "modules": [
+      "Uorc.Core.Heap",
+      "Uorc.Core.HeapAudit",
+      "Uorc.Core.HeapMovedReference",
+      "Uorc.Core.HeapMovedTests",
+      "Uorc.Core.RuntimeValue"
+    ],
+    "semantic_id": "b56a293c92d98a123eec55a2028aab393ee80fcb53eca335c898f5288827dc8c",
+    "source_id": "438288da25fb6de6af62466a1d77b05630632d17356d607743a22b81d427442d",
+    "spec": "lexlean/command-result/1",
+    "success": true
+  },
+  "kernel_modules": [
+    "RuntimeValue",
+    "Heap",
+    "HeapAudit",
+    "HeapMovedReference",
+    "HeapMovedTests"
+  ],
+  "scenario_assertion_log": {
+    "path": "/workspace/heap-moved-fixture/execute.log",
+    "sha256": "e24fda393db472d0045f2f9ff2fd54a7acaa63b49bd1335907a270bf62a16440"
+  },
+  "native_c_runner": {
+    "path": "/workspace/heap-moved-fixture/native/heap-moved-tests",
+    "sha256": "017b84eca337989713bb3682b626978d84e4ab13b31d2bd135d1f1c39059e395",
+    "build_log": "/workspace/heap-moved-fixture/native-build.log",
+    "run_log": "/workspace/heap-moved-fixture/native-execute.log",
+    "run_log_sha256": "fea2056491c0e5c718e924c9b59a8aba751850aa93dcd7d792729c2c7376ab3b",
+    "official_runtime_source": "/workspace/heap-complete-trace/lean-src/LexLeanRuntime/Portable.lean",
+    "official_runtime_source_sha256": "d2d34c01c5fff345c099279013f7d428dc5747f0401873fa9df36ca97a87705a",
+    "assertion_only_main": "/workspace/heap-moved-fixture/NativeMain.lean",
+    "generated_inputs": {
+      "RuntimeValue": {
+        "lean_sha256": "754ca150915bc04bee9089614ea6a86b5d78d04a8f795da6197cb4a7605f1464",
+        "c_sha256": "c7e27bb6749429cc3ee2a6c1cac19f0ab0db772854215c5fc7e9de656904d1b5",
+        "object_sha256": "8f77a0833634710558836d59eb34799370200e83b38dab980862da5d0efadfcd"
+      },
+      "Heap": {
+        "lean_sha256": "29d62f0bade2c227f08a5779cb48a0568d113e9aa653ec0e844033af2a064875",
+        "c_sha256": "533b1bbc57c8aac63b81d1a5d6ebc59557bb45dfdb12d694f0fb0bdad0eeefcb",
+        "object_sha256": "af1c63783bc7f3fe87116453253613c6490cdf485f0e0f460c303538ab61cfe8"
+      },
+      "HeapAudit": {
+        "lean_sha256": "116bb82174d0d10010707be00aab89d32b293ad7bc75c08b8efb19ee96af7d76",
+        "c_sha256": "d6edf2108b9b5872ef3db0109a884d031b6d1bf300166251a2f3c6d15833e971",
+        "object_sha256": "14bc19bbad2f02060aabc9428013ac990dabbe987ba5d053903653a41a2a5d86"
+      },
+      "HeapMovedReference": {
+        "lean_sha256": "5397cf5796b7a7140ef923af80ec9eb972470631336b89660b86892d54477b43",
+        "c_sha256": "4a44385f3fe99911baeda179efa8d5ffaafa9b6bcccf1844ba98e90020fd94c6",
+        "object_sha256": "7939072063e6688cd4411707f95a5d14d60fbeae9e6b11e4157cfb2ec2c43ed2"
+      },
+      "HeapMovedTests": {
+        "lean_sha256": "ff29acc38c541dd5fbd6eb3b19e2f5bc5b3f10c9d02ad15d5b4b458191a897a5",
+        "c_sha256": "a6aac401e52cb59475493044553c7666b1eb1f4506cacd5ee2ddb1f1b72b32d3",
+        "object_sha256": "44ff6a1f5ceaa6ec6a75d77f217006912742a8a63aeb979e47e989ab2c74b75f"
+      }
+    },
+    "assertion_main_sha256": "47a36436b61500407a30679b56fdc73de2917f094a3115cedfbe6a9a4514fe90",
+    "pinned_lean_sha256": "e8baaa71855a616dc351028f3ad2200051b0671f423a1696a100e809302d5550",
+    "pinned_leanc_sha256": "0f51753a7921fadb2813b24c9e9e3cfccf02bdb606b7a34feebd763c63754fcc",
+    "assertion_main_source": "import Uorc.Uorc.Core.HeapMovedTests\n\ndef main : IO Unit := do\n  unless Uorc.Uorc.Core.HeapMovedTests.basicScenario do throw (IO.userError \"basicScenario failed\")\n  unless Uorc.Uorc.Core.HeapMovedTests.overflowScenario do throw (IO.userError \"overflowScenario failed\")\n  unless Uorc.Uorc.Core.HeapMovedTests.preflightScenario do throw (IO.userError \"preflightScenario failed\")\n  unless Uorc.Uorc.Core.HeapMovedTests.counterGridScenario do throw (IO.userError \"counterGridScenario failed\")\n  unless Uorc.Uorc.Core.HeapMovedTests.reservationScenario do throw (IO.userError \"reservationScenario failed\")\n  IO.println \"heap moved native C runner: all five scenarios passed\"\n"
+  },
+  "bounds": {
+    "counter_grid_controls": 192,
+    "scenario_groups": 5,
+    "actual_e87_cross_executor_counter_trace_rerun": false,
+    "timing_or_rss_claim": false,
+    "compiler_rebuilt": false,
+    "production_export_attempted": false,
+    "full_locked_sdk_release_accepted": false
+  },
+  "mutants": {
+    "missing-drop": {
+      "source_sha256": "6b3f3ea749eddb0bac636a55dcf4d4d39c5251e1222a890ae1d3c8dadd95e1c9",
+      "official_build_id": "332c5ddf665898ce1dc6cdb96270c8b1e43922430f0e1adc6ef99aa69ec1b44f",
+      "assertion": "basicScenario",
+      "native_exit_code": 1,
+      "native_log_path": "/workspace/heap-moved-mutant-missing-drop/native-execute.log",
+      "native_log_sha256": "3f36ce5fc300e47cce5d002b8d39e24b12e19289a7e3d8409e8cf1d95ad1fe6c"
+    },
+    "missing-preflight": {
+      "source_sha256": "fd30137079fb8adc8fa62ec75a31d74544763f6fc3c678be50f797b8fe4a0499",
+      "official_build_id": "9fd7c14886766b5a4ae1b869d23ae854550a612b83225d6e59688f7e39dfaee4",
+      "assertion": "preflightScenario",
+      "native_exit_code": 1,
+      "native_log_path": "/workspace/heap-moved-mutant-missing-preflight/native-execute.log",
+      "native_log_sha256": "6a957a1f605d15f5ebdce68e46b51f4e7dae79108994ce174c28c800db9ecb1d"
+    }
+  },
+  "restoration": {
+    "source_sha256": "ee41c3fb11c1f60fc767448760e8020d934c253fc31eec2146413ec1a98b0e1b",
+    "native_runner_sha256": "017b84eca337989713bb3682b626978d84e4ab13b31d2bd135d1f1c39059e395",
+    "rerun_log_path": "/workspace/heap-moved-fixture/restored-native-execute.log",
+    "rerun_log_sha256": "fea2056491c0e5c718e924c9b59a8aba751850aa93dcd7d792729c2c7376ab3b",
+    "source_gate": {
+      "schema": "uorc/heap-moved-structural-source-gate/1",
+      "source_sha256": "ee41c3fb11c1f60fc767448760e8020d934c253fc31eec2146413ec1a98b0e1b",
+      "gate_sha256": "7a3747f1894131d859874698c4067a4d8969cd99ca6dbafe5762441b13c98739",
+      "official_semantic_parser": "read_module + byte-exact write_module roundtrip",
+      "kind": "structural source-call counts; not runtime allocator telemetry",
+      "unchanged": [
+        "allocate",
+        "dropRetainedRoot",
+        "preflightMovedRoots"
+      ],
+      "controls": [
+        {
+          "control": "single_moved",
+          "full_depth_index_writes": 2,
+          "expected": 2
+        },
+        {
+          "control": "distinct_moved",
+          "full_depth_index_writes": 3,
+          "expected": 3
+        },
+        {
+          "control": "twice_aliased_two_tickets",
+          "full_depth_index_writes": 3,
+          "expected": 3
+        },
+        {
+          "control": "moved_and_unmoved_alias",
+          "full_depth_index_writes": 3,
+          "expected": 3
+        }
+      ],
+      "passed": true
+    },
+    "planted_defects_touched_production_source": false
+  },
+  "existing_heap_regression": {
+    "build": {
+      "artifacts": [
+        ".lexlean/build/40c2c0be0158c59ee058366560c0dbb737119a5c6a6bc651d8b7f17c5e221cf3"
+      ],
+      "build_id": "40c2c0be0158c59ee058366560c0dbb737119a5c6a6bc651d8b7f17c5e221cf3",
+      "command": "build",
+      "diagnostics": [],
+      "exit_code": 0,
+      "modules": [
+        "Uorc.Core.Heap",
+        "Uorc.Core.HeapAudit",
+        "Uorc.Core.HeapTests",
+        "Uorc.Core.RuntimeValue"
+      ],
+      "semantic_id": "6ae0ad5b4583a44cea005a9b672edd72620df81da846c92db8fc27e6fd535b5b",
+      "source_id": "2c4705a5befa4a137a906310e3ff32e768c5b423feb93de77de04cc0e0e1d648",
+      "spec": "lexlean/command-result/1",
+      "success": true
+    },
+    "kernel_log": "/workspace/heap-moved-fixture/HeapTests-kernel.log",
+    "assertion_log": "/workspace/heap-moved-fixture/regression-execute.log",
+    "assertion_log_sha256": "c0b2156732e8f5510a017565fcd38ac3f02fe7783aab6842164d68e47ba8a97b",
+    "passed": true
+  },
+  "read_only_source_probe": {
+    "path": "/tmp/heap_moved_source_gate.py",
+    "sha256": "7a3747f1894131d859874698c4067a4d8969cd99ca6dbafe5762441b13c98739",
+    "source": "# Read-only structural probe of official SDK semantic nodes, not allocator telemetry.\nimport json,subprocess,sys,hashlib,copy\nfrom pathlib import Path\nsource=Path(sys.argv[1]);baseline=Path('/workspace/heap-moved-before/Heap.semantic.json')\nj=json.loads(subprocess.check_output(['/workspace/heap-delivery/export-semantic-json',str(source)]))\ndefs={x['name']:x for x in j['declarations'] if x['kind']=='definition'}\nold={x['name']:x for x in json.loads(baseline.read_text())['declarations'] if x['kind']=='definition'}\ndef walk(x):\n if isinstance(x,dict):\n  yield x\n  for v in x.values():yield from walk(v)\n elif isinstance(x,list):\n  for v in x:yield from walk(v)\ndef calls(n,fn):return [x for x in walk(defs[n]['body']) if x.get('kind')=='call' and x['function'].get('name')==fn]\nfor n in ['allocate','dropRetainedRoot','preflightMovedRoots']:\n assert defs[n]==old[n],n+' changed'\nassert len(calls('allocate','retainEntry'))==2\nassert len(calls('allocate','writeIndex'))==1\nassert len(calls('retainEntry','writeIndex'))==1\nassert len(calls('dropRetainedRoot','writeIndex'))==1\nfused=bool(calls('allocateMoved','allocateMovedChecked'))\nif fused:\n assert len(calls('allocateMovedChecked','attachMovedChild'))==2\n assert len(calls('allocateMovedChecked','writeIndex'))==1\n assert len(calls('attachMovedChild','writeIndex'))==1\n assert len(calls('attachMovedChild','retainEntry'))==1\n assert not calls('allocateMoved','dropRetainedRoot')\n assert not calls('allocateMovedChecked','dropRetainedRoot')\n # Restore only the three intentional body differences, then compare the\n # entire guard/insertion tree to unchanged allocate, preserving order.\n normalized=copy.deepcopy(defs['allocateMovedChecked']['body'])\n old_delta=[x for x in walk(old['allocate']['body']) if x.get('kind')=='record' and x.get('type',{}).get('name')=='Delta']\n assert len(old_delta)==1\n old_fields={x['field']:x['value'] for x in old_delta[0]['fields']}\n seen=[]\n for node in walk(normalized):\n  if node.get('kind')=='call' and node['function'].get('name')=='attachMovedChild':\n   args=node['arguments'];assert len(args)==4\n   seen.append(args[2].get('name'))\n   node['function']={'name':'retainEntry'}\n   node['arguments']=[args[0],args[1],{'kind':'bool','value':False}]\n  elif node.get('kind')=='record' and node.get('type',{}).get('name')=='Delta':\n   for field in node['fields']:\n    if field['field'] in ['droppedRoots','work']:field['value']=copy.deepcopy(old_fields[field['field']])\n assert sorted(seen)==['moveFirst','moveSecond']\n assert normalized==old['allocate']['body'],'allocation guard/insertion tree changed'\n outer=copy.deepcopy(defs['allocateMoved']['body'])\n def preflight_match(body):\n  matches=[x for x in walk(body) if x.get('kind')=='match' and x.get('scrutinee',{}).get('kind')=='call' and x['scrutinee']['function'].get('name')=='preflightMovedRoots']\n  assert len(matches)==1,'move preflight missing or duplicated'\n  return matches[0]\n old_outer=preflight_match(old['allocateMoved']['body'])\n new_outer=preflight_match(outer)\n old_ok=[x for x in old_outer['branches'] if x['constructor']['name']=='Result.ok'][0]\n new_ok=[x for x in new_outer['branches'] if x['constructor']['name']=='Result.ok'][0]\n assert new_ok['body']['kind']=='call' and new_ok['body']['function']['name']=='allocateMovedChecked'\n new_ok['body']=copy.deepcopy(old_ok['body'])\n assert outer==old['allocateMoved']['body'],'release/preflight guard order changed'\nelse:\n assert len(calls('allocateMoved','allocate'))==1\n assert len(calls('allocateMoved','dropRetainedRoot'))==2\ncontrols=[('single_moved',1,1,2),('distinct_moved',2,2,3),('twice_aliased_two_tickets',2,2,3),('moved_and_unmoved_alias',2,1,3)]\nrows=[{'control':n,'full_depth_index_writes':1+k+(0 if fused else m),'expected':e} for n,k,m,e in controls]\nreceipt={'schema':'uorc/heap-moved-structural-source-gate/1','source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'gate_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'official_semantic_parser':'read_module + byte-exact write_module roundtrip','kind':'structural source-call counts; not runtime allocator telemetry','unchanged':['allocate','dropRetainedRoot','preflightMovedRoots'],'controls':rows,'passed':all(r['full_depth_index_writes']==r['expected'] for r in rows)}\nprint(json.dumps(receipt,indent=2));sys.exit(0 if receipt['passed'] else 1)\n",
+    "purpose": "Read-only official SDK AST/roundtrip checks and structural source-call counts, not product code or allocator telemetry."
+  },
+  "later_metadata_correction": {
+    "path": "src/Uorc/Core/HeapMovedReference.lex.tex",
+    "previous_source_sha256": "89ac46f3eb8c52d8b560b1c50580fa7727051bac8e4bb95804d6624559e619d5",
+    "current_source_sha256": "1f5620417509899049cb2e16119aebcf9c62a23de2886f6fac5db2360d71a76e",
+    "policies_changed_to_observed_empty": [
+      "sameValue",
+      "sameNode",
+      "sameEntry",
+      "sameIndex",
+      "sameHandles",
+      "sameArena",
+      "sameDelta",
+      "sameResult"
+    ],
+    "bodies_changed": false,
+    "final_full_checkpoint": "See runtime-final-ownership-evidence.json for current23-module source/hash/policy binding; the original5-group receipts above retain their exact earlier source hashes."
+  }
+}

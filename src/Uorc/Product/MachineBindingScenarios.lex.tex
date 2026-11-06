@@ -1,0 +1,1155 @@
+\begin{lexlean}{Uorc.Product.MachineBindingScenarios}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeAdmission}
+\importmodule{Uorc.Core.RuntimeAdmissionScenarios}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Core.RuntimeMachine}
+\importmodule{Uorc.Core.RuntimeMachineEngine}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.ComparisonOwner}
+\importmodule{Uorc.Product.MachineBinding}
+\importmodule{Uorc.Product.OwnedCompare}
+\importmodule{Uorc.Wire.OwnedRead}
+\title{Boolean}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: fixture, fields: []},
+    {name: exhausted, fields: []},
+    {name: suspended, fields: []},
+    {name: audit, fields: []},
+    {name: unexpected, fields: []},
+    {name: admissionScenario, fields: [Uorc.Core.RuntimeAdmissionScenarios::ScenarioError]},
+    {name: admission, fields: [Uorc.Core.RuntimeAdmission::Error]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]}
+  ]
+}
+
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
+definition{
+  name: arena,
+  parameters: [s : Uorc.Product.MachineBinding::State],
+  result: (Option Uorc.Core.Heap::Arena),
+  body: (match (project s owner)
+    | Uorc.Product.MachineBinding::Owner.running core => (ctor Option.some [Uorc.Core.Heap::Arena] (project core arena))
+    | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => (ctor Option.some [Uorc.Core.Heap::Arena] (project coreNested1 arena))
+    | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (ctor Option.some [Uorc.Core.Heap::Arena] (project ready arena))
+    | Uorc.Product.MachineBinding::Owner.handedOff usage => (ctor Option.none [Uorc.Core.Heap::Arena])),
+  axioms: []
+}
+
+definition{
+  name: audit,
+  parameters: [s : Uorc.Product.MachineBinding::State],
+  result: Bool,
+  body: (match (arena s)
+    | Option.none => (match (Uorc.Product.MachineBinding::ownedRoots s)
+      | List.nil => true
+      | List.cons head tail => false)
+    | Option.some actualArena => (Uorc.Core.HeapAudit::auditRoots actualArena (Uorc.Product.MachineBinding::ownedRoots s))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drive,
+  parameters: [fuel : Nat, s : Uorc.Product.MachineBinding::State],
+  result: (Result Uorc.Product.MachineBinding::State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Product.MachineBinding::State, Error] (ctor Error.exhausted))
+    | Nat.succ rest => (if (not (audit s)) then (ctor Result.error [Uorc.Product.MachineBinding::State, Error] (ctor Error.audit)) else (match (project s owner)
+      | Uorc.Product.MachineBinding::Owner.running core => (match (project core disposition)
+        | Uorc.Core.RuntimeMachine::Disposition.running => (drive rest (Uorc.Product.MachineBinding::tick s (project s run)))
+        | Uorc.Core.RuntimeMachine::Disposition.suspended reason => (ctor Result.error [Uorc.Product.MachineBinding::State, Error] (ctor Error.suspended))
+        | Uorc.Core.RuntimeMachine::Disposition.completed handle => (drive rest (Uorc.Product.MachineBinding::tick s (project s run)))
+        | Uorc.Core.RuntimeMachine::Disposition.failed reasonNested1 => (drive rest (Uorc.Product.MachineBinding::tick s (project s run)))
+        | Uorc.Core.RuntimeMachine::Disposition.cancelling => (drive rest (Uorc.Product.MachineBinding::tick s (project s run)))
+        | Uorc.Core.RuntimeMachine::Disposition.cleaned => (drive rest (Uorc.Product.MachineBinding::tick s (project s run))))
+      | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => (match (project coreNested1 disposition)
+        | Uorc.Core.RuntimeMachine::Disposition.running => (drive rest (Uorc.Product.MachineBinding::tick s (project s run)))
+        | Uorc.Core.RuntimeMachine::Disposition.suspended reasonNested2 => (ctor Result.error [Uorc.Product.MachineBinding::State, Error] (ctor Error.suspended))
+        | Uorc.Core.RuntimeMachine::Disposition.completed handleNested1 => (drive rest (Uorc.Product.MachineBinding::tick s (project s run)))
+        | Uorc.Core.RuntimeMachine::Disposition.failed reasonNested3 => (drive rest (Uorc.Product.MachineBinding::tick s (project s run)))
+        | Uorc.Core.RuntimeMachine::Disposition.cancelling => (drive rest (Uorc.Product.MachineBinding::tick s (project s run)))
+        | Uorc.Core.RuntimeMachine::Disposition.cleaned => (drive rest (Uorc.Product.MachineBinding::tick s (project s run))))
+      | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (ctor Result.ok [Uorc.Product.MachineBinding::State, Error] s)
+      | Uorc.Product.MachineBinding::Owner.handedOff usage => (ctor Result.ok [Uorc.Product.MachineBinding::State, Error] s)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}),
+  axioms: []
+}
+
+definition{
+  name: events,
+  parameters: [image : Uorc.Core.RuntimeValue::Handle, length : UInt64, semantic : Bool],
+  result: (List Uorc.Core.RuntimeProgram::Event),
+  body: (if semantic then (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (256 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalToByte)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.singletonSequence)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.seal (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event)))))))))))))) else (prim append (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginLiteral length) (nil Uorc.Core.RuntimeProgram::Event))))) (prim append (if (prim equal length (0 : UInt64) : Bool) then (nil Uorc.Core.RuntimeProgram::Event) else (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan image (0 : UInt64) length) (nil Uorc.Core.RuntimeProgram::Event))) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.seal (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event)))) : (List Uorc.Core.RuntimeProgram::Event)) : (List Uorc.Core.RuntimeProgram::Event))),
+  axioms: []
+}
+
+definition{
+  name: driveComparison,
+  parameters: [
+    fuel : Nat,
+    bindingArena : Uorc.Core.Heap::Arena,
+    comparison : Uorc.Product.OwnedCompare::State
+  ],
+  result: Uorc.Product.OwnedCompare::State,
+  body: (match fuel
+    | Nat.zero => comparison
+    | Nat.succ rest => (match (project comparison result)
+      | Uorc.Product.OwnedCompare::Disposition.working => (driveComparison rest bindingArena (Uorc.Product.OwnedCompare::step bindingArena comparison))
+      | Uorc.Product.OwnedCompare::Disposition.equal => comparison
+      | Uorc.Product.OwnedCompare::Disposition.different index => comparison
+      | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => comparison
+      | Uorc.Product.OwnedCompare::Disposition.failed failure => comparison
+      | Uorc.Product.OwnedCompare::Disposition.cancelled => comparison)),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: outputIsLiteral,
+  parameters: [s : Uorc.Product.MachineBinding::State, empty : Bool],
+  result: Bool,
+  body: (match (project s owner)
+    | Uorc.Product.MachineBinding::Owner.running core => false
+    | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+    | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+    | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+      | Option.none => false
+      | Option.some handle => ((if empty then (Uorc.Core.RuntimeValue::isNull handle) else (not (Uorc.Core.RuntimeValue::isNull handle))) && ((match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) verification) handle)
+        | Result.error failure => false
+        | Result.ok comparison => (Uorc.Product.OwnedCompare::isEqual (driveComparison 100000 (project ready arena) comparison))) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: differentBytesRejected,
+  parameters: [bindingArena : Uorc.Core.Heap::Arena, output : Uorc.Core.RuntimeValue::Handle],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::allocate bindingArena (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.runtime) 0x010204))
+    | Result.error failure => false
+    | Result.ok image => (match (Uorc.Core.Heap::allocate (project image arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project image handle) (0 : UInt64) (3 : UInt64)))
+      | Result.error failureNested1 => false
+      | Result.ok wrong => (match (Uorc.Product.OwnedCompare::begin (project wrong arena) output (project wrong handle))
+        | Result.error failureNested2 => false
+        | Result.ok comparison => (match (project (driveComparison 10000 (project wrong arena) comparison) result)
+          | Uorc.Product.OwnedCompare::Disposition.working => false
+          | Uorc.Product.OwnedCompare::Disposition.equal => false
+          | Uorc.Product.OwnedCompare::Disposition.different index => (prim equal index (2 : UInt64) : Bool)
+          | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => false
+          | Uorc.Product.OwnedCompare::Disposition.failed failureNested3 => false
+          | Uorc.Product.OwnedCompare::Disposition.cancelled => false)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: feedAdmission,
+  parameters: [
+    pendingEvents : (List Uorc.Core.RuntimeProgram::Event),
+    cursor : Uorc.Core.RuntimeAdmission::Cursor
+  ],
+  result: (Result Uorc.Core.RuntimeProgram::Ready Uorc.Core.RuntimeAdmissionScenarios::ScenarioError),
+  body: (match pendingEvents
+    | List.nil => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeAdmissionScenarios::ScenarioError] (ctor Uorc.Core.RuntimeAdmissionScenarios::ScenarioError.missingSeal))
+    | List.cons event rest => (match (Uorc.Core.RuntimeAdmission::offer cursor event)
+      | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeAdmissionScenarios::ScenarioError] (ctor Uorc.Core.RuntimeAdmissionScenarios::ScenarioError.admissionRejected))
+      | Result.ok offered => (match (Uorc.Core.RuntimeAdmissionScenarios::drive 300000 offered)
+        | Uorc.Core.RuntimeAdmission::Step.pending next => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeAdmissionScenarios::ScenarioError] (ctor Uorc.Core.RuntimeAdmissionScenarios::ScenarioError.fuelExhausted))
+        | Uorc.Core.RuntimeAdmission::Step.failed failureNested1 nextNested1 => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeAdmissionScenarios::ScenarioError] (ctor Uorc.Core.RuntimeAdmissionScenarios::ScenarioError.admissionRejected))
+        | Uorc.Core.RuntimeAdmission::Step.ready ready => (match rest
+          | List.nil => (ctor Result.ok [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeAdmissionScenarios::ScenarioError] ready)
+          | List.cons extra more => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeAdmissionScenarios::ScenarioError] (ctor Uorc.Core.RuntimeAdmissionScenarios::ScenarioError.prematureReady)))
+        | Uorc.Core.RuntimeAdmission::Step.awaiting nextNested2 => (if (Uorc.Core.HeapAudit::auditRoots (project nextNested2 arena) (Uorc.Core.RuntimeAdmission::rootInventory nextNested2)) then (feedAdmission rest nextNested2) else (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeAdmissionScenarios::ScenarioError] (ctor Uorc.Core.RuntimeAdmissionScenarios::ScenarioError.auditFailed)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: pendingEvents
+}
+
+definition{
+  name: admitImage,
+  parameters: [
+    bindingArena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    original : Uorc.Core.RuntimeValue::Handle,
+    length : UInt64,
+    semantic : Bool
+  ],
+  result: (Result Uorc.Core.RuntimeProgram::Ready Error),
+  body: (match (Uorc.Core.RuntimeAdmission::start (budget) bindingArena (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := image, archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := original, wire := (Uorc.Core.RuntimeValue::nullHandle)}) (Uorc.Core.RuntimeResources::zeroUsage))
+    | Uorc.Core.RuntimeAdmission::Step.pending cursor => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Error] (ctor Error.fixture))
+    | Uorc.Core.RuntimeAdmission::Step.failed failure cursorNested1 => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Error] (ctor Error.admission failure))
+    | Uorc.Core.RuntimeAdmission::Step.ready ready => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Error] (ctor Error.fixture))
+    | Uorc.Core.RuntimeAdmission::Step.awaiting cursorNested2 => (match (feedAdmission (events image length semantic) cursorNested2)
+      | Result.error failureNested1 => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Error] (ctor Error.admissionScenario failureNested1))
+      | Result.ok readyNested1 => (ctor Result.ok [Uorc.Core.RuntimeProgram::Ready, Error] readyNested1))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: admittedBytes,
+  parameters: [bytes : Bytes, semantic : Bool],
+  result: (Result Uorc.Core.RuntimeProgram::Ready Error),
+  body: (match (Uorc.Core.Heap::wordOfNat (prim length bytes : Nat))
+    | Option.none => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Error] (ctor Error.fixture))
+    | Option.some length => (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (project (budget) maxOwnedBytes)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) bytes))
+      | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Error] (ctor Error.heap failure))
+      | Result.ok image => (if (prim equal length (0 : UInt64) : Bool) then (admitImage (project image arena) (project image handle) (Uorc.Core.RuntimeValue::nullHandle) length semantic) else (match (Uorc.Core.Heap::allocate (project image arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project image handle) (0 : UInt64) length))
+        | Result.error failureNested1 => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, Error] (ctor Error.heap failureNested1))
+        | Result.ok sequence => (admitImage (project sequence arena) (project image handle) (project sequence handle) length semantic))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: literalStart,
+  parameters: [],
+  result: (Result Uorc.Product.MachineBinding::State Error),
+  body: (match (admittedBytes 0x010203 false)
+    | Result.error failure => (ctor Result.error [Uorc.Product.MachineBinding::State, Error] failure)
+    | Result.ok ready => (ctor Result.ok [Uorc.Product.MachineBinding::State, Error] (Uorc.Product.MachineBinding::start (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0}) ready (budget)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emptyStart,
+  parameters: [],
+  result: (Result Uorc.Product.MachineBinding::State Error),
+  body: (match (admittedBytes 0x false)
+    | Result.error failure => (ctor Result.error [Uorc.Product.MachineBinding::State, Error] failure)
+    | Result.ok ready => (ctor Result.ok [Uorc.Product.MachineBinding::State, Error] (Uorc.Product.MachineBinding::start (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0}) ready (budget)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: semanticStart,
+  parameters: [],
+  result: (Result Uorc.Product.MachineBinding::State Error),
+  body: (match (admittedBytes 0x true)
+    | Result.error failure => (ctor Result.error [Uorc.Product.MachineBinding::State, Error] failure)
+    | Result.ok ready => (ctor Result.ok [Uorc.Product.MachineBinding::State, Error] (Uorc.Product.MachineBinding::start (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0}) ready (budget)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: allBytesStart,
+  parameters: [],
+  result: (Result Uorc.Product.MachineBinding::State Error),
+  body: (match (admittedBytes 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff false)
+    | Result.error failure => (ctor Result.error [Uorc.Product.MachineBinding::State, Error] failure)
+    | Result.ok ready => (ctor Result.ok [Uorc.Product.MachineBinding::State, Error] (Uorc.Product.MachineBinding::start (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0}) ready (budget)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: isLengthMismatchThreeZero,
+  parameters: [comparison : Uorc.Product.OwnedCompare::State],
+  result: Bool,
+  body: (match (project comparison result)
+    | Uorc.Product.OwnedCompare::Disposition.working => false
+    | Uorc.Product.OwnedCompare::Disposition.equal => false
+    | Uorc.Product.OwnedCompare::Disposition.different index => false
+    | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => ((prim equal left (3 : UInt64) : Bool) && ((prim equal right (0 : UInt64) : Bool) && true))
+    | Uorc.Product.OwnedCompare::Disposition.failed failure => false
+    | Uorc.Product.OwnedCompare::Disposition.cancelled => false)
+}
+
+definition{
+  name: comparisonTickResumeControl,
+  parameters: [],
+  result: Bool,
+  body: (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) verification) handle)
+            | Result.error failureNested2 => false
+            | Result.ok comparison => (match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Product.OwnedCompare::traversalWork), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (Uorc.Core.RuntimeResources::zeroUsage) (project ready arena) comparison)
+              | Uorc.Product.OwnedCompare::Tick.refused failureNested3 state usageNested1 => false
+              | Uorc.Product.OwnedCompare::Tick.advanced stateNested1 usageNested2 => (match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (project usageNested2 work), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) usageNested2 (project ready arena) stateNested1)
+                | Uorc.Product.OwnedCompare::Tick.advanced unexpected unexpectedUsage => false
+                | Uorc.Product.OwnedCompare::Tick.refused failureNested4 frozen frozenUsage => ((prim equal (project frozen compared) (project stateNested1 compared) : Bool) && ((prim equal (project frozenUsage work) (project usageNested2 work) : Bool) && ((match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) frozenUsage (project ready arena) frozen)
+                  | Uorc.Product.OwnedCompare::Tick.refused failureNested5 stateNested2 usageNested3 => false
+                  | Uorc.Product.OwnedCompare::Tick.advanced stateNested3 usageNested4 => ((match (project stateNested3 result)
+                    | Uorc.Product.OwnedCompare::Disposition.working => true
+                    | Uorc.Product.OwnedCompare::Disposition.equal => false
+                    | Uorc.Product.OwnedCompare::Disposition.different index => false
+                    | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => false
+                    | Uorc.Product.OwnedCompare::Disposition.failed failureNested6 => false
+                    | Uorc.Product.OwnedCompare::Disposition.cancelled => false) && (prim equal (project usageNested4 work) (Uorc.Core.Heap::wordAdd (Uorc.Product.OwnedCompare::traversalWork) (Uorc.Product.OwnedCompare::traversalWork)) : Bool))) && true)))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lengthMismatchControl,
+  parameters: [],
+  result: Bool,
+  body: (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) handle (Uorc.Core.RuntimeValue::nullHandle))
+            | Result.error failureNested2 => false
+            | Result.ok comparison => (isLengthMismatchThreeZero comparison)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: byteMismatchControl,
+  parameters: [],
+  result: Bool,
+  body: (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (differentBytesRejected (project ready arena) handle))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: outputCustodyControl,
+  parameters: [],
+  result: Bool,
+  body: (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => ((Uorc.Product.MachineBinding::outputAvailable finished) && ((audit finished) && ((outputIsLiteral finished false) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: prepareByteFixture,
+  parameters: [
+    fuel : Nat,
+    bindingArena : Uorc.Core.Heap::Arena,
+    comparison : Uorc.Product.OwnedCompare::State
+  ],
+  result: (Result Uorc.Product.OwnedCompare::State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Product.OwnedCompare::State, Error] (ctor Error.exhausted))
+    | Nat.succ remaining => (if ((match (project (project comparison left) span)
+      | Option.none => false
+      | Option.some present => true) && ((match (project (project comparison right) span)
+      | Option.none => false
+      | Option.some presentNested1 => true) && true)) then (ctor Result.ok [Uorc.Product.OwnedCompare::State, Error] comparison) else (prepareByteFixture remaining bindingArena (Uorc.Product.OwnedCompare::step bindingArena comparison)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: getterRefusalResumeControl,
+  parameters: [],
+  result: Bool,
+  body: (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) verification) handle)
+            | Result.error failureNested2 => false
+            | Result.ok comparison => (match (prepareByteFixture 10000 (project ready arena) comparison)
+              | Result.error preparationError => false
+              | Result.ok prepared => (match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordAdd (Uorc.Product.OwnedCompare::stepWork) (match (project (project prepared left) span)
+                  | Option.none => (0 : UInt64)
+                  | Option.some spanForQuote => (Uorc.Core.RuntimeImage::readByteCost (project ready arena) (project spanForQuote image) (Uorc.Core.Heap::wordAdd (project spanForQuote offset) (project spanForQuote used))))), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (Uorc.Core.RuntimeResources::zeroUsage) (project ready arena) prepared)
+                | Uorc.Product.OwnedCompare::Tick.advanced unexpected unexpectedUsage => false
+                | Uorc.Product.OwnedCompare::Tick.refused failureNested3 held paid => ((match failureNested3
+                  | Uorc.Core.RuntimeResources::Error.workLimit => true
+                  | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+                  | Uorc.Core.RuntimeResources::Error.outputLimit => false
+                  | Uorc.Core.RuntimeResources::Error.frameLimit => false
+                  | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+                  | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+                  | Uorc.Core.RuntimeResources::Error.heap heapError => false
+                  | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false) && ((match (project held pending)
+                  | Option.none => false
+                  | Option.some present => true) && ((prim equal (project held compared) (0 : UInt64) : Bool) && ((prim equal (project paid work) (Uorc.Core.Heap::wordAdd (Uorc.Product.OwnedCompare::stepWork) (match (project (project prepared left) span)
+                  | Option.none => (0 : UInt64)
+                  | Option.some spanForQuoteNested1 => (Uorc.Core.RuntimeImage::readByteCost (project ready arena) (project spanForQuoteNested1 image) (Uorc.Core.Heap::wordAdd (project spanForQuoteNested1 offset) (project spanForQuoteNested1 used))))) : Bool) && ((match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) paid (project ready arena) held)
+                  | Uorc.Product.OwnedCompare::Tick.refused resourceAgain stateAgain usageAgain => false
+                  | Uorc.Product.OwnedCompare::Tick.advanced resumedState resumedUsage => ((prim equal (project resumedState compared) (1 : UInt64) : Bool) && ((not (match (project resumedState pending)
+                    | Option.none => false
+                    | Option.some presentNested1 => true)) && ((prim equal (project resumedUsage work) (Uorc.Core.Heap::wordAdd (project paid work) (match (project (project prepared right) span)
+                    | Option.none => (0 : UInt64)
+                    | Option.some spanForQuoteNested2 => (Uorc.Core.RuntimeImage::readByteCost (project ready arena) (project spanForQuoteNested2 image) (Uorc.Core.Heap::wordAdd (project spanForQuoteNested2 offset) (project spanForQuoteNested2 used))))) : Bool) && true)))) && true)))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: pendingGetterCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) verification) handle)
+            | Result.error failureNested2 => false
+            | Result.ok comparison => (match (prepareByteFixture 10000 (project ready arena) comparison)
+              | Result.error preparationError => false
+              | Result.ok prepared => (match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordAdd (Uorc.Product.OwnedCompare::stepWork) (match (project (project prepared left) span)
+                  | Option.none => (0 : UInt64)
+                  | Option.some spanForQuote => (Uorc.Core.RuntimeImage::readByteCost (project ready arena) (project spanForQuote image) (Uorc.Core.Heap::wordAdd (project spanForQuote offset) (project spanForQuote used))))), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (Uorc.Core.RuntimeResources::zeroUsage) (project ready arena) prepared)
+                | Uorc.Product.OwnedCompare::Tick.advanced unexpected unexpectedUsage => false
+                | Uorc.Product.OwnedCompare::Tick.refused failureNested3 held paid => (match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (0 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) paid (project ready arena) (Uorc.Product.OwnedCompare::cancel held))
+                  | Uorc.Product.OwnedCompare::Tick.refused again stateAgain usageAgain => false
+                  | Uorc.Product.OwnedCompare::Tick.advanced cancelledState cancelledUsage => ((match (project cancelledState result)
+                    | Uorc.Product.OwnedCompare::Disposition.working => false
+                    | Uorc.Product.OwnedCompare::Disposition.equal => false
+                    | Uorc.Product.OwnedCompare::Disposition.different index => false
+                    | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => false
+                    | Uorc.Product.OwnedCompare::Disposition.failed failureNested4 => false
+                    | Uorc.Product.OwnedCompare::Disposition.cancelled => true) && ((not (match (project cancelledState pending)
+                    | Option.none => false
+                    | Option.some present => true)) && ((prim equal (project cancelledUsage work) (project paid work) : Bool) && true))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: leftGetterFailurePrefixControl,
+  parameters: [],
+  result: Bool,
+  body: (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) verification) handle)
+            | Result.error failureNested2 => false
+            | Result.ok comparison => (match (prepareByteFixture 10000 (project ready arena) comparison)
+              | Result.error preparationError => false
+              | Result.ok prepared => (match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (Uorc.Core.RuntimeResources::zeroUsage) (project ready arena) (match (project (project prepared left) span)
+                  | Option.none => prepared
+                  | Option.some badSpan => (record Uorc.Product.OwnedCompare::State {left := (record Uorc.Product.OwnedCompare::Reader {cursor := (project (project prepared left) cursor), span := (ctor Option.some [Uorc.Product.OwnedCompare::Span] (record Uorc.Product.OwnedCompare::Span {image := (Uorc.Core.RuntimeValue::nullHandle), offset := (project badSpan offset), length := (project badSpan length), used := (project badSpan used)})), ended := (project (project prepared left) ended)}), right := (project prepared right), compared := (project prepared compared), result := (project prepared result), pending := (project prepared pending)})))
+                | Uorc.Product.OwnedCompare::Tick.refused failureNested3 refusedState refusedUsage => false
+                | Uorc.Product.OwnedCompare::Tick.advanced failedState failedUsage => ((match (project failedState result)
+                  | Uorc.Product.OwnedCompare::Disposition.working => false
+                  | Uorc.Product.OwnedCompare::Disposition.equal => false
+                  | Uorc.Product.OwnedCompare::Disposition.different index => false
+                  | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => false
+                  | Uorc.Product.OwnedCompare::Disposition.failed failureNested4 => (match failureNested4
+                    | Uorc.Product.OwnedCompare::Failure.read which readError => false
+                    | Uorc.Product.OwnedCompare::Failure.byte whichNested1 byteError => (match whichNested1
+                      | Uorc.Product.OwnedCompare::Side.left => true
+                      | Uorc.Product.OwnedCompare::Side.right => false)
+                    | Uorc.Product.OwnedCompare::Failure.counterExhausted => false
+                    | Uorc.Product.OwnedCompare::Failure.invalidSpan => false)
+                  | Uorc.Product.OwnedCompare::Disposition.cancelled => false) && ((prim equal (project failedUsage work) (Uorc.Core.Heap::wordAdd (Uorc.Product.OwnedCompare::stepWork) (match (project (project prepared left) span)
+                  | Option.none => (0 : UInt64)
+                  | Option.some spanForQuote => (Uorc.Core.RuntimeImage::readByteCost (project ready arena) (project spanForQuote image) (Uorc.Core.Heap::wordAdd (project spanForQuote offset) (project spanForQuote used))))) : Bool) && ((not (match (project failedState pending)
+                  | Option.none => false
+                  | Option.some present => true)) && ((prim equal (project failedState compared) (0 : UInt64) : Bool) && true))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: rightGetterFailurePrefixControl,
+  parameters: [],
+  result: Bool,
+  body: (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) verification) handle)
+            | Result.error failureNested2 => false
+            | Result.ok comparison => (match (prepareByteFixture 10000 (project ready arena) comparison)
+              | Result.error preparationError => false
+              | Result.ok prepared => (match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (Uorc.Core.RuntimeResources::zeroUsage) (project ready arena) (match (project (project prepared right) span)
+                  | Option.none => prepared
+                  | Option.some badSpan => (record Uorc.Product.OwnedCompare::State {left := (project prepared left), right := (record Uorc.Product.OwnedCompare::Reader {cursor := (project (project prepared right) cursor), span := (ctor Option.some [Uorc.Product.OwnedCompare::Span] (record Uorc.Product.OwnedCompare::Span {image := (Uorc.Core.RuntimeValue::nullHandle), offset := (project badSpan offset), length := (project badSpan length), used := (project badSpan used)})), ended := (project (project prepared right) ended)}), compared := (project prepared compared), result := (project prepared result), pending := (project prepared pending)})))
+                | Uorc.Product.OwnedCompare::Tick.refused failureNested3 refusedState refusedUsage => false
+                | Uorc.Product.OwnedCompare::Tick.advanced failedState failedUsage => ((match (project failedState result)
+                  | Uorc.Product.OwnedCompare::Disposition.working => false
+                  | Uorc.Product.OwnedCompare::Disposition.equal => false
+                  | Uorc.Product.OwnedCompare::Disposition.different index => false
+                  | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => false
+                  | Uorc.Product.OwnedCompare::Disposition.failed failureNested4 => (match failureNested4
+                    | Uorc.Product.OwnedCompare::Failure.read which readError => false
+                    | Uorc.Product.OwnedCompare::Failure.byte whichNested1 byteError => (match whichNested1
+                      | Uorc.Product.OwnedCompare::Side.left => false
+                      | Uorc.Product.OwnedCompare::Side.right => true)
+                    | Uorc.Product.OwnedCompare::Failure.counterExhausted => false
+                    | Uorc.Product.OwnedCompare::Failure.invalidSpan => false)
+                  | Uorc.Product.OwnedCompare::Disposition.cancelled => false) && ((prim equal (project failedUsage work) (Uorc.Core.Heap::wordAdd (Uorc.Core.Heap::wordAdd (Uorc.Product.OwnedCompare::stepWork) (match (project (project prepared left) span)
+                  | Option.none => (0 : UInt64)
+                  | Option.some spanForQuote => (Uorc.Core.RuntimeImage::readByteCost (project ready arena) (project spanForQuote image) (Uorc.Core.Heap::wordAdd (project spanForQuote offset) (project spanForQuote used))))) (match (project (project prepared right) span)
+                  | Option.none => (0 : UInt64)
+                  | Option.some spanForQuoteNested1 => (Uorc.Core.RuntimeImage::readByteCost (project ready arena) (project spanForQuoteNested1 image) (Uorc.Core.Heap::wordAdd (project spanForQuoteNested1 offset) (project spanForQuoteNested1 used))))) : Bool) && ((not (match (project failedState pending)
+                  | Option.none => false
+                  | Option.some present => true)) && ((prim equal (project failedState compared) (0 : UInt64) : Bool) && true))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: comparisonFixtureTerminal,
+  parameters: [semanticFailure : Bool],
+  result: (Result Uorc.Product.MachineBinding::Terminal Error),
+  body: (match (if semanticFailure then (semanticStart) else (literalStart))
+    | Result.error failure => (ctor Result.error [Uorc.Product.MachineBinding::Terminal, Error] failure)
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => (ctor Result.error [Uorc.Product.MachineBinding::Terminal, Error] failureNested1)
+      | Result.ok finished => (match (Uorc.Product.MachineBinding::moveTerminal finished (project finished run))
+        | Uorc.Product.MachineBinding::Movement.stale retained => (ctor Result.error [Uorc.Product.MachineBinding::Terminal, Error] (ctor Error.unexpected))
+        | Uorc.Product.MachineBinding::Movement.notReady retainedNested1 => (ctor Result.error [Uorc.Product.MachineBinding::Terminal, Error] (ctor Error.unexpected))
+        | Uorc.Product.MachineBinding::Movement.moved source terminal => (ctor Result.ok [Uorc.Product.MachineBinding::Terminal, Error] terminal)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: comparisonAck,
+  parameters: [owner : Uorc.Product.ComparisonOwner::State],
+  result: Uorc.Product.ComparisonOwner::State,
+  body: (match (Uorc.Product.ComparisonOwner::takeDelta owner (project owner run))
+    | Uorc.Product.ComparisonOwner::DeltaTake.stale next => next
+    | Uorc.Product.ComparisonOwner::DeltaTake.empty nextNested1 => nextNested1
+    | Uorc.Product.ComparisonOwner::DeltaTake.taken nextNested2 delta => nextNested2)
+}
+
+definition{
+  name: comparisonAudit,
+  parameters: [owner : Uorc.Product.ComparisonOwner::State],
+  result: Bool,
+  body: (match (project owner owner)
+    | Uorc.Product.ComparisonOwner::Owner.handedOff usage => true
+    | Uorc.Product.ComparisonOwner::Owner.owned terminal phase => (Uorc.Core.HeapAudit::auditRoots (project (project terminal ready) arena) (Uorc.Product.ComparisonOwner::ownedRoots owner))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: driveComparisonOwner,
+  parameters: [fuel : Nat, owner : Uorc.Product.ComparisonOwner::State],
+  result: (Result Uorc.Product.ComparisonOwner::State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Product.ComparisonOwner::State, Error] (ctor Error.exhausted))
+    | Nat.succ rest => (if (not (comparisonAudit owner)) then (ctor Result.error [Uorc.Product.ComparisonOwner::State, Error] (ctor Error.audit)) else (if (match (project owner owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff usage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned terminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => false
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => false
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => true)) then (ctor Result.ok [Uorc.Product.ComparisonOwner::State, Error] (comparisonAck owner)) else (if (match (project owner refusal)
+      | Option.none => false
+      | Option.some present => true) then (ctor Result.error [Uorc.Product.ComparisonOwner::State, Error] (ctor Error.suspended)) else (driveComparisonOwner rest (comparisonAck (Uorc.Product.ComparisonOwner::tick owner (project owner run)))))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: comparisonStartUncomputedControl,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decoded => decoded))) work) (project (project (project terminal ready) usage) work) : Bool) && ((not (match (project (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested1 => decodedNested1)) pendingDelta)
+      | Option.none => false
+      | Option.some present => true)) && ((match (project (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested2 => decodedNested2)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => true
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => false
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => false)) && ((comparisonAudit (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested3 => decodedNested3))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: comparisonZeroWorkControl,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project (project terminal ready) usage) work), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decoded => decoded)) (project terminal run))) work) (project (project (project terminal ready) usage) work) : Bool) && ((not (match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project (project terminal ready) usage) work), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested1 => decodedNested1)) (project terminal run)) pendingDelta)
+      | Option.none => false
+      | Option.some present => true)) && ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project (project terminal ready) usage) work), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested2 => decodedNested2)) (project terminal run)) refusal)
+      | Option.none => false
+      | Option.some resourceReason => (match resourceReason
+        | Uorc.Core.RuntimeResources::Error.workLimit => true
+        | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+        | Uorc.Core.RuntimeResources::Error.outputLimit => false
+        | Uorc.Core.RuntimeResources::Error.frameLimit => false
+        | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+        | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+        | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+        | Uorc.Core.RuntimeResources::Error.heap heapReason => false)) && ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project (project terminal ready) usage) work), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested3 => decodedNested3)) (project terminal run)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => true
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => false
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => false)) && ((comparisonAudit (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project (project terminal ready) usage) work), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested4 => decodedNested4)) (project terminal run))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: comparisonActualControlAllocation,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decoded => decoded)) (project terminal run))) work) (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) : Bool) && ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested1 => decodedNested1)) (project terminal run)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => false
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => true
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => false
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => false)) && ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested2 => decodedNested2)) (project terminal run)) pendingDelta)
+      | Option.none => false
+      | Option.some delta => ((prim equal (project delta allocatedEntries) (1 : UInt64) : Bool) && ((not (Uorc.Core.Heap::less (project delta allocatedBytes) (Uorc.Core.RuntimeOwnerRoots::controlBytes))) && true))) && ((comparisonAudit (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested3 => decodedNested3)) (project terminal run))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: comparisonDoubleCancelReceiptControl,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decoded => decoded)) (project terminal run)) (project terminal run)) (project terminal run)) (project terminal run)) pendingDelta)
+      | Option.none => false
+      | Option.some present => true) && ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested1 => decodedNested1)) (project terminal run)) (project terminal run)) (project terminal run)) (project terminal run))) work) (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested2 => decodedNested2)) (project terminal run))) work) : Bool) && ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested3 => decodedNested3)) (project terminal run)) (project terminal run)) (project terminal run)) (project terminal run)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => false
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => true
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => false)) && ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested4 => decodedNested4)) (project terminal run)) (project terminal run)) (project terminal run)) (project terminal run)) disposition)
+      | Uorc.Product.ComparisonOwner::Disposition.incomplete => false
+      | Uorc.Product.ComparisonOwner::Disposition.equal => false
+      | Uorc.Product.ComparisonOwner::Disposition.different index => false
+      | Uorc.Product.ComparisonOwner::Disposition.lengthMismatch lengthLeft lengthRight => false
+      | Uorc.Product.ComparisonOwner::Disposition.failed reason => false
+      | Uorc.Product.ComparisonOwner::Disposition.cancelled => true) && ((comparisonAudit (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested5 => decodedNested5)) (project terminal run)) (project terminal run)) (project terminal run)) (project terminal run))) && true)))))),
+  axioms: [propext]
+}
+
+definition{
+  name: comparisonMismatchPaidInitialization,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (Uorc.Core.RuntimeValue::nullHandle)) (project terminal run))) (project terminal run))) work) (Uorc.Core.Heap::wordAdd (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin))) : Bool) && ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (Uorc.Core.RuntimeValue::nullHandle)) (project terminal run))) (project terminal run)) (project terminal run))) work) (Uorc.Core.Heap::wordAdd (Uorc.Core.Heap::wordAdd (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin))) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin))) : Bool) && ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (Uorc.Core.RuntimeValue::nullHandle)) (project terminal run))) (project terminal run)) (project terminal run)) disposition)
+      | Uorc.Product.ComparisonOwner::Disposition.incomplete => false
+      | Uorc.Product.ComparisonOwner::Disposition.equal => false
+      | Uorc.Product.ComparisonOwner::Disposition.different index => false
+      | Uorc.Product.ComparisonOwner::Disposition.lengthMismatch lengthLeft lengthRight => ((prim equal lengthLeft (3 : UInt64) : Bool) && ((prim equal lengthRight (0 : UInt64) : Bool) && true))
+      | Uorc.Product.ComparisonOwner::Disposition.failed reason => false
+      | Uorc.Product.ComparisonOwner::Disposition.cancelled => false) && ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (Uorc.Core.RuntimeValue::nullHandle)) (project terminal run))) (project terminal run)) (project terminal run)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => false
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => true
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => false)) && ((comparisonAudit (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (Uorc.Core.RuntimeValue::nullHandle)) (project terminal run))) (project terminal run)) (project terminal run))) && true)))))),
+  axioms: [propext]
+}
+
+definition{
+  name: comparisonCleanupKeepsOriginalOutput,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => (match (driveComparisonOwner 1000 (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decoded => decoded)))
+      | Result.error driveError => false
+      | Result.ok completed => ((match (project completed disposition)
+        | Uorc.Product.ComparisonOwner::Disposition.incomplete => false
+        | Uorc.Product.ComparisonOwner::Disposition.equal => true
+        | Uorc.Product.ComparisonOwner::Disposition.different index => false
+        | Uorc.Product.ComparisonOwner::Disposition.lengthMismatch lengthLeft lengthRight => false
+        | Uorc.Product.ComparisonOwner::Disposition.failed reason => false
+        | Uorc.Product.ComparisonOwner::Disposition.cancelled => false) && ((comparisonAudit completed) && ((match (project completed owner)
+        | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+        | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+          | Uorc.Product.ComparisonOwner::Phase.allocate left right => false
+          | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+          | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+          | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+          | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => false
+          | Uorc.Product.ComparisonOwner::Phase.draining => false
+          | Uorc.Product.ComparisonOwner::Phase.done => ((prim equal (project (project (project ownedTerminal ready) arena) ownedBytes) (project (project (project terminal ready) arena) ownedBytes) : Bool) && ((match (project ownedTerminal output)
+            | Option.none => false
+            | Option.some present => true) && true)))) && ((not (match (project completed pendingDelta)
+        | Option.none => false
+        | Option.some presentNested1 => true)) && true)))))),
+  axioms: [propext]
+}
+
+definition{
+  name: comparisonSingleHandoffControl,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => (match (driveComparisonOwner 1000 (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decoded => decoded)))
+      | Result.error driveError => false
+      | Result.ok completed => (match (Uorc.Product.ComparisonOwner::moveTerminal completed (project completed run))
+        | Uorc.Product.ComparisonOwner::Movement.stale unchanged => false
+        | Uorc.Product.ComparisonOwner::Movement.notReady unchangedNested1 => false
+        | Uorc.Product.ComparisonOwner::Movement.moved emptyCarrier returnedTerminal result => ((match (Uorc.Product.ComparisonOwner::ownedRoots emptyCarrier)
+          | List.nil => true
+          | List.cons unexpected more => false) && ((match (Uorc.Product.ComparisonOwner::releaseDisposition emptyCarrier)
+          | Uorc.Product.Api::ReleaseDisposition.retain reason => false
+          | Uorc.Product.Api::ReleaseDisposition.releasable => true) && ((match (Uorc.Product.ComparisonOwner::moveTerminal emptyCarrier (project emptyCarrier run))
+          | Uorc.Product.ComparisonOwner::Movement.stale unexpectedNested1 => false
+          | Uorc.Product.ComparisonOwner::Movement.notReady alreadyMoved => true
+          | Uorc.Product.ComparisonOwner::Movement.moved duplicate duplicateTerminal duplicateResult => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project returnedTerminal ready) arena) (Uorc.Product.MachineBinding::addOutputRoot (project returnedTerminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project returnedTerminal ready) program) (project (project returnedTerminal ready) caller)))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: comparisonInitializationResumeControl,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((match (project (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decoded => decoded)) (project terminal run))) (project terminal run)) refusal)
+      | Option.none => false
+      | Option.some resourceReason => (match resourceReason
+        | Uorc.Core.RuntimeResources::Error.workLimit => true
+        | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+        | Uorc.Core.RuntimeResources::Error.outputLimit => false
+        | Uorc.Core.RuntimeResources::Error.frameLimit => false
+        | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+        | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+        | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+        | Uorc.Core.RuntimeResources::Error.heap heapReason => false)) && ((match (project (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested1 => decodedNested1)) (project terminal run))) (project terminal run)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => false
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => true
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => false
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => false)) && ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested2 => decodedNested2)) (project terminal run))) (project terminal run))) work) (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) : Bool) && ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::extend (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested3 => decodedNested3)) (project terminal run))) (project terminal run)) (project terminal run) (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)})) (project terminal run)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsageNested1 => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminalNested1 phaseNested1 => (match phaseNested1
+        | Uorc.Product.ComparisonOwner::Phase.allocate leftNested2 rightNested3 => false
+        | Uorc.Product.ComparisonOwner::Phase.initLeft controlNested4 leftNested3 rightNested4 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested5 leftReaderNested1 rightNested5 => true
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested6 comparisonNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested7 => false
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => false)) && ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::extend (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested4 => decodedNested4)) (project terminal run))) (project terminal run)) (project terminal run) (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)})) (project terminal run))) work) (Uorc.Core.Heap::wordAdd (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin))) : Bool) && ((comparisonAudit (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::extend (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested5 => decodedNested5)) (project terminal run))) (project terminal run)) (project terminal run) (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)})) (project terminal run))) && true))))))),
+  axioms: [propext]
+}
+
+definition{
+  name: comparisonStaleRunControl,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decoded => decoded)) (record Uorc.Product.Api::Run {instance := (project (project terminal run) instance), serial := ((project (project terminal run) serial) + 1), revision := (project (project terminal run) revision)})) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => true
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => false
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => false)) && ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested1 => decodedNested1)) (record Uorc.Product.Api::Run {instance := (project (project terminal run) instance), serial := ((project (project terminal run) serial) + 1), revision := (project (project terminal run) revision)}))) work) (project (project (project terminal ready) usage) work) : Bool) && ((not (match (project (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested2 => decodedNested2)) (record Uorc.Product.Api::Run {instance := (project (project terminal run) instance), serial := ((project (project terminal run) serial) + 1), revision := (project (project terminal run) revision)})) pendingDelta)
+      | Option.none => false
+      | Option.some present => true)) && ((match (project (Uorc.Product.ComparisonOwner::cancel (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested3 => decodedNested3)) (record Uorc.Product.Api::Run {instance := (project (project terminal run) instance), serial := ((project (project terminal run) serial) + 1), revision := (project (project terminal run) revision)})) disposition)
+      | Uorc.Product.ComparisonOwner::Disposition.incomplete => true
+      | Uorc.Product.ComparisonOwner::Disposition.equal => false
+      | Uorc.Product.ComparisonOwner::Disposition.different index => false
+      | Uorc.Product.ComparisonOwner::Disposition.lengthMismatch lengthLeft lengthRight => false
+      | Uorc.Product.ComparisonOwner::Disposition.failed reason => false
+      | Uorc.Product.ComparisonOwner::Disposition.cancelled => false) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: comparisonWrongShapeAfterPaidRead,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) input) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decoded => decoded)) (project terminal run))) (project terminal run))) work) (Uorc.Core.Heap::wordAdd (Uorc.Core.Heap::wordAdd (project (project (project terminal ready) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin))) : Bool) && ((match (project (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) input) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested1 => decodedNested1)) (project terminal run))) (project terminal run)) disposition)
+      | Uorc.Product.ComparisonOwner::Disposition.incomplete => false
+      | Uorc.Product.ComparisonOwner::Disposition.equal => false
+      | Uorc.Product.ComparisonOwner::Disposition.different index => false
+      | Uorc.Product.ComparisonOwner::Disposition.lengthMismatch lengthLeft lengthRight => false
+      | Uorc.Product.ComparisonOwner::Disposition.failed reason => true
+      | Uorc.Product.ComparisonOwner::Disposition.cancelled => false) && ((match (project (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) input) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested2 => decodedNested2)) (project terminal run))) (project terminal run)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => false
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => true
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => false)) && ((comparisonAudit (Uorc.Product.ComparisonOwner::tick (comparisonAck (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) input) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested3 => decodedNested3)) (project terminal run))) (project terminal run))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: comparisonUpstreamFailureControl,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal true)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((match (project (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decoded => decoded)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => false
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => false
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => true)) && ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested1 => decodedNested1))) work) (project (project (project terminal ready) usage) work) : Bool) && ((match (project (Uorc.Product.ComparisonOwner::start terminal (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested2 => decodedNested2)) disposition)
+      | Uorc.Product.ComparisonOwner::Disposition.incomplete => false
+      | Uorc.Product.ComparisonOwner::Disposition.equal => false
+      | Uorc.Product.ComparisonOwner::Disposition.different index => false
+      | Uorc.Product.ComparisonOwner::Disposition.lengthMismatch lengthLeft lengthRight => false
+      | Uorc.Product.ComparisonOwner::Disposition.failed reason => true
+      | Uorc.Product.ComparisonOwner::Disposition.cancelled => false) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: comparisonInheritedCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => ((match (project (Uorc.Product.ComparisonOwner::start (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (project terminal ready), output := (project terminal output), cancelled := true, failure := (project terminal failure), receipt := (project terminal receipt)}) (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decoded => decoded)) owner)
+      | Uorc.Product.ComparisonOwner::Owner.handedOff handedUsage => false
+      | Uorc.Product.ComparisonOwner::Owner.owned ownedTerminal phase => (match phase
+        | Uorc.Product.ComparisonOwner::Phase.allocate left right => false
+        | Uorc.Product.ComparisonOwner::Phase.initLeft control leftNested1 rightNested1 => false
+        | Uorc.Product.ComparisonOwner::Phase.initRight controlNested1 leftReader rightNested2 => false
+        | Uorc.Product.ComparisonOwner::Phase.comparing controlNested2 comparison => false
+        | Uorc.Product.ComparisonOwner::Phase.releaseControl controlNested3 => false
+        | Uorc.Product.ComparisonOwner::Phase.draining => false
+        | Uorc.Product.ComparisonOwner::Phase.done => true)) && ((match (project (Uorc.Product.ComparisonOwner::start (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (project terminal ready), output := (project terminal output), cancelled := true, failure := (project terminal failure), receipt := (project terminal receipt)}) (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+        | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+        | Option.some decodedNested1 => decodedNested1)) disposition)
+      | Uorc.Product.ComparisonOwner::Disposition.incomplete => false
+      | Uorc.Product.ComparisonOwner::Disposition.equal => false
+      | Uorc.Product.ComparisonOwner::Disposition.different index => false
+      | Uorc.Product.ComparisonOwner::Disposition.lengthMismatch lengthLeft lengthRight => false
+      | Uorc.Product.ComparisonOwner::Disposition.failed reason => false
+      | Uorc.Product.ComparisonOwner::Disposition.cancelled => true) && ((prim equal (project (Uorc.Product.ComparisonOwner::usage (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (project terminal ready), output := (project terminal output), cancelled := true, failure := (project terminal failure), receipt := (project terminal receipt)}) (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested2 => decodedNested2)) (project terminal run))) work) (project (project (project terminal ready) usage) work) : Bool) && ((comparisonAudit (Uorc.Product.ComparisonOwner::start (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (project terminal ready), output := (project terminal output), cancelled := true, failure := (project terminal failure), receipt := (project terminal receipt)}) (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (project (project (project terminal ready) caller) verification) (match (project terminal output)
+      | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+      | Option.some decodedNested3 => decodedNested3))) && true))))),
+  axioms: [propext]
+}
+
+definition{
+  name: comparisonAllocationFailureHandoffControl,
+  parameters: [],
+  result: Bool,
+  body: (match (comparisonFixtureTerminal false)
+    | Result.error fixtureError => false
+    | Result.ok terminal => (match (Uorc.Product.ComparisonOwner::moveTerminal (Uorc.Product.ComparisonOwner::tick (Uorc.Product.ComparisonOwner::start (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (record Uorc.Core.Heap::Arena {index := (project (project (project terminal ready) arena) index), nextHandle := (18446744073709551615 : UInt64), exhausted := true, ownedBytes := (project (project (project terminal ready) arena) ownedBytes), liveEntries := (project (project (project terminal ready) arena) liveEntries), maxOwnedBytes := (project (project (project terminal ready) arena) maxOwnedBytes), cursor := (project (project (project terminal ready) arena) cursor)}), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (budget) (project (project (project terminal ready) caller) verification) (project (project (project terminal ready) caller) verification)) (project terminal run)) (project terminal run))
+      | Uorc.Product.ComparisonOwner::Movement.stale unchanged => false
+      | Uorc.Product.ComparisonOwner::Movement.notReady unchangedNested1 => false
+      | Uorc.Product.ComparisonOwner::Movement.moved emptied returned disposition => ((project (project (project returned ready) arena) exhausted) && ((prim equal (project (project (project returned ready) arena) nextHandle) (18446744073709551615 : UInt64) : Bool) && ((match disposition
+        | Uorc.Product.ComparisonOwner::Disposition.incomplete => false
+        | Uorc.Product.ComparisonOwner::Disposition.equal => false
+        | Uorc.Product.ComparisonOwner::Disposition.different index => false
+        | Uorc.Product.ComparisonOwner::Disposition.lengthMismatch left right => false
+        | Uorc.Product.ComparisonOwner::Disposition.failed reason => (match reason
+          | Uorc.Product.ComparisonOwner::Failure.comparison comparisonFailure => false
+          | Uorc.Product.ComparisonOwner::Failure.upstream upstreamFailure => false
+          | Uorc.Product.ComparisonOwner::Failure.heap heapFailure => (match heapFailure
+            | Uorc.Core.Heap::HeapError.malformedHandle => false
+            | Uorc.Core.Heap::HeapError.invalidNode => false
+            | Uorc.Core.Heap::HeapError.countOverflow => false
+            | Uorc.Core.Heap::HeapError.countUnderflow => false
+            | Uorc.Core.Heap::HeapError.handleOverflow => true
+            | Uorc.Core.Heap::HeapError.ownedBytesOverflow => false
+            | Uorc.Core.Heap::HeapError.budgetExceeded => false
+            | Uorc.Core.Heap::HeapError.releaseInProgress => false
+            | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+            | Uorc.Core.Heap::HeapError.invalidRoot => false
+            | Uorc.Core.Heap::HeapError.protocolFailure => false)
+          | Uorc.Product.ComparisonOwner::Failure.read readSide readFailure => false)
+        | Uorc.Product.ComparisonOwner::Disposition.cancelled => false) && true))))),
+  axioms: [propext]
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "nonsequence-input-is-a-typed-comparison-failure", passed := (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failure => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining core output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready output => (match output
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) input) handle)
+            | Result.error failure => true
+            | Result.ok comparison => false)))))}) (cons (record Observation {id := "different-lengths-are-not-equal", passed := (lengthMismatchControl)}) (cons (record Observation {id := "same-length-different-bytes-are-not-equal", passed := (byteMismatchControl)}) (cons (record Observation {id := "actual-admission-engine-all-256-bytes-independently-compared", passed := (match (allBytesStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failure => false
+      | Result.ok finished => ((Uorc.Product.MachineBinding::outputAvailable finished) && ((audit finished) && ((outputIsLiteral finished false) && true)))))}) (cons (record Observation {id := "actual-engine-output-survives-cleanup", passed := (outputCustodyControl)}) (cons (record Observation {id := "actual-empty-output-is-a-single-transfer-state", passed := (match (emptyStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failure => false
+      | Result.ok finished => ((Uorc.Product.MachineBinding::outputAvailable finished) && ((audit finished) && ((outputIsLiteral finished true) && true)))))}) (cons (record Observation {id := "actual-semantic-failure-cannot-be-decoded-success", passed := (match (semanticStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failure => false
+      | Result.ok finished => ((not (Uorc.Product.MachineBinding::outputAvailable finished)) && ((match (project finished failure)
+        | Option.none => false
+        | Option.some failure => true) && ((audit finished) && true)))))}) (cons (record Observation {id := "move-terminal-transfers-one-arena-and-output-ticket", passed := (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failure => false
+      | Result.ok finished => (match (Uorc.Product.MachineBinding::moveTerminal finished (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0}))
+        | Uorc.Product.MachineBinding::Movement.stale old => false
+        | Uorc.Product.MachineBinding::Movement.notReady old => false
+        | Uorc.Product.MachineBinding::Movement.moved moved terminal => ((audit moved) && ((match (Uorc.Product.MachineBinding::moveTerminal moved (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0}))
+          | Uorc.Product.MachineBinding::Movement.stale old => false
+          | Uorc.Product.MachineBinding::Movement.notReady old => true
+          | Uorc.Product.MachineBinding::Movement.moved again duplicate => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project terminal ready) arena) (Uorc.Product.MachineBinding::addOutputRoot (project terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project terminal ready) program) (project (project terminal ready) caller)))) && true))))))}) (cons (record Observation {id := "stale-run-tick-does-not-touch-live-engine", passed := (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => ((not (project (Uorc.Product.MachineBinding::tick initial (record Uorc.Product.Api::Run {instance := 1, serial := 2, revision := 0})) stopped)) && ((prim equal (project (Uorc.Product.MachineBinding::usage (Uorc.Product.MachineBinding::tick initial (record Uorc.Product.Api::Run {instance := 1, serial := 2, revision := 0}))) work) (project (Uorc.Product.MachineBinding::usage initial) work) : Bool) && ((audit (Uorc.Product.MachineBinding::tick initial (record Uorc.Product.Api::Run {instance := 1, serial := 2, revision := 0}))) && true))))}) (cons (record Observation {id := "stale-run-cancel-does-not-touch-live-engine", passed := (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => ((not (project (Uorc.Product.MachineBinding::cancel initial (record Uorc.Product.Api::Run {instance := 1, serial := 2, revision := 0})) stopped)) && ((prim equal (project (Uorc.Product.MachineBinding::usage (Uorc.Product.MachineBinding::cancel initial (record Uorc.Product.Api::Run {instance := 1, serial := 2, revision := 0}))) work) (project (Uorc.Product.MachineBinding::usage initial) work) : Bool) && ((audit (Uorc.Product.MachineBinding::cancel initial (record Uorc.Product.Api::Run {instance := 1, serial := 2, revision := 0}))) && true))))}) (cons (record Observation {id := "repeated-cancel-drains-real-engine-without-output", passed := (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 (Uorc.Product.MachineBinding::cancel (Uorc.Product.MachineBinding::cancel initial (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0})) (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0})))
+      | Result.error failure => false
+      | Result.ok finished => ((project finished stopped) && ((not (Uorc.Product.MachineBinding::outputAvailable finished)) && ((audit finished) && true)))))}) (cons (record Observation {id := "cancel-after-decoding-preserves-owned-root-for-cleanup", passed := (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failure => false
+      | Result.ok finished => ((project (Uorc.Product.MachineBinding::cancel finished (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0})) stopped) && ((not (Uorc.Product.MachineBinding::outputAvailable (Uorc.Product.MachineBinding::cancel finished (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0})))) && ((audit (Uorc.Product.MachineBinding::cancel finished (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 0}))) && true)))))}) (cons (record Observation {id := "comparison-tick-pays-and-resumes-exact-prefix", passed := (comparisonTickResumeControl)}) (cons (record Observation {id := "comparison-tick-zero-work-refuses-without-progress", passed := (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) verification) handle)
+            | Result.error failureNested2 => false
+            | Result.ok comparison => (match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (0 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (Uorc.Core.RuntimeResources::zeroUsage) (project ready arena) comparison)
+              | Uorc.Product.OwnedCompare::Tick.advanced state usageNested1 => false
+              | Uorc.Product.OwnedCompare::Tick.refused failureNested3 stateNested1 usageNested2 => ((match (project stateNested1 result)
+                | Uorc.Product.OwnedCompare::Disposition.working => true
+                | Uorc.Product.OwnedCompare::Disposition.equal => false
+                | Uorc.Product.OwnedCompare::Disposition.different index => false
+                | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => false
+                | Uorc.Product.OwnedCompare::Disposition.failed failureNested4 => false
+                | Uorc.Product.OwnedCompare::Disposition.cancelled => false) && ((prim equal (project stateNested1 compared) (0 : UInt64) : Bool) && ((prim equal (project usageNested2 work) (0 : UInt64) : Bool) && true)))))))))}) (cons (record Observation {id := "comparison-cancellation-is-terminal-and-does-not-charge", passed := (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) verification) handle)
+            | Result.error failureNested2 => false
+            | Result.ok comparison => (match (Uorc.Product.OwnedCompare::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (0 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (1000000000 : UInt64), maxFrames := (100000 : UInt64)}) (Uorc.Core.RuntimeResources::zeroUsage) (project ready arena) (Uorc.Product.OwnedCompare::cancel comparison))
+              | Uorc.Product.OwnedCompare::Tick.refused failureNested3 state usageNested1 => false
+              | Uorc.Product.OwnedCompare::Tick.advanced stateNested1 usageNested2 => ((match (project stateNested1 result)
+                | Uorc.Product.OwnedCompare::Disposition.working => false
+                | Uorc.Product.OwnedCompare::Disposition.equal => false
+                | Uorc.Product.OwnedCompare::Disposition.different index => false
+                | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => false
+                | Uorc.Product.OwnedCompare::Disposition.failed failureNested4 => false
+                | Uorc.Product.OwnedCompare::Disposition.cancelled => true) && ((prim equal (project usageNested2 work) (0 : UInt64) : Bool) && true))))))))}) (cons (record Observation {id := "unfinished-comparison-cannot-be-equality", passed := (match (literalStart)
+    | Result.error failure => false
+    | Result.ok initial => (match (drive 300000 initial)
+      | Result.error failureNested1 => false
+      | Result.ok finished => (match (project finished owner)
+        | Uorc.Product.MachineBinding::Owner.running core => false
+        | Uorc.Product.MachineBinding::Owner.draining coreNested1 output => false
+        | Uorc.Product.MachineBinding::Owner.handedOff usage => false
+        | Uorc.Product.MachineBinding::Owner.terminal ready outputNested1 => (match outputNested1
+          | Option.none => false
+          | Option.some handle => (match (Uorc.Product.OwnedCompare::begin (project ready arena) (project (project ready caller) verification) handle)
+            | Result.error failureNested2 => false
+            | Result.ok comparison => ((match (project (driveComparison 0 (project ready arena) comparison) result)
+              | Uorc.Product.OwnedCompare::Disposition.working => true
+              | Uorc.Product.OwnedCompare::Disposition.equal => false
+              | Uorc.Product.OwnedCompare::Disposition.different index => false
+              | Uorc.Product.OwnedCompare::Disposition.lengthMismatch left right => false
+              | Uorc.Product.OwnedCompare::Disposition.failed failureNested3 => false
+              | Uorc.Product.OwnedCompare::Disposition.cancelled => false) && ((not (Uorc.Product.OwnedCompare::isEqual (driveComparison 0 (project ready arena) comparison))) && true)))))))}) (cons (record Observation {id := "shared-getter-right-refusal-preserves-left-byte-and-work", passed := (getterRefusalResumeControl)}) (cons (record Observation {id := "pending-getter-cancellation-never-replays-a-read", passed := (pendingGetterCancellationControl)}) (cons (record Observation {id := "left-getter-failure-pays-only-attempted-left", passed := (leftGetterFailurePrefixControl)}) (cons (record Observation {id := "right-getter-failure-preserves-two-read-prefix", passed := (rightGetterFailurePrefixControl)}) (cons (record Observation {id := "comparison-start-does-not-observe-or-allocate", passed := (comparisonStartUncomputedControl)}) (cons (record Observation {id := "comparison-zero-work-refuses-before-control", passed := (comparisonZeroWorkControl)}) (cons (record Observation {id := "comparison-fixed-control-is-an-actual-charged-owner", passed := (comparisonActualControlAllocation)}) (cons (record Observation {id := "comparison-double-cancel-preserves-achieved-delta", passed := (comparisonDoubleCancelReceiptControl)}) (cons (record Observation {id := "comparison-mismatch-pays-both-reader-initializations", passed := (comparisonMismatchPaidInitialization)}) (cons (record Observation {id := "comparison-cleanup-keeps-original-and-output-pinned", passed := (comparisonCleanupKeepsOriginalOutput)}) (cons (record Observation {id := "comparison-handoff-moves-one-arena-once", passed := (comparisonSingleHandoffControl)}) (cons (record Observation {id := "comparison-initialization-resumes-paid-prefix", passed := (comparisonInitializationResumeControl)}) (cons (record Observation {id := "comparison-foreign-run-cannot-start-or-cancel", passed := (comparisonStaleRunControl)}) (cons (record Observation {id := "comparison-wrong-shape-fails-after-paid-observation", passed := (comparisonWrongShapeAfterPaidRead)}) (cons (record Observation {id := "comparison-upstream-failure-never-initializes", passed := (comparisonUpstreamFailureControl)}) (cons (record Observation {id := "comparison-inherited-cancellation-never-initializes", passed := (comparisonInheritedCancellationControl)}) (cons (record Observation {id := "comparison-allocator-exhaustion-retains-failure-and-moves-once", passed := (comparisonAllocationFailureHandoffControl)}) (nil Observation)))))))))))))))))))))))))))))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

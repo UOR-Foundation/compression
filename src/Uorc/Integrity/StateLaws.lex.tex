@@ -1,0 +1,410 @@
+\begin{lexlean}{Uorc.Integrity.StateLaws}
+\importmodule{Uorc.Integrity.Sha256}
+\importmodule{Uorc.Integrity.StreamEngine}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: countPreserved,
+  parameters: [
+    before : Uorc.Integrity.Sha256::State,
+    result : (Result Uorc.Integrity.Sha256::State Uorc.Integrity.Sha256::Error)
+  ],
+  result: Prop,
+  body: (match result
+    | Result.error cause => (0 = 0)
+    | Result.ok after => ((project after count) = (project before count))),
+  axioms: []
+}
+
+definition{
+  name: bufferPreserved,
+  parameters: [
+    before : Uorc.Integrity.Sha256::State,
+    result : (Result Uorc.Integrity.Sha256::State Uorc.Integrity.Sha256::Error)
+  ],
+  result: Prop,
+  body: (match result
+    | Result.error cause => (0 = 0)
+    | Result.ok after => ((project after buffer) = (project before buffer))),
+  axioms: []
+}
+
+definition{
+  name: phasePreserved,
+  parameters: [
+    before : Uorc.Integrity.Sha256::State,
+    result : (Result Uorc.Integrity.Sha256::State Uorc.Integrity.Sha256::Error)
+  ],
+  result: Prop,
+  body: (match result
+    | Result.error cause => (0 = 0)
+    | Result.ok after => ((project after phase) = (project before phase))),
+  axioms: []
+}
+
+theorem{
+  name: advance_some_count_branches,
+  parameters: [
+    chain : Uorc.Integrity.Sha256::Words,
+    buffer : Bytes,
+    count : UInt64,
+    block : Uorc.Integrity.Sha256::Compression,
+    phase : Uorc.Integrity.Sha256::Phase,
+    validated : Bool,
+    lastRound : Bool
+  ],
+  statement: (countPreserved (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) (if validated then (match (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) work)
+    | Option.none => (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState))
+    | Option.some compression => (ctor Result.ok [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (if lastRound then (record Uorc.Integrity.Sha256::State {chain := (Uorc.Integrity.Sha256::feedForward compression), buffer := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) buffer), count := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) count), work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) phase)}) else (record Uorc.Integrity.Sha256::State {chain := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) chain), buffer := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) buffer), count := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) count), work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] (Uorc.Integrity.Sha256::compressionRound compression)), phase := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) phase)})))) else (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState)))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: "false"},
+            {proof: reflexivity{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: lastRound
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: "false"},
+            {proof: reflexivity{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: lastRound
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: validated
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: advance_work_some_preserves_count,
+  parameters: [
+    chain : Uorc.Integrity.Sha256::Words,
+    buffer : Bytes,
+    count : UInt64,
+    block : Uorc.Integrity.Sha256::Compression,
+    phase : Uorc.Integrity.Sha256::Phase
+  ],
+  statement: (countPreserved (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) (Uorc.Integrity.Sha256::advanceWork (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}))),
+  proof: apply{
+    arguments: [
+      chain,
+      buffer,
+      count,
+      block,
+      phase,
+      (Uorc.Integrity.Sha256::valid (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase})),
+      ((project block round) =? 64)
+    ],
+    theorem: advance_some_count_branches
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: advance_some_buffer_branches,
+  parameters: [
+    chain : Uorc.Integrity.Sha256::Words,
+    buffer : Bytes,
+    count : UInt64,
+    block : Uorc.Integrity.Sha256::Compression,
+    phase : Uorc.Integrity.Sha256::Phase,
+    validated : Bool,
+    lastRound : Bool
+  ],
+  statement: (bufferPreserved (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) (if validated then (match (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) work)
+    | Option.none => (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState))
+    | Option.some compression => (ctor Result.ok [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (if lastRound then (record Uorc.Integrity.Sha256::State {chain := (Uorc.Integrity.Sha256::feedForward compression), buffer := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) buffer), count := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) count), work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) phase)}) else (record Uorc.Integrity.Sha256::State {chain := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) chain), buffer := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) buffer), count := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) count), work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] (Uorc.Integrity.Sha256::compressionRound compression)), phase := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) phase)})))) else (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState)))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: "false"},
+            {proof: reflexivity{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: lastRound
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: "false"},
+            {proof: reflexivity{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: lastRound
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: validated
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: advance_work_some_preserves_buffer,
+  parameters: [
+    chain : Uorc.Integrity.Sha256::Words,
+    buffer : Bytes,
+    count : UInt64,
+    block : Uorc.Integrity.Sha256::Compression,
+    phase : Uorc.Integrity.Sha256::Phase
+  ],
+  statement: (bufferPreserved (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) (Uorc.Integrity.Sha256::advanceWork (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}))),
+  proof: apply{
+    arguments: [
+      chain,
+      buffer,
+      count,
+      block,
+      phase,
+      (Uorc.Integrity.Sha256::valid (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase})),
+      ((project block round) =? 64)
+    ],
+    theorem: advance_some_buffer_branches
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: advance_some_phase_branches,
+  parameters: [
+    chain : Uorc.Integrity.Sha256::Words,
+    buffer : Bytes,
+    count : UInt64,
+    block : Uorc.Integrity.Sha256::Compression,
+    phase : Uorc.Integrity.Sha256::Phase,
+    validated : Bool,
+    lastRound : Bool
+  ],
+  statement: (phasePreserved (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) (if validated then (match (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) work)
+    | Option.none => (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState))
+    | Option.some compression => (ctor Result.ok [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (if lastRound then (record Uorc.Integrity.Sha256::State {chain := (Uorc.Integrity.Sha256::feedForward compression), buffer := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) buffer), count := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) count), work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) phase)}) else (record Uorc.Integrity.Sha256::State {chain := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) chain), buffer := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) buffer), count := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) count), work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] (Uorc.Integrity.Sha256::compressionRound compression)), phase := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) phase)})))) else (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState)))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: "false"},
+            {proof: reflexivity{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: lastRound
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: "false"},
+            {proof: reflexivity{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: lastRound
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: validated
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: advance_work_some_preserves_phase,
+  parameters: [
+    chain : Uorc.Integrity.Sha256::Words,
+    buffer : Bytes,
+    count : UInt64,
+    block : Uorc.Integrity.Sha256::Compression,
+    phase : Uorc.Integrity.Sha256::Phase
+  ],
+  statement: (phasePreserved (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}) (Uorc.Integrity.Sha256::advanceWork (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase}))),
+  proof: apply{
+    arguments: [
+      chain,
+      buffer,
+      count,
+      block,
+      phase,
+      (Uorc.Integrity.Sha256::valid (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] block), phase := phase})),
+      ((project block round) =? 64)
+    ],
+    theorem: advance_some_phase_branches
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: advance_none_branches,
+  parameters: [
+    chain : Uorc.Integrity.Sha256::Words,
+    buffer : Bytes,
+    count : UInt64,
+    phase : Uorc.Integrity.Sha256::Phase,
+    validated : Bool
+  ],
+  statement: ((if validated then (match (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase}) work)
+    | Option.none => (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState))
+    | Option.some compression => (ctor Result.ok [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (if ((project compression round) =? 64) then (record Uorc.Integrity.Sha256::State {chain := (Uorc.Integrity.Sha256::feedForward compression), buffer := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase}) buffer), count := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase}) count), work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase}) phase)}) else (record Uorc.Integrity.Sha256::State {chain := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase}) chain), buffer := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase}) buffer), count := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase}) count), work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] (Uorc.Integrity.Sha256::compressionRound compression)), phase := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase}) phase)})))) else (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState))) = (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: validated
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: advance_work_none_is_error,
+  parameters: [
+    chain : Uorc.Integrity.Sha256::Words,
+    buffer : Bytes,
+    count : UInt64,
+    phase : Uorc.Integrity.Sha256::Phase
+  ],
+  statement: ((Uorc.Integrity.Sha256::advanceWork (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase})) = (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState))),
+  proof: apply{
+    arguments: [
+      chain,
+      buffer,
+      count,
+      phase,
+      (Uorc.Integrity.Sha256::valid (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := (ctor Option.none [Uorc.Integrity.Sha256::Compression]), phase := phase}))
+    ],
+    theorem: advance_none_branches
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: append_raw_count_branches,
+  parameters: [before : Uorc.Integrity.Sha256::State, byte : UInt8, fullBuffer : Bool],
+  statement: ((project (if fullBuffer then (record Uorc.Integrity.Sha256::State {chain := (project before chain), buffer := 0x, count := (project before count), work := (ctor Option.some [Uorc.Integrity.Sha256::Compression] (Uorc.Integrity.Sha256::startCompression (project before chain) (prim append (project before buffer) (Uorc.Integrity.Sha256::byteBytes byte) : Bytes))), phase := (project before phase)}) else (record Uorc.Integrity.Sha256::State {chain := (project before chain), buffer := (prim append (project before buffer) (Uorc.Integrity.Sha256::byteBytes byte) : Bytes), count := (project before count), work := (project before work), phase := (project before phase)})) count) = (project before count)),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: fullBuffer
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: append_raw_preserves_count,
+  parameters: [before : Uorc.Integrity.Sha256::State, byte : UInt8],
+  statement: ((project (Uorc.Integrity.Sha256::appendRaw before byte) count) = (project before count)),
+  proof: apply{
+    arguments: [before, byte, ((prim length (project before buffer) : Nat) =? 63)],
+    theorem: append_raw_count_branches
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: finalize_count_branches,
+  parameters: [
+    chain : Uorc.Integrity.Sha256::Words,
+    buffer : Bytes,
+    count : UInt64,
+    phase : Uorc.Integrity.Sha256::Phase,
+    work : (Option Uorc.Integrity.Sha256::Compression),
+    validated : Bool
+  ],
+  statement: (countPreserved (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := work, phase := phase}) (if validated then (match (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := work, phase := phase}) phase)
+    | Uorc.Integrity.Sha256::Phase.absorbing => (ctor Result.ok [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (record Uorc.Integrity.Sha256::State {chain := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := work, phase := phase}) chain), buffer := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := work, phase := phase}) buffer), count := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := work, phase := phase}) count), work := (project (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := work, phase := phase}) work), phase := (ctor Uorc.Integrity.Sha256::Phase.finishing (Uorc.Integrity.Sha256::padding (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := work, phase := phase})))}))
+    | Uorc.Integrity.Sha256::Phase.finishing pendingPadding => (ctor Result.ok [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := work, phase := phase}))
+    | Uorc.Integrity.Sha256::Phase.finished => (ctor Result.ok [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (record Uorc.Integrity.Sha256::State {chain := chain, buffer := buffer, count := count, work := work, phase := phase}))) else (ctor Result.error [Uorc.Integrity.Sha256::State, Uorc.Integrity.Sha256::Error] (ctor Uorc.Integrity.Sha256::Error.invalidState)))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: absorbing},
+            {proof: reflexivity{}, binders: [pendingBytes], constructor: finishing},
+            {proof: reflexivity{}, binders: [], constructor: finished}
+          ],
+          scrutinee: phase
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: validated
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: finalize_preserves_message_count,
+  parameters: [before : Uorc.Integrity.Sha256::State],
+  statement: (countPreserved before (Uorc.Integrity.Sha256::finalize before)),
+  proof: apply{
+    arguments: [
+      (project before chain),
+      (project before buffer),
+      (project before count),
+      (project before phase),
+      (project before work),
+      (Uorc.Integrity.Sha256::valid before)
+    ],
+    theorem: finalize_count_branches
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: finished_stepAt_is_stable,
+  parameters: [limit : UInt64, first : Bool, digest : Bytes, closing : Bool],
+  statement: ((Uorc.Integrity.StreamEngine::stepAt limit (record Uorc.Integrity.StreamEngine::State {first := var{
+    name: first
+  }, stage := (ctor Uorc.Integrity.StreamEngine::Stage.finished digest), closing := closing})) = (if (Uorc.Integrity.StreamEngine::validAt limit (record Uorc.Integrity.StreamEngine::State {first := var{
+    name: first
+  }, stage := (ctor Uorc.Integrity.StreamEngine::Stage.finished digest), closing := closing})) then (ctor Result.ok [Uorc.Integrity.StreamEngine::State, Uorc.Integrity.StreamEngine::Error] (record Uorc.Integrity.StreamEngine::State {first := var{
+    name: first
+  }, stage := (ctor Uorc.Integrity.StreamEngine::Stage.finished digest), closing := closing})) else (ctor Result.error [Uorc.Integrity.StreamEngine::State, Uorc.Integrity.StreamEngine::Error] (ctor Uorc.Integrity.StreamEngine::Error.invalidState)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: finished_finalizeAt_is_stable,
+  parameters: [limit : UInt64, first : Bool, digest : Bytes, closing : Bool],
+  statement: ((Uorc.Integrity.StreamEngine::finalizeAt limit (record Uorc.Integrity.StreamEngine::State {first := var{
+    name: first
+  }, stage := (ctor Uorc.Integrity.StreamEngine::Stage.finished digest), closing := closing})) = (if (Uorc.Integrity.StreamEngine::validAt limit (record Uorc.Integrity.StreamEngine::State {first := var{
+    name: first
+  }, stage := (ctor Uorc.Integrity.StreamEngine::Stage.finished digest), closing := closing})) then (ctor Result.ok [Uorc.Integrity.StreamEngine::State, Uorc.Integrity.StreamEngine::Error] (record Uorc.Integrity.StreamEngine::State {first := var{
+    name: first
+  }, stage := (ctor Uorc.Integrity.StreamEngine::Stage.finished digest), closing := closing})) else (ctor Result.error [Uorc.Integrity.StreamEngine::State, Uorc.Integrity.StreamEngine::Error] (ctor Uorc.Integrity.StreamEngine::Error.invalidState)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: scope,
+  parameters: [],
+  result: String,
+  body: "General source-state laws: every Some-compression round/feed-forward shape preserves original message count, buffer and phase; every None-compression shape rejects advanceWork. These constructor shapes exhaust optional work but no single blanket validity-preservation theorem is asserted. appendRaw and finalize preserve original message count for arbitrary typed states; finished engine step/finalize is stable. Source Boolean branch skeletons are proof-only and introduce no runtime feature, product cap, wire field or cryptographic axiom. Full state-validity preservation and SHA functional correctness remain separate.",
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

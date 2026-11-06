@@ -1,0 +1,776 @@
+\begin{lexlean}{Uorc.Core.RuntimeMachine}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeAdmissionChecks}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Resources}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: program, fields: [Uorc.Core.RuntimeProgram::Failure]},
+    {name: semantic, fields: [Uorc.Core.Types::SemanticError]},
+    {name: resource, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: cancelled, fields: []},
+    {name: invariant, fields: []}
+  ]
+}
+
+structure{
+  name: Frame,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: blockIndex, type: UInt64},
+    {name: slotCount, type: UInt64},
+    {name: nextInstruction, type: UInt64},
+    {name: slots, type: Uorc.Core.RuntimeTable::Table}
+  ]
+}
+
+inductive{
+  name: Action,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: value, fields: [Uorc.Core.RuntimeValue::RuntimeValue]},
+    {name: index, fields: [Uorc.Core.RuntimeValue::Handle, UInt64]},
+    {name: slice, fields: [Uorc.Core.RuntimeValue::Handle, UInt64, UInt64]},
+    {name: concat, fields: [Uorc.Core.RuntimeValue::Handle, Uorc.Core.RuntimeValue::Handle]},
+    {name: equal, fields: [Uorc.Core.RuntimeValue::Handle, Uorc.Core.RuntimeValue::Handle]},
+    {name: singleton, fields: [UInt8]},
+    {name: storeRead, fields: [UInt8, Uorc.Core.RuntimeValue::Handle, UInt64]},
+    {name: storeWrite, fields: [UInt8, Uorc.Core.RuntimeValue::Handle, UInt64, UInt8]},
+    {name: apply, fields: [UInt64]},
+    {name: tabulate, fields: [UInt64, UInt64]},
+    {name: fold, fields: [UInt64, Uorc.Core.RuntimeValue::RuntimeValue, UInt64]},
+    {name: scan, fields: [UInt64, Uorc.Core.RuntimeValue::RuntimeValue, UInt64, UInt64]}
+  ]
+}
+
+definition{
+  name: sameType,
+  parameters: [
+    left : Uorc.Core.RuntimeValue::RuntimeType,
+    right : Uorc.Core.RuntimeValue::RuntimeType
+  ],
+  result: Bool,
+  body: (prim equal (Uorc.Core.RuntimeProgram::typeCode left) (Uorc.Core.RuntimeProgram::typeCode right) : Bool),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: local,
+  parameters: [arena : Uorc.Core.Heap::Arena, frame : Frame, distance : UInt64],
+  result: (Result Uorc.Core.RuntimeValue::RuntimeValue Failure),
+  body: (match (Uorc.Core.RuntimeProgram::localByDistance arena (project frame slots) (project frame slotCount) distance)
+    | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeValue::RuntimeValue, Failure] (ctor Failure.program failure))
+    | Result.ok value => (ctor Result.ok [Uorc.Core.RuntimeValue::RuntimeValue, Failure] value)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: asNatural,
+  parameters: [value : Uorc.Core.RuntimeValue::RuntimeValue],
+  result: (Result UInt64 Failure),
+  body: (match value
+    | Uorc.Core.RuntimeValue::RuntimeValue.natural n => (ctor Result.ok [UInt64, Failure] n)
+    | Uorc.Core.RuntimeValue::RuntimeValue.byte b => (ctor Result.error [UInt64, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.predicate b => (ctor Result.error [UInt64, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.sequence h => (ctor Result.error [UInt64, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.store d h => (ctor Result.error [UInt64, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: readNatural,
+  parameters: [arena : Uorc.Core.Heap::Arena, frame : Frame, distance : UInt64],
+  result: (Result UInt64 Failure),
+  body: (match (local arena frame distance)
+    | Result.error failure => (ctor Result.error [UInt64, Failure] failure)
+    | Result.ok value => (asNatural value)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: asByte,
+  parameters: [value : Uorc.Core.RuntimeValue::RuntimeValue],
+  result: (Result UInt8 Failure),
+  body: (match value
+    | Uorc.Core.RuntimeValue::RuntimeValue.natural n => (ctor Result.error [UInt8, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.byte b => (ctor Result.ok [UInt8, Failure] b)
+    | Uorc.Core.RuntimeValue::RuntimeValue.predicate b => (ctor Result.error [UInt8, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.sequence h => (ctor Result.error [UInt8, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.store d h => (ctor Result.error [UInt8, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: readByte,
+  parameters: [arena : Uorc.Core.Heap::Arena, frame : Frame, distance : UInt64],
+  result: (Result UInt8 Failure),
+  body: (match (local arena frame distance)
+    | Result.error failure => (ctor Result.error [UInt8, Failure] failure)
+    | Result.ok value => (asByte value)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: asPredicate,
+  parameters: [value : Uorc.Core.RuntimeValue::RuntimeValue],
+  result: (Result Bool Failure),
+  body: (match value
+    | Uorc.Core.RuntimeValue::RuntimeValue.natural n => (ctor Result.error [Bool, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.byte b => (ctor Result.error [Bool, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.predicate b => (ctor Result.ok [Bool, Failure] b)
+    | Uorc.Core.RuntimeValue::RuntimeValue.sequence h => (ctor Result.error [Bool, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.store d h => (ctor Result.error [Bool, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: readPredicate,
+  parameters: [arena : Uorc.Core.Heap::Arena, frame : Frame, distance : UInt64],
+  result: (Result Bool Failure),
+  body: (match (local arena frame distance)
+    | Result.error failure => (ctor Result.error [Bool, Failure] failure)
+    | Result.ok value => (asPredicate value)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: asSequence,
+  parameters: [value : Uorc.Core.RuntimeValue::RuntimeValue],
+  result: (Result Uorc.Core.RuntimeValue::Handle Failure),
+  body: (match value
+    | Uorc.Core.RuntimeValue::RuntimeValue.natural n => (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.byte b => (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.predicate b => (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.sequence h => (ctor Result.ok [Uorc.Core.RuntimeValue::Handle, Failure] h)
+    | Uorc.Core.RuntimeValue::RuntimeValue.store d h => (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: readSequence,
+  parameters: [arena : Uorc.Core.Heap::Arena, frame : Frame, distance : UInt64],
+  result: (Result Uorc.Core.RuntimeValue::Handle Failure),
+  body: (match (local arena frame distance)
+    | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeValue::Handle, Failure] failure)
+    | Result.ok value => (asSequence value)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: add,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 Failure),
+  body: (match (prim checked_add left right : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.arithmeticOverflow)))
+    | Option.some result => (ctor Result.ok [UInt64, Failure] result)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: subtract,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 Failure),
+  body: (match (prim checked_subtract left right : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.negativeDifference)))
+    | Option.some result => (ctor Result.ok [UInt64, Failure] result)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: multiply,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 Failure),
+  body: (match (prim checked_multiply left right : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.arithmeticOverflow)))
+    | Option.some result => (ctor Result.ok [UInt64, Failure] result)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: divide,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 Failure),
+  body: (match (prim checked_quotient left right : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.divisionByZero)))
+    | Option.some result => (ctor Result.ok [UInt64, Failure] result)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: remainder,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 Failure),
+  body: (match (divide left right)
+    | Result.error failure => (ctor Result.error [UInt64, Failure] failure)
+    | Result.ok quotient => (match (multiply quotient right)
+      | Result.error failure => (ctor Result.error [UInt64, Failure] failure)
+      | Result.ok product => (subtract left product))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: shiftLeft,
+  parameters: [value : UInt64, count : UInt64],
+  result: (Result UInt64 Failure),
+  body: (match (prim checked_convert count : (Option UInt32))
+    | Option.none => (ctor Result.error [UInt64, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.shiftOutOfRange)))
+    | Option.some width => (match (prim shift_left value width : (Option UInt64))
+      | Option.none => (ctor Result.error [UInt64, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.shiftOutOfRange)))
+      | Option.some shifted => (ctor Result.ok [UInt64, Failure] shifted))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: shiftRight,
+  parameters: [value : UInt64, count : UInt64],
+  result: (Result UInt64 Failure),
+  body: (match (prim checked_convert count : (Option UInt32))
+    | Option.none => (ctor Result.error [UInt64, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.shiftOutOfRange)))
+    | Option.some width => (match (prim shift_right value width : (Option UInt64))
+      | Option.none => (ctor Result.error [UInt64, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.shiftOutOfRange)))
+      | Option.some shifted => (ctor Result.ok [UInt64, Failure] shifted))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: toByte,
+  parameters: [value : UInt64],
+  result: (Result UInt8 Failure),
+  body: (match (prim checked_convert value : (Option UInt8))
+    | Option.none => (ctor Result.error [UInt8, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.byteOutOfRange)))
+    | Option.some converted => (ctor Result.ok [UInt8, Failure] converted)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: fromByte,
+  parameters: [value : UInt8],
+  result: (Result UInt64 Failure),
+  body: (match (prim checked_convert value : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, Failure] (ctor Failure.invariant))
+    | Option.some converted => (ctor Result.ok [UInt64, Failure] converted)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: priorBlock,
+  parameters: [frame : Frame, distance : UInt64],
+  result: (Result UInt64 Failure),
+  body: (match (Uorc.Core.RuntimeAdmissionChecks::priorBlockIndex (project frame blockIndex) distance)
+    | Result.error failure => (ctor Result.error [UInt64, Failure] (ctor Failure.program failure))
+    | Result.ok target => (ctor Result.ok [UInt64, Failure] target)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: prepare,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    program : Uorc.Core.RuntimeProgram::Program,
+    frame : Frame,
+    instruction : Uorc.Core.RuntimeProgram::BorrowedInstruction
+  ],
+  result: (Result Action Failure),
+  body: (match (project instruction opcode)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalConstant => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (project instruction operand0))))
+    | Uorc.Core.RuntimeOpcode::Opcode.byteConstant => (match (toByte (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok byteValue => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte byteValue))))
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateConstant => (if (Uorc.Core.Heap::less (1 : UInt64) (project instruction operand0)) then (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))) else (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.predicate (prim equal (project instruction operand0) (1 : UInt64) : Bool)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant => (match (Uorc.Core.Heap::sequenceInfo arena (project instruction literal))
+      | Result.error failure => (ctor Result.error [Action, Failure] (ctor Failure.heap failure))
+      | Result.ok info => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence (project instruction literal)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAdd => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (add a0 a1)
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok computed => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural computed))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalSubtract => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (subtract a0 a1)
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok computed => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural computed))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalMultiply => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (multiply a0 a1)
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok computed => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural computed))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalDivide => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (divide a0 a1)
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok computed => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural computed))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalRemainder => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (remainder a0 a1)
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok computed => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural computed))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAnd => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (prim bit_and a0 a1 : UInt64))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalOr => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (prim bit_or a0 a1 : UInt64))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalXor => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (prim bit_xor a0 a1 : UInt64))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalNot => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (prim bit_not a0 : UInt64)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftLeft => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (shiftLeft a0 a1)
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok computed => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural computed))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftRight => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (shiftRight a0 a1)
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok computed => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural computed))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalEqual => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.predicate (prim equal a0 a1 : Bool))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalLess => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.predicate (match (prim checked_subtract a0 a1 : (Option UInt64))
+          | Option.none => true
+          | Option.some difference => false))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.byteEqual => (match (readByte arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readByte arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.predicate (prim equal a0 a1 : Bool))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.byteLess => (match (readByte arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readByte arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.predicate (match (prim checked_subtract a0 a1 : (Option UInt8))
+          | Option.none => true
+          | Option.some difference => false))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalToByte => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (toByte a0)
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok converted => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte converted)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.byteToNatural => (match (readByte arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (fromByte a0)
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok converted => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural converted)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateNot => (match (readPredicate arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.predicate (not a0)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateAnd => (match (readPredicate arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readPredicate arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.predicate (if a0 then a1 else false))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateOr => (match (readPredicate arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readPredicate arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.predicate (if a0 then true else a1))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceLength => (match (readSequence arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (Uorc.Core.Heap::sequenceInfo arena a0)
+        | Result.error failure => (ctor Result.error [Action, Failure] (ctor Failure.heap failure))
+        | Result.ok info => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (project info length))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex => (match (readSequence arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.index a0 a1))))
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceSlice => (match (readSequence arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (readNatural arena frame (project instruction operand2))
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok a2 => (ctor Result.ok [Action, Failure] (ctor Action.slice a0 a1 a2)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConcat => (match (readSequence arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readSequence arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.concat a0 a1))))
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceEqual => (match (readSequence arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readSequence arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (ctor Result.ok [Action, Failure] (ctor Action.equal a0 a1))))
+    | Uorc.Core.RuntimeOpcode::Opcode.singletonSequence => (match (readByte arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (ctor Result.ok [Action, Failure] (ctor Action.singleton a0)))
+    | Uorc.Core.RuntimeOpcode::Opcode.basisGet => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (Uorc.Core.RuntimeTable::lookup arena (project program basis) a0)
+        | Result.error failure => (ctor Result.error [Action, Failure] (ctor Failure.heap failure))
+        | Result.ok leaf => (if (Uorc.Core.RuntimeValue::isNull leaf) then (ctor Result.error [Action, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.basisOutOfBounds))) else (match (Uorc.Core.RuntimeProgram::valueAtLeaf arena leaf (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference)))
+          | Result.error failure => (ctor Result.error [Action, Failure] (ctor Failure.program failure))
+          | Result.ok basisValue => (match (asSequence basisValue)
+            | Result.error failure => (ctor Result.error [Action, Failure] failure)
+            | Result.ok basisHandle => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence basisHandle))))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.storeNew => (match (readByte arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (ctor Result.ok [Action, Failure] (ctor Action.value (ctor Uorc.Core.RuntimeValue::RuntimeValue.store a0 (Uorc.Core.RuntimeValue::nullHandle)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.storeRead => (match (local arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match a0
+          | Uorc.Core.RuntimeValue::RuntimeValue.natural n => (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+          | Uorc.Core.RuntimeValue::RuntimeValue.byte b => (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+          | Uorc.Core.RuntimeValue::RuntimeValue.predicate b => (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+          | Uorc.Core.RuntimeValue::RuntimeValue.sequence h => (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+          | Uorc.Core.RuntimeValue::RuntimeValue.store d h => (ctor Result.ok [Action, Failure] (ctor Action.storeRead d h a1)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.storeWrite => (match (local arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (readNatural arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (readByte arena frame (project instruction operand2))
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok a2 => (match a0
+            | Uorc.Core.RuntimeValue::RuntimeValue.natural n => (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+            | Uorc.Core.RuntimeValue::RuntimeValue.byte b => (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+            | Uorc.Core.RuntimeValue::RuntimeValue.predicate b => (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+            | Uorc.Core.RuntimeValue::RuntimeValue.sequence h => (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))
+            | Uorc.Core.RuntimeValue::RuntimeValue.store d h => (ctor Result.ok [Action, Failure] (ctor Action.storeWrite d h a1 a2))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.choose => (match (readPredicate arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (local arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (local arena frame (project instruction operand2))
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok a2 => (if (sameType (Uorc.Core.RuntimeValue::typeOf a1) (Uorc.Core.RuntimeValue::typeOf a2)) then (ctor Result.ok [Action, Failure] (ctor Action.value (if a0 then a1 else a2))) else (ctor Result.error [Action, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))))))
+    | Uorc.Core.RuntimeOpcode::Opcode.apply => (match (priorBlock frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok target => (ctor Result.ok [Action, Failure] (ctor Action.apply target)))
+    | Uorc.Core.RuntimeOpcode::Opcode.tabulate => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (priorBlock frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok target => (ctor Result.ok [Action, Failure] (ctor Action.tabulate a0 target))))
+    | Uorc.Core.RuntimeOpcode::Opcode.fold => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (local arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (priorBlock frame (project instruction operand2))
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok target => (ctor Result.ok [Action, Failure] (ctor Action.fold a0 a1 target)))))
+    | Uorc.Core.RuntimeOpcode::Opcode.scan => (match (readNatural arena frame (project instruction operand0))
+      | Result.error failure => (ctor Result.error [Action, Failure] failure)
+      | Result.ok a0 => (match (local arena frame (project instruction operand1))
+        | Result.error failure => (ctor Result.error [Action, Failure] failure)
+        | Result.ok a1 => (match (priorBlock frame (project instruction operand2))
+          | Result.error failure => (ctor Result.error [Action, Failure] failure)
+          | Result.ok observer => (match (priorBlock frame (project instruction operand3))
+            | Result.error failure => (ctor Result.error [Action, Failure] failure)
+            | Result.ok updater => (ctor Result.ok [Action, Failure] (ctor Action.scan a0 a1 updater observer))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+structure{
+  name: CaptureCursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: source, type: Frame},
+    {name: instruction, type: Uorc.Core.RuntimeProgram::BorrowedInstruction},
+    {name: lane, type: Uorc.Core.RuntimeProgram::CaptureLane},
+    {name: index, type: UInt64},
+    {name: prefixCount, type: UInt64},
+    {name: callee, type: Uorc.Core.RuntimeProgram::BorrowedBlock},
+    {name: target, type: Uorc.Core.RuntimeTable::Table}
+  ]
+}
+
+structure{
+  name: CaptureItem,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: destination, type: UInt64},
+    {name: value, type: Uorc.Core.RuntimeValue::RuntimeValue}
+  ]
+}
+
+definition{
+  name: captureCount,
+  parameters: [cursor : CaptureCursor],
+  result: UInt64,
+  body: (match (project cursor lane)
+    | Uorc.Core.RuntimeProgram::CaptureLane.first => (project (project cursor instruction) captureACount)
+    | Uorc.Core.RuntimeProgram::CaptureLane.second => (project (project cursor instruction) captureBCount)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: validateCaptureArity,
+  parameters: [
+    callee : Uorc.Core.RuntimeProgram::BorrowedBlock,
+    prefixCount : UInt64,
+    count : UInt64
+  ],
+  result: (Result Unit Failure),
+  body: (match (prim checked_add prefixCount count : (Option UInt64))
+    | Option.none => (ctor Result.error [Unit, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
+    | Option.some total => (if (prim equal total (project callee parameterCount) : Bool) then (ctor Result.ok [Unit, Failure] ()) else (ctor Result.error [Unit, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: captureItem,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : CaptureCursor],
+  result: (Result CaptureItem Failure),
+  body: (match (validateCaptureArity (project cursor callee) (project cursor prefixCount) (captureCount cursor))
+    | Result.error failure => (ctor Result.error [CaptureItem, Failure] failure)
+    | Result.ok arityValid => (if (Uorc.Core.Heap::less (project cursor index) (captureCount cursor)) then (match (prim checked_add (project cursor prefixCount) (project cursor index) : (Option UInt64))
+      | Option.none => (ctor Result.error [CaptureItem, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
+      | Option.some destination => (match (Uorc.Core.RuntimeProgram::captureAt arena (project cursor instruction) (project cursor lane) (project cursor index))
+        | Result.error failure => (ctor Result.error [CaptureItem, Failure] (ctor Failure.program failure))
+        | Result.ok distance => (match (local arena (project cursor source) distance)
+          | Result.error failure => (ctor Result.error [CaptureItem, Failure] failure)
+          | Result.ok captured => (match (Uorc.Core.RuntimeProgram::typeAt arena (project (project cursor callee) parameters) destination)
+            | Result.error failure => (ctor Result.error [CaptureItem, Failure] (ctor Failure.program failure))
+            | Result.ok expected => (if (sameType expected (Uorc.Core.RuntimeValue::typeOf captured)) then (ctor Result.ok [CaptureItem, Failure] (record CaptureItem {destination := destination, value := captured})) else (ctor Result.error [CaptureItem, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))))))) else (ctor Result.error [CaptureItem, Failure] (ctor Failure.invariant)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: captureCommitted,
+  parameters: [cursor : CaptureCursor, installed : Uorc.Core.RuntimeTable::Table],
+  result: (Result CaptureCursor Failure),
+  body: (if (Uorc.Core.Heap::less (project cursor index) (captureCount cursor)) then (match (prim checked_add (project cursor index) (1 : UInt64) : (Option UInt64))
+    | Option.none => (ctor Result.error [CaptureCursor, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
+    | Option.some nextIndex => (ctor Result.ok [CaptureCursor, Failure] (record CaptureCursor {source := (project cursor source), instruction := (project cursor instruction), lane := (project cursor lane), index := nextIndex, prefixCount := (project cursor prefixCount), callee := (project cursor callee), target := installed}))) else (ctor Result.error [CaptureCursor, Failure] (ctor Failure.invariant))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+inductive{
+  name: IterationKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: tabulate, fields: []}, {name: fold, fields: []}, {name: scan, fields: []}]
+}
+
+inductive{
+  name: IterationPhase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: element, fields: []},
+    {name: observe, fields: []},
+    {name: update, fields: []},
+    {name: finished, fields: []}
+  ]
+}
+
+structure{
+  name: Iteration,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: kind, type: IterationKind},
+    {name: count, type: UInt64},
+    {name: index, type: UInt64},
+    {name: phase, type: IterationPhase}
+  ]
+}
+
+definition{
+  name: iterationStart,
+  parameters: [kind : IterationKind, count : UInt64],
+  result: Iteration,
+  body: (record Iteration {kind := kind, count := count, index := (0 : UInt64), phase := (if (prim equal count (0 : UInt64) : Bool) then (ctor IterationPhase.finished) else (match kind
+    | IterationKind.tabulate => (ctor IterationPhase.element)
+    | IterationKind.fold => (ctor IterationPhase.update)
+    | IterationKind.scan => (ctor IterationPhase.observe)))}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: iterationAfterObserver,
+  parameters: [iteration : Iteration],
+  result: (Result Iteration Failure),
+  body: (match (project iteration kind)
+    | IterationKind.tabulate => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+    | IterationKind.fold => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+    | IterationKind.scan => (match (project iteration phase)
+      | IterationPhase.element => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+      | IterationPhase.observe => (ctor Result.ok [Iteration, Failure] (record Iteration {kind := (project iteration kind), count := (project iteration count), index := (project iteration index), phase := (ctor IterationPhase.update)}))
+      | IterationPhase.update => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+      | IterationPhase.finished => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant)))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: iterationAdvance,
+  parameters: [iteration : Iteration],
+  result: (Result Iteration Failure),
+  body: (if (Uorc.Core.Heap::less (project iteration index) (project iteration count)) then (match (prim checked_add (project iteration index) (1 : UInt64) : (Option UInt64))
+    | Option.none => (ctor Result.error [Iteration, Failure] (ctor Failure.program (ctor Uorc.Core.RuntimeProgram::Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
+    | Option.some nextIndex => (ctor Result.ok [Iteration, Failure] (record Iteration {kind := (project iteration kind), count := (project iteration count), index := nextIndex, phase := (if (prim equal nextIndex (project iteration count) : Bool) then (ctor IterationPhase.finished) else (match (project iteration kind)
+      | IterationKind.tabulate => (ctor IterationPhase.element)
+      | IterationKind.fold => (ctor IterationPhase.update)
+      | IterationKind.scan => (ctor IterationPhase.observe)))}))) else (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: iterationAfterElement,
+  parameters: [iteration : Iteration],
+  result: (Result Iteration Failure),
+  body: (match (project iteration phase)
+    | IterationPhase.element => (match (project iteration kind)
+      | IterationKind.tabulate => (iterationAdvance iteration)
+      | IterationKind.fold => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+      | IterationKind.scan => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant)))
+    | IterationPhase.observe => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+    | IterationPhase.update => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+    | IterationPhase.finished => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: iterationAfterUpdate,
+  parameters: [iteration : Iteration],
+  result: (Result Iteration Failure),
+  body: (match (project iteration phase)
+    | IterationPhase.element => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+    | IterationPhase.observe => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+    | IterationPhase.update => (match (project iteration kind)
+      | IterationKind.tabulate => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))
+      | IterationKind.fold => (iterationAdvance iteration)
+      | IterationKind.scan => (iterationAdvance iteration))
+    | IterationPhase.finished => (ctor Result.error [Iteration, Failure] (ctor Failure.invariant))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+inductive{
+  name: Permit,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: allowed, fields: [Uorc.Core.RuntimeResources::Usage]},
+    {name: refused, fields: [Uorc.Core.RuntimeResources::Error, Uorc.Core.RuntimeResources::Usage]}
+  ]
+}
+
+definition{
+  name: preflight,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    work : UInt64,
+    output : UInt64,
+    entered : UInt64,
+    exited : UInt64
+  ],
+  result: Permit,
+  body: (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := work, emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+    | Result.error failure => (ctor Permit.refused failure usage)
+    | Result.ok charged => (match (Uorc.Core.RuntimeResources::charge budget charged (record Uorc.Core.RuntimeResources::Event {work := (0 : UInt64), emittedBytes := output, enteredFrames := entered, exitedFrames := exited}))
+      | Result.error failure => (ctor Permit.refused failure charged)
+      | Result.ok permitted => (ctor Permit.allowed permitted))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+inductive{
+  name: Disposition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: running, fields: []},
+    {name: suspended, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: completed, fields: [Uorc.Core.RuntimeValue::Handle]},
+    {name: failed, fields: [Failure]},
+    {name: cancelling, fields: []},
+    {name: cleaned, fields: []}
+  ]
+}
+
+theorem{
+  name: empty_iteration_has_no_invocation,
+  parameters: [kind : IterationKind],
+  statement: ((project (iterationStart kind (0 : UInt64)) phase) = (ctor IterationPhase.finished)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: scan_observation_requires_same_coordinate_update,
+  parameters: [count : UInt64, index : UInt64],
+  statement: ((iterationAfterObserver (record Iteration {kind := (ctor IterationKind.scan), count := count, index := index, phase := (ctor IterationPhase.observe)})) = (ctor Result.ok [Iteration, Failure] (record Iteration {kind := (ctor IterationKind.scan), count := count, index := index, phase := (ctor IterationPhase.update)}))),
+  proof: reflexivity{},
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

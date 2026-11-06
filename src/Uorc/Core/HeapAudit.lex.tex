@@ -1,0 +1,361 @@
+\begin{lexlean}{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Row,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: handle, type: Uorc.Core.RuntimeValue::Handle},
+    {name: entry, type: Uorc.Core.Heap::Entry}
+  ]
+}
+
+structure{
+  name: Scan,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: rows, type: (List Row)}, {name: wellFormed, type: Bool}]
+}
+
+structure{
+  name: Audit,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: shape, type: Bool},
+    {name: acyclic, type: Bool},
+    {name: counts, type: Bool},
+    {name: weights, type: Bool},
+    {name: totals, type: Bool},
+    {name: cursor, type: Bool},
+    {name: nodes, type: Bool}
+  ]
+}
+
+definition{
+  name: appendRows,
+  parameters: [xs : (List Row), ys : (List Row)],
+  result: (List Row),
+  body: (match xs | List.nil => ys | List.cons head tail => (cons head (appendRows tail ys))),
+  axioms: [],
+  executable: true,
+  recursive_argument: xs
+}
+
+definition{
+  name: scanIndex,
+  parameters: [depth : Nat, tree : Uorc.Core.Heap::Index, key : UInt64, bit : UInt64],
+  result: Scan,
+  body: (match depth
+    | Nat.zero => (match tree
+      | Uorc.Core.Heap::Index.empty => (record Scan {rows := (nil Row), wellFormed := true})
+      | Uorc.Core.Heap::Index.leaf entry => (record Scan {rows := (cons (record Row {handle := (record Uorc.Core.RuntimeValue::Handle {id := key}), entry := entry}) (nil Row)), wellFormed := true})
+      | Uorc.Core.Heap::Index.branch left right => (record Scan {rows := (nil Row), wellFormed := false}))
+    | Nat.succ remaining => (match tree
+      | Uorc.Core.Heap::Index.empty => (record Scan {rows := (nil Row), wellFormed := true})
+      | Uorc.Core.Heap::Index.leaf entry => (record Scan {rows := (nil Row), wellFormed := false})
+      | Uorc.Core.Heap::Index.branch left right => (let leftScan : Scan := (scanIndex remaining left key (Uorc.Core.Heap::nextKey bit)); (let rightScan : Scan := (scanIndex remaining right (prim bit_or key bit : UInt64) (Uorc.Core.Heap::nextKey bit)); (record Scan {rows := (appendRows (project leftScan rows) (project rightScan rows)), wellFormed := (if (project leftScan wellFormed) then (project rightScan wellFormed) else false)}))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: depth
+}
+
+definition{
+  name: wordToNatAux,
+  parameters: [depth : Nat, value : UInt64],
+  result: Nat,
+  body: (match depth
+    | Nat.zero => 0
+    | Nat.succ remaining => ((if (Uorc.Core.Heap::lowBit value) then 1 else 0) + (prim multiply 2 (wordToNatAux remaining (Uorc.Core.Heap::nextKey value)) : Nat))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: depth
+}
+
+definition{
+  name: wordToNat,
+  parameters: [value : UInt64],
+  result: Nat,
+  body: (wordToNatAux 64 value),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: references,
+  parameters: [node : Uorc.Core.Heap::Node],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match node
+    | Uorc.Core.Heap::Node.image kind bytes => (nil Uorc.Core.RuntimeValue::Handle)
+    | Uorc.Core.Heap::Node.sequenceLeaf image offset length => (cons image (nil Uorc.Core.RuntimeValue::Handle))
+    | Uorc.Core.Heap::Node.sequenceBranch length height left right => (cons left (cons right (nil Uorc.Core.RuntimeValue::Handle)))
+    | Uorc.Core.Heap::Node.storeLeaf byte => (nil Uorc.Core.RuntimeValue::Handle)
+    | Uorc.Core.Heap::Node.storeBranch left right => (cons left (cons right (nil Uorc.Core.RuntimeValue::Handle)))
+    | Uorc.Core.Heap::Node.slot role value => (cons (Uorc.Core.RuntimeValue::valueHandle value) (nil Uorc.Core.RuntimeValue::Handle))
+    | Uorc.Core.Heap::Node.rootBranch role left right => (cons left (cons right (nil Uorc.Core.RuntimeValue::Handle)))
+    | Uorc.Core.Heap::Node.metadataWord kind tag word => (nil Uorc.Core.RuntimeValue::Handle)
+    | Uorc.Core.Heap::Node.metadataLink kind tag target => (cons target (nil Uorc.Core.RuntimeValue::Handle))
+    | Uorc.Core.Heap::Node.metadataBranch kind left right => (cons left (cons right (nil Uorc.Core.RuntimeValue::Handle)))
+    | Uorc.Core.Heap::Node.ownerRoot role target => (cons target (nil Uorc.Core.RuntimeValue::Handle))
+    | Uorc.Core.Heap::Node.imageReservation kind length => (nil Uorc.Core.RuntimeValue::Handle)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: occurrences,
+  parameters: [
+    handles : (List Uorc.Core.RuntimeValue::Handle),
+    target : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: Nat,
+  body: (match handles
+    | List.nil => 0
+    | List.cons head tail => ((if (Uorc.Core.RuntimeValue::sameHandle head target) then 1 else 0) + (occurrences tail target))),
+  axioms: [],
+  executable: true,
+  recursive_argument: handles
+}
+
+definition{
+  name: edgeCount,
+  parameters: [rows : (List Row), target : Uorc.Core.RuntimeValue::Handle],
+  result: Nat,
+  body: (match rows
+    | List.nil => 0
+    | List.cons head tail => ((occurrences (references (project (project head entry) node)) target) + (edgeCount tail target))),
+  axioms: [],
+  executable: true,
+  recursive_argument: rows
+}
+
+definition{
+  name: lengthHandles,
+  parameters: [handles : (List Uorc.Core.RuntimeValue::Handle)],
+  result: Nat,
+  body: (match handles | List.nil => 0 | List.cons head tail => (1 + (lengthHandles tail))),
+  axioms: [],
+  executable: true,
+  recursive_argument: handles
+}
+
+definition{
+  name: rowCount,
+  parameters: [rows : (List Row)],
+  result: Nat,
+  body: (match rows | List.nil => 0 | List.cons head tail => (1 + (rowCount tail))),
+  axioms: [],
+  executable: true,
+  recursive_argument: rows
+}
+
+definition{
+  name: referenceWeight,
+  parameters: [node : Uorc.Core.Heap::Node],
+  result: Nat,
+  body: (match node
+    | Uorc.Core.Heap::Node.image kind bytes => (48 + (prim length bytes : Nat))
+    | Uorc.Core.Heap::Node.sequenceLeaf image offset length => 64
+    | Uorc.Core.Heap::Node.sequenceBranch length height left right => 72
+    | Uorc.Core.Heap::Node.storeLeaf byte => 40
+    | Uorc.Core.Heap::Node.storeBranch left right => 48
+    | Uorc.Core.Heap::Node.slot role value => 64
+    | Uorc.Core.Heap::Node.rootBranch role left right => 56
+    | Uorc.Core.Heap::Node.metadataWord kind tag word => 56
+    | Uorc.Core.Heap::Node.metadataLink kind tag target => 56
+    | Uorc.Core.Heap::Node.metadataBranch kind left right => 56
+    | Uorc.Core.Heap::Node.ownerRoot role target => 48
+    | Uorc.Core.Heap::Node.imageReservation kind length => (48 + (wordToNat length))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: sumWeights,
+  parameters: [rows : (List Row)],
+  result: Nat,
+  body: (match rows
+    | List.nil => 0
+    | List.cons head tail => ((wordToNat (project (project head entry) weight)) + (sumWeights tail))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: rows
+}
+
+definition{
+  name: older,
+  parameters: [
+    handles : (List Uorc.Core.RuntimeValue::Handle),
+    parent : Uorc.Core.RuntimeValue::Handle,
+    arena : Uorc.Core.Heap::Arena
+  ],
+  result: Bool,
+  body: (match handles
+    | List.nil => true
+    | List.cons head tail => (if (if (Uorc.Core.RuntimeValue::isNull head) then true else (if (Uorc.Core.Heap::less (project head id) (project parent id)) then (match (Uorc.Core.Heap::lookup arena head)
+      | Result.error e => false
+      | Result.ok entry => true) else false)) then (older tail parent arena) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: handles
+}
+
+definition{
+  name: acyclicRows,
+  parameters: [rows : (List Row), all : (List Row), arena : Uorc.Core.Heap::Arena],
+  result: Bool,
+  body: (match rows
+    | List.nil => true
+    | List.cons head tail => (if (if (if (Uorc.Core.RuntimeValue::isNull (project head handle)) then false else true) then (if (if (project arena exhausted) then (if (Uorc.Core.Heap::less (project arena nextHandle) (project (project head handle) id)) then false else true) else (Uorc.Core.Heap::less (project (project head handle) id) (project arena nextHandle))) then (older (references (project (project head entry) node)) (project head handle) arena) else false) else false) then (acyclicRows tail all arena) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: rows
+}
+
+definition{
+  name: countsRows,
+  parameters: [rows : (List Row), all : (List Row), arena : Uorc.Core.Heap::Arena],
+  result: Bool,
+  body: (match rows
+    | List.nil => true
+    | List.cons head tail => (if (if (if (prim equal (project (project head entry) incoming) (0 : UInt64) : Bool) then false else true) then ((wordToNat (project (project head entry) incoming)) =? ((wordToNat (project (project head entry) roots)) + ((edgeCount all (project head handle)) + (if (project (project arena cursor) rootStep) then 0 else (occurrences (project (project arena cursor) pending) (project head handle)))))) else false) then (countsRows tail all arena) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: rows
+}
+
+definition{
+  name: weightsRows,
+  parameters: [rows : (List Row), all : (List Row), arena : Uorc.Core.Heap::Arena],
+  result: Bool,
+  body: (match rows
+    | List.nil => true
+    | List.cons head tail => (if ((wordToNat (project (project head entry) weight)) =? (referenceWeight (project (project head entry) node))) then (weightsRows tail all arena) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: rows
+}
+
+definition{
+  name: nodesRows,
+  parameters: [rows : (List Row), all : (List Row), arena : Uorc.Core.Heap::Arena],
+  result: Bool,
+  body: (match rows
+    | List.nil => true
+    | List.cons head tail => (if (if (Uorc.Core.Heap::validNode arena (project (project head entry) node)) then (if (Uorc.Core.Heap::isReservation (project (project head entry) node)) then (if (prim equal (project (project head entry) incoming) (1 : UInt64) : Bool) then (prim equal (project (project head entry) roots) (1 : UInt64) : Bool) else false) else true) else false) then (nodesRows tail all arena) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: rows
+}
+
+definition{
+  name: audit,
+  parameters: [arena : Uorc.Core.Heap::Arena],
+  result: Audit,
+  body: (let scan : Scan := (scanIndex 64 (project arena index) (0 : UInt64) (9223372036854775808 : UInt64)); (record Audit {shape := (project scan wellFormed), acyclic := (acyclicRows (project scan rows) (project scan rows) arena), counts := (countsRows (project scan rows) (project scan rows) arena), weights := (weightsRows (project scan rows) (project scan rows) arena), totals := (if (if ((sumWeights (project scan rows)) =? (wordToNat (project arena ownedBytes))) then ((rowCount (project scan rows)) =? (wordToNat (project arena liveEntries))) else false) then (((sumWeights (project scan rows)) + (if (project (project arena cursor) rootStep) then 0 else (prim multiply 16 (lengthHandles (project (project arena cursor) pending)) : Nat))) <=? (wordToNat (project arena maxOwnedBytes))) else false), cursor := (if ((lengthHandles (project (project arena cursor) pending)) =? (wordToNat (project (project arena cursor) pendingCount))) then (if (project (project arena cursor) rootStep) then (match (project (project arena cursor) pending)
+    | List.nil => false
+    | List.cons head tail => (if ((lengthHandles tail) =? 0) then (match (Uorc.Core.Heap::lookup arena head)
+      | Result.error e => false
+      | Result.ok entry => (if (prim equal (project entry roots) (0 : UInt64) : Bool) then false else true)) else false)) else true) else false), nodes := (nodesRows (project scan rows) (project scan rows) arena)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: passed,
+  parameters: [result : Audit],
+  result: Bool,
+  body: (if (project result shape) then (if (project result acyclic) then (if (project result counts) then (if (project result weights) then (if (project result totals) then (if (project result cursor) then (if (project result nodes) then true else false) else false) else false) else false) else false) else false) else false),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: interpretSequence,
+  parameters: [fuel : Nat, arena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Bytes Uorc.Core.Heap::HeapError),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Nat.succ remaining => (if (Uorc.Core.RuntimeValue::isNull handle) then (ctor Result.ok [Bytes, Uorc.Core.Heap::HeapError] 0x) else (match (Uorc.Core.Heap::lookup arena handle)
+      | Result.error e => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+      | Result.ok entry => (match (project entry node)
+        | Uorc.Core.Heap::Node.sequenceLeaf image offset length => (match (Uorc.Core.Heap::lookup arena image)
+          | Result.error e => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+          | Result.ok imageEntry => (match (project imageEntry node)
+            | Uorc.Core.Heap::Node.image k bs => (match (prim slice bs (wordToNat offset) (wordToNat length) : (Option Bytes))
+              | Option.none => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+              | Option.some bytes => (ctor Result.ok [Bytes, Uorc.Core.Heap::HeapError] bytes))
+            | Uorc.Core.Heap::Node.sequenceLeaf unused0 unused1 unused2 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.sequenceBranch unused0 unused1 unused2 unused3 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.storeLeaf unused0 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.storeBranch unused0 unused1 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.slot unused0 unused1 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.rootBranch unused0 unused1 unused2 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.metadataWord unused0 unused1 unused2 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.metadataLink unused0 unused1 unused2 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.metadataBranch unused0 unused1 unused2 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.ownerRoot unused0 unused1 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Uorc.Core.Heap::Node.imageReservation unused0 unused1 => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))))
+        | Uorc.Core.Heap::Node.sequenceBranch n height left right => (match (interpretSequence remaining arena left)
+          | Result.error e => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+          | Result.ok leftBytes => (match (interpretSequence remaining arena right)
+            | Result.error e => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+            | Result.ok rightBytes => (ctor Result.ok [Bytes, Uorc.Core.Heap::HeapError] (prim append leftBytes rightBytes : Bytes))))
+        | Uorc.Core.Heap::Node.image kind bytes => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | Uorc.Core.Heap::Node.storeLeaf byte => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | Uorc.Core.Heap::Node.storeBranch left right => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | Uorc.Core.Heap::Node.slot role value => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | Uorc.Core.Heap::Node.rootBranch role left right => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | Uorc.Core.Heap::Node.metadataWord kind tag word => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | Uorc.Core.Heap::Node.metadataLink kind tag target => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | Uorc.Core.Heap::Node.metadataBranch kind left right => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | Uorc.Core.Heap::Node.ownerRoot role target => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+        | Uorc.Core.Heap::Node.imageReservation kind length => (ctor Result.error [Bytes, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode)))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: rootRows,
+  parameters: [
+    rows : (List Row),
+    roots : (List Uorc.Core.RuntimeValue::Handle),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  result: Bool,
+  body: (match rows
+    | List.nil => true
+    | List.cons head tail => (if ((wordToNat (project (project head entry) roots)) =? ((occurrences roots (project head handle)) + (if (project (project arena cursor) rootStep) then (occurrences (project (project arena cursor) pending) (project head handle)) else 0))) then (rootRows tail roots arena) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: rows
+}
+
+definition{
+  name: liveRootTickets,
+  parameters: [roots : (List Uorc.Core.RuntimeValue::Handle), arena : Uorc.Core.Heap::Arena],
+  result: Bool,
+  body: (match roots
+    | List.nil => true
+    | List.cons head tail => (if (if (Uorc.Core.RuntimeValue::isNull head) then false else true) then (if (match (Uorc.Core.Heap::lookup arena head)
+      | Result.error error => false
+      | Result.ok entry => true) then (liveRootTickets tail arena) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: roots
+}
+
+definition{
+  name: auditRoots,
+  parameters: [arena : Uorc.Core.Heap::Arena, roots : (List Uorc.Core.RuntimeValue::Handle)],
+  result: Bool,
+  body: (let scan : Scan := (scanIndex 64 (project arena index) (0 : UInt64) (9223372036854775808 : UInt64)); (if (passed (audit arena)) then (if (liveRootTickets roots arena) then (rootRows (project scan rows) roots arena) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

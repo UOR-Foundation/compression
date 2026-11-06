@@ -1,0 +1,304 @@
+\begin{lexlean}{Uorc.Search.ProgramTrial}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Validation}
+\importmodule{Uorc.Core.StepMachine}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Core.Basis}
+\importmodule{Uorc.Core.ExecutionCredit}
+\importmodule{Uorc.Wire.GraphEmit}
+\importmodule{Uorc.Wire.GraphParse}
+\importmodule{Uorc.Search.Normalize}
+\importmodule{Uorc.Search.RopeBuilder}
+\importmodule{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Search.Verify}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Query,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: target, type: Uorc.Core.Bytes::Rope},
+    {name: basis, type: Uorc.Core.Basis::Input},
+    {name: budget, type: Uorc.Core.Resources::Budget},
+    {name: initialUsage, type: Uorc.Core.Resources::Usage}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: emitting, fields: [Uorc.Wire.GraphEmit::State, Uorc.Search.RopeBuilder::Builder]},
+    {name: building, fields: [Uorc.Search.Normalize::Cursor]},
+    {name: parsing, fields: [Uorc.Wire.GraphParse::Event, Uorc.Core.Bytes::Cursor, Bool]},
+    {name: validating, fields: [Uorc.Core.Validation::Cursor]},
+    {name: admitting, fields: [Uorc.Core.Validation::CheckedGraph, Uorc.Core.Basis::Cursor]},
+    {
+      name: executing,
+      fields: [
+        Uorc.Core.Validation::CheckedGraph,
+        Uorc.Core.Basis::Table,
+        Uorc.Core.ExecutionCredit::Cursor
+      ]
+    },
+    {
+      name: checking,
+      fields: [
+        Uorc.Core.Graph::Graph,
+        Uorc.Core.Resources::Usage,
+        Uorc.Core.ExecutionCredit::Ledger,
+        Uorc.Search.VerifyRope::Cursor
+      ]
+    }
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: query, type: Query},
+    {name: wire, type: Uorc.Core.Bytes::Rope},
+    {name: phase, type: Phase},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+structure{
+  name: CheckedProgram,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: graph, type: Uorc.Core.Graph::Graph},
+    {name: wire, type: Uorc.Core.Bytes::Rope},
+    {name: usage, type: Uorc.Core.Resources::Usage},
+    {name: executionLedger, type: Uorc.Core.ExecutionCredit::Ledger},
+    {name: bytesCompared, type: Nat},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: emit, fields: [Uorc.Wire.GraphEmit::EmitError]},
+    {name: normalize, fields: [Uorc.Search.Normalize::Error]},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: parse, fields: [Uorc.Wire.GraphParse::ParseError]},
+    {name: static, fields: [Uorc.Core.Types::StaticError]},
+    {name: table, fields: [Uorc.Core.Validation::TableError]},
+    {name: execution, fields: [Uorc.Core.StepMachine::Failure, Uorc.Core.Resources::Usage]},
+    {name: initialization, fields: [Uorc.Core.StepMachine::InitializationFailure]},
+    {name: admission, fields: [Uorc.Core.Basis::BasisFailure]},
+    {name: resource, fields: [Uorc.Core.Resources::OperationalError]},
+    {name: credit, fields: [Uorc.Core.ExecutionCredit::CreditError]},
+    {name: outputType, fields: []},
+    {name: mismatch, fields: [Uorc.Search.Verify::Mismatch]},
+    {
+      name: executionAccounted,
+      fields: [
+        Uorc.Core.StepMachine::Failure,
+        Uorc.Core.Resources::Usage,
+        Uorc.Core.ExecutionCredit::Ledger
+      ]
+    },
+    {
+      name: creditAccounted,
+      fields: [Uorc.Core.ExecutionCredit::CreditError, Uorc.Core.ExecutionCredit::Ledger]
+    },
+    {name: outputTypeAccounted, fields: [Uorc.Core.ExecutionCredit::Ledger]},
+    {
+      name: mismatchAccounted,
+      fields: [Uorc.Search.Verify::Mismatch, Uorc.Core.ExecutionCredit::Ledger]
+    },
+    {
+      name: verificationRopeAccounted,
+      fields: [Uorc.Core.Bytes::RopeError, Uorc.Core.ExecutionCredit::Ledger]
+    }
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [CheckedProgram]},
+    {name: rejected, fields: [Error, Nat]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [query : Query, graph : Uorc.Core.Graph::Graph],
+  result: Cursor,
+  body: (record Cursor {query := query, wire := (ctor Uorc.Core.Bytes::Rope.empty), phase := (ctor Phase.emitting (Uorc.Wire.GraphEmit::start graph) (Uorc.Search.RopeBuilder::empty)), completedEvents := 0})
+}
+
+definition{
+  name: startSerialized,
+  parameters: [query : Query, wire : Uorc.Core.Bytes::Rope],
+  result: Cursor,
+  body: (record Cursor {query := query, wire := wire, phase := (ctor Phase.parsing (ctor Uorc.Wire.GraphParse::Event.advanced (Uorc.Wire.GraphParse::start)) (Uorc.Core.Bytes::cursor wire) false), completedEvents := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.emitting emitter builder => (match (Uorc.Wire.GraphEmit::step emitter 1)
+      | Uorc.Wire.GraphEmit::Event.advanced nextEmitter => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.emitting nextEmitter builder), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Wire.GraphEmit::Event.produced chunk nextEmitter => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.emitting nextEmitter (Uorc.Search.RopeBuilder::appendChunk builder chunk)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Wire.GraphEmit::Event.complete size emitWork => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.building (Uorc.Search.RopeBuilder::finish builder)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Wire.GraphEmit::Event.failed emitError position emitWork => (ctor Step.rejected (ctor Error.emit emitError) ((project cursor completedEvents) + 1)))
+    | Phase.building builderCursor => (match (Uorc.Search.Normalize::step (record Uorc.Search.Normalize::Policy {blockBytes := 1}) builderCursor)
+      | Uorc.Search.Normalize::Step.pending nextBuilder => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.building nextBuilder), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Normalize::Step.done normalized physical => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project normalized rope), phase := (ctor Phase.parsing (ctor Uorc.Wire.GraphParse::Event.advanced (Uorc.Wire.GraphParse::start)) (Uorc.Core.Bytes::cursor (project normalized rope)) false), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Normalize::Step.rejected normalizeError => (ctor Step.rejected (ctor Error.normalize normalizeError) ((project cursor completedEvents) + 1))
+      | Uorc.Search.Normalize::Step.ropeFailure ropeError => (ctor Step.rejected (ctor Error.rope ropeError) ((project cursor completedEvents) + 1)))
+    | Phase.parsing parserEvent reader ended => (match parserEvent
+      | Uorc.Wire.GraphParse::Event.advanced parser => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.parsing (Uorc.Wire.GraphParse::step parser 1) reader ended), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Wire.GraphParse::Event.needInput parser => (if ended then (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.parsing (Uorc.Wire.GraphParse::finishInput parser) reader true), completedEvents := ((project cursor completedEvents) + 1)})) else (match (Uorc.Core.Bytes::nextChunk reader 1)
+        | Result.error ropeError => (ctor Step.rejected (ctor Error.rope ropeError) ((project cursor completedEvents) + 1))
+        | Result.ok readEvent => (match readEvent
+          | Uorc.Core.Bytes::CursorEvent.advanced nextReader => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.parsing parserEvent nextReader ended), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Core.Bytes::CursorEvent.produced chunk nextReader => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.parsing (Uorc.Wire.GraphParse::feed parser chunk) nextReader ended), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Core.Bytes::CursorEvent.done => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.parsing (Uorc.Wire.GraphParse::finishInput parser) reader true), completedEvents := ((project cursor completedEvents) + 1)})))))
+      | Uorc.Wire.GraphParse::Event.complete parsedGraph position parseWork => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.validating (Uorc.Core.Validation::start parsedGraph)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Wire.GraphParse::Event.failed parseError position parseWork => (ctor Step.rejected (ctor Error.parse parseError) ((project cursor completedEvents) + 1)))
+    | Phase.validating validation => (match (Uorc.Core.Validation::tick validation)
+      | Uorc.Core.Validation::Step.pending nextValidation => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.validating nextValidation), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Core.Validation::Step.validated checkedGraph => (match (Uorc.Core.Resources::charge (project (project cursor query) budget) (project (project cursor query) initialUsage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := (project checkedGraph logicalWork), allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+        | Result.error error => (ctor Step.rejected (ctor Error.resource error) ((project cursor completedEvents) + 1))
+        | Result.ok validationUsage => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.admitting checkedGraph (Uorc.Core.Basis::start (project (project cursor query) basis) validationUsage)), completedEvents := ((project cursor completedEvents) + 1)})))
+      | Uorc.Core.Validation::Step.rejected staticError events visits => (ctor Step.rejected (ctor Error.static staticError) ((project cursor completedEvents) + 1))
+      | Uorc.Core.Validation::Step.tableFailure tableError events visits => (ctor Step.rejected (ctor Error.table tableError) ((project cursor completedEvents) + 1)))
+    | Phase.admitting checkedGraph basisCursor => (match (Uorc.Core.Basis::tick (project (project cursor query) budget) basisCursor)
+      | Uorc.Core.Basis::Step.pending nextBasis => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.admitting checkedGraph nextBasis), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Core.Basis::Step.ready basisTable usage => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.executing checkedGraph basisTable (Uorc.Core.ExecutionCredit::startInitialization checkedGraph basisTable (project (project cursor query) budget) usage)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Core.Basis::Step.failed error usage => (ctor Step.rejected (ctor Error.admission error) ((project cursor completedEvents) + 1)))
+    | Phase.executing checkedGraph basisTable executionCredit => (match (Uorc.Core.ExecutionCredit::tick (Uorc.Core.StepMachine::contextForAdmitted checkedGraph basisTable (project (project cursor query) budget)) executionCredit)
+      | Uorc.Core.ExecutionCredit::Tick.pending nextCredit => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.executing checkedGraph basisTable nextCredit), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Core.ExecutionCredit::Tick.done execution executionLedger => (match (project execution value)
+        | Uorc.Core.Types::Value.sequence bytes => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.checking (project checkedGraph graph) (project execution usage) executionLedger (Uorc.Search.VerifyRope::start (cons (project (project cursor query) target) (nil Uorc.Core.Bytes::Rope)) (cons (Uorc.Core.Bytes::fromBytes bytes) (nil Uorc.Core.Bytes::Rope)))), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Core.Types::Value.segmentedSequence rope => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.checking (project checkedGraph graph) (project execution usage) executionLedger (Uorc.Search.VerifyRope::start (cons (project (project cursor query) target) (nil Uorc.Core.Bytes::Rope)) (cons rope (nil Uorc.Core.Bytes::Rope)))), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Core.Types::Value.natural payload => (ctor Step.rejected (ctor Error.outputTypeAccounted executionLedger) ((project cursor completedEvents) + 1))
+        | Uorc.Core.Types::Value.byte payload => (ctor Step.rejected (ctor Error.outputTypeAccounted executionLedger) ((project cursor completedEvents) + 1))
+        | Uorc.Core.Types::Value.predicate payload => (ctor Step.rejected (ctor Error.outputTypeAccounted executionLedger) ((project cursor completedEvents) + 1))
+        | Uorc.Core.Types::Value.store payload => (ctor Step.rejected (ctor Error.outputTypeAccounted executionLedger) ((project cursor completedEvents) + 1)))
+      | Uorc.Core.ExecutionCredit::Tick.failed executionError failedUsage executionLedger => (ctor Step.rejected (ctor Error.executionAccounted executionError failedUsage executionLedger) ((project cursor completedEvents) + 1))
+      | Uorc.Core.ExecutionCredit::Tick.rejected creditError executionLedger => (ctor Step.rejected (ctor Error.creditAccounted creditError executionLedger) ((project cursor completedEvents) + 1)))
+    | Phase.checking parsedGraph usage executionLedger comparison => (match (Uorc.Search.VerifyRope::step comparison)
+      | Uorc.Search.VerifyRope::Step.pending nextComparison => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.checking parsedGraph usage executionLedger nextComparison), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.VerifyRope::Step.matched bytesCompared boundaries => (ctor Step.complete (record CheckedProgram {graph := parsedGraph, wire := (project cursor wire), usage := usage, executionLedger := executionLedger, bytesCompared := bytesCompared, completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor Step.rejected (ctor Error.mismatchAccounted mismatch executionLedger) ((project cursor completedEvents) + 1))
+      | Uorc.Search.VerifyRope::Step.ropeFailure ropeError => (ctor Step.rejected (ctor Error.verificationRopeAccounted ropeError executionLedger) ((project cursor completedEvents) + 1))))
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ remainingFuel => (match state
+      | Step.pending cursor => (run remainingFuel (step cursor))
+      | Step.complete checkedProgram => (ctor Step.complete checkedProgram)
+      | Step.rejected error events => (ctor Step.rejected error events))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: accepted,
+  parameters: [state : Step],
+  result: Bool,
+  body: (match state
+    | Step.pending cursor => false
+    | Step.complete checkedProgram => true
+    | Step.rejected error events => false)
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: waiting, fields: []},
+    {name: accepted, fields: []},
+    {name: rejected, fields: []}
+  ]
+}
+
+definition{
+  name: outcome,
+  parameters: [state : Step],
+  result: Outcome,
+  body: (match state
+    | Step.pending cursor => (ctor Outcome.waiting)
+    | Step.complete checkedProgram => (ctor Outcome.accepted)
+    | Step.rejected error events => (ctor Outcome.rejected))
+}
+
+theorem{
+  name: literal_round_trip_reparses_validates_executes_and_checks,
+  parameters: [],
+  statement: ((outcome (run 6000 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001ff))))) = (ctor Outcome.accepted)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: changed_decoded_byte_is_rejected,
+  parameters: [],
+  statement: ((outcome (run 6000 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001fe))))) = (ctor Outcome.rejected)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: unfunded_trial_never_supplies_checked_program,
+  parameters: [],
+  statement: ((outcome (run 0 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001ff))))) = (ctor Outcome.waiting)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: trial_resume_preserves_exact_state,
+  parameters: [],
+  statement: ((run 73 (run 41 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001ff))))) = (run 114 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001ff))))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: rejectionLedger,
+  parameters: [error : Error],
+  result: (Option Uorc.Core.ExecutionCredit::Ledger),
+  body: (match error
+    | Error.emit argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.normalize argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.rope argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.parse argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.static argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.table argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.execution argument0 argument1 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.initialization argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.admission argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.resource argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.credit argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.outputType => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.mismatch argument0 => (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])
+    | Error.executionAccounted argument0 argument1 argument2 => (ctor Option.some [Uorc.Core.ExecutionCredit::Ledger] argument2)
+    | Error.creditAccounted argument0 argument1 => (ctor Option.some [Uorc.Core.ExecutionCredit::Ledger] argument1)
+    | Error.outputTypeAccounted argument0 => (ctor Option.some [Uorc.Core.ExecutionCredit::Ledger] argument0)
+    | Error.mismatchAccounted argument0 argument1 => (ctor Option.some [Uorc.Core.ExecutionCredit::Ledger] argument1)
+    | Error.verificationRopeAccounted argument0 argument1 => (ctor Option.some [Uorc.Core.ExecutionCredit::Ledger] argument1))
+}
+\end{semanticmodule}
+\end{lexlean}

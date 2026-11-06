@@ -1,0 +1,61 @@
+\begin{lexlean}{Uorc.Search.Dictionary}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: indexFold,
+  parameters: [],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.sequence) (nil Uorc.Core.Types::ValueType))))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 2 4) (cons (ctor Uorc.Core.Graph::Instruction.sequenceIndex 2 1) (cons (ctor Uorc.Core.Graph::Instruction.byteToNatural 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (8 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalMultiply 8 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalShiftLeft 3 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalOr 9 1) (nil Uorc.Core.Graph::Instruction)))))))), returnDistance := 1})
+}
+
+definition{
+  name: lookupBlock,
+  parameters: [
+    width : UInt64,
+    codeBytes : UInt64,
+    codes : Uorc.Core.Bytes::Rope,
+    dictionary : Uorc.Core.Bytes::Rope
+  ],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant width) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant codeBytes) (cons (ctor Uorc.Core.Graph::Instruction.naturalDivide 3 2) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 4 3) (cons (ctor Uorc.Core.Graph::Instruction.naturalMultiply 2 3) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant codes) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant dictionary) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.fold 7 1 1 (cons 4 (cons 3 (nil Nat)))) (cons (ctor Uorc.Core.Graph::Instruction.naturalMultiply 1 9) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 1 7) (cons (ctor Uorc.Core.Graph::Instruction.sequenceIndex 5 1) (nil Uorc.Core.Graph::Instruction))))))))))))), returnDistance := 1})
+}
+
+definition{
+  name: program,
+  parameters: [
+    count : UInt64,
+    width : UInt64,
+    codeBytes : UInt64,
+    codes : Uorc.Core.Bytes::Rope,
+    dictionary : Uorc.Core.Bytes::Rope,
+    tail : Uorc.Core.Bytes::Rope
+  ],
+  result: Uorc.Core.Graph::Graph,
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons (indexFold) (cons (lookupBlock width codeBytes codes dictionary) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (nil Nat)) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant tail) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConcat 2 1) (nil Uorc.Core.Graph::Instruction))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2})
+}
+
+definition{
+  name: indexWidth,
+  parameters: [maximumCode : Nat],
+  result: Nat,
+  body: (if (maximumCode <? 256) then 1 else (if (maximumCode <? 65536) then 2 else (if (maximumCode <? 16777216) then 3 else (if (maximumCode <? 4294967296) then 4 else (if (maximumCode <? 1099511627776) then 5 else (if (maximumCode <? 281474976710656) then 6 else (if (maximumCode <? 72057594037927936) then 7 else 8)))))))
+}
+
+theorem{
+  name: index_width_expands_before_collision,
+  parameters: [],
+  statement: ((indexWidth 256) = 2),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: full_word_dictionary_indices_are_representable,
+  parameters: [],
+  statement: ((indexWidth 18446744073709551615) = 8),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

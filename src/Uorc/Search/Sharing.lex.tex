@@ -1,0 +1,121 @@
+\begin{lexlean}{Uorc.Search.Sharing}
+\importmodule{Uorc.Search.Expression}
+\importmodule{Uorc.Search.AntiUnify}
+\importmodule{Uorc.Search.Lower}
+\importmodule{Uorc.Search.Compose}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Validation}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: generalizing, fields: [Uorc.Search.AntiUnify::Cursor]},
+    {
+      name: bindings,
+      fields: [
+        (List Uorc.Search.AntiUnify::Binding),
+        (List Uorc.Core.Types::ValueType),
+        (List Uorc.Search.Expression::Expression),
+        (List Uorc.Search.Expression::Expression),
+        Uorc.Search.Expression::Expression
+      ]
+    },
+    {
+      name: lowerCommon,
+      fields: [
+        Uorc.Search.Lower::Cursor,
+        (List Uorc.Search.Expression::Expression),
+        (List Uorc.Search.Expression::Expression)
+      ]
+    },
+    {name: lowerEntry, fields: [Uorc.Search.Lower::Cursor, Uorc.Core.Graph::Block]},
+    {name: composing, fields: [Uorc.Search.Compose::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: library, type: Uorc.Core.Validation::CheckedGraph},
+    {name: joinFunction, type: Nat},
+    {name: joinResultType, type: Uorc.Core.Types::ValueType},
+    {name: phase, type: Phase},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: typeMismatch, fields: [Uorc.Core.Types::ValueType, Uorc.Core.Types::ValueType]},
+    {name: antiUnificationInvalid, fields: []},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: lowering, fields: [Uorc.Search.Lower::Error]},
+    {name: emptyComposition, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Nat]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    library : Uorc.Core.Validation::CheckedGraph,
+    joinFunction : Nat,
+    joinResultType : Uorc.Core.Types::ValueType,
+    leftExpression : Uorc.Search.Expression::Expression,
+    rightExpression : Uorc.Search.Expression::Expression
+  ],
+  result: Cursor,
+  body: (record Cursor {library := library, joinFunction := joinFunction, joinResultType := joinResultType, phase := (ctor Phase.generalizing (Uorc.Search.AntiUnify::start leftExpression rightExpression)), completedEvents := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.generalizing antiCursor => (match (Uorc.Search.AntiUnify::step antiCursor)
+      | Uorc.Search.AntiUnify::Step.pending next => (ctor Step.pending (record Cursor {library := (project cursor library), joinFunction := (project cursor joinFunction), joinResultType := (project cursor joinResultType), phase := (ctor Phase.generalizing next), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.AntiUnify::Step.complete generalization => (ctor Step.pending (record Cursor {library := (project cursor library), joinFunction := (project cursor joinFunction), joinResultType := (project cursor joinResultType), phase := (ctor Phase.bindings (project generalization bindings) (nil Uorc.Core.Types::ValueType) (nil Uorc.Search.Expression::Expression) (nil Uorc.Search.Expression::Expression) (project generalization expression)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.AntiUnify::Step.typeMismatch leftType rightType => (ctor Step.rejected (ctor Error.typeMismatch leftType rightType))
+      | Uorc.Search.AntiUnify::Step.invalidCursor => (ctor Step.rejected (ctor Error.antiUnificationInvalid))
+      | Uorc.Search.AntiUnify::Step.ropeFailure error => (ctor Step.rejected (ctor Error.rope error)))
+    | Phase.bindings remainingBindings parameterTypes leftArguments rightArguments commonExpression => (match remainingBindings
+      | List.nil => (ctor Step.pending (record Cursor {library := (project cursor library), joinFunction := (project cursor joinFunction), joinResultType := (project cursor joinResultType), phase := (ctor Phase.lowerCommon (Uorc.Search.Lower::start parameterTypes (project (project cursor library) blocksValidated) commonExpression) leftArguments rightArguments), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons binding remaining => (ctor Step.pending (record Cursor {library := (project cursor library), joinFunction := (project cursor joinFunction), joinResultType := (project cursor joinResultType), phase := (ctor Phase.bindings remaining (cons (project binding type) parameterTypes) (cons (project binding leftExpression) leftArguments) (cons (project binding rightExpression) rightArguments) commonExpression), completedEvents := ((project cursor completedEvents) + 1)})))
+    | Phase.lowerCommon lowerCursor leftArguments rightArguments => (match (Uorc.Search.Lower::step lowerCursor)
+      | Uorc.Search.Lower::Step.pending next => (ctor Step.pending (record Cursor {library := (project cursor library), joinFunction := (project cursor joinFunction), joinResultType := (project cursor joinResultType), phase := (ctor Phase.lowerCommon next leftArguments rightArguments), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Lower::Step.complete commonBlock events => (ctor Step.pending (record Cursor {library := (project cursor library), joinFunction := (project cursor joinFunction), joinResultType := (project cursor joinResultType), phase := (ctor Phase.lowerEntry (Uorc.Search.Lower::start (nil Uorc.Core.Types::ValueType) ((project (project cursor library) blocksValidated) + 1) (ctor Uorc.Search.Expression::Expression.call (project cursor joinFunction) (project cursor joinResultType) (cons (ctor Uorc.Search.Expression::Expression.call (project (project cursor library) blocksValidated) (project commonBlock result) leftArguments) (cons (ctor Uorc.Search.Expression::Expression.call (project (project cursor library) blocksValidated) (project commonBlock result) rightArguments) (nil Uorc.Search.Expression::Expression))))) commonBlock), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Lower::Step.failed error => (ctor Step.rejected (ctor Error.lowering error)))
+    | Phase.lowerEntry lowerCursor commonBlock => (match (Uorc.Search.Lower::step lowerCursor)
+      | Uorc.Search.Lower::Step.pending next => (ctor Step.pending (record Cursor {library := (project cursor library), joinFunction := (project cursor joinFunction), joinResultType := (project cursor joinResultType), phase := (ctor Phase.lowerEntry next commonBlock), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Lower::Step.complete entryBlock events => (ctor Step.pending (record Cursor {library := (project cursor library), joinFunction := (project cursor joinFunction), joinResultType := (project cursor joinResultType), phase := (ctor Phase.composing (Uorc.Search.Compose::start (project (project (project cursor library) graph) blocks) (cons commonBlock (cons entryBlock (nil Uorc.Core.Graph::Block))))), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Lower::Step.failed error => (ctor Step.rejected (ctor Error.lowering error)))
+    | Phase.composing composeCursor => (match (Uorc.Search.Compose::step composeCursor)
+      | Uorc.Search.Compose::Step.pending next => (ctor Step.pending (record Cursor {library := (project cursor library), joinFunction := (project cursor joinFunction), joinResultType := (project cursor joinResultType), phase := (ctor Phase.composing next), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Compose::Step.complete proposal events => (ctor Step.proposal proposal ((project cursor completedEvents) + 1))
+      | Uorc.Search.Compose::Step.empty => (ctor Step.rejected (ctor Error.emptyComposition))
+      | Uorc.Search.Compose::Step.addressSpaceExhausted => (ctor Step.rejected (ctor Error.addressSpaceExhausted))))
+}
+\end{semanticmodule}
+\end{lexlean}

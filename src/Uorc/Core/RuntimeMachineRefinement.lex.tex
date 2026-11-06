@@ -1,0 +1,582 @@
+\begin{lexlean}{Uorc.Core.RuntimeMachineRefinement}
+\importmodule{Uorc.Core.RuntimeMachineEngine}
+\importmodule{Uorc.Core.RuntimeMachine}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: leafMeaning,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    count : UInt64
+  ],
+  result: (Option Uorc.Core.ReferenceSemantics::Sequence),
+  body: (match (Uorc.Core.Heap::lookup arena image)
+    | Result.error failure => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image kind bytes => (match (Uorc.Core.ReferenceSemantics::sliceSequence (Uorc.Core.ReferenceSemantics::sequenceFromBytes bytes) (Uorc.Core.Types::wordToNat offset) (Uorc.Core.Types::wordToNat count))
+        | Result.error failure => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Result.ok meaning => (ctor Option.some [Uorc.Core.ReferenceSemantics::Sequence] meaning))
+      | Uorc.Core.Heap::Node.sequenceLeaf unused_sequenceLeaf_0 unused_sequenceLeaf_1 unused_sequenceLeaf_2 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.sequenceBranch unused_sequenceBranch_0 unused_sequenceBranch_1 unused_sequenceBranch_2 unused_sequenceBranch_3 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.storeLeaf unused_storeLeaf_0 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.storeBranch unused_storeBranch_0 unused_storeBranch_1 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.slot unused_slot_0 unused_slot_1 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.rootBranch unused_rootBranch_0 unused_rootBranch_1 unused_rootBranch_2 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.metadataWord unused_metadataWord_0 unused_metadataWord_1 unused_metadataWord_2 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.metadataLink unused_metadataLink_0 unused_metadataLink_1 unused_metadataLink_2 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.metadataBranch unused_metadataBranch_0 unused_metadataBranch_1 unused_metadataBranch_2 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.ownerRoot unused_ownerRoot_0 unused_ownerRoot_1 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Uorc.Core.Heap::Node.imageReservation unused_imageReservation_0 unused_imageReservation_1 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence]))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: sequenceMeaning,
+  parameters: [fuel : Nat, arena : Uorc.Core.Heap::Arena, root : Uorc.Core.RuntimeValue::Handle],
+  result: (Option Uorc.Core.ReferenceSemantics::Sequence),
+  body: (match fuel
+    | Nat.zero => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+    | Nat.succ remaining => (if (Uorc.Core.RuntimeValue::isNull root) then (ctor Option.some [Uorc.Core.ReferenceSemantics::Sequence] (Uorc.Core.ReferenceSemantics::sequenceFromBytes 0x)) else (match (Uorc.Core.Heap::lookup arena root)
+      | Result.error failure => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+      | Result.ok entry => (match (project entry node)
+        | Uorc.Core.Heap::Node.image unused_image_0 unused_image_1 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Uorc.Core.Heap::Node.sequenceLeaf image offset count => (leafMeaning arena image offset count)
+        | Uorc.Core.Heap::Node.sequenceBranch cachedLength height left right => (match (sequenceMeaning remaining arena left)
+          | Option.none => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+          | Option.some leftMeaning => (match (sequenceMeaning remaining arena right)
+            | Option.none => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+            | Option.some rightMeaning => (if ((Uorc.Core.Types::wordToNat cachedLength) =? ((project leftMeaning length) + (project rightMeaning length))) then (ctor Option.some [Uorc.Core.ReferenceSemantics::Sequence] (Uorc.Core.ReferenceSemantics::appendSequence leftMeaning rightMeaning)) else (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence]))))
+        | Uorc.Core.Heap::Node.storeLeaf unused_storeLeaf_0 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Uorc.Core.Heap::Node.storeBranch unused_storeBranch_0 unused_storeBranch_1 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Uorc.Core.Heap::Node.slot unused_slot_0 unused_slot_1 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Uorc.Core.Heap::Node.rootBranch unused_rootBranch_0 unused_rootBranch_1 unused_rootBranch_2 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Uorc.Core.Heap::Node.metadataWord unused_metadataWord_0 unused_metadataWord_1 unused_metadataWord_2 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Uorc.Core.Heap::Node.metadataLink unused_metadataLink_0 unused_metadataLink_1 unused_metadataLink_2 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Uorc.Core.Heap::Node.metadataBranch unused_metadataBranch_0 unused_metadataBranch_1 unused_metadataBranch_2 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Uorc.Core.Heap::Node.ownerRoot unused_ownerRoot_0 unused_ownerRoot_1 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence])
+        | Uorc.Core.Heap::Node.imageReservation unused_imageReservation_0 unused_imageReservation_1 => (ctor Option.none [Uorc.Core.ReferenceSemantics::Sequence]))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: fuel
+}
+
+definition{
+  name: storeExceptions,
+  parameters: [
+    depth : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    defaultByte : UInt8,
+    prefix : Nat,
+    bit : Nat
+  ],
+  result: (Option (List Uorc.Core.ReferenceSemantics::Exception)),
+  body: (match depth
+    | Nat.zero => (if (Uorc.Core.RuntimeValue::isNull root) then (ctor Option.some [(List Uorc.Core.ReferenceSemantics::Exception)] (nil Uorc.Core.ReferenceSemantics::Exception)) else (match (Uorc.Core.Heap::lookup arena root)
+      | Result.error failure => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+      | Result.ok entry => (match (project entry node)
+        | Uorc.Core.Heap::Node.image unused_image_0 unused_image_1 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.sequenceLeaf unused_sequenceLeaf_0 unused_sequenceLeaf_1 unused_sequenceLeaf_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.sequenceBranch unused_sequenceBranch_0 unused_sequenceBranch_1 unused_sequenceBranch_2 unused_sequenceBranch_3 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.storeLeaf byteValue => (if (prim equal byteValue defaultByte : Bool) then (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)]) else (ctor Option.some [(List Uorc.Core.ReferenceSemantics::Exception)] (cons (record Uorc.Core.ReferenceSemantics::Exception {key := prefix, value := (Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural byteValue))}) (nil Uorc.Core.ReferenceSemantics::Exception))))
+        | Uorc.Core.Heap::Node.storeBranch unused_storeBranch_0 unused_storeBranch_1 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.slot unused_slot_0 unused_slot_1 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.rootBranch unused_rootBranch_0 unused_rootBranch_1 unused_rootBranch_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.metadataWord unused_metadataWord_0 unused_metadataWord_1 unused_metadataWord_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.metadataLink unused_metadataLink_0 unused_metadataLink_1 unused_metadataLink_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.metadataBranch unused_metadataBranch_0 unused_metadataBranch_1 unused_metadataBranch_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.ownerRoot unused_ownerRoot_0 unused_ownerRoot_1 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.imageReservation unused_imageReservation_0 unused_imageReservation_1 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)]))))
+    | Nat.succ remaining => (if (Uorc.Core.RuntimeValue::isNull root) then (ctor Option.some [(List Uorc.Core.ReferenceSemantics::Exception)] (nil Uorc.Core.ReferenceSemantics::Exception)) else (match (Uorc.Core.Heap::lookup arena root)
+      | Result.error failure => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+      | Result.ok entry => (match (project entry node)
+        | Uorc.Core.Heap::Node.image unused_image_0 unused_image_1 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.sequenceLeaf unused_sequenceLeaf_0 unused_sequenceLeaf_1 unused_sequenceLeaf_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.sequenceBranch unused_sequenceBranch_0 unused_sequenceBranch_1 unused_sequenceBranch_2 unused_sequenceBranch_3 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.storeLeaf unused_storeLeaf_0 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.storeBranch left right => (match (storeExceptions remaining arena left defaultByte prefix (bit + bit))
+          | Option.none => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+          | Option.some leftExceptions => (match (storeExceptions remaining arena right defaultByte (prefix + bit) (bit + bit))
+            | Option.none => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+            | Option.some rightExceptions => (ctor Option.some [(List Uorc.Core.ReferenceSemantics::Exception)] (prim append leftExceptions rightExceptions : (List Uorc.Core.ReferenceSemantics::Exception)))))
+        | Uorc.Core.Heap::Node.slot unused_slot_0 unused_slot_1 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.rootBranch unused_rootBranch_0 unused_rootBranch_1 unused_rootBranch_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.metadataWord unused_metadataWord_0 unused_metadataWord_1 unused_metadataWord_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.metadataLink unused_metadataLink_0 unused_metadataLink_1 unused_metadataLink_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.metadataBranch unused_metadataBranch_0 unused_metadataBranch_1 unused_metadataBranch_2 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.ownerRoot unused_ownerRoot_0 unused_ownerRoot_1 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)])
+        | Uorc.Core.Heap::Node.imageReservation unused_imageReservation_0 unused_imageReservation_1 => (ctor Option.none [(List Uorc.Core.ReferenceSemantics::Exception)]))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: depth
+}
+
+definition{
+  name: storeMeaning,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    defaultByte : UInt8,
+    root : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Option Uorc.Core.ReferenceSemantics::Store),
+  body: (match (storeExceptions 64 arena root defaultByte 0 1)
+    | Option.none => (ctor Option.none [Uorc.Core.ReferenceSemantics::Store])
+    | Option.some exceptions => (ctor Option.some [Uorc.Core.ReferenceSemantics::Store] (record Uorc.Core.ReferenceSemantics::Store {defaultByte := (Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural defaultByte)), exceptions := exceptions}))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: valueMeaning,
+  parameters: [
+    sequenceFuel : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    value : Uorc.Core.RuntimeValue::RuntimeValue
+  ],
+  result: (Option Uorc.Core.ReferenceSemantics::Value),
+  body: (match value
+    | Uorc.Core.RuntimeValue::RuntimeValue.natural word => (ctor Option.some [Uorc.Core.ReferenceSemantics::Value] (ctor Uorc.Core.ReferenceSemantics::Value.natural (Uorc.Core.Types::wordToNat word)))
+    | Uorc.Core.RuntimeValue::RuntimeValue.byte byteValue => (ctor Option.some [Uorc.Core.ReferenceSemantics::Value] (ctor Uorc.Core.ReferenceSemantics::Value.byte (Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural byteValue))))
+    | Uorc.Core.RuntimeValue::RuntimeValue.predicate predicateValue => (ctor Option.some [Uorc.Core.ReferenceSemantics::Value] (ctor Uorc.Core.ReferenceSemantics::Value.predicate predicateValue))
+    | Uorc.Core.RuntimeValue::RuntimeValue.sequence root => (match (sequenceMeaning sequenceFuel arena root)
+      | Option.none => (ctor Option.none [Uorc.Core.ReferenceSemantics::Value])
+      | Option.some meaning => (ctor Option.some [Uorc.Core.ReferenceSemantics::Value] (ctor Uorc.Core.ReferenceSemantics::Value.sequence meaning)))
+    | Uorc.Core.RuntimeValue::RuntimeValue.store defaultByte root => (match (storeMeaning arena defaultByte root)
+      | Option.none => (ctor Option.none [Uorc.Core.ReferenceSemantics::Value])
+      | Option.some meaning => (ctor Option.some [Uorc.Core.ReferenceSemantics::Value] (ctor Uorc.Core.ReferenceSemantics::Value.store meaning)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: referenceValueEqual,
+  parameters: [
+    left : Uorc.Core.ReferenceSemantics::Value,
+    right : Uorc.Core.ReferenceSemantics::Value
+  ],
+  result: Prop,
+  body: (match left
+    | Uorc.Core.ReferenceSemantics::Value.natural n => (match right
+      | Uorc.Core.ReferenceSemantics::Value.natural othern => (n = othern)
+      | Uorc.Core.ReferenceSemantics::Value.byte otherb => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.predicate otherp => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.sequence others => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.store otherm => (0 = 1))
+    | Uorc.Core.ReferenceSemantics::Value.byte b => (match right
+      | Uorc.Core.ReferenceSemantics::Value.natural othern => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.byte otherb => (b = otherb)
+      | Uorc.Core.ReferenceSemantics::Value.predicate otherp => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.sequence others => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.store otherm => (0 = 1))
+    | Uorc.Core.ReferenceSemantics::Value.predicate p => (match right
+      | Uorc.Core.ReferenceSemantics::Value.natural othern => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.byte otherb => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.predicate otherp => (p = otherp)
+      | Uorc.Core.ReferenceSemantics::Value.sequence others => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.store otherm => (0 = 1))
+    | Uorc.Core.ReferenceSemantics::Value.sequence s => (match right
+      | Uorc.Core.ReferenceSemantics::Value.natural othern => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.byte otherb => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.predicate otherp => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.sequence others => (Uorc.Core.ReferenceSemantics::sequenceEqualLogical s others)
+      | Uorc.Core.ReferenceSemantics::Value.store otherm => (0 = 1))
+    | Uorc.Core.ReferenceSemantics::Value.store m => (match right
+      | Uorc.Core.ReferenceSemantics::Value.natural othern => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.byte otherb => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.predicate otherp => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.sequence others => (0 = 1)
+      | Uorc.Core.ReferenceSemantics::Value.store otherm => (forall (key : Nat), ((Uorc.Core.ReferenceSemantics::storeRead m key) = (Uorc.Core.ReferenceSemantics::storeRead otherm key))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: valueCorresponds,
+  parameters: [
+    sequenceFuel : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    value : Uorc.Core.RuntimeValue::RuntimeValue,
+    referenceValue : Uorc.Core.ReferenceSemantics::Value
+  ],
+  result: Prop,
+  body: (match (valueMeaning sequenceFuel arena value)
+    | Option.none => (0 = 1)
+    | Option.some meaning => (referenceValueEqual meaning referenceValue)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: slotsCorrespond,
+  parameters: [
+    sequenceFuel : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    slots : Uorc.Core.RuntimeTable::Table,
+    slotCount : UInt64,
+    referenceSlots : (List Uorc.Core.ReferenceSemantics::Value),
+    live : (Fn (UInt64) Bool)
+  ],
+  result: Prop,
+  body: (((prim length referenceSlots : Nat) = (Uorc.Core.Types::wordToNat slotCount)) /\ (forall (index : UInt64), (if (Uorc.Core.Heap::less index slotCount) then (if (apply live index) then (match (Uorc.Core.RuntimeProgram::slotAt arena slots index)
+    | Result.error failure => (0 = 1)
+    | Result.ok value => (match (prim index referenceSlots (Uorc.Core.Types::wordToNat index) : (Option Uorc.Core.ReferenceSemantics::Value))
+      | Option.none => (0 = 1)
+      | Option.some expected => (valueCorresponds sequenceFuel arena value expected))) else (0 = 0)) else (0 = 0)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: ownedPrefix,
+  parameters: [state : Uorc.Core.RuntimeMachineEngine::State],
+  result: Prop,
+  body: (((Uorc.Core.HeapAudit::auditRoots (project state arena) (Uorc.Core.RuntimeMachineEngine::ownedRoots state)) = true) /\ ((Uorc.Core.Heap::totalOwnedBytes (project state arena)) = (ctor Result.ok [UInt64, Uorc.Core.Heap::HeapError] (project (project state usage) ownedBytes)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: tickPrefix,
+  parameters: [ticks : Nat, state : Uorc.Core.RuntimeMachineEngine::State],
+  result: Uorc.Core.RuntimeMachineEngine::State,
+  body: (match ticks
+    | Nat.zero => state
+    | Nat.succ remaining => (tickPrefix remaining (Uorc.Core.RuntimeMachineEngine::tick state))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: ticks
+}
+
+definition{
+  name: reachableOwnershipGoal,
+  parameters: [
+    ready : Uorc.Core.RuntimeProgram::Ready,
+    budget : Uorc.Core.RuntimeResources::Budget,
+    ticks : Nat
+  ],
+  result: Prop,
+  body: ((ownedPrefix (Uorc.Core.RuntimeMachineEngine::start ready budget)) -> (ownedPrefix (tickPrefix ticks (Uorc.Core.RuntimeMachineEngine::start ready budget)))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+theorem{
+  name: natural_meaning_is_exact,
+  parameters: [fuel : Nat, arena : Uorc.Core.Heap::Arena, word : UInt64],
+  statement: ((valueMeaning fuel arena (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural word)) = (ctor Option.some [Uorc.Core.ReferenceSemantics::Value] (ctor Uorc.Core.ReferenceSemantics::Value.natural (Uorc.Core.Types::wordToNat word)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sameComputation,
+  parameters: [
+    left : Uorc.Core.RuntimeMachineEngine::State,
+    right : Uorc.Core.RuntimeMachineEngine::State
+  ],
+  result: Prop,
+  body: (((project left arena) = (project right arena)) /\ (((project left program) = (project right program)) /\ (((project left caller) = (project right caller)) /\ (((project left budget) = (project right budget)) /\ (((project left frames) = (project right frames)) /\ (((project left pending) = (project right pending)) /\ (((project left value) = (project right value)) /\ (((project left valueOwned) = (project right valueOwned)) /\ (((project left valueUnits) = (project right valueUnits)) /\ (((project left oldRoot) = (project right oldRoot)) /\ (((project left draining) = (project right draining)) /\ (((project left control) = (project right control)) /\ (((project left ownsReady) = (project right ownsReady)) /\ (((project left mode) = (project right mode)) /\ (((project left cancelStarted) = (project right cancelStarted)) /\ (((project left sequenceCleanup) = (project right sequenceCleanup)) /\ (((project left delta) = (project right delta)) /\ (((project left operationDelta) = (project right operationDelta)) /\ (((project left overflowEvent) = (project right overflowEvent)) /\ (0 = 0)))))))))))))))))))),
+  axioms: [],
+  executable: false
+}
+
+theorem{
+  name: preflight_preserves_computation,
+  parameters: [
+    state : Uorc.Core.RuntimeMachineEngine::State,
+    work : UInt64,
+    output : UInt64,
+    entered : UInt64,
+    exited : UInt64
+  ],
+  statement: (sameComputation (Uorc.Core.RuntimeMachineEngine::guard state work output entered exited) state),
+  proof: term_cases{
+    definitions: [Uorc.Core.RuntimeMachineEngine::guard, sameComputation],
+    scrutinee: (Uorc.Core.RuntimeMachine::preflight (project state budget) (project state usage) work output entered exited)
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: operationalCreditsSince,
+  parameters: [admissionBaseline : UInt64, state : Uorc.Core.RuntimeMachineEngine::State],
+  result: (Option UInt64),
+  body: (prim checked_subtract (project (project state usage) work) admissionBaseline : (Option UInt64)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: completedReferenceGoal,
+  parameters: [
+    sequenceFuel : Nat,
+    state : Uorc.Core.RuntimeMachineEngine::State,
+    graph : Uorc.Core.Graph::Graph,
+    basis : (List Uorc.Core.ReferenceSemantics::Sequence)
+  ],
+  result: Prop,
+  body: (match (project state disposition)
+    | Uorc.Core.RuntimeMachine::Disposition.completed output => (match (Uorc.Core.ReferenceSemantics::evaluateGraph graph basis)
+      | Result.error failure => (0 = 1)
+      | Result.ok expected => (((project state valueOwned) = true) /\ (valueCorresponds sequenceFuel (project state arena) (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence output) expected)))
+    | Uorc.Core.RuntimeMachine::Disposition.running => (0 = 0)
+    | Uorc.Core.RuntimeMachine::Disposition.suspended error => (0 = 0)
+    | Uorc.Core.RuntimeMachine::Disposition.failed failure => (0 = 0)
+    | Uorc.Core.RuntimeMachine::Disposition.cancelling => (0 = 0)
+    | Uorc.Core.RuntimeMachine::Disposition.cleaned => (0 = 0)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+theorem{
+  name: cancellation_preserves_owned_prefix,
+  parameters: [state : Uorc.Core.RuntimeMachineEngine::State],
+  statement: ((ownedPrefix (Uorc.Core.RuntimeMachineEngine::cancel state)) = (ownedPrefix state)),
+  proof: term_cases{
+    definitions: [
+      Uorc.Core.RuntimeMachineEngine::cancel,
+      Uorc.Core.RuntimeMachineEngine::ownedRoots,
+      Uorc.Core.RuntimeMachineEngine::pendingRoots,
+      ownedPrefix
+    ],
+    scrutinee: (project state disposition)
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cancellation_preserves_achieved_prefix,
+  parameters: [state : Uorc.Core.RuntimeMachineEngine::State],
+  statement: (((project (Uorc.Core.RuntimeMachineEngine::cancel state) arena) = (project state arena)) /\ (((project (Uorc.Core.RuntimeMachineEngine::cancel state) usage) = (project state usage)) /\ (((project (Uorc.Core.RuntimeMachineEngine::cancel state) delta) = (project state delta)) /\ (((project (Uorc.Core.RuntimeMachineEngine::cancel state) operationDelta) = (project state operationDelta)) /\ ((project (Uorc.Core.RuntimeMachineEngine::cancel state) overflowEvent) = (project state overflowEvent)))))),
+  proof: term_cases{
+    definitions: [Uorc.Core.RuntimeMachineEngine::cancel],
+    scrutinee: (project state disposition)
+  },
+  axioms: [propext]
+}
+
+inductive{
+  name: HandoffPhase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: completed, fields: []},
+    {name: detached, fields: []},
+    {name: cleaned, fields: []}
+  ]
+}
+
+definition{
+  name: quiescentHandoff,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    phase : HandoffPhase,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: Uorc.Core.RuntimeMachineEngine::State,
+  body: (record Uorc.Core.RuntimeMachineEngine::State {arena := (project base arena), program := (project base program), caller := (project base caller), budget := (project base budget), usage := (project base usage), disposition := (match phase
+    | HandoffPhase.completed => (ctor Uorc.Core.RuntimeMachine::Disposition.completed output)
+    | HandoffPhase.detached => (ctor Uorc.Core.RuntimeMachine::Disposition.completed (Uorc.Core.RuntimeValue::nullHandle))
+    | HandoffPhase.cleaned => (ctor Uorc.Core.RuntimeMachine::Disposition.cleaned)), frames := (nil Uorc.Core.RuntimeMachineEngine::FrameRecord), pending := (ctor Uorc.Core.RuntimeMachineEngine::Pending.none), value := (match phase
+    | HandoffPhase.completed => (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence output)
+    | HandoffPhase.detached => (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (0 : UInt64))
+    | HandoffPhase.cleaned => (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (0 : UInt64))), valueOwned := (match phase
+    | HandoffPhase.completed => true
+    | HandoffPhase.detached => false
+    | HandoffPhase.cleaned => false), valueUnits := (match phase
+    | HandoffPhase.completed => (project base valueUnits)
+    | HandoffPhase.detached => (0 : UInt64)
+    | HandoffPhase.cleaned => (0 : UInt64)), oldRoot := (Uorc.Core.RuntimeValue::nullHandle), draining := false, control := (match phase
+    | HandoffPhase.completed => (project base control)
+    | HandoffPhase.detached => (project base control)
+    | HandoffPhase.cleaned => (Uorc.Core.RuntimeValue::nullHandle)), ownsReady := true, mode := (match phase
+    | HandoffPhase.completed => (1 : UInt64)
+    | HandoffPhase.detached => (1 : UInt64)
+    | HandoffPhase.cleaned => (2 : UInt64)), cancelStarted := false, sequenceCleanup := (0 : UInt64), delta := (project base delta), operationDelta := (project base operationDelta), overflowEvent := (ctor Option.none [Uorc.Core.Heap::Delta])}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: ticketContribution,
+  parameters: [handle : Uorc.Core.RuntimeValue::Handle, target : Uorc.Core.RuntimeValue::Handle],
+  result: Nat,
+  body: (if (Uorc.Core.RuntimeValue::isNull handle) then 0 else (if (Uorc.Core.RuntimeValue::sameHandle handle target) then 1 else 0)),
+  axioms: [],
+  executable: false
+}
+
+theorem{
+  name: occurrences_cons,
+  parameters: [
+    head : Uorc.Core.RuntimeValue::Handle,
+    tail : (List Uorc.Core.RuntimeValue::Handle),
+    target : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.HeapAudit::occurrences (cons head tail) target) = ((if (Uorc.Core.RuntimeValue::sameHandle head target) then 1 else 0) + (Uorc.Core.HeapAudit::occurrences tail target))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: occurrences_if,
+  parameters: [
+    condition : Bool,
+    left : (List Uorc.Core.RuntimeValue::Handle),
+    right : (List Uorc.Core.RuntimeValue::Handle),
+    target : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.HeapAudit::occurrences (if condition then left else right) target) = (if condition then (Uorc.Core.HeapAudit::occurrences left target) else (Uorc.Core.HeapAudit::occurrences right target))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: condition
+  },
+  axioms: []
+}
+
+theorem{
+  name: optional_count,
+  parameters: [absent : Bool, matches : Bool, tail : Nat],
+  statement: ((if absent then tail else ((if matches then 1 else 0) + tail)) = ((if absent then 0 else (if matches then 1 else 0)) + tail)),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: linear_arithmetic{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: absent
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: occurrences_addRoot,
+  parameters: [
+    handle : Uorc.Core.RuntimeValue::Handle,
+    tail : (List Uorc.Core.RuntimeValue::Handle),
+    target : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.HeapAudit::occurrences (Uorc.Core.RuntimeMachineEngine::addRoot handle tail) target) = ((ticketContribution handle target) + (Uorc.Core.HeapAudit::occurrences tail target))),
+  proof: simplify{
+    definitions: [
+      occurrences_cons,
+      occurrences_if,
+      optional_count,
+      ticketContribution,
+      Uorc.Core.RuntimeMachineEngine::addRoot
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: swap_ticket_count,
+  parameters: [left : Nat, right : Nat, tail : Nat],
+  statement: ((left + (right + tail)) = (right + (left + tail))),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: completed_root_inventory,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::ownedRoots (quiescentHandoff base (ctor HandoffPhase.completed) output)) = (Uorc.Core.RuntimeMachineEngine::addRoot (project base control) (Uorc.Core.RuntimeMachineEngine::addRoot output (Uorc.Core.RuntimeProgram::rootInventory (project base program) (project base caller))))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: detached_root_inventory,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::ownedRoots (quiescentHandoff base (ctor HandoffPhase.detached) output)) = (Uorc.Core.RuntimeMachineEngine::addRoot (project base control) (Uorc.Core.RuntimeProgram::rootInventory (project base program) (project base caller)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: completed_output_move_is_exact,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::takeOutput (quiescentHandoff base (ctor HandoffPhase.completed) output)) = (ctor Result.ok [Uorc.Core.RuntimeMachineEngine::OutputTransfer, Uorc.Core.RuntimeMachine::Failure] (record Uorc.Core.RuntimeMachineEngine::OutputTransfer {state := (quiescentHandoff base (ctor HandoffPhase.detached) output), handle := output}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: detached_output_move_cannot_repeat,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::takeOutput (quiescentHandoff base (ctor HandoffPhase.detached) output)) = (ctor Result.error [Uorc.Core.RuntimeMachineEngine::OutputTransfer, Uorc.Core.RuntimeMachine::Failure] (ctor Uorc.Core.RuntimeMachine::Failure.invariant))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: output_move_preserves_ticket_multiplicity,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle,
+    target : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.HeapAudit::occurrences (Uorc.Core.RuntimeMachineEngine::ownedRoots (quiescentHandoff base (ctor HandoffPhase.completed) output)) target) = (Uorc.Core.HeapAudit::occurrences (Uorc.Core.RuntimeMachineEngine::addRoot output (Uorc.Core.RuntimeMachineEngine::ownedRoots (quiescentHandoff base (ctor HandoffPhase.detached) output))) target)),
+  proof: simplify{
+    definitions: [
+      completed_root_inventory,
+      detached_root_inventory,
+      occurrences_addRoot,
+      swap_ticket_count
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: output_move_preserves_value_interpretation,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle,
+    fuel : Nat
+  ],
+  statement: (match (Uorc.Core.RuntimeMachineEngine::takeOutput (quiescentHandoff base (ctor HandoffPhase.completed) output))
+    | Result.error failure => (0 = 1)
+    | Result.ok transfer => ((valueMeaning fuel (project (project transfer state) arena) (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence (project transfer handle))) = (valueMeaning fuel (project base arena) (ctor Uorc.Core.RuntimeValue::RuntimeValue.sequence output)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cleaned_ready_move_is_exact,
+  parameters: [
+    base : Uorc.Core.RuntimeMachineEngine::State,
+    output : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((Uorc.Core.RuntimeMachineEngine::takeReady (quiescentHandoff base (ctor HandoffPhase.cleaned) output)) = (ctor Result.ok [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeMachine::Failure] (record Uorc.Core.RuntimeProgram::Ready {arena := (project base arena), program := (project base program), caller := (project base caller), usage := (project base usage)}))),
+  proof: reflexivity{},
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

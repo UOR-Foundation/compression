@@ -1,0 +1,57 @@
+\begin{lexlean}{Uorc.Core.RuntimeFixtures}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: finishPut,
+  parameters: [fuel : Nat, transition : Uorc.Core.RuntimeTable::PutTransition],
+  result: (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError),
+  body: (match fuel
+    | Nat.zero => (match (project transition outcome)
+      | Uorc.Core.RuntimeTable::PutOutcome.complete table => (ctor Result.ok [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Allocation {arena := (project transition arena), handle := (project table root), delta := (project transition delta)}))
+      | Uorc.Core.RuntimeTable::PutOutcome.failed heapError => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] heapError)
+      | Uorc.Core.RuntimeTable::PutOutcome.cancelled => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure))
+      | Uorc.Core.RuntimeTable::PutOutcome.pending => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure)))
+    | Nat.succ rest => (match (project transition outcome)
+      | Uorc.Core.RuntimeTable::PutOutcome.complete table => (ctor Result.ok [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Allocation {arena := (project transition arena), handle := (project table root), delta := (project transition delta)}))
+      | Uorc.Core.RuntimeTable::PutOutcome.failed heapError => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] heapError)
+      | Uorc.Core.RuntimeTable::PutOutcome.cancelled => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure))
+      | Uorc.Core.RuntimeTable::PutOutcome.pending => (finishPut rest (Uorc.Core.RuntimeTable::step transition)))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: put,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    key : UInt64,
+    node : Uorc.Core.Heap::Node
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError),
+  body: (match node
+    | Uorc.Core.Heap::Node.image unused_image0 unused_image1 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Uorc.Core.Heap::Node.sequenceLeaf unused_sequenceLeaf0 unused_sequenceLeaf1 unused_sequenceLeaf2 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Uorc.Core.Heap::Node.sequenceBranch unused_sequenceBranch0 unused_sequenceBranch1 unused_sequenceBranch2 unused_sequenceBranch3 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Uorc.Core.Heap::Node.storeLeaf unused_storeLeaf0 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Uorc.Core.Heap::Node.storeBranch unused_storeBranch0 unused_storeBranch1 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Uorc.Core.Heap::Node.slot role value => (match (Uorc.Core.RuntimeTable::beginPut arena table key (ctor Uorc.Core.RuntimeTable::PutLeaf.slot role value))
+      | Result.error heapError => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] heapError)
+      | Result.ok transition => (finishPut 512 transition))
+    | Uorc.Core.Heap::Node.rootBranch unused_rootBranch0 unused_rootBranch1 unused_rootBranch2 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Uorc.Core.Heap::Node.metadataWord unused_metadataWord0 unused_metadataWord1 unused_metadataWord2 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Uorc.Core.Heap::Node.metadataLink kind tag target => (match (Uorc.Core.RuntimeTable::beginPut arena table key (ctor Uorc.Core.RuntimeTable::PutLeaf.metadata kind tag target))
+      | Result.error heapError => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] heapError)
+      | Result.ok transition => (finishPut 512 transition))
+    | Uorc.Core.Heap::Node.metadataBranch unused_metadataBranch0 unused_metadataBranch1 unused_metadataBranch2 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Uorc.Core.Heap::Node.ownerRoot unused_ownerRoot0 unused_ownerRoot1 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))
+    | Uorc.Core.Heap::Node.imageReservation unused_imageReservation0 unused_imageReservation1 => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

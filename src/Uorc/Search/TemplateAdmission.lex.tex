@@ -1,0 +1,651 @@
+\begin{lexlean}{Uorc.Search.TemplateAdmission}
+\importmodule{Uorc.Search.TemplateOwner}
+\importmodule{Uorc.Search.TemplateFunding}
+\importmodule{Uorc.Search.TemplateStream}
+\importmodule{Uorc.Core.RuntimeAdmissionCredit}
+\importmodule{Uorc.Core.RuntimeAdmissionCreditBoundary}
+\importmodule{Uorc.Core.RuntimeAdmissionBoundary}
+\importmodule{Uorc.Core.RuntimeAdmission}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: DetachedStage,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: stream, fields: []},
+    {name: joinSpan, fields: []},
+    {name: reattach, fields: []},
+    {name: acknowledge, fields: []},
+    {name: splitStart, fields: []}
+  ]
+}
+
+inductive{
+  name: ReadyStage,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: acknowledge, fields: []},
+    {name: finish, fields: []},
+    {name: admitted, fields: []}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: ownerNotReady, fields: []},
+    {name: resource, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: credit, fields: [Uorc.Core.RuntimeAdmissionCredit::Error]},
+    {name: admission, fields: [Uorc.Core.RuntimeAdmission::Error]},
+    {name: boundary, fields: [Uorc.Core.RuntimeAdmissionCreditBoundary::Error]},
+    {name: owner, fields: [Uorc.Core.RuntimeOwnerRoots::Error]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: producer, fields: [Uorc.Search.TemplateFunding::Error]},
+    {name: protocol, fields: []},
+    {name: counterExhausted, fields: []},
+    {name: invalidFunding, fields: []}
+  ]
+}
+
+structure{
+  name: Meta,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: source, type: Uorc.Search.TemplateFunding::Cursor},
+    {name: originalSearch, type: Uorc.Core.RuntimeValue::Handle},
+    {name: joinedOriginal, type: Bool},
+    {name: spanJoined, type: Bool},
+    {name: pendingEvent, type: (Option Uorc.Core.RuntimeProgram::Event)},
+    {name: admissionLedger, type: (Option Uorc.Core.RuntimeAdmissionCredit::Ledger)}
+  ]
+}
+
+structure{
+  name: Header,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: session, type: Uorc.Core.RuntimeAdmissionCreditBoundary::Detached},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: caller, type: Uorc.Core.RuntimeProgram::CallerRoots}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: admission, fields: [Uorc.Core.RuntimeAdmissionCredit::Cursor]},
+    {name: take, fields: [Uorc.Core.RuntimeAdmissionCredit::Cursor]},
+    {name: detached, fields: [Uorc.Core.RuntimeAdmissionCreditBoundary::Taken, DetachedStage]},
+    {name: returning, fields: [Uorc.Core.RuntimeAdmissionCreditBoundary::Returning]},
+    {name: splitting, fields: [Uorc.Core.RuntimeOwnerRoots::SplitCursor, Header]},
+    {name: ready, fields: [Uorc.Core.RuntimeProgram::Ready, ReadyStage]},
+    {name: admissionFailure, fields: [Uorc.Core.RuntimeAdmission::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: budget, type: Uorc.Core.RuntimeResources::Budget},
+    {name: meta, type: Meta},
+    {name: phase, type: Phase},
+    {name: paid, type: UInt64},
+    {name: controllerCredits, type: UInt64},
+    {name: controllerOperations, type: UInt64},
+    {name: failure, type: (Option Error)}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: admitted, fields: []},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Cursor},
+    {name: remainingCredits, type: UInt64},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    prepared : Uorc.Search.TemplateOwner::Cursor
+  ],
+  result: (Result Cursor Error),
+  body: (match (project prepared phase)
+    | Uorc.Search.TemplateOwner::Phase.ready => (match (project prepared failure)
+      | Option.some preparationFailure => (ctor Result.error [Cursor, Error] (ctor Error.ownerNotReady))
+      | Option.none => (ctor Result.ok [Cursor, Error] (record Cursor {budget := budget, meta := (record Meta {source := (Uorc.Search.TemplateFunding::start (project prepared source)), originalSearch := (project prepared originalSearch), joinedOriginal := (project prepared joinedOriginal), spanJoined := false, pendingEvent := (ctor Option.none [Uorc.Core.RuntimeProgram::Event]), admissionLedger := (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Ledger])}), phase := (ctor Phase.admission (Uorc.Core.RuntimeAdmissionCredit::start budget (project prepared arena) (project prepared basis) (project prepared caller) (project prepared usage))), paid := (0 : UInt64), controllerCredits := (0 : UInt64), controllerOperations := (0 : UInt64), failure := (ctor Option.none [Error])})))
+    | Uorc.Search.TemplateOwner::Phase.allocateControl => (ctor Result.error [Cursor, Error] (ctor Error.ownerNotReady))
+    | Uorc.Search.TemplateOwner::Phase.pinPayload => (ctor Result.error [Cursor, Error] (ctor Error.ownerNotReady))
+    | Uorc.Search.TemplateOwner::Phase.install => (ctor Result.error [Cursor, Error] (ctor Error.ownerNotReady)))
+}
+
+definition{
+  name: creditResult,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    funded : Uorc.Core.RuntimeAdmissionCredit::Funded
+  ],
+  result: Transition,
+  body: (let remaining : UInt64 := (project funded remainingCredits); (match (project funded event)
+    | Uorc.Core.RuntimeAdmissionCredit::Event.pending continued => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.admission continued), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := remaining, outcome := (ctor Outcome.pending)})
+    | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting acknowledged => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.take acknowledged), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := remaining, outcome := (ctor Outcome.pending)})
+    | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project (project cursor meta) source), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (ctor Option.some [Uorc.Core.RuntimeAdmissionCredit::Ledger] ledger)}), phase := (ctor Phase.ready ready (ctor ReadyStage.acknowledge)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := remaining, outcome := (ctor Outcome.pending)})
+    | Uorc.Core.RuntimeAdmissionCredit::Event.failed admissionFailure retained ledger => (let retainedCursor : Cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project (project cursor meta) source), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (ctor Option.some [Uorc.Core.RuntimeAdmissionCredit::Ledger] ledger)}), phase := (ctor Phase.admissionFailure retained), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}); (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project (project cursor meta) source), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (ctor Option.some [Uorc.Core.RuntimeAdmissionCredit::Ledger] ledger)}), phase := (ctor Phase.admissionFailure retained), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.admission admissionFailure))}), remainingCredits := remaining, outcome := (ctor Outcome.failed (ctor Error.admission admissionFailure))}))
+    | Uorc.Core.RuntimeAdmissionCredit::Event.rejected creditFailure retained => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.admission retained), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.credit creditFailure))}), remainingCredits := remaining, outcome := (ctor Outcome.failed (ctor Error.credit creditFailure))})))
+}
+
+definition{
+  name: takeResult,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    result : Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent
+  ],
+  result: Transition,
+  body: (match result
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent.taken taken => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.detached taken (if (project (project cursor meta) spanJoined) then (ctor DetachedStage.splitStart) else (match (project (project cursor meta) pendingEvent)
+      | Option.none => (ctor DetachedStage.stream)
+      | Option.some acknowledgedEvent => (ctor DetachedStage.acknowledge)))), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (ctor Outcome.pending)})
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent.failed boundaryFailure retained => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.take retained), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.boundary boundaryFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.boundary boundaryFailure))})
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent.retainedFailure boundaryFailure taken => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.detached taken (ctor DetachedStage.stream)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.boundary boundaryFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.boundary boundaryFailure))}))
+}
+
+definition{
+  name: restored,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    admission : Uorc.Core.RuntimeAdmissionCredit::Cursor
+  ],
+  result: Transition,
+  body: (match (project (project cursor meta) pendingEvent)
+    | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+    | Option.some eventToOffer => (match (Uorc.Core.RuntimeAdmissionCredit::offer admission eventToOffer)
+      | Result.error creditFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.admission admission), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.credit creditFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.credit creditFailure))})
+      | Result.ok armed => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.admission armed), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (ctor Outcome.pending)})))
+}
+
+definition{
+  name: returnResult,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    result : Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent
+  ],
+  result: Transition,
+  body: (match result
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.pending returning => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.returning returning), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (ctor Outcome.pending)})
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.restored restoredAdmission => (restored cursor available restoredAdmission)
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.failed boundaryFailure returning => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.returning returning), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.boundary boundaryFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.boundary boundaryFailure))}))
+}
+
+definition{
+  name: observeTaken,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    taken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken,
+    stage : DetachedStage,
+    nextMeta : Meta
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena (project cursor budget) (project taken usage) (project taken arena))
+    | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := nextMeta, phase := (ctor Phase.detached taken stage), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+    | Result.ok observedUsage => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := nextMeta, phase := (ctor Phase.detached (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project taken arena), usage := observedUsage, caller := (project taken caller), session := (project taken session)}) stage), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (ctor Outcome.pending)}))
+}
+
+definition{
+  name: joinSpan,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    taken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::charge (project cursor budget) (project taken usage) (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerJoin)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+    | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+    | Result.ok prepaidUsage => (let prepaidTaken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken := (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project taken arena), usage := prepaidUsage, caller := (project taken caller), session := (project taken session)}); (joinSpanPaid (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.detached prepaidTaken (ctor DetachedStage.joinSpan)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}) available prepaidTaken)))
+}
+
+definition{
+  name: joinSpanPaid,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    taken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeOwnerRoots::joinOwned (project taken arena) (ctor Uorc.Core.RuntimeOwnerRoots::Role.search) (project (project taken caller) search) (project (project (project (project cursor meta) source) source) spanTicket))
+    | Result.error heapFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
+    | Result.ok allocation => (let joinedTaken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken := (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project allocation arena), usage := (project taken usage), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project taken caller) input), archive := (project (project taken caller) archive), search := (project allocation handle), checkpoint := (project (project taken caller) checkpoint), certificate := (project (project taken caller) certificate), verification := (project (project taken caller) verification), wire := (project (project taken caller) wire)}), session := (project taken session)}); (observeTaken cursor available joinedTaken (ctor DetachedStage.reattach) (record Meta {source := (project (project cursor meta) source), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := true, pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}))))
+}
+
+definition{
+  name: splitStartPaid,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    taken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeOwnerRoots::startSplit (project taken arena) (ctor Uorc.Core.RuntimeOwnerRoots::Role.search) (project (project taken caller) search))
+    | Result.error ownerFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.owner ownerFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.owner ownerFailure))})
+    | Result.ok splitCursor => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.splitting splitCursor (record Header {session := (project taken session), usage := (project taken usage), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project taken caller) input), archive := (project (project taken caller) archive), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (project (project taken caller) checkpoint), certificate := (project (project taken caller) certificate), verification := (project (project taken caller) verification), wire := (project (project taken caller) wire)})})), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (ctor Outcome.pending)}))
+}
+
+definition{
+  name: splitStart,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    taken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::charge (project cursor budget) (project taken usage) (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerSplitStart)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+    | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+    | Result.ok prepaidUsage => (splitStartPaid (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.detached (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project taken arena), usage := prepaidUsage, caller := (project taken caller), session := (project taken session)}) (ctor DetachedStage.splitStart)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}) available (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project taken arena), usage := prepaidUsage, caller := (project taken caller), session := (project taken session)})))
+}
+
+definition{
+  name: splitPaid,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    splitCursor : Uorc.Core.RuntimeOwnerRoots::SplitCursor,
+    header : Header
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeOwnerRoots::splitStep splitCursor)
+    | Uorc.Core.RuntimeOwnerRoots::SplitEvent.advanced continued ownershipDelta => (observeSplit cursor available continued header)
+    | Uorc.Core.RuntimeOwnerRoots::SplitEvent.done arenaValue baseSearch spanTicket => (checkedSplitDone cursor available arenaValue baseSearch spanTicket header)
+    | Uorc.Core.RuntimeOwnerRoots::SplitEvent.failed ownerFailure retained => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.splitting retained header), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.owner ownerFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.owner ownerFailure))}))
+}
+
+definition{
+  name: split,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    splitCursor : Uorc.Core.RuntimeOwnerRoots::SplitCursor,
+    header : Header
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::charge (project cursor budget) (project header usage) (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerSplitStep)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+    | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+    | Result.ok prepaidUsage => (splitPaid (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.splitting splitCursor (record Header {session := (project header session), usage := prepaidUsage, caller := (project header caller)})), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}) available splitCursor (record Header {session := (project header session), usage := prepaidUsage, caller := (project header caller)})))
+}
+
+definition{
+  name: ackSource,
+  parameters: [source : Uorc.Search.TemplateFunding::Cursor],
+  result: (Result Uorc.Search.TemplateFunding::Cursor Uorc.Search.TemplateFunding::Error),
+  body: (match (project source request)
+    | Uorc.Search.TemplateFunding::Request.acknowledge => (ctor Result.ok [Uorc.Search.TemplateFunding::Cursor, Uorc.Search.TemplateFunding::Error] source)
+    | Uorc.Search.TemplateFunding::Request.advance => (Uorc.Search.TemplateFunding::select source (ctor Uorc.Search.TemplateFunding::Request.acknowledge))
+    | Uorc.Search.TemplateFunding::Request.cancel => (ctor Result.error [Uorc.Search.TemplateFunding::Cursor, Uorc.Search.TemplateFunding::Error] (ctor Uorc.Search.TemplateFunding::Error.busy)))
+}
+
+definition{
+  name: isWaiting,
+  parameters: [source : Uorc.Search.TemplateFunding::Cursor],
+  result: Bool,
+  body: (match (project (project source source) phase)
+    | Uorc.Search.TemplateStream::Phase.waiting => true
+    | Uorc.Search.TemplateStream::Phase.syntax => false
+    | Uorc.Search.TemplateStream::Phase.literalLength => false
+    | Uorc.Search.TemplateStream::Phase.spanBegin => false
+    | Uorc.Search.TemplateStream::Phase.spanWalking => false
+    | Uorc.Search.TemplateStream::Phase.spanRelease => false
+    | Uorc.Search.TemplateStream::Phase.spanDrain => false
+    | Uorc.Search.TemplateStream::Phase.complete => false
+    | Uorc.Search.TemplateStream::Phase.cancelling => false
+    | Uorc.Search.TemplateStream::Phase.cancelDrain => false
+    | Uorc.Search.TemplateStream::Phase.cancelled => false)
+}
+
+definition{
+  name: restoredSpanSource,
+  parameters: [
+    source : Uorc.Search.TemplateFunding::Cursor,
+    ticket : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: Uorc.Search.TemplateFunding::Cursor,
+  body: (record Uorc.Search.TemplateFunding::Cursor {source := (record Uorc.Search.TemplateStream::State {template := (project (project source source) template), phase := (project (project source source) phase), resume := (project (project source source) resume), literalRoot := (project (project source source) literalRoot), literalLength := (project (project source source) literalLength), offset := (project (project source source) offset), navigation := (project (project source source) navigation), spanTicket := ticket, offered := (project (project source source) offered), consumed := (project (project source source) consumed), acknowledgments := (project (project source source) acknowledgments)}), request := (project source request), paid := (project source paid), consumedCredits := (project source consumedCredits), attemptedOperations := (project source attemptedOperations), failure := (project source failure)})
+}
+
+definition{
+  name: observeSplit,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    splitCursor : Uorc.Core.RuntimeOwnerRoots::SplitCursor,
+    header : Header
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena (project cursor budget) (project header usage) (project splitCursor arena))
+    | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.splitting splitCursor header), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+    | Result.ok observedUsage => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (ctor Phase.splitting splitCursor (record Header {session := (project header session), usage := observedUsage, caller := (project header caller)})), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (ctor Outcome.pending)}))
+}
+
+definition{
+  name: checkedSplitDone,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    arenaValue : Uorc.Core.Heap::Arena,
+    baseSearch : Uorc.Core.RuntimeValue::Handle,
+    spanTicket : Uorc.Core.RuntimeValue::Handle,
+    header : Header
+  ],
+  result: Transition,
+  body: (let staged : Transition := (observeTaken cursor available (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := arenaValue, usage := (project header usage), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project header caller) input), archive := (project (project header caller) archive), search := baseSearch, checkpoint := (project (project header caller) checkpoint), certificate := (project (project header caller) certificate), verification := (project (project header caller) verification), wire := (project (project header caller) wire)}), session := (project header session)}) (ctor DetachedStage.acknowledge) (record Meta {source := (restoredSpanSource (project (project cursor meta) source) spanTicket), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := false, pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)})); (if (prim equal (project spanTicket id) (project (project (project (project (project cursor meta) source) source) spanTicket) id) : Bool) then staged else (record Transition {cursor := (record Cursor {budget := (project (project staged cursor) budget), meta := (project (project staged cursor) meta), phase := (project (project staged cursor) phase), paid := (project (project staged cursor) paid), controllerCredits := (project (project staged cursor) controllerCredits), controllerOperations := (project (project staged cursor) controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project staged remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})))
+}
+
+definition{
+  name: streamResult,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    taken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken,
+    result : Uorc.Search.TemplateFunding::Transition
+  ],
+  result: Transition,
+  body: (let nextTaken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken := (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project result arena), usage := (project result usage), caller := (project taken caller), session := (project taken session)}); (let nextMeta : Meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}); (match (project result outcome)
+    | Uorc.Search.TemplateFunding::Outcome.pending => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := nextMeta, phase := (ctor Phase.detached nextTaken (ctor DetachedStage.stream)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.pending)})
+    | Uorc.Search.TemplateFunding::Outcome.produced semanticEvent => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (ctor Option.some [Uorc.Core.RuntimeProgram::Event] semanticEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.detached nextTaken (match semanticEvent
+      | Uorc.Core.RuntimeProgram::Event.literalSpan image offset length => (ctor DetachedStage.joinSpan)
+      | Uorc.Core.RuntimeProgram::Event.beginBlock parameterCount => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.parameter parameterType => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.beginBody resultType instructionCount => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction opcode => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.scalar operand => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures lane captureCount => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.capture distance => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral literalLength => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.endBlock returnDistance => (ctor DetachedStage.reattach)
+      | Uorc.Core.RuntimeProgram::Event.seal entry => (ctor DetachedStage.reattach))), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.pending)})
+    | Uorc.Search.TemplateFunding::Outcome.failed producerFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := nextMeta, phase := (ctor Phase.detached nextTaken (ctor DetachedStage.stream)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.producer producerFailure))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.producer producerFailure))})
+    | Uorc.Search.TemplateFunding::Outcome.blocked => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := nextMeta, phase := (ctor Phase.detached nextTaken (ctor DetachedStage.stream)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+    | Uorc.Search.TemplateFunding::Outcome.complete => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := nextMeta, phase := (ctor Phase.detached nextTaken (ctor DetachedStage.stream)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+    | Uorc.Search.TemplateFunding::Outcome.cancelled => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := nextMeta, phase := (ctor Phase.detached nextTaken (ctor DetachedStage.stream)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))}))))
+}
+
+definition{
+  name: ackResult,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    taken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken,
+    result : Uorc.Search.TemplateFunding::Transition
+  ],
+  result: Transition,
+  body: (let nextTaken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken := (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project result arena), usage := (project result usage), caller := (project taken caller), session := (project taken session)}); (match (project result outcome)
+    | Uorc.Search.TemplateFunding::Outcome.pending => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (if (isWaiting (project result cursor)) then (project (project cursor meta) pendingEvent) else (ctor Option.none [Uorc.Core.RuntimeProgram::Event])), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.detached nextTaken (if (isWaiting (project result cursor)) then (ctor DetachedStage.acknowledge) else (ctor DetachedStage.stream))), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.pending)})
+    | Uorc.Search.TemplateFunding::Outcome.failed producerFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.detached nextTaken (ctor DetachedStage.acknowledge)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.producer producerFailure))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.producer producerFailure))})
+    | Uorc.Search.TemplateFunding::Outcome.blocked => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.detached nextTaken (ctor DetachedStage.acknowledge)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+    | Uorc.Search.TemplateFunding::Outcome.produced semanticEvent => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.detached nextTaken (ctor DetachedStage.acknowledge)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+    | Uorc.Search.TemplateFunding::Outcome.complete => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.detached nextTaken (ctor DetachedStage.acknowledge)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+    | Uorc.Search.TemplateFunding::Outcome.cancelled => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.detached nextTaken (ctor DetachedStage.acknowledge)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})))
+}
+
+definition{
+  name: acknowledge,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    taken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken
+  ],
+  result: Transition,
+  body: (match (ackSource (project (project cursor meta) source))
+    | Result.error producerFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.producer producerFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.producer producerFailure))})
+    | Result.ok armedSource => (ackResult cursor available taken (Uorc.Search.TemplateFunding::step (project cursor budget) (project taken arena) armedSource (project taken usage) available)))
+}
+
+definition{
+  name: detached,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    taken : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken,
+    stage : DetachedStage
+  ],
+  result: Transition,
+  body: (match stage
+    | DetachedStage.stream => (streamResult cursor available taken (Uorc.Search.TemplateFunding::step (project cursor budget) (project taken arena) (project (project cursor meta) source) (project taken usage) available))
+    | DetachedStage.joinSpan => (joinSpan cursor available taken)
+    | DetachedStage.reattach => (returnResult cursor available (Uorc.Core.RuntimeAdmissionCreditBoundary::reattach (project taken session) (ctor Uorc.Core.RuntimeAdmissionBoundary::ProducerRole.search) (project taken arena) (project taken usage) (project taken caller)))
+    | DetachedStage.acknowledge => (acknowledge cursor available taken)
+    | DetachedStage.splitStart => (splitStart cursor available taken))
+}
+
+definition{
+  name: readyResult,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    ready : Uorc.Core.RuntimeProgram::Ready,
+    stage : ReadyStage,
+    result : Uorc.Search.TemplateFunding::Transition
+  ],
+  result: Transition,
+  body: (let nextReady : Uorc.Core.RuntimeProgram::Ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project result arena), program := (project ready program), caller := (project ready caller), usage := (project result usage)}); (match (project result outcome)
+    | Uorc.Search.TemplateFunding::Outcome.pending => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (if (isWaiting (project result cursor)) then (project (project cursor meta) pendingEvent) else (ctor Option.none [Uorc.Core.RuntimeProgram::Event])), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.ready nextReady (if (isWaiting (project result cursor)) then (ctor ReadyStage.acknowledge) else (ctor ReadyStage.finish))), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.pending)})
+    | Uorc.Search.TemplateFunding::Outcome.complete => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (ctor Option.none [Uorc.Core.RuntimeProgram::Event]), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.ready nextReady (ctor ReadyStage.admitted)), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.admitted)})
+    | Uorc.Search.TemplateFunding::Outcome.failed producerFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.ready nextReady stage), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.producer producerFailure))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.producer producerFailure))})
+    | Uorc.Search.TemplateFunding::Outcome.blocked => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.ready nextReady stage), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+    | Uorc.Search.TemplateFunding::Outcome.produced semanticEvent => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.ready nextReady stage), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+    | Uorc.Search.TemplateFunding::Outcome.cancelled => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (record Meta {source := (project result cursor), originalSearch := (project (project cursor meta) originalSearch), joinedOriginal := (project (project cursor meta) joinedOriginal), spanJoined := (project (project cursor meta) spanJoined), pendingEvent := (project (project cursor meta) pendingEvent), admissionLedger := (project (project cursor meta) admissionLedger)}), phase := (ctor Phase.ready nextReady stage), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := (project result remainingCredits), outcome := (ctor Outcome.failed (ctor Error.protocol))})))
+}
+
+definition{
+  name: pendingIsSeal,
+  parameters: [pending : (Option Uorc.Core.RuntimeProgram::Event)],
+  result: Bool,
+  body: (match pending
+    | Option.none => false
+    | Option.some semanticEvent => (match semanticEvent
+      | Uorc.Core.RuntimeProgram::Event.seal entry => true
+      | Uorc.Core.RuntimeProgram::Event.beginBlock parameterCount => false
+      | Uorc.Core.RuntimeProgram::Event.parameter parameterType => false
+      | Uorc.Core.RuntimeProgram::Event.beginBody resultType instructionCount => false
+      | Uorc.Core.RuntimeProgram::Event.beginInstruction opcode => false
+      | Uorc.Core.RuntimeProgram::Event.scalar operand => false
+      | Uorc.Core.RuntimeProgram::Event.beginCaptures lane captureCount => false
+      | Uorc.Core.RuntimeProgram::Event.capture distance => false
+      | Uorc.Core.RuntimeProgram::Event.beginLiteral literalLength => false
+      | Uorc.Core.RuntimeProgram::Event.literalSpan image offset length => false
+      | Uorc.Core.RuntimeProgram::Event.endInstruction => false
+      | Uorc.Core.RuntimeProgram::Event.endBlock returnDistance => false))
+}
+
+definition{
+  name: readyStep,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    ready : Uorc.Core.RuntimeProgram::Ready,
+    stage : ReadyStage
+  ],
+  result: Transition,
+  body: (match stage
+    | ReadyStage.admitted => (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.admitted)})
+    | ReadyStage.finish => (readyResult cursor available ready stage (Uorc.Search.TemplateFunding::step (project cursor budget) (project ready arena) (project (project cursor meta) source) (project ready usage) available))
+    | ReadyStage.acknowledge => (if (pendingIsSeal (project (project cursor meta) pendingEvent)) then (match (ackSource (project (project cursor meta) source))
+      | Result.error producerFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.producer producerFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.producer producerFailure))})
+      | Result.ok armedSource => (readyResult cursor available ready stage (Uorc.Search.TemplateFunding::step (project cursor budget) (project ready arena) armedSource (project ready usage) available))) else (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})))
+}
+
+definition{
+  name: requiredControllerWork,
+  parameters: [cursor : Cursor],
+  result: UInt64,
+  body: (match (project cursor phase)
+    | Phase.take admission => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.boundaryTake))
+    | Phase.detached taken stage => (match stage
+      | DetachedStage.joinSpan => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerJoin))
+      | DetachedStage.reattach => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.boundaryReattach))
+      | DetachedStage.splitStart => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerSplitStart))
+      | DetachedStage.stream => (0 : UInt64)
+      | DetachedStage.acknowledge => (0 : UInt64))
+    | Phase.returning returning => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.boundaryReturn))
+    | Phase.splitting splitCursor header => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerSplitStep))
+    | Phase.admission admission => (0 : UInt64)
+    | Phase.ready ready stage => (0 : UInt64)
+    | Phase.admissionFailure failedAdmission => (0 : UInt64))
+}
+
+definition{
+  name: perform,
+  parameters: [cursor : Cursor, available : UInt64],
+  result: Transition,
+  body: (match (project cursor phase)
+    | Phase.admission admission => (creditResult cursor available (Uorc.Core.RuntimeAdmissionCredit::fund admission available))
+    | Phase.take admission => (takeResult cursor available (Uorc.Core.RuntimeAdmissionCreditBoundary::take admission (ctor Uorc.Core.RuntimeAdmissionBoundary::ProducerRole.search)))
+    | Phase.detached taken stage => (detached cursor available taken stage)
+    | Phase.returning returning => (returnResult cursor available (Uorc.Core.RuntimeAdmissionCreditBoundary::returnStep returning))
+    | Phase.splitting splitCursor header => (split cursor available splitCursor header)
+    | Phase.ready ready stage => (readyStep cursor available ready stage)
+    | Phase.admissionFailure failedAdmission => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))}))
+}
+
+definition{
+  name: fundController,
+  parameters: [cursor : Cursor, available : UInt64, fee : UInt64],
+  result: Transition,
+  body: (match (prim checked_subtract fee (project cursor paid) : (Option UInt64))
+    | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.invalidFunding))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.invalidFunding))})
+    | Option.some needed => (let taken : UInt64 := (if (Uorc.Core.Heap::less available needed) then available else needed); (match (prim checked_subtract available taken : (Option UInt64))
+      | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.invalidFunding))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.invalidFunding))})
+      | Option.some remaining => (match (prim checked_add (project cursor controllerCredits) taken : (Option UInt64))
+        | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+        | Option.some consumed => (match (prim checked_add (project cursor paid) taken : (Option UInt64))
+          | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (project cursor paid), controllerCredits := (project cursor controllerCredits), controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+          | Option.some newPaid => (if (prim equal newPaid fee : Bool) then (match (prim checked_add (project cursor controllerOperations) (1 : UInt64) : (Option UInt64))
+            | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := newPaid, controllerCredits := consumed, controllerOperations := (project cursor controllerOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := remaining, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+            | Option.some operations => (perform (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := (0 : UInt64), controllerCredits := consumed, controllerOperations := operations, failure := (project cursor failure)}) remaining)) else (record Transition {cursor := (record Cursor {budget := (project cursor budget), meta := (project cursor meta), phase := (project cursor phase), paid := newPaid, controllerCredits := consumed, controllerOperations := (project cursor controllerOperations), failure := (project cursor failure)}), remainingCredits := remaining, outcome := (ctor Outcome.pending)})))))))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor, available : UInt64],
+  result: Transition,
+  body: (match (project cursor failure)
+    | Option.some retainedFailure => (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.failed retainedFailure)})
+    | Option.none => (let fee : UInt64 := (requiredControllerWork cursor); (if (prim equal fee (0 : UInt64) : Bool) then (perform cursor available) else (if (prim equal available (0 : UInt64) : Bool) then (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.pending)}) else (fundController cursor available fee)))))
+}
+
+definition{
+  name: joinRoots,
+  parameters: [
+    first : (List Uorc.Core.RuntimeValue::Handle),
+    second : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match var{name: first}
+    | List.nil => var{name: second}
+    | List.cons head tail => (cons head (joinRoots tail var{name: second}))),
+  recursive_argument: first
+}
+
+definition{
+  name: rootInventory,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project cursor phase)
+    | Phase.admission admission => (Uorc.Core.RuntimeAdmissionCredit::rootInventory admission)
+    | Phase.take admission => (Uorc.Core.RuntimeAdmissionCredit::rootInventory admission)
+    | Phase.detached taken stage => (joinRoots (Uorc.Core.RuntimeAdmissionCreditBoundary::takenRootInventory taken) (if (project (project cursor meta) spanJoined) then (nil Uorc.Core.RuntimeValue::Handle) else (Uorc.Search.TemplateStream::navigationOwnedRoots (project (project (project cursor meta) source) source))))
+    | Phase.returning returning => (Uorc.Core.RuntimeAdmissionCreditBoundary::returnRootInventory returning)
+    | Phase.splitting splitCursor header => (joinRoots (Uorc.Core.RuntimeAdmissionCreditBoundary::detachedRootInventory (project header session) (project header caller)) (Uorc.Core.RuntimeOwnerRoots::splitRootInventory splitCursor))
+    | Phase.ready ready stage => (joinRoots (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller)) (if (project (project cursor meta) spanJoined) then (nil Uorc.Core.RuntimeValue::Handle) else (Uorc.Search.TemplateStream::navigationOwnedRoots (project (project (project cursor meta) source) source))))
+    | Phase.admissionFailure failedAdmission => (Uorc.Core.RuntimeAdmission::rootInventory failedAdmission))
+}
+
+definition{
+  name: arena,
+  parameters: [cursor : Cursor],
+  result: Uorc.Core.Heap::Arena,
+  body: (match (project cursor phase)
+    | Phase.admission admission => (Uorc.Core.RuntimeAdmissionCredit::arena admission)
+    | Phase.take admission => (Uorc.Core.RuntimeAdmissionCredit::arena admission)
+    | Phase.detached taken stage => (project taken arena)
+    | Phase.returning returning => (project (project (project returning boundary) taken) arena)
+    | Phase.splitting splitCursor header => (project splitCursor arena)
+    | Phase.ready ready stage => (project ready arena)
+    | Phase.admissionFailure failedAdmission => (project failedAdmission arena))
+}
+
+definition{
+  name: usage,
+  parameters: [cursor : Cursor],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (project cursor phase)
+    | Phase.admission admission => (project admission usage)
+    | Phase.take admission => (project admission usage)
+    | Phase.detached taken stage => (project taken usage)
+    | Phase.returning returning => (project (project (project returning boundary) taken) usage)
+    | Phase.splitting splitCursor header => (project header usage)
+    | Phase.ready ready stage => (project ready usage)
+    | Phase.admissionFailure failedAdmission => (project failedAdmission usage))
+}
+
+definition{
+  name: admitted,
+  parameters: [cursor : Cursor],
+  result: (Option Uorc.Core.RuntimeProgram::Ready),
+  body: (match (project cursor failure)
+    | Option.some retainedFailure => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+    | Option.none => (match (project cursor phase)
+      | Phase.ready ready stage => (match stage
+        | ReadyStage.admitted => (ctor Option.some [Uorc.Core.RuntimeProgram::Ready] ready)
+        | ReadyStage.acknowledge => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+        | ReadyStage.finish => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready]))
+      | Phase.admission admission => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+      | Phase.take admission => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+      | Phase.detached taken stage => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+      | Phase.returning returning => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+      | Phase.splitting splitCursor header => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+      | Phase.admissionFailure failedAdmission => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])))
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "A real owned fixed-template producer feeds RuntimeProgram events into the actual retained-credit admission machine. It moves the preparation arena into that machine, borrows it only through actual fully acknowledged Boundary.take, and carries one arena in each exclusive attached/detached/returning/splitting/ready phase. Terminal nonempty sequence spans carry owned image tickets; these move into a registered search-owner aggregate before reattach, remain live through all admission debt, then split into the original producer root plus actual image ticket before source acknowledgment/release. Admission readiness is accepted only after the producer seal event is fully admitted and the complete producer stream finishes. Controller boundary/owner fees, producer task fees and admission task fees remain separate retained ledgers; boundary calls already charge usage internally and are not charged twice. Every failure retains its owning carrier. An admitted token still carries the charged producer search aggregate; full cancellation, restoration/release of that aggregate, wire roundtrip reconstruction, runtime execution, canonical semantic-cost refinement and archive eligibility remain separate required product work. No Graph AST, foreign codec, full literal coalescing, digest-as-equality, or semantic input cap is introduced."
+}
+\end{semanticmodule}
+\end{lexlean}

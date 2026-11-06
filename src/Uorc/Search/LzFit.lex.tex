@@ -1,0 +1,189 @@
+\begin{lexlean}{Uorc.Search.LzFit}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Lifetime}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Search.LzProgram}
+\importmodule{Uorc.Core.Graph}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Policy,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: minimumMatch, type: Nat}]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: next, fields: []},
+    {name: key, fields: [Nat, UInt64, Uorc.Core.Bytes::Work]},
+    {name: lookup, fields: [UInt64, Nat]},
+    {name: insert, fields: [UInt64, Nat, Nat]},
+    {name: left, fields: [Nat, Nat, Nat, Uorc.Core.Bytes::Work]},
+    {name: right, fields: [Nat, Nat, Nat, UInt8, Uorc.Core.Bytes::Work]},
+    {name: slicingLiteral, fields: [Nat, Nat, Bool, Uorc.Core.Bytes::Work]},
+    {name: literal, fields: [Uorc.Search.LzProgram::Cursor, Nat, Nat, Bool]},
+    {name: reference, fields: [Uorc.Search.LzProgram::Cursor, Nat, Nat]},
+    {name: finishing, fields: [Uorc.Search.LzProgram::FinishCursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: target, type: Uorc.Core.Bytes::Rope},
+    {name: totalBytes, type: Nat},
+    {name: minimumMatch, type: Nat},
+    {name: position, type: Nat},
+    {name: literalStart, type: Nat},
+    {name: index, type: Uorc.Core.Lifetime::NatTrie},
+    {name: builder, type: Uorc.Search.LzProgram::Builder},
+    {name: phase, type: Phase},
+    {name: completedEvents, type: Nat},
+    {name: tableUnits, type: Nat},
+    {name: referenceBytes, type: Nat},
+    {name: literalBytes, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: zeroMinimum, fields: []},
+    {name: addressSpaceExhausted, fields: []},
+    {name: invalidState, fields: []},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: program, fields: [Uorc.Search.LzProgram::Error]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Nat, Nat, Nat, Nat]},
+    {name: rejected, fields: [Error, Nat]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [target : Uorc.Core.Bytes::Rope, policy : Policy],
+  result: Step,
+  body: (if ((project policy minimumMatch) =? 0) then (ctor Step.rejected (ctor Error.zeroMinimum) 0) else (match (Uorc.Search.Effort::checkedU64 (Uorc.Core.Bytes::length target))
+    | Result.error failure => (ctor Step.rejected (ctor Error.addressSpaceExhausted) 0)
+    | Result.ok targetCount => (ctor Step.pending (record Cursor {target := target, totalBytes := (Uorc.Core.Bytes::length target), minimumMatch := (project policy minimumMatch), position := 0, literalStart := 0, index := (ctor Uorc.Core.Lifetime::NatTrie.empty), builder := (Uorc.Search.LzProgram::empty), phase := (ctor Phase.next), completedEvents := 0, tableUnits := 0, referenceBytes := 0, literalBytes := 0}))))
+}
+
+definition{
+  name: defaultPolicy,
+  parameters: [],
+  result: Policy,
+  body: (record Policy {minimumMatch := 8})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.next => (if ((project cursor position) <? (project cursor totalBytes)) then (if (3 <=? (prim subtract (project cursor totalBytes) (project cursor position) : Nat)) then (match (Uorc.Core.Bytes::startIndex (project cursor target) (project cursor position))
+      | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))
+      | Result.ok keyWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.key 0 (0 : UInt64) keyWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))) else (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor totalBytes), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.next), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))) else (if ((project cursor position) =? (project cursor totalBytes)) then (if ((project cursor literalStart) <? (project cursor position)) then (match (Uorc.Core.Bytes::startSlice (project cursor target) (project cursor literalStart) (prim subtract (project cursor position) (project cursor literalStart) : Nat))
+      | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))
+      | Result.ok literalWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.slicingLiteral 0 0 true literalWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))) else (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.finishing (Uorc.Search.LzProgram::finish (project cursor builder))), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))) else (ctor Step.rejected (ctor Error.invalidState) ((project cursor completedEvents) + 1))))
+    | Phase.key digit keyValue keyWork => (match (Uorc.Core.Bytes::workStep keyWork)
+      | Uorc.Core.Bytes::WorkEvent.advanced nextWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.key digit keyValue nextWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))
+      | Uorc.Core.Bytes::WorkEvent.byteDone byte => (match (prim checked_multiply keyValue (256 : UInt64) : (Option UInt64))
+        | Option.none => (ctor Step.rejected (ctor Error.addressSpaceExhausted) ((project cursor completedEvents) + 1))
+        | Option.some shiftedKey => (match (prim checked_add shiftedKey (Uorc.Core.Types::byteToNatural byte) : (Option UInt64))
+          | Option.none => (ctor Step.rejected (ctor Error.addressSpaceExhausted) ((project cursor completedEvents) + 1))
+          | Option.some nextKey => (if (digit =? 2) then (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.lookup nextKey 128), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})) else (if (digit <? 2) then (match (Uorc.Core.Bytes::startIndex (project cursor target) ((project cursor position) + (digit + 1)))
+            | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))
+            | Result.ok nextKeyWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.key (digit + 1) nextKey nextKeyWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))) else (ctor Step.rejected (ctor Error.invalidState) ((project cursor completedEvents) + 1))))))
+      | Uorc.Core.Bytes::WorkEvent.sequenceDone unexpected => (ctor Step.rejected (ctor Error.invalidState) ((project cursor completedEvents) + 1))
+      | Uorc.Core.Bytes::WorkEvent.failed failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1)))
+    | Phase.lookup keyValue debt => (if (0 <? debt) then (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.lookup keyValue (prim subtract debt 1 : Nat)), completedEvents := ((project cursor completedEvents) + 1), tableUnits := ((project cursor tableUnits) + 1), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})) else (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.insert keyValue (Uorc.Core.Lifetime::natRead 24 (project cursor index) keyValue) 128), completedEvents := ((project cursor completedEvents) + 1), tableUnits := ((project cursor tableUnits) + 1), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})))
+    | Phase.insert keyValue found debt => (if (0 <? debt) then (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.insert keyValue found (prim subtract debt 1 : Nat)), completedEvents := ((project cursor completedEvents) + 1), tableUnits := ((project cursor tableUnits) + 1), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})) else (if ((project cursor position) <? 18446744073709551615) then (let indexedCursor : Cursor := (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (Uorc.Core.Lifetime::natWrite 24 (project cursor index) keyValue ((project cursor position) + 1)), builder := (project cursor builder), phase := (project cursor phase), completedEvents := (project cursor completedEvents), tableUnits := ((project cursor tableUnits) + 1), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}); (if (found =? 0) then (ctor Step.pending (record Cursor {target := (project indexedCursor target), totalBytes := (project indexedCursor totalBytes), minimumMatch := (project indexedCursor minimumMatch), position := ((project indexedCursor position) + 1), literalStart := (project indexedCursor literalStart), index := (project indexedCursor index), builder := (project indexedCursor builder), phase := (ctor Phase.next), completedEvents := ((project indexedCursor completedEvents) + 1), tableUnits := (project indexedCursor tableUnits), referenceBytes := (project indexedCursor referenceBytes), literalBytes := (project indexedCursor literalBytes)})) else (if ((prim subtract found 1 : Nat) <? (project indexedCursor position)) then (match (Uorc.Core.Bytes::startIndex (project indexedCursor target) (prim subtract found 1 : Nat))
+      | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project indexedCursor completedEvents) + 1))
+      | Result.ok leftWork => (ctor Step.pending (record Cursor {target := (project indexedCursor target), totalBytes := (project indexedCursor totalBytes), minimumMatch := (project indexedCursor minimumMatch), position := (project indexedCursor position), literalStart := (project indexedCursor literalStart), index := (project indexedCursor index), builder := (project indexedCursor builder), phase := (ctor Phase.left (prim subtract found 1 : Nat) (prim subtract (project indexedCursor totalBytes) (project indexedCursor position) : Nat) 0 leftWork), completedEvents := ((project indexedCursor completedEvents) + 1), tableUnits := (project indexedCursor tableUnits), referenceBytes := (project indexedCursor referenceBytes), literalBytes := (project indexedCursor literalBytes)}))) else (ctor Step.rejected (ctor Error.invalidState) ((project indexedCursor completedEvents) + 1))))) else (ctor Step.rejected (ctor Error.addressSpaceExhausted) ((project cursor completedEvents) + 1))))
+    | Phase.left prior limit matched leftWork => (if (matched <? limit) then (match (Uorc.Core.Bytes::workStep leftWork)
+      | Uorc.Core.Bytes::WorkEvent.advanced nextWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.left prior limit matched nextWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))
+      | Uorc.Core.Bytes::WorkEvent.byteDone byte => (match (Uorc.Core.Bytes::startIndex (project cursor target) ((project cursor position) + matched))
+        | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))
+        | Result.ok rightWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.right prior limit matched byte rightWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})))
+      | Uorc.Core.Bytes::WorkEvent.sequenceDone unexpected => (ctor Step.rejected (ctor Error.invalidState) ((project cursor completedEvents) + 1))
+      | Uorc.Core.Bytes::WorkEvent.failed failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))) else (if (((project cursor minimumMatch) <=? matched) && (0 <? matched)) then (if ((project cursor literalStart) <? (project cursor position)) then (match (Uorc.Core.Bytes::startSlice (project cursor target) (project cursor literalStart) (prim subtract (project cursor position) (project cursor literalStart) : Nat))
+      | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))
+      | Result.ok literalWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.slicingLiteral prior matched false literalWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))) else (match (Uorc.Search.LzProgram::beginReference (project cursor builder) prior matched)
+      | Result.error failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1))
+      | Result.ok referenceWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.reference referenceWork ((project cursor position) + matched) matched), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})))) else (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := ((project cursor position) + 1), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.next), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))))
+    | Phase.right prior limit matched leftByte rightWork => (match (Uorc.Core.Bytes::workStep rightWork)
+      | Uorc.Core.Bytes::WorkEvent.advanced nextWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.right prior limit matched leftByte nextWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))
+      | Uorc.Core.Bytes::WorkEvent.byteDone byte => (if (prim equal leftByte byte : Bool) then (if ((matched + 1) <? limit) then (match (Uorc.Core.Bytes::startIndex (project cursor target) (prior + (matched + 1)))
+        | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))
+        | Result.ok leftWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.left prior limit (matched + 1) leftWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))) else (if (((project cursor minimumMatch) <=? (matched + 1)) && (0 <? (matched + 1))) then (if ((project cursor literalStart) <? (project cursor position)) then (match (Uorc.Core.Bytes::startSlice (project cursor target) (project cursor literalStart) (prim subtract (project cursor position) (project cursor literalStart) : Nat))
+        | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))
+        | Result.ok literalWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.slicingLiteral prior (matched + 1) false literalWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))) else (match (Uorc.Search.LzProgram::beginReference (project cursor builder) prior (matched + 1))
+        | Result.error failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1))
+        | Result.ok referenceWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.reference referenceWork ((project cursor position) + (matched + 1)) (matched + 1)), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})))) else (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := ((project cursor position) + 1), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.next), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})))) else (if (((project cursor minimumMatch) <=? matched) && (0 <? matched)) then (if ((project cursor literalStart) <? (project cursor position)) then (match (Uorc.Core.Bytes::startSlice (project cursor target) (project cursor literalStart) (prim subtract (project cursor position) (project cursor literalStart) : Nat))
+        | Result.error failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1))
+        | Result.ok literalWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.slicingLiteral prior matched false literalWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))) else (match (Uorc.Search.LzProgram::beginReference (project cursor builder) prior matched)
+        | Result.error failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1))
+        | Result.ok referenceWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.reference referenceWork ((project cursor position) + matched) matched), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})))) else (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := ((project cursor position) + 1), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.next), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))))
+      | Uorc.Core.Bytes::WorkEvent.sequenceDone unexpected => (ctor Step.rejected (ctor Error.invalidState) ((project cursor completedEvents) + 1))
+      | Uorc.Core.Bytes::WorkEvent.failed failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1)))
+    | Phase.slicingLiteral prior matched ending literalWork => (match (Uorc.Core.Bytes::workStep literalWork)
+      | Uorc.Core.Bytes::WorkEvent.advanced nextWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.slicingLiteral prior matched ending nextWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))
+      | Uorc.Core.Bytes::WorkEvent.sequenceDone literalRoot => (match (Uorc.Search.LzProgram::beginLiteral (project cursor builder) literalRoot (prim subtract (project cursor position) (project cursor literalStart) : Nat))
+        | Result.error failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1))
+        | Result.ok programWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.literal programWork prior matched ending), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)})))
+      | Uorc.Core.Bytes::WorkEvent.byteDone unexpected => (ctor Step.rejected (ctor Error.invalidState) ((project cursor completedEvents) + 1))
+      | Uorc.Core.Bytes::WorkEvent.failed failure => (ctor Step.rejected (ctor Error.rope failure) ((project cursor completedEvents) + 1)))
+    | Phase.literal programWork prior matched ending => (match (Uorc.Search.LzProgram::step programWork)
+      | Uorc.Search.LzProgram::Step.pending nextWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.literal nextWork prior matched ending), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))
+      | Uorc.Search.LzProgram::Step.appended nextBuilder => (if ending then (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := nextBuilder, phase := (ctor Phase.finishing (Uorc.Search.LzProgram::finish nextBuilder)), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := ((project cursor literalBytes) + (prim subtract (project cursor position) (project cursor literalStart) : Nat))})) else (match (Uorc.Search.LzProgram::beginReference nextBuilder prior matched)
+        | Result.error failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1))
+        | Result.ok referenceWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := nextBuilder, phase := (ctor Phase.reference referenceWork ((project cursor position) + matched) matched), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := ((project cursor literalBytes) + (prim subtract (project cursor position) (project cursor literalStart) : Nat))}))))
+      | Uorc.Search.LzProgram::Step.rejected failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1)))
+    | Phase.reference programWork nextPosition matched => (match (Uorc.Search.LzProgram::step programWork)
+      | Uorc.Search.LzProgram::Step.pending nextWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.reference nextWork nextPosition matched), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))
+      | Uorc.Search.LzProgram::Step.appended nextBuilder => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := nextPosition, literalStart := nextPosition, index := (project cursor index), builder := nextBuilder, phase := (ctor Phase.next), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := ((project cursor referenceBytes) + matched), literalBytes := (project cursor literalBytes)}))
+      | Uorc.Search.LzProgram::Step.rejected failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1)))
+    | Phase.finishing finishWork => (match (Uorc.Search.LzProgram::finishStep finishWork)
+      | Uorc.Search.LzProgram::FinishStep.pending nextWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.finishing nextWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))
+      | Uorc.Search.LzProgram::FinishStep.proposal graph => (ctor Step.proposal graph ((project cursor completedEvents) + 1) (project cursor tableUnits) (project cursor literalBytes) (project cursor referenceBytes))
+      | Uorc.Search.LzProgram::FinishStep.rejected failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1))))
+}
+
+definition{
+  name: runWork,
+  parameters: [work : Nat, state : Step],
+  result: Step,
+  body: (match work
+    | Nat.zero => state
+    | Nat.succ remainingWork => (match state
+      | Step.pending cursor => (runWork remainingWork (step cursor))
+      | Step.proposal graph events tableUnits literalBytes referenceBytes => (ctor Step.proposal graph events tableUnits literalBytes referenceBytes)
+      | Step.rejected failure events => (ctor Step.rejected failure events))),
+  recursive_argument: work
+}
+
+definition{
+  name: admissionPrecondition,
+  parameters: [],
+  result: String,
+  body: "Search starts from the source-owned canonically normalized input snapshot. Native count/table exhaustion is operational, not mathematical input invalidity. Prefix depth24, minimum match and sparse insertion are search strategies, never decoder capabilities or universe restrictions. A proposed graph is not evidence until fresh full archive trial succeeds; production handle/heap qualification remains open."
+}
+\end{semanticmodule}
+\end{lexlean}

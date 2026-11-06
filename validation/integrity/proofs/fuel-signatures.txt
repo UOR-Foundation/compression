@@ -1,0 +1,109 @@
+<!-- uorc:non-authoritative -->
+Uorc.Uorc.Integrity.FuelLaws.valid_buffer_bound (state : Uorc.Uorc.Integrity.Sha256.State)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true) : state.buffer.size ≤ 63
+Uorc.Uorc.Integrity.FuelLaws.valid_work_bound (state : Uorc.Uorc.Integrity.Sha256.State) :
+  Uorc.Uorc.Integrity.FuelLaws.workRemaining state ≤ 65
+Uorc.Uorc.Integrity.FuelLaws.advance_work_exists (state : Uorc.Uorc.Integrity.Sha256.State)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true) (pending : Uorc.Uorc.Integrity.Sha256.hasWork state = true) :
+  ∃ after, Uorc.Uorc.Integrity.Sha256.advanceWork state = Except.ok after
+Uorc.Uorc.Integrity.FuelLaws.advance_work_remaining (before after : Uorc.Uorc.Integrity.Sha256.State)
+  (success : Uorc.Uorc.Integrity.Sha256.advanceWork before = Except.ok after) :
+  after.buffer = before.buffer ∧
+    Uorc.Uorc.Integrity.FuelLaws.workRemaining after + 1 = Uorc.Uorc.Integrity.FuelLaws.workRemaining before
+Uorc.Uorc.Integrity.FuelLaws.append_raw_resource_bound (state : Uorc.Uorc.Integrity.Sha256.State) (byte : UInt8)
+  (noWork : state.work = none) :
+  (Uorc.Uorc.Integrity.Sha256.appendRaw state byte).buffer.size +
+      Uorc.Uorc.Integrity.FuelLaws.workRemaining (Uorc.Uorc.Integrity.Sha256.appendRaw state byte) ≤
+    state.buffer.size + 2
+Uorc.Uorc.Integrity.FuelLaws.absorb_byte_resource_bound (before after : Uorc.Uorc.Integrity.Sha256.State) (byte : UInt8)
+  (success : Uorc.Uorc.Integrity.Sha256.absorbByte before byte = Except.ok after) :
+  after.buffer.size + Uorc.Uorc.Integrity.FuelLaws.workRemaining after ≤ before.buffer.size + 2
+Uorc.Uorc.Integrity.FuelLaws.absorb_byte_exists (state : Uorc.Uorc.Integrity.Sha256.State) (byte : UInt8)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true)
+  (phase : state.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing) (noWork : state.work = none)
+  (domain : state.count.toNat < 2305843009213693951) :
+  ∃ after, Uorc.Uorc.Integrity.Sha256.absorbByte state byte = Except.ok after
+Uorc.Uorc.Integrity.FuelLaws.update_step_exists (job : Uorc.Uorc.Integrity.Sha256.Update)
+  (jobValid : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job)
+  (domain : job.state.count.toNat + (job.input.size - job.offset) ≤ 2305843009213693951) :
+  ∃ event, Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok event
+Uorc.Uorc.Integrity.FuelLaws.update_step_potential_decreases (job next : Uorc.Uorc.Integrity.Sha256.Update)
+  (success :
+    Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok (Uorc.Uorc.Integrity.Sha256.UpdateEvent.advanced next)) :
+  Uorc.Uorc.Integrity.FuelLaws.updatePotential next < Uorc.Uorc.Integrity.FuelLaws.updatePotential job
+Uorc.Uorc.Integrity.FuelLaws.run_update_successor (fuel : Nat) (job : Uorc.Uorc.Integrity.Sha256.Update) :
+  Uorc.Uorc.Integrity.Sha256.runUpdate (fuel + 1) job =
+    Uorc.Uorc.Integrity.FuelLaws.run_update_successor.match_3
+      (fun x => Except Uorc.Uorc.Integrity.Sha256.Error Uorc.Uorc.Integrity.Sha256.State)
+      (Uorc.Uorc.Integrity.Sha256.updateStep job) (fun failure => Except.error failure) fun event =>
+      Uorc.Uorc.Integrity.FuelLaws.run_update_successor.match_1
+        (fun event => Except Uorc.Uorc.Integrity.Sha256.Error Uorc.Uorc.Integrity.Sha256.State) event
+        (fun next => Uorc.Uorc.Integrity.Sha256.runUpdate fuel next) fun out => Except.ok out
+Uorc.Uorc.Integrity.FuelLaws.run_update_sufficient (fuel : Nat) (job : Uorc.Uorc.Integrity.Sha256.Update)
+  (jobValid : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job)
+  (domain : job.state.count.toNat + (job.input.size - job.offset) ≤ 2305843009213693951)
+  (enough : Uorc.Uorc.Integrity.FuelLaws.updatePotential job ≤ fuel) :
+  ∃ out,
+    Uorc.Uorc.Integrity.Sha256.runUpdate fuel job = Except.ok out ∧
+      Uorc.Uorc.Integrity.Sha256.valid out = true ∧
+        out.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing ∧ out.work = none
+Uorc.Uorc.Integrity.FuelLaws.update_potential_budget (job : Uorc.Uorc.Integrity.Sha256.Update)
+  (good : Uorc.Uorc.Integrity.Sha256.valid job.state = true) :
+  Uorc.Uorc.Integrity.FuelLaws.updatePotential job ≤ 3 * job.input.size + 132
+Uorc.Uorc.Integrity.FuelLaws.update_succeeds_in_domain (state : Uorc.Uorc.Integrity.Sha256.State) (input : ByteArray)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true)
+  (phase : state.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing)
+  (domain : state.count.toNat + input.size ≤ 2305843009213693951) :
+  ∃ out,
+    Uorc.Uorc.Integrity.Sha256.update state input = Except.ok out ∧
+      Uorc.Uorc.Integrity.Sha256.valid out = true ∧
+        out.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing ∧ out.work = none
+Uorc.Uorc.Integrity.FuelLaws.valid_finishing_shape (state : Uorc.Uorc.Integrity.Sha256.State) (pending : ByteArray)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true)
+  (phase : state.phase = Uorc.Uorc.Integrity.Sha256.Phase.finishing pending) :
+  state.buffer.size ≤ 63 ∧ pending.size ≤ 72 ∧ (state.buffer.size + pending.size) % 64 = 0
+Uorc.Uorc.Integrity.FuelLaws.valid_pending_empty_buffer (state : Uorc.Uorc.Integrity.Sha256.State) (pending : ByteArray)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true)
+  (phase : state.phase = Uorc.Uorc.Integrity.Sha256.Phase.finishing pending) (empty : pending.size = 0) :
+  state.buffer.size = 0
+Uorc.Uorc.Integrity.FuelLaws.finalize_step_exists (state : Uorc.Uorc.Integrity.Sha256.State) (pending : ByteArray)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true)
+  (phase : state.phase = Uorc.Uorc.Integrity.Sha256.Phase.finishing pending) :
+  ∃ after, Uorc.Uorc.Integrity.Sha256.finalizeStep state = Except.ok after
+Uorc.Uorc.Integrity.FuelLaws.finalize_step_stays_finalizing (before after : Uorc.Uorc.Integrity.Sha256.State)
+  (pending : ByteArray) (phase : before.phase = Uorc.Uorc.Integrity.Sha256.Phase.finishing pending)
+  (success : Uorc.Uorc.Integrity.Sha256.finalizeStep before = Except.ok after) :
+  after.phase ≠ Uorc.Uorc.Integrity.Sha256.Phase.absorbing
+Uorc.Uorc.Integrity.FuelLaws.finalize_step_potential_decreases (before after : Uorc.Uorc.Integrity.Sha256.State)
+  (pending : ByteArray) (phase : before.phase = Uorc.Uorc.Integrity.Sha256.Phase.finishing pending)
+  (success : Uorc.Uorc.Integrity.Sha256.finalizeStep before = Except.ok after) :
+  Uorc.Uorc.Integrity.FuelLaws.finalizePotential after < Uorc.Uorc.Integrity.FuelLaws.finalizePotential before
+Uorc.Uorc.Integrity.FuelLaws.valid_resource_bound (state : Uorc.Uorc.Integrity.Sha256.State)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true) :
+  state.buffer.size + Uorc.Uorc.Integrity.FuelLaws.workRemaining state ≤ 65
+Uorc.Uorc.Integrity.FuelLaws.finalize_potential_budget (state : Uorc.Uorc.Integrity.Sha256.State)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true) : Uorc.Uorc.Integrity.FuelLaws.finalizePotential state ≤ 300
+Uorc.Uorc.Integrity.FuelLaws.run_finalize_successor (fuel : Nat) (state : Uorc.Uorc.Integrity.Sha256.State) :
+  Uorc.Uorc.Integrity.Sha256.runFinalize (fuel + 1) state =
+    Uorc.Uorc.Integrity.FuelLaws.run_finalize_successor.match_3
+      (fun x => Except Uorc.Uorc.Integrity.Sha256.Error ByteArray) state.phase
+      (fun _ => Except.error Uorc.Uorc.Integrity.Sha256.Error.notFinalized)
+      (fun x =>
+        Uorc.Uorc.Integrity.FuelLaws.run_finalize_successor.match_1
+          (fun x => Except Uorc.Uorc.Integrity.Sha256.Error ByteArray) (Uorc.Uorc.Integrity.Sha256.finalizeStep state)
+          (fun failure => Except.error failure) fun next => Uorc.Uorc.Integrity.Sha256.runFinalize fuel next)
+      fun _ =>
+      if Uorc.Uorc.Integrity.Sha256.valid state = true then
+        Except.ok (Uorc.Uorc.Integrity.Sha256.wordsBytes state.chain)
+      else Except.error Uorc.Uorc.Integrity.Sha256.Error.invalidState
+Uorc.Uorc.Integrity.FuelLaws.run_finalize_sufficient (fuel : Nat) (state : Uorc.Uorc.Integrity.Sha256.State)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true)
+  (started : state.phase ≠ Uorc.Uorc.Integrity.Sha256.Phase.absorbing)
+  (enough : Uorc.Uorc.Integrity.FuelLaws.finalizePotential state ≤ fuel) :
+  ∃ out, Uorc.Uorc.Integrity.Sha256.runFinalize fuel state = Except.ok out
+Uorc.Uorc.Integrity.FuelLaws.finalize_driver_succeeds (state : Uorc.Uorc.Integrity.Sha256.State)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true)
+  (started : state.phase ≠ Uorc.Uorc.Integrity.Sha256.Phase.absorbing) :
+  ∃ out, Uorc.Uorc.Integrity.Sha256.runFinalize 300 state = Except.ok out
+Uorc.Uorc.Integrity.FuelLaws.hash_succeeds_in_standard_domain (input : ByteArray)
+  (domain : input.size ≤ 2305843009213693951) : ∃ out, Uorc.Uorc.Integrity.Sha256.hash input = Except.ok out

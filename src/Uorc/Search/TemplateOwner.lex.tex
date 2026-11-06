@@ -1,0 +1,208 @@
+\begin{lexlean}{Uorc.Search.TemplateOwner}
+\importmodule{Uorc.Search.TemplateStream}
+\importmodule{Uorc.Search.FixedTemplates}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeResources}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: allocateControl, fields: []},
+    {name: pinPayload, fields: []},
+    {name: install, fields: []},
+    {name: ready, fields: []}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: resource, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: counterExhausted, fields: []},
+    {name: invalidFunding, fields: []}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: basis, type: Uorc.Core.RuntimeTable::Table},
+    {name: caller, type: Uorc.Core.RuntimeProgram::CallerRoots},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: source, type: Uorc.Search.TemplateStream::State},
+    {name: payloads, type: (List Uorc.Core.RuntimeValue::Handle)},
+    {name: owner, type: Uorc.Core.RuntimeValue::Handle},
+    {name: originalSearch, type: Uorc.Core.RuntimeValue::Handle},
+    {name: joinedOriginal, type: Bool},
+    {name: phase, type: Phase},
+    {name: paid, type: UInt64},
+    {name: consumedCredits, type: UInt64},
+    {name: attemptedOperations, type: UInt64},
+    {name: failure, type: (Option Error)}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: ready, fields: []},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Cursor},
+    {name: remainingCredits, type: UInt64},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    basis : Uorc.Core.RuntimeTable::Table,
+    caller : Uorc.Core.RuntimeProgram::CallerRoots,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    template : Uorc.Search.FixedTemplates::Template
+  ],
+  result: Cursor,
+  body: (record Cursor {arena := arena, basis := basis, caller := caller, usage := usage, source := (Uorc.Search.TemplateStream::start template), payloads := (Uorc.Search.FixedTemplates::ownedSequences template), owner := (Uorc.Core.RuntimeValue::nullHandle), originalSearch := (project caller search), joinedOriginal := false, phase := (ctor Phase.allocateControl), paid := (0 : UInt64), consumedCredits := (0 : UInt64), attemptedOperations := (0 : UInt64), failure := (ctor Option.none [Error])})
+}
+
+definition{
+  name: requiredWork,
+  parameters: [cursor : Cursor],
+  result: UInt64,
+  body: (match (project cursor phase)
+    | Phase.allocateControl => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))
+    | Phase.pinPayload => (match (project cursor payloads)
+      | List.nil => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control))
+      | List.cons payload remainingPayloads => (if (Uorc.Core.RuntimeValue::isNull payload) then (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control)) else (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerPin))))
+    | Phase.install => (if (Uorc.Core.RuntimeValue::isNull (project cursor originalSearch)) then (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control)) else (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerJoin)))
+    | Phase.ready => (0 : UInt64))
+}
+
+definition{
+  name: observe,
+  parameters: [budget : Uorc.Core.RuntimeResources::Budget, cursor : Cursor, available : UInt64],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena budget (project cursor usage) (project cursor arena))
+    | Result.error resourceFailure => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+    | Result.ok observedUsage => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := observedUsage, source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (match (project cursor phase)
+      | Phase.ready => (ctor Outcome.ready)
+      | Phase.allocateControl => (ctor Outcome.pending)
+      | Phase.pinPayload => (ctor Outcome.pending)
+      | Phase.install => (ctor Outcome.pending))}))
+}
+
+definition{
+  name: perform,
+  parameters: [budget : Uorc.Core.RuntimeResources::Budget, cursor : Cursor, available : UInt64],
+  result: Transition,
+  body: (match (project cursor phase)
+    | Phase.allocateControl => (match (Uorc.Core.RuntimeOwnerRoots::beginControl (project cursor arena))
+      | Result.error heapFailure => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
+      | Result.ok allocation => (observe budget (record Cursor {arena := (project allocation arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project allocation handle), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (ctor Phase.pinPayload), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) available))
+    | Phase.pinPayload => (match (project cursor payloads)
+      | List.nil => (observe budget (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (ctor Phase.install), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) available)
+      | List.cons payload remainingPayloads => (if (Uorc.Core.RuntimeValue::isNull payload) then (observe budget (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := remainingPayloads, owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) available) else (match (Uorc.Core.RuntimeOwnerRoots::pinBorrowed (project cursor arena) (ctor Uorc.Core.RuntimeOwnerRoots::Role.search) (project cursor owner) payload)
+        | Result.error heapFailure => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
+        | Result.ok allocation => (observe budget (record Cursor {arena := (project allocation arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := remainingPayloads, owner := (project allocation handle), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) available))))
+    | Phase.install => (if (Uorc.Core.RuntimeValue::isNull (project cursor originalSearch)) then (observe budget (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project cursor caller) input), archive := (project (project cursor caller) archive), search := (project cursor owner), checkpoint := (project (project cursor caller) checkpoint), certificate := (project (project cursor caller) certificate), verification := (project (project cursor caller) verification), wire := (project (project cursor caller) wire)}), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (Uorc.Core.RuntimeValue::nullHandle), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (ctor Phase.ready), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) available) else (match (Uorc.Core.RuntimeOwnerRoots::joinOwned (project cursor arena) (ctor Uorc.Core.RuntimeOwnerRoots::Role.search) (project cursor originalSearch) (project cursor owner))
+      | Result.error heapFailure => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
+      | Result.ok allocation => (observe budget (record Cursor {arena := (project allocation arena), basis := (project cursor basis), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project cursor caller) input), archive := (project (project cursor caller) archive), search := (project allocation handle), checkpoint := (project (project cursor caller) checkpoint), certificate := (project (project cursor caller) certificate), verification := (project (project cursor caller) verification), wire := (project (project cursor caller) wire)}), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (Uorc.Core.RuntimeValue::nullHandle), originalSearch := (project cursor originalSearch), joinedOriginal := true, phase := (ctor Phase.ready), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) available)))
+    | Phase.ready => (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.ready)}))
+}
+
+definition{
+  name: executePaid,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    cursor : Cursor,
+    available : UInt64,
+    fee : UInt64
+  ],
+  result: Transition,
+  body: (match (prim checked_add (project cursor attemptedOperations) (1 : UInt64) : (Option UInt64))
+    | Option.none => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+    | Option.some attempts => (match (Uorc.Core.RuntimeResources::charge budget (project cursor usage) (record Uorc.Core.RuntimeResources::Event {work := fee, emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error resourceFailure => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+      | Result.ok prepaidUsage => (perform budget (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := prepaidUsage, source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (0 : UInt64), consumedCredits := (project cursor consumedCredits), attemptedOperations := attempts, failure := (project cursor failure)}) available)))
+}
+
+definition{
+  name: fund,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    cursor : Cursor,
+    available : UInt64,
+    fee : UInt64
+  ],
+  result: Transition,
+  body: (match (prim checked_subtract fee (project cursor paid) : (Option UInt64))
+    | Option.none => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.invalidFunding))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.invalidFunding))})
+    | Option.some needed => (let taken : UInt64 := (if (Uorc.Core.Heap::less available needed) then available else needed); (match (prim checked_subtract available taken : (Option UInt64))
+      | Option.none => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.invalidFunding))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.invalidFunding))})
+      | Option.some remainingCredits => (match (prim checked_add (project cursor consumedCredits) taken : (Option UInt64))
+        | Option.none => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+        | Option.some consumed => (match (prim checked_add (project cursor paid) taken : (Option UInt64))
+          | Option.none => (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+          | Option.some newPaid => (if (prim equal newPaid fee : Bool) then (executePaid budget (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := newPaid, consumedCredits := consumed, attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) remainingCredits fee) else (record Transition {cursor := (record Cursor {arena := (project cursor arena), basis := (project cursor basis), caller := (project cursor caller), usage := (project cursor usage), source := (project cursor source), payloads := (project cursor payloads), owner := (project cursor owner), originalSearch := (project cursor originalSearch), joinedOriginal := (project cursor joinedOriginal), phase := (project cursor phase), paid := newPaid, consumedCredits := consumed, attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}), remainingCredits := remainingCredits, outcome := (ctor Outcome.pending)})))))))
+}
+
+definition{
+  name: step,
+  parameters: [budget : Uorc.Core.RuntimeResources::Budget, cursor : Cursor, available : UInt64],
+  result: Transition,
+  body: (match (project cursor failure)
+    | Option.some retainedFailure => (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.failed retainedFailure)})
+    | Option.none => (let fee : UInt64 := (requiredWork cursor); (if (prim equal fee (0 : UInt64) : Bool) then (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.ready)}) else (if (prim equal available (0 : UInt64) : Bool) then (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.pending)}) else (fund budget cursor available fee)))))
+}
+
+definition{
+  name: addRoot,
+  parameters: [
+    root : Uorc.Core.RuntimeValue::Handle,
+    roots : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull root) then roots else (cons root roots))
+}
+
+definition{
+  name: rootInventory,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (addRoot (project (project cursor basis) root) (addRoot (project cursor owner) (addRoot (project (project cursor caller) input) (addRoot (project (project cursor caller) archive) (addRoot (project (project cursor caller) search) (addRoot (project (project cursor caller) checkpoint) (addRoot (project (project cursor caller) certificate) (addRoot (project (project cursor caller) verification) (addRoot (project (project cursor caller) wire) (nil Uorc.Core.RuntimeValue::Handle))))))))))
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "Preparation allocates the shared 4096-byte fixed control reservation and pins each of the at-most-three fixed-template logical sequence dependencies through real arena metadata edges, one bounded pin per step. It never copies or coalesces literal payloads, never retains a Graph AST, and never treats the reservation as variable-data backing. The original search ticket is moved into the registered search-owner aggregate and its borrowed identifier is retained for later restoration; the caller search field carries the aggregate ticket. Actual shared RuntimeWork task fees are completely paid and RuntimeResources usage charged before owner calls, and the resulting arena is observed. Partial payment and all failure roots stay explicit. The initial basis/caller root inventory and any borrowed payload dependencies must be live in the supplied arena. Only phase ready can be moved into admission; the caller must eventually split/restore original search ownership and stepwise release the producer aggregate after full admission acknowledgment or cancellation. This preparation token itself is not an admitted program or archive incumbent."
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -1,0 +1,438 @@
+\begin{lexlean}{Uorc.Product.OwnedCompare}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Wire.OwnedRead}
+\title{Boolean}
+\begin{semanticmodule}
+inductive{
+  name: Side,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: left, fields: []}, {name: right, fields: []}]
+}
+
+structure{
+  name: Span,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: image, type: Uorc.Core.RuntimeValue::Handle},
+    {name: offset, type: UInt64},
+    {name: length, type: UInt64},
+    {name: used, type: UInt64}
+  ]
+}
+
+structure{
+  name: Reader,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Uorc.Wire.OwnedRead::Cursor},
+    {name: span, type: (Option Span)},
+    {name: ended, type: Bool}
+  ]
+}
+
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: read, fields: [Side, Uorc.Wire.OwnedRead::Failure]},
+    {name: byte, fields: [Side, Uorc.Core.RuntimeImage::ImageFailure]},
+    {name: counterExhausted, fields: []},
+    {name: invalidSpan, fields: []}
+  ]
+}
+
+inductive{
+  name: Disposition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: working, fields: []},
+    {name: equal, fields: []},
+    {name: different, fields: [UInt64]},
+    {name: lengthMismatch, fields: [UInt64, UInt64]},
+    {name: failed, fields: [Failure]},
+    {name: cancelled, fields: []}
+  ]
+}
+
+structure{
+  name: Load,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: reader, type: Reader}, {name: failure, type: (Option Failure)}]
+}
+
+definition{
+  name: freshReader,
+  parameters: [cursor : Uorc.Wire.OwnedRead::Cursor],
+  result: Reader,
+  body: (record Reader {cursor := cursor, span := (ctor Option.none [Span]), ended := false}),
+  axioms: []
+}
+
+definition{
+  name: load,
+  parameters: [arena : Uorc.Core.Heap::Arena, side : Side, reader : Reader],
+  result: Load,
+  body: (match (Uorc.Wire.OwnedRead::step arena (project reader cursor))
+    | Uorc.Wire.OwnedRead::Step.advanced next => (record Load {reader := (record Reader {cursor := next, span := (project reader span), ended := (project reader ended)}), failure := (ctor Option.none [Failure])})
+    | Uorc.Wire.OwnedRead::Step.borrowedSpan image offset length next => (if (prim equal length (0 : UInt64) : Bool) then (record Load {reader := reader, failure := (ctor Option.some [Failure] (ctor Failure.invalidSpan))}) else (record Load {reader := (record Reader {cursor := next, span := (ctor Option.some [Span] (record Span {image := image, offset := offset, length := length, used := (0 : UInt64)})), ended := (project reader ended)}), failure := (ctor Option.none [Failure])}))
+    | Uorc.Wire.OwnedRead::Step.complete => (record Load {reader := (record Reader {cursor := (project reader cursor), span := (project reader span), ended := true}), failure := (ctor Option.none [Failure])})
+    | Uorc.Wire.OwnedRead::Step.failed failure => (record Load {reader := reader, failure := (ctor Option.some [Failure] (ctor Failure.read side failure))})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: advanceSpan,
+  parameters: [reader : Reader, span : Span, used : UInt64],
+  result: Reader,
+  body: (record Reader {cursor := (project reader cursor), span := (if (prim equal used (project span length) : Bool) then (ctor Option.none [Span]) else (ctor Option.some [Span] (record Span {image := (project span image), offset := (project span offset), length := (project span length), used := used}))), ended := (project reader ended)}),
+  axioms: []
+}
+
+definition{
+  name: stepWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control)),
+  axioms: []
+}
+
+structure{
+  name: BytePlan,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: leftSpan, type: Span},
+    {name: rightSpan, type: Span},
+    {name: leftIndex, type: UInt64},
+    {name: rightIndex, type: UInt64},
+    {name: leftUsed, type: UInt64},
+    {name: rightUsed, type: UInt64},
+    {name: nextCompared, type: UInt64}
+  ]
+}
+
+structure{
+  name: PendingByte,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: plan, type: BytePlan}, {name: leftByte, type: UInt8}]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: left, type: Reader},
+    {name: right, type: Reader},
+    {name: compared, type: UInt64},
+    {name: result, type: Disposition},
+    {name: pending, type: (Option PendingByte)}
+  ]
+}
+
+inductive{
+  name: Tick,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [State, Uorc.Core.RuntimeResources::Usage]},
+    {
+      name: refused,
+      fields: [Uorc.Core.RuntimeResources::Error, State, Uorc.Core.RuntimeResources::Usage]
+    }
+  ]
+}
+
+definition{
+  name: loaded,
+  parameters: [s : State, side : Side, bindingLoaded : Load],
+  result: State,
+  body: (match (project bindingLoaded failure)
+    | Option.some failure => (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.failed failure), pending := (project s pending)})
+    | Option.none => (match side
+      | Side.left => (record State {left := (project bindingLoaded reader), right := (project s right), compared := (project s compared), result := (project s result), pending := (project s pending)})
+      | Side.right => (record State {left := (project s left), right := (project bindingLoaded reader), compared := (project s compared), result := (project s result), pending := (project s pending)}))),
+  axioms: []
+}
+
+definition{
+  name: cancel,
+  parameters: [s : State],
+  result: State,
+  body: (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.cancelled), pending := (ctor Option.none [PendingByte])}),
+  axioms: []
+}
+
+definition{
+  name: isEqual,
+  parameters: [s : State],
+  result: Bool,
+  body: (match (project s pending)
+    | Option.none => (match (project s result)
+      | Disposition.working => false
+      | Disposition.equal => true
+      | Disposition.different index => false
+      | Disposition.lengthMismatch left right => false
+      | Disposition.failed failure => false
+      | Disposition.cancelled => false)
+    | Option.some observation => false),
+  axioms: []
+}
+
+definition{
+  name: fromReaders,
+  parameters: [leftCursor : Uorc.Wire.OwnedRead::Cursor, rightCursor : Uorc.Wire.OwnedRead::Cursor],
+  result: State,
+  body: (record State {left := (freshReader leftCursor), right := (freshReader rightCursor), compared := (0 : UInt64), result := (if (prim equal (project leftCursor length) (project rightCursor length) : Bool) then (ctor Disposition.working) else (ctor Disposition.lengthMismatch (project leftCursor length) (project rightCursor length))), pending := (ctor Option.none [PendingByte])})
+}
+
+definition{
+  name: begin,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result State Failure),
+  body: (match (Uorc.Wire.OwnedRead::begin arena left)
+    | Result.error failure => (ctor Result.error [State, Failure] (ctor Failure.read (ctor Side.left) failure))
+    | Result.ok leftReader => (match (Uorc.Wire.OwnedRead::begin arena right)
+      | Result.error failure => (ctor Result.error [State, Failure] (ctor Failure.read (ctor Side.right) failure))
+      | Result.ok rightReader => (ctor Result.ok [State, Failure] (fromReaders leftReader rightReader)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: prepareByte,
+  parameters: [s : State, leftSpan : Span, rightSpan : Span],
+  result: (Result BytePlan Failure),
+  body: (match (prim checked_add (project leftSpan offset) (project leftSpan used) : (Option UInt64))
+    | Option.none => (ctor Result.error [BytePlan, Failure] (ctor Failure.counterExhausted))
+    | Option.some leftIndex => (match (prim checked_add (project rightSpan offset) (project rightSpan used) : (Option UInt64))
+      | Option.none => (ctor Result.error [BytePlan, Failure] (ctor Failure.counterExhausted))
+      | Option.some rightIndex => (match (prim checked_add (project leftSpan used) (1 : UInt64) : (Option UInt64))
+        | Option.none => (ctor Result.error [BytePlan, Failure] (ctor Failure.counterExhausted))
+        | Option.some leftUsed => (match (prim checked_add (project rightSpan used) (1 : UInt64) : (Option UInt64))
+          | Option.none => (ctor Result.error [BytePlan, Failure] (ctor Failure.counterExhausted))
+          | Option.some rightUsed => (match (prim checked_add (project s compared) (1 : UInt64) : (Option UInt64))
+            | Option.none => (ctor Result.error [BytePlan, Failure] (ctor Failure.counterExhausted))
+            | Option.some compared => (ctor Result.ok [BytePlan, Failure] (record BytePlan {leftSpan := leftSpan, rightSpan := rightSpan, leftIndex := leftIndex, rightIndex := rightIndex, leftUsed := leftUsed, rightUsed := rightUsed, nextCompared := compared}))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: completeByte,
+  parameters: [s : State, observation : PendingByte, rightByte : UInt8],
+  result: State,
+  body: (if (prim equal (project observation leftByte) rightByte : Bool) then (record State {left := (advanceSpan (project s left) (project (project observation plan) leftSpan) (project (project observation plan) leftUsed)), right := (advanceSpan (project s right) (project (project observation plan) rightSpan) (project (project observation plan) rightUsed)), compared := (project (project observation plan) nextCompared), result := (project s result), pending := (ctor Option.none [PendingByte])}) else (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.different (project s compared)), pending := (ctor Option.none [PendingByte])}))
+}
+
+definition{
+  name: finishByte,
+  parameters: [arena : Uorc.Core.Heap::Arena, s : State, observation : PendingByte],
+  result: State,
+  body: (match (Uorc.Core.RuntimeImage::readByte arena (project (project (project observation plan) rightSpan) image) (project (project observation plan) rightIndex))
+    | Result.error failure => (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.failed (ctor Failure.byte (ctor Side.right) failure)), pending := (ctor Option.none [PendingByte])})
+    | Result.ok rightByte => (completeByte s observation rightByte)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: compareByte,
+  parameters: [arena : Uorc.Core.Heap::Arena, s : State, leftSpan : Span, rightSpan : Span],
+  result: State,
+  body: (match (prepareByte s leftSpan rightSpan)
+    | Result.error failure => (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.failed failure), pending := (ctor Option.none [PendingByte])})
+    | Result.ok plan => (match (Uorc.Core.RuntimeImage::readByte arena (project (project plan leftSpan) image) (project plan leftIndex))
+      | Result.error failure => (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.failed (ctor Failure.byte (ctor Side.left) failure)), pending := (ctor Option.none [PendingByte])})
+      | Result.ok leftByte => (finishByte arena s (record PendingByte {plan := plan, leftByte := leftByte})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: step,
+  parameters: [arena : Uorc.Core.Heap::Arena, s : State],
+  result: State,
+  body: (match (project s result)
+    | Disposition.working => (match (project s pending)
+      | Option.none => (match (project (project s left) span)
+        | Option.none => (if (project (project s left) ended) then (match (project (project s right) span)
+          | Option.some rightSpan => (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.lengthMismatch (project (project (project s left) cursor) length) (project (project (project s right) cursor) length)), pending := (project s pending)})
+          | Option.none => (if (project (project s right) ended) then (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.equal), pending := (project s pending)}) else (loaded s (ctor Side.right) (load arena (ctor Side.right) (project s right))))) else (loaded s (ctor Side.left) (load arena (ctor Side.left) (project s left))))
+        | Option.some leftSpan => (match (project (project s right) span)
+          | Option.none => (if (project (project s right) ended) then (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.lengthMismatch (project (project (project s left) cursor) length) (project (project (project s right) cursor) length)), pending := (project s pending)}) else (loaded s (ctor Side.right) (load arena (ctor Side.right) (project s right))))
+          | Option.some rightSpan => (compareByte arena s leftSpan rightSpan)))
+      | Option.some observation => (finishByte arena s observation))
+    | Disposition.equal => s
+    | Disposition.different index => s
+    | Disposition.lengthMismatch left right => s
+    | Disposition.failed failure => s
+    | Disposition.cancelled => s),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cancelled_step_stays_cancelled,
+  parameters: [arena : Uorc.Core.Heap::Arena, s : State],
+  statement: ((project (step arena (cancel s)) result) = (ctor Disposition.cancelled)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: paidReadRight,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    arena : Uorc.Core.Heap::Arena,
+    s : State,
+    observation : PendingByte
+  ],
+  result: Tick,
+  body: (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeImage::readByteCost arena (project (project (project observation plan) rightSpan) image) (project (project observation plan) rightIndex)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+    | Result.error resourceFailure => (ctor Tick.refused resourceFailure s usage)
+    | Result.ok rightUsage => (match (Uorc.Core.RuntimeImage::readByte arena (project (project (project observation plan) rightSpan) image) (project (project observation plan) rightIndex))
+      | Result.error failure => (ctor Tick.advanced (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.failed (ctor Failure.byte (ctor Side.right) failure)), pending := (ctor Option.none [PendingByte])}) rightUsage)
+      | Result.ok rightByte => (ctor Tick.advanced (completeByte s observation rightByte) rightUsage))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: paidReadLeft,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    arena : Uorc.Core.Heap::Arena,
+    s : State,
+    plan : BytePlan
+  ],
+  result: Tick,
+  body: (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeImage::readByteCost arena (project (project plan leftSpan) image) (project plan leftIndex)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+    | Result.error resourceFailure => (ctor Tick.refused resourceFailure s usage)
+    | Result.ok leftUsage => (match (Uorc.Core.RuntimeImage::readByte arena (project (project plan leftSpan) image) (project plan leftIndex))
+      | Result.error failure => (ctor Tick.advanced (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.failed (ctor Failure.byte (ctor Side.left) failure)), pending := (ctor Option.none [PendingByte])}) leftUsage)
+      | Result.ok leftByte => (paidReadRight budget leftUsage arena (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (project s result), pending := (ctor Option.some [PendingByte] (record PendingByte {plan := plan, leftByte := leftByte}))}) (record PendingByte {plan := plan, leftByte := leftByte})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: paidCompareByte,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    arena : Uorc.Core.Heap::Arena,
+    s : State,
+    leftSpan : Span,
+    rightSpan : Span
+  ],
+  result: Tick,
+  body: (match (prepareByte s leftSpan rightSpan)
+    | Result.error failure => (ctor Tick.advanced (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.failed failure), pending := (ctor Option.none [PendingByte])}) usage)
+    | Result.ok plan => (paidReadLeft budget usage arena s plan)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: paidStep,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    arena : Uorc.Core.Heap::Arena,
+    s : State
+  ],
+  result: Tick,
+  body: (match (project (project s left) span)
+    | Option.none => (if (project (project s left) ended) then (match (project (project s right) span)
+      | Option.some rightSpan => (ctor Tick.advanced (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.lengthMismatch (project (project (project s left) cursor) length) (project (project (project s right) cursor) length)), pending := (project s pending)}) usage)
+      | Option.none => (if (project (project s right) ended) then (ctor Tick.advanced (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.equal), pending := (project s pending)}) usage) else (ctor Tick.advanced (loaded s (ctor Side.right) (load arena (ctor Side.right) (project s right))) usage))) else (ctor Tick.advanced (loaded s (ctor Side.left) (load arena (ctor Side.left) (project s left))) usage))
+    | Option.some leftSpan => (match (project (project s right) span)
+      | Option.none => (if (project (project s right) ended) then (ctor Tick.advanced (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (ctor Disposition.lengthMismatch (project (project (project s left) cursor) length) (project (project (project s right) cursor) length)), pending := (project s pending)}) usage) else (ctor Tick.advanced (loaded s (ctor Side.right) (load arena (ctor Side.right) (project s right))) usage))
+      | Option.some rightSpan => (paidCompareByte budget usage arena s leftSpan rightSpan))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cancel_clears_pending_observation,
+  parameters: [s : State],
+  statement: ((project (cancel s) pending) = (ctor Option.none [PendingByte])),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: pending_observation_never_equal,
+  parameters: [s : State, observation : PendingByte],
+  statement: ((isEqual (record State {left := (project s left), right := (project s right), compared := (project s compared), result := (project s result), pending := (ctor Option.some [PendingByte] observation)})) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: traversalWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceStep))
+}
+
+definition{
+  name: tickWork,
+  parameters: [s : State],
+  result: UInt64,
+  body: (match (project (project s left) span)
+    | Option.none => (if (project (project s left) ended) then (match (project (project s right) span)
+      | Option.some rightSpan => (stepWork)
+      | Option.none => (if (project (project s right) ended) then (stepWork) else (traversalWork))) else (traversalWork))
+    | Option.some leftSpan => (match (project (project s right) span)
+      | Option.some rightSpan => (stepWork)
+      | Option.none => (if (project (project s right) ended) then (stepWork) else (traversalWork))))
+}
+
+definition{
+  name: tick,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    arena : Uorc.Core.Heap::Arena,
+    s : State
+  ],
+  result: Tick,
+  body: (match (project s result)
+    | Disposition.working => (match (project s pending)
+      | Option.none => (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (tickWork s), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error failure => (ctor Tick.refused failure s usage)
+        | Result.ok paidUsage => (paidStep budget paidUsage arena s))
+      | Option.some observation => (paidReadRight budget usage arena s observation))
+    | Disposition.equal => (ctor Tick.advanced s usage)
+    | Disposition.different index => (ctor Tick.advanced s usage)
+    | Disposition.lengthMismatch left right => (ctor Tick.advanced s usage)
+    | Disposition.failed failure => (ctor Tick.advanced s usage)
+    | Disposition.cancelled => (ctor Tick.advanced s usage)),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cancelled_tick_preserves_usage,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    arena : Uorc.Core.Heap::Arena,
+    s : State
+  ],
+  statement: ((tick budget usage arena (cancel s)) = (ctor Tick.advanced (cancel s) usage)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

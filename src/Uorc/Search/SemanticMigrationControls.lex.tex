@@ -1,0 +1,93 @@
+\begin{lexlean}{Uorc.Search.SemanticMigrationControls}
+\importmodule{Uorc.Search.SemanticScope}
+\importmodule{Uorc.Search.SemanticCheckpoint}
+\importmodule{Uorc.Search.SemanticScopeControls}
+\importmodule{Uorc.Search.Checkpoint}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: withSchema,
+  parameters: [seal : Uorc.Search.SemanticScope::Seal, schema : Uorc.Search.SemanticScope::Schema],
+  result: Uorc.Search.SemanticScope::Seal,
+  body: (record Uorc.Search.SemanticScope::Seal {schema := schema, query := (project seal query), costProfile := (project seal costProfile), wireProfile := (project seal wireProfile), machineSource := (project seal machineSource), basisSemantics := (project seal basisSemantics), outputSemantics := (project seal outputSemantics), objectiveSemantics := (project seal objectiveSemantics)})
+}
+
+definition{
+  name: withProfile,
+  parameters: [
+    seal : Uorc.Search.SemanticScope::Seal,
+    profile : Uorc.Core.CanonicalCost::ProfileId
+  ],
+  result: Uorc.Search.SemanticScope::Seal,
+  body: (record Uorc.Search.SemanticScope::Seal {schema := (project seal schema), query := (project seal query), costProfile := profile, wireProfile := (project seal wireProfile), machineSource := (project seal machineSource), basisSemantics := (project seal basisSemantics), outputSemantics := (project seal outputSemantics), objectiveSemantics := (project seal objectiveSemantics)})
+}
+
+definition{
+  name: withStorage,
+  parameters: [
+    seal : Uorc.Search.SemanticScope::Seal,
+    storage : Uorc.Core.CanonicalCost::StorageScope
+  ],
+  result: Uorc.Search.SemanticScope::Seal,
+  body: (record Uorc.Search.SemanticScope::Seal {schema := (project seal schema), query := (record Uorc.Search.SemanticScope::Query {archiveFormat := (project (project seal query) archiveFormat), machineProfile := (project (project seal query) machineProfile), scope := (project (project seal query) scope), objectLengths := (project (project seal query) objectLengths), target := (project (project seal query) target), basis := (project (project seal query) basis), membership := (record Uorc.Core.CanonicalCost::Budget {maxSemanticWork := (project (project (project seal query) membership) maxSemanticWork), storage := storage}), objective := (project (project seal query) objective)}), costProfile := (project seal costProfile), wireProfile := (project seal wireProfile), machineSource := (project seal machineSource), basisSemantics := (project seal basisSemantics), outputSemantics := (project seal outputSemantics), objectiveSemantics := (project seal objectiveSemantics)})
+}
+
+theorem{
+  name: obsolete_canonical_scope_schema_is_legacy,
+  parameters: [],
+  statement: ((Uorc.Search.SemanticScope::step (Uorc.Search.SemanticScope::start (withSchema (Uorc.Search.SemanticScopeControls::fixtureSeal) (ctor Uorc.Search.SemanticScope::Schema.canonicalSemanticScope1)) (Uorc.Search.SemanticScopeControls::fixtureSeal))) = (ctor Uorc.Search.SemanticScope::Step.legacyInterpretationRequired)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: obsolete_profile_cannot_match_itself_as_current,
+  parameters: [],
+  statement: ((Uorc.Search.SemanticScope::step (Uorc.Search.SemanticScope::start (withProfile (Uorc.Search.SemanticScopeControls::fixtureSeal) (ctor Uorc.Core.CanonicalCost::ProfileId.canonicalReferenceWork1)) (withProfile (Uorc.Search.SemanticScopeControls::fixtureSeal) (ctor Uorc.Core.CanonicalCost::ProfileId.canonicalReferenceWork1)))) = (ctor Uorc.Search.SemanticScope::Step.invalidScope)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: obsolete_byte_label_cannot_be_retyped_as_units,
+  parameters: [],
+  statement: ((Uorc.Search.SemanticScope::step (Uorc.Search.SemanticScope::start (withStorage (Uorc.Search.SemanticScopeControls::fixtureSeal) (ctor Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadBytes 99)) (withStorage (Uorc.Search.SemanticScopeControls::fixtureSeal) (ctor Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadBytes 99)))) = (ctor Uorc.Search.SemanticScope::Step.invalidScope)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: obsolete_profile_cannot_compare_as_current,
+  parameters: [],
+  statement: ((Uorc.Search.SemanticScope::step (Uorc.Search.SemanticScope::start (withProfile (Uorc.Search.SemanticScopeControls::fixtureSeal) (ctor Uorc.Core.CanonicalCost::ProfileId.canonicalReferenceWork1)) (Uorc.Search.SemanticScopeControls::fixtureSeal))) = (ctor Uorc.Search.SemanticScope::Step.invalidScope)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: obsolete_checkpoint_schema_never_restores_prefix,
+  parameters: [],
+  statement: ((Uorc.Search.SemanticCheckpoint::run 10 (ctor Uorc.Search.SemanticCheckpoint::Step.pending (Uorc.Search.SemanticCheckpoint::start (record Uorc.Search.SemanticCheckpoint::Record {schema := (ctor Uorc.Search.SemanticCheckpoint::Schema.canonicalSemanticCheckpoint1), semanticScope := (Uorc.Search.SemanticScopeControls::fixtureSeal), realization := (Uorc.Search.SemanticScopeControls::fixtureRealization), policy := (record Uorc.Search.Checkpoint::PolicySnapshot {quantum := 64, sourceIdentity := (ctor Uorc.Core.Bytes::Rope.empty), seedInventory := (ctor Uorc.Core.Bytes::Rope.empty), sharingInventory := (ctor Uorc.Core.Bytes::Rope.empty)}), effortPrefix := 999, incumbentWireToRecheck := (ctor Option.none [Uorc.Core.Bytes::Rope])}) (Uorc.Search.SemanticScopeControls::fixtureSeal) (Uorc.Search.SemanticScopeControls::fixtureRealization) (record Uorc.Search.Checkpoint::PolicySnapshot {quantum := 64, sourceIdentity := (ctor Uorc.Core.Bytes::Rope.empty), seedInventory := (ctor Uorc.Core.Bytes::Rope.empty), sharingInventory := (ctor Uorc.Core.Bytes::Rope.empty)})))) = (ctor Uorc.Search.SemanticCheckpoint::Step.rejected (ctor Uorc.Search.SemanticCheckpoint::Error.legacyInterpretationRequired))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: obsolete_semantic_seal_never_restores_prefix,
+  parameters: [],
+  statement: ((Uorc.Search.SemanticCheckpoint::run 10 (ctor Uorc.Search.SemanticCheckpoint::Step.pending (Uorc.Search.SemanticCheckpoint::start (record Uorc.Search.SemanticCheckpoint::Record {schema := (ctor Uorc.Search.SemanticCheckpoint::Schema.logicalReferenceCheckpoint1), semanticScope := (withSchema (Uorc.Search.SemanticScopeControls::fixtureSeal) (ctor Uorc.Search.SemanticScope::Schema.canonicalSemanticScope1)), realization := (Uorc.Search.SemanticScopeControls::fixtureRealization), policy := (record Uorc.Search.Checkpoint::PolicySnapshot {quantum := 64, sourceIdentity := (ctor Uorc.Core.Bytes::Rope.empty), seedInventory := (ctor Uorc.Core.Bytes::Rope.empty), sharingInventory := (ctor Uorc.Core.Bytes::Rope.empty)}), effortPrefix := 999, incumbentWireToRecheck := (ctor Option.none [Uorc.Core.Bytes::Rope])}) (Uorc.Search.SemanticScopeControls::fixtureSeal) (Uorc.Search.SemanticScopeControls::fixtureRealization) (record Uorc.Search.Checkpoint::PolicySnapshot {quantum := 64, sourceIdentity := (ctor Uorc.Core.Bytes::Rope.empty), seedInventory := (ctor Uorc.Core.Bytes::Rope.empty), sharingInventory := (ctor Uorc.Core.Bytes::Rope.empty)})))) = (ctor Uorc.Search.SemanticCheckpoint::Step.rejected (ctor Uorc.Search.SemanticCheckpoint::Error.legacyInterpretationRequired))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: obsolete_profile_record_never_restores_prefix,
+  parameters: [],
+  statement: ((Uorc.Search.SemanticCheckpoint::run 10 (ctor Uorc.Search.SemanticCheckpoint::Step.pending (Uorc.Search.SemanticCheckpoint::start (record Uorc.Search.SemanticCheckpoint::Record {schema := (ctor Uorc.Search.SemanticCheckpoint::Schema.logicalReferenceCheckpoint1), semanticScope := (withProfile (Uorc.Search.SemanticScopeControls::fixtureSeal) (ctor Uorc.Core.CanonicalCost::ProfileId.canonicalReferenceWork1)), realization := (Uorc.Search.SemanticScopeControls::fixtureRealization), policy := (record Uorc.Search.Checkpoint::PolicySnapshot {quantum := 64, sourceIdentity := (ctor Uorc.Core.Bytes::Rope.empty), seedInventory := (ctor Uorc.Core.Bytes::Rope.empty), sharingInventory := (ctor Uorc.Core.Bytes::Rope.empty)}), effortPrefix := 999, incumbentWireToRecheck := (ctor Option.none [Uorc.Core.Bytes::Rope])}) (Uorc.Search.SemanticScopeControls::fixtureSeal) (Uorc.Search.SemanticScopeControls::fixtureRealization) (record Uorc.Search.Checkpoint::PolicySnapshot {quantum := 64, sourceIdentity := (ctor Uorc.Core.Bytes::Rope.empty), seedInventory := (ctor Uorc.Core.Bytes::Rope.empty), sharingInventory := (ctor Uorc.Core.Bytes::Rope.empty)})))) = (ctor Uorc.Search.SemanticCheckpoint::Step.rejected (ctor Uorc.Search.SemanticCheckpoint::Error.invalidScope))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: qualification,
+  parameters: [],
+  result: String,
+  body: "New logical-reference schemas are explicit migrations, never reinterpretations of old canonical or operational records. Obsolete cost-profile and byte-labelled storage values cannot become current membership even when compared with themselves. Every old record is rejected before a claimed prefix or incumbent can acquire replay authority. These closed controls do not establish the still-required reference-owned logical-event bridge or bounded production identity representation."
+}
+\end{semanticmodule}
+\end{lexlean}

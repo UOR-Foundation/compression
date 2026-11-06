@@ -1,0 +1,153 @@
+\begin{lexlean}{Uorc.Search.ArchiveBuild}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Wire.GraphEmit}
+\importmodule{Uorc.Integrity.BoundedChain}
+\importmodule{Uorc.Search.StreamBuilder}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: preparing,
+      fields: [
+        Uorc.Wire.Frame::PrepareState,
+        Uorc.Integrity.BoundedChain::State,
+        Uorc.Search.StreamBuilder::Builder
+      ]
+    },
+    {
+      name: emitting,
+      fields: [
+        Uorc.Wire.GraphEmit::State,
+        Uorc.Integrity.BoundedChain::State,
+        Uorc.Search.StreamBuilder::Builder
+      ]
+    },
+    {
+      name: appending,
+      fields: [
+        Uorc.Search.StreamBuilder::Cursor,
+        Uorc.Integrity.BoundedChain::Update,
+        Uorc.Wire.GraphEmit::State
+      ]
+    },
+    {
+      name: updating,
+      fields: [
+        Uorc.Integrity.BoundedChain::Update,
+        Uorc.Wire.GraphEmit::State,
+        Uorc.Search.StreamBuilder::Builder
+      ]
+    },
+    {
+      name: finalizing,
+      fields: [Uorc.Integrity.BoundedChain::State, Uorc.Search.StreamBuilder::Builder]
+    },
+    {name: digestAppending, fields: [Uorc.Search.StreamBuilder::Cursor, Nat]},
+    {name: building, fields: [Uorc.Search.StreamBuilder::Cursor, Nat]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: phase, type: Phase}, {name: completedEvents, type: Nat}]
+}
+
+structure{
+  name: Archive,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: wire, type: Uorc.Core.Bytes::Rope},
+    {name: preimageLength, type: Nat},
+    {name: archiveLength, type: Nat},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: prepare, fields: [Uorc.Wire.Frame::PrepareError]},
+    {name: emit, fields: [Uorc.Wire.GraphEmit::EmitError]},
+    {name: integrity, fields: [Uorc.Integrity.BoundedChain::Error]},
+    {name: builder, fields: [Uorc.Search.StreamBuilder::Error]},
+    {name: digestLength, fields: []},
+    {name: invalidState, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [Archive]},
+    {name: failed, fields: [Error, Nat]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [frame : Uorc.Wire.Frame::Frame],
+  result: Step,
+  body: (match (Uorc.Integrity.BoundedChain::init)
+    | Result.ok hash => (ctor Step.pending (record Cursor {phase := (ctor Phase.preparing (Uorc.Wire.Frame::startPreparation frame) hash (Uorc.Search.StreamBuilder::empty)), completedEvents := 0}))
+    | Result.error error => (ctor Step.failed (ctor Error.integrity error) 0))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.preparing preparation hash builder => (match (Uorc.Wire.Frame::prepareStep preparation)
+      | Uorc.Wire.Frame::PrepareEvent.advanced next => (ctor Step.pending (record Cursor {phase := (ctor Phase.preparing next hash builder), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Wire.Frame::PrepareEvent.complete prepared => (ctor Step.pending (record Cursor {phase := (ctor Phase.emitting (Uorc.Wire.Frame::preimageStart prepared) hash builder), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Wire.Frame::PrepareEvent.failed error => (ctor Step.failed (ctor Error.prepare error) ((project cursor completedEvents) + 1)))
+    | Phase.emitting emitter hash builder => (match (Uorc.Wire.GraphEmit::step emitter 1)
+      | Uorc.Wire.GraphEmit::Event.advanced nextEmitter => (ctor Step.pending (record Cursor {phase := (ctor Phase.emitting nextEmitter hash builder), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Wire.GraphEmit::Event.produced chunk nextEmitter => (match (Uorc.Integrity.BoundedChain::beginUpdate hash chunk)
+        | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
+        | Result.ok update => (ctor Step.pending (record Cursor {phase := (ctor Phase.appending (Uorc.Search.StreamBuilder::appendChunk builder chunk) update nextEmitter), completedEvents := ((project cursor completedEvents) + 1)})))
+      | Uorc.Wire.GraphEmit::Event.complete size work => (match (Uorc.Integrity.BoundedChain::finalize hash)
+        | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
+        | Result.ok nextHash => (ctor Step.pending (record Cursor {phase := (ctor Phase.finalizing nextHash builder), completedEvents := ((project cursor completedEvents) + 1)})))
+      | Uorc.Wire.GraphEmit::Event.failed error position work => (ctor Step.failed (ctor Error.emit error) ((project cursor completedEvents) + 1)))
+    | Phase.appending builderCursor hashUpdate emitter => (match (Uorc.Search.StreamBuilder::tick builderCursor)
+      | Uorc.Search.StreamBuilder::Step.pending next => (ctor Step.pending (record Cursor {phase := (ctor Phase.appending next hashUpdate emitter), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.StreamBuilder::Step.appended builder => (ctor Step.pending (record Cursor {phase := (ctor Phase.updating hashUpdate emitter builder), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.StreamBuilder::Step.finished rope count => (ctor Step.failed (ctor Error.invalidState) ((project cursor completedEvents) + 1))
+      | Uorc.Search.StreamBuilder::Step.failed error => (ctor Step.failed (ctor Error.builder error) ((project cursor completedEvents) + 1)))
+    | Phase.updating hashUpdate emitter builder => (match (Uorc.Integrity.BoundedChain::updateStep hashUpdate)
+      | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
+      | Result.ok event => (match event
+        | Uorc.Integrity.BoundedChain::UpdateEvent.advanced next => (ctor Step.pending (record Cursor {phase := (ctor Phase.updating next emitter builder), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Integrity.BoundedChain::UpdateEvent.done hash => (ctor Step.pending (record Cursor {phase := (ctor Phase.emitting emitter hash builder), completedEvents := ((project cursor completedEvents) + 1)}))))
+    | Phase.finalizing hash builder => (match (Uorc.Integrity.BoundedChain::digest hash)
+      | Result.ok digestBytes => (if ((prim length digestBytes : Nat) =? 32) then (ctor Step.pending (record Cursor {phase := (ctor Phase.digestAppending (Uorc.Search.StreamBuilder::appendChunk builder digestBytes) (project builder byteCount)), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.failed (ctor Error.digestLength) ((project cursor completedEvents) + 1)))
+      | Result.error notReady => (match (Uorc.Integrity.BoundedChain::step hash)
+        | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
+        | Result.ok nextHash => (ctor Step.pending (record Cursor {phase := (ctor Phase.finalizing nextHash builder), completedEvents := ((project cursor completedEvents) + 1)}))))
+    | Phase.digestAppending builderCursor preimageLength => (match (Uorc.Search.StreamBuilder::tick builderCursor)
+      | Uorc.Search.StreamBuilder::Step.pending next => (ctor Step.pending (record Cursor {phase := (ctor Phase.digestAppending next preimageLength), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.StreamBuilder::Step.appended builder => (ctor Step.pending (record Cursor {phase := (ctor Phase.building (Uorc.Search.StreamBuilder::finish builder) preimageLength), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.StreamBuilder::Step.finished rope count => (ctor Step.failed (ctor Error.invalidState) ((project cursor completedEvents) + 1))
+      | Uorc.Search.StreamBuilder::Step.failed error => (ctor Step.failed (ctor Error.builder error) ((project cursor completedEvents) + 1)))
+    | Phase.building builderCursor preimageLength => (match (Uorc.Search.StreamBuilder::tick builderCursor)
+      | Uorc.Search.StreamBuilder::Step.pending next => (ctor Step.pending (record Cursor {phase := (ctor Phase.building next preimageLength), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.StreamBuilder::Step.appended builder => (ctor Step.failed (ctor Error.invalidState) ((project cursor completedEvents) + 1))
+      | Uorc.Search.StreamBuilder::Step.finished wire count => (ctor Step.complete (record Archive {wire := wire, preimageLength := preimageLength, archiveLength := count, completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.StreamBuilder::Step.failed error => (ctor Step.failed (ctor Error.builder error) ((project cursor completedEvents) + 1))))
+}
+\end{semanticmodule}
+\end{lexlean}

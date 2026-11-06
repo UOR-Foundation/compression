@@ -1,0 +1,419 @@
+{
+  "browserQualified": false,
+  "endpoints": [
+    {
+      "authority": "instance factory",
+      "name": "create",
+      "root": "Uorc.Uorc.Product.Workspace.initial",
+      "signature": "Nat -> Workspace.State"
+    },
+    {
+      "authority": "visible user action",
+      "name": "invoke",
+      "root": "Uorc.Uorc.Product.Workspace.invokeUser",
+      "signature": "Workspace.State -> Workspace.BoundUserIntent -> Workspace.Invocation"
+    },
+    {
+      "authority": "trusted picker/collection callback only; not a browser JSON endpoint",
+      "name": "resourceReply",
+      "root": "Uorc.Uorc.Product.Workspace.dispatch",
+      "signature": "Workspace.State -> Workspace.Intent -> Workspace.Update"
+    },
+    {
+      "authority": "trusted generated executor callback",
+      "name": "runtimeReply",
+      "root": "Uorc.Uorc.Product.Workspace.receiveRuntime",
+      "signature": "Workspace.State -> Workspace.RuntimeNotice -> Workspace.Update"
+    },
+    {
+      "authority": "generated presentation",
+      "name": "present",
+      "root": "Uorc.Uorc.Product.Presentation.present",
+      "signature": "Workspace.State -> Presentation.View"
+    },
+    {
+      "authority": "generated focus target",
+      "name": "focusId",
+      "root": "Uorc.Uorc.Product.Presentation.focusId",
+      "signature": "Workspace.FocusTarget -> String"
+    },
+    {
+      "authority": "serialized final publication permit",
+      "name": "permit",
+      "root": "Uorc.Uorc.Product.Control.authorizePublication",
+      "signature": "Control.State -> Api.Run -> Api.ResourceRef -> Bool"
+    },
+    {
+      "authority": "bounded read demand",
+      "name": "read",
+      "root": "Uorc.Uorc.Product.ResourceIO.requestRead",
+      "signature": "ResourceIO.Reader -> ResourceIO.ReadStep"
+    },
+    {
+      "authority": "bounded leased read acknowledgment",
+      "name": "readReply",
+      "root": "Uorc.Uorc.Product.ResourceIO.readReply",
+      "signature": "ResourceIO.Reader -> ResourceIO.ReadReply -> ResourceIO.ReadStep"
+    },
+    {
+      "authority": "admitted bounded write demand",
+      "name": "write",
+      "root": "Uorc.Uorc.Product.ResourceIO.requestWrite",
+      "signature": "ResourceIO.Writer -> Api.Span -> ResourceIO.WriteStep"
+    },
+    {
+      "authority": "achieved partial/full write acknowledgment",
+      "name": "writeReply",
+      "root": "Uorc.Uorc.Product.ResourceIO.writeReply",
+      "signature": "ResourceIO.Writer -> ResourceIO.WriteReply -> ResourceIO.WriteStep"
+    },
+    {
+      "authority": "requested storage admission; actual host capacity admission also required",
+      "name": "storage",
+      "root": "Uorc.Uorc.Product.Storage.reserve",
+      "signature": "Storage.Limits -> Storage.Usage -> Storage.Category -> Nat -> Result Storage.Usage Storage.Error"
+    },
+    {
+      "authority": "source-owned decimal parsing, optional quota clearing, stale-binding rejection and error/focus",
+      "name": "editLimit",
+      "root": "Uorc.Uorc.Product.Workspace.editLimitText",
+      "signature": "Workspace.State -> Workspace.BoundLimit -> String -> Workspace.NumberEdit"
+    },
+    {
+      "authority": "source-owned single-pass/unknown-length bounded spool owner; storage ledger is internally threaded",
+      "name": "prepare",
+      "root": "Uorc.Uorc.Product.ResourceIO.startPreparation",
+      "signature": "Api.Run -> ResourceIO.Source -> Nat -> Storage.Limits -> Storage.State -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "actual empty spool lease callback",
+      "name": "spoolReply",
+      "root": "Uorc.Uorc.Product.ResourceIO.spoolReady",
+      "signature": "ResourceIO.Preparation -> Api.ResourceRef -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "leased bounded read reply",
+      "name": "spoolRead",
+      "root": "Uorc.Uorc.Product.ResourceIO.preparationRead",
+      "signature": "ResourceIO.Preparation -> ResourceIO.ReadReply -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "achieved bounded write reply",
+      "name": "spoolWrite",
+      "root": "Uorc.Uorc.Product.ResourceIO.preparationWritten",
+      "signature": "ResourceIO.Preparation -> ResourceIO.WriteReply -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "immutable seal of the same actual lease at exact achieved length",
+      "name": "spoolSeal",
+      "root": "Uorc.Uorc.Product.ResourceIO.spoolSealed",
+      "signature": "ResourceIO.Preparation -> Api.ResourceRef -> ResourceIO.Source -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "idempotent cancellation; pending write waits for achieved acknowledgment",
+      "name": "spoolCancel",
+      "root": "Uorc.Uorc.Product.ResourceIO.cancelPreparation",
+      "signature": "ResourceIO.Preparation -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "targeted achieved write receipt before image-ticket release",
+      "name": "spoolCancelledWrite",
+      "root": "Uorc.Uorc.Product.ResourceIO.cancelledWriteAcknowledged",
+      "signature": "ResourceIO.Preparation -> ResourceIO.WriteReply -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "source-owned delete request with retained extent",
+      "name": "spoolCleanup",
+      "root": "Uorc.Uorc.Product.ResourceIO.cleanupPreparation",
+      "signature": "ResourceIO.Preparation -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "achieved storage release callback; partial cleanup preserves retained bytes",
+      "name": "spoolDeleted",
+      "root": "Uorc.Uorc.Product.ResourceIO.spoolDeleted",
+      "signature": "ResourceIO.Preparation -> Api.Run -> Api.ResourceRef -> Nat -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "retained immutable source lease; bounded cursor constructor",
+      "name": "startRead",
+      "root": "Uorc.Uorc.Product.ResourceIO.startRead",
+      "signature": "Api.Run -> ResourceIO.Source -> Nat -> ResourceIO.Reader"
+    },
+    {
+      "authority": "full consumer acknowledgment only; transfers its one held ticket to release effect",
+      "name": "consumeRead",
+      "root": "Uorc.Uorc.Product.ResourceIO.consumeRead",
+      "signature": "ResourceIO.Reader -> ResourceIO.ReadStep"
+    },
+    {
+      "authority": "cancellation retains the exact in-flight read request until stopped receipt or actual late reply",
+      "name": "cancelRead",
+      "root": "Uorc.Uorc.Product.ResourceIO.cancelRead",
+      "signature": "ResourceIO.Reader -> ResourceIO.ReadStep"
+    },
+    {
+      "authority": "trusted stopped receipt with exact run/source/ticket/offset; false/unknown remains pending",
+      "name": "cancelReadReceipt",
+      "root": "Uorc.Uorc.Product.ResourceIO.cancelReadAcknowledged",
+      "signature": "ResourceIO.Reader -> ResourceIO.ReadCancellationReply -> ResourceIO.Reader"
+    },
+    {
+      "authority": "same internally threaded storage ledger; actual destination lease",
+      "name": "startWrite",
+      "root": "Uorc.Uorc.Product.ResourceIO.startWriteWithStorage",
+      "signature": "Api.Run -> Api.ResourceRef -> Storage.Category -> Storage.Limits -> Storage.State -> ResourceIO.Writer"
+    },
+    {
+      "authority": "bounded remainder after actual partial write receipt",
+      "name": "continueWrite",
+      "root": "Uorc.Uorc.Product.ResourceIO.continueWrite",
+      "signature": "ResourceIO.Writer -> ResourceIO.WriteStep"
+    },
+    {
+      "authority": "retains outstanding achieved write receipt and borrowed span",
+      "name": "cancelWrite",
+      "root": "Uorc.Uorc.Product.ResourceIO.cancelWrite",
+      "signature": "ResourceIO.Writer -> ResourceIO.WriteStep"
+    },
+    {
+      "authority": "exact stopped read receipt; keeps all other cleanup custody",
+      "name": "spoolCancelledRead",
+      "root": "Uorc.Uorc.Product.ResourceIO.cancelledReadAcknowledged",
+      "signature": "ResourceIO.Preparation -> ResourceIO.ReadCancellationReply -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "trusted terminal creation failure for matching run only",
+      "name": "spoolCreationFailed",
+      "root": "Uorc.Uorc.Product.ResourceIO.spoolCreationFailed",
+      "signature": "ResourceIO.Preparation -> Api.Run -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "trusted matching stopped seal receipt; false/unknown retains pending seal",
+      "name": "spoolSealStopped",
+      "root": "Uorc.Uorc.Product.ResourceIO.spoolSealStopped",
+      "signature": "ResourceIO.Preparation -> Api.Run -> Api.ResourceRef -> Bool -> ResourceIO.PreparationStep"
+    },
+    {
+      "authority": "disposition of this retained workspace only; all generated child owners and unconsumed effects must also settle",
+      "name": "workspaceDisposition",
+      "root": "Uorc.Uorc.Product.Workspace.releaseDisposition",
+      "signature": "Workspace.State -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "cursor custody; source lease remains with its registered owner",
+      "name": "readerDisposition",
+      "root": "Uorc.Uorc.Product.ResourceIO.readerDisposition",
+      "signature": "ResourceIO.Reader -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "unconsumed image-ticket release effect still retains custody",
+      "name": "readStepDisposition",
+      "root": "Uorc.Uorc.Product.ResourceIO.readStepDisposition",
+      "signature": "ResourceIO.ReadStep -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "pending I/O, remaining borrowed image and achieved/reserved storage prevent retirement",
+      "name": "writerDisposition",
+      "root": "Uorc.Uorc.Product.ResourceIO.writerDisposition",
+      "signature": "ResourceIO.Writer -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "borrowed-span consumption acknowledgment must be delivered before retirement",
+      "name": "writeStepDisposition",
+      "root": "Uorc.Uorc.Product.ResourceIO.writeStepDisposition",
+      "signature": "ResourceIO.WriteStep -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "pending creation/read/write/seal, actual storage and spool lease remain owned",
+      "name": "preparationDisposition",
+      "root": "Uorc.Uorc.Product.ResourceIO.preparationDisposition",
+      "signature": "ResourceIO.Preparation -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "undelivered commands retain their owner",
+      "name": "preparationStepDisposition",
+      "root": "Uorc.Uorc.Product.ResourceIO.preparationStepDisposition",
+      "signature": "ResourceIO.PreparationStep -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "internal transfer from completed owned admission; never caller supplied Ready",
+      "name": "machineStart",
+      "root": "Uorc.Uorc.Product.MachineBinding.start",
+      "signature": "Api.Run -> RuntimeProgram.Ready -> RuntimeResources.Budget -> MachineBinding.State"
+    },
+    {
+      "authority": "actual owned engine and cleanup; stale run cannot advance",
+      "name": "machineTick",
+      "root": "Uorc.Uorc.Product.MachineBinding.tick",
+      "signature": "MachineBinding.State -> Api.Run -> MachineBinding.State"
+    },
+    {
+      "authority": "actual engine effort/resource extension",
+      "name": "machineExtend",
+      "root": "Uorc.Uorc.Product.MachineBinding.extend",
+      "signature": "MachineBinding.State -> Api.Run -> RuntimeResources.Budget -> MachineBinding.State"
+    },
+    {
+      "authority": "source-owned repeated cancellation and retained arena/output custody",
+      "name": "machineCancel",
+      "root": "Uorc.Uorc.Product.MachineBinding.cancel",
+      "signature": "MachineBinding.State -> Api.Run -> MachineBinding.State"
+    },
+    {
+      "authority": "moves the single actual arena, output owner and frozen receipts once",
+      "name": "machineHandoff",
+      "root": "Uorc.Uorc.Product.MachineBinding.moveTerminal",
+      "signature": "MachineBinding.State -> Api.Run -> MachineBinding.Movement"
+    },
+    {
+      "authority": "terminal Ready still owns arena; only settled handoff can retire this carrier",
+      "name": "machineDisposition",
+      "root": "Uorc.Uorc.Product.MachineBinding.releaseDisposition",
+      "signature": "MachineBinding.State -> Api.ReleaseDisposition"
+    },
+    {
+      "authority": "internal move of the single actual arena and pinned terminal owners; borrowed operand handles remain reachable from those retained owners",
+      "name": "comparisonStart",
+      "root": "Uorc.Uorc.Product.ComparisonOwner.start",
+      "signature": "MachineBinding.Terminal -> RuntimeResources.Budget -> RuntimeValue.Handle -> RuntimeValue.Handle -> ComparisonOwner.State"
+    },
+    {
+      "authority": "prepaid charged fixed control, separate reader initialization and shared scalar getter quotes; no equality from unfinished work",
+      "name": "comparisonTick",
+      "root": "Uorc.Uorc.Product.ComparisonOwner.tick",
+      "signature": "ComparisonOwner.State -> Api.Run -> ComparisonOwner.State"
+    },
+    {
+      "authority": "same-run operational resource extension; terminal heap failures never restart",
+      "name": "comparisonExtend",
+      "root": "Uorc.Uorc.Product.ComparisonOwner.extend",
+      "signature": "ComparisonOwner.State -> Api.Run -> RuntimeResources.Budget -> ComparisonOwner.State"
+    },
+    {
+      "authority": "same-run cancellation preserves original/output custody and achieved delta, drains only comparison control",
+      "name": "comparisonCancel",
+      "root": "Uorc.Uorc.Product.ComparisonOwner.cancel",
+      "signature": "ComparisonOwner.State -> Api.Run -> ComparisonOwner.State"
+    },
+    {
+      "authority": "source-owned achieved event transfer before another mutation; acknowledge internally, without user ceremony",
+      "name": "comparisonDelta",
+      "root": "Uorc.Uorc.Product.ComparisonOwner.takeDelta",
+      "signature": "ComparisonOwner.State -> Api.Run -> ComparisonOwner.DeltaTake"
+    },
+    {
+      "authority": "one actual arena/terminal handoff after control cleanup and delta transfer; cancellation/failure/equality remain typed",
+      "name": "comparisonHandoff",
+      "root": "Uorc.Uorc.Product.ComparisonOwner.moveTerminal",
+      "signature": "ComparisonOwner.State -> Api.Run -> ComparisonOwner.Movement"
+    },
+    {
+      "authority": "transient root inventory with ticket multiplicity; borrowed cursors/scalars add no owner ticket",
+      "name": "comparisonRoots",
+      "root": "Uorc.Uorc.Product.ComparisonOwner.ownedRoots",
+      "signature": "ComparisonOwner.State -> List RuntimeValue.Handle"
+    },
+    {
+      "authority": "even checked/cancelled terminals retain their arena until the single handoff",
+      "name": "comparisonDisposition",
+      "root": "Uorc.Uorc.Product.ComparisonOwner.releaseDisposition",
+      "signature": "ComparisonOwner.State -> Api.ReleaseDisposition"
+    }
+  ],
+  "modelRequired": false,
+  "nativeQualified": false,
+  "networkRequired": false,
+  "pinnedSdkAccepted": false,
+  "profile": "uorc/product-host/1",
+  "resourceNoticeType": "Uorc.Uorc.Product.Workspace.Intent (trusted selected/collectionEdited/collectionEditFailed only)",
+  "rules": [
+    {
+      "name": "state",
+      "requirement": "Retain one generated typed Workspace.State per persistent instance. Do not round-trip a caller-provided state snapshot or use a fresh Wasm instance for every event."
+    },
+    {
+      "name": "user boundary",
+      "requirement": "Render only generated BoundUserIntent values. Submit them to invokeUser; preserve its modeled applied/stale disposition and message. Resource leases and RuntimeNotice are trusted adapter callbacks, not user-supplied intents."
+    },
+    {
+      "name": "safe text",
+      "requirement": "Render title, heading, status, labels, item displayName and selectionMeaning as text. Names are not markup or filesystem output paths."
+    },
+    {
+      "name": "buttons",
+      "requirement": "Render enabled native buttons for Button and SelectedItem controls. Honor keyboardActivate and enabled fields, with ordinary native Enter/Space activation, visible focus and disabled state."
+    },
+    {
+      "name": "files",
+      "requirement": "Render FileField as an accessible labeled arbitrary-binary chooser. Honor multiple, enabled and updating. Render ordered item groups with safe displayName, ordinal, observedLength, empty and the source remove/earlier/later labels. Buttons submit the exact generated BoundUserIntent. Field groups have FileField.id and can receive programmatic focus even while their chooser is disabled."
+    },
+    {
+      "name": "archive metadata",
+      "requirement": "selectionMeaning is displayed. Selection labels do not claim filenames, directories or filesystem metadata are encoded or restored; this archive preserves ordered bytes and object boundaries."
+    },
+    {
+      "name": "focus",
+      "requirement": "Resolve View.focus.target through focusId. Apply focus only when View.focus.serial changes; progress/rerender with the same serial preserves keyboard focus. Focusable field groups, status/result/error regions and headings use the source target IDs. Honor View.live, native Enter/Space button activation and disabled state."
+    },
+    {
+      "name": "selection callbacks",
+      "requirement": "Picker and collection replies carry the modeled instance/run revision, pickerSerial and slot/order. Immutable collection construction preserves the previous owner until acknowledgment. Stale newly returned leases are released."
+    },
+    {
+      "name": "read/spool",
+      "requirement": "Execute source-owned Command values only. Exact run, source/destination lease, ticket, offset and bounded extent bind each receipt. Read cancellation keeps its pending request until an exact stopped receipt or actual late read reply; a late nonempty reply still transfers one image ticket to release. Spool creation and seal remain pending across cancellation until their actual receipts. Cleanup cannot delete a source with active read/seal custody. Empty spans own no image ticket. No whole-input arena materialization is assumed."
+    },
+    {
+      "name": "write/storage",
+      "requirement": "Thread one Storage.State ledger through each serialized job/storage operation; do not start concurrent writers from independent quota snapshots. Reserve before host I/O and admit actual capacity separately. Report achieved partial writes and deletions on failure, releasing only unused reservations. Retired-job callbacks carry the old Run and cannot publish; retiredCleanupComplete cannot forget nonzero retained/reserved storage. Custody transfer uses Storage.transfer after an actual ownership receipt; a publication copy is a separately admitted allocation."
+    },
+    {
+      "name": "physical observations",
+      "requirement": "Api.Accounting.peakOwnedBytes is the logical arena profile, not physical RSS or staging. Storage.Usage is separate. Optional PhysicalObservation values retain their measured scope and sequence; absence is unobserved, not zero."
+    },
+    {
+      "name": "one arena",
+      "requirement": "Core operations move one actual Arena, CallerRoots and RuntimeResources.Usage. A boundary-only AwaitingState has controls/roots but no Arena. Detach/reattach only after full event acknowledgment and no pending mutation/release/credit operation; this is an internal typed transfer, not admission of an arbitrary validation snapshot."
+    },
+    {
+      "name": "returned spans",
+      "requirement": "Each nonempty RuntimeSequence Outcome.span transfers one owned image ticket. Inventory that ticket in the producer aggregate until full consumer acknowledgment, then transfer/release it; original sequence ownership remains separate. An empty cursor does not erase this result ticket. Empty spans retain no image. A generic ResourceRef lease identifies one owned ticket; distinct retained tickets require distinct lease identities even if their underlying Heap image handle is equal."
+    },
+    {
+      "name": "publication",
+      "requirement": "Serialize authorizePublication with the actual destination commit. Cancel/revision changes revoke the permit. Record published/notPublished/unknown truthfully, retaining achieved storage; unknown prevents blind retry. No atomic rollback is assumed."
+    },
+    {
+      "name": "failures",
+      "requirement": "Keep modeled Failure, generated outer SDK ComputeError, and fatal/unknown host disposition distinct. Invalidate failed instance generations and reconcile retained resources; no universal allocation-trap recovery is promised."
+    },
+    {
+      "name": "qualification",
+      "requirement": "The actual-root probe established the configured Uorc.Uorc prefix only for Api.sameResource. Complete typed endpoint export, native/browser operation and exact pinned-SDK acceptance require their own actual artifacts and execution; no successful operation is inferred from endpoint presence."
+    },
+    {
+      "name": "numeric fields",
+      "requirement": "Render View.numberFields only where present, as labeled decimal text inputs with source text/unit/optional/enabled/inputMode. Submit the raw text and exact BoundLimit to editLimitText, then render NumberEdit.message and its updated View. The source parses arbitrary-length decimal naturals, rejects malformed text and stale bindings, and owns quota semantics. Empty optional output/storage quotas impose no additional product ceiling; runtime addressability and actual host admission remain distinct."
+    },
+    {
+      "name": "result variants",
+      "requirement": "Workspace.invokeUser returns Invocation and preserves its applied/stale disposition, state, effects and message. Workspace.dispatch/receiveRuntime return Update with state and effects. They are distinct generated sum/record types; do not deserialize or discard their fields as if identical."
+    },
+    {
+      "name": "retirement",
+      "requirement": "Effect.requestInstanceRelease requests retirement. It is not permission to destroy the instance. Evaluate each actual retained generated owner through its source ReleaseDisposition root, including returned Steps whose effects/receipts have not been consumed. Keep the instance alive while any registered lease, arena/span owner, pending I/O, achieved/reserved storage, publication disposition, retired job or cleanup effect survives. A decoded or cancelled machine terminal still owns its Arena until moveTerminal transfers it. Unknown/fatal host dispositions quarantine the generation and preserve external cleanup owners; they never imply rollback."
+    },
+    {
+      "name": "constructor closure",
+      "requirement": "Bind exact generated argument/result types and every reachable structure field and sum constructor, including outer SDK ComputeError. Instantiate and retain values in the generated native library; user input carries only generated BoundUserIntent or BoundLimit. Runtime/resource replies and Ready/arena/usage carriers remain trusted internal transfers. No caller-provided state snapshots are validation evidence."
+    },
+    {
+      "name": "charged comparison",
+      "requirement": "ComparisonOwner owns one actual terminal arena and retains original/output roots throughout comparison. It reserves a real fixed control before initializing either reader, pays each initialization and every attempted shared RuntimeImage getter, and retains a paid left byte if the right quote is refused. Resume charges only the pending right read. No equality follows from pending, cancelled, failed or incomplete work. Consume achieved delta receipts before another mutation, drain the comparison control, then move the actual terminal once. These internal steps never require a user approval dashboard. A pairwise equality observation alone is not an archive/certificate/optimality claim."
+    }
+  ],
+  "runtimeNoticeType": "Uorc.Uorc.Product.Workspace.RuntimeNotice",
+  "stateType": "Uorc.Uorc.Product.Workspace.State",
+  "userActionType": "Uorc.Uorc.Product.Workspace.BoundUserIntent",
+  "viewType": "Uorc.Uorc.Product.Presentation.View"
+}

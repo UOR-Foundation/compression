@@ -1,0 +1,165 @@
+\begin{lexlean}{Uorc.Core.RuntimeAdmissionCreditBoundary}
+\importmodule{Uorc.Core.RuntimeAdmissionCredit}
+\importmodule{Uorc.Core.RuntimeAdmission}
+\importmodule{Uorc.Core.RuntimeAdmissionBoundary}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Accounting,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: consumedCredits, type: UInt64}, {name: attemptedOperations, type: UInt64}]
+}
+
+structure{
+  name: Detached,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: state, type: Uorc.Core.RuntimeAdmissionBoundary::AwaitingState},
+    {name: accounting, type: Accounting}
+  ]
+}
+
+structure{
+  name: Taken,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: caller, type: Uorc.Core.RuntimeProgram::CallerRoots},
+    {name: session, type: Detached}
+  ]
+}
+
+structure{
+  name: Returning,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: boundary, type: Uorc.Core.RuntimeAdmissionBoundary::ReturnCursor},
+    {name: accounting, type: Accounting}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: busy, fields: []},
+    {name: boundary, fields: [Uorc.Core.RuntimeAdmissionBoundary::Error]},
+    {name: credit, fields: [Uorc.Core.RuntimeAdmissionCredit::Error]}
+  ]
+}
+
+inductive{
+  name: TakeEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: taken, fields: [Taken]},
+    {name: failed, fields: [Error, Uorc.Core.RuntimeAdmissionCredit::Cursor]},
+    {name: retainedFailure, fields: [Error, Taken]}
+  ]
+}
+
+inductive{
+  name: ReturnEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Returning]},
+    {name: restored, fields: [Uorc.Core.RuntimeAdmissionCredit::Cursor]},
+    {name: failed, fields: [Error, Returning]}
+  ]
+}
+
+definition{
+  name: take,
+  parameters: [
+    cursor : Uorc.Core.RuntimeAdmissionCredit::Cursor,
+    role : Uorc.Core.RuntimeAdmissionBoundary::ProducerRole
+  ],
+  result: TakeEvent,
+  body: (match (project cursor error)
+    | Option.none => (if ((prim equal (project cursor activeCost) (0 : UInt64) : Bool) && (prim equal (project cursor paidCost) (0 : UInt64) : Bool)) then (match (project cursor intent)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.initialize budget arena basis caller usage => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.execute state => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.offer state event => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.terminal outcome => (match outcome
+        | Uorc.Core.RuntimeAdmission::Step.pending state => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+        | Uorc.Core.RuntimeAdmission::Step.awaiting state => (match (Uorc.Core.RuntimeAdmissionBoundary::take state role)
+          | Uorc.Core.RuntimeAdmissionBoundary::TakeEvent.taken loan => (ctor TakeEvent.taken (record Taken {arena := (project loan arena), usage := (project loan usage), caller := (project loan caller), session := (record Detached {state := (project loan state), accounting := (record Accounting {consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations)})})}))
+          | Uorc.Core.RuntimeAdmissionBoundary::TakeEvent.failed failure next => (ctor TakeEvent.failed (ctor Error.boundary failure) (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (ctor Uorc.Core.RuntimeAdmissionCredit::Intent.terminal (ctor Uorc.Core.RuntimeAdmission::Step.awaiting next)), activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (project (record Accounting {consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations)}) consumedCredits), attemptedOperations := (project (record Accounting {consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations)}) attemptedOperations), usage := (project next usage), error := (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Error])}))
+          | Uorc.Core.RuntimeAdmissionBoundary::TakeEvent.retainedFailure failure loan => (ctor TakeEvent.retainedFailure (ctor Error.boundary failure) (record Taken {arena := (project loan arena), usage := (project loan usage), caller := (project loan caller), session := (record Detached {state := (project loan state), accounting := (record Accounting {consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations)})})})))
+        | Uorc.Core.RuntimeAdmission::Step.failed failure state => (ctor TakeEvent.failed (ctor Error.busy) cursor)
+        | Uorc.Core.RuntimeAdmission::Step.ready ready => (ctor TakeEvent.failed (ctor Error.busy) cursor))) else (ctor TakeEvent.failed (ctor Error.busy) cursor))
+    | Option.some failure => (ctor TakeEvent.failed (ctor Error.credit failure) cursor)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: reattach,
+  parameters: [
+    session : Detached,
+    role : Uorc.Core.RuntimeAdmissionBoundary::ProducerRole,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    caller : Uorc.Core.RuntimeProgram::CallerRoots
+  ],
+  result: ReturnEvent,
+  body: (match (Uorc.Core.RuntimeAdmissionBoundary::reattach (project session state) role arena usage caller)
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.pending pending => (ctor ReturnEvent.pending (record Returning {boundary := pending, accounting := (project session accounting)}))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.restored state => (ctor ReturnEvent.restored (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (ctor Uorc.Core.RuntimeAdmissionCredit::Intent.terminal (ctor Uorc.Core.RuntimeAdmission::Step.awaiting state)), activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (project (project session accounting) consumedCredits), attemptedOperations := (project (project session accounting) attemptedOperations), usage := (project state usage), error := (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Error])}))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.failed failure pending => (ctor ReturnEvent.failed (ctor Error.boundary failure) (record Returning {boundary := pending, accounting := (project session accounting)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: returnStep,
+  parameters: [returning : Returning],
+  result: ReturnEvent,
+  body: (match (Uorc.Core.RuntimeAdmissionBoundary::returnStep (project returning boundary))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.pending pending => (ctor ReturnEvent.pending (record Returning {boundary := pending, accounting := (project returning accounting)}))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.restored state => (ctor ReturnEvent.restored (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (ctor Uorc.Core.RuntimeAdmissionCredit::Intent.terminal (ctor Uorc.Core.RuntimeAdmission::Step.awaiting state)), activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (project (project returning accounting) consumedCredits), attemptedOperations := (project (project returning accounting) attemptedOperations), usage := (project state usage), error := (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Error])}))
+    | Uorc.Core.RuntimeAdmissionBoundary::ReturnEvent.failed failure pending => (ctor ReturnEvent.failed (ctor Error.boundary failure) (record Returning {boundary := pending, accounting := (project returning accounting)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: takenRootInventory,
+  parameters: [taken : Taken],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Core.RuntimeAdmissionBoundary::rootInventory (project (project taken session) state) (project taken caller)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: detachedRootInventory,
+  parameters: [session : Detached, caller : Uorc.Core.RuntimeProgram::CallerRoots],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Core.RuntimeAdmissionBoundary::rootInventory (project session state) caller),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: returnRootInventory,
+  parameters: [returning : Returning],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Core.RuntimeAdmissionBoundary::returnRootInventory (project returning boundary)),
+  axioms: [],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

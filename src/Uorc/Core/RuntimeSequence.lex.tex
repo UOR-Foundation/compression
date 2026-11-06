@@ -1,0 +1,951 @@
+\begin{lexlean}{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: SequenceFailure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: range, fields: []},
+    {name: lengthOverflow, fields: []},
+    {name: invalidShape, fields: []},
+    {name: invalidCursor, fields: []}
+  ]
+}
+
+structure{
+  name: Span,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: image, type: Uorc.Core.RuntimeValue::Handle},
+    {name: offset, type: UInt64},
+    {name: length, type: UInt64}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: sequence, fields: [Uorc.Core.RuntimeValue::Handle]},
+    {name: byte, fields: [UInt8]},
+    {name: span, fields: [Span]},
+    {name: cancelled, fields: []}
+  ]
+}
+
+structure{
+  name: Ref,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: handle, type: Uorc.Core.RuntimeValue::Handle}, {name: slot, type: UInt64}]
+}
+
+structure{
+  name: Instruction,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: tag, type: UInt64},
+    {name: first, type: Ref},
+    {name: second, type: Ref},
+    {name: a, type: UInt64},
+    {name: b, type: UInt64}
+  ]
+}
+
+structure{
+  name: Plan,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: first, type: Instruction},
+    {name: second, type: Instruction},
+    {name: third, type: Instruction},
+    {name: fourth, type: Instruction},
+    {name: length, type: UInt64},
+    {name: output, type: Ref}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: phase, type: UInt64},
+    {name: purpose, type: UInt64},
+    {name: capture, type: Uorc.Core.RuntimeValue::Handle},
+    {name: garbage, type: Uorc.Core.RuntimeValue::Handle},
+    {name: stack, type: Uorc.Core.RuntimeValue::Handle},
+    {name: joins, type: Uorc.Core.RuntimeValue::Handle},
+    {name: current, type: Uorc.Core.RuntimeValue::Handle},
+    {name: left, type: Uorc.Core.RuntimeValue::Handle},
+    {name: right, type: Uorc.Core.RuntimeValue::Handle},
+    {name: result, type: Uorc.Core.RuntimeValue::Handle},
+    {name: start, type: UInt64},
+    {name: count, type: UInt64},
+    {name: byteValue, type: UInt8},
+    {name: fresh, type: Uorc.Core.RuntimeValue::Handle},
+    {name: slot1, type: Uorc.Core.RuntimeValue::Handle},
+    {name: slot2, type: Uorc.Core.RuntimeValue::Handle},
+    {name: slot3, type: Uorc.Core.RuntimeValue::Handle},
+    {name: slot4, type: Uorc.Core.RuntimeValue::Handle},
+    {name: planPosition, type: UInt64},
+    {name: planReturn, type: UInt64},
+    {name: planDest, type: UInt64},
+    {name: plan, type: Plan}
+  ]
+}
+
+structure{
+  name: SequenceTransition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: cursor, type: Cursor},
+    {name: delta, type: Uorc.Core.Heap::Delta},
+    {name: work, type: UInt64},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+structure{
+  name: Frame,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: target, type: Uorc.Core.RuntimeValue::Handle},
+    {name: start, type: UInt64},
+    {name: count, type: UInt64},
+    {name: next, type: Uorc.Core.RuntimeValue::Handle}
+  ]
+}
+
+definition{
+  name: zeroDelta,
+  parameters: [],
+  result: Uorc.Core.Heap::Delta,
+  body: (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: mergeDelta,
+  parameters: [a : Uorc.Core.Heap::Delta, b : Uorc.Core.Heap::Delta],
+  result: Uorc.Core.Heap::Delta,
+  body: (record Uorc.Core.Heap::Delta {allocatedBytes := (Uorc.Core.Heap::wordAdd (project a allocatedBytes) (project b allocatedBytes)), releasedBytes := (Uorc.Core.Heap::wordAdd (project a releasedBytes) (project b releasedBytes)), allocatedEntries := (Uorc.Core.Heap::wordAdd (project a allocatedEntries) (project b allocatedEntries)), releasedEntries := (Uorc.Core.Heap::wordAdd (project a releasedEntries) (project b releasedEntries)), retainedEdges := (Uorc.Core.Heap::wordAdd (project a retainedEdges) (project b retainedEdges)), droppedEdges := (Uorc.Core.Heap::wordAdd (project a droppedEdges) (project b droppedEdges)), retainedRoots := (Uorc.Core.Heap::wordAdd (project a retainedRoots) (project b retainedRoots)), droppedRoots := (Uorc.Core.Heap::wordAdd (project a droppedRoots) (project b droppedRoots)), work := (Uorc.Core.Heap::wordAdd (project a work) (project b work))}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: sequenceChildren,
+  parameters: [arena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Uorc.Core.Heap::Children SequenceFailure),
+  body: (match (Uorc.Core.Heap::lookup arena handle)
+    | Result.error heapFailure => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceLeaf x0 x1 x2 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceBranch x0 x1 x2 x3 => (ctor Result.ok [Uorc.Core.Heap::Children, SequenceFailure] (record Uorc.Core.Heap::Children {first := x2, second := x3}))
+      | Uorc.Core.Heap::Node.storeLeaf x0 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeBranch x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.slot x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.rootBranch x0 x1 x2 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataWord x0 x1 x2 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataLink x0 x1 x2 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataBranch x0 x1 x2 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.ownerRoot x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.imageReservation x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: sequenceLeaf,
+  parameters: [arena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Span SequenceFailure),
+  body: (match (Uorc.Core.Heap::lookup arena handle)
+    | Result.error heapFailure => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image x0 x1 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceLeaf x0 x1 x2 => (ctor Result.ok [Span, SequenceFailure] (record Span {image := x0, offset := x1, length := x2}))
+      | Uorc.Core.Heap::Node.sequenceBranch x0 x1 x2 x3 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeLeaf x0 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeBranch x0 x1 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.slot x0 x1 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.rootBranch x0 x1 x2 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataWord x0 x1 x2 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataLink x0 x1 x2 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataBranch x0 x1 x2 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.ownerRoot x0 x1 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.imageReservation x0 x1 => (ctor Result.error [Span, SequenceFailure] (ctor SequenceFailure.invalidShape)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: metaChildren,
+  parameters: [arena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Uorc.Core.Heap::Children SequenceFailure),
+  body: (match (Uorc.Core.Heap::lookup arena handle)
+    | Result.error heapFailure => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceLeaf x0 x1 x2 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceBranch x0 x1 x2 x3 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeLeaf x0 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeBranch x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.slot x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.rootBranch x0 x1 x2 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataWord x0 x1 x2 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataLink x0 x1 x2 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataBranch x0 x1 x2 => (ctor Result.ok [Uorc.Core.Heap::Children, SequenceFailure] (record Uorc.Core.Heap::Children {first := x1, second := x2}))
+      | Uorc.Core.Heap::Node.ownerRoot x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.imageReservation x0 x1 => (ctor Result.error [Uorc.Core.Heap::Children, SequenceFailure] (ctor SequenceFailure.invalidShape)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: metaLink,
+  parameters: [arena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Frame SequenceFailure),
+  body: (match (Uorc.Core.Heap::lookup arena handle)
+    | Result.error heapFailure => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceLeaf x0 x1 x2 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceBranch x0 x1 x2 x3 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeLeaf x0 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeBranch x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.slot x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.rootBranch x0 x1 x2 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataWord x0 x1 x2 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataLink x0 x1 x2 => (ctor Result.ok [Frame, SequenceFailure] (record Frame {target := x2, start := x1, count := (0 : UInt64), next := (Uorc.Core.RuntimeValue::nullHandle)}))
+      | Uorc.Core.Heap::Node.metadataBranch x0 x1 x2 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.ownerRoot x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.imageReservation x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: metaWord,
+  parameters: [arena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Frame SequenceFailure),
+  body: (match (Uorc.Core.Heap::lookup arena handle)
+    | Result.error heapFailure => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceLeaf x0 x1 x2 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceBranch x0 x1 x2 x3 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeLeaf x0 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeBranch x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.slot x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.rootBranch x0 x1 x2 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataWord x0 x1 x2 => (ctor Result.ok [Frame, SequenceFailure] (record Frame {target := (Uorc.Core.RuntimeValue::nullHandle), start := x1, count := x2, next := (Uorc.Core.RuntimeValue::nullHandle)}))
+      | Uorc.Core.Heap::Node.metadataLink x0 x1 x2 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataBranch x0 x1 x2 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.ownerRoot x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.imageReservation x0 x1 => (ctor Result.error [Frame, SequenceFailure] (ctor SequenceFailure.invalidShape)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: readFrame,
+  parameters: [arena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Frame SequenceFailure),
+  body: (match (metaChildren arena handle)
+    | Result.error failure => (ctor Result.error [Frame, SequenceFailure] failure)
+    | Result.ok top => (match (metaChildren arena (project top first))
+      | Result.error failure => (ctor Result.error [Frame, SequenceFailure] failure)
+      | Result.ok pair => (match (metaLink arena (project pair first))
+        | Result.error failure => (ctor Result.error [Frame, SequenceFailure] failure)
+        | Result.ok link => (match (metaWord arena (project pair second))
+          | Result.error failure => (ctor Result.error [Frame, SequenceFailure] failure)
+          | Result.ok word => (ctor Result.ok [Frame, SequenceFailure] (record Frame {target := (project link target), start := (project word start), count := (project word count), next := (project top second)})))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: emptyPlan,
+  parameters: [],
+  result: Plan,
+  body: (record Plan {first := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (0 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)})}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: finishSequence,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (Uorc.Core.Heap::retain arena (project cursor result))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok retained => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project retained arena), cursor := (record Cursor {phase := (7 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project retained delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: beginConcat,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (Uorc.Core.Heap::sequenceInfo arena left)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok li => (match (Uorc.Core.Heap::sequenceInfo arena right)
+      | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok ri => (match (prim checked_add (project li length) (project ri length) : (Option UInt64))
+        | Option.none => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.lengthOverflow))
+        | Option.some n => (match (Uorc.Core.Heap::allocate arena (ctor Uorc.Core.Heap::Node.metadataBranch (515 : UInt64) left right))
+          | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+          | Result.ok capture => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project capture arena), cursor := (record Cursor {phase := (1 : UInt64), purpose := (0 : UInt64), capture := (project capture handle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), left := left, right := right, result := (Uorc.Core.RuntimeValue::nullHandle), start := (0 : UInt64), count := (0 : UInt64), byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project capture delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: length,
+  parameters: [arena : Uorc.Core.Heap::Arena, root : Uorc.Core.RuntimeValue::Handle],
+  result: (Result UInt64 SequenceFailure),
+  body: (match (Uorc.Core.Heap::sequenceInfo arena root)
+    | Result.error heapFailure => (ctor Result.error [UInt64, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok info => (ctor Result.ok [UInt64, SequenceFailure] (project info length))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: beginSlice,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    start : UInt64,
+    count : UInt64
+  ],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (Uorc.Core.Heap::sequenceInfo arena root)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok info => (if (Uorc.Core.Heap::less (project info length) start) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.range)) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordSub (project info length) start) count) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.range)) else (match (Uorc.Core.Heap::allocate arena (ctor Uorc.Core.Heap::Node.metadataBranch (515 : UInt64) root (Uorc.Core.RuntimeValue::nullHandle)))
+      | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok capture => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project capture arena), cursor := (record Cursor {phase := (3 : UInt64), purpose := (1 : UInt64), capture := (project capture handle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := root, left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (Uorc.Core.RuntimeValue::nullHandle), start := start, count := count, byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project capture delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: beginIndex,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    start : UInt64
+  ],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (Uorc.Core.Heap::sequenceInfo arena root)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok info => (if (Uorc.Core.Heap::less (project info length) start) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.range)) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordSub (project info length) start) (1 : UInt64)) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.range)) else (match (Uorc.Core.Heap::allocate arena (ctor Uorc.Core.Heap::Node.metadataBranch (515 : UInt64) root (Uorc.Core.RuntimeValue::nullHandle)))
+      | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok capture => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project capture arena), cursor := (record Cursor {phase := (5 : UInt64), purpose := (2 : UInt64), capture := (project capture handle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := root, left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (Uorc.Core.RuntimeValue::nullHandle), start := start, count := (1 : UInt64), byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project capture delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: beginSpan,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle,
+    start : UInt64,
+    count : UInt64
+  ],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (Uorc.Core.Heap::sequenceInfo arena root)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok info => (if (Uorc.Core.Heap::less (project info length) start) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.range)) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordSub (project info length) start) count) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.range)) else (match (Uorc.Core.Heap::allocate arena (ctor Uorc.Core.Heap::Node.metadataBranch (515 : UInt64) root (Uorc.Core.RuntimeValue::nullHandle)))
+      | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok capture => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project capture arena), cursor := (record Cursor {phase := (5 : UInt64), purpose := (3 : UInt64), capture := (project capture handle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := root, left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (Uorc.Core.RuntimeValue::nullHandle), start := start, count := count, byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project capture delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: sliceNext,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor stack)) then (finishSequence arena cursor) else (match (readFrame arena (project cursor stack))
+    | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+    | Result.ok frame => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (3 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project frame next), joins := (project cursor joins), current := (project frame target), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project frame start), count := (project frame count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: wordToNatAux,
+  parameters: [depth : Nat, value : UInt64],
+  result: Nat,
+  body: (match depth
+    | Nat.zero => 0
+    | Nat.succ remaining => ((if (Uorc.Core.Heap::lowBit value) then 1 else 0) + (prim multiply 2 (wordToNatAux remaining (Uorc.Core.Heap::nextKey value)) : Nat))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: depth
+}
+
+definition{
+  name: readByte,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64
+  ],
+  result: (Result UInt8 SequenceFailure),
+  body: (match (Uorc.Core.Heap::lookup arena image)
+    | Result.error heapFailure => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image x0 x1 => (match (prim index x1 (wordToNatAux 64 offset) : (Option UInt8))
+        | Option.none => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.range))
+        | Option.some byteValue => (ctor Result.ok [UInt8, SequenceFailure] byteValue))
+      | Uorc.Core.Heap::Node.sequenceLeaf x0 x1 x2 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceBranch x0 x1 x2 x3 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeLeaf x0 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.storeBranch x0 x1 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.slot x0 x1 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.rootBranch x0 x1 x2 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataWord x0 x1 x2 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataLink x0 x1 x2 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.metadataBranch x0 x1 x2 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.ownerRoot x0 x1 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape))
+      | Uorc.Core.Heap::Node.imageReservation x0 x1 => (ctor Result.error [UInt8, SequenceFailure] (ctor SequenceFailure.invalidShape)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: indexWalk,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (prim equal (project cursor count) (0 : UInt64) : Bool) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (7 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (match (Uorc.Core.Heap::sequenceInfo arena (project cursor current))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok info => (if (prim equal (project info height) (1 : UInt64) : Bool) then (match (sequenceLeaf arena (project cursor current))
+      | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+      | Result.ok leaf => (match (prim checked_add (project leaf offset) (project cursor start) : (Option UInt64))
+        | Option.none => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.lengthOverflow))
+        | Option.some offset => (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then (match (readByte arena (project leaf image) offset)
+          | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+          | Result.ok byteValue => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (7 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := byteValue, fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (match (Uorc.Core.Heap::retain arena (project leaf image))
+          | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+          | Result.ok retained => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project retained arena), cursor := (record Cursor {phase := (7 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project leaf image), start := offset, count := (if (Uorc.Core.Heap::less (project cursor count) (Uorc.Core.Heap::wordSub (project leaf length) (project cursor start))) then (project cursor count) else (Uorc.Core.Heap::wordSub (project leaf length) (project cursor start))), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project retained delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))))) else (match (sequenceChildren arena (project cursor current))
+      | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+      | Result.ok children => (match (Uorc.Core.Heap::sequenceInfo arena (project children first))
+        | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+        | Result.ok li => (if (Uorc.Core.Heap::less (project cursor start) (project li length)) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project children first), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project children second), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (Uorc.Core.Heap::wordSub (project cursor start) (project li length)), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cleanupGarbage,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor garbage))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (8 : UInt64) else (6 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainGarbage,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (8 : UInt64) else (6 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cleanupCapture,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor capture))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (9 : UInt64) else (11 : UInt64)), purpose := (project cursor purpose), capture := (Uorc.Core.RuntimeValue::nullHandle), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainCapture,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (9 : UInt64) else (11 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: addRoot,
+  parameters: [
+    handle : Uorc.Core.RuntimeValue::Handle,
+    roots : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull handle) then roots else (cons handle roots)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: resultOwned,
+  parameters: [cursor : Cursor],
+  result: Bool,
+  body: (if (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else false))))) then true else (if (prim equal (project cursor phase) (20 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (21 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (22 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (23 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (24 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (25 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (26 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (27 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (28 : UInt64) : Bool) then true else false)))))))))) then (if (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then true else (if (prim equal (project cursor purpose) (6 : UInt64) : Bool) then true else false)) then false else true) else false),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: emptyCursor,
+  parameters: [],
+  result: Cursor,
+  body: (record Cursor {phase := (10 : UInt64), purpose := (0 : UInt64), capture := (Uorc.Core.RuntimeValue::nullHandle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (Uorc.Core.RuntimeValue::nullHandle), start := (0 : UInt64), count := (0 : UInt64), byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: branchPlan,
+  parameters: [left : Uorc.Core.RuntimeValue::Handle, right : Uorc.Core.RuntimeValue::Handle],
+  result: Plan,
+  body: (if (Uorc.Core.RuntimeValue::isNull left) then (record Plan {first := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (0 : UInt64), output := (record Ref {handle := right, slot := (0 : UInt64)})}) else (if (Uorc.Core.RuntimeValue::isNull right) then (record Plan {first := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (0 : UInt64), output := (record Ref {handle := left, slot := (0 : UInt64)})}) else (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := left, slot := (0 : UInt64)}), second := (record Ref {handle := right, slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (1 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)})}))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: framePlan,
+  parameters: [
+    next : Uorc.Core.RuntimeValue::Handle,
+    target : Uorc.Core.RuntimeValue::Handle,
+    start : UInt64,
+    count : UInt64
+  ],
+  result: Plan,
+  body: (record Plan {first := (record Instruction {tag := (2 : UInt64), first := (record Ref {handle := target, slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (3 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := start, b := count}), third := (record Instruction {tag := (4 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (4 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (3 : UInt64)}), second := (record Ref {handle := next, slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (4 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (4 : UInt64)})}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: balancePlan,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Plan SequenceFailure),
+  body: (match (Uorc.Core.Heap::sequenceInfo arena left)
+    | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok li => (match (Uorc.Core.Heap::sequenceInfo arena right)
+      | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok ri => (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (match (sequenceChildren arena left)
+        | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
+        | Result.ok lc => (match (Uorc.Core.Heap::sequenceInfo arena (project lc first))
+          | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+          | Result.ok lli => (match (Uorc.Core.Heap::sequenceInfo arena (project lc second))
+            | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+            | Result.ok lri => (if (Uorc.Core.Heap::less (project lli height) (project lri height)) then (match (sequenceChildren arena (project lc second))
+              | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
+              | Result.ok mid => (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project lc first), slot := (0 : UInt64)}), second := (record Ref {handle := (project mid first), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project mid second), slot := (0 : UInt64)}), second := (record Ref {handle := right, slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (3 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (3 : UInt64)})}))) else (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project lc second), slot := (0 : UInt64)}), second := (record Ref {handle := right, slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project lc first), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (2 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)})})))))) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (match (sequenceChildren arena right)
+        | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
+        | Result.ok rc => (match (Uorc.Core.Heap::sequenceInfo arena (project rc first))
+          | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+          | Result.ok rli => (match (Uorc.Core.Heap::sequenceInfo arena (project rc second))
+            | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+            | Result.ok rri => (if (Uorc.Core.Heap::less (project rri height) (project rli height)) then (match (sequenceChildren arena (project rc first))
+              | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
+              | Result.ok mid => (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := left, slot := (0 : UInt64)}), second := (record Ref {handle := (project mid first), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project mid second), slot := (0 : UInt64)}), second := (record Ref {handle := (project rc second), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (3 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (3 : UInt64)})}))) else (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := left, slot := (0 : UInt64)}), second := (record Ref {handle := (project rc first), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (project rc second), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (2 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)})})))))) else (ctor Result.ok [Plan, SequenceFailure] (branchPlan left right)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: resolveRef,
+  parameters: [cursor : Cursor, reference : Ref],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (if (prim equal (project reference slot) (1 : UInt64) : Bool) then (project cursor slot1) else (if (prim equal (project reference slot) (2 : UInt64) : Bool) then (project cursor slot2) else (if (prim equal (project reference slot) (3 : UInt64) : Bool) then (project cursor slot3) else (if (prim equal (project reference slot) (4 : UInt64) : Bool) then (project cursor slot4) else (project reference handle))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: instructionAt,
+  parameters: [program : Plan, position : UInt64],
+  result: Instruction,
+  body: (if (prim equal position (0 : UInt64) : Bool) then (project program first) else (if (prim equal position (1 : UInt64) : Bool) then (project program second) else (if (prim equal position (2 : UInt64) : Bool) then (project program third) else (project program fourth)))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: setSlot,
+  parameters: [cursor : Cursor, position : UInt64, handle : Uorc.Core.RuntimeValue::Handle],
+  result: Cursor,
+  body: (record Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (if (prim equal position (0 : UInt64) : Bool) then handle else (project cursor slot1)), slot2 := (if (prim equal position (1 : UInt64) : Bool) then handle else (project cursor slot2)), slot3 := (if (prim equal position (2 : UInt64) : Bool) then handle else (project cursor slot3)), slot4 := (if (prim equal position (3 : UInt64) : Bool) then handle else (project cursor slot4)), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: schedulePlan,
+  parameters: [cursor : Cursor, program : Plan, returnPhase : UInt64, destination : UInt64],
+  result: Cursor,
+  body: (record Cursor {phase := (12 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := returnPhase, planDest := destination, plan := program}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: finishPlan,
+  parameters: [cursor : Cursor],
+  result: Cursor,
+  body: (let output : Uorc.Core.RuntimeValue::Handle := (resolveRef cursor (project (project cursor plan) output)); (let dest : UInt64 := (project cursor planDest); (record Cursor {phase := (project cursor planReturn), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (if (prim equal dest (2 : UInt64) : Bool) then output else (project cursor stack)), joins := (if (prim equal dest (1 : UInt64) : Bool) then output else (project cursor joins)), current := (project cursor current), left := (project cursor left), right := (if (prim equal dest (3 : UInt64) : Bool) then output else (project cursor right)), result := (if (prim equal dest (0 : UInt64) : Bool) then output else (project cursor result)), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: instructionNode,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor, instruction : Instruction],
+  result: (Result Uorc.Core.Heap::Node SequenceFailure),
+  body: (let left : Uorc.Core.RuntimeValue::Handle := (resolveRef cursor (project instruction first)); (let right : Uorc.Core.RuntimeValue::Handle := (resolveRef cursor (project instruction second)); (if (prim equal (project instruction tag) (0 : UInt64) : Bool) then (match (Uorc.Core.Heap::sequenceInfo arena left)
+    | Result.error heapFailure => (ctor Result.error [Uorc.Core.Heap::Node, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok li => (match (Uorc.Core.Heap::sequenceInfo arena right)
+      | Result.error heapFailure => (ctor Result.error [Uorc.Core.Heap::Node, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok ri => (match (prim checked_add (project li length) (project ri length) : (Option UInt64))
+        | Option.none => (ctor Result.error [Uorc.Core.Heap::Node, SequenceFailure] (ctor SequenceFailure.lengthOverflow))
+        | Option.some combinedLength => (match (prim checked_add (if (Uorc.Core.Heap::less (project li height) (project ri height)) then (project ri height) else (project li height)) (1 : UInt64) : (Option UInt64))
+          | Option.none => (ctor Result.error [Uorc.Core.Heap::Node, SequenceFailure] (ctor SequenceFailure.lengthOverflow))
+          | Option.some height => (ctor Result.ok [Uorc.Core.Heap::Node, SequenceFailure] (ctor Uorc.Core.Heap::Node.sequenceBranch combinedLength height left right)))))) else (if (prim equal (project instruction tag) (1 : UInt64) : Bool) then (ctor Result.ok [Uorc.Core.Heap::Node, SequenceFailure] (ctor Uorc.Core.Heap::Node.sequenceLeaf left (project instruction a) (project instruction b))) else (if (prim equal (project instruction tag) (2 : UInt64) : Bool) then (ctor Result.ok [Uorc.Core.Heap::Node, SequenceFailure] (ctor Uorc.Core.Heap::Node.metadataLink (514 : UInt64) (0 : UInt64) left)) else (if (prim equal (project instruction tag) (3 : UInt64) : Bool) then (ctor Result.ok [Uorc.Core.Heap::Node, SequenceFailure] (ctor Uorc.Core.Heap::Node.metadataWord (514 : UInt64) (project instruction a) (project instruction b))) else (if (prim equal (project instruction tag) (4 : UInt64) : Bool) then (ctor Result.ok [Uorc.Core.Heap::Node, SequenceFailure] (ctor Uorc.Core.Heap::Node.metadataBranch (514 : UInt64) left right)) else (ctor Result.error [Uorc.Core.Heap::Node, SequenceFailure] (ctor SequenceFailure.invalidCursor))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: allocatePlan,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (prim equal (project cursor planPosition) (project (project cursor plan) length) : Bool) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (finishPlan cursor), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (match (instructionNode arena cursor (instructionAt (project cursor plan) (project cursor planPosition)))
+    | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+    | Result.ok nextNode => (match (Uorc.Core.Heap::allocate arena nextNode)
+      | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok freshNode => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project freshNode arena), cursor := (record Cursor {phase := (13 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project freshNode handle), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project freshNode delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: attachPlan,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (Uorc.Core.Heap::allocateMoved arena (ctor Uorc.Core.Heap::Node.metadataBranch (513 : UInt64) (project cursor fresh) (project cursor garbage)) true true)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok owner => (let pos : UInt64 := (project cursor planPosition); (let fresh : Uorc.Core.RuntimeValue::Handle := (project cursor fresh); (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project owner arena), cursor := (record Cursor {phase := (12 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project owner handle), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (if (prim equal pos (0 : UInt64) : Bool) then fresh else (project cursor slot1)), slot2 := (if (prim equal pos (1 : UInt64) : Bool) then fresh else (project cursor slot2)), slot3 := (if (prim equal pos (2 : UInt64) : Bool) then fresh else (project cursor slot3)), slot4 := (if (prim equal pos (3 : UInt64) : Bool) then fresh else (project cursor slot4)), planPosition := (Uorc.Core.Heap::wordAdd pos (1 : UInt64)), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project owner delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: concatCursor,
+  parameters: [
+    cursor : Cursor,
+    phase : UInt64,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle,
+    result : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: Cursor,
+  body: (record Cursor {phase := phase, purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := left, right := right, result := result, start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatPending,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := cursor, delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatDescendLeft,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (sequenceChildren arena (project cursor left))
+    | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+    | Result.ok children => (concatPending arena (record Cursor {phase := (12 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project children second), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (1 : UInt64), planDest := (1 : UInt64), plan := (framePlan (project cursor joins) (project children first) (0 : UInt64) (0 : UInt64))}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: concatDescendRight,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (sequenceChildren arena (project cursor right))
+    | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+    | Result.ok children => (concatPending arena (record Cursor {phase := (12 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project children first), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (1 : UInt64), planDest := (1 : UInt64), plan := (framePlan (project cursor joins) (project children second) (1 : UInt64) (0 : UInt64))}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: concatByHeight,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    li : Uorc.Core.Heap::SequenceInfo,
+    ri : Uorc.Core.Heap::SequenceInfo
+  ],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor right))) else (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor left))) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (concatDescendLeft arena cursor) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (concatDescendRight arena cursor) else (concatPending arena (record Cursor {phase := (12 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (2 : UInt64), planDest := (0 : UInt64), plan := (branchPlan (project cursor left) (project cursor right))})))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: concatDown,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (Uorc.Core.Heap::sequenceInfo arena (project cursor left))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok li => (match (Uorc.Core.Heap::sequenceInfo arena (project cursor right))
+      | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok ri => (concatByHeight arena cursor li ri))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: concatUp,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor joins)) then (if (prim equal (project cursor purpose) (0 : UInt64) : Bool) then (finishSequence arena cursor) else (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (4 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (match (readFrame arena (project cursor joins))
+    | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+    | Result.ok frame => (match (balancePlan arena (if (prim equal (project frame start) (0 : UInt64) : Bool) then (project frame target) else (project cursor result)) (if (prim equal (project frame start) (0 : UInt64) : Bool) then (project cursor result) else (project frame target)))
+      | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+      | Result.ok program => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (12 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project frame next), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (2 : UInt64), planDest := (0 : UInt64), plan := program}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: sliceWalk,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (prim equal (project cursor count) (0 : UInt64) : Bool) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (4 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (match (Uorc.Core.Heap::sequenceInfo arena (project cursor current))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok info => (if (if (prim equal (project cursor start) (0 : UInt64) : Bool) then (prim equal (project cursor count) (project info length) : Bool) else false) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (1 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (project cursor current), left := (project cursor result), right := (project cursor current), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (if (prim equal (project info height) (1 : UInt64) : Bool) then (match (sequenceLeaf arena (project cursor current))
+      | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+      | Result.ok leaf => (match (prim checked_add (project leaf offset) (project cursor start) : (Option UInt64))
+        | Option.none => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.lengthOverflow))
+        | Option.some offset => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (schedulePlan (record Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (project cursor current), left := (project cursor result), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}) (record Plan {first := (record Instruction {tag := (1 : UInt64), first := (record Ref {handle := (project leaf image), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := offset, b := (project cursor count)}), second := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (1 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)})}) (1 : UInt64) (3 : UInt64)), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))) else (match (sequenceChildren arena (project cursor current))
+      | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+      | Result.ok children => (match (Uorc.Core.Heap::sequenceInfo arena (project children first))
+        | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+        | Result.ok li => (if (Uorc.Core.Heap::less (project cursor start) (project li length)) then (let available : UInt64 := (Uorc.Core.Heap::wordSub (project li length) (project cursor start)); (if (Uorc.Core.Heap::less available (project cursor count)) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (schedulePlan (record Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project children first), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := available, byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}) (framePlan (project cursor stack) (project children second) (0 : UInt64) (Uorc.Core.Heap::wordSub (project cursor count) available)) (3 : UInt64) (2 : UInt64)), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project children first), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))) else (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project children second), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (Uorc.Core.Heap::wordSub (project cursor start) (project li length)), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelCapture,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor capture))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (26 : UInt64) else (25 : UInt64)), purpose := (project cursor purpose), capture := (Uorc.Core.RuntimeValue::nullHandle), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelPurpose,
+  parameters: [cursor : Cursor],
+  result: UInt64,
+  body: (if (prim equal (project cursor purpose) (0 : UInt64) : Bool) then (4 : UInt64) else (if (prim equal (project cursor purpose) (1 : UInt64) : Bool) then (5 : UInt64) else (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then (6 : UInt64) else (if (prim equal (project cursor purpose) (3 : UInt64) : Bool) then (7 : UInt64) else (project cursor purpose))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: prepareCancel,
+  parameters: [cursor : Cursor],
+  result: Cursor,
+  body: (record Cursor {phase := (20 : UInt64), purpose := (cancelPurpose cursor), capture := (project cursor capture), garbage := (project cursor garbage), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (if (resultOwned cursor) then (project cursor result) else (Uorc.Core.RuntimeValue::nullHandle)), start := (0 : UInt64), count := (0 : UInt64), byteValue := (0 : UInt8), fresh := (project cursor fresh), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: cancelDrainExisting,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (match (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then (drainGarbage arena cursor) else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then (drainCapture arena cursor) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))))
+    | Result.error failure => (ctor Result.error [SequenceTransition, SequenceFailure] failure)
+    | Result.ok drained => (let marked : Cursor := (record Cursor {phase := (project (project drained cursor) phase), purpose := (cancelPurpose cursor), capture := (project (project drained cursor) capture), garbage := (project (project drained cursor) garbage), stack := (project (project drained cursor) stack), joins := (project (project drained cursor) joins), current := (project (project drained cursor) current), left := (project (project drained cursor) left), right := (project (project drained cursor) right), result := (project (project drained cursor) result), start := (project (project drained cursor) start), count := (project (project drained cursor) count), byteValue := (project (project drained cursor) byteValue), fresh := (project (project drained cursor) fresh), slot1 := (project (project drained cursor) slot1), slot2 := (project (project drained cursor) slot2), slot3 := (project (project drained cursor) slot3), slot4 := (project (project drained cursor) slot4), planPosition := (project (project drained cursor) planPosition), planReturn := (project (project drained cursor) planReturn), planDest := (project (project drained cursor) planDest), plan := (project (project drained cursor) plan)}); (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project drained arena), cursor := (if (Uorc.Core.Heap::isReleasing (project drained arena)) then marked else (prepareCancel marked)), delta := (project drained delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelFresh,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor fresh))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (22 : UInt64) else (21 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelGarbage,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor garbage))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (24 : UInt64) else (23 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelResult,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (match (Uorc.Core.Heap::release arena (project cursor result))
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (28 : UInt64) else (27 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (Uorc.Core.RuntimeValue::nullHandle), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainCancelCapture,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (26 : UInt64) else (25 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainCancelFresh,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (22 : UInt64) else (21 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainCancelGarbage,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (24 : UInt64) else (23 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainCancelResult,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error heapFailure => (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+    | Result.ok released => (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := (project released arena), cursor := (record Cursor {phase := (if (project released complete) then (28 : UInt64) else (27 : UInt64)), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (project released delta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: isCancelling,
+  parameters: [cursor : Cursor],
+  result: Bool,
+  body: (if (prim equal (project cursor purpose) (4 : UInt64) : Bool) then true else (if (prim equal (project cursor purpose) (5 : UInt64) : Bool) then true else (if (prim equal (project cursor purpose) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor purpose) (7 : UInt64) : Bool) then true else false)))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: stepConcat,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (if (Uorc.Core.Heap::isReleasing arena) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (prim equal (project cursor phase) (11 : UInt64) : Bool)) then false else true) else false) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (10 : UInt64), purpose := (0 : UInt64), capture := (Uorc.Core.RuntimeValue::nullHandle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (Uorc.Core.RuntimeValue::nullHandle), start := (0 : UInt64), count := (0 : UInt64), byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.sequence (project cursor result))})) else (if (prim equal (project cursor phase) (1 : UInt64) : Bool) then (concatDown arena cursor) else (if (prim equal (project cursor phase) (2 : UInt64) : Bool) then (concatUp arena cursor) else (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then (drainGarbage arena cursor) else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then (cleanupGarbage arena cursor) else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then (cleanupCapture arena cursor) else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then (drainCapture arena cursor) else (if (prim equal (project cursor phase) (12 : UInt64) : Bool) then (allocatePlan arena cursor) else (if (prim equal (project cursor phase) (13 : UInt64) : Bool) then (attachPlan arena cursor) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor)))))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: step,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (isCancelling cursor) then (if (if (Uorc.Core.Heap::isReleasing arena) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (21 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (23 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (25 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (27 : UInt64) : Bool) then true else false)))))) then false else true) else false) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (if (prim equal (project cursor phase) (28 : UInt64) : Bool) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (emptyCursor), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.cancelled)})) else (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then (cancelDrainExisting arena cursor) else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then (cancelDrainExisting arena cursor) else (if (prim equal (project cursor phase) (20 : UInt64) : Bool) then (cancelFresh arena cursor) else (if (prim equal (project cursor phase) (21 : UInt64) : Bool) then (drainCancelFresh arena cursor) else (if (prim equal (project cursor phase) (22 : UInt64) : Bool) then (cancelGarbage arena cursor) else (if (prim equal (project cursor phase) (23 : UInt64) : Bool) then (drainCancelGarbage arena cursor) else (if (prim equal (project cursor phase) (24 : UInt64) : Bool) then (cancelCapture arena cursor) else (if (prim equal (project cursor phase) (25 : UInt64) : Bool) then (drainCancelCapture arena cursor) else (if (prim equal (project cursor phase) (26 : UInt64) : Bool) then (cancelResult arena cursor) else (if (prim equal (project cursor phase) (27 : UInt64) : Bool) then (drainCancelResult arena cursor) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor)))))))))))))) else (if (if (Uorc.Core.Heap::isReleasing arena) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (prim equal (project cursor phase) (11 : UInt64) : Bool)) then false else true) else false) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (record Cursor {phase := (10 : UInt64), purpose := (0 : UInt64), capture := (Uorc.Core.RuntimeValue::nullHandle), garbage := (Uorc.Core.RuntimeValue::nullHandle), stack := (Uorc.Core.RuntimeValue::nullHandle), joins := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), left := (Uorc.Core.RuntimeValue::nullHandle), right := (Uorc.Core.RuntimeValue::nullHandle), result := (Uorc.Core.RuntimeValue::nullHandle), start := (0 : UInt64), count := (0 : UInt64), byteValue := (0 : UInt8), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (0 : UInt64), planDest := (0 : UInt64), plan := (emptyPlan)}), delta := (zeroDelta), work := (1 : UInt64), outcome := (if (prim equal (project cursor purpose) (2 : UInt64) : Bool) then (ctor Outcome.byte (project cursor byteValue)) else (if (prim equal (project cursor purpose) (3 : UInt64) : Bool) then (ctor Outcome.span (record Span {image := (project cursor result), offset := (project cursor start), length := (project cursor count)})) else (ctor Outcome.sequence (project cursor result))))})) else (if (prim equal (project cursor phase) (1 : UInt64) : Bool) then (concatDown arena cursor) else (if (prim equal (project cursor phase) (2 : UInt64) : Bool) then (concatUp arena cursor) else (if (prim equal (project cursor phase) (3 : UInt64) : Bool) then (sliceWalk arena cursor) else (if (prim equal (project cursor phase) (4 : UInt64) : Bool) then (sliceNext arena cursor) else (if (prim equal (project cursor phase) (5 : UInt64) : Bool) then (indexWalk arena cursor) else (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then (drainGarbage arena cursor) else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then (cleanupGarbage arena cursor) else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then (cleanupCapture arena cursor) else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then (drainCapture arena cursor) else (if (prim equal (project cursor phase) (12 : UInt64) : Bool) then (allocatePlan arena cursor) else (if (prim equal (project cursor phase) (13 : UInt64) : Bool) then (attachPlan arena cursor) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor)))))))))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: ownedRoots,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (addRoot (project cursor capture) (addRoot (project cursor garbage) (addRoot (project cursor fresh) (addRoot (if (resultOwned cursor) then (project cursor result) else (Uorc.Core.RuntimeValue::nullHandle)) (nil Uorc.Core.RuntimeValue::Handle))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: cancel,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (if (Uorc.Core.Heap::isReleasing arena) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (21 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (23 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (25 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (27 : UInt64) : Bool) then true else false)))))) then false else true) else false) then (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))) else (if (isCancelling cursor) then (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := cursor, delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})) else (if (if (prim equal (project cursor phase) (1 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (2 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (3 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (4 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (5 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (7 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (8 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (9 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (12 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (13 : UInt64) : Bool) then true else false)))))))))))) then (if (if (prim equal (project cursor phase) (6 : UInt64) : Bool) then true else (if (prim equal (project cursor phase) (11 : UInt64) : Bool) then true else false)) then (cancelDrainExisting arena cursor) else (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := (prepareCancel cursor), delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)}))) else (ctor Result.error [SequenceTransition, SequenceFailure] (ctor SequenceFailure.invalidCursor))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+\end{semanticmodule}
+\end{lexlean}

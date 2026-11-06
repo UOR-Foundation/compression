@@ -1,0 +1,783 @@
+\begin{lexlean}{Uorc.Integrity.OwnedHash}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Integrity.Profile}
+\importmodule{Uorc.Integrity.Sha256}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: sequence, fields: [Uorc.Core.RuntimeSequence::SequenceFailure]},
+    {name: integrity, fields: [Uorc.Integrity.Profile::Error]},
+    {name: invalidState, fields: []},
+    {name: range, fields: []},
+    {name: workPending, fields: []},
+    {name: completed, fields: []},
+    {name: canceled, fields: []},
+    {name: digestLength, fields: []},
+    {name: profileHeaderMismatch, fields: []},
+    {name: truncatedPrefix, fields: []},
+    {name: invalidOwner, fields: []}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: prefix, fields: [Uorc.Integrity.Profile::Update]},
+    {name: ready, fields: [Uorc.Integrity.Profile::State]},
+    {name: updating, fields: [Uorc.Integrity.Profile::Update]},
+    {name: inputDrain, fields: [Uorc.Integrity.Profile::State]},
+    {name: finalizing, fields: [Uorc.Integrity.Profile::State]},
+    {name: commitDigest, fields: [Uorc.Integrity.Profile::State]},
+    {name: releaseControl, fields: []},
+    {name: controlDrain, fields: []},
+    {name: publish, fields: []},
+    {name: done, fields: []},
+    {name: cancelDrain, fields: []},
+    {name: cancelInput, fields: []},
+    {name: cancelOutput, fields: []},
+    {name: cancelControl, fields: []},
+    {name: cancelled, fields: []}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: profile, type: Uorc.Integrity.Profile::Kind},
+    {name: purpose, type: Uorc.Integrity.Profile::Purpose},
+    {name: control, type: Uorc.Core.RuntimeValue::Handle},
+    {name: input, type: (Option Uorc.Core.RuntimeSequence::Span)},
+    {name: position, type: UInt64},
+    {name: checkedPrefix, type: UInt64},
+    {name: output, type: Uorc.Core.RuntimeValue::Handle},
+    {name: phase, type: Phase}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: ready, fields: []},
+    {name: spanComplete, fields: []},
+    {name: digest, fields: [Uorc.Core.RuntimeValue::Handle]},
+    {name: cancelled, fields: []}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: cursor, type: Cursor},
+    {name: delta, type: Uorc.Core.Heap::Delta},
+    {name: work, type: UInt64},
+    {name: admittedInputBytes, type: UInt64},
+    {name: inputMaterializationBytes, type: UInt64},
+    {name: digestMaterializationBytes, type: UInt64},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+structure{
+  name: ChargedTransition,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: work, type: UInt64}, {name: result, type: (Result Transition Error)}]
+}
+
+structure{
+  name: ChargedValidation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: work, type: UInt64}, {name: result, type: (Result Bool Error)}]
+}
+
+definition{
+  name: withWork,
+  parameters: [transition : Transition, work : UInt64],
+  result: Transition,
+  body: (record Transition {arena := (project transition arena), cursor := (project transition cursor), delta := (project transition delta), work := work, admittedInputBytes := (project transition admittedInputBytes), inputMaterializationBytes := (project transition inputMaterializationBytes), digestMaterializationBytes := (project transition digestMaterializationBytes), outcome := (project transition outcome)}),
+  executable: true
+}
+
+definition{
+  name: chargeTransition,
+  parameters: [work : UInt64, result : (Result Transition Error)],
+  result: ChargedTransition,
+  body: (record ChargedTransition {work := work, result := (match result
+    | Result.error failure => (ctor Result.error [Transition, Error] failure)
+    | Result.ok success => (ctor Result.ok [Transition, Error] (withWork success work)))}),
+  executable: true
+}
+
+definition{
+  name: addCharge,
+  parameters: [prefixWork : UInt64, charged : ChargedTransition],
+  result: ChargedTransition,
+  body: (chargeTransition (Uorc.Core.Heap::wordAdd prefixWork (project charged work)) (project charged result)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: imageFailureToSequence,
+  parameters: [failure : Uorc.Core.RuntimeImage::ImageFailure],
+  result: Uorc.Core.RuntimeSequence::SequenceFailure,
+  body: (match failure
+    | Uorc.Core.RuntimeImage::ImageFailure.heap cause => (ctor Uorc.Core.RuntimeSequence::SequenceFailure.heap cause)
+    | Uorc.Core.RuntimeImage::ImageFailure.invalidShape => (ctor Uorc.Core.RuntimeSequence::SequenceFailure.invalidShape)
+    | Uorc.Core.RuntimeImage::ImageFailure.range => (ctor Uorc.Core.RuntimeSequence::SequenceFailure.range)
+    | Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow => (ctor Uorc.Core.RuntimeSequence::SequenceFailure.lengthOverflow)),
+  executable: true
+}
+
+definition{
+  name: validateSpanCharged,
+  parameters: [arena : Uorc.Core.Heap::Arena, span : Uorc.Core.RuntimeSequence::Span],
+  result: ChargedValidation,
+  body: (let accessQuote : UInt64 := (Uorc.Core.RuntimeImage::validateSpanCost arena (project span image) (project span offset) (project span length)); (match (Uorc.Core.RuntimeImage::validateSpan arena (project span image) (project span offset) (project span length))
+    | Result.error imageFailure => (record ChargedValidation {work := accessQuote, result := (ctor Result.error [Bool, Error] (match imageFailure
+      | Uorc.Core.RuntimeImage::ImageFailure.heap cause => (ctor Error.heap cause)
+      | Uorc.Core.RuntimeImage::ImageFailure.invalidShape => (ctor Error.invalidState)
+      | Uorc.Core.RuntimeImage::ImageFailure.range => (ctor Error.range)
+      | Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow => (ctor Error.range)))})
+    | Result.ok borrowed => (record ChargedValidation {work := accessQuote, result := (ctor Result.ok [Bool, Error] true)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: zeroDelta,
+  parameters: [],
+  result: Uorc.Core.Heap::Delta,
+  body: (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}),
+  executable: true
+}
+
+definition{
+  name: report,
+  parameters: [
+    reportArena : Uorc.Core.Heap::Arena,
+    reportCursor : Cursor,
+    reportDelta : Uorc.Core.Heap::Delta,
+    overhead : UInt64,
+    inputCount : UInt64,
+    copyCount : UInt64,
+    digestCount : UInt64,
+    reportedOutcome : Outcome
+  ],
+  result: (Result Transition Error),
+  body: (ctor Result.ok [Transition, Error] (record Transition {arena := reportArena, cursor := reportCursor, delta := reportDelta, work := (Uorc.Core.Heap::wordAdd (project reportDelta work) overhead), admittedInputBytes := inputCount, inputMaterializationBytes := copyCount, digestMaterializationBytes := digestCount, outcome := reportedOutcome})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: withPositionCheckedPrefixPhase,
+  parameters: [
+    previousCursor : Cursor,
+    newPosition : UInt64,
+    newCheckedPrefix : UInt64,
+    newPhase : Phase
+  ],
+  result: Cursor,
+  body: (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := (project previousCursor input), position := newPosition, checkedPrefix := newCheckedPrefix, output := (project previousCursor output), phase := newPhase}),
+  executable: true
+}
+
+definition{
+  name: acceptedByteCharged,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    hashState : Uorc.Integrity.Profile::State,
+    byteValue : UInt8
+  ],
+  result: ChargedTransition,
+  body: (match (Uorc.Integrity.Profile::beginUpdate hashState (Uorc.Integrity.Sha256::byteBytes byteValue))
+    | Result.error hashFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (1 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.integrity hashFailure)))
+    | Result.ok hashJob => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (1 : UInt64)) (report arena (withPositionCheckedPrefixPhase cursor (Uorc.Core.Heap::wordAdd (project cursor position) (1 : UInt64)) (if (Uorc.Integrity.Profile::requiresArchivePrefix (project cursor purpose)) then (if (Uorc.Core.Heap::less (project cursor checkedPrefix) (6 : UInt64)) then (Uorc.Core.Heap::wordAdd (project cursor checkedPrefix) (1 : UInt64)) else (project cursor checkedPrefix)) else (project cursor checkedPrefix)) (ctor Phase.updating hashJob)) (zeroDelta) (2 : UInt64) (1 : UInt64) (1 : UInt64) (0 : UInt64) (ctor Outcome.pending)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: acceptedByte,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    hashState : Uorc.Integrity.Profile::State,
+    byteValue : UInt8
+  ],
+  result: (Result Transition Error),
+  body: (project (acceptedByteCharged arena cursor hashState byteValue) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: withOutputPhase,
+  parameters: [
+    previousCursor : Cursor,
+    newOutput : Uorc.Core.RuntimeValue::Handle,
+    newPhase : Phase
+  ],
+  result: Cursor,
+  body: (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := (project previousCursor input), position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := newOutput, phase := newPhase}),
+  executable: true
+}
+
+definition{
+  name: finalizeReadyCharged,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    hashState : Uorc.Integrity.Profile::State
+  ],
+  result: ChargedTransition,
+  body: (match (project cursor input)
+    | Option.none => (match (Uorc.Core.Heap::reserveImage arena (ctor Uorc.Core.Heap::ImageKind.runtime) (32 : UInt64))
+      | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+      | Result.ok reserved => (let heapPrefix1 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project reserved delta) work)); (match (Uorc.Integrity.Profile::finalize hashState)
+        | Result.error hashFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix1) (ctor Result.error [Transition, Error] (ctor Error.integrity hashFailure)))
+        | Result.ok closingHash => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix1) (report (project reserved arena) (withOutputPhase cursor (project reserved handle) (ctor Phase.finalizing closingHash)) (project reserved delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending))))))
+    | Option.some span => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalizeReady,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    hashState : Uorc.Integrity.Profile::State
+  ],
+  result: (Result Transition Error),
+  body: (project (finalizeReadyCharged arena cursor hashState) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: withInputPositionPhase,
+  parameters: [
+    previousCursor : Cursor,
+    newInput : (Option Uorc.Core.RuntimeSequence::Span),
+    newPosition : UInt64,
+    newPhase : Phase
+  ],
+  result: Cursor,
+  body: (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := newInput, position := newPosition, checkedPrefix := (project previousCursor checkedPrefix), output := (project previousCursor output), phase := newPhase}),
+  executable: true
+}
+
+definition{
+  name: withPhase,
+  parameters: [previousCursor : Cursor, newPhase : Phase],
+  result: Cursor,
+  body: (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := (project previousCursor input), position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := (project previousCursor output), phase := newPhase}),
+  executable: true
+}
+
+definition{
+  name: withControlPhase,
+  parameters: [
+    previousCursor : Cursor,
+    newControl : Uorc.Core.RuntimeValue::Handle,
+    newPhase : Phase
+  ],
+  result: Cursor,
+  body: (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := newControl, input := (project previousCursor input), position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := (project previousCursor output), phase := newPhase}),
+  executable: true
+}
+
+definition{
+  name: withInputPhase,
+  parameters: [
+    previousCursor : Cursor,
+    newInput : (Option Uorc.Core.RuntimeSequence::Span),
+    newPhase : Phase
+  ],
+  result: Cursor,
+  body: (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := newInput, position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := (project previousCursor output), phase := newPhase}),
+  executable: true
+}
+
+definition{
+  name: withControlInputOutputPhase,
+  parameters: [
+    previousCursor : Cursor,
+    newControl : Uorc.Core.RuntimeValue::Handle,
+    newInput : (Option Uorc.Core.RuntimeSequence::Span),
+    newOutput : Uorc.Core.RuntimeValue::Handle,
+    newPhase : Phase
+  ],
+  result: Cursor,
+  body: (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := newControl, input := newInput, position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := newOutput, phase := newPhase}),
+  executable: true
+}
+
+definition{
+  name: controlProfile,
+  parameters: [],
+  result: String,
+  body: "uorc.hash-control.logical-owned-bytes/1: conservative source envelope, not native RSS. Legacy byte buffers 511; stream byte buffers 257; UInt32 word data 160; thirteen UInt64 scalar slots 104; eight tag slots 64; flags 8. Heap allocation metadata is charged by Heap.allocateControl separately.",
+  executable: true
+}
+
+definition{
+  name: controlBytes,
+  parameters: [profile : Uorc.Integrity.Profile::Kind],
+  result: UInt64,
+  body: (match profile
+    | Uorc.Integrity.Profile::Kind.format2Chain => (847 : UInt64)
+    | Uorc.Integrity.Profile::Kind.format3Stream => (593 : UInt64)),
+  executable: true
+}
+
+definition{
+  name: startCharged,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    profile : Uorc.Integrity.Profile::Kind,
+    purpose : Uorc.Integrity.Profile::Purpose
+  ],
+  result: ChargedTransition,
+  body: (match (Uorc.Core.Heap::allocateControl arena (controlBytes profile))
+    | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+    | Result.ok allocated => (let heapPrefix2 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project allocated delta) work)); (match (Uorc.Integrity.Profile::init profile)
+      | Result.error hashFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix2) (ctor Result.error [Transition, Error] (ctor Error.integrity hashFailure)))
+      | Result.ok hashState => (match (Uorc.Integrity.Profile::beginUpdate hashState (Uorc.Integrity.Profile::prefix profile purpose))
+        | Result.error hashFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix2) (ctor Result.error [Transition, Error] (ctor Error.integrity hashFailure)))
+        | Result.ok prefixJob => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix2) (report (project allocated arena) (record Cursor {profile := profile, purpose := purpose, control := (project allocated handle), input := (ctor Option.none [Uorc.Core.RuntimeSequence::Span]), position := (0 : UInt64), checkedPrefix := (0 : UInt64), output := (Uorc.Core.RuntimeValue::nullHandle), phase := (ctor Phase.prefix prefixJob)}) (project allocated delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: start,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    profile : Uorc.Integrity.Profile::Kind,
+    purpose : Uorc.Integrity.Profile::Purpose
+  ],
+  result: (Result Transition Error),
+  body: (project (startCharged arena profile purpose) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: validateSpan,
+  parameters: [arena : Uorc.Core.Heap::Arena, span : Uorc.Core.RuntimeSequence::Span],
+  result: (Result Bool Error),
+  body: (project (validateSpanCharged arena span) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: beginSpanCharged,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    span : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: ChargedTransition,
+  body: (match (project cursor phase)
+    | Phase.prefix p0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.ready hashState => (match (project cursor input)
+      | Option.none => (if (prim equal (project span length) (0 : UInt64) : Bool) then (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena cursor (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.spanComplete))) else (let childCharge3 : ChargedValidation := (validateSpanCharged arena span); (let prefixWork4 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project childCharge3 work)); (match (project childCharge3 result)
+        | Result.error failure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) prefixWork4) (ctor Result.error [Transition, Error] failure))
+        | Result.ok checkedSpan => (match (Uorc.Core.Heap::checkMoveRoot arena (project span image) (1 : UInt64))
+          | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) prefixWork4) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+          | Result.ok ticketAvailable => (if ticketAvailable then (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) prefixWork4) (report arena (withInputPositionPhase cursor (ctor Option.some [Uorc.Core.RuntimeSequence::Span] span) (0 : UInt64) (ctor Phase.ready hashState)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending))) else (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) prefixWork4) (ctor Result.error [Transition, Error] (ctor Error.invalidOwner)))))))))
+      | Option.some previousSpan => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending))))
+    | Phase.updating p0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.inputDrain p0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.finalizing p0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.commitDigest p0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.releaseControl => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.controlDrain => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.publish => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.done => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.completed)))
+    | Phase.cancelDrain => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.cancelInput => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.cancelOutput => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.cancelControl => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.cancelled => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.canceled)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: beginSpan,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    span : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: (Result Transition Error),
+  body: (project (beginSpanCharged arena cursor span) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: borrowSpanCharged,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    span : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: ChargedTransition,
+  body: (if (prim equal (project span length) (0 : UInt64) : Bool) then (addCharge (0 : UInt64) (beginSpanCharged arena cursor span)) else (match (Uorc.Core.Heap::retain arena (project span image))
+    | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+    | Result.ok retained => (let heapPrefix5 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project retained delta) work)); (let childCharge6 : ChargedTransition := (beginSpanCharged (project retained arena) cursor span); (let prefixWork7 : UInt64 := (Uorc.Core.Heap::wordAdd heapPrefix5 (Uorc.Core.Heap::wordSub (project childCharge6 work) (1 : UInt64))); (match (project childCharge6 result)
+      | Result.error failure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) prefixWork7) (ctor Result.error [Transition, Error] failure))
+      | Result.ok accepted => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) prefixWork7) (report (project accepted arena) (project accepted cursor) (project retained delta) (1 : UInt64) (project accepted admittedInputBytes) (project accepted inputMaterializationBytes) (project accepted digestMaterializationBytes) (project accepted outcome))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: borrowSpan,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    span : Uorc.Core.RuntimeSequence::Span
+  ],
+  result: (Result Transition Error),
+  body: (project (borrowSpanCharged arena cursor span) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: stepCharged,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: ChargedTransition,
+  body: (match (project cursor phase)
+    | Phase.prefix hashJob => (match (Uorc.Integrity.Profile::updateStep hashJob)
+      | Result.error hashFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.integrity hashFailure)))
+      | Result.ok hashEvent => (match hashEvent
+        | Uorc.Integrity.Profile::Event.advanced nextJob => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.prefix nextJob)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))
+        | Uorc.Integrity.Profile::Event.done hashState => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.ready hashState)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.ready)))))
+    | Phase.ready hashState => (match (project cursor input)
+      | Option.none => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena cursor (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.ready)))
+      | Option.some span => (if (Uorc.Core.Heap::less (project cursor position) (project span length)) then (match (prim checked_add (project span offset) (project cursor position) : (Option UInt64))
+        | Option.none => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.range)))
+        | Option.some absoluteOffset => (let accessQuote8 : UInt64 := (Uorc.Core.RuntimeImage::readByteCost arena (project span image) absoluteOffset); (let prefixWork9 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) accessQuote8); (match (Uorc.Core.RuntimeImage::readByte arena (project span image) absoluteOffset)
+          | Result.error spanFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) prefixWork9) (ctor Result.error [Transition, Error] (ctor Error.sequence (imageFailureToSequence spanFailure))))
+          | Result.ok byteValue => (if (Uorc.Integrity.Profile::requiresArchivePrefix (project cursor purpose)) then (if (Uorc.Core.Heap::less (project cursor checkedPrefix) (6 : UInt64)) then (if (prim equal byteValue (match (prim index (Uorc.Integrity.Profile::archivePrefix (project cursor profile)) (Uorc.Core.RuntimeSequence::wordToNatAux 64 (project cursor checkedPrefix)) : (Option UInt8))
+            | Option.none => (0 : UInt8)
+            | Option.some unwrapped => unwrapped) : Bool) then (addCharge prefixWork9 (acceptedByteCharged arena cursor hashState byteValue)) else (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) prefixWork9) (ctor Result.error [Transition, Error] (ctor Error.profileHeaderMismatch)))) else (addCharge prefixWork9 (acceptedByteCharged arena cursor hashState byteValue))) else (addCharge prefixWork9 (acceptedByteCharged arena cursor hashState byteValue))))))) else (if (prim equal (project cursor position) (project span length) : Bool) then (match (Uorc.Core.Heap::release arena (project span image))
+        | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+        | Result.ok released => (let heapPrefix10 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project released delta) work)); (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix10) (report (project released arena) (withInputPositionPhase cursor (ctor Option.none [Uorc.Core.RuntimeSequence::Span]) (0 : UInt64) (if (project released complete) then (ctor Phase.ready hashState) else (ctor Phase.inputDrain hashState))) (project released delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (if (project released complete) then (ctor Outcome.spanComplete) else (ctor Outcome.pending)))))) else (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.invalidState))))))
+    | Phase.updating hashJob => (match (Uorc.Integrity.Profile::updateStep hashJob)
+      | Result.error hashFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.integrity hashFailure)))
+      | Result.ok hashEvent => (match hashEvent
+        | Uorc.Integrity.Profile::Event.advanced nextJob => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.updating nextJob)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))
+        | Uorc.Integrity.Profile::Event.done hashState => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.ready hashState)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))))
+    | Phase.inputDrain hashState => (match (Uorc.Core.Heap::releaseStep arena)
+      | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+      | Result.ok released => (let heapPrefix11 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project released delta) work)); (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix11) (report (project released arena) (withPhase cursor (if (project released complete) then (ctor Phase.ready hashState) else (ctor Phase.inputDrain hashState))) (project released delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (if (project released complete) then (ctor Outcome.spanComplete) else (ctor Outcome.pending))))))
+    | Phase.finalizing hashState => (if (Uorc.Integrity.Profile::isFinished hashState) then (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.commitDigest hashState)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending))) else (match (Uorc.Integrity.Profile::step hashState)
+      | Result.error hashFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.integrity hashFailure)))
+      | Result.ok nextHash => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.finalizing nextHash)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))))
+    | Phase.commitDigest hashState => (match (Uorc.Integrity.Profile::digest hashState)
+      | Result.error hashFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.integrity hashFailure)))
+      | Result.ok digestBytes => (if ((prim length digestBytes : Nat) =? 32) then (let digestPrefix12 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (32 : UInt64)); (match (Uorc.Core.Heap::commitImage arena (project cursor output) digestBytes)
+        | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) digestPrefix12) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+        | Result.ok committed => (let heapPrefix13 : UInt64 := (Uorc.Core.Heap::wordAdd digestPrefix12 (project (project committed delta) work)); (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix13) (report (project committed arena) (withOutputPhase cursor (project committed handle) (ctor Phase.releaseControl)) (project committed delta) (33 : UInt64) (0 : UInt64) (0 : UInt64) (32 : UInt64) (ctor Outcome.pending)))))) else (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.digestLength)))))
+    | Phase.releaseControl => (match (Uorc.Core.Heap::release arena (project cursor control))
+      | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+      | Result.ok released => (let heapPrefix14 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project released delta) work)); (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix14) (report (project released arena) (withControlPhase cursor (Uorc.Core.RuntimeValue::nullHandle) (if (project released complete) then (ctor Phase.publish) else (ctor Phase.controlDrain))) (project released delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))))
+    | Phase.controlDrain => (match (Uorc.Core.Heap::releaseStep arena)
+      | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+      | Result.ok released => (let heapPrefix15 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project released delta) work)); (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix15) (report (project released arena) (withPhase cursor (if (project released complete) then (ctor Phase.publish) else (ctor Phase.controlDrain))) (project released delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))))
+    | Phase.publish => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.ok [Transition, Error] (record Transition {arena := arena, cursor := (withOutputPhase cursor (Uorc.Core.RuntimeValue::nullHandle) (ctor Phase.done)), delta := (zeroDelta), work := (1 : UInt64), admittedInputBytes := (0 : UInt64), inputMaterializationBytes := (0 : UInt64), digestMaterializationBytes := (0 : UInt64), outcome := (ctor Outcome.digest (project cursor output))})))
+    | Phase.done => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.completed)))
+    | Phase.cancelDrain => (match (Uorc.Core.Heap::releaseStep arena)
+      | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+      | Result.ok released => (let heapPrefix16 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project released delta) work)); (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix16) (report (project released arena) (withPhase cursor (if (project released complete) then (ctor Phase.cancelInput) else (ctor Phase.cancelDrain))) (project released delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))))
+    | Phase.cancelInput => (match (project cursor input)
+      | Option.none => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.cancelOutput)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))
+      | Option.some span => (match (Uorc.Core.Heap::release arena (project span image))
+        | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+        | Result.ok released => (let heapPrefix17 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project released delta) work)); (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix17) (report (project released arena) (withInputPositionPhase cursor (ctor Option.none [Uorc.Core.RuntimeSequence::Span]) (0 : UInt64) (if (project released complete) then (ctor Phase.cancelOutput) else (ctor Phase.cancelDrain))) (project released delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending))))))
+    | Phase.cancelOutput => (if (Uorc.Core.RuntimeValue::isNull (project cursor output)) then (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.cancelControl)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending))) else (match (Uorc.Core.Heap::release arena (project cursor output))
+      | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+      | Result.ok released => (let heapPrefix18 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project released delta) work)); (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix18) (report (project released arena) (withOutputPhase cursor (Uorc.Core.RuntimeValue::nullHandle) (if (project released complete) then (ctor Phase.cancelControl) else (ctor Phase.cancelDrain))) (project released delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending))))))
+    | Phase.cancelControl => (if (Uorc.Core.RuntimeValue::isNull (project cursor control)) then (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.cancelled)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.cancelled))) else (match (Uorc.Core.Heap::release arena (project cursor control))
+      | Result.error heapFailure => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.heap heapFailure)))
+      | Result.ok released => (let heapPrefix19 : UInt64 := (Uorc.Core.Heap::wordAdd (0 : UInt64) (project (project released delta) work)); (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) heapPrefix19) (report (project released arena) (withControlPhase cursor (Uorc.Core.RuntimeValue::nullHandle) (if (project released complete) then (ctor Phase.cancelInput) else (ctor Phase.cancelDrain))) (project released delta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending))))))
+    | Phase.cancelled => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena cursor (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.cancelled)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: step,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result Transition Error),
+  body: (project (stepCharged arena cursor) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalizeCharged,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: ChargedTransition,
+  body: (match (project cursor phase)
+    | Phase.prefix x0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.ready hashState => (if (Uorc.Integrity.Profile::requiresArchivePrefix (project cursor purpose)) then (if (prim equal (project cursor checkedPrefix) (6 : UInt64) : Bool) then (addCharge (0 : UInt64) (finalizeReadyCharged arena cursor hashState)) else (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.truncatedPrefix)))) else (addCharge (0 : UInt64) (finalizeReadyCharged arena cursor hashState)))
+    | Phase.updating x0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.inputDrain x0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))
+    | Phase.finalizing x0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena cursor (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))
+    | Phase.commitDigest x0 => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena cursor (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))
+    | Phase.releaseControl => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena cursor (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))
+    | Phase.controlDrain => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena cursor (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))
+    | Phase.publish => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena cursor (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))
+    | Phase.done => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.completed)))
+    | Phase.cancelDrain => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.canceled)))
+    | Phase.cancelInput => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.canceled)))
+    | Phase.cancelOutput => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.canceled)))
+    | Phase.cancelControl => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.canceled)))
+    | Phase.cancelled => (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.canceled)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalize,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result Transition Error),
+  body: (project (finalizeCharged arena cursor) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: ownsRelease,
+  parameters: [cursor : Cursor],
+  result: Bool,
+  body: (match (project cursor phase)
+    | Phase.prefix x0 => false
+    | Phase.ready x0 => false
+    | Phase.updating x0 => false
+    | Phase.inputDrain x0 => true
+    | Phase.finalizing x0 => false
+    | Phase.commitDigest x0 => false
+    | Phase.releaseControl => false
+    | Phase.controlDrain => true
+    | Phase.publish => false
+    | Phase.done => false
+    | Phase.cancelDrain => true
+    | Phase.cancelInput => false
+    | Phase.cancelOutput => false
+    | Phase.cancelControl => false
+    | Phase.cancelled => false),
+  executable: true
+}
+
+definition{
+  name: cancelCharged,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: ChargedTransition,
+  body: (if (Uorc.Core.Heap::isReleasing arena) then (if (ownsRelease cursor) then (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.cancelDrain)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending))) else (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (ctor Result.error [Transition, Error] (ctor Error.workPending)))) else (chargeTransition (Uorc.Core.Heap::wordAdd (1 : UInt64) (0 : UInt64)) (report arena (withPhase cursor (ctor Phase.cancelInput)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.pending)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancel,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result Transition Error),
+  body: (project (cancelCharged arena cursor) result),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: ownedRoots,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor control)) then (match (project cursor input)
+    | Option.none => (if (Uorc.Core.RuntimeValue::isNull (project cursor output)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project cursor output) (nil Uorc.Core.RuntimeValue::Handle)))
+    | Option.some span => (if (prim equal (project span length) (0 : UInt64) : Bool) then (if (Uorc.Core.RuntimeValue::isNull (project cursor output)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project cursor output) (nil Uorc.Core.RuntimeValue::Handle))) else (cons (project span image) (if (Uorc.Core.RuntimeValue::isNull (project cursor output)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project cursor output) (nil Uorc.Core.RuntimeValue::Handle)))))) else (cons (project cursor control) (match (project cursor input)
+    | Option.none => (if (Uorc.Core.RuntimeValue::isNull (project cursor output)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project cursor output) (nil Uorc.Core.RuntimeValue::Handle)))
+    | Option.some span => (if (prim equal (project span length) (0 : UInt64) : Bool) then (if (Uorc.Core.RuntimeValue::isNull (project cursor output)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project cursor output) (nil Uorc.Core.RuntimeValue::Handle))) else (cons (project span image) (if (Uorc.Core.RuntimeValue::isNull (project cursor output)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project cursor output) (nil Uorc.Core.RuntimeValue::Handle)))))))),
+  executable: true
+}
+
+definition{
+  name: outcomeRoots,
+  parameters: [outcome : Outcome],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match outcome
+    | Outcome.pending => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.ready => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.spanComplete => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.digest image => (cons image (nil Uorc.Core.RuntimeValue::Handle))
+    | Outcome.cancelled => (nil Uorc.Core.RuntimeValue::Handle)),
+  executable: true
+}
+
+definition{
+  name: ownershipContract,
+  parameters: [],
+  result: String,
+  body: "start charges bounded component/control storage before initialization. beginSpan consumes the one already-owned image ticket transferred by a nonempty RuntimeSequence.Outcome.span; it never normalizes or drops that ticket. Empty spans transfer none. borrowSpan explicitly retains an extra ticket when the caller keeps ownership. Each input step materializes at most one octet under that control charge; the root persists through update completion and full-frame seams. Span completion/cancel releases and drains the owned root. Before starting finalization it reserves a charged 32-byte output image; intermediate chain/cache buffers remain covered by the control charge. It commits the final bytes and transfers the owned handle once. work includes heap delta work plus one operational adapter event plus boundary materialization octets; this is operational implementation work, never semantic admissibility. Copy fields are boundary materialization counts, not complete physical allocation/RSS observations. Source-only component buffer bounds are conservative logical ownership charges, not a universal native-memory refinement proof. RuntimeImage is the sole scalar image validation/read authority; BorrowedSpan is temporary and owns no ticket. *Charged returns logical operational work on success and typed error. On success its work equals Transition.work: charge exactly one, never both. Plain Result.error exposes no failed-work accounting. Each accessor Cost quote is obtained with the same arguments before its result; successful Heap delta work, one adapter event and boundary materialization prefixes are retained even when a later stage fails. Getter quotes are logical dispatches, not physical allocation/instruction/time claims. The actual producer span ticket remains in input until successful Heap.release handoff; pending release ownership belongs to Heap, while spanComplete waits actual completion acknowledgment.",
+  executable: true
+}
+
+theorem{
+  name: empty_span_has_no_ownership_effect,
+  parameters: [
+    arbitraryArena : Uorc.Core.Heap::Arena,
+    arbitraryCursor : Cursor,
+    arbitraryHash : Uorc.Integrity.Profile::State,
+    arbitraryImage : Uorc.Core.RuntimeValue::Handle,
+    arbitraryOffset : UInt64
+  ],
+  statement: ((beginSpan arbitraryArena (withInputPhase arbitraryCursor (ctor Option.none [Uorc.Core.RuntimeSequence::Span]) (ctor Phase.ready arbitraryHash)) (record Uorc.Core.RuntimeSequence::Span {image := arbitraryImage, offset := arbitraryOffset, length := (0 : UInt64)})) = (report arbitraryArena (withInputPhase arbitraryCursor (ctor Option.none [Uorc.Core.RuntimeSequence::Span]) (ctor Phase.ready arbitraryHash)) (zeroDelta) (1 : UInt64) (0 : UInt64) (0 : UInt64) (0 : UInt64) (ctor Outcome.spanComplete))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: digest_publication_transfers_one_ticket,
+  parameters: [
+    arbitraryArena : Uorc.Core.Heap::Arena,
+    arbitraryCursor : Cursor,
+    arbitraryImage : Uorc.Core.RuntimeValue::Handle
+  ],
+  statement: ((match (step arbitraryArena (withControlInputOutputPhase arbitraryCursor (Uorc.Core.RuntimeValue::nullHandle) (ctor Option.none [Uorc.Core.RuntimeSequence::Span]) arbitraryImage (ctor Phase.publish)))
+    | Result.error failure => (nil Uorc.Core.RuntimeValue::Handle)
+    | Result.ok publishedTransition => (outcomeRoots (project publishedTransition outcome))) = (cons arbitraryImage (nil Uorc.Core.RuntimeValue::Handle))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: zeroDelta_refines_record,
+  parameters: [],
+  statement: ((zeroDelta) = (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)})),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: report_refines_record,
+  parameters: [
+    reportArena : Uorc.Core.Heap::Arena,
+    reportCursor : Cursor,
+    reportDelta : Uorc.Core.Heap::Delta,
+    overhead : UInt64,
+    inputCount : UInt64,
+    copyCount : UInt64,
+    digestCount : UInt64,
+    reportedOutcome : Outcome
+  ],
+  statement: ((report reportArena reportCursor reportDelta overhead inputCount copyCount digestCount reportedOutcome) = (ctor Result.ok [Transition, Error] (record Transition {arena := reportArena, cursor := reportCursor, delta := reportDelta, work := (Uorc.Core.Heap::wordAdd (project reportDelta work) overhead), admittedInputBytes := inputCount, inputMaterializationBytes := copyCount, digestMaterializationBytes := digestCount, outcome := reportedOutcome}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: withPositionCheckedPrefixPhase_refines_record,
+  parameters: [
+    previousCursor : Cursor,
+    newPosition : UInt64,
+    newCheckedPrefix : UInt64,
+    newPhase : Phase
+  ],
+  statement: ((withPositionCheckedPrefixPhase previousCursor newPosition newCheckedPrefix newPhase) = (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := (project previousCursor input), position := newPosition, checkedPrefix := newCheckedPrefix, output := (project previousCursor output), phase := newPhase})),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: withOutputPhase_refines_record,
+  parameters: [
+    previousCursor : Cursor,
+    newOutput : Uorc.Core.RuntimeValue::Handle,
+    newPhase : Phase
+  ],
+  statement: ((withOutputPhase previousCursor newOutput newPhase) = (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := (project previousCursor input), position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := newOutput, phase := newPhase})),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: withInputPositionPhase_refines_record,
+  parameters: [
+    previousCursor : Cursor,
+    newInput : (Option Uorc.Core.RuntimeSequence::Span),
+    newPosition : UInt64,
+    newPhase : Phase
+  ],
+  statement: ((withInputPositionPhase previousCursor newInput newPosition newPhase) = (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := newInput, position := newPosition, checkedPrefix := (project previousCursor checkedPrefix), output := (project previousCursor output), phase := newPhase})),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: withPhase_refines_record,
+  parameters: [previousCursor : Cursor, newPhase : Phase],
+  statement: ((withPhase previousCursor newPhase) = (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := (project previousCursor input), position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := (project previousCursor output), phase := newPhase})),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: withControlPhase_refines_record,
+  parameters: [
+    previousCursor : Cursor,
+    newControl : Uorc.Core.RuntimeValue::Handle,
+    newPhase : Phase
+  ],
+  statement: ((withControlPhase previousCursor newControl newPhase) = (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := newControl, input := (project previousCursor input), position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := (project previousCursor output), phase := newPhase})),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: withInputPhase_refines_record,
+  parameters: [
+    previousCursor : Cursor,
+    newInput : (Option Uorc.Core.RuntimeSequence::Span),
+    newPhase : Phase
+  ],
+  statement: ((withInputPhase previousCursor newInput newPhase) = (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := (project previousCursor control), input := newInput, position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := (project previousCursor output), phase := newPhase})),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: withControlInputOutputPhase_refines_record,
+  parameters: [
+    previousCursor : Cursor,
+    newControl : Uorc.Core.RuntimeValue::Handle,
+    newInput : (Option Uorc.Core.RuntimeSequence::Span),
+    newOutput : Uorc.Core.RuntimeValue::Handle,
+    newPhase : Phase
+  ],
+  statement: ((withControlInputOutputPhase previousCursor newControl newInput newOutput newPhase) = (record Cursor {profile := (project previousCursor profile), purpose := (project previousCursor purpose), control := newControl, input := newInput, position := (project previousCursor position), checkedPrefix := (project previousCursor checkedPrefix), output := newOutput, phase := newPhase})),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

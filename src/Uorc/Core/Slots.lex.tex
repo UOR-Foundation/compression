@@ -1,0 +1,209 @@
+\begin{lexlean}{Uorc.Core.Slots}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Store}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: SlotError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidReference, fields: []},
+    {name: releasedCell, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: SlotTrie,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: empty, fields: []},
+    {name: leaf, fields: [(Option Uorc.Core.Types::Value)]},
+    {name: branch, fields: [SlotTrie, SlotTrie]}
+  ]
+}
+
+structure{
+  name: SlotTable,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: length, type: Nat}, {name: root, type: SlotTrie}]
+}
+
+definition{
+  name: emptySlots,
+  parameters: [],
+  result: SlotTable,
+  body: (record SlotTable {length := 0, root := (ctor SlotTrie.empty)})
+}
+
+definition{
+  name: left,
+  parameters: [tree : SlotTrie],
+  result: SlotTrie,
+  body: (match tree
+    | SlotTrie.empty => (ctor SlotTrie.empty)
+    | SlotTrie.leaf leafValue => (ctor SlotTrie.empty)
+    | SlotTrie.branch leftTree rightTree => leftTree)
+}
+
+definition{
+  name: right,
+  parameters: [tree : SlotTrie],
+  result: SlotTrie,
+  body: (match tree
+    | SlotTrie.empty => (ctor SlotTrie.empty)
+    | SlotTrie.leaf leafValue => (ctor SlotTrie.empty)
+    | SlotTrie.branch leftTree rightTree => rightTree)
+}
+
+definition{
+  name: readTrie,
+  parameters: [depth : Nat, tree : SlotTrie, key : UInt64],
+  result: (Option Uorc.Core.Types::Value),
+  body: (match depth
+    | Nat.zero => (match tree
+      | SlotTrie.empty => (ctor Option.none [Uorc.Core.Types::Value])
+      | SlotTrie.leaf leafValue => leafValue
+      | SlotTrie.branch leftTree rightTree => (ctor Option.none [Uorc.Core.Types::Value]))
+    | Nat.succ remaining => (match tree
+      | SlotTrie.empty => (ctor Option.none [Uorc.Core.Types::Value])
+      | SlotTrie.leaf leafValue => (ctor Option.none [Uorc.Core.Types::Value])
+      | SlotTrie.branch leftTree rightTree => (readTrie remaining (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  executable: true,
+  recursive_argument: depth
+}
+
+definition{
+  name: writeTrie,
+  parameters: [depth : Nat, tree : SlotTrie, key : UInt64, value : (Option Uorc.Core.Types::Value)],
+  result: SlotTrie,
+  body: (match depth
+    | Nat.zero => (ctor SlotTrie.leaf value)
+    | Nat.succ remaining => (if (Uorc.Core.Store::lowBit key) then (ctor SlotTrie.branch (left tree) (writeTrie remaining (right tree) (Uorc.Core.Store::nextKey key) value)) else (ctor SlotTrie.branch (writeTrie remaining (left tree) (Uorc.Core.Store::nextKey key) value) (right tree)))),
+  recursive_argument: depth
+}
+
+definition{
+  name: appendSlot,
+  parameters: [table : SlotTable, value : Uorc.Core.Types::Value],
+  result: (Result SlotTable SlotError),
+  body: (if (18446744073709551615 <=? (project table length)) then (ctor Result.error [SlotTable, SlotError] (ctor SlotError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
+    | Option.none => (ctor Result.error [SlotTable, SlotError] (ctor SlotError.addressSpaceExhausted))
+    | Option.some key => (ctor Result.ok [SlotTable, SlotError] (record SlotTable {length := ((project table length) + 1), root := (writeTrie 64 (project table root) key (ctor Option.some [Uorc.Core.Types::Value] value))}))))
+}
+
+definition{
+  name: appendValues,
+  parameters: [values : (List Uorc.Core.Types::Value), table : SlotTable],
+  result: (Result SlotTable SlotError),
+  body: (match values
+    | List.nil => (ctor Result.ok [SlotTable, SlotError] table)
+    | List.cons headValue restValues => (match (appendSlot table headValue)
+      | Result.error error => (ctor Result.error [SlotTable, SlotError] error)
+      | Result.ok nextTable => (appendValues restValues nextTable))),
+  recursive_argument: values
+}
+
+definition{
+  name: fromValues,
+  parameters: [values : (List Uorc.Core.Types::Value)],
+  result: (Result SlotTable SlotError),
+  body: (appendValues values (emptySlots))
+}
+
+definition{
+  name: atIndex,
+  parameters: [table : SlotTable, index : Nat],
+  result: (Result Uorc.Core.Types::Value SlotError),
+  body: (if (index <? (project table length)) then (match (Uorc.Core.Types::wordOfNat index)
+    | Option.none => (ctor Result.error [Uorc.Core.Types::Value, SlotError] (ctor SlotError.addressSpaceExhausted))
+    | Option.some key => (match (readTrie 64 (project table root) key)
+      | Option.none => (ctor Result.error [Uorc.Core.Types::Value, SlotError] (ctor SlotError.releasedCell))
+      | Option.some selected => (ctor Result.ok [Uorc.Core.Types::Value, SlotError] selected))) else (ctor Result.error [Uorc.Core.Types::Value, SlotError] (ctor SlotError.invalidReference))),
+  executable: true
+}
+
+definition{
+  name: byDistance,
+  parameters: [table : SlotTable, distance : Nat],
+  result: (Result Uorc.Core.Types::Value SlotError),
+  body: (if (distance =? 0) then (ctor Result.error [Uorc.Core.Types::Value, SlotError] (ctor SlotError.invalidReference)) else (if ((project table length) <? distance) then (ctor Result.error [Uorc.Core.Types::Value, SlotError] (ctor SlotError.invalidReference)) else (atIndex table (prim subtract (project table length) distance : Nat)))),
+  executable: true
+}
+
+definition{
+  name: releaseSlot,
+  parameters: [table : SlotTable, index : Nat],
+  result: (Result SlotTable SlotError),
+  body: (if (index <? (project table length)) then (match (Uorc.Core.Types::wordOfNat index)
+    | Option.none => (ctor Result.error [SlotTable, SlotError] (ctor SlotError.addressSpaceExhausted))
+    | Option.some key => (ctor Result.ok [SlotTable, SlotError] (record SlotTable {length := (project table length), root := (writeTrie 64 (project table root) key (ctor Option.none [Uorc.Core.Types::Value]))}))) else (ctor Result.error [SlotTable, SlotError] (ctor SlotError.invalidReference)))
+}
+
+theorem{
+  name: slot_index_vector_0,
+  parameters: [],
+  statement: ((readTrie 64 (writeTrie 64 (ctor SlotTrie.empty) (0 : UInt64) (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))) (0 : UInt64)) = (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: slot_index_vector_1,
+  parameters: [],
+  statement: ((readTrie 64 (writeTrie 64 (ctor SlotTrie.empty) (1 : UInt64) (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))) (1 : UInt64)) = (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: slot_index_vector_255,
+  parameters: [],
+  statement: ((readTrie 64 (writeTrie 64 (ctor SlotTrie.empty) (255 : UInt64) (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))) (255 : UInt64)) = (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: slot_index_vector_256,
+  parameters: [],
+  statement: ((readTrie 64 (writeTrie 64 (ctor SlotTrie.empty) (256 : UInt64) (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))) (256 : UInt64)) = (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: slot_index_vector_4096,
+  parameters: [],
+  statement: ((readTrie 64 (writeTrie 64 (ctor SlotTrie.empty) (4096 : UInt64) (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))) (4096 : UInt64)) = (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: slot_index_vector_65536,
+  parameters: [],
+  statement: ((readTrie 64 (writeTrie 64 (ctor SlotTrie.empty) (65536 : UInt64) (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))) (65536 : UInt64)) = (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: slot_index_vector_9223372036854775808,
+  parameters: [],
+  statement: ((readTrie 64 (writeTrie 64 (ctor SlotTrie.empty) (9223372036854775808 : UInt64) (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))) (9223372036854775808 : UInt64)) = (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: slot_index_vector_18446744073709551615,
+  parameters: [],
+  statement: ((readTrie 64 (writeTrie 64 (ctor SlotTrie.empty) (18446744073709551615 : UInt64) (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))) (18446744073709551615 : UInt64)) = (ctor Option.some [Uorc.Core.Types::Value] (ctor Uorc.Core.Types::Value.byte (7 : UInt8)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: slot_count_overflow_is_typed,
+  parameters: [],
+  statement: ((appendSlot (record SlotTable {length := 18446744073709551615, root := (ctor SlotTrie.empty)}) (ctor Uorc.Core.Types::Value.byte (0 : UInt8))) = (ctor Result.error [SlotTable, SlotError] (ctor SlotError.addressSpaceExhausted))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

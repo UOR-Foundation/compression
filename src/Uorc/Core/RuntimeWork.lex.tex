@@ -1,0 +1,124 @@
+\begin{lexlean}{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Core.RuntimeByteBuilder}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Operation,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: idle, fields: []},
+    {name: smallControl, fields: []},
+    {name: control, fields: []},
+    {name: acknowledgment, fields: []},
+    {name: sequenceLength, fields: []},
+    {name: sequenceBegin, fields: []},
+    {name: sequenceStep, fields: []},
+    {name: sequenceCancel, fields: []},
+    {name: heapRetain, fields: []},
+    {name: heapRelease, fields: []},
+    {name: heapReleaseStep, fields: []},
+    {name: heapAllocate, fields: []},
+    {name: ownerPin, fields: []},
+    {name: ownerJoin, fields: []},
+    {name: ownerSplitStart, fields: []},
+    {name: ownerSplitStep, fields: []},
+    {name: controlAllocate, fields: []},
+    {name: tableMutation, fields: []},
+    {name: metadataMutation, fields: []},
+    {name: indexedStart, fields: []},
+    {name: scalarCheck, fields: []},
+    {name: captureCheck, fields: []},
+    {name: lifetimePlanning, fields: []},
+    {name: sealCheck, fields: []},
+    {name: admissionInitialization, fields: []},
+    {name: admissionOffer, fields: []},
+    {name: boundaryTake, fields: []},
+    {name: boundaryReattach, fields: []},
+    {name: boundaryReturn, fields: []},
+    {name: cancelDetach, fields: []},
+    {name: builderControl, fields: []},
+    {name: builderBoundedStep, fields: []}
+  ]
+}
+
+definition{
+  name: profileIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.operational-task-fees/1",
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: fee,
+  parameters: [operation : Operation],
+  result: UInt64,
+  body: (match operation
+    | Operation.idle => (0 : UInt64)
+    | Operation.smallControl => (1 : UInt64)
+    | Operation.control => (64 : UInt64)
+    | Operation.acknowledgment => (64 : UInt64)
+    | Operation.sequenceLength => (4096 : UInt64)
+    | Operation.sequenceBegin => (4096 : UInt64)
+    | Operation.sequenceStep => (4096 : UInt64)
+    | Operation.sequenceCancel => (4096 : UInt64)
+    | Operation.heapRetain => (256 : UInt64)
+    | Operation.heapRelease => (256 : UInt64)
+    | Operation.heapReleaseStep => (256 : UInt64)
+    | Operation.heapAllocate => (1024 : UInt64)
+    | Operation.ownerPin => (1024 : UInt64)
+    | Operation.ownerJoin => (1024 : UInt64)
+    | Operation.ownerSplitStart => (256 : UInt64)
+    | Operation.ownerSplitStep => (256 : UInt64)
+    | Operation.controlAllocate => (256 : UInt64)
+    | Operation.tableMutation => (1024 : UInt64)
+    | Operation.metadataMutation => (1024 : UInt64)
+    | Operation.indexedStart => (4096 : UInt64)
+    | Operation.scalarCheck => (32768 : UInt64)
+    | Operation.captureCheck => (16384 : UInt64)
+    | Operation.lifetimePlanning => (16384 : UInt64)
+    | Operation.sealCheck => (8192 : UInt64)
+    | Operation.admissionInitialization => (1024 : UInt64)
+    | Operation.admissionOffer => (1 : UInt64)
+    | Operation.boundaryTake => (4096 : UInt64)
+    | Operation.boundaryReattach => (4096 : UInt64)
+    | Operation.boundaryReturn => (256 : UInt64)
+    | Operation.cancelDetach => (1024 : UInt64)
+    | Operation.builderControl => (4096 : UInt64)
+    | Operation.builderBoundedStep => (12288 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: feeWithCopy,
+  parameters: [baseFee : UInt64, copyBytes : UInt64],
+  result: (Option UInt64),
+  body: (match (prim checked_add copyBytes copyBytes : (Option UInt64))
+    | Option.none => (ctor Option.none [UInt64])
+    | Option.some copyFee => (prim checked_add baseFee copyFee : (Option UInt64))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: builderCopyBound,
+  parameters: [cursor : Uorc.Core.RuntimeByteBuilder::Cursor],
+  result: UInt64,
+  body: (if (prim equal (project cursor phase) (2 : UInt64) : Bool) then (1 : UInt64) else (if (prim equal (project cursor phase) (4 : UInt64) : Bool) then (project cursor length) else (0 : UInt64))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: builderStepFee,
+  parameters: [cursor : Uorc.Core.RuntimeByteBuilder::Cursor],
+  result: (Option UInt64),
+  body: (feeWithCopy (fee (ctor Operation.builderControl)) (builderCopyBound cursor)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

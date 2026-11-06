@@ -1,0 +1,89 @@
+\begin{lexlean}{Uorc.Core.RuntimeRecordBuilder}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeMetadata}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: metadata, fields: [Uorc.Core.RuntimeMetadata::Error]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]}
+  ]
+}
+
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: writing, fields: [Uorc.Core.RuntimeMetadata::WriteCursor]},
+    {name: beginRelease, fields: [Uorc.Core.RuntimeValue::Handle, Uorc.Core.RuntimeValue::Handle]},
+    {name: releasing, fields: [Uorc.Core.RuntimeValue::Handle]}
+  ]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [Uorc.Core.Heap::Arena, Cursor, Uorc.Core.Heap::Delta]},
+    {
+      name: done,
+      fields: [Uorc.Core.Heap::Arena, Uorc.Core.RuntimeValue::Handle, Uorc.Core.Heap::Delta]
+    },
+    {name: failed, fields: [Error, Uorc.Core.Heap::Arena, Cursor]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    oldOwnedRoot : Uorc.Core.RuntimeValue::Handle,
+    kind : UInt64,
+    key : UInt64,
+    field : Uorc.Core.RuntimeMetadata::Field
+  ],
+  result: (Result Cursor Error),
+  body: (match (Uorc.Core.RuntimeMetadata::startWrite oldOwnedRoot kind key field)
+    | Result.error metadataError => (ctor Result.error [Cursor, Error] (ctor Error.metadata metadataError))
+    | Result.ok writeCursor => (ctor Result.ok [Cursor, Error] (ctor Cursor.writing writeCursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: step,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Event,
+  body: (match cursor
+    | Cursor.writing writeCursor => (match (Uorc.Core.RuntimeMetadata::writeStep arena writeCursor)
+      | Uorc.Core.RuntimeMetadata::WriteEvent.failed metadataError nextArena nextWrite => (ctor Event.failed (ctor Error.metadata metadataError) nextArena (ctor Cursor.writing nextWrite))
+      | Uorc.Core.RuntimeMetadata::WriteEvent.advanced nextArena nextWrite delta => (ctor Event.advanced nextArena (ctor Cursor.writing nextWrite) delta)
+      | Uorc.Core.RuntimeMetadata::WriteEvent.done nextArena newRoot delta => (if (Uorc.Core.RuntimeValue::isNull (project writeCursor oldRoot)) then (ctor Event.done nextArena newRoot delta) else (ctor Event.advanced nextArena (ctor Cursor.beginRelease newRoot (project writeCursor oldRoot)) delta)))
+    | Cursor.beginRelease newRoot oldRoot => (match (Uorc.Core.Heap::release arena oldRoot)
+      | Result.error heapError => (ctor Event.failed (ctor Error.heap heapError) arena cursor)
+      | Result.ok transition => (if (project transition complete) then (ctor Event.done (project transition arena) newRoot (project transition delta)) else (ctor Event.advanced (project transition arena) (ctor Cursor.releasing newRoot) (project transition delta))))
+    | Cursor.releasing newRoot => (match (Uorc.Core.Heap::releaseStep arena)
+      | Result.error heapError => (ctor Event.failed (ctor Error.heap heapError) arena cursor)
+      | Result.ok transition => (if (project transition complete) then (ctor Event.done (project transition arena) newRoot (project transition delta)) else (ctor Event.advanced (project transition arena) cursor (project transition delta))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: rootInventory,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match cursor
+    | Cursor.writing writeCursor => (if (Uorc.Core.RuntimeValue::isNull (project writeCursor oldRoot)) then (Uorc.Core.RuntimeMetadata::temporaryRoots writeCursor) else (cons (project writeCursor oldRoot) (Uorc.Core.RuntimeMetadata::temporaryRoots writeCursor)))
+    | Cursor.beginRelease newRoot oldRoot => (if (Uorc.Core.RuntimeValue::isNull newRoot) then (if (Uorc.Core.RuntimeValue::isNull oldRoot) then (nil Uorc.Core.RuntimeValue::Handle) else (cons oldRoot (nil Uorc.Core.RuntimeValue::Handle))) else (cons newRoot (if (Uorc.Core.RuntimeValue::isNull oldRoot) then (nil Uorc.Core.RuntimeValue::Handle) else (cons oldRoot (nil Uorc.Core.RuntimeValue::Handle)))))
+    | Cursor.releasing newRoot => (if (Uorc.Core.RuntimeValue::isNull newRoot) then (nil Uorc.Core.RuntimeValue::Handle) else (cons newRoot (nil Uorc.Core.RuntimeValue::Handle)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

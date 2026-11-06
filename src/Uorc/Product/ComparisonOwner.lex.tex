@@ -1,0 +1,624 @@
+\begin{lexlean}{Uorc.Product.ComparisonOwner}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeMachine}
+\importmodule{Uorc.Core.RuntimeMachineEngine}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.MachineBinding}
+\importmodule{Uorc.Product.OwnedCompare}
+\importmodule{Uorc.Wire.OwnedRead}
+\title{Boolean}
+\begin{semanticmodule}
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: read, fields: [Uorc.Product.OwnedCompare::Side, Uorc.Wire.OwnedRead::Failure]},
+    {name: comparison, fields: [Uorc.Product.OwnedCompare::Failure]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: upstream, fields: [Uorc.Core.RuntimeMachine::Failure]}
+  ]
+}
+
+inductive{
+  name: Disposition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: incomplete, fields: []},
+    {name: equal, fields: []},
+    {name: different, fields: [UInt64]},
+    {name: lengthMismatch, fields: [UInt64, UInt64]},
+    {name: failed, fields: [Failure]},
+    {name: cancelled, fields: []}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: allocate, fields: [Uorc.Core.RuntimeValue::Handle, Uorc.Core.RuntimeValue::Handle]},
+    {
+      name: initLeft,
+      fields: [
+        Uorc.Core.RuntimeValue::Handle,
+        Uorc.Core.RuntimeValue::Handle,
+        Uorc.Core.RuntimeValue::Handle
+      ]
+    },
+    {
+      name: initRight,
+      fields: [
+        Uorc.Core.RuntimeValue::Handle,
+        Uorc.Wire.OwnedRead::Cursor,
+        Uorc.Core.RuntimeValue::Handle
+      ]
+    },
+    {name: comparing, fields: [Uorc.Core.RuntimeValue::Handle, Uorc.Product.OwnedCompare::State]},
+    {name: releaseControl, fields: [Uorc.Core.RuntimeValue::Handle]},
+    {name: draining, fields: []},
+    {name: done, fields: []}
+  ]
+}
+
+inductive{
+  name: Owner,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: owned, fields: [Uorc.Product.MachineBinding::Terminal, Phase]},
+    {name: handedOff, fields: [Uorc.Core.RuntimeResources::Usage]}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: owner, type: Owner},
+    {name: budget, type: Uorc.Core.RuntimeResources::Budget},
+    {name: disposition, type: Disposition},
+    {name: refusal, type: (Option Uorc.Core.RuntimeResources::Error)},
+    {name: pendingDelta, type: (Option Uorc.Core.Heap::Delta)}
+  ]
+}
+
+inductive{
+  name: DeltaTake,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: stale, fields: [State]},
+    {name: empty, fields: [State]},
+    {name: taken, fields: [State, Uorc.Core.Heap::Delta]}
+  ]
+}
+
+inductive{
+  name: Movement,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: stale, fields: [State]},
+    {name: notReady, fields: [State]},
+    {name: moved, fields: [State, Uorc.Product.MachineBinding::Terminal, Disposition]}
+  ]
+}
+
+definition{
+  name: controlRationale,
+  parameters: [],
+  result: String,
+  body: "The 4096-byte reservation covers the fixed packed comparison shell: two bounded readers and spans, scalar phase and disposition, one pending byte plan, and one delta receipt. Programs and inputs remain in the sole terminal arena.",
+  axioms: []
+}
+
+definition{
+  name: controlBytes,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeOwnerRoots::controlBytes),
+  axioms: []
+}
+
+definition{
+  name: controlWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)),
+  axioms: []
+}
+
+definition{
+  name: beginWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin)),
+  axioms: []
+}
+
+definition{
+  name: start,
+  parameters: [
+    terminal : Uorc.Product.MachineBinding::Terminal,
+    budget : Uorc.Core.RuntimeResources::Budget,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: State,
+  body: (record State {run := (project terminal run), owner := (if ((not (project terminal cancelled)) && ((match (project terminal failure)
+    | Option.none => true
+    | Option.some failure => false) && true)) then (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (record Uorc.Core.Heap::Arena {index := (project (project (project terminal ready) arena) index), nextHandle := (project (project (project terminal ready) arena) nextHandle), exhausted := (project (project (project terminal ready) arena) exhausted), ownedBytes := (project (project (project terminal ready) arena) ownedBytes), liveEntries := (project (project (project terminal ready) arena) liveEntries), maxOwnedBytes := (project budget maxOwnedBytes), cursor := (project (project (project terminal ready) arena) cursor)}), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.allocate left right)) else (ctor Owner.owned terminal (ctor Phase.done))), budget := budget, disposition := (if (project terminal cancelled) then (ctor Disposition.cancelled) else (match (project terminal failure)
+    | Option.none => (ctor Disposition.incomplete)
+    | Option.some failure => (ctor Disposition.failed (ctor Failure.upstream failure)))), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}),
+  axioms: []
+}
+
+definition{
+  name: usage,
+  parameters: [s : State],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (project s owner)
+    | Owner.owned terminal phase => (project (project terminal ready) usage)
+    | Owner.handedOff achieved => achieved),
+  axioms: []
+}
+
+definition{
+  name: achievedUsage,
+  parameters: [current : Uorc.Core.RuntimeResources::Usage, arena : Uorc.Core.Heap::Arena],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (Uorc.Core.Heap::totalOwnedBytes arena)
+    | Result.error reason => current
+    | Result.ok bytes => (record Uorc.Core.RuntimeResources::Usage {work := (project current work), ownedBytes := bytes, peakOwnedBytes := (if (Uorc.Core.Heap::less (project current peakOwnedBytes) bytes) then bytes else (project current peakOwnedBytes)), outputBytes := (project current outputBytes), frames := (project current frames)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: afterMutation,
+  parameters: [
+    s : State,
+    terminal : Uorc.Product.MachineBinding::Terminal,
+    nextPhase : Phase,
+    nextArena : Uorc.Core.Heap::Arena,
+    paid : Uorc.Core.RuntimeResources::Usage,
+    delta : Uorc.Core.Heap::Delta
+  ],
+  result: State,
+  body: (match (Uorc.Core.RuntimeResources::observeArena (project s budget) (achievedUsage paid nextArena) nextArena)
+    | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := nextArena, program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (achievedUsage paid nextArena)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) nextPhase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] delta)})
+    | Result.ok observed => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := nextArena, program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := observed}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) nextPhase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] delta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: heapRefusal,
+  parameters: [
+    s : State,
+    terminal : Uorc.Product.MachineBinding::Terminal,
+    phase : Phase,
+    paid : Uorc.Core.RuntimeResources::Usage,
+    error : Uorc.Core.Heap::HeapError
+  ],
+  result: State,
+  body: (match error
+    | Uorc.Core.Heap::HeapError.malformedHandle => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.invalidNode => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.countOverflow => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.countUnderflow => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.handleOverflow => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.budgetExceeded => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.ownedByteLimit)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.releaseInProgress => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.releaseNotStarted => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.invalidRoot => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.protocolFailure => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => phase
+      | Phase.initRight control leftReader right => phase
+      | Phase.comparing control comparison => phase
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.heap error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap error)), pendingDelta := (project s pendingDelta)})),
+  axioms: []
+}
+
+definition{
+  name: afterComparison,
+  parameters: [
+    s : State,
+    terminal : Uorc.Product.MachineBinding::Terminal,
+    control : Uorc.Core.RuntimeValue::Handle,
+    comparison : Uorc.Product.OwnedCompare::State,
+    paid : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: State,
+  body: (match (project comparison result)
+    | Uorc.Product.OwnedCompare::Disposition.working => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.comparing control comparison)), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.equal => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.releaseControl control)), budget := (project s budget), disposition := (ctor Disposition.equal), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.different index => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.releaseControl control)), budget := (project s budget), disposition := (ctor Disposition.different index), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.lengthMismatch leftLength rightLength => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.releaseControl control)), budget := (project s budget), disposition := (ctor Disposition.lengthMismatch leftLength rightLength), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.failed failure => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.releaseControl control)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.comparison failure)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.cancelled => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.releaseControl control)), budget := (project s budget), disposition := (ctor Disposition.cancelled), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})),
+  axioms: []
+}
+
+definition{
+  name: allocateObserved,
+  parameters: [
+    s : State,
+    terminal : Uorc.Product.MachineBinding::Terminal,
+    phase : Phase,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: State,
+  body: (match (Uorc.Core.Heap::allocateControl (project (project terminal ready) arena) (controlBytes))
+    | Result.error error => (heapRefusal s terminal phase (project (project terminal ready) usage) error)
+    | Result.ok allocation => (afterMutation s terminal (ctor Phase.initLeft (project allocation handle) left right) (project allocation arena) (project (project terminal ready) usage) (project allocation delta))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: allocatePaid,
+  parameters: [
+    s : State,
+    terminal : Uorc.Product.MachineBinding::Terminal,
+    phase : Phase,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle,
+    paid : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: State,
+  body: (match (Uorc.Core.RuntimeResources::observeArena (project s budget) paid (project (project terminal ready) arena))
+    | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+    | Result.ok observed => (allocateObserved s (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := observed}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase left right)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: tickPhase,
+  parameters: [s : State, terminal : Uorc.Product.MachineBinding::Terminal, phase : Phase],
+  result: State,
+  body: (match phase
+    | Phase.allocate left right => (match (Uorc.Core.RuntimeResources::charge (project s budget) (project (project terminal ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (controlWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok paid => (allocatePaid s terminal phase left right paid))
+    | Phase.initLeft control left right => (match (Uorc.Core.RuntimeResources::charge (project s budget) (project (project terminal ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (beginWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok paid => (match (Uorc.Wire.OwnedRead::begin (project (project terminal ready) arena) left)
+        | Result.error failure => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.releaseControl control)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.read (ctor Uorc.Product.OwnedCompare::Side.left) failure)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})
+        | Result.ok leftReader => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.initRight control leftReader right)), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})))
+    | Phase.initRight control leftReader right => (match (Uorc.Core.RuntimeResources::charge (project s budget) (project (project terminal ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (beginWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok paid => (match (Uorc.Wire.OwnedRead::begin (project (project terminal ready) arena) right)
+        | Result.error failure => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.releaseControl control)), budget := (project s budget), disposition := (ctor Disposition.failed (ctor Failure.read (ctor Uorc.Product.OwnedCompare::Side.right) failure)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})
+        | Result.ok rightReader => (afterComparison s terminal control (Uorc.Product.OwnedCompare::fromReaders leftReader rightReader) paid)))
+    | Phase.comparing control comparison => (match (Uorc.Product.OwnedCompare::tick (project s budget) (project (project terminal ready) usage) (project (project terminal ready) arena) comparison)
+      | Uorc.Product.OwnedCompare::Tick.advanced next paid => (afterComparison s terminal control next paid)
+      | Uorc.Product.OwnedCompare::Tick.refused reason next paid => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := paid}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) (ctor Phase.comparing control next)), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}))
+    | Phase.releaseControl control => (match (Uorc.Core.RuntimeResources::charge (project s budget) (project (project terminal ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok paid => (match (Uorc.Core.Heap::release (project (project terminal ready) arena) control)
+        | Result.error error => (heapRefusal s terminal phase paid error)
+        | Result.ok transition => (afterMutation s terminal (if (project transition complete) then (ctor Phase.done) else (ctor Phase.draining)) (project transition arena) paid (project transition delta))))
+    | Phase.draining => (match (Uorc.Core.RuntimeResources::charge (project s budget) (project (project terminal ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok paid => (match (Uorc.Core.Heap::releaseStep (project (project terminal ready) arena))
+        | Result.error error => (heapRefusal s terminal phase paid error)
+        | Result.ok transition => (afterMutation s terminal (if (project transition complete) then (ctor Phase.done) else (ctor Phase.draining)) (project transition arena) paid (project transition delta))))
+    | Phase.done => s),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: tickOwned,
+  parameters: [s : State, terminal : Uorc.Product.MachineBinding::Terminal, phase : Phase],
+  result: State,
+  body: (match phase
+    | Phase.allocate left right => (tickPhase s terminal phase)
+    | Phase.initLeft control left right => (match (Uorc.Core.RuntimeResources::observeArena (project s budget) (project (project terminal ready) usage) (project (project terminal ready) arena))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok observed => (tickPhase s (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := observed}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase))
+    | Phase.initRight control leftReader right => (match (Uorc.Core.RuntimeResources::observeArena (project s budget) (project (project terminal ready) usage) (project (project terminal ready) arena))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok observed => (tickPhase s (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := observed}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase))
+    | Phase.comparing control comparison => (match (Uorc.Core.RuntimeResources::observeArena (project s budget) (project (project terminal ready) usage) (project (project terminal ready) arena))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok observed => (tickPhase s (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := observed}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase))
+    | Phase.releaseControl control => (match (Uorc.Core.RuntimeResources::observeArena (project s budget) (project (project terminal ready) usage) (project (project terminal ready) arena))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok observed => (tickPhase s (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := observed}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase))
+    | Phase.draining => (match (Uorc.Core.RuntimeResources::observeArena (project s budget) (project (project terminal ready) usage) (project (project terminal ready) arena))
+      | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := (project s budget), disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+      | Result.ok observed => (tickPhase s (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project terminal ready) arena), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := observed}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase))
+    | Phase.done => (tickPhase s terminal phase)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: heapFailed,
+  parameters: [s : State],
+  result: Bool,
+  body: (match (project s disposition)
+    | Disposition.incomplete => false
+    | Disposition.equal => false
+    | Disposition.different index => false
+    | Disposition.lengthMismatch left right => false
+    | Disposition.failed failure => (match failure
+      | Failure.read side reason => false
+      | Failure.comparison reason => false
+      | Failure.heap reason => true
+      | Failure.upstream reason => false)
+    | Disposition.cancelled => false),
+  axioms: []
+}
+
+definition{
+  name: tick,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: State,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (if (heapFailed s) then s else (match (project s pendingDelta)
+    | Option.some delta => s
+    | Option.none => (match (project s refusal)
+      | Option.some reason => s
+      | Option.none => (match (project s owner)
+        | Owner.owned terminal phase => (tickOwned s terminal phase)
+        | Owner.handedOff achieved => s)))) else s),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: extendOwned,
+  parameters: [
+    s : State,
+    terminal : Uorc.Product.MachineBinding::Terminal,
+    phase : Phase,
+    budget : Uorc.Core.RuntimeResources::Budget
+  ],
+  result: State,
+  body: (match (Uorc.Core.RuntimeResources::observeArena budget (project (project terminal ready) usage) (record Uorc.Core.Heap::Arena {index := (project (project (project terminal ready) arena) index), nextHandle := (project (project (project terminal ready) arena) nextHandle), exhausted := (project (project (project terminal ready) arena) exhausted), ownedBytes := (project (project (project terminal ready) arena) ownedBytes), liveEntries := (project (project (project terminal ready) arena) liveEntries), maxOwnedBytes := (project budget maxOwnedBytes), cursor := (project (project (project terminal ready) arena) cursor)}))
+    | Result.error reason => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (record Uorc.Core.Heap::Arena {index := (project (project (project terminal ready) arena) index), nextHandle := (project (project (project terminal ready) arena) nextHandle), exhausted := (project (project (project terminal ready) arena) exhausted), ownedBytes := (project (project (project terminal ready) arena) ownedBytes), liveEntries := (project (project (project terminal ready) arena) liveEntries), maxOwnedBytes := (project budget maxOwnedBytes), cursor := (project (project (project terminal ready) arena) cursor)}), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := (project (project terminal ready) usage)}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := budget, disposition := (project s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)})
+    | Result.ok observed => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (record Uorc.Core.Heap::Arena {index := (project (project (project terminal ready) arena) index), nextHandle := (project (project (project terminal ready) arena) nextHandle), exhausted := (project (project (project terminal ready) arena) exhausted), ownedBytes := (project (project (project terminal ready) arena) ownedBytes), liveEntries := (project (project (project terminal ready) arena) liveEntries), maxOwnedBytes := (project budget maxOwnedBytes), cursor := (project (project (project terminal ready) arena) cursor)}), program := (project (project terminal ready) program), caller := (project (project terminal ready) caller), usage := observed}), output := (project terminal output), cancelled := (project terminal cancelled), failure := (project terminal failure), receipt := (project terminal receipt)}) phase), budget := budget, disposition := (project s disposition), refusal := (match (project s refusal)
+      | Option.none => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+      | Option.some prior => (match prior
+        | Uorc.Core.RuntimeResources::Error.workLimit => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.ownedByteLimit => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.outputLimit => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.frameLimit => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.invalidUsage => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.heap error => (ctor Option.some [Uorc.Core.RuntimeResources::Error] prior))), pendingDelta := (project s pendingDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: extend,
+  parameters: [s : State, run : Uorc.Product.Api::Run, budget : Uorc.Core.RuntimeResources::Budget],
+  result: State,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (match (project s owner)
+    | Owner.owned terminal phase => (extendOwned s terminal phase budget)
+    | Owner.handedOff achieved => s) else s),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancel,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: State,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (if (heapFailed s) then s else (match (project s owner)
+    | Owner.owned terminal phase => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (project terminal ready), output := (project terminal output), cancelled := true, failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => (ctor Phase.releaseControl control)
+      | Phase.initRight control leftReader right => (ctor Phase.releaseControl control)
+      | Phase.comparing control comparison => (ctor Phase.releaseControl control)
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.cancelled), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})
+    | Owner.handedOff achieved => s)) else s),
+  axioms: []
+}
+
+definition{
+  name: takeDelta,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: DeltaTake,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (match (project s pendingDelta)
+    | Option.none => (ctor DeltaTake.empty s)
+    | Option.some delta => (ctor DeltaTake.taken (record State {run := (project s run), owner := (project s owner), budget := (project s budget), disposition := (project s disposition), refusal := (project s refusal), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}) delta)) else (ctor DeltaTake.stale s)),
+  axioms: []
+}
+
+definition{
+  name: moveTerminal,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  result: Movement,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (match (project s pendingDelta)
+    | Option.some delta => (ctor Movement.notReady s)
+    | Option.none => (match (project s owner)
+      | Owner.owned terminal phase => (match phase
+        | Phase.allocate left right => (ctor Movement.notReady s)
+        | Phase.initLeft control left right => (ctor Movement.notReady s)
+        | Phase.initRight control leftReader right => (ctor Movement.notReady s)
+        | Phase.comparing control comparison => (ctor Movement.notReady s)
+        | Phase.releaseControl control => (ctor Movement.notReady s)
+        | Phase.draining => (ctor Movement.notReady s)
+        | Phase.done => (ctor Movement.moved (record State {run := (project s run), owner := (ctor Owner.handedOff (project (project terminal ready) usage)), budget := (project s budget), disposition := (project s disposition), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) terminal (project s disposition)))
+      | Owner.handedOff achieved => (ctor Movement.notReady s))) else (ctor Movement.stale s)),
+  axioms: []
+}
+
+definition{
+  name: ownedRoots,
+  parameters: [s : State],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project s owner)
+    | Owner.owned terminal phase => (match phase
+      | Phase.allocate left right => (Uorc.Product.MachineBinding::addOutputRoot (project terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project terminal ready) program) (project (project terminal ready) caller)))
+      | Phase.initLeft control left right => (Uorc.Core.RuntimeMachineEngine::addRoot control (Uorc.Product.MachineBinding::addOutputRoot (project terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project terminal ready) program) (project (project terminal ready) caller))))
+      | Phase.initRight control leftReader right => (Uorc.Core.RuntimeMachineEngine::addRoot control (Uorc.Product.MachineBinding::addOutputRoot (project terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project terminal ready) program) (project (project terminal ready) caller))))
+      | Phase.comparing control comparison => (Uorc.Core.RuntimeMachineEngine::addRoot control (Uorc.Product.MachineBinding::addOutputRoot (project terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project terminal ready) program) (project (project terminal ready) caller))))
+      | Phase.releaseControl control => (Uorc.Core.RuntimeMachineEngine::addRoot control (Uorc.Product.MachineBinding::addOutputRoot (project terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project terminal ready) program) (project (project terminal ready) caller))))
+      | Phase.draining => (Uorc.Product.MachineBinding::addOutputRoot (project terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project terminal ready) program) (project (project terminal ready) caller)))
+      | Phase.done => (Uorc.Product.MachineBinding::addOutputRoot (project terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project terminal ready) program) (project (project terminal ready) caller))))
+    | Owner.handedOff achieved => (nil Uorc.Core.RuntimeValue::Handle)),
+  axioms: []
+}
+
+definition{
+  name: releaseDisposition,
+  parameters: [s : State],
+  result: Uorc.Product.Api::ReleaseDisposition,
+  body: (match (project s owner)
+    | Owner.owned terminal phase => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
+    | Owner.handedOff achieved => (match (project s pendingDelta)
+      | Option.some delta => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt))
+      | Option.none => (ctor Uorc.Product.Api::ReleaseDisposition.releasable))),
+  axioms: []
+}
+
+theorem{
+  name: tick_guard_binding,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  statement: ((tick s run) = (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (if (heapFailed s) then s else (match (project s pendingDelta)
+    | Option.some delta => s
+    | Option.none => (match (project s refusal)
+      | Option.some reason => s
+      | Option.none => (match (project s owner)
+        | Owner.owned terminal phase => (tickOwned s terminal phase)
+        | Owner.handedOff achieved => s)))) else s)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cancel_guard_binding,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  statement: ((cancel s run) = (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (if (heapFailed s) then s else (match (project s owner)
+    | Owner.owned terminal phase => (record State {run := (project s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project terminal run), ready := (project terminal ready), output := (project terminal output), cancelled := true, failure := (project terminal failure), receipt := (project terminal receipt)}) (match phase
+      | Phase.allocate left right => (ctor Phase.done)
+      | Phase.initLeft control left right => (ctor Phase.releaseControl control)
+      | Phase.initRight control leftReader right => (ctor Phase.releaseControl control)
+      | Phase.comparing control comparison => (ctor Phase.releaseControl control)
+      | Phase.releaseControl control => phase
+      | Phase.draining => phase
+      | Phase.done => phase)), budget := (project s budget), disposition := (ctor Disposition.cancelled), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})
+    | Owner.handedOff achieved => s)) else s)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: extend_guard_binding,
+  parameters: [s : State, run : Uorc.Product.Api::Run, budget : Uorc.Core.RuntimeResources::Budget],
+  statement: ((extend s run budget) = (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (match (project s owner)
+    | Owner.owned terminal phase => (extendOwned s terminal phase budget)
+    | Owner.handedOff achieved => s) else s)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: takeDelta_guard_binding,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  statement: ((takeDelta s run) = (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (match (project s pendingDelta)
+    | Option.none => (ctor DeltaTake.empty s)
+    | Option.some delta => (ctor DeltaTake.taken (record State {run := (project s run), owner := (project s owner), budget := (project s budget), disposition := (project s disposition), refusal := (project s refusal), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}) delta)) else (ctor DeltaTake.stale s))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: moveTerminal_guard_binding,
+  parameters: [s : State, run : Uorc.Product.Api::Run],
+  statement: ((moveTerminal s run) = (if (Uorc.Product.MachineBinding::sameRun (project s run) run) then (match (project s pendingDelta)
+    | Option.some delta => (ctor Movement.notReady s)
+    | Option.none => (match (project s owner)
+      | Owner.owned terminal phase => (match phase
+        | Phase.allocate left right => (ctor Movement.notReady s)
+        | Phase.initLeft control left right => (ctor Movement.notReady s)
+        | Phase.initRight control leftReader right => (ctor Movement.notReady s)
+        | Phase.comparing control comparison => (ctor Movement.notReady s)
+        | Phase.releaseControl control => (ctor Movement.notReady s)
+        | Phase.draining => (ctor Movement.notReady s)
+        | Phase.done => (ctor Movement.moved (record State {run := (project s run), owner := (ctor Owner.handedOff (project (project terminal ready) usage)), budget := (project s budget), disposition := (project s disposition), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) terminal (project s disposition)))
+      | Owner.handedOff achieved => (ctor Movement.notReady s))) else (ctor Movement.stale s))),
+  proof: reflexivity{},
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

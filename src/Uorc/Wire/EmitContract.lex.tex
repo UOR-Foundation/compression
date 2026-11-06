@@ -1,0 +1,62 @@
+\begin{lexlean}{Uorc.Wire.EmitContract}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Scenario,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: given, type: String},
+    {name: when, type: String},
+    {name: then, type: String},
+    {name: owner, type: String}
+  ]
+}
+
+definition{
+  name: uc_wire_emit_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-EMIT-01", given := "charged program metadata for all 39 wire opcodes", when := "measure then emit with the same achieved arena and usage", then := "exact bytes agree with independent GraphEmit/GraphParse diagnostics", owner := "Uorc.Wire.ProgramEmitScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_wire_emit_02,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-EMIT-02", given := "a borrowed literal span under the wire owner", when := "acknowledge, cancel, fail or pause before a sink finishes", then := "no root is released before consumption or retained-ticket transfer", owner := "Uorc.Wire.ProgramEmitScenarios.runOwnership"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_wire_emit_03,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-EMIT-03", given := "invalid scalar/metadata or insufficient work/output allowance", when := "advance after earlier output events", then := "typed retained failure or exact resumable pause without another arena snapshot", owner := "Uorc.Wire.ProgramEmitScenarios.runNegatives"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_wire_emit_04,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-EMIT-04", given := "ordered lengths stored in charged indexed metadata, including empty objects", when := "emit a frame using the identity owner supplied descriptor and integrity span seam", then := "headers, body measure and borrowed spans are exact; no hash identity or accepted-format token is invented", owner := "Uorc.Wire.FrameEmitScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "The production emitter reads RuntimeProgram.Program/BorrowedBlock/BorrowedInstruction metadata. GraphEmit and GraphParse remain diagnostics only. Fixed producer controls contain no Arena; the driving session moves one actual Arena and Usage through each operation. A controller detaches admission only at the acknowledged stable boundary through the Core-owned typed transfer interface, never by accepting an arbitrary validation snapshot. The frame identity and integrity construction are supplied by their separate source owner; format-2 meanings are unchanged and no new accepted-format claim is made here.",
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -19,6 +19,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Reject known source-format incompatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B tests/sdk-preflight/run.py
+          python3 -B scripts/sdk-source-format-preflight.py
       - name: Produce review candidates with the exact SDK
         shell: bash
         run: |
@@ -50,6 +56,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Reject known source-format incompatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B tests/sdk-preflight/run.py
+          python3 -B scripts/sdk-source-format-preflight.py
       - name: Setup then run two independent no-network SDK acceptances
         shell: bash
         run: |

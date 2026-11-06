@@ -1,0 +1,88 @@
+\begin{lexlean}{Uorc.Core.CanonicalRuntimeRelation}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.RuntimeMachineRefinement}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\importmodule{Uorc.Core.Types}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: relationIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.runtime-binding-meaning-and-logical-units/1",
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: bindingRelated,
+  parameters: [
+    sequenceFuel : Nat,
+    runtimeArena : Uorc.Core.Heap::Arena,
+    runtimeValue : Uorc.Core.RuntimeValue::RuntimeValue,
+    logicalUnits : UInt64,
+    referenceBinding : Uorc.Core.CanonicalBindings::Binding
+  ],
+  result: Prop,
+  body: ((Uorc.Core.RuntimeMachineRefinement::valueCorresponds sequenceFuel runtimeArena runtimeValue (project referenceBinding value)) /\ ((Uorc.Core.Types::wordToNat logicalUnits) = (Uorc.Core.CanonicalBindings::units referenceBinding))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+theorem{
+  name: role_transfer_preserves_runtime_binding_relation,
+  parameters: [
+    sequenceFuel : Nat,
+    runtimeArena : Uorc.Core.Heap::Arena,
+    runtimeValue : Uorc.Core.RuntimeValue::RuntimeValue,
+    logicalUnits : UInt64,
+    referenceBinding : Uorc.Core.CanonicalBindings::Binding,
+    targetRole : Uorc.Core.CanonicalBindings::Role
+  ],
+  statement: ((bindingRelated sequenceFuel runtimeArena runtimeValue logicalUnits (Uorc.Core.CanonicalBindings::transfer referenceBinding targetRole)) = (bindingRelated sequenceFuel runtimeArena runtimeValue logicalUnits referenceBinding)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: parameter_alias_preserves_runtime_binding_relation,
+  parameters: [
+    sequenceFuel : Nat,
+    runtimeArena : Uorc.Core.Heap::Arena,
+    runtimeValue : Uorc.Core.RuntimeValue::RuntimeValue,
+    logicalUnits : UInt64,
+    referenceBinding : Uorc.Core.CanonicalBindings::Binding
+  ],
+  statement: ((bindingRelated sequenceFuel runtimeArena runtimeValue logicalUnits (Uorc.Core.CanonicalBindings::parameter (project referenceBinding value))) = (bindingRelated sequenceFuel runtimeArena runtimeValue logicalUnits referenceBinding)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: natural_binding_matches_existing_runtime_denotation,
+  parameters: [sequenceFuel : Nat, runtimeArena : Uorc.Core.Heap::Arena, scalar : UInt64],
+  statement: (bindingRelated sequenceFuel runtimeArena (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural scalar) (8 : UInt64) (Uorc.Core.CanonicalBindings::parameter (ctor Uorc.Core.ReferenceSemantics::Value.natural (Uorc.Core.Types::wordToNat scalar)))),
+  proof: constructor{branches: [reflexivity{}, reflexivity{}]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: byte_binding_matches_existing_runtime_denotation,
+  parameters: [sequenceFuel : Nat, runtimeArena : Uorc.Core.Heap::Arena, scalar : UInt8],
+  statement: (bindingRelated sequenceFuel runtimeArena (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte scalar) (1 : UInt64) (Uorc.Core.CanonicalBindings::parameter (ctor Uorc.Core.ReferenceSemantics::Value.byte (Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural scalar))))),
+  proof: constructor{branches: [reflexivity{}, reflexivity{}]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: predicate_binding_matches_existing_runtime_denotation,
+  parameters: [sequenceFuel : Nat, runtimeArena : Uorc.Core.Heap::Arena, scalar : Bool],
+  statement: (bindingRelated sequenceFuel runtimeArena (ctor Uorc.Core.RuntimeValue::RuntimeValue.predicate scalar) (1 : UInt64) (Uorc.Core.CanonicalBindings::parameter (ctor Uorc.Core.ReferenceSemantics::Value.predicate scalar))),
+  proof: constructor{branches: [reflexivity{}, reflexivity{}]},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

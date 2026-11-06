@@ -1,0 +1,167 @@
+\begin{lexlean}{Uorc.Search.Charts}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Search.Effort}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: emptyInput, fields: []},
+    {name: missingObservation, fields: []},
+    {name: arithmeticOverflow, fields: []},
+    {name: invalidModulus, fields: []}
+  ]
+}
+
+structure{
+  name: AffineParameters,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: base, type: UInt64}, {name: slope, type: UInt64}]
+}
+
+definition{
+  name: byteNatural,
+  parameters: [value : UInt8],
+  result: UInt64,
+  body: (match (prim checked_convert value : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some converted => converted)
+}
+
+definition{
+  name: ringDifference,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 Error),
+  body: (match (prim checked_add left (256 : UInt64) : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.arithmeticOverflow))
+    | Option.some lifted => (match (prim checked_subtract lifted right : (Option UInt64))
+      | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.arithmeticOverflow))
+      | Option.some difference => (match (prim checked_quotient difference (256 : UInt64) : (Option UInt64))
+        | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.invalidModulus))
+        | Option.some quotient => (match (prim checked_multiply quotient (256 : UInt64) : (Option UInt64))
+          | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.arithmeticOverflow))
+          | Option.some product => (match (prim checked_subtract difference product : (Option UInt64))
+            | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.arithmeticOverflow))
+            | Option.some remainderValue => (ctor Result.ok [UInt64, Error] remainderValue))))))
+}
+
+definition{
+  name: inferPair,
+  parameters: [first : UInt8, second : UInt8],
+  result: (Result AffineParameters Error),
+  body: (match (ringDifference (byteNatural var{name: second}) (byteNatural var{name: first}))
+    | Result.error error => (ctor Result.error [AffineParameters, Error] error)
+    | Result.ok slope => (ctor Result.ok [AffineParameters, Error] (record AffineParameters {base := (byteNatural var{
+      name: first
+    }), slope := slope})))
+}
+
+definition{
+  name: infer,
+  parameters: [input : Bytes],
+  result: (Result AffineParameters Error),
+  body: match{
+    branches: [
+      {
+        body: (ctor Result.error [AffineParameters, Error] (ctor Error.emptyInput)),
+        binders: [],
+        constructor: Option.none
+      },
+      {
+        body: match{
+          branches: [
+            {
+              body: (ctor Result.ok [AffineParameters, Error] (record AffineParameters {base := (byteNatural var{
+                name: first
+              }), slope := (0 : UInt64)})),
+              binders: [],
+              constructor: Option.none
+            },
+            {
+              body: (inferPair var{name: first} var{name: second}),
+              binders: [second],
+              constructor: Option.some
+            }
+          ],
+          scrutinee: (prim index input 1 : (Option UInt8))
+        },
+        binders: [first],
+        constructor: Option.some
+      }
+    ],
+    scrutinee: (prim index input 0 : (Option UInt8))
+  }
+}
+
+definition{
+  name: affineBlock,
+  parameters: [parameters : AffineParameters],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters base)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters slope)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (256 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 4 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalMultiply 1 3) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 1 5) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 1 4) (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (nil Uorc.Core.Graph::Instruction))))))))), returnDistance := 1})
+}
+
+definition{
+  name: tabulateBlock,
+  parameters: [count : UInt64],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1})
+}
+
+definition{
+  name: tabulateGraph,
+  parameters: [generator : Uorc.Core.Graph::Block, count : UInt64],
+  result: Uorc.Core.Graph::Graph,
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons generator (cons (tabulateBlock count) (nil Uorc.Core.Graph::Block))), entry := 1})
+}
+
+definition{
+  name: affineGraph,
+  parameters: [parameters : AffineParameters, count : UInt64],
+  result: Uorc.Core.Graph::Graph,
+  body: (tabulateGraph (affineBlock parameters) count)
+}
+
+definition{
+  name: discover,
+  parameters: [input : Bytes],
+  result: (Result Uorc.Core.Graph::Graph Error),
+  body: (match (infer input)
+    | Result.error error => (ctor Result.error [Uorc.Core.Graph::Graph, Error] error)
+    | Result.ok parameters => (match (Uorc.Search.Effort::checkedU64 (prim length input : Nat))
+      | Result.error conversionError => (ctor Result.error [Uorc.Core.Graph::Graph, Error] (ctor Error.arithmeticOverflow))
+      | Result.ok count => (ctor Result.ok [Uorc.Core.Graph::Graph, Error] (affineGraph parameters count))))
+}
+
+theorem{
+  name: parameters_inferred_from_bytes,
+  parameters: [],
+  statement: ((infer 0xfa0b1c2d) = (ctor Result.ok [AffineParameters, Error] (record AffineParameters {base := (250 : UInt64), slope := (17 : UInt64)}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: arbitrary_byte_wrap_is_ring_arithmetic,
+  parameters: [],
+  statement: ((ringDifference (11 : UInt64) (250 : UInt64)) = (ctor Result.ok [UInt64, Error] (17 : UInt64))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_has_typed_no_proposal,
+  parameters: [],
+  statement: ((infer 0x) = (ctor Result.error [AffineParameters, Error] (ctor Error.emptyInput))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: affine_witness_is_ordinary_typed_graph,
+  parameters: [],
+  statement: ((Uorc.Core.Graph::validateGraph (affineGraph (record AffineParameters {base := (250 : UInt64), slope := (17 : UInt64)}) (4096 : UInt64))) = (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ())),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

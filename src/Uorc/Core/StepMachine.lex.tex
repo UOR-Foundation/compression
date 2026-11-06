@@ -1,0 +1,1424 @@
+\begin{lexlean}{Uorc.Core.StepMachine}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Store}
+\importmodule{Uorc.Core.Slots}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Lifetime}
+\importmodule{Uorc.Core.Validation}
+\importmodule{Uorc.Core.Basis}
+\importmodule{Uorc.Core.ByteBuilder}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: static, fields: [Uorc.Core.Types::StaticError]},
+    {name: semantic, fields: [Uorc.Core.Types::SemanticError]},
+    {name: operational, fields: [Uorc.Core.Resources::OperationalError]}
+  ]
+}
+
+structure{
+  name: Execution,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: value, type: Uorc.Core.Types::Value},
+    {name: usage, type: Uorc.Core.Resources::Usage}
+  ]
+}
+
+structure{
+  name: Frame,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: blockIndex, type: Nat},
+    {name: remaining, type: (List Uorc.Core.Graph::Instruction)},
+    {name: slots, type: Uorc.Core.Slots::SlotTable},
+    {name: returnDistance, type: Nat},
+    {name: nextInstruction, type: Nat},
+    {name: releaseBuckets, type: (List (List Nat))},
+    {name: pendingReleases, type: (List Nat)}
+  ]
+}
+
+inductive{
+  name: Continuation,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: apply, fields: [Frame]},
+    {
+      name: tabulate,
+      fields: [Frame, Nat, Nat, Nat, (List Uorc.Core.Types::Value), Uorc.Core.ByteBuilder::Builder]
+    },
+    {name: fold, fields: [Frame, Nat, Nat, Nat, (List Uorc.Core.Types::Value)]},
+    {
+      name: scanObserve,
+      fields: [
+        Frame,
+        Nat,
+        Nat,
+        Nat,
+        (List Uorc.Core.Types::Value),
+        Nat,
+        (List Uorc.Core.Types::Value),
+        Uorc.Core.Types::Value,
+        Uorc.Core.ByteBuilder::Builder
+      ]
+    },
+    {
+      name: scanUpdate,
+      fields: [
+        Frame,
+        Nat,
+        Nat,
+        Nat,
+        (List Uorc.Core.Types::Value),
+        Nat,
+        (List Uorc.Core.Types::Value),
+        Uorc.Core.ByteBuilder::Builder
+      ]
+    }
+  ]
+}
+
+inductive{
+  name: CaptureTarget,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: apply, fields: [Nat]},
+    {name: tabulate, fields: [Nat, Nat]},
+    {name: fold, fields: [Nat, Uorc.Core.Types::Value, Nat]},
+    {name: scanObserver, fields: [Nat, Uorc.Core.Types::Value, Nat, Nat, (List Nat)]},
+    {
+      name: scanUpdater,
+      fields: [Nat, Uorc.Core.Types::Value, Nat, Nat, (List Uorc.Core.Types::Value)]
+    }
+  ]
+}
+
+inductive{
+  name: RopeTarget,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: sequence, fields: []}, {name: byte, fields: []}]
+}
+
+inductive{
+  name: BuilderTarget,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: sequence, fields: []},
+    {name: tabulate, fields: [Nat, Nat, Nat, (List Uorc.Core.Types::Value)]},
+    {
+      name: scanUpdate,
+      fields: [
+        Nat,
+        Nat,
+        Nat,
+        (List Uorc.Core.Types::Value),
+        Nat,
+        (List Uorc.Core.Types::Value),
+        Uorc.Core.Types::Value
+      ]
+    }
+  ]
+}
+
+inductive{
+  name: Pending,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: resolving, fields: [CaptureTarget, (List Nat), (List Uorc.Core.Types::Value)]},
+    {
+      name: reversing,
+      fields: [CaptureTarget, (List Uorc.Core.Types::Value), (List Uorc.Core.Types::Value)]
+    },
+    {name: initializing, fields: [(List Uorc.Core.Types::Value)]},
+    {name: ropeWork, fields: [Uorc.Core.Bytes::Work, RopeTarget]},
+    {name: builderWork, fields: [Uorc.Core.ByteBuilder::Work, BuilderTarget]}
+  ]
+}
+
+structure{
+  name: InitializationFailure,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: failure, type: Failure}, {name: usage, type: Uorc.Core.Resources::Usage}]
+}
+
+structure{
+  name: Machine,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frame, type: Frame},
+    {name: continuations, type: (List Continuation)},
+    {name: usage, type: Uorc.Core.Resources::Usage},
+    {name: comparison, type: (Option Uorc.Core.Bytes::Comparison)},
+    {name: pending, type: (Option Pending)}
+  ]
+}
+
+structure{
+  name: Context,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: graph, type: Uorc.Core.Graph::Graph},
+    {name: basis, type: (List Bytes)},
+    {name: budget, type: Uorc.Core.Resources::Budget},
+    {name: checked, type: (Option Uorc.Core.Validation::CheckedGraph)},
+    {name: indexedBasis, type: (Option Uorc.Core.Basis::Table)}
+  ]
+}
+
+inductive{
+  name: StepResult,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: next, fields: [Machine]},
+    {name: done, fields: [Execution]},
+    {name: failed, fields: [Failure, Uorc.Core.Resources::Usage]}
+  ]
+}
+
+definition{
+  name: localValue,
+  parameters: [slots : Uorc.Core.Slots::SlotTable, distance : Nat],
+  result: (Result Uorc.Core.Types::Value Failure),
+  body: (match (Uorc.Core.Slots::byDistance slots distance)
+    | Result.error slotError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (match slotError
+      | Uorc.Core.Slots::SlotError.invalidReference => (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference))
+      | Uorc.Core.Slots::SlotError.releasedCell => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+      | Uorc.Core.Slots::SlotError.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
+    | Result.ok selected => (ctor Result.ok [Uorc.Core.Types::Value, Failure] selected)),
+  executable: true
+}
+
+definition{
+  name: readNatural,
+  parameters: [slots : Uorc.Core.Slots::SlotTable, distance : Nat],
+  result: (Result UInt64 Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [UInt64, Failure] error)
+    | Result.ok selectedValue => (match selectedValue
+      | Uorc.Core.Types::Value.natural payload => (ctor Result.ok [UInt64, Failure] payload)
+      | Uorc.Core.Types::Value.byte payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.sequence payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.store payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))))
+}
+
+definition{
+  name: readByte,
+  parameters: [slots : Uorc.Core.Slots::SlotTable, distance : Nat],
+  result: (Result UInt8 Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [UInt8, Failure] error)
+    | Result.ok selectedValue => (match selectedValue
+      | Uorc.Core.Types::Value.natural payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.byte payload => (ctor Result.ok [UInt8, Failure] payload)
+      | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.sequence payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.store payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))))
+}
+
+definition{
+  name: readPredicate,
+  parameters: [slots : Uorc.Core.Slots::SlotTable, distance : Nat],
+  result: (Result Bool Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [Bool, Failure] error)
+    | Result.ok selectedValue => (match selectedValue
+      | Uorc.Core.Types::Value.natural payload => (ctor Result.error [Bool, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.byte payload => (ctor Result.error [Bool, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.predicate payload => (ctor Result.ok [Bool, Failure] payload)
+      | Uorc.Core.Types::Value.sequence payload => (ctor Result.error [Bool, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.store payload => (ctor Result.error [Bool, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [Bool, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))))
+}
+
+definition{
+  name: readSequence,
+  parameters: [slots : Uorc.Core.Slots::SlotTable, distance : Nat],
+  result: (Result Uorc.Core.Bytes::Rope Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [Uorc.Core.Bytes::Rope, Failure] error)
+    | Result.ok selectedValue => (match selectedValue
+      | Uorc.Core.Types::Value.natural payload => (ctor Result.error [Uorc.Core.Bytes::Rope, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.byte payload => (ctor Result.error [Uorc.Core.Bytes::Rope, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [Uorc.Core.Bytes::Rope, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.sequence payload => (ctor Result.ok [Uorc.Core.Bytes::Rope, Failure] (Uorc.Core.Bytes::fromBytes payload))
+      | Uorc.Core.Types::Value.store payload => (ctor Result.error [Uorc.Core.Bytes::Rope, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.ok [Uorc.Core.Bytes::Rope, Failure] payload)))
+}
+
+definition{
+  name: readStore,
+  parameters: [slots : Uorc.Core.Slots::SlotTable, distance : Nat],
+  result: (Result Uorc.Core.Store::Store Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [Uorc.Core.Store::Store, Failure] error)
+    | Result.ok selectedValue => (match selectedValue
+      | Uorc.Core.Types::Value.natural payload => (ctor Result.error [Uorc.Core.Store::Store, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.byte payload => (ctor Result.error [Uorc.Core.Store::Store, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [Uorc.Core.Store::Store, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.sequence payload => (ctor Result.error [Uorc.Core.Store::Store, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.store payload => (ctor Result.ok [Uorc.Core.Store::Store, Failure] payload)
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [Uorc.Core.Store::Store, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))))
+}
+
+definition{
+  name: resolveReferences,
+  parameters: [references : (List Nat), slots : Uorc.Core.Slots::SlotTable],
+  result: (Result (List Uorc.Core.Types::Value) Failure),
+  body: (match references
+    | List.nil => (ctor Result.ok [(List Uorc.Core.Types::Value), Failure] (nil Uorc.Core.Types::Value))
+    | List.cons reference rest => (match (localValue slots reference)
+      | Result.error referenceError => (ctor Result.error [(List Uorc.Core.Types::Value), Failure] referenceError)
+      | Result.ok selected => (match (resolveReferences rest slots)
+        | Result.error restError => (ctor Result.error [(List Uorc.Core.Types::Value), Failure] restError)
+        | Result.ok resolvedRest => (ctor Result.ok [(List Uorc.Core.Types::Value), Failure] (cons selected resolvedRest))))),
+  recursive_argument: references
+}
+
+definition{
+  name: frameForBlockWithSchedule,
+  parameters: [
+    block : Uorc.Core.Graph::Block,
+    index : Nat,
+    arguments : (List Uorc.Core.Types::Value),
+    schedule : (List (List Nat))
+  ],
+  result: (Result Frame Failure),
+  body: (match schedule
+    | List.nil => (ctor Result.error [Frame, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | List.cons entryReleases instructionBuckets => (match (Uorc.Core.Slots::fromValues arguments)
+      | Result.error slotError => (ctor Result.error [Frame, Failure] (match slotError
+        | Uorc.Core.Slots::SlotError.invalidReference => (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference))
+        | Uorc.Core.Slots::SlotError.releasedCell => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+        | Uorc.Core.Slots::SlotError.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
+      | Result.ok slotTable => (ctor Result.ok [Frame, Failure] (record Frame {blockIndex := index, remaining := (project block instructions), slots := slotTable, returnDistance := (project block returnDistance), nextInstruction := 0, releaseBuckets := instructionBuckets, pendingReleases := entryReleases}))))
+}
+
+definition{
+  name: frameForBlock,
+  parameters: [
+    block : Uorc.Core.Graph::Block,
+    index : Nat,
+    arguments : (List Uorc.Core.Types::Value)
+  ],
+  result: (Result Frame Failure),
+  body: (match (Uorc.Core.Lifetime::buildSchedule block)
+    | Result.error scheduleError => (ctor Result.error [Frame, Failure] (ctor Failure.static scheduleError))
+    | Result.ok schedule => (frameForBlockWithSchedule block index arguments schedule))
+}
+
+definition{
+  name: effectiveGraph,
+  parameters: [context : Context],
+  result: Uorc.Core.Graph::Graph,
+  body: (match (project context checked)
+    | Option.none => (project context graph)
+    | Option.some validatedGraph => (project validatedGraph graph))
+}
+
+definition{
+  name: contextForChecked,
+  parameters: [
+    checkedGraph : Uorc.Core.Validation::CheckedGraph,
+    basis : (List Bytes),
+    budget : Uorc.Core.Resources::Budget
+  ],
+  result: Context,
+  body: (record Context {graph := (project checkedGraph graph), basis := basis, budget := budget, checked := (ctor Option.some [Uorc.Core.Validation::CheckedGraph] checkedGraph), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])})
+}
+
+definition{
+  name: cacheFailure,
+  parameters: [tableError : Uorc.Core.Validation::TableError],
+  result: Failure,
+  body: (match tableError
+    | Uorc.Core.Validation::TableError.invalidReference => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+    | Uorc.Core.Validation::TableError.releasedCell => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+    | Uorc.Core.Validation::TableError.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)))
+}
+
+definition{
+  name: contextForAdmitted,
+  parameters: [
+    checkedGraph : Uorc.Core.Validation::CheckedGraph,
+    basisTable : Uorc.Core.Basis::Table,
+    budget : Uorc.Core.Resources::Budget
+  ],
+  result: Context,
+  body: (record Context {graph := (project checkedGraph graph), basis := (nil Bytes), budget := budget, checked := (ctor Option.some [Uorc.Core.Validation::CheckedGraph] checkedGraph), indexedBasis := (ctor Option.some [Uorc.Core.Basis::Table] basisTable)})
+}
+
+definition{
+  name: absoluteBlock,
+  parameters: [context : Context, index : Nat],
+  result: (Result Uorc.Core.Graph::Block Failure),
+  body: (match (project context checked)
+    | Option.none => (match (prim index (project (effectiveGraph context) blocks) index : (Option Uorc.Core.Graph::Block))
+      | Option.none => (ctor Result.error [Uorc.Core.Graph::Block, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidBlockReference)))
+      | Option.some selected => (ctor Result.ok [Uorc.Core.Graph::Block, Failure] selected))
+    | Option.some validatedGraph => (match (Uorc.Core.Validation::bodyAt validatedGraph index)
+      | Result.error bodyError => (ctor Result.error [Uorc.Core.Graph::Block, Failure] (cacheFailure bodyError))
+      | Result.ok selectedBody => (ctor Result.ok [Uorc.Core.Graph::Block, Failure] selectedBody)))
+}
+
+definition{
+  name: appendResult,
+  parameters: [frame : Frame, value : Uorc.Core.Types::Value],
+  result: (Result Frame Failure),
+  body: (match (project frame releaseBuckets)
+    | List.nil => (ctor Result.error [Frame, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | List.cons bucket remainingBuckets => (match (Uorc.Core.Slots::appendSlot (project frame slots) value)
+      | Result.error slotError => (ctor Result.error [Frame, Failure] (match slotError
+        | Uorc.Core.Slots::SlotError.invalidReference => (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference))
+        | Uorc.Core.Slots::SlotError.releasedCell => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+        | Uorc.Core.Slots::SlotError.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
+      | Result.ok slotTable => (ctor Result.ok [Frame, Failure] (record Frame {blockIndex := (project frame blockIndex), remaining := (project frame remaining), slots := slotTable, returnDistance := (project frame returnDistance), nextInstruction := (project frame nextInstruction), releaseBuckets := remainingBuckets, pendingReleases := bucket}))))
+}
+
+definition{
+  name: advanceFrame,
+  parameters: [frame : Frame, rest : (List Uorc.Core.Graph::Instruction)],
+  result: Frame,
+  body: (record Frame {blockIndex := (project frame blockIndex), remaining := rest, slots := (project frame slots), returnDistance := (project frame returnDistance), nextInstruction := ((project frame nextInstruction) + 1), releaseBuckets := (project frame releaseBuckets), pendingReleases := (project frame pendingReleases)})
+}
+
+definition{
+  name: evaluateAtomic,
+  parameters: [
+    instruction : Uorc.Core.Graph::Instruction,
+    slots : Uorc.Core.Slots::SlotTable,
+    basis : (List Bytes)
+  ],
+  result: (Result Uorc.Core.Types::Value Failure),
+  body: (match instruction
+    | Uorc.Core.Graph::Instruction.naturalConstant literal => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural literal))
+    | Uorc.Core.Graph::Instruction.byteConstant literal => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.byte literal))
+    | Uorc.Core.Graph::Instruction.predicateConstant literal => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate literal))
+    | Uorc.Core.Graph::Instruction.sequenceConstant literal => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.sequence literal))
+    | Uorc.Core.Graph::Instruction.naturalAdd leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (match (Uorc.Core.Types::checkedAdd left right)
+          | Result.error operationError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic operationError))
+          | Result.ok operationValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalSubtract leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (match (Uorc.Core.Types::checkedSubtract left right)
+          | Result.error operationError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic operationError))
+          | Result.ok operationValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalMultiply leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (match (Uorc.Core.Types::checkedMultiply left right)
+          | Result.error operationError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic operationError))
+          | Result.ok operationValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalDivide leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (match (Uorc.Core.Types::checkedDivide left right)
+          | Result.error operationError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic operationError))
+          | Result.ok operationValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalRemainder leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (match (Uorc.Core.Types::checkedRemainder left right)
+          | Result.error operationError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic operationError))
+          | Result.ok operationValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (match (Uorc.Core.Types::checkedShiftLeft left right)
+          | Result.error operationError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic operationError))
+          | Result.ok operationValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalShiftRight leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (match (Uorc.Core.Types::checkedShiftRight left right)
+          | Result.error operationError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic operationError))
+          | Result.ok operationValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalAnd leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural (prim bit_and left right : UInt64)))))
+    | Uorc.Core.Graph::Instruction.naturalOr leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural (prim bit_or left right : UInt64)))))
+    | Uorc.Core.Graph::Instruction.naturalXor leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural (prim bit_xor left right : UInt64)))))
+    | Uorc.Core.Graph::Instruction.naturalNot reference => (match (readNatural slots reference)
+      | Result.error operandError => (ctor Result.error [Uorc.Core.Types::Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural (prim bit_not operand : UInt64))))
+    | Uorc.Core.Graph::Instruction.naturalEqual leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate (prim equal left right : Bool)))))
+    | Uorc.Core.Graph::Instruction.naturalLess leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate (Uorc.Core.Types::wordLess left right)))))
+    | Uorc.Core.Graph::Instruction.byteEqual leftReference rightReference => (match (readByte slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readByte slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate (prim equal left right : Bool)))))
+    | Uorc.Core.Graph::Instruction.byteLess leftReference rightReference => (match (readByte slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readByte slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate (Uorc.Core.Types::byteLess left right)))))
+    | Uorc.Core.Graph::Instruction.predicateAnd leftReference rightReference => (match (readPredicate slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readPredicate slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate (left && right)))))
+    | Uorc.Core.Graph::Instruction.predicateOr leftReference rightReference => (match (readPredicate slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readPredicate slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate (left || right)))))
+    | Uorc.Core.Graph::Instruction.sequenceEqual leftReference rightReference => (match (readSequence slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readSequence slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (match (Uorc.Core.Bytes::equal left right)
+          | Result.error ropeError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (match ropeError
+            | Uorc.Core.Bytes::RopeError.zeroChunkSize => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+            | Uorc.Core.Bytes::RopeError.invalidCursor => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+            | Uorc.Core.Bytes::RopeError.indexOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.indexOutOfBounds))
+            | Uorc.Core.Bytes::RopeError.sliceOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.sliceOutOfBounds))
+            | Uorc.Core.Bytes::RopeError.comparisonFuelExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))))
+          | Result.ok ropeValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate ropeValue)))))
+    | Uorc.Core.Graph::Instruction.naturalToByte reference => (match (readNatural slots reference)
+      | Result.error operandError => (ctor Result.error [Uorc.Core.Types::Value, Failure] operandError)
+      | Result.ok operand => (match (Uorc.Core.Types::naturalToByte operand)
+        | Result.error operationError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic operationError))
+        | Result.ok operationValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.byte operationValue))))
+    | Uorc.Core.Graph::Instruction.byteToNatural reference => (match (readByte slots reference)
+      | Result.error operandError => (ctor Result.error [Uorc.Core.Types::Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural (Uorc.Core.Types::byteToNatural operand))))
+    | Uorc.Core.Graph::Instruction.predicateNot reference => (match (readPredicate slots reference)
+      | Result.error operandError => (ctor Result.error [Uorc.Core.Types::Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate (not operand))))
+    | Uorc.Core.Graph::Instruction.sequenceLength reference => (match (readSequence slots reference)
+      | Result.error operandError => (ctor Result.error [Uorc.Core.Types::Value, Failure] operandError)
+      | Result.ok operand => (match (Uorc.Core.Types::wordOfNat (Uorc.Core.Bytes::length operand))
+        | Option.none => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.sequenceLengthOverflow)))
+        | Option.some converted => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural converted))))
+    | Uorc.Core.Graph::Instruction.singletonSequence reference => (match (readByte slots reference)
+      | Result.error operandError => (ctor Result.error [Uorc.Core.Types::Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.sequence (Uorc.Core.Types::singletonSequence operand))))
+    | Uorc.Core.Graph::Instruction.storeNew reference => (match (readByte slots reference)
+      | Result.error operandError => (ctor Result.error [Uorc.Core.Types::Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.store (Uorc.Core.Store::newStore operand))))
+    | Uorc.Core.Graph::Instruction.sequenceConcat leftReference rightReference => (match (readSequence slots leftReference)
+      | Result.error leftError => (ctor Result.error [Uorc.Core.Types::Value, Failure] leftError)
+      | Result.ok left => (match (readSequence slots rightReference)
+        | Result.error rightError => (ctor Result.error [Uorc.Core.Types::Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence (Uorc.Core.Bytes::join left right)))))
+    | Uorc.Core.Graph::Instruction.sequenceIndex sequenceReference indexReference => (match (readSequence slots sequenceReference)
+      | Result.error sourceError => (ctor Result.error [Uorc.Core.Types::Value, Failure] sourceError)
+      | Result.ok source => (match (readNatural slots indexReference)
+        | Result.error indexError => (ctor Result.error [Uorc.Core.Types::Value, Failure] indexError)
+        | Result.ok index => (match (Uorc.Core.Bytes::at source (Uorc.Core.Types::wordToNat index))
+          | Result.error ropeError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (match ropeError
+            | Uorc.Core.Bytes::RopeError.zeroChunkSize => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+            | Uorc.Core.Bytes::RopeError.invalidCursor => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+            | Uorc.Core.Bytes::RopeError.indexOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.indexOutOfBounds))
+            | Uorc.Core.Bytes::RopeError.sliceOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.sliceOutOfBounds))
+            | Uorc.Core.Bytes::RopeError.comparisonFuelExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))))
+          | Result.ok ropeValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.byte ropeValue)))))
+    | Uorc.Core.Graph::Instruction.sequenceSlice sequenceReference startReference countReference => (match (readSequence slots sequenceReference)
+      | Result.error sourceError => (ctor Result.error [Uorc.Core.Types::Value, Failure] sourceError)
+      | Result.ok source => (match (readNatural slots startReference)
+        | Result.error startError => (ctor Result.error [Uorc.Core.Types::Value, Failure] startError)
+        | Result.ok start => (match (readNatural slots countReference)
+          | Result.error countError => (ctor Result.error [Uorc.Core.Types::Value, Failure] countError)
+          | Result.ok count => (match (Uorc.Core.Bytes::slice source (Uorc.Core.Types::wordToNat start) (Uorc.Core.Types::wordToNat count))
+            | Result.error ropeError => (ctor Result.error [Uorc.Core.Types::Value, Failure] (match ropeError
+              | Uorc.Core.Bytes::RopeError.zeroChunkSize => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+              | Uorc.Core.Bytes::RopeError.invalidCursor => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+              | Uorc.Core.Bytes::RopeError.indexOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.indexOutOfBounds))
+              | Uorc.Core.Bytes::RopeError.sliceOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.sliceOutOfBounds))
+              | Uorc.Core.Bytes::RopeError.comparisonFuelExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))))
+            | Result.ok ropeValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence ropeValue))))))
+    | Uorc.Core.Graph::Instruction.basisGet indexReference => (match (readNatural slots indexReference)
+      | Result.error indexError => (ctor Result.error [Uorc.Core.Types::Value, Failure] indexError)
+      | Result.ok index => (match (prim index basis (Uorc.Core.Types::wordToNat index) : (Option Bytes))
+        | Option.none => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.basisOutOfBounds)))
+        | Option.some selected => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.sequence selected))))
+    | Uorc.Core.Graph::Instruction.storeRead storeReference keyReference => (match (readStore slots storeReference)
+      | Result.error storeValueError => (ctor Result.error [Uorc.Core.Types::Value, Failure] storeValueError)
+      | Result.ok storeValue => (match (readNatural slots keyReference)
+        | Result.error keyError => (ctor Result.error [Uorc.Core.Types::Value, Failure] keyError)
+        | Result.ok key => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.byte (Uorc.Core.Store::readStore storeValue key)))))
+    | Uorc.Core.Graph::Instruction.storeWrite storeReference keyReference valueReference => (match (readStore slots storeReference)
+      | Result.error storeValueError => (ctor Result.error [Uorc.Core.Types::Value, Failure] storeValueError)
+      | Result.ok storeValue => (match (readNatural slots keyReference)
+        | Result.error keyError => (ctor Result.error [Uorc.Core.Types::Value, Failure] keyError)
+        | Result.ok key => (match (readByte slots valueReference)
+          | Result.error byteValueError => (ctor Result.error [Uorc.Core.Types::Value, Failure] byteValueError)
+          | Result.ok byteValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.store (Uorc.Core.Store::writeStore storeValue key byteValue))))))
+    | Uorc.Core.Graph::Instruction.choose conditionReference trueReference falseReference => (match (readPredicate slots conditionReference)
+      | Result.error conditionError => (ctor Result.error [Uorc.Core.Types::Value, Failure] conditionError)
+      | Result.ok condition => (match (localValue slots trueReference)
+        | Result.error trueError => (ctor Result.error [Uorc.Core.Types::Value, Failure] trueError)
+        | Result.ok trueValue => (match (localValue slots falseReference)
+          | Result.error falseError => (ctor Result.error [Uorc.Core.Types::Value, Failure] falseError)
+          | Result.ok falseValue => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (if condition then trueValue else falseValue)))))
+    | Uorc.Core.Graph::Instruction.apply distance arguments => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | Uorc.Core.Graph::Instruction.tabulate count distance captures => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | Uorc.Core.Graph::Instruction.fold count initial distance captures => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | Uorc.Core.Graph::Instruction.scan count initial observer observerCaptures updater updaterCaptures => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant literal => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence literal)))
+}
+
+definition{
+  name: nextAtomic,
+  parameters: [
+    context : Context,
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    evaluated : (Result Uorc.Core.Types::Value Failure)
+  ],
+  result: StepResult,
+  body: (match evaluated
+    | Result.error error => (ctor StepResult.failed error usage)
+    | Result.ok value => (match (Uorc.Core.Resources::charge (project context budget) usage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := 128, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+      | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) usage)
+      | Result.ok writeUsage => (match (appendResult frame value)
+        | Result.error slotFailure => (ctor StepResult.failed slotFailure writeUsage)
+        | Result.ok nextFrame => (ctor StepResult.next (record Machine {frame := nextFrame, continuations := continuations, usage := writeUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])})))))
+}
+
+definition{
+  name: preparedFrame,
+  parameters: [
+    context : Context,
+    block : Uorc.Core.Graph::Block,
+    index : Nat,
+    arguments : (List Uorc.Core.Types::Value)
+  ],
+  result: (Result Frame Failure),
+  body: (match (project context checked)
+    | Option.none => (frameForBlock block index arguments)
+    | Option.some validatedGraph => (match (Uorc.Core.Validation::scheduleAt validatedGraph index)
+      | Result.error scheduleError => (ctor Result.error [Frame, Failure] (cacheFailure scheduleError))
+      | Result.ok preparedSchedule => (frameForBlockWithSchedule block index arguments preparedSchedule)))
+}
+
+definition{
+  name: emptyFrameWithSchedule,
+  parameters: [block : Uorc.Core.Graph::Block, index : Nat, schedule : (List (List Nat))],
+  result: (Result Frame Failure),
+  body: (match schedule
+    | List.nil => (ctor Result.error [Frame, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | List.cons entryReleases instructionBuckets => (ctor Result.ok [Frame, Failure] (record Frame {blockIndex := index, remaining := (project block instructions), slots := (Uorc.Core.Slots::emptySlots), returnDistance := (project block returnDistance), nextInstruction := 0, releaseBuckets := instructionBuckets, pendingReleases := entryReleases})))
+}
+
+definition{
+  name: preparedEmptyFrame,
+  parameters: [context : Context, block : Uorc.Core.Graph::Block, index : Nat],
+  result: (Result Frame Failure),
+  body: (match (project context checked)
+    | Option.none => (match (Uorc.Core.Lifetime::buildSchedule block)
+      | Result.error scheduleError => (ctor Result.error [Frame, Failure] (ctor Failure.static scheduleError))
+      | Result.ok preparedSchedule => (emptyFrameWithSchedule block index preparedSchedule))
+    | Option.some validatedGraph => (match (Uorc.Core.Validation::scheduleAt validatedGraph index)
+      | Result.error cacheError => (ctor Result.error [Frame, Failure] (cacheFailure cacheError))
+      | Result.ok preparedSchedule => (emptyFrameWithSchedule block index preparedSchedule)))
+}
+
+definition{
+  name: callBlock,
+  parameters: [
+    context : Context,
+    blockIndex : Nat,
+    arguments : (List Uorc.Core.Types::Value),
+    continuation : Continuation,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage
+  ],
+  result: StepResult,
+  body: (match (Uorc.Core.Resources::charge (project context budget) usage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := 257, allocatedCells := 1, releasedCells := 0, emittedBytes := 0, enteredFrames := 1, exitedFrames := 0}))
+    | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) usage)
+    | Result.ok chargedUsage => (match (absoluteBlock context blockIndex)
+      | Result.error blockError => (ctor StepResult.failed blockError chargedUsage)
+      | Result.ok block => (match (preparedEmptyFrame context block blockIndex)
+        | Result.error frameError => (ctor StepResult.failed frameError chargedUsage)
+        | Result.ok calledFrame => (ctor StepResult.next (record Machine {frame := calledFrame, continuations := (cons continuation continuations), usage := chargedUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.initializing arguments))})))))
+}
+
+definition{
+  name: finishIterator,
+  parameters: [
+    context : Context,
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    value : Uorc.Core.Types::Value
+  ],
+  result: StepResult,
+  body: (match (Uorc.Core.Resources::charge (project context budget) usage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := 128, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+    | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) usage)
+    | Result.ok writeUsage => (match (appendResult frame value)
+      | Result.error slotFailure => (ctor StepResult.failed slotFailure writeUsage)
+      | Result.ok nextFrame => (ctor StepResult.next (record Machine {frame := nextFrame, continuations := continuations, usage := writeUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])}))))
+}
+
+definition{
+  name: iterationNatural,
+  parameters: [index : Nat],
+  result: (Result Uorc.Core.Types::Value Failure),
+  body: (match (Uorc.Core.Types::wordOfNat index)
+    | Option.none => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)))
+    | Option.some coordinate => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural coordinate)))
+}
+
+definition{
+  name: callIteration,
+  parameters: [
+    context : Context,
+    blockIndex : Nat,
+    index : Nat,
+    arguments : (List Uorc.Core.Types::Value),
+    continuation : Continuation,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage
+  ],
+  result: StepResult,
+  body: (match (Uorc.Core.Resources::charge (project context budget) usage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := 64, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+    | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) usage)
+    | Result.ok coordinateUsage => (match (iterationNatural index)
+      | Result.error coordinateError => (ctor StepResult.failed coordinateError coordinateUsage)
+      | Result.ok coordinate => (callBlock context blockIndex (cons coordinate arguments) continuation continuations coordinateUsage)))
+}
+
+definition{
+  name: beginCaptures,
+  parameters: [
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    target : CaptureTarget,
+    references : (List Nat)
+  ],
+  result: StepResult,
+  body: (ctor StepResult.next (record Machine {frame := frame, continuations := continuations, usage := usage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.resolving target references (nil Uorc.Core.Types::Value)))}))
+}
+
+definition{
+  name: finishCaptures,
+  parameters: [
+    context : Context,
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    target : CaptureTarget,
+    captured : (List Uorc.Core.Types::Value)
+  ],
+  result: StepResult,
+  body: (match target
+    | CaptureTarget.apply bodyIndex => (callBlock context bodyIndex captured (ctor Continuation.apply frame) continuations usage)
+    | CaptureTarget.tabulate count bodyIndex => (if (count =? 0) then (finishIterator context frame continuations usage (ctor Uorc.Core.Types::Value.segmentedSequence (ctor Uorc.Core.Bytes::Rope.empty))) else (callBlock context bodyIndex (cons (ctor Uorc.Core.Types::Value.natural (0 : UInt64)) captured) (ctor Continuation.tabulate frame count 1 bodyIndex captured (Uorc.Core.ByteBuilder::empty)) continuations usage))
+    | CaptureTarget.fold count initialValue bodyIndex => (if (count =? 0) then (finishIterator context frame continuations usage initialValue) else (callBlock context bodyIndex (cons (ctor Uorc.Core.Types::Value.natural (0 : UInt64)) (cons initialValue captured)) (ctor Continuation.fold frame count 1 bodyIndex captured) continuations usage))
+    | CaptureTarget.scanObserver count initialValue observerIndex updaterIndex updaterReferences => (beginCaptures frame continuations usage (ctor CaptureTarget.scanUpdater count initialValue observerIndex updaterIndex captured) updaterReferences)
+    | CaptureTarget.scanUpdater count initialValue observerIndex updaterIndex observerValues => (if (count =? 0) then (finishIterator context frame continuations usage (ctor Uorc.Core.Types::Value.segmentedSequence (ctor Uorc.Core.Bytes::Rope.empty))) else (callBlock context observerIndex (cons (ctor Uorc.Core.Types::Value.natural (0 : UInt64)) (cons initialValue observerValues)) (ctor Continuation.scanObserve frame count 0 observerIndex observerValues updaterIndex captured initialValue (Uorc.Core.ByteBuilder::empty)) continuations usage)))
+}
+
+definition{
+  name: ropeFailure,
+  parameters: [ropeError : Uorc.Core.Bytes::RopeError],
+  result: Failure,
+  body: (match ropeError
+    | Uorc.Core.Bytes::RopeError.zeroChunkSize => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+    | Uorc.Core.Bytes::RopeError.invalidCursor => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+    | Uorc.Core.Bytes::RopeError.indexOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.indexOutOfBounds))
+    | Uorc.Core.Bytes::RopeError.sliceOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.sliceOutOfBounds))
+    | Uorc.Core.Bytes::RopeError.comparisonFuelExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+}
+
+definition{
+  name: startRopeWork,
+  parameters: [
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    workValue : Uorc.Core.Bytes::Work,
+    target : RopeTarget
+  ],
+  result: StepResult,
+  body: (ctor StepResult.next (record Machine {frame := frame, continuations := continuations, usage := usage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.ropeWork workValue target))}))
+}
+
+definition{
+  name: finishRopeWork,
+  parameters: [
+    context : Context,
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    target : RopeTarget,
+    resultRope : Uorc.Core.Bytes::Rope
+  ],
+  result: StepResult,
+  body: (match target
+    | RopeTarget.sequence => (nextAtomic context frame continuations usage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence resultRope)))
+    | RopeTarget.byte => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage))
+}
+
+definition{
+  name: basisFailure,
+  parameters: [tableError : Uorc.Core.Basis::TableError],
+  result: Failure,
+  body: (match tableError
+    | Uorc.Core.Basis::TableError.invalidReference => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.basisOutOfBounds))
+    | Uorc.Core.Basis::TableError.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))
+    | Uorc.Core.Basis::TableError.missingEntry => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+}
+
+definition{
+  name: instructionReadWork,
+  parameters: [instruction : Uorc.Core.Graph::Instruction],
+  result: Nat,
+  body: (match instruction
+    | Uorc.Core.Graph::Instruction.naturalConstant operand0 => 0
+    | Uorc.Core.Graph::Instruction.byteConstant operand0 => 0
+    | Uorc.Core.Graph::Instruction.predicateConstant operand0 => 0
+    | Uorc.Core.Graph::Instruction.sequenceConstant operand0 => 0
+    | Uorc.Core.Graph::Instruction.naturalAdd operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalSubtract operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalMultiply operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalDivide operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalRemainder operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalAnd operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalOr operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalXor operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalNot operand0 => 192
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalShiftRight operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalEqual operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalLess operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.byteEqual operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.byteLess operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.naturalToByte operand0 => 192
+    | Uorc.Core.Graph::Instruction.byteToNatural operand0 => 192
+    | Uorc.Core.Graph::Instruction.predicateNot operand0 => 192
+    | Uorc.Core.Graph::Instruction.predicateAnd operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.predicateOr operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.sequenceLength operand0 => 192
+    | Uorc.Core.Graph::Instruction.sequenceIndex operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.sequenceSlice operand0 operand1 operand2 => 512
+    | Uorc.Core.Graph::Instruction.sequenceConcat operand0 operand1 => 256
+    | Uorc.Core.Graph::Instruction.sequenceEqual operand0 operand1 => 256
+    | Uorc.Core.Graph::Instruction.singletonSequence operand0 => 137
+    | Uorc.Core.Graph::Instruction.basisGet operand0 => 320
+    | Uorc.Core.Graph::Instruction.storeNew operand0 => 192
+    | Uorc.Core.Graph::Instruction.storeRead operand0 operand1 => 320
+    | Uorc.Core.Graph::Instruction.storeWrite operand0 operand1 operand2 => 512
+    | Uorc.Core.Graph::Instruction.choose operand0 operand1 operand2 => 384
+    | Uorc.Core.Graph::Instruction.apply operand0 operand1 => 0
+    | Uorc.Core.Graph::Instruction.tabulate operand0 operand1 operand2 => 192
+    | Uorc.Core.Graph::Instruction.fold operand0 operand1 operand2 operand3 => 320
+    | Uorc.Core.Graph::Instruction.scan operand0 operand1 operand2 operand3 operand4 operand5 => 320
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant operand0 => 0)
+}
+
+definition{
+  name: startBuilderWork,
+  parameters: [
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    workValue : Uorc.Core.ByteBuilder::Work,
+    target : BuilderTarget
+  ],
+  result: StepResult,
+  body: (ctor StepResult.next (record Machine {frame := frame, continuations := continuations, usage := usage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.builderWork workValue target))}))
+}
+
+definition{
+  name: finishBuilderAppend,
+  parameters: [
+    context : Context,
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    target : BuilderTarget,
+    builder : Uorc.Core.ByteBuilder::Builder
+  ],
+  result: StepResult,
+  body: (match target
+    | BuilderTarget.sequence => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+    | BuilderTarget.tabulate count nextIndex bodyIndex captures => (if (nextIndex <? count) then (callIteration context bodyIndex nextIndex captures (ctor Continuation.tabulate frame count (nextIndex + 1) bodyIndex captures builder) continuations usage) else (startBuilderWork frame continuations usage (Uorc.Core.ByteBuilder::finish builder) (ctor BuilderTarget.sequence)))
+    | BuilderTarget.scanUpdate count index observerIndex observerCaptures updaterIndex updaterCaptures stateValue => (callIteration context updaterIndex index (cons stateValue updaterCaptures) (ctor Continuation.scanUpdate frame count index observerIndex observerCaptures updaterIndex updaterCaptures builder) continuations usage))
+}
+
+definition{
+  name: builderFailure,
+  parameters: [builderError : Uorc.Core.ByteBuilder::Error],
+  result: Failure,
+  body: (match builderError
+    | Uorc.Core.ByteBuilder::Error.invalidState => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+    | Uorc.Core.ByteBuilder::Error.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))
+    | Uorc.Core.ByteBuilder::Error.rope ropeError => (ropeFailure ropeError)
+    | Uorc.Core.ByteBuilder::Error.zeroBlockSize => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+}
+
+definition{
+  name: dispatch,
+  parameters: [
+    context : Context,
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    instruction : Uorc.Core.Graph::Instruction
+  ],
+  result: StepResult,
+  body: (match (Uorc.Core.Resources::charge (project context budget) usage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.indexedRead), work := (instructionReadWork instruction), allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+    | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) usage)
+    | Result.ok readUsage => (match instruction
+      | Uorc.Core.Graph::Instruction.apply distance arguments => (beginCaptures frame continuations readUsage (ctor CaptureTarget.apply (prim subtract (project frame blockIndex) distance : Nat)) arguments)
+      | Uorc.Core.Graph::Instruction.tabulate countReference distance captures => (match (readNatural (project frame slots) countReference)
+        | Result.error countError => (ctor StepResult.failed countError readUsage)
+        | Result.ok countValue => (beginCaptures frame continuations readUsage (ctor CaptureTarget.tabulate (Uorc.Core.Types::wordToNat countValue) (prim subtract (project frame blockIndex) distance : Nat)) captures))
+      | Uorc.Core.Graph::Instruction.fold countReference initialReference distance captures => (match (readNatural (project frame slots) countReference)
+        | Result.error countError => (ctor StepResult.failed countError readUsage)
+        | Result.ok countValue => (match (localValue (project frame slots) initialReference)
+          | Result.error initialError => (ctor StepResult.failed initialError readUsage)
+          | Result.ok initialValue => (beginCaptures frame continuations readUsage (ctor CaptureTarget.fold (Uorc.Core.Types::wordToNat countValue) initialValue (prim subtract (project frame blockIndex) distance : Nat)) captures)))
+      | Uorc.Core.Graph::Instruction.scan countReference initialReference observer observerCaptures updater updaterCaptures => (match (readNatural (project frame slots) countReference)
+        | Result.error countError => (ctor StepResult.failed countError readUsage)
+        | Result.ok countValue => (match (localValue (project frame slots) initialReference)
+          | Result.error initialError => (ctor StepResult.failed initialError readUsage)
+          | Result.ok initialValue => (beginCaptures frame continuations readUsage (ctor CaptureTarget.scanObserver (Uorc.Core.Types::wordToNat countValue) initialValue (prim subtract (project frame blockIndex) observer : Nat) (prim subtract (project frame blockIndex) updater : Nat) updaterCaptures) observerCaptures)))
+      | Uorc.Core.Graph::Instruction.naturalConstant field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalConstant field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.byteConstant field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.byteConstant field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.predicateConstant field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.predicateConstant field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.sequenceConstant field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.sequenceConstant field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalAdd field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalAdd field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalSubtract field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalSubtract field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalMultiply field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalMultiply field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalDivide field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalDivide field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalRemainder field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalRemainder field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalAnd field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalAnd field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalOr field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalOr field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalXor field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalXor field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalNot field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalNot field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalShiftLeft field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalShiftLeft field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalShiftRight field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalShiftRight field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalEqual field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalEqual field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalLess field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalLess field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.byteEqual field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.byteEqual field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.byteLess field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.byteLess field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.naturalToByte field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.naturalToByte field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.byteToNatural field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.byteToNatural field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.predicateNot field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.predicateNot field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.predicateAnd field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.predicateAnd field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.predicateOr field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.predicateOr field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.sequenceLength field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.sequenceLength field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.sequenceIndex sequenceReference indexReference => (match (readSequence (project frame slots) sequenceReference)
+        | Result.error sourceError => (ctor StepResult.failed sourceError readUsage)
+        | Result.ok sourceRope => (match (readNatural (project frame slots) indexReference)
+          | Result.error indexError => (ctor StepResult.failed indexError readUsage)
+          | Result.ok indexValue => (match (Uorc.Core.Bytes::startIndex sourceRope (Uorc.Core.Types::wordToNat indexValue))
+            | Result.error ropeError => (ctor StepResult.failed (ropeFailure ropeError) readUsage)
+            | Result.ok ropeWork => (startRopeWork frame continuations readUsage ropeWork (ctor RopeTarget.byte)))))
+      | Uorc.Core.Graph::Instruction.sequenceSlice sequenceReference startReference countReference => (match (readSequence (project frame slots) sequenceReference)
+        | Result.error sourceError => (ctor StepResult.failed sourceError readUsage)
+        | Result.ok sourceRope => (match (readNatural (project frame slots) startReference)
+          | Result.error startError => (ctor StepResult.failed startError readUsage)
+          | Result.ok startValue => (match (readNatural (project frame slots) countReference)
+            | Result.error countError => (ctor StepResult.failed countError readUsage)
+            | Result.ok countValue => (match (Uorc.Core.Bytes::startSlice sourceRope (Uorc.Core.Types::wordToNat startValue) (Uorc.Core.Types::wordToNat countValue))
+              | Result.error ropeError => (ctor StepResult.failed (ropeFailure ropeError) readUsage)
+              | Result.ok ropeWork => (startRopeWork frame continuations readUsage ropeWork (ctor RopeTarget.sequence))))))
+      | Uorc.Core.Graph::Instruction.sequenceConcat leftReference rightReference => (match (readSequence (project frame slots) leftReference)
+        | Result.error leftError => (ctor StepResult.failed leftError readUsage)
+        | Result.ok leftRope => (match (readSequence (project frame slots) rightReference)
+          | Result.error rightError => (ctor StepResult.failed rightError readUsage)
+          | Result.ok rightRope => (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 (Uorc.Core.Bytes::length leftRope) (Uorc.Core.Bytes::length rightRope)) then (startRopeWork frame continuations readUsage (Uorc.Core.Bytes::startJoin leftRope rightRope) (ctor RopeTarget.sequence)) else (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)) readUsage))))
+      | Uorc.Core.Graph::Instruction.sequenceEqual leftReference rightReference => (match (readSequence (project frame slots) leftReference)
+        | Result.error leftError => (ctor StepResult.failed leftError readUsage)
+        | Result.ok leftRope => (match (readSequence (project frame slots) rightReference)
+          | Result.error rightError => (ctor StepResult.failed rightError readUsage)
+          | Result.ok rightRope => (ctor StepResult.next (record Machine {frame := frame, continuations := continuations, usage := readUsage, comparison := (ctor Option.some [Uorc.Core.Bytes::Comparison] (Uorc.Core.Bytes::startComparison leftRope rightRope)), pending := (ctor Option.none [Pending])}))))
+      | Uorc.Core.Graph::Instruction.singletonSequence field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.singletonSequence field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.basisGet indexReference => (match (project context indexedBasis)
+        | Option.none => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.basisGet indexReference) (project frame slots) (project context basis)))
+        | Option.some basisTable => (match (readNatural (project frame slots) indexReference)
+          | Result.error indexError => (ctor StepResult.failed indexError readUsage)
+          | Result.ok basisIndex => (match (Uorc.Core.Basis::atIndex basisTable (Uorc.Core.Types::wordToNat basisIndex))
+            | Result.error tableError => (ctor StepResult.failed (basisFailure tableError) readUsage)
+            | Result.ok basisRope => (nextAtomic context frame continuations readUsage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence basisRope))))))
+      | Uorc.Core.Graph::Instruction.storeNew field0 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.storeNew field0) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.storeRead field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.storeRead field0 field1) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.storeWrite field0 field1 field2 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.storeWrite field0 field1 field2) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.choose field0 field1 field2 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.choose field0 field1 field2) (project frame slots) (project context basis)))
+      | Uorc.Core.Graph::Instruction.sequenceRopeConstant literal => (nextAtomic context frame continuations readUsage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence literal)))))
+}
+
+definition{
+  name: resume,
+  parameters: [
+    context : Context,
+    continuation : Continuation,
+    rest : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    value : Uorc.Core.Types::Value
+  ],
+  result: StepResult,
+  body: (match continuation
+    | Continuation.apply caller => (finishIterator context caller rest usage value)
+    | Continuation.tabulate caller count nextIndex body captures output => (match value
+      | Uorc.Core.Types::Value.natural payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+      | Uorc.Core.Types::Value.byte payload => (startBuilderWork caller rest usage (Uorc.Core.ByteBuilder::appendByte output payload) (ctor BuilderTarget.tabulate count nextIndex body captures))
+      | Uorc.Core.Types::Value.predicate payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+      | Uorc.Core.Types::Value.sequence payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+      | Uorc.Core.Types::Value.store payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage))
+    | Continuation.fold caller count nextIndex body captures => (if (nextIndex <? count) then (callIteration context body nextIndex (cons value captures) (ctor Continuation.fold caller count (nextIndex + 1) body captures) rest usage) else (finishIterator context caller rest usage value))
+    | Continuation.scanObserve caller count index observer observerCaptures updater updaterCaptures stateValue output => (match value
+      | Uorc.Core.Types::Value.natural payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+      | Uorc.Core.Types::Value.byte payload => (startBuilderWork caller rest usage (Uorc.Core.ByteBuilder::appendByte output payload) (ctor BuilderTarget.scanUpdate count index observer observerCaptures updater updaterCaptures stateValue))
+      | Uorc.Core.Types::Value.predicate payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+      | Uorc.Core.Types::Value.sequence payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+      | Uorc.Core.Types::Value.store payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage))
+    | Continuation.scanUpdate caller count index observer observerCaptures updater updaterCaptures output => (if ((index + 1) <? count) then (callIteration context observer (index + 1) (cons value observerCaptures) (ctor Continuation.scanObserve caller count (index + 1) observer observerCaptures updater updaterCaptures value output) rest usage) else (startBuilderWork caller rest usage (Uorc.Core.ByteBuilder::finish output) (ctor BuilderTarget.sequence))))
+}
+
+definition{
+  name: finishOutput,
+  parameters: [
+    context : Context,
+    usage : Uorc.Core.Resources::Usage,
+    value : Uorc.Core.Types::Value
+  ],
+  result: StepResult,
+  body: (match value
+    | Uorc.Core.Types::Value.natural payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+    | Uorc.Core.Types::Value.byte payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+    | Uorc.Core.Types::Value.predicate payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+    | Uorc.Core.Types::Value.sequence payload => (match (Uorc.Core.Resources::charge (project context budget) usage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.outputBoundary), work := 1, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+      | Result.error boundaryError => (ctor StepResult.failed (ctor Failure.operational boundaryError) usage)
+      | Result.ok boundaryUsage => (match (Uorc.Core.Resources::charge (project context budget) boundaryUsage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.outputByte), work := (prim length payload : Nat), allocatedCells := 0, releasedCells := 0, emittedBytes := (prim length payload : Nat), enteredFrames := 0, exitedFrames := 0}))
+        | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) boundaryUsage)
+        | Result.ok outputUsage => (ctor StepResult.done (record Execution {value := (ctor Uorc.Core.Types::Value.sequence payload), usage := outputUsage}))))
+    | Uorc.Core.Types::Value.store payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
+    | Uorc.Core.Types::Value.segmentedSequence payload => (match (Uorc.Core.Resources::charge (project context budget) usage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.outputBoundary), work := 1, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+      | Result.error boundaryError => (ctor StepResult.failed (ctor Failure.operational boundaryError) usage)
+      | Result.ok boundaryUsage => (match (Uorc.Core.Resources::charge (project context budget) boundaryUsage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.outputByte), work := (Uorc.Core.Bytes::length payload), allocatedCells := 0, releasedCells := 0, emittedBytes := (Uorc.Core.Bytes::length payload), enteredFrames := 0, exitedFrames := 0}))
+        | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) boundaryUsage)
+        | Result.ok outputUsage => (ctor StepResult.done (record Execution {value := (ctor Uorc.Core.Types::Value.segmentedSequence payload), usage := outputUsage})))))
+}
+
+definition{
+  name: returnValue,
+  parameters: [context : Context, machine : Machine, returned : Uorc.Core.Types::Value],
+  result: StepResult,
+  body: (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.dropRoot), work := 1, allocatedCells := 0, releasedCells := 1, emittedBytes := 0, enteredFrames := 0, exitedFrames := 1}))
+    | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
+    | Result.ok releasedUsage => (match (project machine continuations)
+      | List.nil => (finishOutput context releasedUsage returned)
+      | List.cons continuation rest => (resume context continuation rest releasedUsage returned)))
+}
+
+definition{
+  name: withUsage,
+  parameters: [machine : Machine, usage : Uorc.Core.Resources::Usage],
+  result: Machine,
+  body: (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := usage, comparison := (project machine comparison), pending := (project machine pending)})
+}
+
+definition{
+  name: returnFrameRead,
+  parameters: [context : Context, machine : Machine],
+  result: StepResult,
+  body: (match (localValue (project (project machine frame) slots) (project (project machine frame) returnDistance))
+    | Result.error returnError => (ctor StepResult.failed returnError (project machine usage))
+    | Result.ok returned => (returnValue context machine returned))
+}
+
+definition{
+  name: returnFrame,
+  parameters: [context : Context, machine : Machine],
+  result: StepResult,
+  body: (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.indexedRead), work := 128, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+    | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
+    | Result.ok returnUsage => (returnFrameRead context (withUsage machine returnUsage)))
+}
+
+definition{
+  name: stepComparison,
+  parameters: [
+    context : Context,
+    frame : Frame,
+    continuations : (List Continuation),
+    usage : Uorc.Core.Resources::Usage,
+    comparison : Uorc.Core.Bytes::Comparison
+  ],
+  result: StepResult,
+  body: (match (Uorc.Core.Bytes::compareStep comparison)
+    | Uorc.Core.Bytes::ComparisonStep.advanced nextComparison => (ctor StepResult.next (record Machine {frame := frame, continuations := continuations, usage := usage, comparison := (ctor Option.some [Uorc.Core.Bytes::Comparison] nextComparison), pending := (ctor Option.none [Pending])}))
+    | Uorc.Core.Bytes::ComparisonStep.equal => (nextAtomic context frame continuations usage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate true)))
+    | Uorc.Core.Bytes::ComparisonStep.different => (nextAtomic context frame continuations usage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.predicate false)))
+    | Uorc.Core.Bytes::ComparisonStep.failed ropeError => (ctor StepResult.failed (match ropeError
+      | Uorc.Core.Bytes::RopeError.zeroChunkSize => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+      | Uorc.Core.Bytes::RopeError.invalidCursor => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+      | Uorc.Core.Bytes::RopeError.indexOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.indexOutOfBounds))
+      | Uorc.Core.Bytes::RopeError.sliceOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.sliceOutOfBounds))
+      | Uorc.Core.Bytes::RopeError.comparisonFuelExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))) usage))
+}
+
+definition{
+  name: releaseOne,
+  parameters: [context : Context, machine : Machine, slot : Nat, restReleases : (List Nat)],
+  result: StepResult,
+  body: (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.dropRoot), work := 128, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+    | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
+    | Result.ok releaseUsage => (match (Uorc.Core.Slots::releaseSlot (project (project machine frame) slots) slot)
+      | Result.error slotError => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) releaseUsage)
+      | Result.ok releasedSlots => (ctor StepResult.next (record Machine {frame := (record Frame {blockIndex := (project (project machine frame) blockIndex), remaining := (project (project machine frame) remaining), slots := releasedSlots, returnDistance := (project (project machine frame) returnDistance), nextInstruction := (project (project machine frame) nextInstruction), releaseBuckets := (project (project machine frame) releaseBuckets), pendingReleases := restReleases}), continuations := (project machine continuations), usage := releaseUsage, comparison := (project machine comparison), pending := (ctor Option.none [Pending])}))))
+}
+
+definition{
+  name: stepPending,
+  parameters: [context : Context, machine : Machine, pending : Pending],
+  result: StepResult,
+  body: (match pending
+    | Pending.resolving target references reversed => (match references
+      | List.nil => (ctor StepResult.next (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := (project machine usage), comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.reversing target reversed (nil Uorc.Core.Types::Value)))}))
+      | List.cons reference remainingReferences => (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := 128, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+        | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
+        | Result.ok chargedUsage => (match (localValue (project (project machine frame) slots) reference)
+          | Result.error referenceError => (ctor StepResult.failed referenceError chargedUsage)
+          | Result.ok selectedValue => (ctor StepResult.next (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := chargedUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.resolving target remainingReferences (cons selectedValue reversed)))})))))
+    | Pending.reversing target reversed captured => (match reversed
+      | List.nil => (finishCaptures context (project machine frame) (project machine continuations) (project machine usage) target captured)
+      | List.cons selectedValue remainingReversed => (ctor StepResult.next (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := (project machine usage), comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.reversing target remainingReversed (cons selectedValue captured)))})))
+    | Pending.initializing arguments => (match arguments
+      | List.nil => (ctor StepResult.next (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := (project machine usage), comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])}))
+      | List.cons argumentValue remainingArguments => (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := 128, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+        | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
+        | Result.ok chargedUsage => (match (Uorc.Core.Slots::appendSlot (project (project machine frame) slots) argumentValue)
+          | Result.error slotError => (ctor StepResult.failed (match slotError
+            | Uorc.Core.Slots::SlotError.invalidReference => (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference))
+            | Uorc.Core.Slots::SlotError.releasedCell => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
+            | Uorc.Core.Slots::SlotError.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))) chargedUsage)
+          | Result.ok nextSlots => (ctor StepResult.next (record Machine {frame := (record Frame {blockIndex := (project (project machine frame) blockIndex), remaining := (project (project machine frame) remaining), slots := nextSlots, returnDistance := (project (project machine frame) returnDistance), nextInstruction := (project (project machine frame) nextInstruction), releaseBuckets := (project (project machine frame) releaseBuckets), pendingReleases := (project (project machine frame) pendingReleases)}), continuations := (project machine continuations), usage := chargedUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.initializing remainingArguments))})))))
+    | Pending.ropeWork workValue target => (match (Uorc.Core.Bytes::workStep workValue)
+      | Uorc.Core.Bytes::WorkEvent.advanced nextWork => (ctor StepResult.next (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := (project machine usage), comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.ropeWork nextWork target))}))
+      | Uorc.Core.Bytes::WorkEvent.sequenceDone resultRope => (finishRopeWork context (project machine frame) (project machine continuations) (project machine usage) target resultRope)
+      | Uorc.Core.Bytes::WorkEvent.byteDone resultByte => (match target
+        | RopeTarget.byte => (nextAtomic context (project machine frame) (project machine continuations) (project machine usage) (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.byte resultByte)))
+        | RopeTarget.sequence => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) (project machine usage)))
+      | Uorc.Core.Bytes::WorkEvent.failed ropeError => (ctor StepResult.failed (ropeFailure ropeError) (project machine usage)))
+    | Pending.builderWork workValue target => (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.byteWrite), work := (Uorc.Core.ByteBuilder::eventWork workValue), allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+      | Result.error builderBudgetError => (ctor StepResult.failed (ctor Failure.operational builderBudgetError) (project machine usage))
+      | Result.ok builderUsage => (match (Uorc.Core.ByteBuilder::step workValue)
+        | Uorc.Core.ByteBuilder::Event.advanced nextWork => (ctor StepResult.next (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := builderUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.builderWork nextWork target))}))
+        | Uorc.Core.ByteBuilder::Event.appended builder => (finishBuilderAppend context (project machine frame) (project machine continuations) builderUsage target builder)
+        | Uorc.Core.ByteBuilder::Event.finished resultRope => (match target
+          | BuilderTarget.sequence => (nextAtomic context (project machine frame) (project machine continuations) builderUsage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence resultRope)))
+          | BuilderTarget.tabulate count nextIndex bodyIndex captures => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) builderUsage)
+          | BuilderTarget.scanUpdate count index observerIndex observerCaptures updaterIndex updaterCaptures stateValue => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) builderUsage))
+        | Uorc.Core.ByteBuilder::Event.failed builderError => (ctor StepResult.failed (builderFailure builderError) builderUsage))))
+}
+
+definition{
+  name: stepCharged,
+  parameters: [context : Context, machine : Machine],
+  result: StepResult,
+  body: (match (project machine pending)
+    | Option.none => (match (project (project machine frame) pendingReleases)
+      | List.nil => (match (project machine comparison)
+        | Option.none => (match (project (project machine frame) remaining)
+          | List.nil => (returnFrame context machine)
+          | List.cons instruction rest => (dispatch context (advanceFrame (project machine frame) rest) (project machine continuations) (project machine usage) instruction))
+        | Option.some pendingComparison => (stepComparison context (project machine frame) (project machine continuations) (project machine usage) pendingComparison))
+      | List.cons slot restReleases => (releaseOne context machine slot restReleases))
+    | Option.some pendingOperation => (stepPending context machine pendingOperation))
+}
+
+definition{
+  name: step,
+  parameters: [context : Context, machine : Machine],
+  result: StepResult,
+  body: (if ((project (project context budget) maxSteps) <=? (project (project machine usage) steps)) then (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.stepLimit)) (project machine usage)) else (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (Uorc.Core.Resources::unitEvent (ctor Uorc.Core.Resources::EventKind.dispatch)))
+    | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
+    | Result.ok charged => (stepCharged context (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := charged, comparison := (project machine comparison), pending := (project machine pending)}))))
+}
+
+definition{
+  name: runMachine,
+  parameters: [fuel : Nat, context : Context, machine : Machine],
+  result: (Result Execution Failure),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Execution, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.stepLimit)))
+    | Nat.succ remaining => (match (step context machine)
+      | StepResult.next nextMachine => (runMachine remaining context nextMachine)
+      | StepResult.done execution => (ctor Result.ok [Execution, Failure] execution)
+      | StepResult.failed failureValue failedUsage => (ctor Result.error [Execution, Failure] failureValue))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: initializationWork,
+  parameters: [],
+  result: Nat,
+  body: 257,
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: initializeFromUsage,
+  parameters: [context : Context, usage : Uorc.Core.Resources::Usage],
+  result: (Result Machine InitializationFailure),
+  body: (match (Uorc.Core.Resources::charge (project context budget) usage (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := (initializationWork), allocatedCells := 1, releasedCells := 0, emittedBytes := 0, enteredFrames := 1, exitedFrames := 0}))
+    | Result.error budgetError => (ctor Result.error [Machine, InitializationFailure] (record InitializationFailure {failure := (ctor Failure.operational budgetError), usage := usage}))
+    | Result.ok initialUsage => (match (absoluteBlock context (project (effectiveGraph context) entry))
+      | Result.error blockError => (ctor Result.error [Machine, InitializationFailure] (record InitializationFailure {failure := blockError, usage := initialUsage}))
+      | Result.ok entryBlock => (match (preparedEmptyFrame context entryBlock (project (effectiveGraph context) entry))
+        | Result.error frameError => (ctor Result.error [Machine, InitializationFailure] (record InitializationFailure {failure := frameError, usage := initialUsage}))
+        | Result.ok entryFrame => (ctor Result.ok [Machine, InitializationFailure] (record Machine {frame := entryFrame, continuations := (nil Continuation), usage := initialUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])})))))
+}
+
+definition{
+  name: initializeValidated,
+  parameters: [context : Context],
+  result: (Result Machine Failure),
+  body: (match (initializeFromUsage context (Uorc.Core.Resources::zeroUsage))
+    | Result.error initialFailure => (ctor Result.error [Machine, Failure] (project initialFailure failure))
+    | Result.ok initialMachine => (ctor Result.ok [Machine, Failure] initialMachine))
+}
+
+definition{
+  name: startChecked,
+  parameters: [context : Context],
+  result: (Result Execution Failure),
+  body: (match (initializeValidated context)
+    | Result.error initialError => (ctor Result.error [Execution, Failure] initialError)
+    | Result.ok initialMachine => (runMachine (project (project context budget) maxSteps) context initialMachine))
+}
+
+definition{
+  name: runGraph,
+  parameters: [
+    graph : Uorc.Core.Graph::Graph,
+    basis : (List Bytes),
+    budget : Uorc.Core.Resources::Budget
+  ],
+  result: (Result Execution Failure),
+  body: (match (Uorc.Core.Graph::validateGraph graph)
+    | Result.error staticError => (ctor Result.error [Execution, Failure] (ctor Failure.static staticError))
+    | Result.ok unitResult => (startChecked (record Context {graph := graph, basis := basis, budget := budget, checked := (ctor Option.none [Uorc.Core.Validation::CheckedGraph]), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])})))
+}
+
+definition{
+  name: sequenceCursor,
+  parameters: [value : Uorc.Core.Types::Value],
+  result: (Result Uorc.Core.Bytes::Cursor Failure),
+  body: (match value
+    | Uorc.Core.Types::Value.natural payload => (ctor Result.error [Uorc.Core.Bytes::Cursor, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | Uorc.Core.Types::Value.byte payload => (ctor Result.error [Uorc.Core.Bytes::Cursor, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [Uorc.Core.Bytes::Cursor, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | Uorc.Core.Types::Value.sequence payload => (ctor Result.ok [Uorc.Core.Bytes::Cursor, Failure] (Uorc.Core.Bytes::cursor (Uorc.Core.Bytes::fromBytes payload)))
+    | Uorc.Core.Types::Value.store payload => (ctor Result.error [Uorc.Core.Bytes::Cursor, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.ok [Uorc.Core.Bytes::Cursor, Failure] (Uorc.Core.Bytes::cursor payload)))
+}
+
+definition{
+  name: runValidated,
+  parameters: [context : Context],
+  result: (Result Execution Failure),
+  body: (startChecked context)
+}
+
+theorem{
+  name: zero_fuel_has_typed_failure,
+  parameters: [context : Context, machine : Machine],
+  statement: ((runMachine 0 context machine) = (ctor Result.error [Execution, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.stepLimit)))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: initializeChecked,
+  parameters: [
+    checkedGraph : Uorc.Core.Validation::CheckedGraph,
+    basis : (List Bytes),
+    budget : Uorc.Core.Resources::Budget
+  ],
+  result: (Result Machine Failure),
+  body: (initializeValidated (contextForChecked checkedGraph basis budget))
+}
+
+definition{
+  name: runChecked,
+  parameters: [
+    checkedGraph : Uorc.Core.Validation::CheckedGraph,
+    basis : (List Bytes),
+    budget : Uorc.Core.Resources::Budget
+  ],
+  result: (Result Execution Failure),
+  body: (runValidated (contextForChecked checkedGraph basis budget))
+}
+
+definition{
+  name: initializeAdmitted,
+  parameters: [
+    checkedGraph : Uorc.Core.Validation::CheckedGraph,
+    basisTable : Uorc.Core.Basis::Table,
+    budget : Uorc.Core.Resources::Budget,
+    usage : Uorc.Core.Resources::Usage
+  ],
+  result: (Result Machine InitializationFailure),
+  body: (initializeFromUsage (contextForAdmitted checkedGraph basisTable budget) usage)
+}
+
+theorem{
+  name: iteration_coordinate_exhaustion_is_typed,
+  parameters: [],
+  statement: ((iterationNatural 18446744073709551616) = (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: select_step_result,
+  parameters: [exhausted : Bool, failedResult : StepResult, otherResult : StepResult],
+  result: StepResult,
+  body: (if exhausted then failedResult else otherResult)
+}
+
+theorem{
+  name: dispatch_exhaustion_branches,
+  parameters: [exhausted : Bool, failedResult : StepResult, otherResult : StepResult],
+  statement: ((exhausted = true) -> ((select_step_result exhausted failedResult otherResult) = failedResult)),
+  proof: linear_arithmetic{definitions: [select_step_result]},
+  axioms: [propext]
+}
+
+theorem{
+  name: dispatch_exhaustion_preserves_committed_usage,
+  parameters: [context : Context, machine : Machine],
+  statement: ((((project (project context budget) maxSteps) <=? (project (project machine usage) steps)) = true) -> ((step context machine) = (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.stepLimit)) (project machine usage)))),
+  proof: apply{
+    arguments: [
+      ((project (project context budget) maxSteps) <=? (project (project machine usage) steps)),
+      (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.stepLimit)) (project machine usage)),
+      (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (Uorc.Core.Resources::unitEvent (ctor Uorc.Core.Resources::EventKind.dispatch)))
+        | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
+        | Result.ok charged => (stepCharged context (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := charged, comparison := (project machine comparison), pending := (project machine pending)})))
+    ],
+    theorem: dispatch_exhaustion_branches
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: isFinalReturn,
+  parameters: [machine : Machine],
+  result: Bool,
+  body: (match (project machine pending)
+    | Option.none => (match (project (project machine frame) pendingReleases)
+      | List.nil => (match (project machine comparison)
+        | Option.none => (match (project (project machine frame) remaining)
+          | List.nil => (match (project machine continuations)
+            | List.nil => true
+            | List.cons continuation rest => false)
+          | List.cons instruction restInstructions => false)
+        | Option.some comparison => false)
+      | List.cons slot restSlots => false)
+    | Option.some pending => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: plannedOutputLength,
+  parameters: [machine : Machine],
+  result: Nat,
+  body: (match (localValue (project (project machine frame) slots) (project (project machine frame) returnDistance))
+    | Result.error lookupError => 0
+    | Result.ok selected => (match selected
+      | Uorc.Core.Types::Value.natural payload => 0
+      | Uorc.Core.Types::Value.byte payload => 0
+      | Uorc.Core.Types::Value.predicate payload => 0
+      | Uorc.Core.Types::Value.sequence payload => (prim length payload : Nat)
+      | Uorc.Core.Types::Value.store payload => 0
+      | Uorc.Core.Types::Value.segmentedSequence payload => (Uorc.Core.Bytes::length payload))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: planningWork,
+  parameters: [context : Context, machine : Machine],
+  result: Nat,
+  body: (if (isFinalReturn machine) then 129 else 1),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: plannedWorkBound,
+  parameters: [context : Context, machine : Machine],
+  result: Nat,
+  body: (match (project machine pending)
+    | Option.none => (match (project (project machine frame) pendingReleases)
+      | List.cons slot restSlots => 129
+      | List.nil => (match (project machine comparison)
+        | Option.none => (match (project (project machine frame) remaining)
+          | List.cons instruction restInstructions => 641
+          | List.nil => (match (project machine continuations)
+            | List.cons continuation restContinuations => 451
+            | List.nil => (131 + (plannedOutputLength machine))))
+        | Option.some comparison => 129))
+    | Option.some operation => (match operation
+      | Pending.resolving target references reversed => 322
+      | Pending.reversing target reversed captured => 322
+      | Pending.initializing arguments => 322
+      | Pending.ropeWork workValue target => 322
+      | Pending.builderWork workValue target => (322 + (Uorc.Core.ByteBuilder::eventWork workValue)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}
