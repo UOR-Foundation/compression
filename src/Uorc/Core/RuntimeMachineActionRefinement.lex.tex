@@ -1,0 +1,34 @@
+\begin{lexlean}{Uorc.Core.RuntimeMachineActionRefinement}
+\importmodule{Uorc.Core.RuntimeMachineSemantic}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\title{Parameters}
+\begin{semanticmodule}
+theorem{
+  name: basis_attempt_event_agrees_with_core_action,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  statement: ((Uorc.Core.RuntimeMachineSemantic::basisAttemptEvent opcode) = (match (Uorc.Core.CanonicalSchedule::actionFor opcode)
+    | Uorc.Core.CanonicalSchedule::Action.scalar => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.literal => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.index => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.view => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.comparison => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.singleton => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.basis => (ctor Option.some [Uorc.Core.RuntimeMachineSemantic::Event] (ctor Uorc.Core.RuntimeMachineSemantic::Event.referenceRead))
+    | Uorc.Core.CanonicalSchedule::Action.store => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.apply => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.tabulate => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.fold => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event])
+    | Uorc.Core.CanonicalSchedule::Action.scan => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Event]))),
+  proof: term_cases{
+    definitions: [
+      Uorc.Core.CanonicalSchedule::actionFor,
+      Uorc.Core.RuntimeMachineSemantic::basisAttemptEvent,
+      Uorc.Core.RuntimeOpcode::code
+    ],
+    scrutinee: opcode
+  },
+  axioms: [propext]
+}
+\end{semanticmodule}
+\end{lexlean}
