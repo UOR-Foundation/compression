@@ -7,7 +7,7 @@ A lossless compression system whose compressed object is an exact executable Uni
 
 ## Current status
 
-This repository currently establishes only the charter and source-authority slice represented by its registered conformance rows. Compression behavior, losslessness, optimality certificates, benchmark superiority, and record status are not established by this charter slice.
+This repository establishes the charter, source-authority, and claim-disposition slices represented by its registered conformance rows. Compression behavior, losslessness, optimality certificates, benchmark superiority, and record status are not established by these slices.
 
 ## Authority
 
@@ -34,6 +34,28 @@ Version 1 does not assert a world record, an unrestricted Kolmogorov minimum, un
 | Scoped minimum certification | A checked certificate establishes minimum size only over its exact sealed admissible universe and objective. It is not an unrestricted shortest-program claim. |
 | Benchmark improvement | Measured compression improvement is a result of an exact sealed benchmark plan and accounting scope. It is not implied by implementation acceptance or proof completion. |
 | External record acceptance | Record status exists only when the identified external authority accepts the measured result under that authority's rules. |
+
+## Evidence classification
+
+This table classifies evidence within its verified scope. It does not validate an evidence artifact or set whole-release acceptance. Registered ledger entries are obligations, not current-build execution receipts.
+
+| Evidence | Supported claim | Level | Research disposition | Implementation evidence eligible |
+| --- | --- | --- | --- | --- |
+| `none` | `open_claim` | `open` | `not_measured` | false |
+| `imported_fact` | `imported_fact` | `some-true` | `not_measured` | true |
+| `build_evidence` | `build_evidence` | `build` | `not_measured` | true |
+| `kernel_theorem` | `kernel_theorem` | `build` | `not_measured` | true |
+| `fixture_result` | `reconstruction_checked` | `build` | `not_measured` | true |
+| `scoped_minimum_certificate` | `minimum_certified` | `build` | `not_measured` | true |
+| `benchmark_target_unmet` | `benchmark_result` | `open` | `measured_target_unmet` | false |
+| `benchmark_target_met` | `benchmark_result` | `open` | `measured_target_met` | false |
+| `external_record_acceptance` | `record_validated` | `open` | `externally_accepted_record` | false |
+| `version_metadata` | `open_claim` | `open` | `not_measured` | false |
+
+## Current research dispositions
+
+- `UC-PERF-01`: `not_measured`; evidence `none`; honesty level `open`.
+- `UC-REC-01`: `not_measured`; evidence `none`; honesty level `open`.
 
 ## Evidence and dependency boundaries
 
