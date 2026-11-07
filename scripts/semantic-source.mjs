@@ -1,4 +1,5 @@
 // Language-1.2 sources are written in the LexLean notation (SPEC 17.21.1).
+import fs from 'node:fs';
 // Gates read module data from the SDK's canonical data form and write planted
 // sources back in the notation, through the same lexlean::sdk conversions the
 // Rust model uses (xtask data-form / notation). Nothing here parses notation.
@@ -38,6 +39,23 @@ export const notation = text => xtask('notation', String(text));
 // `.olean` files, which a module file cannot import, so a standalone `lean`
 // over generated modules stages the runtime this way. With `native`, each
 // module is also compiled to C and to an object file for `leanc` linking.
+// Lean 4.32.1's C emitter panics (LCNF getImpureDeclIndices) on LexLeanRuntime.Laws,
+// whose content is the fold laws used by proofs. Natively it gets an object holding
+// exactly the initializers its importers call; any executable Laws symbol a native
+// gate actually reaches is then an unresolved link error, never a silent stub.
+const initializerOnly = new Set(['LexLeanRuntime.Laws']);
+function initializerSource(name, leanSource) {
+  const symbol = module => module.replace(/\./g, '_');
+  const imports = [...leanSource.matchAll(/^(?:public )?(?:meta )?import (?:all )?([\w.]+)$/gm)].map(m => m[1]);
+  const call = f => `res = ${f}(builtin);\nif (lean_io_result_is_error(res)) return res;\nlean_dec_ref(res);\n`;
+  const phase = (prefix, flag, body) => `static bool ${flag} = false;\nLEAN_EXPORT lean_object* ${prefix}initialize_${symbol(name)}(uint8_t builtin) {\nlean_object * res;\nif (${flag}) return lean_io_result_mk_ok(lean_box(0));\n${flag} = true;\n${body}return lean_io_result_mk_ok(lean_box(0));\n}\n`;
+  const declare = imports.flatMap(m => ['', 'runtime_'].map(p => `lean_object* ${p}initialize_${symbol(m)}(uint8_t builtin);\n`)).join('');
+  return `#include <lean/lean.h>\n${declare}`
+    + phase('runtime_', '_G_runtime_initialized', imports.map(m => call('runtime_initialize_' + symbol(m))).join(''))
+    + phase('meta_', '_G_meta_initialized', '')
+    + phase('', '_G_initialized', imports.map(m => call('initialize_' + symbol(m))).join('')
+      + call(`runtime_initialize_${symbol(name)}`) + call(`meta_initialize_${symbol(name)}`));
+}
 export function stageRuntime(dir, {native = false} = {}) {
   const listed = spawnSync(ensureBinary(), ['runtime-sources', dir], {encoding: 'utf8'});
   if (listed.status !== 0) throw new Error(`semantic source: runtime-sources failed: ${listed.stderr || listed.error}`);
@@ -46,10 +64,12 @@ export function stageRuntime(dir, {native = false} = {}) {
   const objects = [];
   for (const name of modules) {
     const base = path.join(dir, ...name.split('.'));
-    const args = ['-R', dir, '-o', base + '.olean', ...(native ? ['-c', base + '.c'] : []), base + '.lean'];
+    const emitC = native && !initializerOnly.has(name);
+    const args = ['-R', dir, '-o', base + '.olean', ...(emitC ? ['-c', base + '.c'] : []), base + '.lean'];
     const compiled = spawnSync('lean', args, {encoding: 'utf8', env: {...process.env, LEAN_PATH: dir}, maxBuffer: 64 * 1024 * 1024});
     if (compiled.status !== 0) throw new Error(`semantic source: runtime ${name} failed: ${compiled.stderr}${compiled.stdout}`);
     if (native) {
+      if (!emitC) fs.writeFileSync(base + '.c', initializerSource(name, fs.readFileSync(base + '.lean', 'utf8')));
       const object = base + '.o';
       const linked = spawnSync('leanc', ['-O3', '-c', base + '.c', '-o', object], {encoding: 'utf8'});
       if (linked.status !== 0) throw new Error(`semantic source: runtime ${name} native compile failed: ${linked.stderr}`);
