@@ -285,13 +285,22 @@ definition{
 }
 
 definition{
+  name: subtree,
+  parameters: [tree : Index],
+  result: Index,
+  body: tree,
+  axioms: [],
+  executable: true
+}
+
+definition{
   name: left,
   parameters: [tree : Index],
   result: Index,
   body: (match tree
     | Index.empty => (ctor Index.empty)
     | Index.leaf entry => (ctor Index.empty)
-    | Index.branch leftTree rightTree => leftTree),
+    | Index.branch leftTree rightTree => (subtree leftTree)),
   axioms: [],
   executable: true
 }
@@ -303,7 +312,7 @@ definition{
   body: (match tree
     | Index.empty => (ctor Index.empty)
     | Index.leaf entry => (ctor Index.empty)
-    | Index.branch leftTree rightTree => rightTree),
+    | Index.branch leftTree rightTree => (subtree rightTree)),
   axioms: [],
   executable: true
 }

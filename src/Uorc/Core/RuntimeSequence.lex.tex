@@ -786,43 +786,41 @@ definition{
 }
 
 definition{
-  name: concatRightHeavy,
+  name: concatFlag,
+  parameters: [flag : Bool],
+  result: UInt64,
+  body: (if flag then (1 : UInt64) else (0 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatCaseSelect,
+  parameters: [leftNull : UInt64, rightNull : UInt64, leftHeavy : UInt64, rightHeavy : UInt64],
+  result: UInt64,
+  body: (if (prim equal leftNull (1 : UInt64) : Bool) then (0 : UInt64) else (if (prim equal rightNull (1 : UInt64) : Bool) then (1 : UInt64) else (if (prim equal leftHeavy (1 : UInt64) : Bool) then (2 : UInt64) else (if (prim equal rightHeavy (1 : UInt64) : Bool) then (3 : UInt64) else (4 : UInt64))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatCase,
   parameters: [
-    arena : Uorc.Core.Heap::Arena,
     cursor : Cursor,
     li : Uorc.Core.Heap::SequenceInfo,
     ri : Uorc.Core.Heap::SequenceInfo
   ],
-  result: (Result SequenceTransition SequenceFailure),
-  body: (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (concatDescendRight arena cursor) else (concatPending arena (concatBalancedCursor cursor))),
+  result: UInt64,
+  body: (concatCaseSelect (concatFlag (Uorc.Core.RuntimeValue::isNull (project cursor left))) (concatFlag (Uorc.Core.RuntimeValue::isNull (project cursor right))) (concatFlag (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height))) (concatFlag (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)))),
   axioms: [Quot.sound, propext],
   executable: true
 }
 
 definition{
-  name: concatLeftHeavy,
-  parameters: [
-    arena : Uorc.Core.Heap::Arena,
-    cursor : Cursor,
-    li : Uorc.Core.Heap::SequenceInfo,
-    ri : Uorc.Core.Heap::SequenceInfo
-  ],
+  name: concatDispatch,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor, choice : UInt64],
   result: (Result SequenceTransition SequenceFailure),
-  body: (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (concatDescendLeft arena cursor) else (concatRightHeavy arena cursor li ri)),
-  axioms: [Quot.sound, propext],
-  executable: true
-}
-
-definition{
-  name: concatRightPresent,
-  parameters: [
-    arena : Uorc.Core.Heap::Arena,
-    cursor : Cursor,
-    li : Uorc.Core.Heap::SequenceInfo,
-    ri : Uorc.Core.Heap::SequenceInfo
-  ],
-  result: (Result SequenceTransition SequenceFailure),
-  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (concatTakeLeft arena cursor) else (concatLeftHeavy arena cursor li ri)),
+  body: (if (prim equal choice (0 : UInt64) : Bool) then (concatTakeRight arena cursor) else (if (prim equal choice (1 : UInt64) : Bool) then (concatTakeLeft arena cursor) else (if (prim equal choice (2 : UInt64) : Bool) then (concatDescendLeft arena cursor) else (if (prim equal choice (3 : UInt64) : Bool) then (concatDescendRight arena cursor) else (concatPending arena (concatBalancedCursor cursor)))))),
   axioms: [Quot.sound, propext],
   executable: true
 }
@@ -836,7 +834,7 @@ definition{
     ri : Uorc.Core.Heap::SequenceInfo
   ],
   result: (Result SequenceTransition SequenceFailure),
-  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (concatTakeRight arena cursor) else (concatRightPresent arena cursor li ri)),
+  body: (concatDispatch arena cursor (concatCase cursor li ri)),
   axioms: [Quot.sound, propext],
   executable: true
 }

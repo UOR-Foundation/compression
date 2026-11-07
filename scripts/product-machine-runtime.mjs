@@ -30,14 +30,16 @@ export function driver(only,suite=defaultSuite){
 }
 export function execute(root,only,runtimeLibrary,suite=defaultSuite){
  const selected=selection(suite);
- const r=checked('lexlean',['--diagnostic-format','json',runtimeLibrary?'build':'verify',selected],root);
+ // Generation only: certificate-bearing verification of the same sources is the
+ // artifacts gate's `lexlean verify --all`; execution needs the generated closure.
+ const r=checked('lexlean',['--diagnostic-format','json','build',selected],root);
  const result=JSON.parse(r.stdout);requireFact(result.success&&result.artifacts.length===1,'one actual generated closure required');
  const verified=path.resolve(root,result.artifacts[0]);requireFact(verified.startsWith(path.resolve(root)+path.sep),'artifact escaped project');
  const generated=path.join(verified,'modules'),runtime=fs.mkdtempSync(path.join(os.tmpdir(),'uorc-machine-runtime-'));
  try{
   const files=new Map(filesBelow(generated,'.lean').map(p=>[path.relative(generated,p).slice(0,-5).split(path.sep).join('.'),p]));
   stageRuntime(runtime);
-  const done=new Set(),active=new Set();const leanPath=[runtime,runtimeLibrary??path.join(verified,'oleans')].join(path.delimiter);
+  const done=new Set(),active=new Set();const leanPath=runtimeLibrary?[runtime,runtimeLibrary].join(path.delimiter):runtime;
   function compile(name){
    if(done.has(name))return;requireFact(!active.has(name),'module cycle');active.add(name);
    const source=fs.readFileSync(files.get(name),'utf8');
@@ -48,8 +50,8 @@ export function execute(root,only,runtimeLibrary,suite=defaultSuite){
   for(const name of files.keys())compile(name);
   const harness=path.join(runtime,'RunProductMachine.lean');fs.writeFileSync(harness,driver(only,suite));
   const execution=run('lean',['--run',harness],root,{LEAN_PATH:leanPath});
-  return {execution,source_id:result.source_id,semantic_id:result.semantic_id,build_id:result.build_id,attestation_id:result.attestation_id??null,runtime_library:runtimeLibrary??path.join(verified,'oleans'),modules:files.size,harness_sha256:sha(fs.readFileSync(harness))};
- }finally{fs.rmSync(runtime,{recursive:true,force:true});}
+  return {execution,source_id:result.source_id,semantic_id:result.semantic_id,build_id:result.build_id,runtime_library:runtimeLibrary??runtime,modules:files.size,harness_sha256:sha(fs.readFileSync(harness))};
+ }finally{if(runtimeLibrary)fs.rmSync(runtime,{recursive:true,force:true});}
 }
 function mutate(root,module,transform,authoring){
  const p=path.join(root,`src/Uorc/Product/${module}.lex.tex`);const original=fs.readFileSync(p,'utf8');
@@ -146,7 +148,7 @@ export function validate(root,authoring=sourceData,suite=defaultSuite){
    const restore=mutate(temp,module,transform,authoring);
    try{const r=execute(temp,owner,restored.runtime_library,suite);requireFact(r.execution.status!==0&&(r.execution.stdout+r.execution.stderr).includes('FAIL '+owner),`planted ${id} did not fail at ${owner}: ${r.execution.stdout}${r.execution.stderr}`);mutations.push({id,owner,exit:r.execution.status});}finally{restore();}
   }
- }finally{fs.rmSync(temp,{recursive:true,force:true});}
+ }finally{fs.rmSync(temp,{recursive:true,force:true});fs.rmSync(restored.runtime_library,{recursive:true,force:true});}
  const out=path.join(root,'.prism/uorc');fs.mkdirSync(out,{recursive:true});
  fs.writeFileSync(path.join(out,({MachineBindingScenarios:'product-machine-receipt.json',ReadImageScenarios:'product-image-receipt.json',WriteImageScenarios:'product-write-image-receipt.json',ApplicationScenarios:'product-application-receipt.json',InspectionReportScenarios:'product-inspection-receipt.json',ReadControllerScenarios:'product-read-controller-receipt.json',OutputDeliveryScenarios:'product-output-delivery-receipt.json',TargetDescriptorScenarios:'product-target-descriptor-receipt.json'})[suite]),JSON.stringify({spec:'uorc/product-machine-runtime/1',suite,scope:'Actual source linking, generated Lean kernel compilation, VM controls and owning planted negatives. Exact axiom audit, leanchecker, accepted production export, native library, browser, closed archive operation and full pinned SDK acceptance remain separate.',source_id:restored.source_id,semantic_id:restored.semantic_id,build_id:restored.build_id,attestation_id:restored.attestation_id,modules:restored.modules,total:expected,passed:expected,mutations,gate_sha256:sha(fs.readFileSync(fileURLToPath(import.meta.url))),mutation_helper_sha256:suite==='TargetDescriptorScenarios'?sha(fs.readFileSync(new URL('./product-target-descriptor-mutations.mjs',import.meta.url))):suite===defaultSuite?sha(fs.readFileSync(new URL('./product-machine-semantic-mutations.mjs',import.meta.url))):suite==='WriteImageScenarios'?sha(fs.readFileSync(new URL('./product-write-image-mutations.mjs',import.meta.url))):suite==='InspectionReportScenarios'?sha(fs.readFileSync(new URL('./product-inspection-mutations.mjs',import.meta.url))):suite==='ReadControllerScenarios'?sha(fs.readFileSync(new URL('./product-read-controller-mutations.mjs',import.meta.url))):suite==='OutputDeliveryScenarios'?sha(fs.readFileSync(new URL('./product-output-delivery-mutations.mjs',import.meta.url))):null,harness_sha256:restored.harness_sha256})+'\n');
  console.log(restored.execution.stdout.trim());console.log(`${mutations.length} actual product-machine defects rejected`);
