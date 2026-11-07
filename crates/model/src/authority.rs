@@ -431,6 +431,9 @@ fn integrity_authorities(root: &Path) -> Result<Vec<crate::AuthorityRow>, ModelE
     Ok(rows)
 }
 
+/// The semantic-module schema of the project language (1.2).
+pub const SEMANTIC_MODULE_SPEC: &str = "lexlean/semantic-module/2";
+
 pub(crate) fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelError> {
     let text = std::fs::read_to_string(path).map_err(|e| ModelError::Io(path.to_path_buf(), e))?;
     let open = format!("\\begin{{lexlean}}{{{module}}}");
@@ -445,37 +448,17 @@ pub(crate) fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Val
         )));
     }
 
-    const MARKER: &str = "\\semanticdata{";
-    if text.matches(MARKER).count() != 1 {
+    // Language 1.2 sources are written in the notation (LexLean SPEC 17.21.1);
+    // the SDK's own reader is the one conversion to the module data.
+    let value: Value = lexlean::sdk::read_module(&text).map_err(|e| {
+        ModelError::Inconsistent(format!(
+            "{} is not a well-formed LexLean semantic module: {e}",
+            path.display()
+        ))
+    })?;
+    if value.get("spec").and_then(Value::as_str) != Some(SEMANTIC_MODULE_SPEC) {
         return Err(ModelError::Inconsistent(format!(
-            "{} must contain exactly one semanticdata value",
-            path.display()
-        )));
-    }
-    let start = text.find(MARKER).expect("counted one semanticdata marker") + MARKER.len();
-    let tail = &text[start..];
-    let end = tail.find("\\end{semanticmodule}").ok_or_else(|| {
-        ModelError::Inconsistent(format!(
-            "{} has no semanticmodule terminator after semanticdata",
-            path.display()
-        ))
-    })?;
-    let wrapped = tail[..end].trim();
-    let json = wrapped.strip_suffix('}').ok_or_else(|| {
-        ModelError::Inconsistent(format!(
-            "{} semanticdata macro has no closing brace",
-            path.display()
-        ))
-    })?;
-    let value: Value = serde_json::from_str(json).map_err(|e| {
-        ModelError::Inconsistent(format!(
-            "{} contains invalid semantic JSON: {e}",
-            path.display()
-        ))
-    })?;
-    if value.get("spec").and_then(Value::as_str) != Some("lexlean/semantic-module/1") {
-        return Err(ModelError::Inconsistent(format!(
-            "{} must use lexlean/semantic-module/1",
+            "{} must use {SEMANTIC_MODULE_SPEC}",
             path.display()
         )));
     }

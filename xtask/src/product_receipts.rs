@@ -79,15 +79,7 @@ mod tests {
             }
             let text = std::fs::read_to_string(root.join("src/Uorc/Product/Scenarios.lex.tex"))
                 .expect("source-owned scenarios");
-            let data = text
-                .split_once("\\semanticdata{")
-                .expect("semantic source")
-                .1;
-            let data = data
-                .rsplit_once("}\n\\end{semanticmodule}")
-                .expect("closed module")
-                .0;
-            let module: Value = serde_json::from_str(data).expect("semantic declarations");
+            let module = lexlean::sdk::read_module(&text).expect("semantic source");
             let declarations = module["declarations"].as_array().expect("declarations");
             let inventory: u64 = ["cases", "observations"]
                 .into_iter()

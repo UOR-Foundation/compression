@@ -40,6 +40,8 @@ fn main() -> ExitCode {
         "audit-bootstrap" => bootstrap::audit(&root),
         "audit-dependency-updates" => bootstrap::audit_dependency_updates(&root),
         "validate" => validate(&root),
+        "semantic-read" => semantic_read(),
+        "semantic-write" => semantic_write(),
         _ => {
             eprintln!(
                 "cargo xtask <task>\n\
@@ -51,6 +53,8 @@ fn main() -> ExitCode {
                  audit-bootstrap   immutable SDK and least-privilege workflow trust root\n\
                  audit-dependency-updates   SDK ownership and ordinary dependency maintenance\n\
                  validate          run every gate above\n\
+                 semantic-read <file>...   print each module's data as canonical JSON lines\n\
+                 semantic-write <file>     replace the module's data with JSON from stdin\n\
                  \n\
                  --write           check-model only: rewrite generated model/document projections"
             );
@@ -69,6 +73,32 @@ fn main() -> ExitCode {
 
 /// A gate failure, reported with the rule it broke.
 type Fail = Box<dyn std::error::Error>;
+
+/// Language-1.2 modules are written in the notation; gates and controls read
+/// and rewrite their data only through the SDK's own conversion (LexLean
+/// SPEC 17.21.1, 24.8), one JSON line per named file.
+fn semantic_read() -> Result<(), Fail> {
+    use std::io::Write;
+    let mut out = std::io::stdout().lock();
+    for path in std::env::args().skip(2) {
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
+        let value = lexlean::sdk::read_module(&text).map_err(|e| format!("{path}: {e}"))?;
+        serde_json::to_writer(&mut out, &value)?;
+        out.write_all(b"\n")?;
+    }
+    Ok(())
+}
+
+fn semantic_write() -> Result<(), Fail> {
+    let path = std::env::args()
+        .nth(2)
+        .ok_or("semantic-write needs a file")?;
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
+    let value: serde_json::Value = serde_json::from_reader(std::io::stdin().lock())?;
+    let written = lexlean::sdk::write_module(&text, &value).map_err(|e| format!("{path}: {e}"))?;
+    std::fs::write(&path, written).map_err(|e| format!("{path}: {e}"))?;
+    Ok(())
+}
 
 /// Expose the renderer-owned artifact inventory to validation orchestration.
 fn projection_inventory(root: &Path) -> Result<(), Fail> {

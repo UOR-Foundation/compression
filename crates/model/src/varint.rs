@@ -55,17 +55,8 @@ impl VarintContract {
         let file = root.join("src/Uorc/Varint.lex.tex");
         let source =
             std::fs::read_to_string(&file).map_err(|source| ModelError::Io(file, source))?;
-        let payloads: Vec<_> = source
-            .lines()
-            .filter_map(|line| {
-                line.strip_prefix("\\coredata{")
-                    .and_then(|s| s.strip_suffix('}'))
-            })
-            .collect();
-        if payloads.len() != 1 {
-            return Err(bad("expected one native core module"));
-        }
-        let core: Value = serde_json::from_str(payloads[0]).map_err(|e| bad(e.to_string()))?;
+        let core: Value = lexlean::sdk::read_module(&source)
+            .map_err(|e| bad(format!("expected one native core module: {e}")))?;
         let rows = core["declarations"]
             .as_array()
             .ok_or_else(|| bad("missing core declarations"))?;
