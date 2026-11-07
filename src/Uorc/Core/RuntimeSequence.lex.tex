@@ -710,16 +710,19 @@ definition{
 }
 
 definition{
-  name: concatCursor,
-  parameters: [
-    cursor : Cursor,
-    phase : UInt64,
-    left : Uorc.Core.RuntimeValue::Handle,
-    right : Uorc.Core.RuntimeValue::Handle,
-    result : Uorc.Core.RuntimeValue::Handle
-  ],
+  name: concatTakeRightCursor,
+  parameters: [cursor : Cursor],
   result: Cursor,
-  body: (record Cursor {phase := phase, purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := left, right := right, result := result, start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}),
+  body: (record Cursor {phase := (2 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor right), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatTakeLeftCursor,
+  parameters: [cursor : Cursor],
+  result: Cursor,
+  body: (record Cursor {phase := (2 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor left), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}),
   axioms: [],
   executable: true
 }
@@ -729,6 +732,24 @@ definition{
   parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
   result: (Result SequenceTransition SequenceFailure),
   body: (ctor Result.ok [SequenceTransition, SequenceFailure] (record SequenceTransition {arena := arena, cursor := cursor, delta := (zeroDelta), work := (1 : UInt64), outcome := (ctor Outcome.pending)})),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatTakeRight,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (concatPending arena (concatTakeRightCursor cursor)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatTakeLeft,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (concatPending arena (concatTakeLeftCursor cursor)),
   axioms: [],
   executable: true
 }
@@ -793,6 +814,20 @@ definition{
 }
 
 definition{
+  name: concatRightPresent,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    li : Uorc.Core.Heap::SequenceInfo,
+    ri : Uorc.Core.Heap::SequenceInfo
+  ],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (concatTakeLeft arena cursor) else (concatLeftHeavy arena cursor li ri)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
   name: concatByHeight,
   parameters: [
     arena : Uorc.Core.Heap::Arena,
@@ -801,7 +836,7 @@ definition{
     ri : Uorc.Core.Heap::SequenceInfo
   ],
   result: (Result SequenceTransition SequenceFailure),
-  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor right))) else (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor left))) else (concatLeftHeavy arena cursor li ri))),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (concatTakeRight arena cursor) else (concatRightPresent arena cursor li ri)),
   axioms: [Quot.sound, propext],
   executable: true
 }
