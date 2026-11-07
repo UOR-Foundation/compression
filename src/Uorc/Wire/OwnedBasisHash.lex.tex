@@ -94,8 +94,7 @@ definition{
     profile : Uorc.Integrity.Profile::Kind
   ],
   result: State,
-  body: (record State {phase := (ctor Phase.validate), snapshot := snapshot, profile := profile, hash := (ctor Option.none [Uorc.Integrity.OwnedHash::Cursor]), afterHash := (ctor Phase.count), afterNumber := (ctor Phase.objectLoad), number := (0 : UInt64), index := (0 : UInt64), scalar := (Uorc.Core.RuntimeValue::nullHandle), reader := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), digest := (Uorc.Core.RuntimeValue::nullHandle), cancelling := false, failure := (ctor Option.none [Failure])}),
-  axioms: [Quot.sound, propext]
+  body: (record State {phase := (ctor Phase.validate), snapshot := snapshot, profile := profile, hash := (ctor Option.none [Uorc.Integrity.OwnedHash::Cursor]), afterHash := (ctor Phase.count), afterNumber := (ctor Phase.objectLoad), number := (0 : UInt64), index := (0 : UInt64), scalar := (Uorc.Core.RuntimeValue::nullHandle), reader := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), digest := (Uorc.Core.RuntimeValue::nullHandle), cancelling := false, failure := (ctor Option.none [Failure])})
 }
 
 definition{
@@ -107,8 +106,7 @@ definition{
     profile : Uorc.Integrity.Profile::Kind
   ],
   result: Session,
-  body: (record Session {state := (initialState snapshot profile), arena := arena, usage := usage}),
-  axioms: [Quot.sound, propext]
+  body: (record Session {state := (initialState snapshot profile), arena := arena, usage := usage})
 }
 
 inductive{
@@ -146,8 +144,7 @@ definition{
     | Uorc.Integrity.OwnedHash::Outcome.pending => (project stLocal1 digest)
     | Uorc.Integrity.OwnedHash::Outcome.ready => (project stLocal1 digest)
     | Uorc.Integrity.OwnedHash::Outcome.spanComplete => (project stLocal1 digest)
-    | Uorc.Integrity.OwnedHash::Outcome.cancelled => (project stLocal1 digest)), cancelling := (project stLocal1 cancelling), failure := (project stLocal1 failure)}), arena := (project t arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})),
-  axioms: [Quot.sound, propext]
+    | Uorc.Integrity.OwnedHash::Outcome.cancelled => (project stLocal1 digest)), cancelling := (project stLocal1 cancelling), failure := (project stLocal1 failure)}), arena := (project t arena), usage := (project x usage)}), signal := (ctor Signal.advanced)}))
 }
 
 definition{
@@ -239,8 +236,7 @@ definition{
       | Phase.finalize => (record Transition {session := (record Session {state := (record State {phase := (project stLocal46 phase), snapshot := (project stLocal46 snapshot), profile := (project stLocal46 profile), hash := (project stLocal46 hash), afterHash := (project stLocal46 afterHash), afterNumber := (project stLocal46 afterNumber), number := (project stLocal46 number), index := (project stLocal46 index), scalar := (project stLocal46 scalar), reader := (project stLocal46 reader), digest := (project stLocal46 digest), cancelling := (project stLocal46 cancelling), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
       | Phase.done => (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.transferred), snapshot := (project stLocal46 snapshot), profile := (project stLocal46 profile), hash := (project stLocal46 hash), afterHash := (project stLocal46 afterHash), afterNumber := (project stLocal46 afterNumber), number := (project stLocal46 number), index := (project stLocal46 index), scalar := (project stLocal46 scalar), reader := (project stLocal46 reader), digest := (Uorc.Core.RuntimeValue::nullHandle), cancelling := (project stLocal46 cancelling), failure := (project stLocal46 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.digest (project stLocal46 digest))})
       | Phase.transferred => (record Transition {session := (record Session {state := (record State {phase := (project stLocal46 phase), snapshot := (project stLocal46 snapshot), profile := (project stLocal46 profile), hash := (project stLocal46 hash), afterHash := (project stLocal46 afterHash), afterNumber := (project stLocal46 afterNumber), number := (project stLocal46 number), index := (project stLocal46 index), scalar := (project stLocal46 scalar), reader := (project stLocal46 reader), digest := (project stLocal46 digest), cancelling := (project stLocal46 cancelling), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
-      | Phase.clean => (record Transition {session := (record Session {state := (record State {phase := (project stLocal46 phase), snapshot := (project stLocal46 snapshot), profile := (project stLocal46 profile), hash := (project stLocal46 hash), afterHash := (project stLocal46 afterHash), afterNumber := (project stLocal46 afterNumber), number := (project stLocal46 number), index := (project stLocal46 index), scalar := (project stLocal46 scalar), reader := (project stLocal46 reader), digest := (project stLocal46 digest), cancelling := (project stLocal46 cancelling), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})))),
-  axioms: [Quot.sound, propext]
+      | Phase.clean => (record Transition {session := (record Session {state := (record State {phase := (project stLocal46 phase), snapshot := (project stLocal46 snapshot), profile := (project stLocal46 profile), hash := (project stLocal46 hash), afterHash := (project stLocal46 afterHash), afterNumber := (project stLocal46 afterNumber), number := (project stLocal46 number), index := (project stLocal46 index), scalar := (project stLocal46 scalar), reader := (project stLocal46 reader), digest := (project stLocal46 digest), cancelling := (project stLocal46 cancelling), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))))
 }
 
 definition{
@@ -252,8 +248,7 @@ definition{
     | Uorc.Integrity.OwnedHash::Outcome.pending => (acceptHash x t)
     | Uorc.Integrity.OwnedHash::Outcome.ready => (acceptHash x t)
     | Uorc.Integrity.OwnedHash::Outcome.spanComplete => (acceptHash x t)
-    | Uorc.Integrity.OwnedHash::Outcome.digest hLocal49 => (acceptHash x t))),
-  axioms: [Quot.sound, propext]
+    | Uorc.Integrity.OwnedHash::Outcome.digest hLocal49 => (acceptHash x t)))
 }
 
 definition{
@@ -274,13 +269,7 @@ definition{
   axioms: [Quot.sound, propext]
 }
 
-definition{
-  name: actionWork,
-  parameters: [],
-  result: UInt64,
-  body: (64 : UInt64),
-  axioms: [Quot.sound, propext]
-}
+definition{name: actionWork, parameters: [], result: UInt64, body: (64 : UInt64)}
 
 definition{
   name: prepay,
@@ -342,16 +331,14 @@ definition{
   result: Session,
   body: (let stLocal76 : State := (project x state); (match (project stLocal76 failure)
     | Option.some priorLocal77 => x
-    | Option.none => (record Session {state := (record State {phase := (project stLocal76 phase), snapshot := (project stLocal76 snapshot), profile := (project stLocal76 profile), hash := (project stLocal76 hash), afterHash := (project stLocal76 afterHash), afterNumber := (project stLocal76 afterNumber), number := (project stLocal76 number), index := (project stLocal76 index), scalar := (project stLocal76 scalar), reader := (project stLocal76 reader), digest := (project stLocal76 digest), cancelling := (project stLocal76 cancelling), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)}))),
-  axioms: [Quot.sound, propext]
+    | Option.none => (record Session {state := (record State {phase := (project stLocal76 phase), snapshot := (project stLocal76 snapshot), profile := (project stLocal76 profile), hash := (project stLocal76 hash), afterHash := (project stLocal76 afterHash), afterNumber := (project stLocal76 afterNumber), number := (project stLocal76 number), index := (project stLocal76 index), scalar := (project stLocal76 scalar), reader := (project stLocal76 reader), digest := (project stLocal76 digest), cancelling := (project stLocal76 cancelling), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)})))
 }
 
 definition{
   name: addRoot,
   parameters: [h : Uorc.Core.RuntimeValue::Handle, rs : (List Uorc.Core.RuntimeValue::Handle)],
   result: (List Uorc.Core.RuntimeValue::Handle),
-  body: (if (Uorc.Core.RuntimeValue::isNull h) then rs else (cons h rs)),
-  axioms: [Quot.sound, propext]
+  body: (if (Uorc.Core.RuntimeValue::isNull h) then rs else (cons h rs))
 }
 
 definition{
@@ -364,7 +351,6 @@ definition{
   body: (match a
     | List.nil => z
     | List.cons hLocal78 tLocal79 => (cons hLocal78 (appendRoots tLocal79 z))),
-  axioms: [Quot.sound, propext],
   recursive_argument: a
 }
 
@@ -374,16 +360,14 @@ definition{
   result: (List Uorc.Core.RuntimeValue::Handle),
   body: (addRoot (project st scalar) (addRoot (project st digest) (match (project st hash)
     | Option.none => (nil Uorc.Core.RuntimeValue::Handle)
-    | Option.some hcLocal80 => (Uorc.Integrity.OwnedHash::ownedRoots hcLocal80)))),
-  axioms: [Quot.sound, propext]
+    | Option.some hcLocal80 => (Uorc.Integrity.OwnedHash::ownedRoots hcLocal80))))
 }
 
 definition{
   name: boundary,
   parameters: [],
   result: String,
-  body: "Borrow the immutable source-built Snapshot under enclosing caller input/checkpoint ownership throughout hashing and cleanup. Validate count/table descriptor against its charged record. Serialize shortest ULEB count, then every ordered shortest ULEB length and exact sequence bytes, including empty objects. OwnedHash Profile.Purpose.basisObjects supplies the selected domain once: format2 UORC-BASIS-V1 NUL, format3 Profile-owned domain. Every scalar octet reserves a charged one-byte runtime image before materialization/commit, then transfers exactly one ticket to OwnedHash. Object spans use OwnedRead and explicit OwnedHash.borrowSpan retain while snapshot keeps ownership. No payload/list/Trie/Rope/Graph is stored outside the arena. Each action prepays 64 logical work units: OwnedHash.report adds at most 33 overhead to a maximum two-work heap image commit (35 total); other heap operations report one. Scalar reserve/commit cost one/two plus one octet materialization. This covers at most one octet input/32-byte digest materialization; achieved arena and every cleanup root survive pauses/failures. takeDigest transfers the retained digest once. Descriptor consistency is not program admission/readiness. Hash equality does not prove byte reconstruction or authenticity; conditional admission separately retains this same snapshot.table.root. Operational U64 exhaustion is not a wire/media/object cap.",
-  axioms: [Quot.sound, propext]
+  body: "Borrow the immutable source-built Snapshot under enclosing caller input/checkpoint ownership throughout hashing and cleanup. Validate count/table descriptor against its charged record. Serialize shortest ULEB count, then every ordered shortest ULEB length and exact sequence bytes, including empty objects. OwnedHash Profile.Purpose.basisObjects supplies the selected domain once: format2 UORC-BASIS-V1 NUL, format3 Profile-owned domain. Every scalar octet reserves a charged one-byte runtime image before materialization/commit, then transfers exactly one ticket to OwnedHash. Object spans use OwnedRead and explicit OwnedHash.borrowSpan retain while snapshot keeps ownership. No payload/list/Trie/Rope/Graph is stored outside the arena. Each action prepays 64 logical work units: OwnedHash.report adds at most 33 overhead to a maximum two-work heap image commit (35 total); other heap operations report one. Scalar reserve/commit cost one/two plus one octet materialization. This covers at most one octet input/32-byte digest materialization; achieved arena and every cleanup root survive pauses/failures. takeDigest transfers the retained digest once. Descriptor consistency is not program admission/readiness. Hash equality does not prove byte reconstruction or authenticity; conditional admission separately retains this same snapshot.table.root. Operational U64 exhaustion is not a wire/media/object cap."
 }
 \end{semanticmodule}
 \end{lexlean}

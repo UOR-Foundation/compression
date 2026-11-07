@@ -74,7 +74,8 @@ definition{
     | Uorc.Search.Normalize::Step.pending next => (ctor Step.pending (record Cursor {normalization := next, eventCredit := 0, consumedCredits := ((project cursor consumedCredits) + 1)}))
     | Uorc.Search.Normalize::Step.done normalized physical => (ctor Step.done normalized physical ((project cursor consumedCredits) + 1))
     | Uorc.Search.Normalize::Step.rejected failure => (ctor Step.rejected failure (project observation prefix) ((project cursor consumedCredits) + 1))
-    | Uorc.Search.Normalize::Step.ropeFailure failure => (ctor Step.ropeFailure failure (project observation prefix) ((project cursor consumedCredits) + 1)))))
+    | Uorc.Search.Normalize::Step.ropeFailure failure => (ctor Step.ropeFailure failure (project observation prefix) ((project cursor consumedCredits) + 1))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -101,6 +102,7 @@ definition{
       | Uorc.Search.Normalize::Step.done normalized physical => (ctor Step.done normalized physical (consumedCredits + 1))
       | Uorc.Search.Normalize::Step.rejected failure => (ctor Step.rejected failure (project observation prefix) (consumedCredits + 1))
       | Uorc.Search.Normalize::Step.ropeFailure failure => (ctor Step.ropeFailure failure (project observation prefix) (consumedCredits + 1)))))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -112,28 +114,32 @@ definition{
     | Step.pending cursor => (runCursor work policy (project cursor normalization) (project cursor eventCredit) (project cursor consumedCredits))
     | Step.done normalized physical credits => (ctor Step.done normalized physical credits)
     | Step.rejected failure prefix credits => (ctor Step.rejected failure prefix credits)
-    | Step.ropeFailure failure prefix credits => (ctor Step.ropeFailure failure prefix credits))
+    | Step.ropeFailure failure prefix credits => (ctor Step.ropeFailure failure prefix credits)),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: copy_credit_resume_is_exact,
   parameters: [],
   statement: ((runWork 17 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (runWork 13 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Search.Normalize::start (Uorc.Core.Bytes::fromBytes 0x0001ff80)))))) = (runWork 30 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Search.Normalize::start (Uorc.Core.Bytes::fromBytes 0x0001ff80)))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_normalization_credit_never_completes,
   parameters: [],
   statement: ((runWork 0 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Search.Normalize::start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))) = (ctor Step.pending (start (Uorc.Search.Normalize::start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: every_positive_copy_event_has_credit,
   parameters: [normalization : Uorc.Search.Normalize::Cursor],
   statement: ((1 <=? (eventWork normalization)) = true),
-  proof: linear_arithmetic{definitions: [Uorc.Core.ByteBuilder::eventWork, eventWork]}
+  proof: linear_arithmetic{definitions: [Uorc.Core.ByteBuilder::eventWork, eventWork]},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -71,7 +71,8 @@ definition{
         | Uorc.Search.RopeLex::Step.ropeFailure error => (ctor Step.ropeFailure error)))
     | Cursor.rebuild leftReversed right => (match leftReversed
       | List.nil => (ctor Step.done right)
-      | List.cons head tail => (ctor Step.pending (ctor Cursor.rebuild tail (cons head right)))))
+      | List.cons head tail => (ctor Step.pending (ctor Cursor.rebuild tail (cons head right))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -85,6 +86,7 @@ definition{
       | Step.done queue => (ctor Step.done queue)
       | Step.invalidCursor => (ctor Step.invalidCursor)
       | Step.ropeFailure error => (ctor Step.ropeFailure error))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -92,28 +94,32 @@ theorem{
   name: full_wire_size_precedes_metadata,
   parameters: [],
   statement: ((run 80 (ctor Step.pending (beginInsert (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0xff), canonicalTask := 0xff}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))) = (ctor Step.done (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0xff), canonicalTask := 0xff}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: colliding_task_key_uses_exact_full_wire,
   parameters: [],
   statement: ((run 80 (ctor Step.pending (beginInsert (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x0080), canonicalTask := 0x01}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))) = (ctor Step.done (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x0080), canonicalTask := 0x01}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: whole_wire_equality_deduplicates,
   parameters: [],
   statement: ((run 80 (ctor Step.pending (beginInsert (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))) = (ctor Step.done (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task)))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: fair_round_precedes_wire_size,
   parameters: [],
   statement: ((run 80 (ctor Step.pending (beginInsert (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 1, wire := (Uorc.Core.Bytes::fromBytes 0x00), canonicalTask := 0x00}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))) = (ctor Step.done (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 1, wire := (Uorc.Core.Bytes::fromBytes 0x00), canonicalTask := 0x00}) (nil Task))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

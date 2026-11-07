@@ -68,7 +68,8 @@ definition{
       | Uorc.Wire.GraphEmit::Event.advanced next => (ctor Step.pending (ctor Cursor.measuring prepared next))
       | Uorc.Wire.GraphEmit::Event.produced ignoredBytes next => (ctor Step.pending (ctor Cursor.measuring prepared next))
       | Uorc.Wire.GraphEmit::Event.complete preimageLength work => (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 preimageLength 32) then (ctor Step.complete (record Measurement {prepared := prepared, preimageLength := preimageLength, archiveLength := (preimageLength + 32)})) else (ctor Step.failed (ctor Error.addressSpaceExhausted)))
-      | Uorc.Wire.GraphEmit::Event.failed failure position work => (ctor Step.failed (ctor Error.emit failure))))
+      | Uorc.Wire.GraphEmit::Event.failed failure position work => (ctor Step.failed (ctor Error.emit failure)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{

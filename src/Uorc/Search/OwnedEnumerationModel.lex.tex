@@ -102,7 +102,7 @@ theorem{
     ],
     scrutinee: rank
   },
-  axioms: [propext]
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -174,7 +174,7 @@ theorem{
     ],
     scrutinee: words
   },
-  axioms: [propext]
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -199,7 +199,7 @@ theorem{
     ],
     scrutinee: words
   },
-  axioms: [propext]
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -282,7 +282,7 @@ definition{
   parameters: [leftRank : Nat, rightRank : Nat],
   result: Prop,
   body: ((modelDecode leftRank) = (modelDecode rightRank)),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -342,7 +342,7 @@ theorem{
   parameters: [left : (List Nat), right : (List Nat)],
   statement: ((left = right) -> (modelObservedRankEqual left right)),
   proof: linear_arithmetic{definitions: [modelObservedRankEqual]},
-  axioms: [Quot.sound, propext]
+  axioms: [propext]
 }
 
 theorem{
@@ -356,7 +356,7 @@ theorem{
       Uorc.Search.UnsignedByteConversionLaws::law_nat_beq_iff_eq
     ]
   },
-  axioms: [propext]
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -432,7 +432,7 @@ theorem{
       Uorc.Search.UnsignedByteConversionLaws::law_if_cons_nat
     ]
   },
-  axioms: [Quot.sound, propext]
+  axioms: [propext]
 }
 
 theorem{
@@ -574,7 +574,7 @@ theorem{
   parameters: [words : (List Nat)],
   statement: (modelByteBounded (modelNormalize words)),
   proof: apply{arguments: [words], theorem: model_normalization_is_idempotent},
-  axioms: [propext]
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -621,7 +621,7 @@ definition{
   body: (match bytes
     | List.nil => (nil Nat)
     | List.cons head tail => (cons (prim to_nat head : Nat) (modelWordsOfBytes tail))),
-  axioms: [],
+  axioms: [Quot.sound, propext],
   recursive_argument: bytes
 }
 
@@ -662,7 +662,7 @@ theorem{
     ],
     scrutinee: bytes
   },
-  axioms: [propext]
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -708,7 +708,7 @@ definition{
   parameters: [payload : Nat],
   result: UInt8,
   body: (Uorc.Search.UnsignedByteConversion::fromNat (modelByte payload)),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -718,7 +718,7 @@ definition{
   body: (match words
     | List.nil => (nil UInt8)
     | List.cons head tail => (cons (modelUnsignedByte head) (modelBytesOfWords tail))),
-  axioms: [],
+  axioms: [Quot.sound, propext],
   recursive_argument: words
 }
 
@@ -807,7 +807,7 @@ theorem{
     ],
     scrutinee: words
   },
-  axioms: [propext]
+  axioms: [Quot.sound, propext]
 }
 
 definition{

@@ -49,7 +49,8 @@ definition{
     | Result.error heapFailure0 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure0)
     | Result.ok image0 => (match (Uorc.Core.Heap::allocate (project image0 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project image0 handle) (0 : UInt64) (3 : UInt64)))
       | Result.error heapFailure1 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure1)
-      | Result.ok leaf0 => (ctor Result.ok [Fixture, Uorc.Core.Heap::HeapError] (record Fixture {arena := (project leaf0 arena), root := (project leaf0 handle), roots := (cons (project image0 handle) (cons (project leaf0 handle) (nil Uorc.Core.RuntimeValue::Handle)))}))))
+      | Result.ok leaf0 => (ctor Result.ok [Fixture, Uorc.Core.Heap::HeapError] (record Fixture {arena := (project leaf0 arena), root := (project leaf0 handle), roots := (cons (project image0 handle) (cons (project leaf0 handle) (nil Uorc.Core.RuntimeValue::Handle)))})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -66,7 +67,8 @@ definition{
           | Result.error heapFailure3 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure3)
           | Result.ok leaf1 => (match (Uorc.Core.Heap::allocate (project leaf1 arena) (ctor Uorc.Core.Heap::Node.sequenceBranch (3 : UInt64) (2 : UInt64) (project leaf0 handle) (project leaf1 handle)))
             | Result.error heapFailure4 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure4)
-            | Result.ok joined => (ctor Result.ok [Fixture, Uorc.Core.Heap::HeapError] (record Fixture {arena := (project joined arena), root := (project joined handle), roots := (cons (project image0 handle) (cons (project leaf0 handle) (cons (project image1 handle) (cons (project leaf1 handle) (cons (project joined handle) (nil Uorc.Core.RuntimeValue::Handle))))))})))))))
+            | Result.ok joined => (ctor Result.ok [Fixture, Uorc.Core.Heap::HeapError] (record Fixture {arena := (project joined arena), root := (project joined handle), roots := (cons (project image0 handle) (cons (project leaf0 handle) (cons (project image1 handle) (cons (project leaf1 handle) (cons (project joined handle) (nil Uorc.Core.RuntimeValue::Handle))))))}))))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -111,7 +113,8 @@ definition{
       | Uorc.Search.TemplateStream::Outcome.advanced => (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable)
       | Uorc.Search.TemplateStream::Outcome.cancelled => (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable)
       | Uorc.Search.TemplateStream::Outcome.produced semanticEvent => (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable)
-      | Uorc.Search.TemplateStream::Outcome.awaitingAcknowledgment semanticEvent => (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable)))))))
+      | Uorc.Search.TemplateStream::Outcome.awaitingAcknowledgment semanticEvent => (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable))))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -122,6 +125,7 @@ definition{
     | Nat.zero => trial
     | Nat.succ remaining => (match trial
       | Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable => (if (tDone || tFailed) then (ctor Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable) else (run remaining (advance (ctor Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable)))))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -130,7 +134,8 @@ definition{
   parameters: [trial : Trial],
   result: Bool,
   body: (match trial
-    | Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable => ((((tDone && (not tFailed)) && tWaitStable) && (prim equal (project tArena ownedBytes) tBaseline : Bool)) && (Uorc.Core.HeapAudit::auditRoots tArena tRoots)))
+    | Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable => ((((tDone && (not tFailed)) && tWaitStable) && (prim equal (project tArena ownedBytes) tBaseline : Bool)) && (Uorc.Core.HeapAudit::auditRoots tArena tRoots))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -139,14 +144,16 @@ definition{
   result: Bool,
   body: (match (oneImage)
     | Result.error fixtureFailure => false
-    | Result.ok fixture => (auditComplete (run 500 (startTrial fixture))))
+    | Result.ok fixture => (auditComplete (run 500 (startTrial fixture)))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: oneImage_all_spans_released_after_ack,
   parameters: [],
   statement: ((oneImageCompletes) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -155,14 +162,16 @@ definition{
   result: Bool,
   body: (match (twoImages)
     | Result.error fixtureFailure => false
-    | Result.ok fixture => (auditComplete (run 500 (startTrial fixture))))
+    | Result.ok fixture => (auditComplete (run 500 (startTrial fixture)))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: twoImages_all_spans_released_after_ack,
   parameters: [],
   statement: ((twoImagesCompletes) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -175,6 +184,7 @@ definition{
       | Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable => (if (if ticket then (not (Uorc.Core.RuntimeValue::isNull (project tState spanTicket))) else (match (project tState navigation)
         | Option.none => false
         | Option.some navigationCursor => true)) then (ctor Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable) else (seek remaining ticket (advance (ctor Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable)))))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -194,6 +204,7 @@ definition{
         | Uorc.Search.TemplateStream::Outcome.complete => (cancelRun remaining false (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable))
         | Uorc.Search.TemplateStream::Outcome.produced semanticEvent => (cancelRun remaining false (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable))
         | Uorc.Search.TemplateStream::Outcome.awaitingAcknowledgment semanticEvent => (cancelRun remaining false (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable))))))))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -203,14 +214,16 @@ definition{
   result: Bool,
   body: (match (oneImage)
     | Result.error fixtureFailure => false
-    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 false (startTrial fixture)))))
+    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 false (startTrial fixture))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: oneImage_cancel_navigation_releases_exact_roots,
   parameters: [],
   statement: ((oneImageCancelnavigation) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -219,14 +232,16 @@ definition{
   result: Bool,
   body: (match (oneImage)
     | Result.error fixtureFailure => false
-    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 true (startTrial fixture)))))
+    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 true (startTrial fixture))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: oneImage_cancel_terminal_span_ticket_releases_exact_roots,
   parameters: [],
   statement: ((oneImageCancelterminal_span_ticket) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -235,14 +250,16 @@ definition{
   result: Bool,
   body: (match (twoImages)
     | Result.error fixtureFailure => false
-    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 false (startTrial fixture)))))
+    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 false (startTrial fixture))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: twoImages_cancel_navigation_releases_exact_roots,
   parameters: [],
   statement: ((twoImagesCancelnavigation) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -251,14 +268,16 @@ definition{
   result: Bool,
   body: (match (twoImages)
     | Result.error fixtureFailure => false
-    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 true (startTrial fixture)))))
+    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 true (startTrial fixture))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: twoImages_cancel_terminal_span_ticket_releases_exact_roots,
   parameters: [],
   statement: ((twoImagesCancelterminal_span_ticket) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -268,14 +287,16 @@ definition{
   body: (match (oneImage)
     | Result.error fixtureFailure => false
     | Result.ok fixture => (match (seek 500 true (startTrial fixture))
-      | Trial.state pArena pState pRoots pBaseline pDone pFailed pWaitStable => (let observed : Uorc.Search.TemplateStream::Transition := (Uorc.Search.TemplateStream::tick pArena pState (1 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project observed state) pState) && ((Uorc.Search.WaitingEquality::waitingEqCoreHeapArena (project observed arena) pArena) && (prim equal (project observed remainingCredit) (1 : UInt64) : Bool))))))
+      | Trial.state pArena pState pRoots pBaseline pDone pFailed pWaitStable => (let observed : Uorc.Search.TemplateStream::Transition := (Uorc.Search.TemplateStream::tick pArena pState (1 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project observed state) pState) && ((Uorc.Search.WaitingEquality::waitingEqCoreHeapArena (project observed arena) pArena) && (prim equal (project observed remainingCredit) (1 : UInt64) : Bool)))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: unacknowledged_span_never_advances_or_releases_ticket,
   parameters: [],
   statement: ((waitingProbe) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{

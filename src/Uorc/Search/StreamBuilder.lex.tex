@@ -99,14 +99,16 @@ definition{
       | Uorc.Core.ByteBuilder::Event.advanced next => (ctor Step.pending (record Cursor {work := (ctor Work.finishing next byteCount), eventCredit := 0}))
       | Uorc.Core.ByteBuilder::Event.appended builder => (ctor Step.failed (ctor Error.invalidState))
       | Uorc.Core.ByteBuilder::Event.finished rope => (ctor Step.finished rope byteCount)
-      | Uorc.Core.ByteBuilder::Event.failed error => (ctor Step.failed (ctor Error.builder error))))
+      | Uorc.Core.ByteBuilder::Event.failed error => (ctor Step.failed (ctor Error.builder error)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: tick,
   parameters: [cursor : Cursor],
   result: Step,
-  body: (if (((project cursor eventCredit) + 1) <? (eventWork (project cursor work))) then (ctor Step.pending (record Cursor {work := (project cursor work), eventCredit := ((project cursor eventCredit) + 1)})) else (perform (project cursor work)))
+  body: (if (((project cursor eventCredit) + 1) <? (eventWork (project cursor work))) then (ctor Step.pending (record Cursor {work := (project cursor work), eventCredit := ((project cursor eventCredit) + 1)})) else (perform (project cursor work))),
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

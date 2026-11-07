@@ -142,7 +142,8 @@ definition{
             | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))
             | Option.some baseWork => (match (prim checked_add baseWork objectWork : (Option UInt64))
               | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))
-              | Option.some totalWork => (ctor Result.ok [UInt64, Error] totalWork)))))))
+              | Option.some totalWork => (ctor Result.ok [UInt64, Error] totalWork))))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -216,14 +217,16 @@ theorem{
   name: native_checked_16MiB,
   parameters: [],
   statement: ((nativeDefault 16777216 1) = (ctor Result.ok [UInt64, Error] (34360791040 : UInt64))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: object_scale_overflow_rejected_without_nat_formula,
   parameters: [],
   statement: ((nativeDefault 0 18446744073709551615) = (ctor Result.error [UInt64, Error] (ctor Error.defaultOverflow))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{

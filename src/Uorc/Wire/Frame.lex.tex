@@ -113,7 +113,8 @@ definition{
         | Uorc.Wire.GraphEmit::Event.advanced nextMeasure => (ctor PrepareEvent.advanced (record PrepareState {frame := (project s frame), remainingLengths := (nil Nat), objectCount := (project s objectCount), outputLength := (project s outputLength), measure := nextMeasure, phase := (ctor PreparePhase.body)}))
         | Uorc.Wire.GraphEmit::Event.produced unexpectedBytes nextMeasure => (ctor PrepareEvent.failed (ctor PrepareError.invalidEmitter))
         | Uorc.Wire.GraphEmit::Event.failed reason position events => (ctor PrepareEvent.failed (ctor PrepareError.invalidEmitter))
-        | Uorc.Wire.GraphEmit::Event.complete size events => (ctor PrepareEvent.complete (record Prepared {frame := (project s frame), objectCount := (project s objectCount), outputLength := (project s outputLength), bodyLength := size})))))
+        | Uorc.Wire.GraphEmit::Event.complete size events => (ctor PrepareEvent.complete (record Prepared {frame := (project s frame), objectCount := (project s objectCount), outputLength := (project s outputLength), bodyLength := size}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{name: formatVersion, parameters: [], result: Nat, body: 2}
@@ -156,6 +157,7 @@ definition{
       | PrepareEvent.advanced next => (prepareFixture remaining next)
       | PrepareEvent.complete preparedValue => (ctor PrepareEvent.complete preparedValue)
       | PrepareEvent.failed reason => (ctor PrepareEvent.failed reason))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -164,7 +166,7 @@ theorem{
   parameters: [],
   statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (nil Nat), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (nil Nat), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 0, outputLength := 0, bodyLength := 0}))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -172,7 +174,7 @@ theorem{
   parameters: [],
   statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (nil Nat), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 0, outputLength := 0, bodyLength := 0})) 0x) = (ctor Option.some [Bytes] 0x554f5243020100000000)),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -180,7 +182,7 @@ theorem{
   parameters: [],
   statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 0 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (cons 0 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 1, outputLength := 0, bodyLength := 0}))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -188,7 +190,7 @@ theorem{
   parameters: [],
   statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (cons 0 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 1, outputLength := 0, bodyLength := 0})) 0x) = (ctor Option.some [Bytes] 0x554f524302010000010000)),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -196,7 +198,7 @@ theorem{
   parameters: [],
   statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 3 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff80))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (cons 3 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff80))}), objectCount := 1, outputLength := 3, bodyLength := 3}))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -204,7 +206,7 @@ theorem{
   parameters: [],
   statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (cons 3 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff80))}), objectCount := 1, outputLength := 3, bodyLength := 3})) 0x) = (ctor Option.some [Bytes] 0x554f52430201000001030300ff80)),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -212,7 +214,7 @@ theorem{
   parameters: [],
   statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 0 (cons 1 (cons 0 (cons 1 (cons 0 (nil Nat)))))), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (cons 0 (cons 1 (cons 0 (cons 1 (cons 0 (nil Nat)))))), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}), objectCount := 5, outputLength := 2, bodyLength := 2}))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -220,7 +222,7 @@ theorem{
   parameters: [],
   statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (cons 0 (cons 1 (cons 0 (cons 1 (cons 0 (nil Nat)))))), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}), objectCount := 5, outputLength := 2, bodyLength := 2})) 0x) = (ctor Option.some [Bytes] 0x554f5243020100000500010001000200ff)),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -228,7 +230,7 @@ theorem{
   parameters: [],
   statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 2 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00))}))) = (ctor PrepareEvent.failed (ctor PrepareError.rawLengthMismatch))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

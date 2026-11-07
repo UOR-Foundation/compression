@@ -93,7 +93,6 @@ definition{
   parameters: [],
   result: State,
   body: (record State {phase := (ctor Phase.idle), table := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis)), root := (Uorc.Core.RuntimeValue::nullHandle)}), tableOwned := true, count := (0 : UInt64), oldRoot := (Uorc.Core.RuntimeValue::nullHandle), wordRoot := (Uorc.Core.RuntimeValue::nullHandle), linkRoot := (Uorc.Core.RuntimeValue::nullHandle), record := (Uorc.Core.RuntimeValue::nullHandle), cursor := (ctor Option.none [Uorc.Core.RuntimeTable::PutCursor]), failure := (ctor Option.none [Failure])}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -102,7 +101,6 @@ definition{
   parameters: [arena : Uorc.Core.Heap::Arena, usage : Uorc.Core.RuntimeResources::Usage],
   result: Session,
   body: (record Session {state := (initialState), arena := arena, usage := usage}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -133,7 +131,6 @@ definition{
   parameters: [],
   result: UInt64,
   body: (284563818835 : UInt64),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -142,7 +139,6 @@ definition{
   parameters: [st : State],
   result: Snapshot,
   body: (record Snapshot {record := (project st record), table := (project st table), count := (project st count)}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -184,7 +180,6 @@ definition{
   parameters: [x : Session],
   result: Uorc.Core.RuntimeTable::PutTransition,
   body: (record Uorc.Core.RuntimeTable::PutTransition {arena := (project x arena), cursor := (project (project x state) cursor), outcome := (ctor Uorc.Core.RuntimeTable::PutOutcome.pending), delta := (Uorc.Core.RuntimeSequence::zeroDelta), peakOwnedBytes := (project (project x usage) peakOwnedBytes)}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -245,7 +240,6 @@ definition{
       | Phase.sealed => (record Transition {session := (record Session {state := (record State {phase := (project stLocal51 phase), table := (project stLocal51 table), tableOwned := (project stLocal51 tableOwned), count := (project stLocal51 count), oldRoot := (project stLocal51 oldRoot), wordRoot := (project stLocal51 wordRoot), linkRoot := (project stLocal51 linkRoot), record := (project stLocal51 record), cursor := (project stLocal51 cursor), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
       | Phase.transferred => (record Transition {session := (record Session {state := (record State {phase := (project stLocal51 phase), table := (project stLocal51 table), tableOwned := (project stLocal51 tableOwned), count := (project stLocal51 count), oldRoot := (project stLocal51 oldRoot), wordRoot := (project stLocal51 wordRoot), linkRoot := (project stLocal51 linkRoot), record := (project stLocal51 record), cursor := (project stLocal51 cursor), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
       | Phase.clean => (record Transition {session := (record Session {state := (record State {phase := (project stLocal51 phase), table := (project stLocal51 table), tableOwned := (project stLocal51 tableOwned), count := (project stLocal51 count), oldRoot := (project stLocal51 oldRoot), wordRoot := (project stLocal51 wordRoot), linkRoot := (project stLocal51 linkRoot), record := (project stLocal51 record), cursor := (project stLocal51 cursor), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -297,7 +291,6 @@ definition{
       | Phase.sealed => (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.transferred), table := (project stLocal65 table), tableOwned := (project stLocal65 tableOwned), count := (project stLocal65 count), oldRoot := (project stLocal65 oldRoot), wordRoot := (project stLocal65 wordRoot), linkRoot := (project stLocal65 linkRoot), record := (Uorc.Core.RuntimeValue::nullHandle), cursor := (project stLocal65 cursor), failure := (project stLocal65 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.snapshot (descriptor stLocal65))})
       | Phase.transferred => (record Transition {session := (record Session {state := (record State {phase := (project stLocal65 phase), table := (project stLocal65 table), tableOwned := (project stLocal65 tableOwned), count := (project stLocal65 count), oldRoot := (project stLocal65 oldRoot), wordRoot := (project stLocal65 wordRoot), linkRoot := (project stLocal65 linkRoot), record := (project stLocal65 record), cursor := (project stLocal65 cursor), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
       | Phase.clean => (record Transition {session := (record Session {state := (record State {phase := (project stLocal65 phase), table := (project stLocal65 table), tableOwned := (project stLocal65 tableOwned), count := (project stLocal65 count), oldRoot := (project stLocal65 oldRoot), wordRoot := (project stLocal65 wordRoot), linkRoot := (project stLocal65 linkRoot), record := (project stLocal65 record), cursor := (project stLocal65 cursor), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -324,14 +317,7 @@ definition{
   executable: true
 }
 
-definition{
-  name: actionWork,
-  parameters: [],
-  result: UInt64,
-  body: (256 : UInt64),
-  axioms: [Quot.sound, propext],
-  executable: true
-}
+definition{name: actionWork, parameters: [], result: UInt64, body: (256 : UInt64), executable: true}
 
 definition{
   name: prepay,
@@ -430,7 +416,6 @@ definition{
   body: (let stLocal100 : State := (project x state); (match (project stLocal100 failure)
     | Option.some priorLocal101 => x
     | Option.none => (record Session {state := (record State {phase := (project stLocal100 phase), table := (project stLocal100 table), tableOwned := (project stLocal100 tableOwned), count := (project stLocal100 count), oldRoot := (project stLocal100 oldRoot), wordRoot := (project stLocal100 wordRoot), linkRoot := (project stLocal100 linkRoot), record := (project stLocal100 record), cursor := (project stLocal100 cursor), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)}))),
-  axioms: [Quot.sound, propext],
   executable: true,
   production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
 }
@@ -440,7 +425,6 @@ definition{
   parameters: [h : Uorc.Core.RuntimeValue::Handle, rs : (List Uorc.Core.RuntimeValue::Handle)],
   result: (List Uorc.Core.RuntimeValue::Handle),
   body: (if (Uorc.Core.RuntimeValue::isNull h) then rs else (cons h rs)),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -454,7 +438,6 @@ definition{
   body: (match a
     | List.nil => z
     | List.cons hLocal102 tLocal103 => (cons hLocal102 (appendRoots tLocal103 z))),
-  axioms: [Quot.sound, propext],
   executable: true,
   recursive_argument: a
 }
@@ -468,7 +451,6 @@ definition{
     | Option.some pcLocal104 => (addRoot (project pcLocal104 control) (addRoot (project pcLocal104 tableCapture) (addRoot (project pcLocal104 leafCapture) (addRoot (project pcLocal104 subtree) (nil Uorc.Core.RuntimeValue::Handle))))))))))) else (addRoot (project st oldRoot) (addRoot (project st linkRoot) (addRoot (project st wordRoot) (addRoot (project st record) (match (project st cursor)
     | Option.none => (nil Uorc.Core.RuntimeValue::Handle)
     | Option.some pcLocal105 => (addRoot (project pcLocal105 control) (addRoot (project pcLocal105 tableCapture) (addRoot (project pcLocal105 leafCapture) (addRoot (project pcLocal105 subtree) (nil Uorc.Core.RuntimeValue::Handle))))))))))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -477,7 +459,6 @@ definition{
   parameters: [],
   result: String,
   body: "Append-only slots(basis) begins empty. Caller keeps sequence owner until stored/failure cleanup; the reserved Core PutCursor captures borrowed sequence roots. Count advances only on actual complete(table), including empty objects. Core releases already underway advance before cancel, preserving actual completed table. Seal allocates count word(tag0), moved table link(tag1) and moved two-field metadata branch. This fixed shape is accessed only by view using Core leaf reads; it is not the generic 64-level RuntimeMetadata record trie. The table root becomes borrowed under Snapshot.record; takeSnapshot clears the one owner exactly once, descriptor copies retain none. Snapshot provenance is this source-owned builder, not a Ready validation token. Hash and conditional admission use the same retained immutable record/table; admission separately retains the table ticket. State has no Arena or payload/list/graph/rope backing. roots lists are ephemeral ownership inventories. Cleanup preserves achieved arenas and drains all owned roots; work is prepaid at a conservative bounded action fee before every operation. U64 count exhaustion is operational, without a media/object cap.",
-  axioms: [Quot.sound, propext],
   executable: true
 }
 \end{semanticmodule}

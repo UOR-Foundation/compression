@@ -107,8 +107,7 @@ definition{
     snapshot : Uorc.Wire.ArchiveSnapshot::Snapshot
   ],
   result: Session,
-  body: (record Session {state := (record State {phase := (ctor Phase.start), snapshot := snapshot, reader := (record Uorc.Wire.OwnedRead::Cursor {root := (project snapshot archive), length := (project snapshot preimageLength), offset := (0 : UInt64), current := (project snapshot archive), index := (0 : UInt64), walking := false}), hash := (ctor Option.none [Uorc.Integrity.ArchiveBinding::Cursor]), wire := (Uorc.Core.RuntimeValue::nullHandle), digest := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (0 : UInt64), compared := (0 : UInt64), failure := (ctor Option.none [Failure])}), arena := arena, usage := usage}),
-  axioms: [Quot.sound, propext]
+  body: (record Session {state := (record State {phase := (ctor Phase.start), snapshot := snapshot, reader := (record Uorc.Wire.OwnedRead::Cursor {root := (project snapshot archive), length := (project snapshot preimageLength), offset := (0 : UInt64), current := (project snapshot archive), index := (0 : UInt64), walking := false}), hash := (ctor Option.none [Uorc.Integrity.ArchiveBinding::Cursor]), wire := (Uorc.Core.RuntimeValue::nullHandle), digest := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (0 : UInt64), compared := (0 : UInt64), failure := (ctor Option.none [Failure])}), arena := arena, usage := usage})
 }
 
 definition{
@@ -257,8 +256,7 @@ definition{
     | Phase.cleanupHash => (project (project x state) wire)
     | Phase.cleanupOwned => (project (project x state) wire)
     | Phase.clean => (Uorc.Core.RuntimeValue::nullHandle)
-    | Phase.transferred => (Uorc.Core.RuntimeValue::nullHandle)), digest := (project (project x state) digest), offset := (project (project x state) offset), length := (project (project x state) length), compared := (project (project x state) compared), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)}),
-  axioms: [Quot.sound, propext]
+    | Phase.transferred => (Uorc.Core.RuntimeValue::nullHandle)), digest := (project (project x state) digest), offset := (project (project x state) offset), length := (project (project x state) length), compared := (project (project x state) compared), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)})
 }
 
 definition{
@@ -330,8 +328,7 @@ definition{
   name: boundary,
   parameters: [],
   result: String,
-  body: "Owns the transferred ArchiveSnapshot archive and lengths tickets throughout versioned archive integrity verification. The immutable archive is reread under its charged root. Hash feed retains one distinct image ticket, transferred to actual ArchiveBinding.beginSpan; trailer compare borrows images without retaining, compares all32 octets across any physical split, retains digest on mismatch. Cleanup cancels actual hash cursor and releases scratch/digest/feed tickets, retaining archive/lengths for enclosing recovery. One logical charge of64 per bounded action prepays maximum35 source-reported hash work plus bounded scalar/read operations; no hash input/output backing is copied beside charged controls. This source has no executable/production assertion while exact imported Integrity APIs remain unmarked. Native diagnostics and complete SDK qualification remain separate.",
-  axioms: [Quot.sound, propext]
+  body: "Owns the transferred ArchiveSnapshot archive and lengths tickets throughout versioned archive integrity verification. The immutable archive is reread under its charged root. Hash feed retains one distinct image ticket, transferred to actual ArchiveBinding.beginSpan; trailer compare borrows images without retaining, compares all32 octets across any physical split, retains digest on mismatch. Cleanup cancels actual hash cursor and releases scratch/digest/feed tickets, retaining archive/lengths for enclosing recovery. One logical charge of64 per bounded action prepays maximum35 source-reported hash work plus bounded scalar/read operations; no hash input/output backing is copied beside charged controls. This source has no executable/production assertion while exact imported Integrity APIs remain unmarked. Native diagnostics and complete SDK qualification remain separate."
 }
 \end{semanticmodule}
 \end{lexlean}

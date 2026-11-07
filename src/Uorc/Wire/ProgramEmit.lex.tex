@@ -144,7 +144,6 @@ definition{
     | Phase.number => (19 : UInt64)
     | Phase.end => (20 : UInt64)
     | Phase.done => (21 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -153,7 +152,6 @@ definition{
   parameters: [m : Uorc.Wire.Output::Mode],
   result: Bool,
   body: (match m | Uorc.Wire.Output::Mode.measure => false | Uorc.Wire.Output::Mode.stream => true),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -201,7 +199,6 @@ definition{
     | Uorc.Core.RuntimeOpcode::Opcode.tabulate => (36 : UInt8)
     | Uorc.Core.RuntimeOpcode::Opcode.fold => (37 : UInt8)
     | Uorc.Core.RuntimeOpcode::Opcode.scan => (38 : UInt8)),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -210,7 +207,6 @@ definition{
   parameters: [instruction : Uorc.Core.RuntimeProgram::BorrowedInstruction, index : UInt64],
   result: UInt64,
   body: (if (prim equal index (0 : UInt64) : Bool) then (project instruction operand0) else (if (prim equal index (1 : UInt64) : Bool) then (project instruction operand1) else (if (prim equal index (2 : UInt64) : Bool) then (project instruction operand2) else (project instruction operand3)))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -223,7 +219,6 @@ definition{
   ],
   result: State,
   body: (record State {phase := (ctor Phase.attach), afterNumber := (ctor Phase.done), program := program, block := (ctor Option.none [Uorc.Core.RuntimeProgram::BorrowedBlock]), instruction := (ctor Option.none [Uorc.Core.RuntimeProgram::BorrowedInstruction]), blockIndex := (0 : UInt64), parameterIndex := (0 : UInt64), instructionIndex := (0 : UInt64), scalarIndex := (0 : UInt64), captureIndex := (0 : UInt64), secondLane := false, span := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), number := (0 : UInt64), wireBytes := (0 : UInt64), wireRoot := (Uorc.Core.RuntimeValue::nullHandle), pending := (ctor Option.none [Uorc.Wire.Output::Event]), mode := mode, embedded := embedded, failure := (ctor Option.none [Failure])}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -238,7 +233,6 @@ definition{
   ],
   result: Session,
   body: (record Session {state := (initialState program mode embedded), arena := arena, usage := usage}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -247,7 +241,6 @@ definition{
   parameters: [],
   result: UInt64,
   body: (1024 : UInt64),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -256,7 +249,6 @@ definition{
   parameters: [x : Session, number : UInt64, after : Phase],
   result: Transition,
   body: (let stLocal1 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.number), afterNumber := after, program := (project stLocal1 program), block := (project stLocal1 block), instruction := (project stLocal1 instruction), blockIndex := (project stLocal1 blockIndex), parameterIndex := (project stLocal1 parameterIndex), instructionIndex := (project stLocal1 instructionIndex), scalarIndex := (project stLocal1 scalarIndex), captureIndex := (project stLocal1 captureIndex), secondLane := (project stLocal1 secondLane), span := (project stLocal1 span), number := number, wireBytes := (project stLocal1 wireBytes), wireRoot := (project stLocal1 wireRoot), pending := (project stLocal1 pending), mode := (project stLocal1 mode), embedded := (project stLocal1 embedded), failure := (project stLocal1 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -389,7 +381,6 @@ definition{
   body: (let stLocal55 : State := (project x state); (match (project stLocal55 failure)
     | Option.some eLocal56 => x
     | Option.none => (record Session {state := (record State {phase := (project stLocal55 phase), afterNumber := (project stLocal55 afterNumber), program := (project stLocal55 program), block := (project stLocal55 block), instruction := (project stLocal55 instruction), blockIndex := (project stLocal55 blockIndex), parameterIndex := (project stLocal55 parameterIndex), instructionIndex := (project stLocal55 instructionIndex), scalarIndex := (project stLocal55 scalarIndex), captureIndex := (project stLocal55 captureIndex), secondLane := (project stLocal55 secondLane), span := (project stLocal55 span), number := (project stLocal55 number), wireBytes := (project stLocal55 wireBytes), wireRoot := (project stLocal55 wireRoot), pending := (project stLocal55 pending), mode := (project stLocal55 mode), embedded := (project stLocal55 embedded), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)}))),
-  axioms: [Quot.sound, propext],
   executable: true,
   production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
 }
@@ -508,7 +499,6 @@ definition{
   parameters: [],
   result: String,
   body: "Owned metadata emission only. Program, one BorrowedBlock and one BorrowedInstruction are fixed scalar/handle control records. begin borrows the caller program until the attach action creates a charged ownerRoot(wire,program.blocks.root). All cached metadata and pending literal image spans remain borrowed under that owner. Each action prepays fixed work; each stream event reserves output before exposure, and measure mode traverses the same wire control while charging no physical output bytes. wireBytes is the exact checked wire length in both modes. Literal traversal is one charged arena-node descent per action with a fixed seek cursor and no stack, Graph, Rope or byte buffer. Ack.consumed records synchronous consumption/copy completed under the still-live owner; Ack.takeSpan retains and transfers a root before clearing the pending event. Cancellation/failure retain ownership; cleanup is prepaid and resumable. Completion is an emission boundary, not an admission or release-acceptance token. General wire refinement, production qualification and physical backend allocation measurement remain separate obligations.",
-  axioms: [Quot.sound, propext],
   executable: true
 }
 \end{semanticmodule}

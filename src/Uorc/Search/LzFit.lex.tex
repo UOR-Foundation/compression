@@ -82,7 +82,8 @@ definition{
   result: Step,
   body: (if ((project policy minimumMatch) =? 0) then (ctor Step.rejected (ctor Error.zeroMinimum) 0) else (match (Uorc.Search.Effort::checkedU64 (Uorc.Core.Bytes::length target))
     | Result.error failure => (ctor Step.rejected (ctor Error.addressSpaceExhausted) 0)
-    | Result.ok targetCount => (ctor Step.pending (record Cursor {target := target, totalBytes := (Uorc.Core.Bytes::length target), minimumMatch := (project policy minimumMatch), position := 0, literalStart := 0, index := (ctor Uorc.Core.Lifetime::NatTrie.empty), builder := (Uorc.Search.LzProgram::empty), phase := (ctor Phase.next), completedEvents := 0, tableUnits := 0, referenceBytes := 0, literalBytes := 0}))))
+    | Result.ok targetCount => (ctor Step.pending (record Cursor {target := target, totalBytes := (Uorc.Core.Bytes::length target), minimumMatch := (project policy minimumMatch), position := 0, literalStart := 0, index := (ctor Uorc.Core.Lifetime::NatTrie.empty), builder := (Uorc.Search.LzProgram::empty), phase := (ctor Phase.next), completedEvents := 0, tableUnits := 0, referenceBytes := 0, literalBytes := 0})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -163,7 +164,8 @@ definition{
     | Phase.finishing finishWork => (match (Uorc.Search.LzProgram::finishStep finishWork)
       | Uorc.Search.LzProgram::FinishStep.pending nextWork => (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), minimumMatch := (project cursor minimumMatch), position := (project cursor position), literalStart := (project cursor literalStart), index := (project cursor index), builder := (project cursor builder), phase := (ctor Phase.finishing nextWork), completedEvents := ((project cursor completedEvents) + 1), tableUnits := (project cursor tableUnits), referenceBytes := (project cursor referenceBytes), literalBytes := (project cursor literalBytes)}))
       | Uorc.Search.LzProgram::FinishStep.proposal graph => (ctor Step.proposal graph ((project cursor completedEvents) + 1) (project cursor tableUnits) (project cursor literalBytes) (project cursor referenceBytes))
-      | Uorc.Search.LzProgram::FinishStep.rejected failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1))))
+      | Uorc.Search.LzProgram::FinishStep.rejected failure => (ctor Step.rejected (ctor Error.program failure) ((project cursor completedEvents) + 1)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -176,6 +178,7 @@ definition{
       | Step.pending cursor => (runWork remainingWork (step cursor))
       | Step.proposal graph events tableUnits literalBytes referenceBytes => (ctor Step.proposal graph events tableUnits literalBytes referenceBytes)
       | Step.rejected failure events => (ctor Step.rejected failure events))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 

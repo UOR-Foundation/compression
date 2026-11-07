@@ -118,8 +118,7 @@ definition{
     caller : Uorc.Core.RuntimeProgram::CallerRoots
   ],
   result: State,
-  body: (record State {owner := (ctor Owner.program (Uorc.Wire.ProgramAdmission::begin budget arena usage basis caller)), reader := (record Uorc.Wire.OwnedRead::Cursor {root := (project snapshot archive), length := (project snapshot preimageLength), offset := (project snapshot bodyOffset), current := (project snapshot archive), index := (0 : UInt64), walking := false}), phase := (ctor Phase.drive), offset := (0 : UInt64), length := (0 : UInt64), stopped := false, failure := (ctor Option.none [Failure]), ledger := (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Ledger])}),
-  axioms: [Quot.sound, propext]
+  body: (record State {owner := (ctor Owner.program (Uorc.Wire.ProgramAdmission::begin budget arena usage basis caller)), reader := (record Uorc.Wire.OwnedRead::Cursor {root := (project snapshot archive), length := (project snapshot preimageLength), offset := (project snapshot bodyOffset), current := (project snapshot archive), index := (0 : UInt64), walking := false}), phase := (ctor Phase.drive), offset := (0 : UInt64), length := (0 : UInt64), stopped := false, failure := (ctor Option.none [Failure]), ledger := (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Ledger])})
 }
 
 definition{
@@ -138,8 +137,7 @@ definition{
     | Uorc.Wire.ProgramAdmission::Signal.failed => (record Transition {state := (record State {owner := (ctor Owner.program (project t cursor)), reader := (project x reader), phase := (project x phase), offset := (project x offset), length := (project x length), stopped := (project x stopped), failure := (ctor Option.some [Failure] (ctor Failure.parser (match (project (project (project t cursor) control) failure)
       | Option.none => (ctor Uorc.Wire.ProgramAdmission::Failure.protocol)
       | Option.some actualFailureLocal8 => actualFailureLocal8))), ledger := (project x ledger)}), signal := (ctor Signal.failed), remainingCredits := (project t remainingCredits)})
-    | Uorc.Wire.ProgramAdmission::Signal.paused whyLocal9 => (record Transition {state := (record State {owner := (ctor Owner.program (project t cursor)), reader := (project x reader), phase := (ctor Phase.drive), offset := (project x offset), length := (project x length), stopped := (project x stopped), failure := (project x failure), ledger := (project x ledger)}), signal := (ctor Signal.paused whyLocal9), remainingCredits := (project t remainingCredits)})),
-  axioms: [Quot.sound, propext]
+    | Uorc.Wire.ProgramAdmission::Signal.paused whyLocal9 => (record Transition {state := (record State {owner := (ctor Owner.program (project t cursor)), reader := (project x reader), phase := (ctor Phase.drive), offset := (project x offset), length := (project x length), stopped := (project x stopped), failure := (project x failure), ledger := (project x ledger)}), signal := (ctor Signal.paused whyLocal9), remainingCredits := (project t remainingCredits)}))
 }
 
 definition{
@@ -155,8 +153,7 @@ definition{
     credits : UInt64
   ],
   result: Transition,
-  body: (record Transition {state := (record State {owner := (ctor Owner.program (record Uorc.Wire.ProgramAdmission::Cursor {control := (project program control), phase := (ctor Uorc.Wire.ProgramAdmission::Phase.producer (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := arena, usage := usage, caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project loan caller) input), archive := (project (project loan caller) archive), search := (project (project loan caller) search), checkpoint := (project (project loan caller) checkpoint), certificate := (project (project loan caller) certificate), verification := (project (project loan caller) verification), wire := wire}), session := (project loan session)}))})), reader := (project next reader), phase := (project next phase), offset := (project next offset), length := (project next length), stopped := (project next stopped), failure := (project next failure), ledger := (project next ledger)}), signal := (ctor Signal.advanced), remainingCredits := credits}),
-  axioms: [Quot.sound, propext]
+  body: (record Transition {state := (record State {owner := (ctor Owner.program (record Uorc.Wire.ProgramAdmission::Cursor {control := (project program control), phase := (ctor Uorc.Wire.ProgramAdmission::Phase.producer (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := arena, usage := usage, caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project loan caller) input), archive := (project (project loan caller) archive), search := (project (project loan caller) search), checkpoint := (project (project loan caller) checkpoint), certificate := (project (project loan caller) certificate), verification := (project (project loan caller) verification), wire := wire}), session := (project loan session)}))})), reader := (project next reader), phase := (project next phase), offset := (project next offset), length := (project next length), stopped := (project next stopped), failure := (project next failure), ledger := (project next ledger)}), signal := (ctor Signal.advanced), remainingCredits := credits})
 }
 
 definition{
@@ -225,8 +222,7 @@ definition{
     | Uorc.Wire.ProgramAdmission::Signal.needInput => (let adoptedLocal35 : Transition := (adopt x t); (record Transition {state := (project adoptedLocal35 state), signal := (project adoptedLocal35 signal), remainingCredits := credits}))
     | Uorc.Wire.ProgramAdmission::Signal.ready => (let adoptedLocal36 : Transition := (adopt x t); (record Transition {state := (project adoptedLocal36 state), signal := (project adoptedLocal36 signal), remainingCredits := credits}))
     | Uorc.Wire.ProgramAdmission::Signal.failed => (let adoptedLocal37 : Transition := (adopt x t); (record Transition {state := (project adoptedLocal37 state), signal := (project adoptedLocal37 signal), remainingCredits := credits}))
-    | Uorc.Wire.ProgramAdmission::Signal.paused whyLocal38 => (record Transition {state := (record State {owner := (ctor Owner.program (project t cursor)), reader := (project x reader), phase := (project x phase), offset := (project x offset), length := (project x length), stopped := (project x stopped), failure := (project x failure), ledger := (project x ledger)}), signal := (ctor Signal.paused whyLocal38), remainingCredits := credits})),
-  axioms: [Quot.sound, propext]
+    | Uorc.Wire.ProgramAdmission::Signal.paused whyLocal38 => (record Transition {state := (record State {owner := (ctor Owner.program (project t cursor)), reader := (project x reader), phase := (project x phase), offset := (project x offset), length := (project x length), stopped := (project x stopped), failure := (project x failure), ledger := (project x ledger)}), signal := (ctor Signal.paused whyLocal38), remainingCredits := credits}))
 }
 
 definition{
@@ -327,8 +323,7 @@ definition{
   name: cancel,
   parameters: [x : State],
   result: State,
-  body: (record State {owner := (project x owner), reader := (project x reader), phase := (project x phase), offset := (project x offset), length := (project x length), stopped := true, failure := (ctor Option.some [Failure] (ctor Failure.cancelled)), ledger := (project x ledger)}),
-  axioms: [Quot.sound, propext]
+  body: (record State {owner := (project x owner), reader := (project x reader), phase := (project x phase), offset := (project x offset), length := (project x length), stopped := true, failure := (ctor Option.some [Failure] (ctor Failure.cancelled)), ledger := (project x ledger)})
 }
 
 definition{
@@ -342,8 +337,7 @@ definition{
     | Owner.cancelling coreLocal136 => (record Transition {state := x, signal := (ctor Signal.failed), remainingCredits := (0 : UInt64)})
     | Owner.cancelled retainedLocal137 => (record Transition {state := x, signal := (ctor Signal.failed), remainingCredits := (0 : UInt64)})
     | Owner.ready readyLocal138 ledgerLocal139 => (record Transition {state := (record State {owner := (ctor Owner.handedOff (project readyLocal138 usage)), reader := (project x reader), phase := (project x phase), offset := (project x offset), length := (project x length), stopped := (project x stopped), failure := (project x failure), ledger := (project x ledger)}), signal := (ctor Signal.readyMoved readyLocal138 ledgerLocal139), remainingCredits := (0 : UInt64)})
-    | Owner.handedOff usageLocal140 => (record Transition {state := x, signal := (ctor Signal.failed), remainingCredits := (0 : UInt64)})),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff usageLocal140 => (record Transition {state := x, signal := (ctor Signal.failed), remainingCredits := (0 : UInt64)}))
 }
 
 definition{
@@ -357,16 +351,14 @@ definition{
     | Owner.cancelling coreLocal144 => (record Transition {state := x, signal := (ctor Signal.failed), remainingCredits := (0 : UInt64)})
     | Owner.cancelled retainedLocal145 => (record Transition {state := (record State {owner := (ctor Owner.handedOff (project retainedLocal145 usage)), reader := (project x reader), phase := (project x phase), offset := (project x offset), length := (project x length), stopped := (project x stopped), failure := (project x failure), ledger := (project x ledger)}), signal := (ctor Signal.cancelledMoved retainedLocal145), remainingCredits := (0 : UInt64)})
     | Owner.ready readyLocal146 ledgerLocal147 => (record Transition {state := x, signal := (ctor Signal.failed), remainingCredits := (0 : UInt64)})
-    | Owner.handedOff usageLocal148 => (record Transition {state := x, signal := (ctor Signal.failed), remainingCredits := (0 : UInt64)})),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff usageLocal148 => (record Transition {state := x, signal := (ctor Signal.failed), remainingCredits := (0 : UInt64)}))
 }
 
 definition{
   name: boundary,
   parameters: [],
   result: String,
-  body: "Replays only the validated immutable snapshot body through direct ProgramParse events and actual Core credit admission. Caller archive, basis record and verification lengths roots remain fixed. Between acknowledgments only detached wire-role loan moves its sole Arena and Usage, releases old input ticket, reads one prepaid bounded step, retains one image ticket as CallerRoots.wire, then feeds borrowed bytes. Exactly one body EOF. Cancellation reattaches without offering a pending event, funds actual prefix to awaiting if needed, then uses RuntimeAdmissionCancel; caller/basis owners remain in its actual Cancelled result. takeReady/takeCancelled move sole Arena exactly once into outcome and leave only Usage, no Arena-bearing predecessor cursor in returned state. Integrity/basis checks are performed by the enclosing archive controller before this replay. General refinement and physical implementation bounds remain obligations.",
-  axioms: [Quot.sound, propext]
+  body: "Replays only the validated immutable snapshot body through direct ProgramParse events and actual Core credit admission. Caller archive, basis record and verification lengths roots remain fixed. Between acknowledgments only detached wire-role loan moves its sole Arena and Usage, releases old input ticket, reads one prepaid bounded step, retains one image ticket as CallerRoots.wire, then feeds borrowed bytes. Exactly one body EOF. Cancellation reattaches without offering a pending event, funds actual prefix to awaiting if needed, then uses RuntimeAdmissionCancel; caller/basis owners remain in its actual Cancelled result. takeReady/takeCancelled move sole Arena exactly once into outcome and leave only Usage, no Arena-bearing predecessor cursor in returned state. Integrity/basis checks are performed by the enclosing archive controller before this replay. General refinement and physical implementation bounds remain obligations."
 }
 \end{semanticmodule}
 \end{lexlean}

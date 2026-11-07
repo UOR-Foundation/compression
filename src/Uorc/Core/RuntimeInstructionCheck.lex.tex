@@ -49,7 +49,6 @@ definition{
     | Uorc.Core.RuntimeOpcode::ResultRule.choice => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), resultKnown := false, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})
     | Uorc.Core.RuntimeOpcode::ResultRule.callee => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), resultKnown := false, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})
     | Uorc.Core.RuntimeOpcode::ResultRule.foldState => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), resultKnown := false, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -238,7 +237,6 @@ definition{
       | Uorc.Core.RuntimeProgram::CaptureLane.second => (project state second))
     | Option.none => (ctor Result.error [Uorc.Core.RuntimeAdmissionChecks::CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
     | Option.some contract => (if (prim equal (project contract count) count : Bool) then (ctor Result.ok [Uorc.Core.RuntimeAdmissionChecks::CaptureContract, Uorc.Core.RuntimeProgram::Failure] contract) else (ctor Result.error [Uorc.Core.RuntimeAdmissionChecks::CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 

@@ -17,70 +17,80 @@ definition{
   name: underpaidProbe,
   parameters: [],
   result: Bool,
-  body: (let change : Uorc.Search.TemplateFunding::Transition := (Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) (Uorc.Core.RuntimeResources::zeroUsage) (63 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateFundingOutcome (project change outcome) (ctor Uorc.Search.TemplateFunding::Outcome.pending)) && ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project (project change cursor) source) (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) && ((prim equal (project (project change cursor) paid) (63 : UInt64) : Bool) && ((prim equal (project (project change usage) work) (0 : UInt64) : Bool) && (prim equal (project (project change cursor) attemptedOperations) (0 : UInt64) : Bool))))))
+  body: (let change : Uorc.Search.TemplateFunding::Transition := (Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) (Uorc.Core.RuntimeResources::zeroUsage) (63 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateFundingOutcome (project change outcome) (ctor Uorc.Search.TemplateFunding::Outcome.pending)) && ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project (project change cursor) source) (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) && ((prim equal (project (project change cursor) paid) (63 : UInt64) : Bool) && ((prim equal (project (project change usage) work) (0 : UInt64) : Bool) && (prim equal (project (project change cursor) attemptedOperations) (0 : UInt64) : Bool)))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: partial_payment_computes_no_future_source_or_arena,
   parameters: [],
   statement: ((underpaidProbe) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: paidProbe,
   parameters: [],
   result: Bool,
-  body: (let change : Uorc.Search.TemplateFunding::Transition := (Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) (Uorc.Core.RuntimeResources::zeroUsage) (70 : UInt64)); ((prim equal (project change remainingCredits) (6 : UInt64) : Bool) && ((prim equal (project change chargedWork) (64 : UInt64) : Bool) && ((prim equal (project (project change usage) work) (64 : UInt64) : Bool) && ((prim equal (project (project change cursor) attemptedOperations) (1 : UInt64) : Bool) && (prim equal (project (project change cursor) consumedCredits) (64 : UInt64) : Bool))))))
+  body: (let change : Uorc.Search.TemplateFunding::Transition := (Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) (Uorc.Core.RuntimeResources::zeroUsage) (70 : UInt64)); ((prim equal (project change remainingCredits) (6 : UInt64) : Bool) && ((prim equal (project change chargedWork) (64 : UInt64) : Bool) && ((prim equal (project (project change usage) work) (64 : UInt64) : Bool) && ((prim equal (project (project change cursor) attemptedOperations) (1 : UInt64) : Bool) && (prim equal (project (project change cursor) consumedCredits) (64 : UInt64) : Bool)))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: whole_task_is_prepaid_and_excess_credits_returned,
   parameters: [],
   statement: ((paidProbe) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: resourceProbe,
   parameters: [],
   result: Bool,
-  body: (let change : Uorc.Search.TemplateFunding::Transition := (Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (63 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) (Uorc.Core.RuntimeResources::zeroUsage) (64 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateFundingOutcome (project change outcome) (ctor Uorc.Search.TemplateFunding::Outcome.failed (ctor Uorc.Search.TemplateFunding::Error.resource (ctor Uorc.Core.RuntimeResources::Error.workLimit)))) && ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project (project change cursor) source) (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) && ((Uorc.Search.WaitingEquality::waitingEqCoreHeapArena (project change arena) (Uorc.Core.Heap::emptyArena (1000000 : UInt64))) && ((prim equal (project (project change usage) work) (0 : UInt64) : Bool) && (prim equal (project (project change cursor) consumedCredits) (64 : UInt64) : Bool))))))
+  body: (let change : Uorc.Search.TemplateFunding::Transition := (Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (63 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) (Uorc.Core.RuntimeResources::zeroUsage) (64 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateFundingOutcome (project change outcome) (ctor Uorc.Search.TemplateFunding::Outcome.failed (ctor Uorc.Search.TemplateFunding::Error.resource (ctor Uorc.Core.RuntimeResources::Error.workLimit)))) && ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project (project change cursor) source) (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) && ((Uorc.Search.WaitingEquality::waitingEqCoreHeapArena (project change arena) (Uorc.Core.Heap::emptyArena (1000000 : UInt64))) && ((prim equal (project (project change usage) work) (0 : UInt64) : Bool) && (prim equal (project (project change cursor) consumedCredits) (64 : UInt64) : Bool)))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: resource_rejection_occurs_before_actual_source_transition,
   parameters: [],
   statement: ((resourceProbe) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_credit_preserves_cursor_arena_and_usage,
   parameters: [],
   statement: ((Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) (Uorc.Core.RuntimeResources::zeroUsage) (0 : UInt64)) = (record Uorc.Search.TemplateFunding::Transition {arena := (Uorc.Core.Heap::emptyArena (1000000 : UInt64)), cursor := (Uorc.Search.TemplateFunding::start (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))), usage := (Uorc.Core.RuntimeResources::zeroUsage), remainingCredits := (0 : UInt64), chargedWork := (0 : UInt64), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), outcome := (ctor Uorc.Search.TemplateFunding::Outcome.pending)})),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: partially_paid_task_cannot_change_request,
   parameters: [],
   statement: ((Uorc.Search.TemplateFunding::select (project (Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty))) (Uorc.Core.RuntimeResources::zeroUsage) (1 : UInt64)) cursor) (ctor Uorc.Search.TemplateFunding::Request.cancel)) = (ctor Result.error [Uorc.Search.TemplateFunding::Cursor, Uorc.Search.TemplateFunding::Error] (ctor Uorc.Search.TemplateFunding::Error.busy))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: sourceFailureProbe,
   parameters: [],
   result: Bool,
-  body: (let change : Uorc.Search.TemplateFunding::Transition := (Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (record Uorc.Search.TemplateStream::State {template := (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.empty), position := (99999 : UInt64)}), phase := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) phase), resume := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) resume), literalRoot := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) literalRoot), literalLength := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) literalLength), offset := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) offset), navigation := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) navigation), spanTicket := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) spanTicket), offered := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) offered), consumed := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) consumed), acknowledgments := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) acknowledgments)})) (Uorc.Core.RuntimeResources::zeroUsage) (64 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateFundingOutcome (project change outcome) (ctor Uorc.Search.TemplateFunding::Outcome.failed (ctor Uorc.Search.TemplateFunding::Error.source (ctor Uorc.Search.TemplateStream::Error.invalidTemplate)))) && ((prim equal (project (project change usage) work) (64 : UInt64) : Bool) && ((prim equal (project (project change cursor) consumedCredits) (64 : UInt64) : Bool) && (prim equal (project (project change cursor) attemptedOperations) (1 : UInt64) : Bool)))))
+  body: (let change : Uorc.Search.TemplateFunding::Transition := (Uorc.Search.TemplateFunding::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Search.TemplateFunding::start (record Uorc.Search.TemplateStream::State {template := (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.empty), position := (99999 : UInt64)}), phase := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) phase), resume := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) resume), literalRoot := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) literalRoot), literalLength := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) literalLength), offset := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) offset), navigation := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) navigation), spanTicket := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) spanTicket), offered := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) offered), consumed := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) consumed), acknowledgments := (project (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.empty)) acknowledgments)})) (Uorc.Core.RuntimeResources::zeroUsage) (64 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateFundingOutcome (project change outcome) (ctor Uorc.Search.TemplateFunding::Outcome.failed (ctor Uorc.Search.TemplateFunding::Error.source (ctor Uorc.Search.TemplateStream::Error.invalidTemplate)))) && ((prim equal (project (project change usage) work) (64 : UInt64) : Bool) && ((prim equal (project (project change cursor) consumedCredits) (64 : UInt64) : Bool) && (prim equal (project (project change cursor) attemptedOperations) (1 : UInt64) : Bool))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: failed_actual_source_retains_prepaid_usage_and_credit_prefix,
   parameters: [],
   statement: ((sourceFailureProbe) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 structure{
@@ -129,7 +139,8 @@ definition{
       | Uorc.Search.TemplateFunding::Outcome.blocked => false
       | Uorc.Search.TemplateFunding::Outcome.produced semanticEvent => false
       | Uorc.Search.TemplateFunding::Outcome.complete => false
-      | Uorc.Search.TemplateFunding::Outcome.cancelled => false), audited := ((project trial audited) && (Uorc.Core.HeapAudit::auditRoots (project change arena) (Uorc.Search.TemplateStreamControls::joinRoots (project trial roots) (Uorc.Search.TemplateStream::navigationOwnedRoots (project (project change cursor) source)))))})))
+      | Uorc.Search.TemplateFunding::Outcome.cancelled => false), audited := ((project trial audited) && (Uorc.Core.HeapAudit::auditRoots (project change arena) (Uorc.Search.TemplateStreamControls::joinRoots (project trial roots) (Uorc.Search.TemplateStream::navigationOwnedRoots (project (project change cursor) source)))))}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -139,6 +150,7 @@ definition{
   body: (match work
     | Nat.zero => trial
     | Nat.succ remaining => (if ((project trial done) || (project trial failed)) then trial else (run remaining (advance trial)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -148,14 +160,16 @@ definition{
   result: Bool,
   body: (match (Uorc.Search.TemplateStreamControls::oneImage)
     | Result.error fixtureFailure => false
-    | Result.ok fixture => (let trialResult : Trial := (run 500 (startTrial fixture)); (((project trialResult done) && (not (project trialResult failed))) && ((project trialResult audited) && ((prim equal (project (project trialResult arena) ownedBytes) (project trialResult baseline) : Bool) && (Uorc.Core.HeapAudit::auditRoots (project trialResult arena) (project trialResult roots)))))))
+    | Result.ok fixture => (let trialResult : Trial := (run 500 (startTrial fixture)); (((project trialResult done) && (not (project trialResult failed))) && ((project trialResult audited) && ((prim equal (project (project trialResult arena) ownedBytes) (project trialResult baseline) : Bool) && (Uorc.Core.HeapAudit::auditRoots (project trialResult arena) (project trialResult roots))))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: oneImage_prepaid_runtime_tasks_preserve_owned_roots,
   parameters: [],
   statement: ((oneImageProbe) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -164,14 +178,16 @@ definition{
   result: Bool,
   body: (match (Uorc.Search.TemplateStreamControls::twoImages)
     | Result.error fixtureFailure => false
-    | Result.ok fixture => (let trialResult : Trial := (run 500 (startTrial fixture)); (((project trialResult done) && (not (project trialResult failed))) && ((project trialResult audited) && ((prim equal (project (project trialResult arena) ownedBytes) (project trialResult baseline) : Bool) && (Uorc.Core.HeapAudit::auditRoots (project trialResult arena) (project trialResult roots)))))))
+    | Result.ok fixture => (let trialResult : Trial := (run 500 (startTrial fixture)); (((project trialResult done) && (not (project trialResult failed))) && ((project trialResult audited) && ((prim equal (project (project trialResult arena) ownedBytes) (project trialResult baseline) : Bool) && (Uorc.Core.HeapAudit::auditRoots (project trialResult arena) (project trialResult roots))))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: twoImages_prepaid_runtime_tasks_preserve_owned_roots,
   parameters: [],
   statement: ((twoImagesProbe) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{

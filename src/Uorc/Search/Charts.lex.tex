@@ -29,7 +29,8 @@ definition{
   result: UInt64,
   body: (match (prim checked_convert value : (Option UInt64))
     | Option.none => (0 : UInt64)
-    | Option.some converted => converted)
+    | Option.some converted => converted),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -46,7 +47,8 @@ definition{
           | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.arithmeticOverflow))
           | Option.some product => (match (prim checked_subtract difference product : (Option UInt64))
             | Option.none => (ctor Result.error [UInt64, Error] (ctor Error.arithmeticOverflow))
-            | Option.some remainderValue => (ctor Result.ok [UInt64, Error] remainderValue))))))
+            | Option.some remainderValue => (ctor Result.ok [UInt64, Error] remainderValue)))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -57,7 +59,8 @@ definition{
     | Result.error error => (ctor Result.error [AffineParameters, Error] error)
     | Result.ok slope => (ctor Result.ok [AffineParameters, Error] (record AffineParameters {base := (byteNatural var{
       name: first
-    }), slope := slope})))
+    }), slope := slope}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -94,7 +97,8 @@ definition{
       }
     ],
     scrutinee: (prim index input 0 : (Option UInt8))
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -133,28 +137,32 @@ definition{
     | Result.error error => (ctor Result.error [Uorc.Core.Graph::Graph, Error] error)
     | Result.ok parameters => (match (Uorc.Search.Effort::checkedU64 (prim length input : Nat))
       | Result.error conversionError => (ctor Result.error [Uorc.Core.Graph::Graph, Error] (ctor Error.arithmeticOverflow))
-      | Result.ok count => (ctor Result.ok [Uorc.Core.Graph::Graph, Error] (affineGraph parameters count))))
+      | Result.ok count => (ctor Result.ok [Uorc.Core.Graph::Graph, Error] (affineGraph parameters count)))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: parameters_inferred_from_bytes,
   parameters: [],
   statement: ((infer 0xfa0b1c2d) = (ctor Result.ok [AffineParameters, Error] (record AffineParameters {base := (250 : UInt64), slope := (17 : UInt64)}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: arbitrary_byte_wrap_is_ring_arithmetic,
   parameters: [],
   statement: ((ringDifference (11 : UInt64) (250 : UInt64)) = (ctor Result.ok [UInt64, Error] (17 : UInt64))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: empty_has_typed_no_proposal,
   parameters: [],
   statement: ((infer 0x) = (ctor Result.error [AffineParameters, Error] (ctor Error.emptyInput))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{

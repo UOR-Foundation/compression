@@ -132,6 +132,7 @@ definition{
       | Trie.empty => (ctor Option.none [Uorc.Core.Bytes::Rope])
       | Trie.leaf rope => (ctor Option.none [Uorc.Core.Bytes::Rope])
       | Trie.branch leftTree rightTree => (readTrie remainingDepth (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -142,6 +143,7 @@ definition{
   body: (match depth
     | Nat.zero => (ctor Trie.leaf rope)
     | Nat.succ remainingDepth => (if (Uorc.Core.Store::lowBit key) then (ctor Trie.branch (leftChild tree) (writeTrie remainingDepth (rightChild tree) (Uorc.Core.Store::nextKey key) rope)) else (ctor Trie.branch (writeTrie remainingDepth (leftChild tree) (Uorc.Core.Store::nextKey key) rope) (rightChild tree)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -151,7 +153,8 @@ definition{
   result: (Result Table TableError),
   body: (if (18446744073709551615 <=? (project table length)) then (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
     | Option.none => (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted))
-    | Option.some key => (ctor Result.ok [Table, TableError] (record Table {length := ((project table length) + 1), root := (writeTrie 64 (project table root) key rope)}))))
+    | Option.some key => (ctor Result.ok [Table, TableError] (record Table {length := ((project table length) + 1), root := (writeTrie 64 (project table root) key rope)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -162,7 +165,8 @@ definition{
     | Option.none => (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.addressSpaceExhausted))
     | Option.some key => (match (readTrie 64 (project table root) key)
       | Option.none => (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.missingEntry))
-      | Option.some selectedRope => (ctor Result.ok [Uorc.Core.Bytes::Rope, TableError] selectedRope))) else (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.invalidReference)))
+      | Option.some selectedRope => (ctor Result.ok [Uorc.Core.Bytes::Rope, TableError] selectedRope))) else (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.invalidReference))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -219,7 +223,8 @@ definition{
     | Option.none => (ctor Step.failed (ctor BasisFailure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) (project cursorValue usage))
     | Option.some rootRope => (match (append (project cursorValue table) rootRope)
       | Result.error tableError => (ctor Step.failed (ctor BasisFailure.table tableError) (project cursorValue usage))
-      | Result.ok nextTable => (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (ctor Phase.selecting), current := (ctor Option.none [Uorc.Core.Bytes::Rope]), queue := (nil Uorc.Core.Bytes::Rope), table := nextTable, usage := (project cursorValue usage), credit := 0}))))
+      | Result.ok nextTable => (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (ctor Phase.selecting), current := (ctor Option.none [Uorc.Core.Bytes::Rope]), queue := (nil Uorc.Core.Bytes::Rope), table := nextTable, usage := (project cursorValue usage), credit := 0})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -229,7 +234,8 @@ definition{
   body: (match (project cursorValue phase)
     | Phase.selecting => (selectEvent cursorValue)
     | Phase.validating => (validateEvent cursorValue)
-    | Phase.inserting => (insertEvent cursorValue))
+    | Phase.inserting => (insertEvent cursorValue)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -238,7 +244,8 @@ definition{
   result: Step,
   body: (if ((eventWork cursorValue) <=? (project cursorValue credit)) then (ctor Step.failed (ctor BasisFailure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) (project cursorValue usage)) else (match (Uorc.Core.Resources::charge budget (project cursorValue usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := (prim subtract (eventWork cursorValue) (project cursorValue credit) : Nat), allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
     | Result.error budgetError => (ctor Step.failed (ctor BasisFailure.operational budgetError) (project cursorValue usage))
-    | Result.ok chargedUsage => (applyEvent (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := chargedUsage, credit := 0}))))
+    | Result.ok chargedUsage => (applyEvent (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := chargedUsage, credit := 0})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -247,7 +254,8 @@ definition{
   result: Step,
   body: (if ((eventWork cursorValue) <=? (project cursorValue credit)) then (ctor Step.failed (ctor BasisFailure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) (project cursorValue usage)) else (match (Uorc.Core.Resources::charge budget (project cursorValue usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := 1, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
     | Result.error budgetError => (ctor Step.failed (ctor BasisFailure.operational budgetError) (project cursorValue usage))
-    | Result.ok chargedUsage => (if (((project cursorValue credit) + 1) <? (eventWork cursorValue)) then (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := chargedUsage, credit := ((project cursorValue credit) + 1)})) else (applyEvent (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := chargedUsage, credit := 0})))))
+    | Result.ok chargedUsage => (if (((project cursorValue credit) + 1) <? (eventWork cursorValue)) then (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := chargedUsage, credit := ((project cursorValue credit) + 1)})) else (applyEvent (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := chargedUsage, credit := 0}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -260,6 +268,7 @@ definition{
       | Step.pending nextCursor => (runEvents remainingFuel budget nextCursor)
       | Step.ready table usage => (ctor Step.ready table usage)
       | Step.failed error usage => (ctor Step.failed error usage))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -273,6 +282,7 @@ definition{
       | Step.pending nextCursor => (runWork remainingWork budget nextCursor)
       | Step.ready table usage => (ctor Step.ready table usage)
       | Step.failed error usage => (ctor Step.failed error usage))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -287,35 +297,40 @@ definition{
       | Result.error tableError => (ctor Result.error [UInt8, BasisFailure] (ctor BasisFailure.table tableError))
       | Result.ok selectedRope => (match (Uorc.Core.Bytes::at selectedRope 0)
         | Result.error ropeError => (ctor Result.error [UInt8, BasisFailure] (ctor BasisFailure.invalidRope))
-        | Result.ok selectedByte => (ctor Result.ok [UInt8, BasisFailure] selectedByte))))
+        | Result.ok selectedByte => (ctor Result.ok [UInt8, BasisFailure] selectedByte)))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: empty_basis_lookup_is_typed,
   parameters: [],
   statement: ((atIndex (empty) 0) = (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.invalidReference))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: basis_second_root_resolves_by_index,
   parameters: [],
   statement: ((preparedByteAt (runWork 1000 (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100000}) (start (ctor Input.chunks (cons 0x00 (cons 0xff (nil Bytes)))) (Uorc.Core.Resources::zeroUsage))) 1) = (ctor Result.ok [UInt8, BasisFailure] (255 : UInt8))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: basis_work_zero_preserves_cursor,
   parameters: [budget : Uorc.Core.Resources::Budget, cursorValue : Cursor],
   statement: ((runWork 0 budget cursorValue) = (ctor Step.pending cursorValue)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: basis_count_overflow_is_typed,
   parameters: [],
   statement: ((append (record Table {length := 18446744073709551615, root := (ctor Trie.empty)}) (ctor Uorc.Core.Bytes::Rope.empty)) = (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

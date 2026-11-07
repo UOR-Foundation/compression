@@ -57,7 +57,8 @@ definition{
   result: Step,
   body: (match (Uorc.Integrity.BoundedChain::init)
     | Result.ok hash => (ctor Step.pending (record Cursor {reader := (Uorc.Core.Bytes::cursor rope), remaining := count, phase := (ctor Phase.reading hash), bytesHashed := 0, completedEvents := 0}))
-    | Result.error error => (ctor Step.failed (ctor Error.integrity error) 0))
+    | Result.error error => (ctor Step.failed (ctor Error.integrity error) 0)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -84,7 +85,8 @@ definition{
       | Result.ok digestBytes => (if ((prim length digestBytes : Nat) =? 32) then (ctor Step.complete digestBytes (project cursor bytesHashed) ((project cursor completedEvents) + 1)) else (ctor Step.failed (ctor Error.digestLength) ((project cursor completedEvents) + 1)))
       | Result.error notReady => (match (Uorc.Integrity.BoundedChain::step hash)
         | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
-        | Result.ok nextHash => (ctor Step.pending (record Cursor {reader := (project cursor reader), remaining := (project cursor remaining), phase := (ctor Phase.finalizing nextHash), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)})))))
+        | Result.ok nextHash => (ctor Step.pending (record Cursor {reader := (project cursor reader), remaining := (project cursor remaining), phase := (ctor Phase.finalizing nextHash), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)}))))),
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

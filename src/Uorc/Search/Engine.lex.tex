@@ -226,7 +226,8 @@ definition{
       | Uorc.Search.Schedule::Phase.antiUnification => (record Lanes {typedGeneration := (project (project cursor lanes) typedGeneration), addressCharts := (project (project cursor lanes) addressCharts), antiUnification := (ctor Lane.idle), sharingLayout := (project (project cursor lanes) sharingLayout), stateGenerators := (project (project cursor lanes) stateGenerators), completeEnumeration := (project (project cursor lanes) completeEnumeration)})
       | Uorc.Search.Schedule::Phase.sharingLayout => (record Lanes {typedGeneration := (project (project cursor lanes) typedGeneration), addressCharts := (project (project cursor lanes) addressCharts), antiUnification := (project (project cursor lanes) antiUnification), sharingLayout := (ctor Lane.idle), stateGenerators := (project (project cursor lanes) stateGenerators), completeEnumeration := (project (project cursor lanes) completeEnumeration)})
       | Uorc.Search.Schedule::Phase.stateGenerators => (record Lanes {typedGeneration := (project (project cursor lanes) typedGeneration), addressCharts := (project (project cursor lanes) addressCharts), antiUnification := (project (project cursor lanes) antiUnification), sharingLayout := (project (project cursor lanes) sharingLayout), stateGenerators := (ctor Lane.idle), completeEnumeration := (project (project cursor lanes) completeEnumeration)})
-      | Uorc.Search.Schedule::Phase.completeEnumeration => (record Lanes {typedGeneration := (project (project cursor lanes) typedGeneration), addressCharts := (project (project cursor lanes) addressCharts), antiUnification := (project (project cursor lanes) antiUnification), sharingLayout := (project (project cursor lanes) sharingLayout), stateGenerators := (project (project cursor lanes) stateGenerators), completeEnumeration := (ctor Lane.idle)})), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := ((project cursor rejectedCandidates) + 1), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := (project cursor ranking), rankingTurn := (project cursor rankingTurn)})))
+      | Uorc.Search.Schedule::Phase.completeEnumeration => (record Lanes {typedGeneration := (project (project cursor lanes) typedGeneration), addressCharts := (project (project cursor lanes) addressCharts), antiUnification := (project (project cursor lanes) antiUnification), sharingLayout := (project (project cursor lanes) sharingLayout), stateGenerators := (project (project cursor lanes) stateGenerators), completeEnumeration := (ctor Lane.idle)})), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := ((project cursor rejectedCandidates) + 1), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := (project cursor ranking), rankingTurn := (project cursor rankingTurn)}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -573,7 +574,8 @@ definition{
         | Uorc.Search.Schedule::Phase.sharingLayout => (record Lanes {typedGeneration := (project (project cursor lanes) typedGeneration), addressCharts := (project (project cursor lanes) addressCharts), antiUnification := (project (project cursor lanes) antiUnification), sharingLayout := (ctor Lane.waiting round), stateGenerators := (project (project cursor lanes) stateGenerators), completeEnumeration := (project (project cursor lanes) completeEnumeration)})
         | Uorc.Search.Schedule::Phase.stateGenerators => (record Lanes {typedGeneration := (project (project cursor lanes) typedGeneration), addressCharts := (project (project cursor lanes) addressCharts), antiUnification := (project (project cursor lanes) antiUnification), sharingLayout := (project (project cursor lanes) sharingLayout), stateGenerators := (ctor Lane.waiting round), completeEnumeration := (project (project cursor lanes) completeEnumeration)})
         | Uorc.Search.Schedule::Phase.completeEnumeration => (record Lanes {typedGeneration := (project (project cursor lanes) typedGeneration), addressCharts := (project (project cursor lanes) addressCharts), antiUnification := (project (project cursor lanes) antiUnification), sharingLayout := (project (project cursor lanes) sharingLayout), stateGenerators := (project (project cursor lanes) stateGenerators), completeEnumeration := (ctor Lane.waiting round)})), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := nextRanking, rankingTurn := (project cursor rankingTurn)})))
-    | Lane.waiting round => (ctor Step.advanced (record Cursor {query := (project cursor query), policy := (project cursor policy), allowances := (project cursor allowances), effort := (project cursor effort), inventory := (project cursor inventory), sharingSpecs := (project cursor sharingSpecs), scheduler := (project cursor scheduler), synthesis := (project cursor synthesis), lanes := (project cursor lanes), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := (project cursor ranking), rankingTurn := (project cursor rankingTurn)})))
+    | Lane.waiting round => (ctor Step.advanced (record Cursor {query := (project cursor query), policy := (project cursor policy), allowances := (project cursor allowances), effort := (project cursor effort), inventory := (project cursor inventory), sharingSpecs := (project cursor sharingSpecs), scheduler := (project cursor scheduler), synthesis := (project cursor synthesis), lanes := (project cursor lanes), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := (project cursor ranking), rankingTurn := (project cursor rankingTurn)}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -702,7 +704,8 @@ definition{
       | Uorc.Search.Ranking::Take.taken task afterTake => (acceptRankedWire (record Cursor {query := (project cursor query), policy := (project cursor policy), allowances := (project cursor allowances), effort := (project cursor effort), inventory := (project cursor inventory), sharingSpecs := (project cursor sharingSpecs), scheduler := (project cursor scheduler), synthesis := (project cursor synthesis), lanes := (project cursor lanes), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := afterTake, rankingTurn := false}) (project task phase) (project task round) (project task wire))
       | Uorc.Search.Ranking::Take.empty afterTake => (ctor Step.advanced (record Cursor {query := (project cursor query), policy := (project cursor policy), allowances := (project cursor allowances), effort := (project cursor effort), inventory := (project cursor inventory), sharingSpecs := (project cursor sharingSpecs), scheduler := (project cursor scheduler), synthesis := (project cursor synthesis), lanes := (project cursor lanes), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := afterTake, rankingTurn := false}))
       | Uorc.Search.Ranking::Take.busy afterTake => (ctor Step.blocked (ctor Error.invalidState) cursor))
-    | Uorc.Search.Ranking::Step.failed failure failedRanking => (ctor Step.blocked (ctor Error.ranking failure) cursor))
+    | Uorc.Search.Ranking::Step.failed failure failedRanking => (ctor Step.blocked (ctor Error.ranking failure) cursor)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -714,7 +717,8 @@ definition{
     | Uorc.Search.Schedule::Step.rotate nextScheduler => (ctor Step.advanced (record Cursor {query := (project cursor query), policy := (project cursor policy), allowances := (project cursor allowances), effort := (project cursor effort), inventory := (project cursor inventory), sharingSpecs := (project cursor sharingSpecs), scheduler := nextScheduler, synthesis := (project cursor synthesis), lanes := (project cursor lanes), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := (project cursor ranking), rankingTurn := (project cursor rankingTurn)}))
     | Uorc.Search.Schedule::Step.invalidQuantum => (ctor Step.blocked (ctor Error.invalidPolicy) cursor)) else (match (project cursor incumbent)
     | Option.none => (ctor Step.blocked (ctor Error.invalidState) cursor)
-    | Option.some incumbent => (ctor Step.advanced (record Cursor {query := (project cursor query), policy := (project cursor policy), allowances := (project cursor allowances), effort := (project cursor effort), inventory := (project cursor inventory), sharingSpecs := (project cursor sharingSpecs), scheduler := (project cursor scheduler), synthesis := (project cursor synthesis), lanes := (project cursor lanes), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (ctor Mode.finalTrial (Uorc.Search.ArchiveTrial::startWire (project cursor query) (Uorc.Core.Resources::zeroUsage) (project (project incumbent checked) wire))), ranking := (project cursor ranking), rankingTurn := (project cursor rankingTurn)}))))
+    | Option.some incumbent => (ctor Step.advanced (record Cursor {query := (project cursor query), policy := (project cursor policy), allowances := (project cursor allowances), effort := (project cursor effort), inventory := (project cursor inventory), sharingSpecs := (project cursor sharingSpecs), scheduler := (project cursor scheduler), synthesis := (project cursor synthesis), lanes := (project cursor lanes), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (ctor Mode.finalTrial (Uorc.Search.ArchiveTrial::startWire (project cursor query) (Uorc.Core.Resources::zeroUsage) (project (project incumbent checked) wire))), ranking := (project cursor ranking), rankingTurn := (project cursor rankingTurn)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -769,7 +773,8 @@ definition{
       | Uorc.Search.ArchiveTrial::Step.rejected failure usage ledger events => (ctor Step.blocked (ctor Error.final failure usage ledger events) cursor))
     | Mode.finished => (match (project cursor incumbent)
       | Option.none => (ctor Step.blocked (ctor Error.invalidState) cursor)
-      | Option.some eligible => (ctor Step.completed (record Outcome {best := eligible, continuation := cursor, effort := (project cursor effort), searchExhausted := ((project (project cursor allowances) search) <=? (project (project cursor effort) search))}))))
+      | Option.some eligible => (ctor Step.completed (record Outcome {best := eligible, continuation := cursor, effort := (project cursor effort), searchExhausted := ((project (project cursor allowances) search) <=? (project (project cursor effort) search))})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -926,7 +931,8 @@ definition{
         | Mode.rawTrial failedPart0 => (ctor Step.blocked (ctor Error.effort effortFailure) cursor)
         | Mode.finalTrial failedPart0 => (ctor Step.blocked (ctor Error.effort effortFailure) cursor)
         | Mode.finished => (ctor Step.blocked (ctor Error.effort effortFailure) cursor))
-      | Result.ok nextEffort => (dispatch (record Cursor {query := (project cursor query), policy := (project cursor policy), allowances := (project cursor allowances), effort := nextEffort, inventory := (project cursor inventory), sharingSpecs := (project cursor sharingSpecs), scheduler := (project cursor scheduler), synthesis := (project cursor synthesis), lanes := (project cursor lanes), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := (project cursor ranking), rankingTurn := (project cursor rankingTurn)}))))
+      | Result.ok nextEffort => (dispatch (record Cursor {query := (project cursor query), policy := (project cursor policy), allowances := (project cursor allowances), effort := nextEffort, inventory := (project cursor inventory), sharingSpecs := (project cursor sharingSpecs), scheduler := (project cursor scheduler), synthesis := (project cursor synthesis), lanes := (project cursor lanes), incumbent := (project cursor incumbent), incumbentEpoch := (project cursor incumbentEpoch), rejectedCandidates := (project cursor rejectedCandidates), familyFailures := (project cursor familyFailures), mode := (project cursor mode), ranking := (project cursor ranking), rankingTurn := (project cursor rankingTurn)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -956,6 +962,7 @@ definition{
       | Step.improved eligible cursor => (runWork remainingWork (step cursor))
       | Step.completed result => (ctor Step.completed result)
       | Step.blocked failure cursor => (ctor Step.blocked failure cursor))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -963,7 +970,8 @@ theorem{
   name: zero_work_keeps_any_owned_engine_prefix,
   parameters: [state : Step],
   statement: ((runWork 0 state) = state),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

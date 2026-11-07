@@ -122,8 +122,7 @@ definition{
     archive : Uorc.Core.RuntimeValue::Handle
   ],
   result: (Result Session Failure),
-  body: (ctor Result.ok [Session, Failure] (record Session {state := (record State {phase := (ctor Phase.start), archive := archive, wire := (Uorc.Core.RuntimeValue::nullHandle), reader := (record Uorc.Wire.OwnedRead::Cursor {root := archive, length := (0 : UInt64), offset := (0 : UInt64), current := archive, index := (0 : UInt64), walking := false}), frame := (Uorc.Wire.ArchiveParse::initialState), lengths := (Uorc.Wire.LengthStore::initialState), offset := (0 : UInt64), length := (0 : UInt64), failure := (ctor Option.none [Failure])}), arena := arena, usage := usage})),
-  axioms: [Quot.sound, propext]
+  body: (ctor Result.ok [Session, Failure] (record Session {state := (record State {phase := (ctor Phase.start), archive := archive, wire := (Uorc.Core.RuntimeValue::nullHandle), reader := (record Uorc.Wire.OwnedRead::Cursor {root := archive, length := (0 : UInt64), offset := (0 : UInt64), current := archive, index := (0 : UInt64), walking := false}), frame := (Uorc.Wire.ArchiveParse::initialState), lengths := (Uorc.Wire.LengthStore::initialState), offset := (0 : UInt64), length := (0 : UInt64), failure := (ctor Option.none [Failure])}), arena := arena, usage := usage}))
 }
 
 definition{
@@ -364,8 +363,7 @@ definition{
   name: cancel,
   parameters: [x : Session],
   result: Session,
-  body: (record Session {state := (record State {phase := (ctor Phase.cleanupFrame), archive := (project (project x state) archive), wire := (project (project x state) wire), reader := (project (project x state) reader), frame := (project (project x state) frame), lengths := (project (project x state) lengths), offset := (project (project x state) offset), length := (project (project x state) length), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)}),
-  axioms: [Quot.sound, propext]
+  body: (record Session {state := (record State {phase := (ctor Phase.cleanupFrame), archive := (project (project x state) archive), wire := (project (project x state) wire), reader := (project (project x state) reader), frame := (project (project x state) frame), lengths := (project (project x state) lengths), offset := (project (project x state) offset), length := (project (project x state) length), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)})
 }
 
 definition{
@@ -469,8 +467,7 @@ definition{
   name: boundary,
   parameters: [],
   result: String,
-  body: "Framing-only immutable archive snapshot pass. Success is not integrity acceptance or Core Ready. Owns exactly archive ticket, current borrowed-reader image ticket, and actual reserved length-store cursor roots; descriptor aliases own no additional tickets. Snapshot take transfers archive plus lengths exactly once. One physical Arena moves through each operation; immutable predecessor retention is outside this linear logical ownership contract. Every controller tick prepays one bounded action in addition to child fees. Runtime U64 exhaustion is operational refusal; historical source format length meanings remain unchanged.",
-  axioms: [Quot.sound, propext]
+  body: "Framing-only immutable archive snapshot pass. Success is not integrity acceptance or Core Ready. Owns exactly archive ticket, current borrowed-reader image ticket, and actual reserved length-store cursor roots; descriptor aliases own no additional tickets. Snapshot take transfers archive plus lengths exactly once. One physical Arena moves through each operation; immutable predecessor retention is outside this linear logical ownership contract. Every controller tick prepays one bounded action in addition to child fees. Runtime U64 exhaustion is operational refusal; historical source format length meanings remain unchanged."
 }
 \end{semanticmodule}
 \end{lexlean}

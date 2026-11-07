@@ -39,7 +39,6 @@ definition{
   parameters: [work : UInt64],
   result: Uorc.Core.RuntimeResources::Budget,
   body: (record Uorc.Core.RuntimeResources::Budget {maxWork := work, maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (100000000 : UInt64), maxFrames := (100 : UInt64)}),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -48,7 +47,6 @@ definition{
   parameters: [work : UInt64],
   result: Uorc.Core.RuntimeMachineSemantic::Budget,
   body: (record Uorc.Core.RuntimeMachineSemantic::Budget {profile := (Uorc.Core.CanonicalCost::currentProfile), maxSemanticWork := work, storage := (ctor Uorc.Core.RuntimeMachineSemantic::StoragePolicy.unconstrained), maxStorageUnits := (0 : UInt64)}),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -57,7 +55,6 @@ definition{
   parameters: [work : UInt64],
   result: Uorc.Core.RuntimeMachineSemantic::Ledger,
   body: (record Uorc.Core.RuntimeMachineSemantic::Ledger {profile := (Uorc.Core.CanonicalCost::currentProfile), semanticWork := work, semanticStorageUnits := (3 : UInt64), peakSemanticStorageUnits := (4 : UInt64), outputBytes := (2 : UInt64), activeFrames := (1 : UInt64), peakFrames := (2 : UInt64), acceptedArchives := (1 : UInt64), basisObjects := (1 : UInt64)}),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -69,7 +66,6 @@ definition{
   ],
   result: Bool,
   body: (if (prim equal (project left semanticWork) (project right semanticWork) : Bool) then (if (prim equal (project left semanticStorageUnits) (project right semanticStorageUnits) : Bool) then (if (prim equal (project left peakSemanticStorageUnits) (project right peakSemanticStorageUnits) : Bool) then (if (prim equal (project left outputBytes) (project right outputBytes) : Bool) then (if (prim equal (project left activeFrames) (project right activeFrames) : Bool) then (if (prim equal (project left peakFrames) (project right peakFrames) : Bool) then (if (prim equal (project left acceptedArchives) (project right acceptedArchives) : Bool) then (if (prim equal (project left basisObjects) (project right basisObjects) : Bool) then true else false) else false) else false) else false) else false) else false) else false) else false),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -78,7 +74,6 @@ definition{
   parameters: [work : UInt64, storage : UInt64, peak : UInt64],
   result: Uorc.Core.RuntimeMachineSemantic::Ledger,
   body: (record Uorc.Core.RuntimeMachineSemantic::Ledger {profile := (Uorc.Core.CanonicalCost::currentProfile), semanticWork := work, semanticStorageUnits := storage, peakSemanticStorageUnits := peak, outputBytes := (2 : UInt64), activeFrames := (2 : UInt64), peakFrames := (2 : UInt64), acceptedArchives := (1 : UInt64), basisObjects := (1 : UInt64)}),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -87,7 +82,6 @@ definition{
   parameters: [work : UInt64],
   result: Uorc.Core.RuntimeMachineSemantic::Ledger,
   body: (enteredLedger work (19 : UInt64) (19 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -96,7 +90,6 @@ definition{
   parameters: [],
   result: Uorc.Core.RuntimeMachineSemantic::Ledger,
   body: (record Uorc.Core.RuntimeMachineSemantic::Ledger {profile := (Uorc.Core.CanonicalCost::currentProfile), semanticWork := (17 : UInt64), semanticStorageUnits := (4 : UInt64), peakSemanticStorageUnits := (5 : UInt64), outputBytes := (2 : UInt64), activeFrames := (1 : UInt64), peakFrames := (2 : UInt64), acceptedArchives := (1 : UInt64), basisObjects := (1 : UInt64)}),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -105,7 +98,6 @@ definition{
   parameters: [left : Uorc.Core.CanonicalCost::Usage, right : Uorc.Core.CanonicalCost::Usage],
   result: Bool,
   body: (if ((project left semanticWork) =? (project right semanticWork)) then (if ((project left semanticStorageUnits) =? (project right semanticStorageUnits)) then (if ((project left peakSemanticStorageUnits) =? (project right peakSemanticStorageUnits)) then (if ((project left outputBytes) =? (project right outputBytes)) then (if ((project left activeFrames) =? (project right activeFrames)) then (if ((project left peakFrames) =? (project right peakFrames)) then (if ((project left acceptedArchives) =? (project right acceptedArchives)) then (if ((project left basisObjects) =? (project right basisObjects)) then true else false) else false) else false) else false) else false) else false) else false) else false),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -119,7 +111,6 @@ definition{
   body: (match events
     | List.nil => usage
     | List.cons event rest => (coreAdvance (Uorc.Core.CanonicalCost::advance usage event) rest)),
-  axioms: [Quot.sound, propext],
   executable: false,
   recursive_argument: events
 }
@@ -133,7 +124,6 @@ definition{
     | Nat.succ rest => (match events
       | List.nil => (nil Uorc.Core.CanonicalCost::SemanticEvent)
       | List.cons event tail => (cons event (takeCoreEvents rest tail)))),
-  axioms: [Quot.sound, propext],
   executable: false,
   recursive_argument: count
 }
@@ -147,7 +137,6 @@ definition{
   ],
   result: Uorc.Core.CanonicalCost::Usage,
   body: (coreAdvance (coreAdvance usage (Uorc.Core.CanonicalSchedule::instructionPrefix opcode)) (project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh) (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := value}) (nil Uorc.Core.CanonicalBindings::Binding)) events)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -218,7 +207,6 @@ definition{
     | Uorc.Core.RuntimeMachineSemantic::Error.invalidUsage => (6 : UInt64)
     | Uorc.Core.RuntimeMachineSemantic::Error.unsupportedProfile => (7 : UInt64)
     | Uorc.Core.RuntimeMachineSemantic::Error.unsupportedStorage => (8 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -229,7 +217,6 @@ definition{
   body: (match (Uorc.Core.RuntimeMachineEngine::semanticStatus state)
     | Option.none => false
     | Option.some failure => (prim equal (semanticCode failure) code : Bool)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -240,7 +227,6 @@ definition{
   body: (match (project state frames)
     | List.nil => (18446744073709551615 : UInt64)
     | List.cons frame tail => (project frame phase)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -251,7 +237,6 @@ definition{
   body: (match (project state frames)
     | List.nil => (18446744073709551615 : UInt64)
     | List.cons frame tail => (project frame semanticPosition)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -262,7 +247,6 @@ definition{
   body: (match (project state frames)
     | List.nil => (18446744073709551615 : UInt64)
     | List.cons frame tail => (project (project frame frame) nextInstruction)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -274,7 +258,6 @@ definition{
   ],
   result: Bool,
   body: (if (prim equal (project (project left arena) nextHandle) (project (project right arena) nextHandle) : Bool) then (if (prim equal (project (project left arena) ownedBytes) (project (project right arena) ownedBytes) : Bool) then (if (prim equal (project (project left arena) liveEntries) (project (project right arena) liveEntries) : Bool) then (if (prim equal (project (project (project left arena) cursor) pendingCount) (project (project (project right arena) cursor) pendingCount) : Bool) then true else false) else false) else false) else false),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 

@@ -50,7 +50,6 @@ definition{
   parameters: [],
   result: Uorc.Core.RuntimeResources::Budget,
   body: (record Uorc.Core.RuntimeResources::Budget {maxWork := (100000000 : UInt64), maxOwnedBytes := (1000000000 : UInt64), maxOutputBytes := (100000000 : UInt64), maxFrames := (100 : UInt64)}),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -643,7 +642,6 @@ definition{
     | Uorc.Core.RuntimeResources::Error.invalidUsage => (9 : UInt64)
     | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => (9 : UInt64)
     | Uorc.Core.RuntimeResources::Error.heap error => (9 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -1189,7 +1187,6 @@ definition{
   body: (match (project state frames)
     | List.nil => state
     | List.cons frame restFrames => (record Uorc.Core.RuntimeMachineEngine::State {arena := (project state arena), program := (project state program), caller := (project state caller), budget := (project state budget), semanticBudget := (project state semanticBudget), semanticLedger := (project state semanticLedger), semanticError := (project state semanticError), usage := (project state usage), disposition := (project state disposition), frames := (cons (record Uorc.Core.RuntimeMachineEngine::FrameRecord {frame := (record Uorc.Core.RuntimeMachine::Frame {blockIndex := (project (project frame frame) blockIndex), slotCount := (if isSlot then counter else (project (project frame frame) slotCount)), nextInstruction := (if isSlot then (project (project frame frame) nextInstruction) else counter), slots := (project (project frame frame) slots)}), block := (project frame block), control := (project frame control), phase := (project frame phase), semanticPosition := (project frame semanticPosition), instruction := (project frame instruction), action := (project frame action), prefixCount := (project frame prefixCount), captureIndex := (project frame captureIndex), lane := (project frame lane), bucket := (project frame bucket), bucketIndex := (project frame bucketIndex), kind := (project frame kind), iteration := (project frame iteration), targetA := (project frame targetA), targetB := (project frame targetB), accumulator := (project frame accumulator), accumulatorOwned := (project frame accumulatorOwned), accumulatorUnits := (project frame accumulatorUnits), unitsTable := (project frame unitsTable), builder := (project frame builder), captureSlotsRoot := (project frame captureSlotsRoot), captureUnitsRoot := (project frame captureUnitsRoot), captureSlotCount := (project frame captureSlotCount), preparationLane := (project frame preparationLane), completionOrigin := (project frame completionOrigin), retirementIndex := (project frame retirementIndex), returnedSlot := (project frame returnedSlot), pendingUnits := (project frame pendingUnits), observationSpan := (project frame observationSpan), observationOwned := (project frame observationOwned), observationPosition := (project frame observationPosition)}) restFrames), pending := (project state pending), value := (project state value), valueOwned := (project state valueOwned), valueUnits := (project state valueUnits), oldRoot := (project state oldRoot), draining := (project state draining), control := (project state control), ownsReady := (project state ownsReady), mode := (project state mode), cancelStarted := (project state cancelStarted), sequenceCleanup := (project state sequenceCleanup), delta := (project state delta), operationDelta := (project state operationDelta), overflowEvent := (project state overflowEvent)})),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -1203,7 +1200,6 @@ definition{
     | Uorc.Core.RuntimeMachineEngine::Pending.table cursor purpose => state
     | Uorc.Core.RuntimeMachineEngine::Pending.sequence cursor purpose => state
     | Uorc.Core.RuntimeMachineEngine::Pending.store cursor => state),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -1327,7 +1323,6 @@ definition{
   parameters: [firstDelta : Uorc.Core.Heap::Delta, secondDelta : Uorc.Core.Heap::Delta],
   result: Bool,
   body: (if (prim equal (project firstDelta allocatedBytes) (project secondDelta allocatedBytes) : Bool) then (if (prim equal (project firstDelta releasedBytes) (project secondDelta releasedBytes) : Bool) then (if (prim equal (project firstDelta allocatedEntries) (project secondDelta allocatedEntries) : Bool) then (if (prim equal (project firstDelta releasedEntries) (project secondDelta releasedEntries) : Bool) then (if (prim equal (project firstDelta retainedEdges) (project secondDelta retainedEdges) : Bool) then (if (prim equal (project firstDelta droppedEdges) (project secondDelta droppedEdges) : Bool) then (if (prim equal (project firstDelta retainedRoots) (project secondDelta retainedRoots) : Bool) then (if (prim equal (project firstDelta droppedRoots) (project secondDelta droppedRoots) : Bool) then (if (prim equal (project firstDelta work) (project secondDelta work) : Bool) then true else false) else false) else false) else false) else false) else false) else false) else false) else false),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -1344,7 +1339,6 @@ definition{
       | Uorc.Core.RuntimeMachine::Failure.semantic error => false
       | Uorc.Core.RuntimeMachine::Failure.resource error => false
       | Uorc.Core.RuntimeMachine::Failure.heap error => false) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.audit (16 : UInt64))))),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -1793,7 +1787,6 @@ definition{
     | Uorc.Core.RuntimeTable::PutPhase.ascend => (3 : UInt64)
     | Uorc.Core.RuntimeTable::PutPhase.cleanup => (4 : UInt64)
     | Uorc.Core.RuntimeTable::PutPhase.draining => (5 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -1819,7 +1812,6 @@ definition{
     | Uorc.Core.RuntimeStore::Phase.releasingCapture => (14 : UInt64)
     | Uorc.Core.RuntimeStore::Phase.finish => (15 : UInt64)
     | Uorc.Core.RuntimeStore::Phase.done => (16 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -1867,7 +1859,6 @@ definition{
       | Uorc.Core.RuntimeMachineEngine::Pending.sequence b rightPurpose => false
       | Uorc.Core.RuntimeMachineEngine::Pending.store b => false
       | Uorc.Core.RuntimeMachineEngine::Pending.builder b rightPurpose => (if (prim equal (project a phase) (project b phase) : Bool) then (if (prim equal (project a mode) (project b mode) : Bool) then (if (prim equal (project a level) (project b level) : Bool) then (if (prim equal (project a length) (project b length) : Bool) then (if (prim equal (project a resume) (project b resume) : Bool) then (if (prim equal (project a cleanup) (project b cleanup) : Bool) then (if (prim equal (project a active) (project b active) : Bool) then (if (prim equal (project (project a carry) id) (project (project b carry) id) : Bool) then (if (prim equal (project (project a oldLeft) id) (project (project b oldLeft) id) : Bool) then (if (prim equal (project (project a oldRight) id) (project (project b oldRight) id) : Bool) then (if (prim equal (project (project a reservation) id) (project (project b reservation) id) : Bool) then (if (prim equal (project (project a leaf) id) (project (project b leaf) id) : Bool) then (if (prim equal (project (project a ncapture) id) (project (project b ncapture) id) : Bool) then (if (prim equal (project (project a ngarbage) id) (project (project b ngarbage) id) : Bool) then (if (prim equal (project (project a nfresh) id) (project (project b nfresh) id) : Bool) then (if (prim equal (project (project a nresult) id) (project (project b nresult) id) : Bool) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false) else false))),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -2149,7 +2140,6 @@ definition{
   parameters: [consumer : AdmittedOutputConsumer],
   result: (List Uorc.Core.RuntimeValue::Handle),
   body: (Uorc.Core.RuntimeMachineEngine::addRoot (if (project consumer releaseStarted) then (Uorc.Core.RuntimeValue::nullHandle) else (project consumer output)) (Uorc.Core.RuntimeMachineEngine::ownedRoots (project consumer machine))),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -2199,7 +2189,6 @@ definition{
   parameters: [image : Uorc.Core.RuntimeValue::Handle],
   result: (List Uorc.Core.RuntimeProgram::Event),
   body: (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.parameter (ctor Uorc.Core.RuntimeValue::RuntimeType.natural)) (cons (ctor Uorc.Core.RuntimeProgram::Event.parameter (ctor Uorc.Core.RuntimeValue::RuntimeType.natural)) (cons (ctor Uorc.Core.RuntimeProgram::Event.parameter (ctor Uorc.Core.RuntimeValue::RuntimeType.natural)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalAdd)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (2 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.parameter (ctor Uorc.Core.RuntimeValue::RuntimeType.natural)) (cons (ctor Uorc.Core.RuntimeProgram::Event.parameter (ctor Uorc.Core.RuntimeValue::RuntimeType.natural)) (cons (ctor Uorc.Core.RuntimeProgram::Event.parameter (ctor Uorc.Core.RuntimeValue::RuntimeType.byte)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.byte) (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.byteToNatural)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalAdd)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalToByte)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (6 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginLiteral (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan image (0 : UInt64) (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (5 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (2 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.byteConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (10 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.scan)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (4 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.capture (2 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (2 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.second) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.capture (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.seal (2 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))))))))))))))))))))))))))))))))))))))))))))))))))))))))),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -2275,7 +2264,6 @@ definition{
   body: (match left
     | List.nil => right
     | List.cons head tail => (cons head (commonWordAppend tail right))),
-  axioms: [Quot.sound, propext],
   executable: false,
   recursive_argument: left
 }
@@ -2319,7 +2307,6 @@ definition{
     | Uorc.Core.RuntimeAdmission::Stage.sealCheck => (30 : UInt64)
     | Uorc.Core.RuntimeAdmission::Stage.sealFinish => (31 : UInt64)
     | Uorc.Core.RuntimeAdmission::Stage.ready => (32 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -2339,7 +2326,6 @@ definition{
     | Uorc.Core.RuntimeAdmission::Task.draining after => (cons (4 : UInt64) (cons (commonCoreStageTag after) (cons (0 : UInt64) (cons (0 : UInt64) (nil UInt64)))))
     | Uorc.Core.RuntimeAdmission::Task.sequence native after => (cons (5 : UInt64) (cons (commonCoreStageTag after) (cons (project native phase) (cons (0 : UInt64) (nil UInt64)))))
     | Uorc.Core.RuntimeAdmission::Task.builder native finishing after => (cons (6 : UInt64) (cons (commonCoreStageTag after) (cons (project native phase) (cons (0 : UInt64) (nil UInt64)))))),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -2350,7 +2336,6 @@ definition{
   body: (commonWordAppend (cons (project (project cursor arena) nextHandle) (cons (project (project cursor arena) ownedBytes) (cons (project cursor pendingSlot) (cons (project cursor bucketIndex) (cons (project cursor bucketCount) (cons (match (project cursor lifetimeCursor)
     | Option.none => (0 : UInt64)
     | Option.some lifetime => (project lifetime nextSlot)) (nil UInt64))))))) (commonCoreTaskSnapshot cursor)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -2367,7 +2352,6 @@ definition{
       | Uorc.Core.RuntimeAdmission::Step.awaiting native => (commonCoreSnapshot native)
       | Uorc.Core.RuntimeAdmission::Step.failed failure native => (commonCoreSnapshot native)
       | Uorc.Core.RuntimeAdmission::Step.ready ready => (nil UInt64)))),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -2401,7 +2385,6 @@ definition{
     | ScenarioError.audit value => (ctor ScenarioError.audit value)
     | ScenarioError.reference value => (ctor ScenarioError.reference value)
     | ScenarioError.diagnostic prior values => (ctor ScenarioError.diagnostic stage values)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -2422,7 +2405,6 @@ definition{
       | Uorc.Core.RuntimeAdmissionBoundary::Error.resource resourceError => (1007 : UInt64)
       | Uorc.Core.RuntimeAdmissionBoundary::Error.heap heapError => (1008 : UInt64))
     | Uorc.Core.RuntimeAdmissionCreditBoundary::Error.credit creditError => (1011 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -2997,7 +2979,6 @@ definition{
     | Uorc.Core.RuntimeMachine::Disposition.suspended reason => false
     | Uorc.Core.RuntimeMachine::Disposition.completed handle => false
     | Uorc.Core.RuntimeMachine::Disposition.cleaned => false),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 

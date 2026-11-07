@@ -240,7 +240,8 @@ definition{
       | Result.ok machine => (reserveFuture cursorValue (ctor Future.running machine))) else (ctor Tick.rejected (ctor CreditError.insufficientPrepayment) (ledger cursorValue)))
     | Future.running machine => (ctor Tick.rejected (ctor CreditError.invalidCursor) (ledger cursorValue))
     | Future.done execution => (ctor Tick.rejected (ctor CreditError.invalidCursor) (ledger cursorValue))
-    | Future.failed failure usage => (ctor Tick.rejected (ctor CreditError.invalidCursor) (ledger cursorValue)))
+    | Future.failed failure usage => (ctor Tick.rejected (ctor CreditError.invalidCursor) (ledger cursorValue))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -251,7 +252,8 @@ definition{
     | Future.initializing checkedGraph basisTable budget usage => (if ((Uorc.Core.StepMachine::initializationWork) <=? (project funded availableCredit)) then (commitInitialization funded) else (ctor Tick.pending funded))
     | Future.running machine => (ctor Tick.pending funded)
     | Future.done execution => (ctor Tick.pending funded)
-    | Future.failed failure usage => (ctor Tick.pending funded)))
+    | Future.failed failure usage => (ctor Tick.pending funded))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -264,7 +266,8 @@ definition{
       | Option.none => (let planningFunded : Cursor := (record Cursor {future := (project cursorValue future), committedUsage := (project cursorValue committedUsage), paidSteps := (project cursorValue paidSteps), remainingDebt := (project cursorValue remainingDebt), consumedUnits := ((project cursorValue consumedUnits) + 1), attemptUnits := (project cursorValue attemptUnits), decoderUnits := (project cursorValue decoderUnits), availableCredit := (project cursorValue availableCredit), prepaidUnits := (project cursorValue prepaidUnits), planningUnits := ((project cursorValue planningUnits) + 1), planningCredit := ((project cursorValue planningCredit) + 1), plannedBound := (project cursorValue plannedBound)}); (if ((project planningFunded planningCredit) <? (Uorc.Core.StepMachine::planningWork context machine)) then (ctor Tick.pending planningFunded) else (let bound : Nat := (Uorc.Core.StepMachine::plannedWorkBound context machine); (ctor Tick.pending (record Cursor {future := (project planningFunded future), committedUsage := (project planningFunded committedUsage), paidSteps := (project planningFunded paidSteps), remainingDebt := (project planningFunded remainingDebt), consumedUnits := (project planningFunded consumedUnits), attemptUnits := (project planningFunded attemptUnits), decoderUnits := (project planningFunded decoderUnits), availableCredit := (project planningFunded availableCredit), prepaidUnits := (project planningFunded prepaidUnits), planningUnits := (project planningFunded planningUnits), planningCredit := 0, plannedBound := (ctor Option.some [Nat] bound)})))))
       | Option.some bound => (if ((project cursorValue availableCredit) <? bound) then (payOne cursorValue) else (let attempted : Cursor := (record Cursor {future := (project cursorValue future), committedUsage := (project cursorValue committedUsage), paidSteps := (project cursorValue paidSteps), remainingDebt := (project cursorValue remainingDebt), consumedUnits := ((project cursorValue consumedUnits) + 1), attemptUnits := ((project cursorValue attemptUnits) + 1), decoderUnits := (project cursorValue decoderUnits), availableCredit := (project cursorValue availableCredit), prepaidUnits := (project cursorValue prepaidUnits), planningUnits := (project cursorValue planningUnits), planningCredit := (project cursorValue planningCredit), plannedBound := (project cursorValue plannedBound)}); (reserveFuture attempted (stepFuture (Uorc.Core.StepMachine::step context machine))))))
     | Future.done execution => (observe (record Cursor {future := (project cursorValue future), committedUsage := (project cursorValue committedUsage), paidSteps := (project cursorValue paidSteps), remainingDebt := (project cursorValue remainingDebt), consumedUnits := ((project cursorValue consumedUnits) + 1), attemptUnits := ((project cursorValue attemptUnits) + 1), decoderUnits := (project cursorValue decoderUnits), availableCredit := (project cursorValue availableCredit), prepaidUnits := (project cursorValue prepaidUnits), planningUnits := (project cursorValue planningUnits), planningCredit := (project cursorValue planningCredit), plannedBound := (project cursorValue plannedBound)}))
-    | Future.failed failure usage => (observe (record Cursor {future := (project cursorValue future), committedUsage := (project cursorValue committedUsage), paidSteps := (project cursorValue paidSteps), remainingDebt := (project cursorValue remainingDebt), consumedUnits := ((project cursorValue consumedUnits) + 1), attemptUnits := ((project cursorValue attemptUnits) + 1), decoderUnits := (project cursorValue decoderUnits), availableCredit := (project cursorValue availableCredit), prepaidUnits := (project cursorValue prepaidUnits), planningUnits := (project cursorValue planningUnits), planningCredit := (project cursorValue planningCredit), plannedBound := (project cursorValue plannedBound)})))))
+    | Future.failed failure usage => (observe (record Cursor {future := (project cursorValue future), committedUsage := (project cursorValue committedUsage), paidSteps := (project cursorValue paidSteps), remainingDebt := (project cursorValue remainingDebt), consumedUnits := ((project cursorValue consumedUnits) + 1), attemptUnits := ((project cursorValue attemptUnits) + 1), decoderUnits := (project cursorValue decoderUnits), availableCredit := (project cursorValue availableCredit), prepaidUnits := (project cursorValue prepaidUnits), planningUnits := (project cursorValue planningUnits), planningCredit := (project cursorValue planningCredit), plannedBound := (project cursorValue plannedBound)}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -278,6 +281,7 @@ definition{
       | Tick.done execution workLedger => (ctor Tick.done execution workLedger)
       | Tick.failed failure usage workLedger => (ctor Tick.failed failure usage workLedger)
       | Tick.rejected error workLedger => (ctor Tick.rejected error workLedger))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -303,7 +307,8 @@ theorem{
   name: zero_credit_preserves_cursor,
   parameters: [context : Uorc.Core.StepMachine::Context, cursorValue : Cursor],
   statement: ((runWork 0 context cursorValue) = (ctor Tick.pending cursorValue)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -352,14 +357,16 @@ theorem{
   name: failed_future_is_hidden_with_unpaid_credit,
   parameters: [],
   statement: ((terminalObserved (runWork 2 (record Uorc.Core.StepMachine::Context {graph := (record Uorc.Core.Graph::Graph {blocks := (nil Uorc.Core.Graph::Block), entry := 0}), basis := (nil Bytes), budget := (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100000}), checked := (ctor Option.none [Uorc.Core.Validation::CheckedGraph]), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])}) (record Cursor {future := (ctor Future.failed (ctor Uorc.Core.StepMachine::Failure.semantic (ctor Uorc.Core.Types::SemanticError.divisionByZero)) (record Uorc.Core.Resources::Usage {steps := 3, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 0})), committedUsage := (Uorc.Core.Resources::zeroUsage), paidSteps := 0, remainingDebt := 3, consumedUnits := 0, attemptUnits := 0, decoderUnits := 0, availableCredit := 0, prepaidUnits := 0, planningUnits := 0, planningCredit := 0, plannedBound := (ctor Option.none [Nat])}))) = false),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: unpaid_failed_future_is_rejected_even_with_more_credit,
   parameters: [],
   statement: ((terminalObserved (runWork 3 (record Uorc.Core.StepMachine::Context {graph := (record Uorc.Core.Graph::Graph {blocks := (nil Uorc.Core.Graph::Block), entry := 0}), basis := (nil Bytes), budget := (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100000}), checked := (ctor Option.none [Uorc.Core.Validation::CheckedGraph]), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])}) (record Cursor {future := (ctor Future.failed (ctor Uorc.Core.StepMachine::Failure.semantic (ctor Uorc.Core.Types::SemanticError.divisionByZero)) (record Uorc.Core.Resources::Usage {steps := 3, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 0})), committedUsage := (Uorc.Core.Resources::zeroUsage), paidSteps := 0, remainingDebt := 3, consumedUnits := 0, attemptUnits := 0, decoderUnits := 0, availableCredit := 0, prepaidUnits := 0, planningUnits := 0, planningCredit := 0, plannedBound := (ctor Option.none [Nat])}))) = false),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{

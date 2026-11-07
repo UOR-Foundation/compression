@@ -120,32 +120,28 @@ definition{
   name: controlRationale,
   parameters: [],
   result: String,
-  body: "The 4096-byte reservation covers the fixed packed comparison shell: two bounded readers and spans, scalar phase and disposition, one pending byte plan, and one delta receipt. Programs and inputs remain in the sole terminal arena.",
-  axioms: [Quot.sound, propext]
+  body: "The 4096-byte reservation covers the fixed packed comparison shell: two bounded readers and spans, scalar phase and disposition, one pending byte plan, and one delta receipt. Programs and inputs remain in the sole terminal arena."
 }
 
 definition{
   name: controlBytes,
   parameters: [],
   result: UInt64,
-  body: (Uorc.Core.RuntimeOwnerRoots::controlBytes),
-  axioms: [Quot.sound, propext]
+  body: (Uorc.Core.RuntimeOwnerRoots::controlBytes)
 }
 
 definition{
   name: controlWork,
   parameters: [],
   result: UInt64,
-  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)),
-  axioms: [Quot.sound, propext]
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))
 }
 
 definition{
   name: beginWork,
   parameters: [],
   result: UInt64,
-  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin)),
-  axioms: [Quot.sound, propext]
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin))
 }
 
 definition{
@@ -161,8 +157,7 @@ definition{
     | Option.none => true
     | Option.some local5_failure => false) && true)) then (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local1_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (record Uorc.Core.Heap::Arena {index := (project (project (project (project local1_terminal transfer) ready) arena) index), nextHandle := (project (project (project (project local1_terminal transfer) ready) arena) nextHandle), exhausted := (project (project (project (project local1_terminal transfer) ready) arena) exhausted), ownedBytes := (project (project (project (project local1_terminal transfer) ready) arena) ownedBytes), liveEntries := (project (project (project (project local1_terminal transfer) ready) arena) liveEntries), maxOwnedBytes := (project local2_budget maxOwnedBytes), cursor := (project (project (project (project local1_terminal transfer) ready) arena) cursor)}), program := (project (project (project local1_terminal transfer) ready) program), caller := (project (project (project local1_terminal transfer) ready) caller), usage := (project (project (project local1_terminal transfer) ready) usage)}), semanticBudget := (project (project local1_terminal transfer) semanticBudget), semanticLedger := (project (project local1_terminal transfer) semanticLedger)}), output := (project local1_terminal output), cancelled := (project local1_terminal cancelled), failure := (project local1_terminal failure), receipt := (project local1_terminal receipt), semanticRefusal := (project local1_terminal semanticRefusal)}) (ctor Phase.allocate local3_left local4_right)) else (ctor Owner.owned local1_terminal (ctor Phase.done))), budget := local2_budget, disposition := (if (project local1_terminal cancelled) then (ctor Disposition.cancelled) else (match (project local1_terminal failure)
     | Option.none => (ctor Disposition.incomplete)
-    | Option.some local6_failure => (ctor Disposition.failed (ctor Failure.upstream local6_failure)))), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}),
-  axioms: [Quot.sound, propext]
+    | Option.some local6_failure => (ctor Disposition.failed (ctor Failure.upstream local6_failure)))), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])})
 }
 
 definition{
@@ -171,8 +166,7 @@ definition{
   result: Uorc.Core.RuntimeResources::Usage,
   body: (match (project local7_s owner)
     | Owner.owned local8_terminal local9_phase => (project (project (project local8_terminal transfer) ready) usage)
-    | Owner.handedOff local10_achieved => local10_achieved),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local10_achieved => local10_achieved)
 }
 
 definition{
@@ -296,8 +290,7 @@ definition{
       | Phase.comparing local135_control local136_comparison => local25_phase
       | Phase.releaseControl local137_control => local25_phase
       | Phase.draining => local25_phase
-      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})),
-  axioms: [Quot.sound, propext]
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)}))
 }
 
 definition{
@@ -316,8 +309,7 @@ definition{
     | Uorc.Product.OwnedCompare::Disposition.different local143_index => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.different local143_index), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)})
     | Uorc.Product.OwnedCompare::Disposition.lengthMismatch local144_leftLength local145_rightLength => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.lengthMismatch local144_leftLength local145_rightLength), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)})
     | Uorc.Product.OwnedCompare::Disposition.failed local146_failure => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.failed (ctor Failure.comparison local146_failure)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)})
-    | Uorc.Product.OwnedCompare::Disposition.cancelled => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.cancelled), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)})),
-  axioms: [Quot.sound, propext]
+    | Uorc.Product.OwnedCompare::Disposition.cancelled => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.cancelled), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)}))
 }
 
 definition{
@@ -435,8 +427,7 @@ definition{
       | Failure.comparison local230_reason => false
       | Failure.heap local231_reason => true
       | Failure.upstream local232_reason => false)
-    | Disposition.cancelled => false),
-  axioms: [Quot.sound, propext]
+    | Disposition.cancelled => false)
 }
 
 definition{
@@ -505,8 +496,7 @@ definition{
       | Phase.releaseControl local268_control => local257_phase
       | Phase.draining => local257_phase
       | Phase.done => local257_phase)), budget := (project local254_s budget), disposition := (ctor Disposition.cancelled), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local254_s pendingDelta)})
-    | Owner.handedOff local269_achieved => local254_s)) else local254_s),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local269_achieved => local254_s)) else local254_s)
 }
 
 definition{
@@ -515,8 +505,7 @@ definition{
   result: DeltaTake,
   body: (if (Uorc.Product.MachineBinding::sameRun (project local270_s run) local271_run) then (match (project local270_s pendingDelta)
     | Option.none => (ctor DeltaTake.empty local270_s)
-    | Option.some local272_delta => (ctor DeltaTake.taken (record State {run := (project local270_s run), owner := (project local270_s owner), budget := (project local270_s budget), disposition := (project local270_s disposition), refusal := (project local270_s refusal), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}) local272_delta)) else (ctor DeltaTake.stale local270_s)),
-  axioms: [Quot.sound, propext]
+    | Option.some local272_delta => (ctor DeltaTake.taken (record State {run := (project local270_s run), owner := (project local270_s owner), budget := (project local270_s budget), disposition := (project local270_s disposition), refusal := (project local270_s refusal), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}) local272_delta)) else (ctor DeltaTake.stale local270_s))
 }
 
 definition{
@@ -534,8 +523,7 @@ definition{
         | Phase.releaseControl local288_control => (ctor Movement.notReady local273_s)
         | Phase.draining => (ctor Movement.notReady local273_s)
         | Phase.done => (ctor Movement.moved (record State {run := (project local273_s run), owner := (ctor Owner.handedOff (project (project (project local276_terminal transfer) ready) usage)), budget := (project local273_s budget), disposition := (project local273_s disposition), refusal := (project local273_s refusal), pendingDelta := (project local273_s pendingDelta)}) local276_terminal (project local273_s disposition)))
-      | Owner.handedOff local289_achieved => (ctor Movement.notReady local273_s))) else (ctor Movement.stale local273_s)),
-  axioms: [Quot.sound, propext]
+      | Owner.handedOff local289_achieved => (ctor Movement.notReady local273_s))) else (ctor Movement.stale local273_s))
 }
 
 definition{
@@ -551,8 +539,7 @@ definition{
       | Phase.releaseControl local303_control => (Uorc.Core.RuntimeMachineEngine::addRoot local303_control (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller))))
       | Phase.draining => (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller)))
       | Phase.done => (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller))))
-    | Owner.handedOff local304_achieved => (nil Uorc.Core.RuntimeValue::Handle)),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local304_achieved => (nil Uorc.Core.RuntimeValue::Handle))
 }
 
 definition{
@@ -563,8 +550,7 @@ definition{
     | Owner.owned local306_terminal local307_phase => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
     | Owner.handedOff local308_achieved => (match (project local305_s pendingDelta)
       | Option.some local309_delta => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt))
-      | Option.none => (ctor Uorc.Product.Api::ReleaseDisposition.releasable))),
-  axioms: [Quot.sound, propext]
+      | Option.none => (ctor Uorc.Product.Api::ReleaseDisposition.releasable)))
 }
 
 theorem{

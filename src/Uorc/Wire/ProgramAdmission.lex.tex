@@ -99,7 +99,6 @@ definition{
   ],
   result: Cursor,
   body: (record Cursor {control := (record Control {parser := (Uorc.Wire.ProgramParse::initialState), budget := budget, ackDue := false, failure := (ctor Option.none [Failure])}), phase := (ctor Phase.admission (Uorc.Core.RuntimeAdmissionCredit::start budget arena basis caller usage))}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -124,7 +123,6 @@ definition{
     | Option.some eventLocal8 => (match (Uorc.Core.RuntimeAdmissionCredit::offer core eventLocal8)
       | Result.error reasonLocal9 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal7 parser), budget := (project controlLocal7 budget), ackDue := (project controlLocal7 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.credit reasonLocal9))}), phase := (ctor Phase.admission core)}), signal := (ctor Signal.failed), remainingCredits := credits})
       | Result.ok offeredLocal10 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal7 parser), budget := (project controlLocal7 budget), ackDue := true, failure := (project controlLocal7 failure)}), phase := (ctor Phase.admission offeredLocal10)}), signal := (ctor Signal.advanced), remainingCredits := credits})))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -140,7 +138,6 @@ definition{
     | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.pending retainedLocal12 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (ctor Phase.returning retainedLocal12)}), signal := (ctor Signal.advanced), remainingCredits := credits})
     | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.failed reasonLocal13 retainedLocal14 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal11 parser), budget := (project controlLocal11 budget), ackDue := (project controlLocal11 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.boundary reasonLocal13))}), phase := (ctor Phase.returning retainedLocal14)}), signal := (ctor Signal.failed), remainingCredits := credits})
     | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.restored coreLocal15 => (offerRestored x coreLocal15 credits))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -254,7 +251,6 @@ definition{
   body: (let controlLocal81 : Control := (project x control); (match (project controlLocal81 failure)
     | Option.some priorLocal82 => x
     | Option.none => (record Cursor {control := (record Control {parser := (project controlLocal81 parser), budget := (project controlLocal81 budget), ackDue := (project controlLocal81 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), phase := (project x phase)}))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -263,7 +259,6 @@ definition{
   parameters: [],
   result: String,
   body: "ProgramAdmission drives the exact ProgramParse.Event algebra through RuntimeAdmissionCredit and its boundary-only Taken/Returning controls. Each Phase carries exactly one achieved Arena via the actual Core object; Control carries only fixed parser state and budget. CallerRoots.wire inventories the shared live input owner. feedBorrowed makes no second retain. Each pending event survives reattach, credit funding and the complete Core operation; acknowledgeCopied runs only after actual awaiting. Literal bytes are copied by Core while the owner stays live. Only actual Event.ready transfers Ready. Failures and cancellation retain the exact phase including every cleanup root and ledger; they do not release pending owners or invent readiness. Cancellation stops advancement; the enclosing controller must hand the retained actual Core phase to its source-owned cancellation owner before dropping caller roots. Parsed wire distances are unchanged. Logical move discipline is explicit; immutable host copies are not claimed physically freed.",
-  axioms: [Quot.sound, propext],
   executable: true
 }
 \end{semanticmodule}

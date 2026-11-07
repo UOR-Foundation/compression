@@ -269,7 +269,8 @@ definition{
       | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.end), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
       | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (match (project s body)
         | Option.none => (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
-        | Option.some bodyValue => (ctor Event.complete (record ParsedArchive {frame := (record Uorc.Wire.Frame::Frame {objectLengths := (project (project s header) objectLengths), scope := (if (project (project s header) conditional) then (ctor Uorc.Wire.Frame::Scope.conditional (project (project s header) basis)) else (ctor Uorc.Wire.Frame::Scope.selfContained)), body := bodyValue}), integrity := digestBytes, preimageLength := (project s preimageLength), archiveLength := (project (project s cursor) position)}) ((project s work) + 1))) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)})))))))
+        | Option.some bodyValue => (ctor Event.complete (record ParsedArchive {frame := (record Uorc.Wire.Frame::Frame {objectLengths := (project (project s header) objectLengths), scope := (if (project (project s header) conditional) then (ctor Uorc.Wire.Frame::Scope.conditional (project (project s header) basis)) else (ctor Uorc.Wire.Frame::Scope.selfContained)), body := bodyValue}), integrity := digestBytes, preimageLength := (project s preimageLength), archiveLength := (project (project s cursor) position)}) ((project s work) + 1))) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{name: eventWork, parameters: [s : State, quantum : Nat], result: Nat, body: 1}
@@ -294,6 +295,7 @@ definition{
       | Event.needInput nextStateValue => (ctor Event.needInput nextStateValue)
       | Event.complete archive workValue => (ctor Event.complete archive workValue)
       | Event.failed errorValue workValue => (ctor Event.failed errorValue workValue))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -324,7 +326,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 4000 (fixtureStart 0x554f52430201000000000000000000000000000000000000000000000000000000000000000000000000))) = true),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -332,7 +334,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 4000 (fixtureStart 0x554f5243020100000100000000000000000000000000000000000000000000000000000000000000000000))) = true),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -340,7 +342,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 4000 (fixtureStart 0x554f52430201000001030300ff800000000000000000000000000000000000000000000000000000000000000000))) = true),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -348,7 +350,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 4000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000))) = true),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -356,7 +358,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 4000 (fixtureStart 0x554f52430201000101030b01000301030300ff8001000000000000000000000000000000000000000000000000000000000000000000))) = true),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -364,7 +366,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x))) = (ctor Option.some [ParseError] (ctor ParseError.truncated))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -372,7 +374,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x00))) = (ctor Option.some [ParseError] (ctor ParseError.wrongMagic))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -380,7 +382,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f524301))) = (ctor Option.some [ParseError] (ctor ParseError.unsupportedFormat))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -388,7 +390,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f52430202))) = (ctor Option.some [ParseError] (ctor ParseError.unsupportedProfile))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -396,7 +398,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f5243020102))) = (ctor Option.some [ParseError] (ctor ParseError.invalidScope))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -404,7 +406,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f524302010002))) = (ctor Option.some [ParseError] (ctor ParseError.invalidRepresentation))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -412,7 +414,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f5243020100008000))) = (ctor Option.some [ParseError] (ctor ParseError.nonShortest))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -420,7 +422,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f524302010000010201))) = (ctor Option.some [ParseError] (ctor ParseError.rawLengthMismatch))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -428,7 +430,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f524302010000000000000000000000000000000000000000000000000000000000000000000000))) = (ctor Option.some [ParseError] (ctor ParseError.truncated))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -436,7 +438,7 @@ theorem{
   parameters: [],
   statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f5243020100000000000000000000000000000000000000000000000000000000000000000000000000))) = (ctor Option.some [ParseError] (ctor ParseError.trailingBytes))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -460,6 +462,7 @@ definition{
           | Event.failed forwardError forwardWork => (ctor Event.failed forwardError forwardWork)))
       | Event.complete archive workValue => (ctor Event.complete archive workValue)
       | Event.failed errorValue workValue => (ctor Event.failed errorValue workValue))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -479,7 +482,7 @@ theorem{
   parameters: [],
   statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x (cons 0x (cons 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -487,7 +490,7 @@ theorem{
   parameters: [],
   statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x55 (cons 0x (cons 0x4f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -495,7 +498,7 @@ theorem{
   parameters: [],
   statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f5243 (cons 0x (cons 0x020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -503,7 +506,7 @@ theorem{
   parameters: [],
   statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f524302010000 (cons 0x (cons 0x0500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -511,7 +514,7 @@ theorem{
   parameters: [],
   statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f52430201000005 (cons 0x (cons 0x00010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -519,7 +522,7 @@ theorem{
   parameters: [],
   statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f52430201000005000100010002 (cons 0x (cons 0x00ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -527,7 +530,7 @@ theorem{
   parameters: [],
   statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f5243020100000500010001000200ff (cons 0x (cons 0x0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -535,7 +538,7 @@ theorem{
   parameters: [],
   statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f5243020100000500010001000200ff00000000000000000000000000000000000000000000000000000000000000 (cons 0x (cons 0x00 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -543,7 +546,7 @@ theorem{
   parameters: [],
   statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (cons 0x (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -567,7 +570,7 @@ theorem{
   parameters: [],
   statement: ((step (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 0), work := 0})) 1) = (ctor Event.advanced (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 1), work := 1})))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -575,7 +578,7 @@ theorem{
   parameters: [],
   statement: ((step (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 1), work := 1})) 1) = (ctor Event.advanced (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 2), work := 2})))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -583,7 +586,7 @@ theorem{
   parameters: [],
   statement: ((step (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 2), work := 2})) 1) = (ctor Event.advanced (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x0102 (nil (Option Bytes)) 1 2 4096) 0), work := 3})))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{

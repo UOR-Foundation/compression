@@ -97,7 +97,8 @@ definition{
       | Option.none => (ctor CollectStep.rejected (ctor Error.invalidCursor))
       | Option.some predictedByte => (if (prim equal targetByte predictedByte : Bool) then (ctor CollectStep.pending (record CollectCursor {target := (project cursor target), prediction := (project cursor prediction), offset := ((project cursor offset) + 1), exceptionsReversed := (project cursor exceptionsReversed), bytesCompared := ((project cursor bytesCompared) + 1)})) else (match (Uorc.Search.Effort::checkedU64 (project cursor offset))
         | Result.error coordinateError => (ctor CollectStep.rejected (ctor Error.coordinateOverflow))
-        | Result.ok coordinate => (ctor CollectStep.pending (record CollectCursor {target := (project cursor target), prediction := (project cursor prediction), offset := ((project cursor offset) + 1), exceptionsReversed := (cons (record Exception {coordinate := coordinate, value := targetByte}) (project cursor exceptionsReversed)), bytesCompared := ((project cursor bytesCompared) + 1)})))))) else (if ((project cursor offset) =? (prim length (project cursor target) : Nat)) then (ctor CollectStep.done (project cursor exceptionsReversed) (project cursor bytesCompared)) else (ctor CollectStep.rejected (ctor Error.invalidCursor)))) else (ctor CollectStep.rejected (ctor Error.lengthMismatch)))
+        | Result.ok coordinate => (ctor CollectStep.pending (record CollectCursor {target := (project cursor target), prediction := (project cursor prediction), offset := ((project cursor offset) + 1), exceptionsReversed := (cons (record Exception {coordinate := coordinate, value := targetByte}) (project cursor exceptionsReversed)), bytesCompared := ((project cursor bytesCompared) + 1)})))))) else (if ((project cursor offset) =? (prim length (project cursor target) : Nat)) then (ctor CollectStep.done (project cursor exceptionsReversed) (project cursor bytesCompared)) else (ctor CollectStep.rejected (ctor Error.invalidCursor)))) else (ctor CollectStep.rejected (ctor Error.lengthMismatch))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -110,6 +111,7 @@ definition{
       | CollectStep.pending cursor => (runCollect restFuel (collectStep cursor))
       | CollectStep.done exceptions compared => (ctor CollectStep.done exceptions compared)
       | CollectStep.rejected error => (ctor CollectStep.rejected error))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -162,7 +164,8 @@ theorem{
   name: residual_records_ff_and_zero_exactly,
   parameters: [],
   statement: ((runCollect 8 (beginCollect 0x00ff0200 0x00010203)) = (ctor CollectStep.done (cons (record Exception {coordinate := (3 : UInt64), value := (0 : UInt8)}) (cons (record Exception {coordinate := (1 : UInt64), value := (255 : UInt8)}) (nil Exception))) 4)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{

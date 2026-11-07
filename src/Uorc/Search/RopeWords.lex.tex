@@ -81,7 +81,8 @@ definition{
       | Uorc.Search.Normalize::Step.pending nextBuilder => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.building nextBuilder), completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.Normalize::Step.done normalized physical => (ctor Step.word (project normalized rope) (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.enumerating), completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.Normalize::Step.rejected error => (ctor Step.failed (ctor Error.normalization error))
-      | Uorc.Search.Normalize::Step.ropeFailure error => (ctor Step.failed (ctor Error.rope error))))
+      | Uorc.Search.Normalize::Step.ropeFailure error => (ctor Step.failed (ctor Error.rope error)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -95,6 +96,7 @@ definition{
       | Step.word word next => (ctor Step.word word next)
       | Step.finished => (ctor Step.finished)
       | Step.failed error => (ctor Step.failed error))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -113,7 +115,8 @@ theorem{
   name: empty_word_is_a_real_rope_candidate,
   parameters: [],
   statement: ((wordLength (firstWord 30 (start 2))) = (ctor Option.some [Nat] 0)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

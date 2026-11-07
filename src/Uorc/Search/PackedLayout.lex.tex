@@ -77,7 +77,8 @@ definition{
       | Result.error failure => (ctor Step.rejected (ctor Error.addressSpaceExhausted) 0)
       | Result.ok bits => (match (prim checked_multiply words bits : (Option UInt64))
         | Option.none => (ctor Step.rejected (ctor Error.addressSpaceExhausted) 0)
-        | Option.some bitWord => (let bitCount : Nat := (Uorc.Core.Types::wordToNat bitWord); (let layoutValue : Layout := (record Layout {payload := payload, wordCount := wordCount, bitsPerIndex := bitsPerIndex, bitCount := bitCount, payloadBytes := ((prim quotient bitCount 8 0 : Nat) + (if ((prim remainder bitCount 8 0 : Nat) =? 0) then 0 else 1)), unusedHighBits := (if ((prim remainder bitCount 8 0 : Nat) =? 0) then 0 else (prim subtract 8 (prim remainder bitCount 8 0 : Nat) : Nat))}); (ctor Step.pending (record Cursor {layout := layoutValue, phase := (ctor Phase.validating (cons payload (nil Uorc.Core.Bytes::Rope))), observedBytes := 0, lastByte := (ctor Option.none [UInt8]), completedEvents := 0})))))))
+        | Option.some bitWord => (let bitCount : Nat := (Uorc.Core.Types::wordToNat bitWord); (let layoutValue : Layout := (record Layout {payload := payload, wordCount := wordCount, bitsPerIndex := bitsPerIndex, bitCount := bitCount, payloadBytes := ((prim quotient bitCount 8 0 : Nat) + (if ((prim remainder bitCount 8 0 : Nat) =? 0) then 0 else 1)), unusedHighBits := (if ((prim remainder bitCount 8 0 : Nat) =? 0) then 0 else (prim subtract 8 (prim remainder bitCount 8 0 : Nat) : Nat))}); (ctor Step.pending (record Cursor {layout := layoutValue, phase := (ctor Phase.validating (cons payload (nil Uorc.Core.Bytes::Rope))), observedBytes := 0, lastByte := (ctor Option.none [UInt8]), completedEvents := 0}))))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -114,7 +115,8 @@ definition{
           | Option.some byte => (if ((project cursor observedBytes) <? (project (project cursor layout) payloadBytes)) then (ctor Step.pending (record Cursor {layout := (project cursor layout), phase := (ctor Phase.reading next), observedBytes := ((project cursor observedBytes) + 1), lastByte := (ctor Option.some [UInt8] byte), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.rejected (ctor Error.trailingPayload) ((project cursor completedEvents) + 1)))) else (ctor Step.rejected (ctor Error.invalidCursor) ((project cursor completedEvents) + 1)))
         | Uorc.Core.Bytes::CursorEvent.done => (if ((project cursor observedBytes) <? (project (project cursor layout) payloadBytes)) then (ctor Step.rejected (ctor Error.truncatedPayload) ((project cursor completedEvents) + 1)) else (if ((project cursor observedBytes) =? (project (project cursor layout) payloadBytes)) then (if ((project (project cursor layout) unusedHighBits) =? 0) then (ctor Step.complete (project cursor layout) ((project cursor completedEvents) + 1)) else (match (project cursor lastByte)
           | Option.none => (ctor Step.rejected (ctor Error.invalidCursor) ((project cursor completedEvents) + 1))
-          | Option.some last => (if ((Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural last)) <? (powerTwo (prim subtract 8 (project (project cursor layout) unusedHighBits) : Nat))) then (ctor Step.complete (project cursor layout) ((project cursor completedEvents) + 1)) else (ctor Step.rejected (ctor Error.nonzeroPadding) ((project cursor completedEvents) + 1))))) else (ctor Step.rejected (ctor Error.trailingPayload) ((project cursor completedEvents) + 1)))))))
+          | Option.some last => (if ((Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural last)) <? (powerTwo (prim subtract 8 (project (project cursor layout) unusedHighBits) : Nat))) then (ctor Step.complete (project cursor layout) ((project cursor completedEvents) + 1)) else (ctor Step.rejected (ctor Error.nonzeroPadding) ((project cursor completedEvents) + 1))))) else (ctor Step.rejected (ctor Error.trailingPayload) ((project cursor completedEvents) + 1))))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -127,6 +129,7 @@ definition{
       | Step.pending cursor => (runWork remainingWork (step cursor))
       | Step.complete layout events => (ctor Step.complete layout events)
       | Step.rejected failure events => (ctor Step.rejected failure events))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -154,119 +157,136 @@ theorem{
   name: alphabet1_canonical_layout,
   parameters: [],
   statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x) 17 0))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet2_canonical_layout,
   parameters: [],
   statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x55) 8 1))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet3_canonical_layout,
   parameters: [],
   statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x24) 3 2))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet127_canonical_layout,
   parameters: [],
   statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x7e) 1 7))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet128_canonical_layout,
   parameters: [],
   statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x7f) 1 7))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet129_canonical_layout,
   parameters: [],
   statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x80) 1 8))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet256_canonical_layout,
   parameters: [],
   statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0xff) 1 8))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet257_canonical_layout,
   parameters: [],
   statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x0001) 1 9))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet65537_canonical_layout,
   parameters: [],
   statement: ((accepted (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x000001) 1 17))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: truncated_rejected,
   parameters: [],
   statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x) 1 1))) = (ctor Option.some [Error] (ctor Error.truncatedPayload))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: truncated_partial_code_rejected,
   parameters: [],
   statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0xff) 1 9))) = (ctor Option.some [Error] (ctor Error.truncatedPayload))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: trailing_rejected,
   parameters: [],
   statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x0000) 1 8))) = (ctor Option.some [Error] (ctor Error.trailingPayload))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_width_nonempty_rejected,
   parameters: [],
   statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x00) 8 0))) = (ctor Option.some [Error] (ctor Error.trailingPayload))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: high_padding_rejected,
   parameters: [],
   statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x80) 1 7))) = (ctor Option.some [Error] (ctor Error.nonzeroPadding))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: partial_padding_rejected,
   parameters: [],
   statement: ((rejection (runWork 100 (start (Uorc.Core.Bytes::fromBytes 0x0402) 1 9))) = (ctor Option.some [Error] (ctor Error.nonzeroPadding))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: layout_resume_is_exact,
   parameters: [],
   statement: ((runWork 7 (runWork 3 (start (Uorc.Core.Bytes::fromBytes 0x0001) 1 9))) = (runWork 10 (start (Uorc.Core.Bytes::fromBytes 0x0001) 1 9))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: native_product_exhaustion_is_operational,
   parameters: [],
   statement: ((rejection (start (Uorc.Core.Bytes::fromBytes 0x) 18446744073709551615 2)) = (ctor Option.some [Error] (ctor Error.addressSpaceExhausted))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

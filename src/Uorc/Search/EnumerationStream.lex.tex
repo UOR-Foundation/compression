@@ -160,7 +160,6 @@ definition{
   ],
   result: (Result Cursor Error),
   body: (if (Uorc.Search.OwnedEnumeration::ticketMatches enumeration ticket) then (ctor Result.ok [Cursor, Error] (record Cursor {source := ticket, phase := (ctor Phase.allocateControl), control := (Uorc.Core.RuntimeValue::nullHandle), reader := (emptyReader), span := (emptySpan), spanOwned := false, offeredPosition := (0 : UInt64), cancelling := false, paid := (0 : UInt64)})) else (ctor Result.error [Cursor, Error] (ctor Error.invalidSource))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -191,7 +190,6 @@ definition{
   } sequence)) && (prim equal (project var{
     name: first
   } length) (project var{name: second} length) : Bool))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -212,7 +210,6 @@ definition{
     | Phase.cancelSelect => false
     | Phase.complete => false
     | Phase.cancelled => false) && ((project cursor spanOwned) && ((not (project cursor cancelling)) && ((Uorc.Core.RuntimeValue::sameHandle (project cursor control) (project offered owner)) && ((sameTicket (project cursor source) (project offered source)) && ((prim equal (project cursor offeredPosition) (project offered position) : Bool) && ((Uorc.Core.RuntimeValue::sameHandle (project (project cursor span) image) (project (project offered span) image)) && ((prim equal (project (project cursor span) offset) (project (project offered span) offset) : Bool) && (prim equal (project (project cursor span) length) (project (project offered span) length) : Bool))))))))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -257,7 +254,6 @@ definition{
     | Phase.cancelSelect => false
     | Phase.complete => false
     | Phase.cancelled => true) then (ctor Outcome.cancelled) else (ctor Outcome.pending)))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -266,7 +262,6 @@ definition{
   parameters: [cursor : Cursor],
   result: (List Uorc.Core.RuntimeValue::Handle),
   body: (Uorc.Core.RuntimeSequence::addRoot (project cursor control) (Uorc.Core.RuntimeSequence::addRoot (if (project cursor spanOwned) then (project (project cursor span) image) else (Uorc.Core.RuntimeValue::nullHandle)) (nil Uorc.Core.RuntimeValue::Handle))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -299,7 +294,6 @@ definition{
     | Phase.cancelSelect => false
     | Phase.complete => false
     | Phase.cancelled => true)) && ((Uorc.Core.RuntimeValue::isNull (project cursor control)) && ((not (project cursor spanOwned)) && (prim equal (project cursor paid) (0 : UInt64) : Bool)))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -320,7 +314,6 @@ definition{
     | Phase.cancelSelect => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control))
     | Phase.complete => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.idle))
     | Phase.cancelled => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.idle))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -382,7 +375,6 @@ definition{
   parameters: [cursor : Cursor, offered : Offer],
   result: (Result Cursor Error),
   body: (if (offerMatches cursor offered) then (ctor Result.ok [Cursor, Error] (record Cursor {source := (project cursor source), phase := (ctor Phase.releaseSpan), control := (project cursor control), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)})) else (ctor Result.error [Cursor, Error] (ctor Error.invalidOffer))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -427,7 +419,6 @@ definition{
     | Phase.cancelSelect => false
     | Phase.complete => false
     | Phase.cancelled => false) then (ctor Phase.drainControl) else (ctor Phase.cancelSelect))), control := (project cursor control), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := true, paid := (0 : UInt64)})),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -436,7 +427,6 @@ definition{
   parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
   result: RawTransition,
   body: (record RawTransition {arena := arena, cursor := (record Cursor {source := (project cursor source), phase := (if (project cursor spanOwned) then (ctor Phase.releaseSpan) else (if (Uorc.Core.RuntimeValue::isNull (project cursor control)) then (ctor Phase.cancelled) else (ctor Phase.releaseControl))), control := (project cursor control), reader := (project cursor reader), span := (if (project cursor spanOwned) then (project cursor span) else (emptySpan)), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 

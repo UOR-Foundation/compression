@@ -99,8 +99,7 @@ definition{
     lengths : Uorc.Wire.FrameEventContract::OwnedLengths
   ],
   result: Session,
-  body: (record Session {state := (record State {phase := (ctor Phase.demux), source := source, reader := (record Uorc.Wire.OwnedRead::Cursor {root := source, length := end, offset := start, current := source, index := (0 : UInt64), walking := false}), demux := (project (Uorc.Wire.ObjectDemux::begin arena usage lengths) state), image := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (0 : UInt64), failure := (ctor Option.none [Failure])}), arena := arena, usage := usage}),
-  axioms: [Quot.sound, propext]
+  body: (record Session {state := (record State {phase := (ctor Phase.demux), source := source, reader := (record Uorc.Wire.OwnedRead::Cursor {root := source, length := end, offset := start, current := source, index := (0 : UInt64), walking := false}), demux := (project (Uorc.Wire.ObjectDemux::begin arena usage lengths) state), image := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (0 : UInt64), failure := (ctor Option.none [Failure])}), arena := arena, usage := usage})
 }
 
 definition{
@@ -459,16 +458,14 @@ definition{
   name: publicationFailed,
   parameters: [x : Session],
   result: Session,
-  body: (record Session {state := (record State {phase := (project (project x state) phase), source := (project (project x state) source), reader := (project (project x state) reader), demux := (project (project x state) demux), image := (project (project x state) image), offset := (project (project x state) offset), length := (project (project x state) length), failure := (ctor Option.some [Failure] (ctor Failure.publication))}), arena := (project x arena), usage := (project x usage)}),
-  axioms: [Quot.sound, propext]
+  body: (record Session {state := (record State {phase := (project (project x state) phase), source := (project (project x state) source), reader := (project (project x state) reader), demux := (project (project x state) demux), image := (project (project x state) image), offset := (project (project x state) offset), length := (project (project x state) length), failure := (ctor Option.some [Failure] (ctor Failure.publication))}), arena := (project x arena), usage := (project x usage)})
 }
 
 definition{
   name: cancel,
   parameters: [x : Session],
   result: Session,
-  body: (record Session {state := (record State {phase := (ctor Phase.cleanupDemux), source := (project (project x state) source), reader := (project (project x state) reader), demux := (project (Uorc.Wire.ObjectDemux::cancel (record Uorc.Wire.ObjectDemux::Session {state := (project (project x state) demux), arena := (project x arena), usage := (project x usage)})) state), image := (project (project x state) image), offset := (project (project x state) offset), length := (project (project x state) length), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)}),
-  axioms: [Quot.sound, propext]
+  body: (record Session {state := (record State {phase := (ctor Phase.cleanupDemux), source := (project (project x state) source), reader := (project (project x state) reader), demux := (project (Uorc.Wire.ObjectDemux::cancel (record Uorc.Wire.ObjectDemux::Session {state := (project (project x state) demux), arena := (project x arena), usage := (project x usage)})) state), image := (project (project x state) image), offset := (project (project x state) offset), length := (project (project x state) length), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)})
 }
 
 definition{
@@ -516,8 +513,7 @@ definition{
   name: boundary,
   parameters: [],
   result: String,
-  body: "Owns one output source sequence ticket and actual ObjectDemux cursor, borrowing ordered lengths under the enclosing verified archive or Core caller root. Every reader step is prepaid; each feed retains one live caller image ticket before actual demux captures its own charged wire ownerRoot link. The wrapper releases and drains its separate ticket after successful capture, before exposing a pending event; neither capture nor an empty cursor is mistaken for ticket consumption. Pending ObjectEvent remains rooted until explicit consumed/takeSpan acknowledgment. takeSpan transfers an extra root ticket in the outcome; consumer must inventory it separately. publicationFailed retains pending events and achieved Arena/Usage. Cancellation drains actual demux then wrapper source owner; original length table and program/archive caller roots remain with enclosing controller. Empty objects are emitted by actual demux in order; exactly one body EOF.",
-  axioms: [Quot.sound, propext]
+  body: "Owns one output source sequence ticket and actual ObjectDemux cursor, borrowing ordered lengths under the enclosing verified archive or Core caller root. Every reader step is prepaid; each feed retains one live caller image ticket before actual demux captures its own charged wire ownerRoot link. The wrapper releases and drains its separate ticket after successful capture, before exposing a pending event; neither capture nor an empty cursor is mistaken for ticket consumption. Pending ObjectEvent remains rooted until explicit consumed/takeSpan acknowledgment. takeSpan transfers an extra root ticket in the outcome; consumer must inventory it separately. publicationFailed retains pending events and achieved Arena/Usage. Cancellation drains actual demux then wrapper source owner; original length table and program/archive caller roots remain with enclosing controller. Empty objects are emitted by actual demux in order; exactly one body EOF."
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -191,7 +191,8 @@ definition{
       | Uorc.Core.ByteBuilder::Event.advanced next => (ctor Step.pending (ctor Cursor.blockAppending (ctor BlockAppend.state source next totalBytes (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work)) physicalSteps)))
       | Uorc.Core.ByteBuilder::Event.appended builder => (ctor Step.pending (ctor Cursor.blockReading (ctor BlockRead.state source builder totalBytes (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work)) physicalSteps)))
       | Uorc.Core.ByteBuilder::Event.finished rope => (ctor Step.rejected (ctor Error.invalidCursor))
-      | Uorc.Core.ByteBuilder::Event.failed builderError => (ctor Step.rejected (ctor Error.builder builderError))))
+      | Uorc.Core.ByteBuilder::Event.failed builderError => (ctor Step.rejected (ctor Error.builder builderError)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -203,7 +204,8 @@ definition{
       | Uorc.Core.ByteBuilder::Event.advanced next => (ctor Step.pending (ctor Cursor.blockFinishing (ctor BlockAppend.state source next totalBytes (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work)) physicalSteps)))
       | Uorc.Core.ByteBuilder::Event.appended builder => (ctor Step.rejected (ctor Error.invalidCursor))
       | Uorc.Core.ByteBuilder::Event.finished rope => (ctor Step.done (record Normalized {rope := rope, totalBytes := totalBytes, blockBytes := (project policy blockBytes), logicalSteps := (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work))}) physicalSteps)
-      | Uorc.Core.ByteBuilder::Event.failed builderError => (ctor Step.rejected (ctor Error.builder builderError))))
+      | Uorc.Core.ByteBuilder::Event.failed builderError => (ctor Step.rejected (ctor Error.builder builderError)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -216,7 +218,8 @@ definition{
     | Cursor.initial source => (initialStep policy source)
     | Cursor.blockReading state => (blockReadStep state)
     | Cursor.blockAppending state => (blockAppendStep policy state)
-    | Cursor.blockFinishing state => (blockFinishStep policy state)))
+    | Cursor.blockFinishing state => (blockFinishStep policy state))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -230,6 +233,7 @@ definition{
       | Step.done normalized physical => (ctor Step.done normalized physical)
       | Step.rejected error => (ctor Step.rejected error)
       | Step.ropeFailure error => (ctor Step.ropeFailure error))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -248,28 +252,32 @@ theorem{
   name: transport_partition_does_not_change_canonical_snapshot,
   parameters: [],
   statement: ((canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))) = (canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x) (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x01ff) (Uorc.Core.Bytes::fromBytes 0x80))))))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: empty_chunks_dont_change_canonical_snapshot,
   parameters: [],
   statement: ((canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x))))) = (canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x) (Uorc.Core.Bytes::fromBytes 0x))))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_block_policy_is_configuration_error,
   parameters: [],
   statement: ((step (record Policy {blockBytes := 0}) (start (Uorc.Core.Bytes::fromBytes 0x0001ff80))) = (ctor Step.rejected (ctor Error.zeroBlockSize))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: canonical_block_tree_and_logical_events,
   parameters: [],
   statement: ((canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))) = (ctor Option.some [Normalized] (record Normalized {rope := (Uorc.Core.Bytes::node (Uorc.Core.Bytes::fromBytes 0x0001) (Uorc.Core.Bytes::fromBytes 0xff80)), totalBytes := 4, blockBytes := 2, logicalSteps := 59}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 structure{
@@ -304,7 +312,8 @@ theorem{
   name: equal_work_search_state_ignores_transport_partition,
   parameters: [],
   statement: ((seedAfterWork 23 (record Uorc.Search.Schedule::Policy {quantum := 2, sourceBinding := 0x01, seedInventoryBinding := 0x02}) (record Uorc.Search.Schedule::Availability {typedGeneration := true, addressCharts := true, antiUnification := true, sharingLayout := true, stateGenerators := true, completeEnumeration := true}) (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))) = (seedAfterWork 23 (record Uorc.Search.Schedule::Policy {quantum := 2, sourceBinding := 0x01, seedInventoryBinding := 0x02}) (record Uorc.Search.Schedule::Availability {typedGeneration := true, addressCharts := true, antiUnification := true, sharingLayout := true, stateGenerators := true, completeEnumeration := true}) (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x) (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x01ff) (Uorc.Core.Bytes::fromBytes 0x80))))))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 structure{
@@ -363,14 +372,16 @@ definition{
     | Step.pending nextCursor => (workPrefix nextCursor)
     | Step.done normalized physical => (record WorkPrefix {logicalSteps := (project normalized logicalSteps), physicalSteps := physical})
     | Step.rejected failure => (if ((project policy blockBytes) =? 0) then (workPrefix cursor) else (attemptPrefix cursor))
-    | Step.ropeFailure failure => (attemptPrefix cursor))}))
+    | Step.ropeFailure failure => (attemptPrefix cursor))})),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_policy_preserves_work_prefix,
   parameters: [cursor : Cursor],
   statement: ((project (observe (record Policy {blockBytes := 0}) cursor) prefix) = (workPrefix cursor)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

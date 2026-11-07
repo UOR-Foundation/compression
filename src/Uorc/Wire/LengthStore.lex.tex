@@ -110,7 +110,6 @@ definition{
     | Phase.drainOld => (4 : UInt64)
     | Phase.cancelPut => (5 : UInt64)
     | Phase.clean => (6 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -119,7 +118,6 @@ definition{
   parameters: [],
   result: State,
   body: (record State {phase := (ctor Phase.idle), table := (Uorc.Wire.FrameEventContract::emptyLengthsTable), count := (0 : UInt64), sum := (0 : UInt64), length := (0 : UInt64), nextSum := (0 : UInt64), oldRoot := (Uorc.Core.RuntimeValue::nullHandle), cursor := (ctor Option.none [Uorc.Core.RuntimeTable::PutCursor]), failure := (ctor Option.none [Failure])}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -128,7 +126,6 @@ definition{
   parameters: [arena : Uorc.Core.Heap::Arena, usage : Uorc.Core.RuntimeResources::Usage],
   result: Session,
   body: (record Session {state := (initialState), arena := arena, usage := usage}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -137,7 +134,6 @@ definition{
   parameters: [st : State],
   result: Uorc.Wire.FrameEventContract::OwnedLengths,
   body: (record Uorc.Wire.FrameEventContract::OwnedLengths {table := (project st table), count := (project st count), totalOutputBytes := (project st sum)}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -146,7 +142,6 @@ definition{
   parameters: [x : Session, cursor : (Option Uorc.Core.RuntimeTable::PutCursor)],
   result: Uorc.Core.RuntimeTable::PutTransition,
   body: (record Uorc.Core.RuntimeTable::PutTransition {arena := (project x arena), cursor := cursor, outcome := (ctor Uorc.Core.RuntimeTable::PutOutcome.pending), delta := (Uorc.Core.RuntimeTable::putZeroDelta), peakOwnedBytes := (project (project x usage) peakOwnedBytes)}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -157,7 +152,6 @@ definition{
   body: (match (project st cursor)
     | Option.none => (record Roots {table := (project (project st table) root), old := (project st oldRoot), control := (Uorc.Core.RuntimeValue::nullHandle), tableCapture := (Uorc.Core.RuntimeValue::nullHandle), leafCapture := (Uorc.Core.RuntimeValue::nullHandle), subtree := (Uorc.Core.RuntimeValue::nullHandle)})
     | Option.some cursorLocal1 => (record Roots {table := (project (project st table) root), old := (project st oldRoot), control := (project cursorLocal1 control), tableCapture := (project cursorLocal1 tableCapture), leafCapture := (project cursorLocal1 leafCapture), subtree := (project cursorLocal1 subtree)})),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -211,7 +205,6 @@ definition{
   body: (let stLocal20 : State := (project x state); (match (project stLocal20 failure)
     | Option.some priorLocal21 => x
     | Option.none => (record Session {state := (record State {phase := (project stLocal20 phase), table := (project stLocal20 table), count := (project stLocal20 count), sum := (project stLocal20 sum), length := (project stLocal20 length), nextSum := (project stLocal20 nextSum), oldRoot := (project stLocal20 oldRoot), cursor := (project stLocal20 cursor), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)}))),
-  axioms: [Quot.sound, propext],
   executable: true,
   production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
 }
@@ -242,7 +235,6 @@ definition{
   parameters: [],
   result: UInt64,
   body: (1024 : UInt64),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -386,7 +378,6 @@ definition{
   parameters: [],
   result: String,
   body: "Ordered object lengths are stored by the Core RuntimeTable reserved PutCursor, with TableKind.slots(wire) and one natural-value slot per index. No List of lengths is retained. Every zero is committed. The table root, old root and Core cursor roots are owned exactly as reported by Roots; no second Arena is stored in the cursor/control. The controller moves the actual arena through each table operation and preserves achieved state on errors, work pauses and cancellation. An ArchiveParse.lengthStored acknowledgment is permitted only after Signal.stored, while this LengthStore still owns the table. Cleanup first advances a Core release already in progress and accepts its actual completed table result, then cancels the exact Core cursor and drops every remaining owner. No in-flight completed table ticket is rewritten into a cancellation outcome. Logical fixed-width work is prepaid; physical persistent-copy/RSS behavior is not inferred.",
-  axioms: [Quot.sound, propext],
   executable: true
 }
 \end{semanticmodule}

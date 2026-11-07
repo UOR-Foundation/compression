@@ -153,7 +153,8 @@ definition{
               | Result.error failure => (ctor Step.rejected (ctor Error.coordinateOverflow))
               | Result.ok bitsWord => (ctor Step.proposal (Uorc.Search.PackedDictionary::program countWord widthWord bitsWord codes f_dictionary tail) (f_completedEvents + 1)))))
         | Uorc.Core.Bytes::WorkEvent.byteDone unexpected => (ctor Step.rejected (ctor Error.invalidState))
-        | Uorc.Core.Bytes::WorkEvent.failed failure => (ctor Step.rejected (ctor Error.rope failure)))))
+        | Uorc.Core.Bytes::WorkEvent.failed failure => (ctor Step.rejected (ctor Error.rope failure))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -166,6 +167,7 @@ definition{
       | Step.pending nextCursor => (runWorkCursor remainingWork nextCursor)
       | Step.proposal graph events => (ctor Step.proposal graph events)
       | Step.rejected failure => (ctor Step.rejected failure))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -176,7 +178,8 @@ definition{
   body: (match state
     | Step.pending cursor => (runWorkCursor work cursor)
     | Step.proposal graph events => (ctor Step.proposal graph events)
-    | Step.rejected failure => (ctor Step.rejected failure))
+    | Step.rejected failure => (ctor Step.rejected failure)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{

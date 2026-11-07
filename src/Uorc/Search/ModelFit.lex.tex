@@ -91,7 +91,8 @@ definition{
   result: Step,
   body: (match (Uorc.Search.Effort::checkedU64 (Uorc.Core.Bytes::length target))
     | Result.error error => (ctor Step.rejected (ctor Error.coordinateOverflow))
-    | Result.ok count => (ctor Step.pending (record Cursor {target := target, generator := generator, count := count, budget := budget, phase := (ctor Phase.validating (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons generator (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}))), completedEvents := 0})))
+    | Result.ok count => (ctor Step.pending (record Cursor {target := target, generator := generator, count := count, budget := budget, phase := (ctor Phase.validating (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons generator (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}))), completedEvents := 0}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -122,7 +123,8 @@ definition{
     | Phase.building builder => (match (Uorc.Search.Residual::stepFinish builder)
       | Uorc.Search.Residual::Finish.building nextBuilder => (ctor Step.pending (record Cursor {target := (project cursor target), generator := (project cursor generator), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.building (ctor Uorc.Search.Residual::Finish.building nextBuilder)), completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.Residual::Finish.reversing generator remaining forward => (ctor Step.pending (record Cursor {target := (project cursor target), generator := (project cursor generator), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.building (ctor Uorc.Search.Residual::Finish.reversing generator remaining forward)), completedEvents := ((project cursor completedEvents) + 1)}))
-      | Uorc.Search.Residual::Finish.done proposal => (ctor Step.proposal proposal ((project cursor completedEvents) + 1))))
+      | Uorc.Search.Residual::Finish.done proposal => (ctor Step.proposal proposal ((project cursor completedEvents) + 1)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -135,6 +137,7 @@ definition{
       | Step.pending cursor => (run remainingFuel (step cursor))
       | Step.proposal proposal events => (ctor Step.proposal proposal events)
       | Step.rejected error => (ctor Step.rejected error))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 \end{semanticmodule}

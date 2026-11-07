@@ -39,6 +39,7 @@ definition{
       | Uorc.Search.TemplateOwner::Outcome.pending => (prepare remaining (project change cursor))
       | Uorc.Search.TemplateOwner::Outcome.ready => (ctor Option.some [Uorc.Search.TemplateOwner::Cursor] (project change cursor))
       | Uorc.Search.TemplateOwner::Outcome.failed preparationFailure => (ctor Option.none [Uorc.Search.TemplateOwner::Cursor])))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -50,7 +51,8 @@ definition{
     | Option.none => (ctor Option.none [Trial])
     | Option.some prepared => (match (Uorc.Search.TemplateAdmission::start (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) prepared)
       | Result.error startFailure => (ctor Option.none [Trial])
-      | Result.ok started => (ctor Option.some [Trial] (record Trial {cursor := started, externalRoots := (project fixture roots), sawJoined := false, sawSplit := false, sawAcknowledgment := false, audited := true, done := false, failed := false}))))
+      | Result.ok started => (ctor Option.some [Trial] (record Trial {cursor := started, externalRoots := (project fixture roots), sawJoined := false, sawSplit := false, sawAcknowledgment := false, audited := true, done := false, failed := false})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -106,7 +108,8 @@ definition{
   body: (let change : Uorc.Search.TemplateAdmission::Transition := (Uorc.Search.TemplateAdmission::step (project trial cursor) (1000000 : UInt64)); (record Trial {cursor := (project change cursor), externalRoots := (project trial externalRoots), sawJoined := ((project trial sawJoined) || (project (project (project change cursor) meta) spanJoined)), sawSplit := ((project trial sawSplit) || (isSplit (project change cursor))), sawAcknowledgment := ((project trial sawAcknowledgment) || (hasAcknowledgedSpan (project change cursor))), audited := (if ((isAdmission (project trial cursor)) && (isAdmission (project change cursor))) then (project trial audited) else ((project trial audited) && (Uorc.Core.HeapAudit::auditRoots (Uorc.Search.TemplateAdmission::arena (project change cursor)) (Uorc.Search.TemplateAdmission::joinRoots (project trial externalRoots) (Uorc.Search.TemplateAdmission::rootInventory (project change cursor)))))), done := (((project trial sawJoined) || (project (project (project change cursor) meta) spanJoined)) && (((project trial sawSplit) || (isSplit (project change cursor))) && ((project trial sawAcknowledgment) || (hasAcknowledgedSpan (project change cursor))))), failed := (match (project change outcome)
     | Uorc.Search.TemplateAdmission::Outcome.failed failure => true
     | Uorc.Search.TemplateAdmission::Outcome.pending => false
-    | Uorc.Search.TemplateAdmission::Outcome.admitted => false)}))
+    | Uorc.Search.TemplateAdmission::Outcome.admitted => false)})),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -116,6 +119,7 @@ definition{
   body: (match work
     | Nat.zero => trial
     | Nat.succ remaining => (if ((project trial done) || (project trial failed)) then trial else (run remaining (advance trial)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -127,7 +131,8 @@ definition{
     | Result.error fixtureFailure => false
     | Result.ok fixture => (match (startTrial fixture)
       | Option.none => false
-      | Option.some trial => (let reached : Trial := (run 10000 trial); ((project reached done) && ((not (project reached failed)) && (project reached audited))))))
+      | Option.some trial => (let reached : Trial := (run 10000 trial); ((project reached done) && ((not (project reached failed)) && (project reached audited)))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -138,7 +143,8 @@ definition{
     | Result.error fixtureFailure => false
     | Result.ok fixture => (match (startTrial fixture)
       | Option.none => false
-      | Option.some trial => (let reached : Trial := (run 10000 trial); ((project reached done) && ((not (project reached failed)) && (project reached audited))))))
+      | Option.some trial => (let reached : Trial := (run 10000 trial); ((project reached done) && ((not (project reached failed)) && (project reached audited)))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{

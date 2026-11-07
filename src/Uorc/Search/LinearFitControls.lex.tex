@@ -12,6 +12,7 @@ definition{
     | Nat.succ remaining => (if (Uorc.Search.LinearFit::ready cursor) then (ctor Result.ok [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] cursor) else (match (Uorc.Search.LinearFit::step cursor)
       | Result.error error => (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] error)
       | Result.ok next => (drain remaining next)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -26,6 +27,7 @@ definition{
       | Result.ok pending => (match (drain 258 pending)
         | Result.error error => (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] error)
         | Result.ok ready => (observe tail ready)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: values
 }
 
@@ -38,6 +40,7 @@ definition{
     | List.cons head tail => (match (observe head cursor)
       | Result.error error => (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] error)
       | Result.ok ready => (observeChunks tail ready))),
+  axioms: [Quot.sound, propext],
   recursive_argument: chunks
 }
 
@@ -49,98 +52,112 @@ definition{
     | Result.error error => (ctor Result.error [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] error)
     | Result.ok cursor => (match (Uorc.Search.LinearFit::finish cursor)
       | Result.error error => (ctor Result.error [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] error)
-      | Result.ok finished => (Uorc.Search.LinearFit::proposals finished)))
+      | Result.ok finished => (Uorc.Search.LinearFit::proposals finished))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: fit,
   parameters: [values : (List UInt8)],
   result: (Result Uorc.Search.LinearFit::Proposals Uorc.Search.LinearFit::Error),
-  body: (finishProposals (observe values (Uorc.Search.LinearFit::start)))
+  body: (finishProposals (observe values (Uorc.Search.LinearFit::start))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: fitChunks,
   parameters: [chunks : (List (List UInt8))],
   result: (Result Uorc.Search.LinearFit::Proposals Uorc.Search.LinearFit::Error),
-  body: (finishProposals (observeChunks chunks (Uorc.Search.LinearFit::start)))
+  body: (finishProposals (observeChunks chunks (Uorc.Search.LinearFit::start))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: empty,
   parameters: [],
   statement: ((fit (nil UInt8)) = (ctor Result.ok [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] (record Uorc.Search.LinearFit::Proposals {inputBytes := (0 : UInt64), affine := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.empty)), state := (ctor Option.none [Uorc.Search.FixedTemplates::Template])}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: singleton_ff,
   parameters: [],
   statement: ((fit (cons (255 : UInt8) (nil UInt8))) = (ctor Result.ok [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] (record Uorc.Search.LinearFit::Proposals {inputBytes := (1 : UInt64), affine := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.affine (1 : UInt64) (255 : UInt64) (0 : UInt64))), state := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.state (1 : UInt64) (255 : UInt64) (0 : UInt64) (255 : UInt64)))}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: wrapped_affine,
   parameters: [],
   statement: ((fit (cons (250 : UInt8) (cons (2 : UInt8) (cons (10 : UInt8) (cons (18 : UInt8) (nil UInt8)))))) = (ctor Result.ok [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] (record Uorc.Search.LinearFit::Proposals {inputBytes := (4 : UInt64), affine := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.affine (4 : UInt64) (250 : UInt64) (8 : UInt64))), state := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.state (4 : UInt64) (250 : UInt64) (1 : UInt64) (8 : UInt64)))}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: learned_nonlinear_state,
   parameters: [],
   statement: ((fit (cons (3 : UInt8) (cons (16 : UInt8) (cons (81 : UInt8) (cons (150 : UInt8) (cons (239 : UInt8) (nil UInt8))))))) = (ctor Result.ok [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] (record Uorc.Search.LinearFit::Proposals {inputBytes := (5 : UInt64), affine := (ctor Option.none [Uorc.Search.FixedTemplates::Template]), state := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.state (5 : UInt64) (3 : UInt64) (5 : UInt64) (1 : UInt64)))}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: ambiguous_even_coset,
   parameters: [],
   statement: ((fit (cons (0 : UInt8) (cons (128 : UInt8) (cons (0 : UInt8) (cons (128 : UInt8) (nil UInt8)))))) = (ctor Result.ok [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] (record Uorc.Search.LinearFit::Proposals {inputBytes := (4 : UInt64), affine := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.affine (4 : UInt64) (0 : UInt64) (128 : UInt64))), state := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.state (4 : UInt64) (0 : UInt64) (1 : UInt64) (128 : UInt64)))}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: constant,
   parameters: [],
   statement: ((fit (cons (9 : UInt8) (cons (9 : UInt8) (cons (9 : UInt8) (cons (9 : UInt8) (nil UInt8)))))) = (ctor Result.ok [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] (record Uorc.Search.LinearFit::Proposals {inputBytes := (4 : UInt64), affine := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.affine (4 : UInt64) (9 : UInt64) (0 : UInt64))), state := (ctor Option.some [Uorc.Search.FixedTemplates::Template] (ctor Uorc.Search.FixedTemplates::Template.state (4 : UInt64) (9 : UInt64) (0 : UInt64) (9 : UInt64)))}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: no_state_from_constant_prefix,
   parameters: [],
   statement: ((fit (cons (0 : UInt8) (cons (0 : UInt8) (cons (1 : UInt8) (nil UInt8))))) = (ctor Result.ok [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] (record Uorc.Search.LinearFit::Proposals {inputBytes := (3 : UInt64), affine := (ctor Option.none [Uorc.Search.FixedTemplates::Template]), state := (ctor Option.none [Uorc.Search.FixedTemplates::Template])}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: late_state_contradiction,
   parameters: [],
   statement: ((fit (cons (1 : UInt8) (cons (2 : UInt8) (cons (4 : UInt8) (cons (9 : UInt8) (nil UInt8)))))) = (ctor Result.ok [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] (record Uorc.Search.LinearFit::Proposals {inputBytes := (4 : UInt64), affine := (ctor Option.none [Uorc.Search.FixedTemplates::Template]), state := (ctor Option.none [Uorc.Search.FixedTemplates::Template])}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: empty_observation_preserves_every_cursor,
   parameters: [cursor : Uorc.Search.LinearFit::Cursor],
   statement: ((observe (nil UInt8) cursor) = (ctor Result.ok [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] cursor)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: transport_partition_preserves_learned_parameters,
   parameters: [],
   statement: ((fitChunks (cons (nil UInt8) (cons (cons (3 : UInt8) (nil UInt8)) (cons (cons (16 : UInt8) (cons (81 : UInt8) (nil UInt8))) (cons (nil UInt8) (cons (cons (150 : UInt8) (nil UInt8)) (cons (cons (239 : UInt8) (nil UInt8)) (cons (nil UInt8) (nil (List UInt8)))))))))) = (fit (cons (3 : UInt8) (cons (16 : UInt8) (cons (81 : UInt8) (cons (150 : UInt8) (cons (239 : UInt8) (nil UInt8)))))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: transport_partition_preserves_exact_fitting_cursor,
   parameters: [],
   statement: ((observeChunks (cons (nil UInt8) (cons (cons (3 : UInt8) (nil UInt8)) (cons (cons (16 : UInt8) (cons (81 : UInt8) (nil UInt8))) (cons (nil UInt8) (cons (cons (150 : UInt8) (nil UInt8)) (cons (cons (239 : UInt8) (nil UInt8)) (cons (nil UInt8) (nil (List UInt8))))))))) (Uorc.Search.LinearFit::start)) = (observe (cons (3 : UInt8) (cons (16 : UInt8) (cons (81 : UInt8) (cons (150 : UInt8) (cons (239 : UInt8) (nil UInt8)))))) (Uorc.Search.LinearFit::start))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -149,28 +166,32 @@ definition{
   result: Uorc.Search.LinearFit::Cursor,
   body: (match (Uorc.Search.LinearFit::offerByte (Uorc.Search.LinearFit::start) (7 : UInt8))
     | Result.error error => (Uorc.Search.LinearFit::start)
-    | Result.ok pending => pending)
+    | Result.ok pending => pending),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: pending_offer_rejected,
   parameters: [],
   statement: ((Uorc.Search.LinearFit::offerByte (firstPending) (9 : UInt8)) = (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] (ctor Uorc.Search.LinearFit::Error.pendingObservation))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: pending_eof_rejected,
   parameters: [],
   statement: ((Uorc.Search.LinearFit::finish (firstPending)) = (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] (ctor Uorc.Search.LinearFit::Error.pendingObservation))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: proposal_before_eof_rejected,
   parameters: [],
   statement: ((Uorc.Search.LinearFit::proposals (Uorc.Search.LinearFit::start)) = (ctor Result.error [Uorc.Search.LinearFit::Proposals, Uorc.Search.LinearFit::Error] (ctor Uorc.Search.LinearFit::Error.pendingObservation))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -179,49 +200,56 @@ definition{
   result: Uorc.Search.LinearFit::Cursor,
   body: (match (Uorc.Search.LinearFit::finish (Uorc.Search.LinearFit::start))
     | Result.error error => (Uorc.Search.LinearFit::start)
-    | Result.ok finished => finished)
+    | Result.ok finished => finished),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: duplicate_eof_rejected,
   parameters: [],
   statement: ((Uorc.Search.LinearFit::finish (finalizedEmpty)) = (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] (ctor Uorc.Search.LinearFit::Error.alreadyFinalized))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: byte_after_eof_rejected,
   parameters: [],
   statement: ((Uorc.Search.LinearFit::offerByte (finalizedEmpty) (0 : UInt8)) = (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] (ctor Uorc.Search.LinearFit::Error.alreadyFinalized))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_modulus,
   parameters: [],
   statement: ((Uorc.Search.LinearFit::offerByte (record Uorc.Search.LinearFit::Cursor {phase := (project (Uorc.Search.LinearFit::start) phase), count := (project (Uorc.Search.LinearFit::start) count), first := (project (Uorc.Search.LinearFit::start) first), second := (project (Uorc.Search.LinearFit::start) second), previous := (project (Uorc.Search.LinearFit::start) previous), slope := (project (Uorc.Search.LinearFit::start) slope), expected := (project (Uorc.Search.LinearFit::start) expected), affinePossible := (project (Uorc.Search.LinearFit::start) affinePossible), statePossible := (project (Uorc.Search.LinearFit::start) statePossible), residue := (project (Uorc.Search.LinearFit::start) residue), modulus := (0 : UInt64), pending := (project (Uorc.Search.LinearFit::start) pending), difference := (project (Uorc.Search.LinearFit::start) difference), target := (project (Uorc.Search.LinearFit::start) target), scan := (project (Uorc.Search.LinearFit::start) scan), found := (project (Uorc.Search.LinearFit::start) found), solution := (project (Uorc.Search.LinearFit::start) solution), spacing := (project (Uorc.Search.LinearFit::start) spacing)}) (0 : UInt8)) = (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] (ctor Uorc.Search.LinearFit::Error.invalidState))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: non_power_modulus,
   parameters: [],
   statement: ((Uorc.Search.LinearFit::offerByte (record Uorc.Search.LinearFit::Cursor {phase := (project (Uorc.Search.LinearFit::start) phase), count := (project (Uorc.Search.LinearFit::start) count), first := (project (Uorc.Search.LinearFit::start) first), second := (project (Uorc.Search.LinearFit::start) second), previous := (project (Uorc.Search.LinearFit::start) previous), slope := (project (Uorc.Search.LinearFit::start) slope), expected := (project (Uorc.Search.LinearFit::start) expected), affinePossible := (project (Uorc.Search.LinearFit::start) affinePossible), statePossible := (project (Uorc.Search.LinearFit::start) statePossible), residue := (project (Uorc.Search.LinearFit::start) residue), modulus := (3 : UInt64), pending := (project (Uorc.Search.LinearFit::start) pending), difference := (project (Uorc.Search.LinearFit::start) difference), target := (project (Uorc.Search.LinearFit::start) target), scan := (project (Uorc.Search.LinearFit::start) scan), found := (project (Uorc.Search.LinearFit::start) found), solution := (project (Uorc.Search.LinearFit::start) solution), spacing := (project (Uorc.Search.LinearFit::start) spacing)}) (0 : UInt8)) = (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] (ctor Uorc.Search.LinearFit::Error.invalidState))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: count_exhaustion,
   parameters: [],
   statement: ((Uorc.Search.LinearFit::offerByte (record Uorc.Search.LinearFit::Cursor {phase := (project (Uorc.Search.LinearFit::start) phase), count := (18446744073709551615 : UInt64), first := (project (Uorc.Search.LinearFit::start) first), second := (project (Uorc.Search.LinearFit::start) second), previous := (project (Uorc.Search.LinearFit::start) previous), slope := (project (Uorc.Search.LinearFit::start) slope), expected := (project (Uorc.Search.LinearFit::start) expected), affinePossible := (project (Uorc.Search.LinearFit::start) affinePossible), statePossible := (project (Uorc.Search.LinearFit::start) statePossible), residue := (project (Uorc.Search.LinearFit::start) residue), modulus := (project (Uorc.Search.LinearFit::start) modulus), pending := (project (Uorc.Search.LinearFit::start) pending), difference := (project (Uorc.Search.LinearFit::start) difference), target := (project (Uorc.Search.LinearFit::start) target), scan := (project (Uorc.Search.LinearFit::start) scan), found := (project (Uorc.Search.LinearFit::start) found), solution := (project (Uorc.Search.LinearFit::start) solution), spacing := (project (Uorc.Search.LinearFit::start) spacing)}) (0 : UInt8)) = (ctor Result.error [Uorc.Search.LinearFit::Cursor, Uorc.Search.LinearFit::Error] (ctor Uorc.Search.LinearFit::Error.addressSpaceExhausted))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: multiply_overflow_is_typed,
   parameters: [],
   statement: ((Uorc.Search.LinearFit::multiplyMod256 (18446744073709551615 : UInt64) (2 : UInt64)) = (ctor Result.error [UInt64, Uorc.Search.LinearFit::Error] (ctor Uorc.Search.LinearFit::Error.invalidState))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{

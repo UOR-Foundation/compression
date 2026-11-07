@@ -129,7 +129,8 @@ definition{
     | Uorc.Search.Replay::Step.completeBodyReplay coverage => (match (project cursor mode)
       | Mode.produce => (ctor Step.produced (record Artifact {request := (record Uorc.Search.Replay::Request {seal := (project coverage seal), winnerWire := (project (project (project coverage winner) checked) wire)}), claimedBodyWords := (project (project coverage ledger) bodyWords), claimedMaximumBodyLength := (project coverage maximumBodyLength)}) coverage (project cursor effortLedger))
       | Mode.check => (ctor Step.checked coverage (project cursor effortLedger)))
-    | Uorc.Search.Replay::Step.incomplete error prefix => (ctor Step.incomplete (ctor Error.replay error) (cancel cursor)))
+    | Uorc.Search.Replay::Step.incomplete error prefix => (ctor Step.incomplete (ctor Error.replay error) (cancel cursor))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -138,7 +139,8 @@ definition{
   result: Step,
   body: (match (Uorc.Search.Effort::charge (project cursor allowances) (project cursor effortLedger) (partition (project cursor mode)))
     | Result.error failure => (ctor Step.incomplete (ctor Error.allowance failure) (cancel cursor))
-    | Result.ok nextLedger => (dispatch (record Cursor {mode := (project cursor mode), request := (project cursor request), expected := (project cursor expected), allowances := (project cursor allowances), effortLedger := nextLedger, replay := (project cursor replay)})))
+    | Result.ok nextLedger => (dispatch (record Cursor {mode := (project cursor mode), request := (project cursor request), expected := (project cursor expected), allowances := (project cursor allowances), effortLedger := nextLedger, replay := (project cursor replay)}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -167,6 +169,7 @@ definition{
       | Step.checked coverage ledger => (ctor Step.checked coverage ledger)
       | Step.counterexample found ledger => (ctor Step.counterexample found ledger)
       | Step.incomplete error prefix => (ctor Step.incomplete error prefix))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -228,7 +231,8 @@ theorem{
   name: zero_work_preserves_any_certificate_prefix,
   parameters: [state : Step],
   statement: ((runWork 0 state) = state),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -100,7 +100,8 @@ definition{
     | Phase.fitting fitCursor observations nextState => (match (Uorc.Search.GeneralFit::step fitCursor)
       | Uorc.Search.GeneralFit::Step.pending next => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.fitting next observations nextState), completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.GeneralFit::Step.proposal graph events => (ctor Step.proposal graph (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations nextState), completedEvents := ((project cursor completedEvents) + 1)}))
-      | Uorc.Search.GeneralFit::Step.rejected error => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations nextState), completedEvents := ((project cursor completedEvents) + 1)}))))
+      | Uorc.Search.GeneralFit::Step.rejected error => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations nextState), completedEvents := ((project cursor completedEvents) + 1)})))),
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

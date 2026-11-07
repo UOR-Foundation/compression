@@ -89,7 +89,8 @@ definition{
     | Phase.fitting fitCursor => (match (Uorc.Search.ModelFit::step fitCursor)
       | Uorc.Search.ModelFit::Step.pending next => (ctor Step.pending (record Cursor {target := (project cursor target), nextLength := (project cursor nextLength), budget := (project cursor budget), phase := (ctor Phase.fitting next), completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.ModelFit::Step.proposal proposal events => (ctor Step.proposal proposal (record Cursor {target := (project cursor target), nextLength := ((project cursor nextLength) + 1), budget := (project cursor budget), phase := (ctor Phase.choosing), completedEvents := ((project cursor completedEvents) + 1)}))
-      | Uorc.Search.ModelFit::Step.rejected fitError => (ctor Step.pending (record Cursor {target := (project cursor target), nextLength := ((project cursor nextLength) + 1), budget := (project cursor budget), phase := (ctor Phase.choosing), completedEvents := ((project cursor completedEvents) + 1)}))))
+      | Uorc.Search.ModelFit::Step.rejected fitError => (ctor Step.pending (record Cursor {target := (project cursor target), nextLength := ((project cursor nextLength) + 1), budget := (project cursor budget), phase := (ctor Phase.choosing), completedEvents := ((project cursor completedEvents) + 1)})))),
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

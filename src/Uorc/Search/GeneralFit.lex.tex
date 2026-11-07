@@ -91,7 +91,8 @@ definition{
   result: Step,
   body: (match (Uorc.Search.Effort::checkedU64 (Uorc.Core.Bytes::length target))
     | Result.error error => (ctor Step.rejected (ctor Error.coordinateOverflow))
-    | Result.ok count => (ctor Step.pending (record Cursor {target := target, count := count, budget := budget, phase := (ctor Phase.validating (Uorc.Core.Validation::start base)), completedEvents := 0})))
+    | Result.ok count => (ctor Step.pending (record Cursor {target := target, count := count, budget := budget, phase := (ctor Phase.validating (Uorc.Core.Validation::start base)), completedEvents := 0}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -129,7 +130,8 @@ definition{
       | Uorc.Search.Overlay::Step.pending next => (ctor Step.pending (record Cursor {target := (project cursor target), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.building next), completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.Overlay::Step.proposal graph overlayEvents => (ctor Step.proposal graph ((project cursor completedEvents) + 1))
       | Uorc.Search.Overlay::Step.invalidBase => (ctor Step.rejected (ctor Error.invalidBase))
-      | Uorc.Search.Overlay::Step.addressSpaceExhausted => (ctor Step.rejected (ctor Error.coordinateOverflow))))
+      | Uorc.Search.Overlay::Step.addressSpaceExhausted => (ctor Step.rejected (ctor Error.coordinateOverflow)))),
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -201,7 +201,8 @@ definition{
       | Uorc.Search.VerifyRope::Step.pending nextComparison => (ctor Step.pending (record Cursor {query := (project cursor query), wire := (project cursor wire), phase := (ctor Phase.checking parsedGraph usage executionLedger nextComparison), completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.VerifyRope::Step.matched bytesCompared boundaries => (ctor Step.complete (record CheckedProgram {graph := parsedGraph, wire := (project cursor wire), usage := usage, executionLedger := executionLedger, bytesCompared := bytesCompared, completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor Step.rejected (ctor Error.mismatchAccounted mismatch executionLedger) ((project cursor completedEvents) + 1))
-      | Uorc.Search.VerifyRope::Step.ropeFailure ropeError => (ctor Step.rejected (ctor Error.verificationRopeAccounted ropeError executionLedger) ((project cursor completedEvents) + 1))))
+      | Uorc.Search.VerifyRope::Step.ropeFailure ropeError => (ctor Step.rejected (ctor Error.verificationRopeAccounted ropeError executionLedger) ((project cursor completedEvents) + 1)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -214,6 +215,7 @@ definition{
       | Step.pending cursor => (run remainingFuel (step cursor))
       | Step.complete checkedProgram => (ctor Step.complete checkedProgram)
       | Step.rejected error events => (ctor Step.rejected error events))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -252,28 +254,32 @@ theorem{
   name: literal_round_trip_reparses_validates_executes_and_checks,
   parameters: [],
   statement: ((outcome (run 6000 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001ff))))) = (ctor Outcome.accepted)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: changed_decoded_byte_is_rejected,
   parameters: [],
   statement: ((outcome (run 6000 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001fe))))) = (ctor Outcome.rejected)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: unfunded_trial_never_supplies_checked_program,
   parameters: [],
   statement: ((outcome (run 0 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001ff))))) = (ctor Outcome.waiting)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: trial_resume_preserves_exact_state,
   parameters: [],
   statement: ((run 73 (run 41 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001ff))))) = (run 114 (ctor Step.pending (start (record Query {target := (Uorc.Core.Bytes::fromBytes 0x0001ff), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000, maxLiveCells := 10000, maxOutputBytes := 10000, maxFrames := 100}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (Uorc.Core.Graph::literalGraph 0x0001ff))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{

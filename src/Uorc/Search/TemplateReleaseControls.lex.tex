@@ -42,7 +42,8 @@ definition{
   result: Bool,
   body: (if (Uorc.Core.RuntimeValue::isNull handle) then true else (match (Uorc.Core.Heap::lookup activeArena handle)
     | Result.error heapFailure => false
-    | Result.ok entry => true))
+    | Result.ok entry => true)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -58,7 +59,8 @@ definition{
   name: zeroCreditPreservesMetrics,
   parameters: [cursor : Uorc.Search.TemplateRelease::Cursor],
   result: Bool,
-  body: (let change : Uorc.Search.TemplateRelease::Transition := (Uorc.Search.TemplateRelease::step cursor (0 : UInt64)); ((prim equal (project (Uorc.Search.TemplateRelease::arena cursor) ownedBytes) (project (Uorc.Search.TemplateRelease::arena (project change cursor)) ownedBytes) : Bool) && ((prim equal (project (Uorc.Search.TemplateRelease::usage cursor) work) (project (Uorc.Search.TemplateRelease::usage (project change cursor)) work) : Bool) && ((prim equal (project cursor attemptedOperations) (project (project change cursor) attemptedOperations) : Bool) && (prim equal (project cursor paid) (project (project change cursor) paid) : Bool)))))
+  body: (let change : Uorc.Search.TemplateRelease::Transition := (Uorc.Search.TemplateRelease::step cursor (0 : UInt64)); ((prim equal (project (Uorc.Search.TemplateRelease::arena cursor) ownedBytes) (project (Uorc.Search.TemplateRelease::arena (project change cursor)) ownedBytes) : Bool) && ((prim equal (project (Uorc.Search.TemplateRelease::usage cursor) work) (project (Uorc.Search.TemplateRelease::usage (project change cursor)) work) : Bool) && ((prim equal (project cursor attemptedOperations) (project (project change cursor) attemptedOperations) : Bool) && (prim equal (project cursor paid) (project (project change cursor) paid) : Bool))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -69,7 +71,8 @@ definition{
     | Option.none => (ctor Option.none [Probe])
     | Option.some ready => (match (Uorc.Search.TemplateRelease::start admitted)
       | Result.error releaseFailure => (ctor Option.none [Probe])
-      | Result.ok started => (ctor Option.some [Probe] (record Probe {cursor := started, expected := (record Expected {originalSearch := (project (project admitted meta) originalSearch), blocks := (project (project (project ready program) blocks) root), basis := (project (project (project ready program) basis) root), entry := (project (project ready program) entry), blockCount := (project (project ready program) blockCount), initialWork := (project (project ready usage) work)}), control := (Uorc.Core.RuntimeValue::nullHandle), passed := (Uorc.Core.HeapAudit::auditRoots (Uorc.Search.TemplateRelease::arena started) (Uorc.Search.TemplateRelease::rootInventory started)), done := false}))))
+      | Result.ok started => (ctor Option.some [Probe] (record Probe {cursor := started, expected := (record Expected {originalSearch := (project (project admitted meta) originalSearch), blocks := (project (project (project ready program) blocks) root), basis := (project (project (project ready program) basis) root), entry := (project (project ready program) entry), blockCount := (project (project ready program) blockCount), initialWork := (project (project ready usage) work)}), control := (Uorc.Core.RuntimeValue::nullHandle), passed := (Uorc.Core.HeapAudit::auditRoots (Uorc.Search.TemplateRelease::arena started) (Uorc.Search.TemplateRelease::rootInventory started)), done := false})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -84,7 +87,8 @@ definition{
     | Option.none => false
     | Option.some ready => (((prim equal (project (project ready program) blockCount) (project expected blockCount) : Bool) && ((prim equal (project (project ready program) entry) (project expected entry) : Bool) && ((prim equal (project (project (project (project ready program) basis) root) id) (project (project expected basis) id) : Bool) && ((prim equal (project (project (project (project ready program) blocks) root) id) (project (project expected blocks) id) : Bool) && ((prim equal (project (project (project ready caller) search) id) (project (project expected originalSearch) id) : Bool) && true))))) && ((match (prim checked_subtract (project (project ready usage) work) (project expected initialWork) : (Option UInt64))
       | Option.none => false
-      | Option.some work => (prim equal work (project cursor consumedCredits) : Bool)) && ((not (Uorc.Core.RuntimeValue::isNull control)) && (not (live (project ready arena) control))))))
+      | Option.some work => (prim equal work (project cursor consumedCredits) : Bool)) && ((not (Uorc.Core.RuntimeValue::isNull control)) && (not (live (project ready arena) control)))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -97,7 +101,8 @@ definition{
     | Uorc.Search.TemplateRelease::Outcome.failed releaseFailure => false)))), done := (match (project change outcome)
     | Uorc.Search.TemplateRelease::Outcome.pending => false
     | Uorc.Search.TemplateRelease::Outcome.released => true
-    | Uorc.Search.TemplateRelease::Outcome.failed releaseFailure => true)}))))
+    | Uorc.Search.TemplateRelease::Outcome.failed releaseFailure => true)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -107,6 +112,7 @@ definition{
   body: (match work
     | Nat.zero => probe
     | Nat.succ remaining => (if (project probe done) then probe else (run remaining (advance probe)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -116,7 +122,8 @@ definition{
   result: Bool,
   body: (match (start admitted)
     | Option.none => false
-    | Option.some probe => (let finished : Probe := (run work probe); ((project finished done) && (project finished passed))))
+    | Option.some probe => (let finished : Probe := (run work probe); ((project finished done) && (project finished passed)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{

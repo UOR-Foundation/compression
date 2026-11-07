@@ -105,8 +105,7 @@ definition{
     local2_local2_right : Uorc.Product.Api::Run
   ],
   result: Bool,
-  body: (((project local1_local1_left instance) =? (project local2_local2_right instance)) && (((project local1_local1_left serial) =? (project local2_local2_right serial)) && (((project local1_local1_left revision) =? (project local2_local2_right revision)) && true))),
-  axioms: [Quot.sound, propext]
+  body: (((project local1_local1_left instance) =? (project local2_local2_right instance)) && (((project local1_local1_left serial) =? (project local2_local2_right serial)) && (((project local1_local1_left revision) =? (project local2_local2_right revision)) && true)))
 }
 
 definition{
@@ -137,8 +136,7 @@ definition{
     | Uorc.Core.RuntimeMachine::Disposition.cancelling => (record State {run := (project local6_local6_s run), owner := (ctor Owner.draining local7_local7_core local8_local8_output), stopped := (project local6_local6_s stopped), failure := (project local6_local6_s failure), receipt := (project local6_local6_s receipt), semanticRefusal := (Uorc.Core.RuntimeMachineEngine::semanticStatus local7_local7_core)})
     | Uorc.Core.RuntimeMachine::Disposition.cleaned => (match (Uorc.Core.RuntimeMachineEngine::takeReady local7_local7_core)
       | Result.error local12_local12_failure => (record State {run := (project local6_local6_s run), owner := (ctor Owner.draining local7_local7_core local8_local8_output), stopped := (project local6_local6_s stopped), failure := (ctor Option.some [Uorc.Core.RuntimeMachine::Failure] local12_local12_failure), receipt := (project local6_local6_s receipt), semanticRefusal := (Uorc.Core.RuntimeMachineEngine::semanticStatus local7_local7_core)})
-      | Result.ok local13_local13_ready => (record State {run := (project local6_local6_s run), owner := (ctor Owner.terminal local13_local13_ready local8_local8_output), stopped := (project local6_local6_s stopped), failure := (project local6_local6_s failure), receipt := (project local6_local6_s receipt), semanticRefusal := (Uorc.Core.RuntimeMachineEngine::semanticStatus local7_local7_core)}))),
-  axioms: [Quot.sound, propext]
+      | Result.ok local13_local13_ready => (record State {run := (project local6_local6_s run), owner := (ctor Owner.terminal local13_local13_ready local8_local8_output), stopped := (project local6_local6_s stopped), failure := (project local6_local6_s failure), receipt := (project local6_local6_s receipt), semanticRefusal := (Uorc.Core.RuntimeMachineEngine::semanticStatus local7_local7_core)})))
 }
 
 definition{
@@ -156,8 +154,7 @@ definition{
       | Result.ok local19_local19_transfer => (record State {run := (project local14_local14_s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::cancel (project local19_local19_transfer state)) (ctor Option.some [Uorc.Core.RuntimeValue::Handle] (project local19_local19_transfer handle))), stopped := (project local14_local14_s stopped), failure := (project local14_local14_s failure), receipt := (project local14_local14_s receipt), semanticRefusal := (Uorc.Core.RuntimeMachineEngine::semanticStatus local15_local15_core)}))
     | Uorc.Core.RuntimeMachine::Disposition.failed local20_local20_reason => (record State {run := (project local14_local14_s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::cancel local15_local15_core) (ctor Option.none [Uorc.Core.RuntimeValue::Handle])), stopped := (project local14_local14_s stopped), failure := (ctor Option.some [Uorc.Core.RuntimeMachine::Failure] local20_local20_reason), receipt := (project local14_local14_s receipt), semanticRefusal := (Uorc.Core.RuntimeMachineEngine::semanticStatus local15_local15_core)})
     | Uorc.Core.RuntimeMachine::Disposition.cancelling => (record State {run := (project local14_local14_s run), owner := (ctor Owner.draining local15_local15_core (ctor Option.none [Uorc.Core.RuntimeValue::Handle])), stopped := true, failure := (project local14_local14_s failure), receipt := (project local14_local14_s receipt), semanticRefusal := (Uorc.Core.RuntimeMachineEngine::semanticStatus local15_local15_core)})
-    | Uorc.Core.RuntimeMachine::Disposition.cleaned => (finishDrain local14_local14_s local15_local15_core (ctor Option.none [Uorc.Core.RuntimeValue::Handle]))),
-  axioms: [Quot.sound, propext]
+    | Uorc.Core.RuntimeMachine::Disposition.cleaned => (finishDrain local14_local14_s local15_local15_core (ctor Option.none [Uorc.Core.RuntimeValue::Handle])))
 }
 
 definition{
@@ -196,8 +193,7 @@ definition{
     | Owner.running local40_local40_core => (record State {run := (project local38_local38_s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::cancel local40_local40_core) (ctor Option.none [Uorc.Core.RuntimeValue::Handle])), stopped := true, failure := (project local38_local38_s failure), receipt := (project local38_local38_s receipt), semanticRefusal := (project local38_local38_s semanticRefusal)})
     | Owner.draining local41_local41_core local42_local42_output => (record State {run := (project local38_local38_s run), owner := (ctor Owner.draining (Uorc.Core.RuntimeMachineEngine::cancel local41_local41_core) local42_local42_output), stopped := true, failure := (project local38_local38_s failure), receipt := (project local38_local38_s receipt), semanticRefusal := (project local38_local38_s semanticRefusal)})
     | Owner.terminal local43_local43_ready local44_local44_output => (record State {run := (project local38_local38_s run), owner := (project local38_local38_s owner), stopped := true, failure := (project local38_local38_s failure), receipt := (project local38_local38_s receipt), semanticRefusal := (project local38_local38_s semanticRefusal)})
-    | Owner.handedOff local45_local45_bindingUsage => local38_local38_s) else local38_local38_s),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local45_local45_bindingUsage => local38_local38_s) else local38_local38_s)
 }
 
 definition{
@@ -211,8 +207,7 @@ definition{
   result: State,
   body: (match (Uorc.Core.RuntimeMachineEngine::takeOverflowReceipt local47_local47_core)
     | Result.error local50_local50_reason => local46_local46_s
-    | Result.ok local51_local51_receipt => (record State {run := (project local46_local46_s run), owner := (if local49_local49_draining then (ctor Owner.draining (project local51_local51_receipt state) local48_local48_output) else (ctor Owner.running (project local51_local51_receipt state))), stopped := (project local46_local46_s stopped), failure := (project local46_local46_s failure), receipt := (ctor Option.some [OverflowReceipt] (record OverflowReceipt {prefix := (project local51_local51_receipt prefix), event := (project local51_local51_receipt event)})), semanticRefusal := (project local46_local46_s semanticRefusal)})),
-  axioms: [Quot.sound, propext]
+    | Result.ok local51_local51_receipt => (record State {run := (project local46_local46_s run), owner := (if local49_local49_draining then (ctor Owner.draining (project local51_local51_receipt state) local48_local48_output) else (ctor Owner.running (project local51_local51_receipt state))), stopped := (project local46_local46_s stopped), failure := (project local46_local46_s failure), receipt := (ctor Option.some [OverflowReceipt] (record OverflowReceipt {prefix := (project local51_local51_receipt prefix), event := (project local51_local51_receipt event)})), semanticRefusal := (project local46_local46_s semanticRefusal)}))
 }
 
 definition{
@@ -225,16 +220,14 @@ definition{
       | Owner.running local55_local55_core => (takeCoreReceipt local52_local52_s local55_local55_core (ctor Option.none [Uorc.Core.RuntimeValue::Handle]) false)
       | Owner.draining local56_local56_core local57_local57_output => (takeCoreReceipt local52_local52_s local56_local56_core local57_local57_output true)
       | Owner.terminal local58_local58_ready local59_local59_output => local52_local52_s
-      | Owner.handedOff local60_local60_bindingUsage => local52_local52_s)) else local52_local52_s),
-  axioms: [Quot.sound, propext]
+      | Owner.handedOff local60_local60_bindingUsage => local52_local52_s)) else local52_local52_s)
 }
 
 definition{
   name: acknowledgeReceipt,
   parameters: [local61_local61_s : State, local62_local62_run : Uorc.Product.Api::Run],
   result: State,
-  body: (if (sameRun (project local61_local61_s run) local62_local62_run) then (record State {run := (project local61_local61_s run), owner := (project local61_local61_s owner), stopped := (project local61_local61_s stopped), failure := (project local61_local61_s failure), receipt := (ctor Option.none [OverflowReceipt]), semanticRefusal := (project local61_local61_s semanticRefusal)}) else local61_local61_s),
-  axioms: [Quot.sound, propext]
+  body: (if (sameRun (project local61_local61_s run) local62_local62_run) then (record State {run := (project local61_local61_s run), owner := (project local61_local61_s owner), stopped := (project local61_local61_s stopped), failure := (project local61_local61_s failure), receipt := (ctor Option.none [OverflowReceipt]), semanticRefusal := (project local61_local61_s semanticRefusal)}) else local61_local61_s)
 }
 
 definition{
@@ -245,8 +238,7 @@ definition{
     | Owner.running local65_local65_core => (ctor Movement.notReady local63_local63_s)
     | Owner.draining local66_local66_core local67_local67_output => (ctor Movement.notReady local63_local63_s)
     | Owner.terminal local68_local68_ready local69_local69_output => (ctor Movement.moved (record State {run := (project local63_local63_s run), owner := (ctor Owner.handedOff (project (project local68_local68_ready ready) usage)), stopped := (project local63_local63_s stopped), failure := (project local63_local63_s failure), receipt := (ctor Option.none [OverflowReceipt]), semanticRefusal := (project local63_local63_s semanticRefusal)}) (record Terminal {run := (project local63_local63_s run), transfer := local68_local68_ready, output := local69_local69_output, cancelled := (project local63_local63_s stopped), failure := (project local63_local63_s failure), receipt := (project local63_local63_s receipt), semanticRefusal := (project local63_local63_s semanticRefusal)}))
-    | Owner.handedOff local70_local70_bindingUsage => (ctor Movement.notReady local63_local63_s)) else (ctor Movement.stale local63_local63_s)),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local70_local70_bindingUsage => (ctor Movement.notReady local63_local63_s)) else (ctor Movement.stale local63_local63_s))
 }
 
 definition{
@@ -257,8 +249,7 @@ definition{
     | Owner.running local72_local72_core => (project local72_local72_core usage)
     | Owner.draining local73_local73_core local74_local74_output => (project local73_local73_core usage)
     | Owner.terminal local75_local75_ready local76_local76_output => (project (project local75_local75_ready ready) usage)
-    | Owner.handedOff local77_local77_achieved => local77_local77_achieved),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local77_local77_achieved => local77_local77_achieved)
 }
 
 definition{
@@ -270,8 +261,7 @@ definition{
   result: (List Uorc.Core.RuntimeValue::Handle),
   body: (match local78_local78_output
     | Option.none => local79_local79_roots
-    | Option.some local80_local80_handle => (Uorc.Core.RuntimeMachineEngine::addRoot local80_local80_handle local79_local79_roots)),
-  axioms: [Quot.sound, propext]
+    | Option.some local80_local80_handle => (Uorc.Core.RuntimeMachineEngine::addRoot local80_local80_handle local79_local79_roots))
 }
 
 definition{
@@ -282,8 +272,7 @@ definition{
     | Owner.running local82_local82_core => (Uorc.Core.RuntimeMachineEngine::ownedRoots local82_local82_core)
     | Owner.draining local83_local83_core local84_local84_output => (addOutputRoot local84_local84_output (Uorc.Core.RuntimeMachineEngine::ownedRoots local83_local83_core))
     | Owner.terminal local85_local85_ready local86_local86_output => (addOutputRoot local86_local86_output (Uorc.Core.RuntimeProgram::rootInventory (project (project local85_local85_ready ready) program) (project (project local85_local85_ready ready) caller)))
-    | Owner.handedOff local87_local87_achieved => (nil Uorc.Core.RuntimeValue::Handle)),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local87_local87_achieved => (nil Uorc.Core.RuntimeValue::Handle))
 }
 
 definition{
@@ -300,8 +289,7 @@ definition{
     | Owner.terminal local93_local93_ready local94_local94_output => (match local94_local94_output
       | Option.none => false
       | Option.some local95_local95_handle => true)
-    | Owner.handedOff local96_local96_achieved => false) && true)))),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local96_local96_achieved => false) && true))))
 }
 
 definition{
@@ -334,8 +322,7 @@ definition{
         | Uorc.Core.RuntimeMachine::Disposition.completed local111_local111_handle => (ctor Status.draining)
         | Uorc.Core.RuntimeMachine::Disposition.failed local112_local112_reason => (ctor Status.failed local112_local112_reason)
         | Uorc.Core.RuntimeMachine::Disposition.cancelling => (ctor Status.draining)
-        | Uorc.Core.RuntimeMachine::Disposition.cleaned => (ctor Status.draining)))),
-  axioms: [Quot.sound, propext]
+        | Uorc.Core.RuntimeMachine::Disposition.cleaned => (ctor Status.draining))))
 }
 
 theorem{
@@ -360,8 +347,7 @@ definition{
     | Owner.terminal local125_local125_ready local126_local126_output => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
     | Owner.handedOff local127_local127_achieved => (if (match (project local121_local121_s receipt)
       | Option.none => false
-      | Option.some local128_local128_present => true) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt)) else (ctor Uorc.Product.Api::ReleaseDisposition.releasable))),
-  axioms: [Quot.sound, propext]
+      | Option.some local128_local128_present => true) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt)) else (ctor Uorc.Product.Api::ReleaseDisposition.releasable)))
 }
 
 definition{
@@ -388,8 +374,7 @@ definition{
     | Owner.running local141_local141_core => (ctor Option.some [Uorc.Core.RuntimeMachineSemantic::Ledger] (project local141_local141_core semanticLedger))
     | Owner.draining local142_local142_core local143_local143_output => (ctor Option.some [Uorc.Core.RuntimeMachineSemantic::Ledger] (project local142_local142_core semanticLedger))
     | Owner.terminal local144_local144_ready local145_local145_output => (ctor Option.some [Uorc.Core.RuntimeMachineSemantic::Ledger] (project local144_local144_ready semanticLedger))
-    | Owner.handedOff local146_local146_achieved => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Ledger])),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local146_local146_achieved => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Ledger]))
 }
 
 definition{
@@ -400,8 +385,7 @@ definition{
     | Owner.running local148_local148_core => (ctor Option.some [Uorc.Core.RuntimeMachineSemantic::Budget] (project local148_local148_core semanticBudget))
     | Owner.draining local149_local149_core local150_local150_output => (ctor Option.some [Uorc.Core.RuntimeMachineSemantic::Budget] (project local149_local149_core semanticBudget))
     | Owner.terminal local151_local151_ready local152_local152_output => (ctor Option.some [Uorc.Core.RuntimeMachineSemantic::Budget] (project local151_local151_ready semanticBudget))
-    | Owner.handedOff local153_local153_achieved => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Budget])),
-  axioms: [Quot.sound, propext]
+    | Owner.handedOff local153_local153_achieved => (ctor Option.none [Uorc.Core.RuntimeMachineSemantic::Budget]))
 }
 
 structure{
@@ -489,16 +473,14 @@ definition{
   name: terminalExchangeContract,
   parameters: [],
   result: String,
-  body: "Terminal.transfer owns the whole Engine.ReadyTransfer. Detachment is a bounded source-owner field move under the already charged enclosing operation owner: the detached control retains program/output tickets, exact semanticBudget/Ledger, failure/cancellation/refusal and overflow receipt, but no Arena, CallerRoots, Bytes, or Usage snapshot. ArenaExchange exclusively moves the actual live Arena, CallerRoots and achieved Usage through source output IO; it is never a native callback or caller-supplied Arena snapshot. Output IO borrows the output edge: the program/output roots listed by terminalSlotRoots remain explicit outside its own root inventory, and CallerRoots move in ArenaExchange. All partial writes, EOF and cleanup affect operational usage only; native IO does not replay or recharge semantic output events. Reattachment requires the same run/ticket, no pending Heap receipt, and non-regressed work/peak; it restores exact semantic fields by movement, never by zero ledger or compatibility Engine.start. A pending receipt remains in the rejected ArenaExchange; no achieved arena/root/delta is dropped. These source-level move sums do not establish native/ABI ownership qualification. A Terminal with an undelivered OverflowReceipt cannot detach: Detach.awaitReceipt retains the complete terminal/Arena owner. takeTerminalReceipt moves the actual prefix/event OverflowReceipt once to TerminalReceiptTake.taken, retaining the terminal with receipt cleared. The receiving enclosing SOURCE receipt owner must consume/retain that actual moved receipt before continuing output or cleanup; this is an internal typed ownership transfer, never a boolean native acknowledgement. Empty, stale or detached requests cannot clear or invent a receipt. The taken outcome retains receipt custody. Alternatively the existing binding State receipt can be delivered and acknowledgeReceipt called before moveTerminal. Terminal semantic refusal is observed as Status.semanticSuspended, including after cancellation; failure and cancellation fields remain owned.",
-  axioms: [Quot.sound, propext]
+  body: "Terminal.transfer owns the whole Engine.ReadyTransfer. Detachment is a bounded source-owner field move under the already charged enclosing operation owner: the detached control retains program/output tickets, exact semanticBudget/Ledger, failure/cancellation/refusal and overflow receipt, but no Arena, CallerRoots, Bytes, or Usage snapshot. ArenaExchange exclusively moves the actual live Arena, CallerRoots and achieved Usage through source output IO; it is never a native callback or caller-supplied Arena snapshot. Output IO borrows the output edge: the program/output roots listed by terminalSlotRoots remain explicit outside its own root inventory, and CallerRoots move in ArenaExchange. All partial writes, EOF and cleanup affect operational usage only; native IO does not replay or recharge semantic output events. Reattachment requires the same run/ticket, no pending Heap receipt, and non-regressed work/peak; it restores exact semantic fields by movement, never by zero ledger or compatibility Engine.start. A pending receipt remains in the rejected ArenaExchange; no achieved arena/root/delta is dropped. These source-level move sums do not establish native/ABI ownership qualification. A Terminal with an undelivered OverflowReceipt cannot detach: Detach.awaitReceipt retains the complete terminal/Arena owner. takeTerminalReceipt moves the actual prefix/event OverflowReceipt once to TerminalReceiptTake.taken, retaining the terminal with receipt cleared. The receiving enclosing SOURCE receipt owner must consume/retain that actual moved receipt before continuing output or cleanup; this is an internal typed ownership transfer, never a boolean native acknowledgement. Empty, stale or detached requests cannot clear or invent a receipt. The taken outcome retains receipt custody. Alternatively the existing binding State receipt can be delivered and acknowledgeReceipt called before moveTerminal. Terminal semantic refusal is observed as Status.semanticSuspended, including after cancellation; failure and cancellation fields remain owned."
 }
 
 definition{
   name: holdTerminal,
   parameters: [local154_terminal : Terminal],
   result: TerminalSlot,
-  body: (ctor TerminalSlot.owned local154_terminal),
-  axioms: [Quot.sound, propext]
+  body: (ctor TerminalSlot.owned local154_terminal)
 }
 
 definition{
@@ -514,8 +496,7 @@ definition{
       | Option.some pendingTerminalReceipt => (ctor Detach.awaitReceipt local155_slot)
       | Option.none => (ctor Detach.detached (ctor TerminalSlot.detached (record TerminalControl {run := (project local158_terminal run), ticket := local157_ticket, program := (project (project (project local158_terminal transfer) ready) program), semanticBudget := (project (project local158_terminal transfer) semanticBudget), semanticLedger := (project (project local158_terminal transfer) semanticLedger), output := (project local158_terminal output), cancelled := (project local158_terminal cancelled), failure := (project local158_terminal failure), semanticRefusal := (project local158_terminal semanticRefusal), receipt := (project local158_terminal receipt), workAtDetach := (project (project (project (project local158_terminal transfer) ready) usage) work), peakAtDetach := (project (project (project (project local158_terminal transfer) ready) usage) peakOwnedBytes)})) (record ArenaExchange {run := (project local158_terminal run), ticket := local157_ticket, arena := (project (project (project local158_terminal transfer) ready) arena), caller := (project (project (project local158_terminal transfer) ready) caller), usage := (project (project (project local158_terminal transfer) ready) usage), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}))) else (ctor Detach.stale local155_slot))
     | TerminalSlot.detached local159_control => (ctor Detach.notReady local155_slot)
-    | TerminalSlot.handedOff local160_usage => (ctor Detach.notReady local155_slot)),
-  axioms: [Quot.sound, propext]
+    | TerminalSlot.handedOff local160_usage => (ctor Detach.notReady local155_slot))
 }
 
 definition{
@@ -542,8 +523,7 @@ definition{
   body: (match local168_slot
     | TerminalSlot.owned local170_terminal => (if (sameRun (project local170_terminal run) local169_run) then (ctor TerminalTake.moved (ctor TerminalSlot.handedOff (project (project (project local170_terminal transfer) ready) usage)) local170_terminal) else (ctor TerminalTake.stale local168_slot))
     | TerminalSlot.detached local171_control => (ctor TerminalTake.notReady local168_slot)
-    | TerminalSlot.handedOff local172_usage => (ctor TerminalTake.notReady local168_slot)),
-  axioms: [Quot.sound, propext]
+    | TerminalSlot.handedOff local172_usage => (ctor TerminalTake.notReady local168_slot))
 }
 
 definition{
@@ -553,16 +533,14 @@ definition{
   body: (match local173_slot
     | TerminalSlot.owned local174_terminal => (addOutputRoot (project local174_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local174_terminal transfer) ready) program) (project (project (project local174_terminal transfer) ready) caller)))
     | TerminalSlot.detached local175_control => (addOutputRoot (project local175_control output) (Uorc.Core.RuntimeProgram::rootInventory (project local175_control program) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)})))
-    | TerminalSlot.handedOff local176_usage => (nil Uorc.Core.RuntimeValue::Handle)),
-  axioms: [Quot.sound, propext]
+    | TerminalSlot.handedOff local176_usage => (nil Uorc.Core.RuntimeValue::Handle))
 }
 
 definition{
   name: arenaExchangeRoots,
   parameters: [local177_exchange : ArenaExchange],
   result: (List Uorc.Core.RuntimeValue::Handle),
-  body: (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) input) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) archive) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) search) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) checkpoint) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) certificate) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) verification) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) wire) (nil Uorc.Core.RuntimeValue::Handle)))))))),
-  axioms: [Quot.sound, propext]
+  body: (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) input) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) archive) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) search) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) checkpoint) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) certificate) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) verification) (Uorc.Core.RuntimeSequence::addRoot (project (project local177_exchange caller) wire) (nil Uorc.Core.RuntimeValue::Handle))))))))
 }
 
 definition{
@@ -572,8 +550,7 @@ definition{
   body: (match local178_slot
     | TerminalSlot.owned local179_terminal => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
     | TerminalSlot.detached local180_control => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.imageTicket))
-    | TerminalSlot.handedOff local181_usage => (ctor Uorc.Product.Api::ReleaseDisposition.releasable)),
-  axioms: [Quot.sound, propext]
+    | TerminalSlot.handedOff local181_usage => (ctor Uorc.Product.Api::ReleaseDisposition.releasable))
 }
 
 inductive{
@@ -597,8 +574,7 @@ definition{
       | Option.none => (ctor TerminalReceiptTake.empty local1_slot)
       | Option.some local4_pendingReceipt => (ctor TerminalReceiptTake.taken (ctor TerminalSlot.owned (record Terminal {run := (project local3_terminal run), transfer := (project local3_terminal transfer), output := (project local3_terminal output), cancelled := (project local3_terminal cancelled), failure := (project local3_terminal failure), receipt := (ctor Option.none [OverflowReceipt]), semanticRefusal := (project local3_terminal semanticRefusal)})) local4_pendingReceipt)) else (ctor TerminalReceiptTake.stale local1_slot))
     | TerminalSlot.detached local5_control => (ctor TerminalReceiptTake.notReady local1_slot)
-    | TerminalSlot.handedOff local6_usage => (ctor TerminalReceiptTake.notReady local1_slot)),
-  axioms: [Quot.sound, propext]
+    | TerminalSlot.handedOff local6_usage => (ctor TerminalReceiptTake.notReady local1_slot))
 }
 
 definition{
@@ -609,8 +585,7 @@ definition{
     | TerminalReceiptTake.stale local2_slot => (terminalSlotDisposition local2_slot)
     | TerminalReceiptTake.notReady local3_slot => (terminalSlotDisposition local3_slot)
     | TerminalReceiptTake.empty local4_slot => (terminalSlotDisposition local4_slot)
-    | TerminalReceiptTake.taken local5_slot local6_receipt => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt))),
-  axioms: [Quot.sound, propext]
+    | TerminalReceiptTake.taken local5_slot local6_receipt => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt)))
 }
 
 definition{
@@ -621,8 +596,7 @@ definition{
     | TerminalReceiptTake.stale receiptOwnerSlot => (terminalSlotRoots receiptOwnerSlot)
     | TerminalReceiptTake.notReady receiptOwnerSlot => (terminalSlotRoots receiptOwnerSlot)
     | TerminalReceiptTake.empty receiptOwnerSlot => (terminalSlotRoots receiptOwnerSlot)
-    | TerminalReceiptTake.taken receiptOwnerSlot movedActualReceipt => (terminalSlotRoots receiptOwnerSlot)),
-  axioms: [Quot.sound, propext]
+    | TerminalReceiptTake.taken receiptOwnerSlot movedActualReceipt => (terminalSlotRoots receiptOwnerSlot))
 }
 \end{semanticmodule}
 \end{lexlean}

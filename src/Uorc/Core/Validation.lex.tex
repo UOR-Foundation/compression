@@ -75,6 +75,7 @@ definition{
       | TypeTrie.empty => (ctor Option.none [Uorc.Core.Types::ValueType])
       | TypeTrie.leaf leafValue => (ctor Option.none [Uorc.Core.Types::ValueType])
       | TypeTrie.branch leftTree rightTree => (typeReadTrie remaining (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -90,6 +91,7 @@ definition{
   body: (match depth
     | Nat.zero => (ctor TypeTrie.leaf value)
     | Nat.succ remaining => (if (Uorc.Core.Store::lowBit key) then (ctor TypeTrie.branch (typeLeft tree) (typeWriteTrie remaining (typeRight tree) (Uorc.Core.Store::nextKey key) value)) else (ctor TypeTrie.branch (typeWriteTrie remaining (typeLeft tree) (Uorc.Core.Store::nextKey key) value) (typeRight tree)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -99,7 +101,8 @@ definition{
   result: (Result TypeTable TableError),
   body: (if (18446744073709551615 <=? (project table length)) then (ctor Result.error [TypeTable, TableError] (ctor TableError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
     | Option.none => (ctor Result.error [TypeTable, TableError] (ctor TableError.addressSpaceExhausted))
-    | Option.some key => (ctor Result.ok [TypeTable, TableError] (record TypeTable {length := ((project table length) + 1), root := (typeWriteTrie 64 (project table root) key (ctor Option.some [Uorc.Core.Types::ValueType] value))}))))
+    | Option.some key => (ctor Result.ok [TypeTable, TableError] (record TypeTable {length := ((project table length) + 1), root := (typeWriteTrie 64 (project table root) key (ctor Option.some [Uorc.Core.Types::ValueType] value))})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -110,14 +113,16 @@ definition{
     | Option.none => (ctor Result.error [Uorc.Core.Types::ValueType, TableError] (ctor TableError.addressSpaceExhausted))
     | Option.some key => (match (typeReadTrie 64 (project table root) key)
       | Option.none => (ctor Result.error [Uorc.Core.Types::ValueType, TableError] (ctor TableError.releasedCell))
-      | Option.some selected => (ctor Result.ok [Uorc.Core.Types::ValueType, TableError] selected))) else (ctor Result.error [Uorc.Core.Types::ValueType, TableError] (ctor TableError.invalidReference)))
+      | Option.some selected => (ctor Result.ok [Uorc.Core.Types::ValueType, TableError] selected))) else (ctor Result.error [Uorc.Core.Types::ValueType, TableError] (ctor TableError.invalidReference))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: typeByDistance,
   parameters: [table : TypeTable, distance : Nat],
   result: (Result Uorc.Core.Types::ValueType TableError),
-  body: (if (distance =? 0) then (ctor Result.error [Uorc.Core.Types::ValueType, TableError] (ctor TableError.invalidReference)) else (if ((project table length) <? distance) then (ctor Result.error [Uorc.Core.Types::ValueType, TableError] (ctor TableError.invalidReference)) else (typeAtIndex table (prim subtract (project table length) distance : Nat))))
+  body: (if (distance =? 0) then (ctor Result.error [Uorc.Core.Types::ValueType, TableError] (ctor TableError.invalidReference)) else (if ((project table length) <? distance) then (ctor Result.error [Uorc.Core.Types::ValueType, TableError] (ctor TableError.invalidReference)) else (typeAtIndex table (prim subtract (project table length) distance : Nat)))),
+  axioms: [Quot.sound, propext]
 }
 
 structure{
@@ -185,6 +190,7 @@ definition{
       | BlockTrie.empty => (ctor Option.none [Signature])
       | BlockTrie.leaf leafValue => (ctor Option.none [Signature])
       | BlockTrie.branch leftTree rightTree => (blockReadTrie remaining (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -195,6 +201,7 @@ definition{
   body: (match depth
     | Nat.zero => (ctor BlockTrie.leaf value)
     | Nat.succ remaining => (if (Uorc.Core.Store::lowBit key) then (ctor BlockTrie.branch (blockLeft tree) (blockWriteTrie remaining (blockRight tree) (Uorc.Core.Store::nextKey key) value)) else (ctor BlockTrie.branch (blockWriteTrie remaining (blockLeft tree) (Uorc.Core.Store::nextKey key) value) (blockRight tree)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -204,7 +211,8 @@ definition{
   result: (Result BlockTable TableError),
   body: (if (18446744073709551615 <=? (project table length)) then (ctor Result.error [BlockTable, TableError] (ctor TableError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
     | Option.none => (ctor Result.error [BlockTable, TableError] (ctor TableError.addressSpaceExhausted))
-    | Option.some key => (ctor Result.ok [BlockTable, TableError] (record BlockTable {length := ((project table length) + 1), root := (blockWriteTrie 64 (project table root) key (ctor Option.some [Signature] value))}))))
+    | Option.some key => (ctor Result.ok [BlockTable, TableError] (record BlockTable {length := ((project table length) + 1), root := (blockWriteTrie 64 (project table root) key (ctor Option.some [Signature] value))})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -215,14 +223,16 @@ definition{
     | Option.none => (ctor Result.error [Signature, TableError] (ctor TableError.addressSpaceExhausted))
     | Option.some key => (match (blockReadTrie 64 (project table root) key)
       | Option.none => (ctor Result.error [Signature, TableError] (ctor TableError.releasedCell))
-      | Option.some selected => (ctor Result.ok [Signature, TableError] selected))) else (ctor Result.error [Signature, TableError] (ctor TableError.invalidReference)))
+      | Option.some selected => (ctor Result.ok [Signature, TableError] selected))) else (ctor Result.error [Signature, TableError] (ctor TableError.invalidReference))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: blockByDistance,
   parameters: [table : BlockTable, distance : Nat],
   result: (Result Signature TableError),
-  body: (if (distance =? 0) then (ctor Result.error [Signature, TableError] (ctor TableError.invalidReference)) else (if ((project table length) <? distance) then (ctor Result.error [Signature, TableError] (ctor TableError.invalidReference)) else (blockAtIndex table (prim subtract (project table length) distance : Nat))))
+  body: (if (distance =? 0) then (ctor Result.error [Signature, TableError] (ctor TableError.invalidReference)) else (if ((project table length) <? distance) then (ctor Result.error [Signature, TableError] (ctor TableError.invalidReference)) else (blockAtIndex table (prim subtract (project table length) distance : Nat)))),
+  axioms: [Quot.sound, propext]
 }
 
 inductive{
@@ -283,6 +293,7 @@ definition{
       | ScheduleTrie.empty => (ctor Option.none [(List (List Nat))])
       | ScheduleTrie.leaf leafValue => (ctor Option.none [(List (List Nat))])
       | ScheduleTrie.branch leftTree rightTree => (scheduleReadTrie remaining (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -293,6 +304,7 @@ definition{
   body: (match depth
     | Nat.zero => (ctor ScheduleTrie.leaf value)
     | Nat.succ remaining => (if (Uorc.Core.Store::lowBit key) then (ctor ScheduleTrie.branch (scheduleLeft tree) (scheduleWriteTrie remaining (scheduleRight tree) (Uorc.Core.Store::nextKey key) value)) else (ctor ScheduleTrie.branch (scheduleWriteTrie remaining (scheduleLeft tree) (Uorc.Core.Store::nextKey key) value) (scheduleRight tree)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -302,7 +314,8 @@ definition{
   result: (Result ScheduleTable TableError),
   body: (if (18446744073709551615 <=? (project table length)) then (ctor Result.error [ScheduleTable, TableError] (ctor TableError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
     | Option.none => (ctor Result.error [ScheduleTable, TableError] (ctor TableError.addressSpaceExhausted))
-    | Option.some key => (ctor Result.ok [ScheduleTable, TableError] (record ScheduleTable {length := ((project table length) + 1), root := (scheduleWriteTrie 64 (project table root) key (ctor Option.some [(List (List Nat))] value))}))))
+    | Option.some key => (ctor Result.ok [ScheduleTable, TableError] (record ScheduleTable {length := ((project table length) + 1), root := (scheduleWriteTrie 64 (project table root) key (ctor Option.some [(List (List Nat))] value))})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -313,14 +326,16 @@ definition{
     | Option.none => (ctor Result.error [(List (List Nat)), TableError] (ctor TableError.addressSpaceExhausted))
     | Option.some key => (match (scheduleReadTrie 64 (project table root) key)
       | Option.none => (ctor Result.error [(List (List Nat)), TableError] (ctor TableError.releasedCell))
-      | Option.some selected => (ctor Result.ok [(List (List Nat)), TableError] selected))) else (ctor Result.error [(List (List Nat)), TableError] (ctor TableError.invalidReference)))
+      | Option.some selected => (ctor Result.ok [(List (List Nat)), TableError] selected))) else (ctor Result.error [(List (List Nat)), TableError] (ctor TableError.invalidReference))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: scheduleByDistance,
   parameters: [table : ScheduleTable, distance : Nat],
   result: (Result (List (List Nat)) TableError),
-  body: (if (distance =? 0) then (ctor Result.error [(List (List Nat)), TableError] (ctor TableError.invalidReference)) else (if ((project table length) <? distance) then (ctor Result.error [(List (List Nat)), TableError] (ctor TableError.invalidReference)) else (scheduleAtIndex table (prim subtract (project table length) distance : Nat))))
+  body: (if (distance =? 0) then (ctor Result.error [(List (List Nat)), TableError] (ctor TableError.invalidReference)) else (if ((project table length) <? distance) then (ctor Result.error [(List (List Nat)), TableError] (ctor TableError.invalidReference)) else (scheduleAtIndex table (prim subtract (project table length) distance : Nat)))),
+  axioms: [Quot.sound, propext]
 }
 
 inductive{
@@ -381,6 +396,7 @@ definition{
       | BodyTrie.empty => (ctor Option.none [Uorc.Core.Graph::Block])
       | BodyTrie.leaf leafValue => (ctor Option.none [Uorc.Core.Graph::Block])
       | BodyTrie.branch leftTree rightTree => (bodyReadTrie remaining (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -391,6 +407,7 @@ definition{
   body: (match depth
     | Nat.zero => (ctor BodyTrie.leaf value)
     | Nat.succ remaining => (if (Uorc.Core.Store::lowBit key) then (ctor BodyTrie.branch (bodyLeft tree) (bodyWriteTrie remaining (bodyRight tree) (Uorc.Core.Store::nextKey key) value)) else (ctor BodyTrie.branch (bodyWriteTrie remaining (bodyLeft tree) (Uorc.Core.Store::nextKey key) value) (bodyRight tree)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -400,7 +417,8 @@ definition{
   result: (Result BodyTable TableError),
   body: (if (18446744073709551615 <=? (project table length)) then (ctor Result.error [BodyTable, TableError] (ctor TableError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
     | Option.none => (ctor Result.error [BodyTable, TableError] (ctor TableError.addressSpaceExhausted))
-    | Option.some key => (ctor Result.ok [BodyTable, TableError] (record BodyTable {length := ((project table length) + 1), root := (bodyWriteTrie 64 (project table root) key (ctor Option.some [Uorc.Core.Graph::Block] value))}))))
+    | Option.some key => (ctor Result.ok [BodyTable, TableError] (record BodyTable {length := ((project table length) + 1), root := (bodyWriteTrie 64 (project table root) key (ctor Option.some [Uorc.Core.Graph::Block] value))})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -411,14 +429,16 @@ definition{
     | Option.none => (ctor Result.error [Uorc.Core.Graph::Block, TableError] (ctor TableError.addressSpaceExhausted))
     | Option.some key => (match (bodyReadTrie 64 (project table root) key)
       | Option.none => (ctor Result.error [Uorc.Core.Graph::Block, TableError] (ctor TableError.releasedCell))
-      | Option.some selected => (ctor Result.ok [Uorc.Core.Graph::Block, TableError] selected))) else (ctor Result.error [Uorc.Core.Graph::Block, TableError] (ctor TableError.invalidReference)))
+      | Option.some selected => (ctor Result.ok [Uorc.Core.Graph::Block, TableError] selected))) else (ctor Result.error [Uorc.Core.Graph::Block, TableError] (ctor TableError.invalidReference))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: bodyByDistance,
   parameters: [table : BodyTable, distance : Nat],
   result: (Result Uorc.Core.Graph::Block TableError),
-  body: (if (distance =? 0) then (ctor Result.error [Uorc.Core.Graph::Block, TableError] (ctor TableError.invalidReference)) else (if ((project table length) <? distance) then (ctor Result.error [Uorc.Core.Graph::Block, TableError] (ctor TableError.invalidReference)) else (bodyAtIndex table (prim subtract (project table length) distance : Nat))))
+  body: (if (distance =? 0) then (ctor Result.error [Uorc.Core.Graph::Block, TableError] (ctor TableError.invalidReference)) else (if ((project table length) <? distance) then (ctor Result.error [Uorc.Core.Graph::Block, TableError] (ctor TableError.invalidReference)) else (bodyAtIndex table (prim subtract (project table length) distance : Nat)))),
+  axioms: [Quot.sound, propext]
 }
 
 inductive{
@@ -710,7 +730,8 @@ definition{
           | Uorc.Core.Bytes::Rope.view backing viewOffset viewLength => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (project cursor mode), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := restTasks, boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 0)}))
           | Uorc.Core.Bytes::Rope.branch cachedLength cachedHeight leftTree rightTree => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (project cursor mode), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (cons (ctor Task.validRope leftTree) (cons (ctor Task.validRope rightTree) restTasks)), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 0)})))
         | Uorc.Core.Bytes::NodeStatus.invalid => (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.invalidSequenceRope) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 0))
-        | Uorc.Core.Bytes::NodeStatus.addressSpaceExhausted => (ctor Step.tableFailure (ctor TableError.addressSpaceExhausted) ((project cursor validationEvents) + 1) (project cursor slotVisits)))))
+        | Uorc.Core.Bytes::NodeStatus.addressSpaceExhausted => (ctor Step.tableFailure (ctor TableError.addressSpaceExhausted) ((project cursor validationEvents) + 1) (project cursor slotVisits))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -733,7 +754,8 @@ definition{
         | TableError.invalidReference => (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.invalidLocalReference) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.releasedCell => (ctor Step.tableFailure (ctor TableError.releasedCell) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.addressSpaceExhausted => (ctor Step.tableFailure (ctor TableError.addressSpaceExhausted) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64)))
-      | Result.ok nextTypes => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (project cursor mode), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := remainingParameters, remainingInstructions := (project cursor remainingInstructions), types := nextTypes, blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)}))))
+      | Result.ok nextTypes => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (project cursor mode), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := remainingParameters, remainingInstructions := (project cursor remainingInstructions), types := nextTypes, blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -756,7 +778,8 @@ definition{
         | TableError.invalidReference => (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.invalidLocalReference) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.releasedCell => (ctor Step.tableFailure (ctor TableError.releasedCell) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.addressSpaceExhausted => (ctor Step.tableFailure (ctor TableError.addressSpaceExhausted) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64)))
-      | Result.ok returnedType => (if (Uorc.Core.Types::sameType returnedType (project block result)) then (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.lifetimeInit), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)})) else (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.returnMismatch) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64)))))
+      | Result.ok returnedType => (if (Uorc.Core.Types::sameType returnedType (project block result)) then (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.lifetimeInit), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)})) else (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.returnMismatch) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -778,7 +801,8 @@ definition{
       | Result.error lifetimeError => (ctor Step.rejected lifetimeError ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 0))
       | Result.ok event => (match event
         | Uorc.Core.Lifetime::CursorEvent.advanced nextLifetime => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (project cursor mode), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (ctor Option.some [Uorc.Core.Lifetime::Cursor] nextLifetime), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 0)}))
-        | Uorc.Core.Lifetime::CursorEvent.complete schedule => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.lifetimeCommit), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (ctor Option.none [Uorc.Core.Lifetime::Cursor]), pendingSchedule := (ctor Option.some [(List (List Nat))] schedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 0)})))))
+        | Uorc.Core.Lifetime::CursorEvent.complete schedule => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.lifetimeCommit), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (ctor Option.none [Uorc.Core.Lifetime::Cursor]), pendingSchedule := (ctor Option.some [(List (List Nat))] schedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 0)}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -792,7 +816,8 @@ definition{
         | TableError.invalidReference => (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.invalidBlockReference) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.releasedCell => (ctor Step.tableFailure (ctor TableError.releasedCell) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.addressSpaceExhausted => (ctor Step.tableFailure (ctor TableError.addressSpaceExhausted) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64)))
-      | Result.ok nextSchedules => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.bodyCommit), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := nextSchedules, bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (ctor Option.none [(List (List Nat))]), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)}))))
+      | Result.ok nextSchedules => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.bodyCommit), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := nextSchedules, bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (ctor Option.none [(List (List Nat))]), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -806,7 +831,8 @@ definition{
         | TableError.invalidReference => (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.invalidBlockReference) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.releasedCell => (ctor Step.tableFailure (ctor TableError.releasedCell) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.addressSpaceExhausted => (ctor Step.tableFailure (ctor TableError.addressSpaceExhausted) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64)))
-      | Result.ok nextBodies => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.commitBlock), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := nextBodies, lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)}))))
+      | Result.ok nextBodies => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.commitBlock), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := nextBodies, lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -820,7 +846,8 @@ definition{
         | TableError.invalidReference => (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.invalidBlockReference) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.releasedCell => (ctor Step.tableFailure (ctor TableError.releasedCell) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
         | TableError.addressSpaceExhausted => (ctor Step.tableFailure (ctor TableError.addressSpaceExhausted) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64)))
-      | Result.ok nextBlocks => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.blocks), remainingBlocks := (project cursor remainingBlocks), currentBlock := (ctor Option.none [Uorc.Core.Graph::Block]), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := nextBlocks, signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := ((project cursor blocksValidated) + 1), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)}))))
+      | Result.ok nextBlocks => (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (ctor Mode.blocks), remainingBlocks := (project cursor remainingBlocks), currentBlock := (ctor Option.none [Uorc.Core.Graph::Block]), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := nextBlocks, signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor)), blocksValidated := ((project cursor blocksValidated) + 1), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -832,7 +859,8 @@ definition{
       | TableError.invalidReference => (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.invalidBlockReference) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
       | TableError.releasedCell => (ctor Step.tableFailure (ctor TableError.releasedCell) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))
       | TableError.addressSpaceExhausted => (ctor Step.tableFailure (ctor TableError.addressSpaceExhausted) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64)))
-    | Result.ok signature => (if (((project (project signature parameters) length) =? 0) && (Uorc.Core.Types::sameType (project signature result) (ctor Uorc.Core.Types::ValueType.sequence))) then (ctor Step.validated (record CheckedGraph {graph := (project cursor graph), schedules := (project cursor schedules), bodies := (project cursor bodies), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64), logicalWork := ((project cursor logicalWork) + (eventWork cursor))})) else (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.entrySignatureMismatch) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64))))
+    | Result.ok signature => (if (((project (project signature parameters) length) =? 0) && (Uorc.Core.Types::sameType (project signature result) (ctor Uorc.Core.Types::ValueType.sequence))) then (ctor Step.validated (record CheckedGraph {graph := (project cursor graph), schedules := (project cursor schedules), bodies := (project cursor bodies), blocksValidated := (project cursor blocksValidated), validationEvents := ((project cursor validationEvents) + 1), slotVisits := ((project cursor slotVisits) + 64), logicalWork := ((project cursor logicalWork) + (eventWork cursor))})) else (ctor Step.rejected (ctor Uorc.Core.Types::StaticError.entrySignatureMismatch) ((project cursor validationEvents) + 1) ((project cursor slotVisits) + 64)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -850,7 +878,8 @@ definition{
     | Mode.lifetimeCommit => (lifetimeCommitStep cursor)
     | Mode.bodyCommit => (bodyCommitStep cursor)
     | Mode.commitBlock => (commitStep cursor)
-    | Mode.entry => (entryStep cursor))
+    | Mode.entry => (entryStep cursor)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -880,6 +909,7 @@ definition{
       ],
       scrutinee: state
     }),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -887,7 +917,8 @@ definition{
   name: tick,
   parameters: [cursor : Cursor],
   result: Step,
-  body: (if (((project cursor eventCredit) + 1) <? (eventWork cursor)) then (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (project cursor mode), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := ((project cursor eventCredit) + 1), logicalWork := (project cursor logicalWork), blocksValidated := (project cursor blocksValidated), validationEvents := (project cursor validationEvents), slotVisits := (project cursor slotVisits)})) else (step cursor))
+  body: (if (((project cursor eventCredit) + 1) <? (eventWork cursor)) then (ctor Step.pending (record Cursor {graph := (project cursor graph), mode := (project cursor mode), remainingBlocks := (project cursor remainingBlocks), currentBlock := (project cursor currentBlock), remainingParameters := (project cursor remainingParameters), remainingInstructions := (project cursor remainingInstructions), types := (project cursor types), blocks := (project cursor blocks), signatureTypes := (project cursor signatureTypes), tasks := (project cursor tasks), boundType := (project cursor boundType), activeSignature := (project cursor activeSignature), signatureIndex := (project cursor signatureIndex), parameterCount := (project cursor parameterCount), instructionCount := (project cursor instructionCount), schedules := (project cursor schedules), bodies := (project cursor bodies), lifetimeCursor := (project cursor lifetimeCursor), pendingSchedule := (project cursor pendingSchedule), eventCredit := ((project cursor eventCredit) + 1), logicalWork := (project cursor logicalWork), blocksValidated := (project cursor blocksValidated), validationEvents := (project cursor validationEvents), slotVisits := (project cursor slotVisits)})) else (step cursor)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -917,6 +948,7 @@ definition{
       ],
       scrutinee: state
     }),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -931,14 +963,16 @@ definition{
   name: scheduleAt,
   parameters: [checked : CheckedGraph, index : Nat],
   result: (Result (List (List Nat)) TableError),
-  body: (scheduleAtIndex (project var{name: checked} schedules) index)
+  body: (scheduleAtIndex (project var{name: checked} schedules) index),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: bodyAt,
   parameters: [checked : CheckedGraph, index : Nat],
   result: (Result Uorc.Core.Graph::Block TableError),
-  body: (bodyAtIndex (project var{name: checked} bodies) index)
+  body: (bodyAtIndex (project var{name: checked} bodies) index),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -960,21 +994,24 @@ theorem{
   name: literal_graph_checked_incrementally,
   parameters: [],
   statement: ((accepted (run 500 (ctor Step.pending (start (Uorc.Core.Graph::literalGraph 0x00ff))))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_validation_effort_never_accepts,
   parameters: [],
   statement: ((accepted (run 0 (ctor Step.pending (start (Uorc.Core.Graph::literalGraph 0x00ff))))) = false),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: empty_graph_rejected,
   parameters: [],
   statement: ((accepted (run 500 (ctor Step.pending (start (record Uorc.Core.Graph::Graph {blocks := (nil Uorc.Core.Graph::Block), entry := 0}))))) = false),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

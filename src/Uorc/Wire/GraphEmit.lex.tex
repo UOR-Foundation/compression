@@ -120,7 +120,8 @@ definition{
     | Uorc.Core.Graph::Instruction.tabulate x0 x1 x2 => (cons (ctor Task.byte 36) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.countReferences x2 x2 0) (nil Task)))))
     | Uorc.Core.Graph::Instruction.fold x0 x1 x2 x3 => (cons (ctor Task.byte 37) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (cons (ctor Task.countReferences x3 x3 0) (nil Task))))))
     | Uorc.Core.Graph::Instruction.scan x0 x1 x2 x3 x4 x5 => (cons (ctor Task.byte 38) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (cons (ctor Task.countReferences x3 x3 0) (cons (ctor Task.number x4) (cons (ctor Task.countReferences x5 x5 0) (nil Task))))))))
-    | Uorc.Core.Graph::Instruction.sequenceRopeConstant x0 => (cons (ctor Task.byte 3) (cons (ctor Task.number (Uorc.Core.Bytes::length x0)) (cons (ctor Task.rope (Uorc.Core.Bytes::cursor x0) (Uorc.Core.Bytes::length x0)) (nil Task)))))
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant x0 => (cons (ctor Task.byte 3) (cons (ctor Task.number (Uorc.Core.Bytes::length x0)) (cons (ctor Task.rope (Uorc.Core.Bytes::cursor x0) (Uorc.Core.Bytes::length x0)) (nil Task))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -229,7 +230,8 @@ definition{
         | List.nil => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))
         | List.cons itemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.block itemHead) (cons (ctor Task.blocks rest) tail)), position := (project s position), work := ((project s work) + 1)})))
       | Task.instruction value => (ctor Event.advanced (record State {pending := (prim append (instructionTasks value) tail : (List Task)), position := (project s position), work := ((project s work) + 1)}))
-      | Task.block value => (ctor Event.advanced (record State {pending := (cons (ctor Task.countTypes (project value parameters) (project value parameters) 0) (cons (ctor Task.byte (typeCode (project value result))) (cons (ctor Task.countInstructions (project value instructions) (project value instructions) 0) (cons (ctor Task.number (project value returnDistance)) tail)))), position := (project s position), work := ((project s work) + 1)})))))
+      | Task.block value => (ctor Event.advanced (record State {pending := (cons (ctor Task.countTypes (project value parameters) (project value parameters) 0) (cons (ctor Task.byte (typeCode (project value result))) (cons (ctor Task.countInstructions (project value instructions) (project value instructions) 0) (cons (ctor Task.number (project value returnDistance)) tail)))), position := (project s position), work := ((project s work) + 1)}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -299,7 +301,8 @@ definition{
         | Event.advanced next => (ctor Event.advanced next)
         | Event.produced ignoredBytes next => (ctor Event.advanced next)
         | Event.complete count events => (ctor Event.complete count events)
-        | Event.failed error offset events => (ctor Event.failed error offset events))))
+        | Event.failed error offset events => (ctor Event.failed error offset events)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -313,6 +316,7 @@ definition{
       | Event.failed reason position work => (ctor Option.none [Bytes])
       | Event.advanced next => (collectFixture remaining next acc)
       | Event.produced chunk next => (collectFixture remaining next (prim append acc chunk : Bytes)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -321,7 +325,7 @@ theorem{
   parameters: [],
   statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x)) 0x) = (ctor Option.some [Bytes] 0x0100030103000100)),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -329,7 +333,7 @@ theorem{
   parameters: [],
   statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x00)) 0x) = (ctor Option.some [Bytes] 0x010003010301000100)),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -337,7 +341,7 @@ theorem{
   parameters: [],
   statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x00ff80)) 0x) = (ctor Option.some [Bytes] 0x01000301030300ff800100)),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -345,7 +349,7 @@ theorem{
   parameters: [],
   statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x00017f80ff)) 0x) = (ctor Option.some [Bytes] 0x01000301030500017f80ff0100)),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -353,7 +357,7 @@ theorem{
   parameters: [],
   statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalRopeGraph (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0xff80)))) 0x) = (ctor Option.some [Bytes] 0x01000301030300ff800100)),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{

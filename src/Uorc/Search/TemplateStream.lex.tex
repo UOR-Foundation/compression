@@ -125,7 +125,8 @@ definition{
     | Option.none => (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.invalidSpan))})
     | Option.some remainingBytes => (if ((prim equal (project span length) (0 : UInt64) : Bool) || (Uorc.Search.FixedTemplates::wordLess remainingBytes (project span length))) then (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.invalidSpan))}) else (match (prim checked_add (project state offset) (project span length) : (Option UInt64))
       | Option.none => (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.addressSpaceExhausted))})
-      | Option.some followingOffset => (record Transition {arena := arena, state := (record State {template := (project state template), phase := (ctor Phase.waiting), resume := (ctor Phase.spanRelease), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := followingOffset, navigation := (ctor Option.none [Uorc.Core.RuntimeSequence::Cursor]), spanTicket := (project span image), offered := (ctor Option.some [Uorc.Core.RuntimeProgram::Event] (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (project span image) (project span offset) (project span length))), consumed := (project state consumed), acknowledgments := (project state acknowledgments)}), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.produced (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (project span image) (project span offset) (project span length)))}))))
+      | Option.some followingOffset => (record Transition {arena := arena, state := (record State {template := (project state template), phase := (ctor Phase.waiting), resume := (ctor Phase.spanRelease), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := followingOffset, navigation := (ctor Option.none [Uorc.Core.RuntimeSequence::Cursor]), spanTicket := (project span image), offered := (ctor Option.some [Uorc.Core.RuntimeProgram::Event] (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (project span image) (project span offset) (project span length))), consumed := (project state consumed), acknowledgments := (project state acknowledgments)}), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.produced (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (project span image) (project span offset) (project span length)))})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -144,7 +145,8 @@ definition{
       | Uorc.Core.RuntimeSequence::Outcome.span span => (let staged : Transition := (spanResult (project change arena) (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (ctor Option.some [Uorc.Core.RuntimeSequence::Cursor] (project change cursor)), spanTicket := (project span image), offered := (project state offered), consumed := (project state consumed), acknowledgments := (project state acknowledgments)}) available span); (record Transition {arena := (project change arena), state := (project staged state), delta := (project change delta), remainingCredit := (project staged remainingCredit), outcome := (project staged outcome)}))
       | Uorc.Core.RuntimeSequence::Outcome.sequence unexpectedSequence => (record Transition {arena := (project change arena), state := (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (ctor Option.some [Uorc.Core.RuntimeSequence::Cursor] (project change cursor)), spanTicket := unexpectedSequence, offered := (project state offered), consumed := (project state consumed), acknowledgments := (project state acknowledgments)}), delta := (project change delta), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.invalidNavigationOutcome))})
       | Uorc.Core.RuntimeSequence::Outcome.byte unexpectedByte => (record Transition {arena := (project change arena), state := (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (ctor Option.some [Uorc.Core.RuntimeSequence::Cursor] (project change cursor)), spanTicket := (project state spanTicket), offered := (project state offered), consumed := (project state consumed), acknowledgments := (project state acknowledgments)}), delta := (project change delta), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.invalidNavigationOutcome))})
-      | Uorc.Core.RuntimeSequence::Outcome.cancelled => (record Transition {arena := (project change arena), state := (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (ctor Option.some [Uorc.Core.RuntimeSequence::Cursor] (project change cursor)), spanTicket := (project state spanTicket), offered := (project state offered), consumed := (project state consumed), acknowledgments := (project state acknowledgments)}), delta := (project change delta), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.invalidNavigationOutcome))})))
+      | Uorc.Core.RuntimeSequence::Outcome.cancelled => (record Transition {arena := (project change arena), state := (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (ctor Option.some [Uorc.Core.RuntimeSequence::Cursor] (project change cursor)), spanTicket := (project state spanTicket), offered := (project state offered), consumed := (project state consumed), acknowledgments := (project state acknowledgments)}), delta := (project change delta), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.invalidNavigationOutcome))}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -170,7 +172,8 @@ definition{
   result: Transition,
   body: (match result
     | Result.error sequenceFailure => (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.sequence sequenceFailure))})
-    | Result.ok change => (if (prim equal (project change work) (1 : UInt64) : Bool) then (sequenceResult arena state available result) else (record Transition {arena := (project change arena), state := (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (ctor Option.some [Uorc.Core.RuntimeSequence::Cursor] (project change cursor)), spanTicket := (transferredTicket (project change outcome)), offered := (project state offered), consumed := (project state consumed), acknowledgments := (project state acknowledgments)}), delta := (project change delta), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.navigationProfileMismatch))})))
+    | Result.ok change => (if (prim equal (project change work) (1 : UInt64) : Bool) then (sequenceResult arena state available result) else (record Transition {arena := (project change arena), state := (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (ctor Option.some [Uorc.Core.RuntimeSequence::Cursor] (project change cursor)), spanTicket := (transferredTicket (project change outcome)), offered := (project state offered), consumed := (project state consumed), acknowledgments := (project state acknowledgments)}), delta := (project change delta), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.navigationProfileMismatch))}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -211,14 +214,16 @@ definition{
   name: releaseTicket,
   parameters: [arena : Uorc.Core.Heap::Arena, state : State, available : UInt64, cancelling : Bool],
   result: Transition,
-  body: (releaseResult arena state available cancelling (Uorc.Core.Heap::release arena (project state spanTicket)))
+  body: (releaseResult arena state available cancelling (Uorc.Core.Heap::release arena (project state spanTicket))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: drainTicket,
   parameters: [arena : Uorc.Core.Heap::Arena, state : State, available : UInt64, cancelling : Bool],
   result: Transition,
-  body: (releaseResult arena state available cancelling (Uorc.Core.Heap::releaseStep arena))
+  body: (releaseResult arena state available cancelling (Uorc.Core.Heap::releaseStep arena)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -238,7 +243,8 @@ definition{
       | Phase.waiting => (Uorc.Core.RuntimeSequence::cancel arena navigationCursor)
       | Phase.complete => (Uorc.Core.RuntimeSequence::cancel arena navigationCursor)
       | Phase.cancelDrain => (Uorc.Core.RuntimeSequence::cancel arena navigationCursor)
-      | Phase.cancelled => (Uorc.Core.RuntimeSequence::cancel arena navigationCursor))))
+      | Phase.cancelled => (Uorc.Core.RuntimeSequence::cancel arena navigationCursor)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -256,7 +262,8 @@ definition{
     | Phase.waiting => (if (Uorc.Core.RuntimeValue::isNull (project state spanTicket)) then (cancellationStep arena state available) else (releaseTicket arena state available true))
     | Phase.complete => (if (Uorc.Core.RuntimeValue::isNull (project state spanTicket)) then (cancellationStep arena state available) else (releaseTicket arena state available true))
     | Phase.cancelling => (if (Uorc.Core.RuntimeValue::isNull (project state spanTicket)) then (cancellationStep arena state available) else (releaseTicket arena state available true))
-    | Phase.cancelled => (if (Uorc.Core.RuntimeValue::isNull (project state spanTicket)) then (cancellationStep arena state available) else (releaseTicket arena state available true)))
+    | Phase.cancelled => (if (Uorc.Core.RuntimeValue::isNull (project state spanTicket)) then (cancellationStep arena state available) else (releaseTicket arena state available true))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -286,7 +293,8 @@ definition{
     | Phase.complete => (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.complete)})
     | Phase.cancelling => (cancelPerform arena state available)
     | Phase.cancelDrain => (cancelPerform arena state available)
-    | Phase.cancelled => (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.cancelled)}))
+    | Phase.cancelled => (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.cancelled)})),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -295,7 +303,8 @@ definition{
   result: UInt64,
   body: (match (prim checked_subtract value (1 : UInt64) : (Option UInt64))
     | Option.none => (0 : UInt64)
-    | Option.some remainingCredit => remainingCredit)
+    | Option.some remainingCredit => remainingCredit),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -304,7 +313,8 @@ definition{
   result: Transition,
   body: (if (prim equal (eventWork state) (0 : UInt64) : Bool) then (perform arena state available) else (if (prim equal available (0 : UInt64) : Bool) then (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.advanced)}) else (match (prim checked_add (project state consumed) (1 : UInt64) : (Option UInt64))
     | Option.none => (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.addressSpaceExhausted))})
-    | Option.some newConsumed => (let prepaidState : State := (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (project state navigation), spanTicket := (project state spanTicket), offered := (project state offered), consumed := newConsumed, acknowledgments := (project state acknowledgments)}); (perform arena prepaidState (wordSubtractOne available))))))
+    | Option.some newConsumed => (let prepaidState : State := (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (project state navigation), spanTicket := (project state spanTicket), offered := (project state offered), consumed := newConsumed, acknowledgments := (project state acknowledgments)}); (perform arena prepaidState (wordSubtractOne available)))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -324,7 +334,8 @@ definition{
     | Phase.complete => (ctor Result.error [State, Error] (ctor Error.notWaiting))
     | Phase.cancelling => (ctor Result.error [State, Error] (ctor Error.notWaiting))
     | Phase.cancelDrain => (ctor Result.error [State, Error] (ctor Error.notWaiting))
-    | Phase.cancelled => (ctor Result.error [State, Error] (ctor Error.notWaiting)))
+    | Phase.cancelled => (ctor Result.error [State, Error] (ctor Error.notWaiting))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -342,7 +353,8 @@ definition{
     | Option.none => (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.addressSpaceExhausted))})
     | Option.some newConsumed => (match (commitAcknowledged (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (project state navigation), spanTicket := (project state spanTicket), offered := (project state offered), consumed := newConsumed, acknowledgments := (project state acknowledgments)}))
       | Result.error acknowledgmentFailure => (record Transition {arena := arena, state := (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (project state navigation), spanTicket := (project state spanTicket), offered := (project state offered), consumed := newConsumed, acknowledgments := (project state acknowledgments)}), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := (wordSubtractOne available), outcome := (ctor Outcome.failed acknowledgmentFailure)})
-      | Result.ok followingState => (record Transition {arena := arena, state := followingState, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := (wordSubtractOne available), outcome := (ctor Outcome.advanced)}))))
+      | Result.ok followingState => (record Transition {arena := arena, state := followingState, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := (wordSubtractOne available), outcome := (ctor Outcome.advanced)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -351,7 +363,8 @@ definition{
   result: Transition,
   body: (if (prim equal available (0 : UInt64) : Bool) then (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.advanced)}) else (match (prim checked_add (project state consumed) (1 : UInt64) : (Option UInt64))
     | Option.none => (record Transition {arena := arena, state := state, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}), remainingCredit := available, outcome := (ctor Outcome.failed (ctor Error.addressSpaceExhausted))})
-    | Option.some newConsumed => (cancelPerform arena (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (project state navigation), spanTicket := (project state spanTicket), offered := (project state offered), consumed := newConsumed, acknowledgments := (project state acknowledgments)}) (wordSubtractOne available))))
+    | Option.some newConsumed => (cancelPerform arena (record State {template := (project state template), phase := (project state phase), resume := (project state resume), literalRoot := (project state literalRoot), literalLength := (project state literalLength), offset := (project state offset), navigation := (project state navigation), spanTicket := (project state spanTicket), offered := (project state offered), consumed := newConsumed, acknowledgments := (project state acknowledgments)}) (wordSubtractOne available)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -381,7 +394,8 @@ theorem{
   name: zero_credit_preserves_fresh_source_state,
   parameters: [arena : Uorc.Core.Heap::Arena, template : Uorc.Search.FixedTemplates::Template],
   statement: ((project (tick arena (start template) (0 : UInt64)) state) = (start template)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -400,14 +414,16 @@ theorem{
     available : UInt64
   ],
   statement: ((project (tick arena (waitingState state event) available) state) = (waitingState state event)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_credit_acknowledgment_preserves_source_state,
   parameters: [arena : Uorc.Core.Heap::Arena, state : State],
   statement: ((project (acknowledge arena state (0 : UInt64)) state) = state),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

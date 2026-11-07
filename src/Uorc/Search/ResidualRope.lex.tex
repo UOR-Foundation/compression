@@ -98,7 +98,8 @@ definition{
           | Option.none => (if predictionEnded then (ctor Step.rejected (ctor Error.lengthMismatch)) else (readPrediction cursor))
           | Option.some predictionByte => (if (prim equal targetByte predictionByte : Bool) then (ctor Step.pending (record Cursor {target := (ctor Reader.state targetSource (ctor Option.none [UInt8]) targetEnded), prediction := (ctor Reader.state predictionSource (ctor Option.none [UInt8]) predictionEnded), coordinate := ((project cursor coordinate) + 1), exceptionsReversed := (project cursor exceptionsReversed), completedEvents := ((project cursor completedEvents) + 1)})) else (match (Uorc.Search.Effort::checkedU64 (project cursor coordinate))
             | Result.error unusedError => (ctor Step.rejected (ctor Error.coordinateOverflow))
-            | Result.ok coordinate => (ctor Step.pending (record Cursor {target := (ctor Reader.state targetSource (ctor Option.none [UInt8]) targetEnded), prediction := (ctor Reader.state predictionSource (ctor Option.none [UInt8]) predictionEnded), coordinate := ((project cursor coordinate) + 1), exceptionsReversed := (cons (record Uorc.Search.Residual::Exception {coordinate := coordinate, value := targetByte}) (project cursor exceptionsReversed)), completedEvents := ((project cursor completedEvents) + 1)}))))))))
+            | Result.ok coordinate => (ctor Step.pending (record Cursor {target := (ctor Reader.state targetSource (ctor Option.none [UInt8]) targetEnded), prediction := (ctor Reader.state predictionSource (ctor Option.none [UInt8]) predictionEnded), coordinate := ((project cursor coordinate) + 1), exceptionsReversed := (cons (record Uorc.Search.Residual::Exception {coordinate := coordinate, value := targetByte}) (project cursor exceptionsReversed)), completedEvents := ((project cursor completedEvents) + 1)})))))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -111,6 +112,7 @@ definition{
       | Step.pending nextCursor => (runCursor remainingFuel nextCursor)
       | Step.complete exceptionsValue count events => (ctor Step.complete exceptionsValue count events)
       | Step.rejected error => (ctor Step.rejected error))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -121,7 +123,8 @@ definition{
   body: (match state
     | Step.pending cursor => (runCursor fuel cursor)
     | Step.complete exceptionsValue count events => (ctor Step.complete exceptionsValue count events)
-    | Step.rejected error => (ctor Step.rejected error))
+    | Step.rejected error => (ctor Step.rejected error)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -138,14 +141,16 @@ theorem{
   name: full_rope_fit_preserves_zero_and_ff_residuals,
   parameters: [],
   statement: ((exceptions (run 100 (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x00ff0200) (Uorc.Core.Bytes::fromBytes 0x00010203))))) = (ctor Option.some [(List Uorc.Search.Residual::Exception)] (cons (record Uorc.Search.Residual::Exception {coordinate := (3 : UInt64), value := (0 : UInt8)}) (cons (record Uorc.Search.Residual::Exception {coordinate := (1 : UInt64), value := (255 : UInt8)}) (nil Uorc.Search.Residual::Exception))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: residual_fit_ignores_transport_partition,
   parameters: [],
   statement: ((exceptions (run 100 (ctor Step.pending (start (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00ff) (Uorc.Core.Bytes::fromBytes 0x0200)) (Uorc.Core.Bytes::fromBytes 0x00010203))))) = (exceptions (run 100 (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x00ff0200) (Uorc.Core.Bytes::fromBytes 0x00010203)))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

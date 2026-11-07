@@ -148,7 +148,8 @@ definition{
       | Uorc.Search.RopeQueue::Step.pending next => (ctor Step.advanced (record Cursor {queue := (project cursor queue), waitingReversed := (project cursor waitingReversed), waitingForward := (project cursor waitingForward), occupied := (project cursor occupied), mode := (ctor Mode.inserting next), pendingCount := (project cursor pendingCount), completedWork := ((project cursor completedWork) + 1)}))
       | Uorc.Search.RopeQueue::Step.done queue => (ctor Step.advanced (record Cursor {queue := queue, waitingReversed := (project cursor waitingReversed), waitingForward := (project cursor waitingForward), occupied := (project cursor occupied), mode := (ctor Mode.idle), pendingCount := (project cursor pendingCount), completedWork := ((project cursor completedWork) + 1)}))
       | Uorc.Search.RopeQueue::Step.invalidCursor => (ctor Step.failed (ctor Error.queueState) cursor)
-      | Uorc.Search.RopeQueue::Step.ropeFailure failure => (ctor Step.failed (ctor Error.rope failure) cursor)))
+      | Uorc.Search.RopeQueue::Step.ropeFailure failure => (ctor Step.failed (ctor Error.rope failure) cursor))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -190,6 +191,7 @@ definition{
       | Step.advanced cursor => (runWork remainingWork (step cursor))
       | Step.ready cursor => (ctor Step.ready cursor)
       | Step.failed failure cursor => (ctor Step.failed failure cursor))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -215,7 +217,8 @@ theorem{
   name: zero_ranking_work_is_exact,
   parameters: [state : Step],
   statement: ((runWork 0 state) = state),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

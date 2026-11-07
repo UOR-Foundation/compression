@@ -203,6 +203,7 @@ definition{
       | Uorc.Core.Slots::SlotError.releasedCell => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
       | Uorc.Core.Slots::SlotError.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
     | Result.ok selected => (ctor Result.ok [Uorc.Core.Types::Value, Failure] selected)),
+  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -218,7 +219,8 @@ definition{
       | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
       | Uorc.Core.Types::Value.sequence payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
       | Uorc.Core.Types::Value.store payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
-      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [UInt64, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -233,7 +235,8 @@ definition{
       | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
       | Uorc.Core.Types::Value.sequence payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
       | Uorc.Core.Types::Value.store payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
-      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [UInt8, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -248,7 +251,8 @@ definition{
       | Uorc.Core.Types::Value.predicate payload => (ctor Result.ok [Bool, Failure] payload)
       | Uorc.Core.Types::Value.sequence payload => (ctor Result.error [Bool, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
       | Uorc.Core.Types::Value.store payload => (ctor Result.error [Bool, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
-      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [Bool, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [Bool, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -263,7 +267,8 @@ definition{
       | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [Uorc.Core.Bytes::Rope, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
       | Uorc.Core.Types::Value.sequence payload => (ctor Result.ok [Uorc.Core.Bytes::Rope, Failure] (Uorc.Core.Bytes::fromBytes payload))
       | Uorc.Core.Types::Value.store payload => (ctor Result.error [Uorc.Core.Bytes::Rope, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
-      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.ok [Uorc.Core.Bytes::Rope, Failure] payload)))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.ok [Uorc.Core.Bytes::Rope, Failure] payload))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -278,7 +283,8 @@ definition{
       | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [Uorc.Core.Store::Store, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
       | Uorc.Core.Types::Value.sequence payload => (ctor Result.error [Uorc.Core.Store::Store, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
       | Uorc.Core.Types::Value.store payload => (ctor Result.ok [Uorc.Core.Store::Store, Failure] payload)
-      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [Uorc.Core.Store::Store, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.error [Uorc.Core.Store::Store, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -292,6 +298,7 @@ definition{
       | Result.ok selected => (match (resolveReferences rest slots)
         | Result.error restError => (ctor Result.error [(List Uorc.Core.Types::Value), Failure] restError)
         | Result.ok resolvedRest => (ctor Result.ok [(List Uorc.Core.Types::Value), Failure] (cons selected resolvedRest))))),
+  axioms: [Quot.sound, propext],
   recursive_argument: references
 }
 
@@ -311,7 +318,8 @@ definition{
         | Uorc.Core.Slots::SlotError.invalidReference => (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference))
         | Uorc.Core.Slots::SlotError.releasedCell => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
         | Uorc.Core.Slots::SlotError.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
-      | Result.ok slotTable => (ctor Result.ok [Frame, Failure] (record Frame {blockIndex := index, remaining := (project block instructions), slots := slotTable, returnDistance := (project block returnDistance), nextInstruction := 0, releaseBuckets := instructionBuckets, pendingReleases := entryReleases}))))
+      | Result.ok slotTable => (ctor Result.ok [Frame, Failure] (record Frame {blockIndex := index, remaining := (project block instructions), slots := slotTable, returnDistance := (project block returnDistance), nextInstruction := 0, releaseBuckets := instructionBuckets, pendingReleases := entryReleases})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -324,7 +332,8 @@ definition{
   result: (Result Frame Failure),
   body: (match (Uorc.Core.Lifetime::buildSchedule block)
     | Result.error scheduleError => (ctor Result.error [Frame, Failure] (ctor Failure.static scheduleError))
-    | Result.ok schedule => (frameForBlockWithSchedule block index arguments schedule))
+    | Result.ok schedule => (frameForBlockWithSchedule block index arguments schedule)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -378,7 +387,8 @@ definition{
       | Option.some selected => (ctor Result.ok [Uorc.Core.Graph::Block, Failure] selected))
     | Option.some validatedGraph => (match (Uorc.Core.Validation::bodyAt validatedGraph index)
       | Result.error bodyError => (ctor Result.error [Uorc.Core.Graph::Block, Failure] (cacheFailure bodyError))
-      | Result.ok selectedBody => (ctor Result.ok [Uorc.Core.Graph::Block, Failure] selectedBody)))
+      | Result.ok selectedBody => (ctor Result.ok [Uorc.Core.Graph::Block, Failure] selectedBody))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -392,7 +402,8 @@ definition{
         | Uorc.Core.Slots::SlotError.invalidReference => (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference))
         | Uorc.Core.Slots::SlotError.releasedCell => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
         | Uorc.Core.Slots::SlotError.addressSpaceExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted))))
-      | Result.ok slotTable => (ctor Result.ok [Frame, Failure] (record Frame {blockIndex := (project frame blockIndex), remaining := (project frame remaining), slots := slotTable, returnDistance := (project frame returnDistance), nextInstruction := (project frame nextInstruction), releaseBuckets := remainingBuckets, pendingReleases := bucket}))))
+      | Result.ok slotTable => (ctor Result.ok [Frame, Failure] (record Frame {blockIndex := (project frame blockIndex), remaining := (project frame remaining), slots := slotTable, returnDistance := (project frame returnDistance), nextInstruction := (project frame nextInstruction), releaseBuckets := remainingBuckets, pendingReleases := bucket})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -605,7 +616,8 @@ definition{
     | Uorc.Core.Graph::Instruction.tabulate count distance captures => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
     | Uorc.Core.Graph::Instruction.fold count initial distance captures => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
     | Uorc.Core.Graph::Instruction.scan count initial observer observerCaptures updater updaterCaptures => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
-    | Uorc.Core.Graph::Instruction.sequenceRopeConstant literal => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence literal)))
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant literal => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence literal))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -624,7 +636,8 @@ definition{
       | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) usage)
       | Result.ok writeUsage => (match (appendResult frame value)
         | Result.error slotFailure => (ctor StepResult.failed slotFailure writeUsage)
-        | Result.ok nextFrame => (ctor StepResult.next (record Machine {frame := nextFrame, continuations := continuations, usage := writeUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])})))))
+        | Result.ok nextFrame => (ctor StepResult.next (record Machine {frame := nextFrame, continuations := continuations, usage := writeUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -640,7 +653,8 @@ definition{
     | Option.none => (frameForBlock block index arguments)
     | Option.some validatedGraph => (match (Uorc.Core.Validation::scheduleAt validatedGraph index)
       | Result.error scheduleError => (ctor Result.error [Frame, Failure] (cacheFailure scheduleError))
-      | Result.ok preparedSchedule => (frameForBlockWithSchedule block index arguments preparedSchedule)))
+      | Result.ok preparedSchedule => (frameForBlockWithSchedule block index arguments preparedSchedule))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -662,7 +676,8 @@ definition{
       | Result.ok preparedSchedule => (emptyFrameWithSchedule block index preparedSchedule))
     | Option.some validatedGraph => (match (Uorc.Core.Validation::scheduleAt validatedGraph index)
       | Result.error cacheError => (ctor Result.error [Frame, Failure] (cacheFailure cacheError))
-      | Result.ok preparedSchedule => (emptyFrameWithSchedule block index preparedSchedule)))
+      | Result.ok preparedSchedule => (emptyFrameWithSchedule block index preparedSchedule))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -682,7 +697,8 @@ definition{
       | Result.error blockError => (ctor StepResult.failed blockError chargedUsage)
       | Result.ok block => (match (preparedEmptyFrame context block blockIndex)
         | Result.error frameError => (ctor StepResult.failed frameError chargedUsage)
-        | Result.ok calledFrame => (ctor StepResult.next (record Machine {frame := calledFrame, continuations := (cons continuation continuations), usage := chargedUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.initializing arguments))})))))
+        | Result.ok calledFrame => (ctor StepResult.next (record Machine {frame := calledFrame, continuations := (cons continuation continuations), usage := chargedUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.some [Pending] (ctor Pending.initializing arguments))}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -699,7 +715,8 @@ definition{
     | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) usage)
     | Result.ok writeUsage => (match (appendResult frame value)
       | Result.error slotFailure => (ctor StepResult.failed slotFailure writeUsage)
-      | Result.ok nextFrame => (ctor StepResult.next (record Machine {frame := nextFrame, continuations := continuations, usage := writeUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])}))))
+      | Result.ok nextFrame => (ctor StepResult.next (record Machine {frame := nextFrame, continuations := continuations, usage := writeUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -708,7 +725,8 @@ definition{
   result: (Result Uorc.Core.Types::Value Failure),
   body: (match (Uorc.Core.Types::wordOfNat index)
     | Option.none => (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)))
-    | Option.some coordinate => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural coordinate)))
+    | Option.some coordinate => (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.natural coordinate))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -727,7 +745,8 @@ definition{
     | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) usage)
     | Result.ok coordinateUsage => (match (iterationNatural index)
       | Result.error coordinateError => (ctor StepResult.failed coordinateError coordinateUsage)
-      | Result.ok coordinate => (callBlock context blockIndex (cons coordinate arguments) continuation continuations coordinateUsage)))
+      | Result.ok coordinate => (callBlock context blockIndex (cons coordinate arguments) continuation continuations coordinateUsage))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -759,7 +778,8 @@ definition{
     | CaptureTarget.tabulate count bodyIndex => (if (count =? 0) then (finishIterator context frame continuations usage (ctor Uorc.Core.Types::Value.segmentedSequence (ctor Uorc.Core.Bytes::Rope.empty))) else (callBlock context bodyIndex (cons (ctor Uorc.Core.Types::Value.natural (0 : UInt64)) captured) (ctor Continuation.tabulate frame count 1 bodyIndex captured (Uorc.Core.ByteBuilder::empty)) continuations usage))
     | CaptureTarget.fold count initialValue bodyIndex => (if (count =? 0) then (finishIterator context frame continuations usage initialValue) else (callBlock context bodyIndex (cons (ctor Uorc.Core.Types::Value.natural (0 : UInt64)) (cons initialValue captured)) (ctor Continuation.fold frame count 1 bodyIndex captured) continuations usage))
     | CaptureTarget.scanObserver count initialValue observerIndex updaterIndex updaterReferences => (beginCaptures frame continuations usage (ctor CaptureTarget.scanUpdater count initialValue observerIndex updaterIndex captured) updaterReferences)
-    | CaptureTarget.scanUpdater count initialValue observerIndex updaterIndex observerValues => (if (count =? 0) then (finishIterator context frame continuations usage (ctor Uorc.Core.Types::Value.segmentedSequence (ctor Uorc.Core.Bytes::Rope.empty))) else (callBlock context observerIndex (cons (ctor Uorc.Core.Types::Value.natural (0 : UInt64)) (cons initialValue observerValues)) (ctor Continuation.scanObserve frame count 0 observerIndex observerValues updaterIndex captured initialValue (Uorc.Core.ByteBuilder::empty)) continuations usage)))
+    | CaptureTarget.scanUpdater count initialValue observerIndex updaterIndex observerValues => (if (count =? 0) then (finishIterator context frame continuations usage (ctor Uorc.Core.Types::Value.segmentedSequence (ctor Uorc.Core.Bytes::Rope.empty))) else (callBlock context observerIndex (cons (ctor Uorc.Core.Types::Value.natural (0 : UInt64)) (cons initialValue observerValues)) (ctor Continuation.scanObserve frame count 0 observerIndex observerValues updaterIndex captured initialValue (Uorc.Core.ByteBuilder::empty)) continuations usage))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -800,7 +820,8 @@ definition{
   result: StepResult,
   body: (match target
     | RopeTarget.sequence => (nextAtomic context frame continuations usage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence resultRope)))
-    | RopeTarget.byte => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage))
+    | RopeTarget.byte => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -887,7 +908,8 @@ definition{
   body: (match target
     | BuilderTarget.sequence => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
     | BuilderTarget.tabulate count nextIndex bodyIndex captures => (if (nextIndex <? count) then (callIteration context bodyIndex nextIndex captures (ctor Continuation.tabulate frame count (nextIndex + 1) bodyIndex captures builder) continuations usage) else (startBuilderWork frame continuations usage (Uorc.Core.ByteBuilder::finish builder) (ctor BuilderTarget.sequence)))
-    | BuilderTarget.scanUpdate count index observerIndex observerCaptures updaterIndex updaterCaptures stateValue => (callIteration context updaterIndex index (cons stateValue updaterCaptures) (ctor Continuation.scanUpdate frame count index observerIndex observerCaptures updaterIndex updaterCaptures builder) continuations usage))
+    | BuilderTarget.scanUpdate count index observerIndex observerCaptures updaterIndex updaterCaptures stateValue => (callIteration context updaterIndex index (cons stateValue updaterCaptures) (ctor Continuation.scanUpdate frame count index observerIndex observerCaptures updaterIndex updaterCaptures builder) continuations usage)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -991,7 +1013,8 @@ definition{
       | Uorc.Core.Graph::Instruction.storeRead field0 field1 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.storeRead field0 field1) (project frame slots) (project context basis)))
       | Uorc.Core.Graph::Instruction.storeWrite field0 field1 field2 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.storeWrite field0 field1 field2) (project frame slots) (project context basis)))
       | Uorc.Core.Graph::Instruction.choose field0 field1 field2 => (nextAtomic context frame continuations readUsage (evaluateAtomic (ctor Uorc.Core.Graph::Instruction.choose field0 field1 field2) (project frame slots) (project context basis)))
-      | Uorc.Core.Graph::Instruction.sequenceRopeConstant literal => (nextAtomic context frame continuations readUsage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence literal)))))
+      | Uorc.Core.Graph::Instruction.sequenceRopeConstant literal => (nextAtomic context frame continuations readUsage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence literal))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1021,7 +1044,8 @@ definition{
       | Uorc.Core.Types::Value.sequence payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
       | Uorc.Core.Types::Value.store payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage)
       | Uorc.Core.Types::Value.segmentedSequence payload => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) usage))
-    | Continuation.scanUpdate caller count index observer observerCaptures updater updaterCaptures output => (if ((index + 1) <? count) then (callIteration context observer (index + 1) (cons value observerCaptures) (ctor Continuation.scanObserve caller count (index + 1) observer observerCaptures updater updaterCaptures value output) rest usage) else (startBuilderWork caller rest usage (Uorc.Core.ByteBuilder::finish output) (ctor BuilderTarget.sequence))))
+    | Continuation.scanUpdate caller count index observer observerCaptures updater updaterCaptures output => (if ((index + 1) <? count) then (callIteration context observer (index + 1) (cons value observerCaptures) (ctor Continuation.scanObserve caller count (index + 1) observer observerCaptures updater updaterCaptures value output) rest usage) else (startBuilderWork caller rest usage (Uorc.Core.ByteBuilder::finish output) (ctor BuilderTarget.sequence)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1057,7 +1081,8 @@ definition{
     | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
     | Result.ok releasedUsage => (match (project machine continuations)
       | List.nil => (finishOutput context releasedUsage returned)
-      | List.cons continuation rest => (resume context continuation rest releasedUsage returned)))
+      | List.cons continuation rest => (resume context continuation rest releasedUsage returned))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1073,7 +1098,8 @@ definition{
   result: StepResult,
   body: (match (localValue (project (project machine frame) slots) (project (project machine frame) returnDistance))
     | Result.error returnError => (ctor StepResult.failed returnError (project machine usage))
-    | Result.ok returned => (returnValue context machine returned))
+    | Result.ok returned => (returnValue context machine returned)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1082,7 +1108,8 @@ definition{
   result: StepResult,
   body: (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.indexedRead), work := 128, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
     | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
-    | Result.ok returnUsage => (returnFrameRead context (withUsage machine returnUsage)))
+    | Result.ok returnUsage => (returnFrameRead context (withUsage machine returnUsage))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1104,7 +1131,8 @@ definition{
       | Uorc.Core.Bytes::RopeError.invalidCursor => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))
       | Uorc.Core.Bytes::RopeError.indexOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.indexOutOfBounds))
       | Uorc.Core.Bytes::RopeError.sliceOutOfBounds => (ctor Failure.semantic (ctor Uorc.Core.Types::SemanticError.sliceOutOfBounds))
-      | Uorc.Core.Bytes::RopeError.comparisonFuelExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))) usage))
+      | Uorc.Core.Bytes::RopeError.comparisonFuelExhausted => (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant))) usage)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1115,7 +1143,8 @@ definition{
     | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
     | Result.ok releaseUsage => (match (Uorc.Core.Slots::releaseSlot (project (project machine frame) slots) slot)
       | Result.error slotError => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) releaseUsage)
-      | Result.ok releasedSlots => (ctor StepResult.next (record Machine {frame := (record Frame {blockIndex := (project (project machine frame) blockIndex), remaining := (project (project machine frame) remaining), slots := releasedSlots, returnDistance := (project (project machine frame) returnDistance), nextInstruction := (project (project machine frame) nextInstruction), releaseBuckets := (project (project machine frame) releaseBuckets), pendingReleases := restReleases}), continuations := (project machine continuations), usage := releaseUsage, comparison := (project machine comparison), pending := (ctor Option.none [Pending])}))))
+      | Result.ok releasedSlots => (ctor StepResult.next (record Machine {frame := (record Frame {blockIndex := (project (project machine frame) blockIndex), remaining := (project (project machine frame) remaining), slots := releasedSlots, returnDistance := (project (project machine frame) returnDistance), nextInstruction := (project (project machine frame) nextInstruction), releaseBuckets := (project (project machine frame) releaseBuckets), pendingReleases := restReleases}), continuations := (project machine continuations), usage := releaseUsage, comparison := (project machine comparison), pending := (ctor Option.none [Pending])})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1159,7 +1188,8 @@ definition{
           | BuilderTarget.sequence => (nextAtomic context (project machine frame) (project machine continuations) builderUsage (ctor Result.ok [Uorc.Core.Types::Value, Failure] (ctor Uorc.Core.Types::Value.segmentedSequence resultRope)))
           | BuilderTarget.tabulate count nextIndex bodyIndex captures => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) builderUsage)
           | BuilderTarget.scanUpdate count index observerIndex observerCaptures updaterIndex updaterCaptures stateValue => (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) builderUsage))
-        | Uorc.Core.ByteBuilder::Event.failed builderError => (ctor StepResult.failed (builderFailure builderError) builderUsage))))
+        | Uorc.Core.ByteBuilder::Event.failed builderError => (ctor StepResult.failed (builderFailure builderError) builderUsage)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1174,7 +1204,8 @@ definition{
           | List.cons instruction rest => (dispatch context (advanceFrame (project machine frame) rest) (project machine continuations) (project machine usage) instruction))
         | Option.some pendingComparison => (stepComparison context (project machine frame) (project machine continuations) (project machine usage) pendingComparison))
       | List.cons slot restReleases => (releaseOne context machine slot restReleases))
-    | Option.some pendingOperation => (stepPending context machine pendingOperation))
+    | Option.some pendingOperation => (stepPending context machine pendingOperation)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1183,7 +1214,8 @@ definition{
   result: StepResult,
   body: (if ((project (project context budget) maxSteps) <=? (project (project machine usage) steps)) then (ctor StepResult.failed (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.stepLimit)) (project machine usage)) else (match (Uorc.Core.Resources::charge (project context budget) (project machine usage) (Uorc.Core.Resources::unitEvent (ctor Uorc.Core.Resources::EventKind.dispatch)))
     | Result.error budgetError => (ctor StepResult.failed (ctor Failure.operational budgetError) (project machine usage))
-    | Result.ok charged => (stepCharged context (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := charged, comparison := (project machine comparison), pending := (project machine pending)}))))
+    | Result.ok charged => (stepCharged context (record Machine {frame := (project machine frame), continuations := (project machine continuations), usage := charged, comparison := (project machine comparison), pending := (project machine pending)})))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1196,6 +1228,7 @@ definition{
       | StepResult.next nextMachine => (runMachine remaining context nextMachine)
       | StepResult.done execution => (ctor Result.ok [Execution, Failure] execution)
       | StepResult.failed failureValue failedUsage => (ctor Result.error [Execution, Failure] failureValue))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -1218,7 +1251,8 @@ definition{
       | Result.error blockError => (ctor Result.error [Machine, InitializationFailure] (record InitializationFailure {failure := blockError, usage := initialUsage}))
       | Result.ok entryBlock => (match (preparedEmptyFrame context entryBlock (project (effectiveGraph context) entry))
         | Result.error frameError => (ctor Result.error [Machine, InitializationFailure] (record InitializationFailure {failure := frameError, usage := initialUsage}))
-        | Result.ok entryFrame => (ctor Result.ok [Machine, InitializationFailure] (record Machine {frame := entryFrame, continuations := (nil Continuation), usage := initialUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])})))))
+        | Result.ok entryFrame => (ctor Result.ok [Machine, InitializationFailure] (record Machine {frame := entryFrame, continuations := (nil Continuation), usage := initialUsage, comparison := (ctor Option.none [Uorc.Core.Bytes::Comparison]), pending := (ctor Option.none [Pending])}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1227,7 +1261,8 @@ definition{
   result: (Result Machine Failure),
   body: (match (initializeFromUsage context (Uorc.Core.Resources::zeroUsage))
     | Result.error initialFailure => (ctor Result.error [Machine, Failure] (project initialFailure failure))
-    | Result.ok initialMachine => (ctor Result.ok [Machine, Failure] initialMachine))
+    | Result.ok initialMachine => (ctor Result.ok [Machine, Failure] initialMachine)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1236,7 +1271,8 @@ definition{
   result: (Result Execution Failure),
   body: (match (initializeValidated context)
     | Result.error initialError => (ctor Result.error [Execution, Failure] initialError)
-    | Result.ok initialMachine => (runMachine (project (project context budget) maxSteps) context initialMachine))
+    | Result.ok initialMachine => (runMachine (project (project context budget) maxSteps) context initialMachine)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1249,7 +1285,8 @@ definition{
   result: (Result Execution Failure),
   body: (match (Uorc.Core.Graph::validateGraph graph)
     | Result.error staticError => (ctor Result.error [Execution, Failure] (ctor Failure.static staticError))
-    | Result.ok unitResult => (startChecked (record Context {graph := graph, basis := basis, budget := budget, checked := (ctor Option.none [Uorc.Core.Validation::CheckedGraph]), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])})))
+    | Result.ok unitResult => (startChecked (record Context {graph := graph, basis := basis, budget := budget, checked := (ctor Option.none [Uorc.Core.Validation::CheckedGraph]), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1269,14 +1306,16 @@ definition{
   name: runValidated,
   parameters: [context : Context],
   result: (Result Execution Failure),
-  body: (startChecked context)
+  body: (startChecked context),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_fuel_has_typed_failure,
   parameters: [context : Context, machine : Machine],
   statement: ((runMachine 0 context machine) = (ctor Result.error [Execution, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.stepLimit)))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1287,7 +1326,8 @@ definition{
     budget : Uorc.Core.Resources::Budget
   ],
   result: (Result Machine Failure),
-  body: (initializeValidated (contextForChecked checkedGraph basis budget))
+  body: (initializeValidated (contextForChecked checkedGraph basis budget)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1298,7 +1338,8 @@ definition{
     budget : Uorc.Core.Resources::Budget
   ],
   result: (Result Execution Failure),
-  body: (runValidated (contextForChecked checkedGraph basis budget))
+  body: (runValidated (contextForChecked checkedGraph basis budget)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1310,14 +1351,16 @@ definition{
     usage : Uorc.Core.Resources::Usage
   ],
   result: (Result Machine InitializationFailure),
-  body: (initializeFromUsage (contextForAdmitted checkedGraph basisTable budget) usage)
+  body: (initializeFromUsage (contextForAdmitted checkedGraph basisTable budget) usage),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: iteration_coordinate_exhaustion_is_typed,
   parameters: [],
   statement: ((iterationNatural 18446744073709551616) = (ctor Result.error [Uorc.Core.Types::Value, Failure] (ctor Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1367,7 +1410,6 @@ definition{
         | Option.some comparison => false)
       | List.cons slot restSlots => false)
     | Option.some pending => false),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -1393,7 +1435,6 @@ definition{
   parameters: [context : Context, machine : Machine],
   result: Nat,
   body: (if (isFinalReturn machine) then 129 else 1),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 

@@ -102,7 +102,8 @@ definition{
   result: Step,
   body: (match (Uorc.Integrity.BoundedChain::init)
     | Result.ok hash => (ctor Step.pending (record Cursor {phase := (ctor Phase.preparing (Uorc.Wire.Frame::startPreparation frame) hash (Uorc.Search.StreamBuilder::empty)), completedEvents := 0}))
-    | Result.error error => (ctor Step.failed (ctor Error.integrity error) 0))
+    | Result.error error => (ctor Step.failed (ctor Error.integrity error) 0)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -147,7 +148,8 @@ definition{
       | Uorc.Search.StreamBuilder::Step.pending next => (ctor Step.pending (record Cursor {phase := (ctor Phase.building next preimageLength), completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.StreamBuilder::Step.appended builder => (ctor Step.failed (ctor Error.invalidState) ((project cursor completedEvents) + 1))
       | Uorc.Search.StreamBuilder::Step.finished wire count => (ctor Step.complete (record Archive {wire := wire, preimageLength := preimageLength, archiveLength := count, completedEvents := ((project cursor completedEvents) + 1)}))
-      | Uorc.Search.StreamBuilder::Step.failed error => (ctor Step.failed (ctor Error.builder error) ((project cursor completedEvents) + 1))))
+      | Uorc.Search.StreamBuilder::Step.failed error => (ctor Step.failed (ctor Error.builder error) ((project cursor completedEvents) + 1)))),
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

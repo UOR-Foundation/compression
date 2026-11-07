@@ -159,7 +159,8 @@ definition{
       | Stage.releaseProducer => (ctor Outcome.pending)
       | Stage.drainProducer => (ctor Outcome.pending)
       | Stage.releaseControl => (ctor Outcome.pending)
-      | Stage.drainControl => (ctor Outcome.pending))}))
+      | Stage.drainControl => (ctor Outcome.pending))})),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -173,7 +174,8 @@ definition{
   result: Transition,
   body: (match (Uorc.Core.RuntimeResources::observeArena (project cursor budget) (project header usage) (project splitCursor arena))
     | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.splitting splitCursor header), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
-    | Result.ok observedUsage => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.splitting splitCursor (record Header {program := (project header program), caller := (project header caller), usage := observedUsage, producer := (project header producer), control := (project header control), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)})), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (ctor Outcome.pending)}))
+    | Result.ok observedUsage => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.splitting splitCursor (record Header {program := (project header program), caller := (project header caller), usage := observedUsage, producer := (project header producer), control := (project header control), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)})), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (ctor Outcome.pending)})),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -187,7 +189,8 @@ definition{
     header : Header
   ],
   result: Transition,
-  body: (let restoredHeader : Header := (record Header {program := (project header program), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project header caller) input), archive := (project (project header caller) archive), search := left, checkpoint := (project (project header caller) checkpoint), certificate := (project (project header caller) certificate), verification := (project (project header caller) verification), wire := (project (project header caller) wire)}), usage := (project header usage), producer := right, control := (project header control), walk := right, walkDepth := (0 : UInt64), originalSearch := (project header originalSearch)}); (if (prim equal (project left id) (project (project header originalSearch) id) : Bool) then (observe cursor available achievedArena restoredHeader (ctor Stage.findControl)) else (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.active achievedArena restoredHeader (ctor Stage.findControl)), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})))
+  body: (let restoredHeader : Header := (record Header {program := (project header program), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project header caller) input), archive := (project (project header caller) archive), search := left, checkpoint := (project (project header caller) checkpoint), certificate := (project (project header caller) certificate), verification := (project (project header caller) verification), wire := (project (project header caller) wire)}), usage := (project header usage), producer := right, control := (project header control), walk := right, walkDepth := (0 : UInt64), originalSearch := (project header originalSearch)}); (if (prim equal (project left id) (project (project header originalSearch) id) : Bool) then (observe cursor available achievedArena restoredHeader (ctor Stage.findControl)) else (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.active achievedArena restoredHeader (ctor Stage.findControl)), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -202,7 +205,8 @@ definition{
   body: (match (Uorc.Core.RuntimeOwnerRoots::splitStep splitCursor)
     | Uorc.Core.RuntimeOwnerRoots::SplitEvent.advanced continued delta => (observeSplit cursor available continued header)
     | Uorc.Core.RuntimeOwnerRoots::SplitEvent.done achievedArena left right => (finishSplit cursor available achievedArena left right header)
-    | Uorc.Core.RuntimeOwnerRoots::SplitEvent.failed ownerFailure retained => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.splitting retained header), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.owner ownerFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.owner ownerFailure))}))
+    | Uorc.Core.RuntimeOwnerRoots::SplitEvent.failed ownerFailure retained => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.splitting retained header), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.owner ownerFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.owner ownerFailure))})),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -235,7 +239,8 @@ definition{
       | Uorc.Core.Heap::Node.rootBranch role left right => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
       | Uorc.Core.Heap::Node.metadataWord kind index value => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
       | Uorc.Core.Heap::Node.metadataLink kind value target => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
-      | Uorc.Core.Heap::Node.ownerRoot role target => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})))
+      | Uorc.Core.Heap::Node.ownerRoot role target => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -250,7 +255,8 @@ definition{
   result: Transition,
   body: (match result
     | Result.error heapFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
-    | Result.ok mutation => (observe cursor available (project mutation arena) header nextStage))
+    | Result.ok mutation => (observe cursor available (project mutation arena) header nextStage)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -279,7 +285,8 @@ definition{
     | Stage.drainControl => (match (Uorc.Core.Heap::releaseStep activeArena)
       | Result.error heapFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
       | Result.ok mutation => (observe cursor available (project mutation arena) header (if (project mutation complete) then (ctor Stage.complete) else stage)))
-    | Stage.complete => (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.released)}))
+    | Stage.complete => (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.released)})),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -332,7 +339,8 @@ definition{
   result: Transition,
   body: (match (project cursor phase)
     | Phase.active activeArena header stage => (activeStep cursor available activeArena header stage)
-    | Phase.splitting splitCursor header => (splitStep cursor available splitCursor header))
+    | Phase.splitting splitCursor header => (splitStep cursor available splitCursor header)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -343,7 +351,8 @@ definition{
     | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
     | Option.some operations => (match (Uorc.Core.RuntimeResources::charge (project cursor budget) (usage cursor) (record Uorc.Core.RuntimeResources::Event {work := fee, emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
       | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
-      | Result.ok prepaidUsage => (perform (setUsage (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (0 : UInt64), consumedCredits := (project cursor consumedCredits), attemptedOperations := operations, failure := (project cursor failure)}) prepaidUsage) available)))
+      | Result.ok prepaidUsage => (perform (setUsage (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (0 : UInt64), consumedCredits := (project cursor consumedCredits), attemptedOperations := operations, failure := (project cursor failure)}) prepaidUsage) available))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -358,7 +367,8 @@ definition{
         | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
         | Option.some credits => (match (prim checked_add (project cursor paid) taken : (Option UInt64))
           | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
-          | Option.some newPaid => (if (prim equal newPaid fee : Bool) then (executePaid (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := newPaid, consumedCredits := credits, attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) remaining fee) else (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := newPaid, consumedCredits := credits, attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}), remainingCredits := remaining, outcome := (ctor Outcome.pending)})))))))
+          | Option.some newPaid => (if (prim equal newPaid fee : Bool) then (executePaid (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := newPaid, consumedCredits := credits, attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) remaining fee) else (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := newPaid, consumedCredits := credits, attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}), remainingCredits := remaining, outcome := (ctor Outcome.pending)}))))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -367,7 +377,8 @@ definition{
   result: Transition,
   body: (match (project cursor failure)
     | Option.some retainedFailure => (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.failed retainedFailure)})
-    | Option.none => (let fee : UInt64 := (requiredWork cursor); (if (prim equal fee (0 : UInt64) : Bool) then (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.released)}) else (if (prim equal available (0 : UInt64) : Bool) then (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.pending)}) else (fund cursor available fee)))))
+    | Option.none => (let fee : UInt64 := (requiredWork cursor); (if (prim equal fee (0 : UInt64) : Bool) then (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.released)}) else (if (prim equal available (0 : UInt64) : Bool) then (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.pending)}) else (fund cursor available fee))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{

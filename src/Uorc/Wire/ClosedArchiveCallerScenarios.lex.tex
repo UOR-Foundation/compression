@@ -53,16 +53,14 @@ definition{
   name: caller_roundtrip,
   parameters: [],
   result: Scenario,
-  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-01", given := "valid raw/program archive and separate original sequence in the same actual Arena; original supplied as protected CallerRoots.input", when := "beginWithCaller, drive actual output with readSequenceStep/readByte, acknowledge, clean and takeClean once", then := "every byte equals original, returned CleanSession owns exactly protected input; duplicate takeClean rejects, final original release leaves empty arena", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.run"}),
-  axioms: [Quot.sound, propext]
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-01", given := "valid raw/program archive and separate original sequence in the same actual Arena; original supplied as protected CallerRoots.input", when := "beginWithCaller, drive actual output with readSequenceStep/readByte, acknowledge, clean and takeClean once", then := "every byte equals original, returned CleanSession owns exactly protected input; duplicate takeClean rejects, final original release leaves empty arena", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.run"})
 }
 
 definition{
   name: budget,
   parameters: [],
   result: Uorc.Core.RuntimeResources::Budget,
-  body: (Uorc.Wire.ClosedArchiveRunScenarios::budget),
-  axioms: [Quot.sound, propext]
+  body: (Uorc.Wire.ClosedArchiveRunScenarios::budget)
 }
 
 structure{
@@ -109,8 +107,7 @@ definition{
   name: requestBudget,
   parameters: [paused : Bool],
   result: Uorc.Core.RuntimeResources::Budget,
-  body: (let normalLocal6 : Uorc.Core.RuntimeResources::Budget := (budget); (record Uorc.Core.RuntimeResources::Budget {maxWork := (if paused then (0 : UInt64) else (project normalLocal6 maxWork)), maxOwnedBytes := (project normalLocal6 maxOwnedBytes), maxOutputBytes := (project normalLocal6 maxOutputBytes), maxFrames := (project normalLocal6 maxFrames)})),
-  axioms: [Quot.sound, propext]
+  body: (let normalLocal6 : Uorc.Core.RuntimeResources::Budget := (budget); (record Uorc.Core.RuntimeResources::Budget {maxWork := (if paused then (0 : UInt64) else (project normalLocal6 maxWork)), maxOwnedBytes := (project normalLocal6 maxOwnedBytes), maxOutputBytes := (project normalLocal6 maxOutputBytes), maxFrames := (project normalLocal6 maxFrames)}))
 }
 
 definition{
@@ -197,8 +194,7 @@ definition{
   name: beginProgress,
   parameters: [p : Prepared],
   result: Progress,
-  body: (record Progress {state := (project p state), original := (project p original), reader := (project p reader), originalImage := (Uorc.Core.RuntimeValue::nullHandle), originalOffset := (0 : UInt64), originalRemaining := (0 : UInt64), bytes := (0 : UInt64), begins := (0 : UInt64), ends := (0 : UInt64), expectedObjects := (project p objects), expectedBytes := (project p bytes), search := (project p search)}),
-  axioms: [Quot.sound, propext]
+  body: (record Progress {state := (project p state), original := (project p original), reader := (project p reader), originalImage := (Uorc.Core.RuntimeValue::nullHandle), originalOffset := (0 : UInt64), originalRemaining := (0 : UInt64), bytes := (0 : UInt64), begins := (0 : UInt64), ends := (0 : UInt64), expectedObjects := (project p objects), expectedBytes := (project p bytes), search := (project p search)})
 }
 
 definition{
@@ -365,8 +361,7 @@ definition{
     | Uorc.Wire.ClosedArchive::Owner.objects sessionLocal123 => false
     | Uorc.Wire.ClosedArchive::Owner.terminal arenaLocal124 usageLocal125 => false
     | Uorc.Wire.ClosedArchive::Owner.clean arenaLocal126 usageLocal127 => false
-    | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal128 => true),
-  axioms: [Quot.sound, propext]
+    | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal128 => true)
 }
 
 definition{
@@ -383,8 +378,7 @@ definition{
   name: addRoot,
   parameters: [h : Uorc.Core.RuntimeValue::Handle, rs : (List Uorc.Core.RuntimeValue::Handle)],
   result: (List Uorc.Core.RuntimeValue::Handle),
-  body: (if (Uorc.Core.RuntimeValue::isNull h) then rs else (cons h rs)),
-  axioms: [Quot.sound, propext]
+  body: (if (Uorc.Core.RuntimeValue::isNull h) then rs else (cons h rs))
 }
 
 definition{
@@ -480,56 +474,49 @@ definition{
   name: boundary,
   parameters: [],
   result: String,
-  body: "This source scenario owns no independent Arena snapshot during output. Original sequence and archive are separately allocated in one actual Arena before beginWithCaller consumes archive; original is protected CallerRoots.input. Progress stores exactly one ClosedArchive.State, borrowed OwnedRead controls and scalar counters. All original/output reads go through state-returning readSequenceStep/readByte while Owner.objects, then bytes are acknowledged. The actual takeClean outcome is audited for exactly the protected input ticket; the returned moved State is handedOff with Usage only. Duplicate takeClean must retain that handedOff State. Only after handoff is original released and the achieved heap release drained to an empty root audit. This is candidate/native source-control evidence, not locked SDK acceptance or native physical-memory qualification.",
-  axioms: [Quot.sound, propext]
+  body: "This source scenario owns no independent Arena snapshot during output. Original sequence and archive are separately allocated in one actual Arena before beginWithCaller consumes archive; original is protected CallerRoots.input. Progress stores exactly one ClosedArchive.State, borrowed OwnedRead controls and scalar counters. All original/output reads go through state-returning readSequenceStep/readByte while Owner.objects, then bytes are acknowledged. The actual takeClean outcome is audited for exactly the protected input ticket; the returned moved State is handedOff with Usage only. Duplicate takeClean must retain that handedOff State. Only after handoff is original released and the achieved heap release drained to an empty root audit. This is candidate/native source-control evidence, not locked SDK acceptance or native physical-memory qualification."
 }
 
 definition{
   name: caller_02,
   parameters: [],
   result: Scenario,
-  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-02", given := "same candidate sequence has two actual root tickets; protected search aliases transferred archive; separate original is protected input", when := "run raw/program trial and clean", then := "return one candidate root ticket plus one original root, then release both to empty", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
-  axioms: [Quot.sound, propext]
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-02", given := "same candidate sequence has two actual root tickets; protected search aliases transferred archive; separate original is protected input", when := "run raw/program trial and clean", then := "return one candidate root ticket plus one original root, then release both to empty", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"})
 }
 
 definition{
   name: caller_03,
   parameters: [],
   result: Scenario,
-  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-03", given := "shared candidate missing its second ticket, or an unrelated live root omitted from caller inventory", when := "advance then cleanup", then := "typed ownership refusal retains actual arena, never takeClean", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
-  axioms: [Quot.sound, propext]
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-03", given := "shared candidate missing its second ticket, or an unrelated live root omitted from caller inventory", when := "advance then cleanup", then := "typed ownership refusal retains actual arena, never takeClean", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"})
 }
 
 definition{
   name: caller_04,
   parameters: [],
   result: Scenario,
-  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-04", given := "zero-work input audit with correct shared custody", when := "pause then fundInputWork and resume", then := "cursor/usage/roots persist; resume reads/decodes and returns protected tickets", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
-  axioms: [Quot.sound, propext]
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-04", given := "zero-work input audit with correct shared custody", when := "pause then fundInputWork and resume", then := "cursor/usage/roots persist; resume reads/decodes and returns protected tickets", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"})
 }
 
 definition{
   name: caller_05,
   parameters: [],
   result: Scenario,
-  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-05", given := "same paused audit or validated early program prefix", when := "cancel and fund audit if needed", then := "audit cannot be bypassed; cleanup returns both protected tickets", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
-  axioms: [Quot.sound, propext]
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-05", given := "same paused audit or validated early program prefix", when := "cancel and fund audit if needed", then := "audit cannot be bypassed; cleanup returns both protected tickets", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"})
 }
 
 definition{
   name: caller_06,
   parameters: [],
   result: Scenario,
-  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-06", given := "valid ownership with wrong archive hash", when := "run semantic integrity refusal and cleanup", then := "typed archiveIntegrity failure differs from ownership; protected tickets survive", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
-  axioms: [Quot.sound, propext]
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-06", given := "valid ownership with wrong archive hash", when := "run semantic integrity refusal and cleanup", then := "typed archiveIntegrity failure differs from ownership; protected tickets survive", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"})
 }
 
 definition{
   name: caller_07,
   parameters: [],
   result: Scenario,
-  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-07", given := "protected certificate names a future handle beyond nextHandle", when := "run exact custody admission", then := "ownership refusal retains all actual roots; no clean handoff", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"}),
-  axioms: [Quot.sound, propext]
+  body: (record Scenario {id := "UC-WIRE-CLOSED-CALLER-07", given := "protected certificate names a future handle beyond nextHandle", when := "run exact custody admission", then := "ownership refusal retains all actual roots; no clean handoff", owner := "Uorc.Wire.ClosedArchiveCallerScenarios.runExtended"})
 }
 
 definition{
@@ -580,8 +567,7 @@ definition{
       | Uorc.Wire.ClosedArchive::Failure.objects => false
       | Uorc.Wire.ClosedArchive::Failure.publication => false
       | Uorc.Wire.ClosedArchive::Failure.resource whyLocal173 => false
-      | Uorc.Wire.ClosedArchive::Failure.heap whyLocal174 => false)),
-  axioms: [Quot.sound, propext]
+      | Uorc.Wire.ClosedArchive::Failure.heap whyLocal174 => false))
 }
 
 definition{
@@ -590,8 +576,7 @@ definition{
   result: Bool,
   body: (match (Uorc.Wire.ClosedArchive::takeClean x)
     | Uorc.Wire.ClosedArchive::CleanMovement.moved movedLocal175 sessionLocal176 => false
-    | Uorc.Wire.ClosedArchive::CleanMovement.retained retainedLocal177 => true),
-  axioms: [Quot.sound, propext]
+    | Uorc.Wire.ClosedArchive::CleanMovement.retained retainedLocal177 => true)
 }
 
 definition{
@@ -715,8 +700,7 @@ definition{
     | Uorc.Wire.ClosedArchive::Owner.objects sessionLocal231 => false
     | Uorc.Wire.ClosedArchive::Owner.terminal arenaLocal232 usageLocal233 => false
     | Uorc.Wire.ClosedArchive::Owner.clean arenaLocal234 usageLocal235 => false
-    | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal236 => false),
-  axioms: [Quot.sound, propext]
+    | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal236 => false)
 }
 
 definition{
@@ -856,8 +840,7 @@ definition{
   name: custodyBoundary,
   parameters: [],
   result: String,
-  body: "Same-candidate controls perform actual Heap.retain on archive sequence before transferring the candidate ticket; protected.search keeps the other copy. Protected.input is a separate original sequence in that SAME Arena. Success, wrong-hash refusal and cancellation return exactly one search ticket plus one input ticket, then release both after takeClean. Initial custody negatives cover missing duplicate ticket, unlisted unrelated root, and a forged future protected certificate handle. They require typed Failure.ownership, actual retained arena inventory, failed cleanup and no CleanMovement. Zero-work initial audit pauses retain index, audited ticket count and roots; fundInputWork adds only maxWork before decode or cancelled cleanup resumes. Assertions use ephemeral HeapAudit root lists only; production custody is exercised through its own actual entry counter and never receives List metadata.",
-  axioms: [Quot.sound, propext]
+  body: "Same-candidate controls perform actual Heap.retain on archive sequence before transferring the candidate ticket; protected.search keeps the other copy. Protected.input is a separate original sequence in that SAME Arena. Success, wrong-hash refusal and cancellation return exactly one search ticket plus one input ticket, then release both after takeClean. Initial custody negatives cover missing duplicate ticket, unlisted unrelated root, and a forged future protected certificate handle. They require typed Failure.ownership, actual retained arena inventory, failed cleanup and no CleanMovement. Zero-work initial audit pauses retain index, audited ticket count and roots; fundInputWork adds only maxWork before decode or cancelled cleanup resumes. Assertions use ephemeral HeapAudit root lists only; production custody is exercised through its own actual entry counter and never receives List metadata."
 }
 \end{semanticmodule}
 \end{lexlean}

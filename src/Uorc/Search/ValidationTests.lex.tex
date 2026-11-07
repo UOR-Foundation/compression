@@ -47,7 +47,8 @@ theorem{
   name: all_fixed_grammar_operations_validate,
   parameters: [],
   statement: ((Uorc.Core.Validation::accepted (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (fixedGrammarGraph))))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -68,7 +69,8 @@ theorem{
   name: general_apply_tabulate_fold_scan_validate,
   parameters: [],
   statement: ((Uorc.Core.Validation::accepted (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (iteratorGraph))))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -82,63 +84,72 @@ theorem{
   name: zero_local_reference_rejected,
   parameters: [],
   statement: ((error (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 0 1) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}))))) = (ctor Option.some [Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: wrong_operand_type_rejected,
   parameters: [],
   statement: ((error (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0x00) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 1 1) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}))))) = (ctor Option.some [Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.typeMismatch))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: bad_block_reference_rejected,
   parameters: [],
   statement: ((error (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.apply 0 (nil Nat)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}))))) = (ctor Option.some [Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidBlockReference))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: apply_arity_rejected,
   parameters: [],
   statement: ((error (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (nil Uorc.Core.Graph::Instruction), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.apply 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}))))) = (ctor Option.some [Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.arityMismatch))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: return_type_rejected,
   parameters: [],
   statement: ((error (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}))))) = (ctor Option.some [Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.returnMismatch))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: entry_signature_rejected,
   parameters: [],
   statement: ((error (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0x) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}))))) = (ctor Option.some [Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.entrySignatureMismatch))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: choice_branch_type_rejected,
   parameters: [],
   statement: ((error (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.predicateConstant true) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.choose 3 2 1) (nil Uorc.Core.Graph::Instruction))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}))))) = (ctor Option.some [Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.typeMismatch))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: tabulate_wrong_result_rejected,
   parameters: [],
   statement: ((error (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (nil Uorc.Core.Graph::Instruction), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}))))) = (ctor Option.some [Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.returnMismatch))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: rope_false_cache_rejected,
   parameters: [],
   statement: ((error (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant (ctor Uorc.Core.Bytes::Rope.branch 999 2 (Uorc.Core.Bytes::fromBytes 0x01) (Uorc.Core.Bytes::fromBytes 0x02))) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}))))) = (ctor Option.some [Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidSequenceRope))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -169,14 +180,16 @@ theorem{
     ],
     scrutinee: (Uorc.Core.Validation::run 10 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (fixedGrammarGraph))))
   } = (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (fixedGrammarGraph))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: logical_work_resume_inside_trie_event,
   parameters: [],
   statement: ((Uorc.Core.Validation::runWork 80 (Uorc.Core.Validation::runWork 100 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (Uorc.Core.Graph::literalGraph 0x00ff))))) = (Uorc.Core.Validation::runWork 180 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (Uorc.Core.Graph::literalGraph 0x00ff))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -207,7 +220,8 @@ theorem{
     ],
     scrutinee: (Uorc.Core.Validation::runWork 180 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (Uorc.Core.Graph::literalGraph 0x00ff))))
   } = 180),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -238,7 +252,8 @@ theorem{
     ],
     scrutinee: (Uorc.Core.Validation::run 2000 (ctor Uorc.Core.Validation::Step.pending (Uorc.Core.Validation::start (Uorc.Core.Graph::literalGraph 0x00ff))))
   } = (ctor Result.ok [(List (List Nat)), Uorc.Core.Validation::TableError] (cons (nil Nat) (cons (nil Nat) (cons (cons 0 (nil Nat)) (nil (List Nat))))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

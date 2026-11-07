@@ -37,7 +37,6 @@ definition{
   parameters: [],
   result: Uorc.Core.Graph::Graph,
   body: (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (65 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (cons 0 (nil Nat))) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -175,7 +174,6 @@ definition{
   body: (match (project state frames)
     | List.nil => (18446744073709551615 : UInt64)
     | List.cons frame tail => (project frame captureIndex)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -186,7 +184,6 @@ definition{
   body: (match (project state frames)
     | List.nil => (18446744073709551615 : UInt64)
     | List.cons frame tail => (project frame retirementIndex)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -197,7 +194,6 @@ definition{
   body: (match (project state frames)
     | List.nil => (18446744073709551615 : UInt64)
     | List.cons frame tail => (project frame returnedSlot)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -208,7 +204,6 @@ definition{
   body: (match (project state frames)
     | List.nil => (18446744073709551615 : UInt64)
     | List.cons frame tail => (project (project frame frame) slotCount)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -219,7 +214,6 @@ definition{
   body: (match origin
     | Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh => (1 : UInt64)
     | Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred => (2 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -246,7 +240,6 @@ definition{
   parameters: [wanted : UInt64, actual : UInt64],
   result: Bool,
   body: (if (prim equal wanted (18446744073709551615 : UInt64) : Bool) then true else (prim equal wanted actual : Bool)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -264,7 +257,6 @@ definition{
       | Uorc.Core.RuntimeMachineEngine::Pending.sequence cursor purpose => false
       | Uorc.Core.RuntimeMachineEngine::Pending.store cursor => false
       | Uorc.Core.RuntimeMachineEngine::Pending.builder cursor purpose => false) then true else false) else false) else false) else false) else false) else true) then true else false) else false) else false) else false) else false) else false) else false) else false) else false) else false)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -318,7 +310,6 @@ definition{
   parameters: [state : Uorc.Core.RuntimeMachineEngine::State],
   result: (List UInt64),
   body: (cons (project (project state arena) nextHandle) (cons (project (project state arena) ownedBytes) (cons (project (project state arena) liveEntries) (cons (project (project (project state arena) cursor) pendingCount) (nil UInt64))))),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -331,7 +322,6 @@ definition{
     | List.cons x xs => (match right
       | List.nil => false
       | List.cons y ys => (if (prim equal x y : Bool) then (sameMeters xs ys) else false))),
-  axioms: [Quot.sound, propext],
   executable: false,
   recursive_argument: left
 }
@@ -343,7 +333,6 @@ definition{
   body: (match (Uorc.Core.RuntimeMachineEngine::semanticStatus state)
     | Option.none => (0 : UInt64)
     | Option.some error => (Uorc.Core.RuntimeMachineSemanticPrefixTests::semanticCode error)),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -389,7 +378,6 @@ definition{
   parameters: [index : Nat],
   result: (List Uorc.Core.CanonicalCost::SemanticEvent),
   body: (Uorc.Core.CanonicalCost::appendEvents (project (Uorc.Core.CanonicalCallComposition::resolvedCallPlan (ctor Uorc.Core.CanonicalSchedule::CallLane.tabulateBody) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural index) (nil Uorc.Core.ReferenceSemantics::Value)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 65) (nil Uorc.Core.ReferenceSemantics::Value))) entryEvents) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalToByte)) (Uorc.Core.CanonicalCost::appendEvents (project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh) (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 65)}) (nil Uorc.Core.CanonicalBindings::Binding)) events) (project (Uorc.Core.CanonicalSchedule::returnPlan (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 65)}) (cons (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.parameter), value := (ctor Uorc.Core.ReferenceSemantics::Value.natural index)}) (cons (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.parameter), value := (ctor Uorc.Core.ReferenceSemantics::Value.natural 65)}) (nil Uorc.Core.CanonicalBindings::Binding)))) events)))),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 
@@ -400,7 +388,6 @@ definition{
   body: (match count
     | Nat.zero => (Uorc.Core.CanonicalSchedule::loopCondition)
     | Nat.succ rest => (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::loopCondition) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::tabulateIterationEvents (tabulateBodyCore index)) (tabulateTailCore rest (index + 1))))),
-  axioms: [Quot.sound, propext],
   executable: false,
   recursive_argument: count
 }
@@ -522,7 +509,6 @@ definition{
   parameters: [index : UInt64, position : UInt64],
   result: Checkpoint,
   body: (record Checkpoint {block := (0 : UInt64), phase := (1 : UInt64), position := position, pc := (18446744073709551615 : UInt64), captureIndex := index, lane := (18446744073709551615 : UInt64), retirementIndex := (18446744073709551615 : UInt64), slots := index, origin := (18446744073709551615 : UInt64), clearRoots := true}),
-  axioms: [Quot.sound, propext],
   executable: false
 }
 

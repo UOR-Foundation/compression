@@ -222,6 +222,7 @@ definition{
       | NatTrie.empty => 0
       | NatTrie.leaf leafValue => 0
       | NatTrie.branch leftTree rightTree => (natRead remaining (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -232,6 +233,7 @@ definition{
   body: (match depth
     | Nat.zero => (ctor NatTrie.leaf value)
     | Nat.succ remaining => (if (Uorc.Core.Store::lowBit key) then (ctor NatTrie.branch (natLeft tree) (natWrite remaining (natRight tree) (Uorc.Core.Store::nextKey key) value)) else (ctor NatTrie.branch (natWrite remaining (natLeft tree) (Uorc.Core.Store::nextKey key) value) (natRight tree)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -268,6 +270,7 @@ definition{
       | BucketTrie.empty => (nil Nat)
       | BucketTrie.leaf leafValue => (nil Nat)
       | BucketTrie.branch leftTree rightTree => (bucketRead remaining (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -278,6 +281,7 @@ definition{
   body: (match depth
     | Nat.zero => (ctor BucketTrie.leaf value)
     | Nat.succ remaining => (if (Uorc.Core.Store::lowBit key) then (ctor BucketTrie.branch (bucketLeft tree) (bucketWrite remaining (bucketRight tree) (Uorc.Core.Store::nextKey key) value)) else (ctor BucketTrie.branch (bucketWrite remaining (bucketLeft tree) (Uorc.Core.Store::nextKey key) value) (bucketRight tree)))),
+  axioms: [Quot.sound, propext],
   recursive_argument: depth
 }
 
@@ -375,7 +379,8 @@ definition{
   result: (Result UInt64 Uorc.Core.Types::StaticError),
   body: (match (Uorc.Core.Types::wordOfNat index)
     | Option.none => (ctor Result.error [UInt64, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.addressSpaceExhausted))
-    | Option.some key => (ctor Result.ok [UInt64, Uorc.Core.Types::StaticError] key))
+    | Option.some key => (ctor Result.ok [UInt64, Uorc.Core.Types::StaticError] key)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -403,7 +408,8 @@ definition{
   result: (Result CursorEvent Uorc.Core.Types::StaticError),
   body: (if ((distance =? 0) || ((project cursorValue available) <? distance)) then (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference)) else (match (toKey (prim subtract (project cursorValue available) distance : Nat))
     | Result.error keyError => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] keyError)
-    | Result.ok key => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (cons restReferences restSegments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (natWrite 64 (project cursorValue lastUses) key (if ((natRead 64 (project cursorValue lastUses) key) <=? (project cursorValue event)) then (project cursorValue event) else (natRead 64 (project cursorValue lastUses) key))), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)})))))
+    | Result.ok key => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (cons restReferences restSegments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (natWrite 64 (project cursorValue lastUses) key (if ((natRead 64 (project cursorValue lastUses) key) <=? (project cursorValue event)) then (project cursorValue event) else (natRead 64 (project cursorValue lastUses) key))), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -420,7 +426,8 @@ definition{
       | Phase.materialize => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference)))
     | List.cons references restSegments => (match references
       | List.nil => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := restSegments, loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)})))
-      | List.cons distance restReferences => (recordReference cursorValue distance restReferences restSegments)))
+      | List.cons distance restReferences => (recordReference cursorValue distance restReferences restSegments))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -433,7 +440,8 @@ definition{
       | Result.error slotError => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] slotError)
       | Result.ok slotKey => (match (toKey (if ((if (slot <? (project cursorValue parameterCount)) then 0 else ((prim subtract slot (project cursorValue parameterCount) : Nat) + 1)) <=? (natRead 64 (project cursorValue lastUses) slotKey)) then (natRead 64 (project cursorValue lastUses) slotKey) else (if (slot <? (project cursorValue parameterCount)) then 0 else ((prim subtract slot (project cursorValue parameterCount) : Nat) + 1))))
         | Result.error eventError => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] eventError)
-        | Result.ok eventKey => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (project cursorValue segments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (bucketWrite 64 (project cursorValue buckets) eventKey (cons slot (bucketRead 64 (project cursorValue buckets) eventKey))), remainingSlots := slot, remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)}))))))
+        | Result.ok eventKey => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (project cursorValue segments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (bucketWrite 64 (project cursorValue buckets) eventKey (cons slot (bucketRead 64 (project cursorValue buckets) eventKey))), remainingSlots := slot, remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)})))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -444,7 +452,8 @@ definition{
     | Nat.zero => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.complete (project cursorValue plan)))
     | Nat.succ event => (match (toKey event)
       | Result.error eventError => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] eventError)
-      | Result.ok eventKey => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (project cursorValue segments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := event, plan := (cons (bucketRead 64 (project cursorValue buckets) eventKey) (project cursorValue plan))})))))
+      | Result.ok eventKey => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (project cursorValue segments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := event, plan := (cons (bucketRead 64 (project cursorValue buckets) eventKey) (project cursorValue plan))}))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -455,7 +464,8 @@ definition{
     | Phase.instructions => (stepCollect cursorValue)
     | Phase.returnReference => (stepCollect cursorValue)
     | Phase.releases => (stepReleases cursorValue)
-    | Phase.materialize => (stepMaterialize cursorValue))
+    | Phase.materialize => (stepMaterialize cursorValue)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -469,6 +479,7 @@ definition{
       | Result.ok event => (match event
         | CursorEvent.advanced nextCursor => (runFor remaining nextCursor)
         | CursorEvent.complete schedule => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.complete schedule))))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -495,7 +506,8 @@ theorem{
   name: incremental_schedule_matches_reference_vector,
   parameters: [],
   statement: ((runFor 64 (start (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0xff) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}))) = (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.complete (cons (nil Nat) (cons (cons 0 (nil Nat)) (cons (nil Nat) (cons (cons 1 (nil Nat)) (nil (List Nat))))))))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -465,14 +465,16 @@ definition{
     | Phase.unresolvedTrial retainedTrial retainedWords => (match retainedTrial
       | Uorc.Search.ArchiveTrial::Step.pending retainedCursor => (ctor Step.incomplete (ctor Error.invalidState) cursor)
       | Uorc.Search.ArchiveTrial::Step.complete retainedArchive => (ctor Step.incomplete (ctor Error.invalidState) cursor)
-      | Uorc.Search.ArchiveTrial::Step.rejected retainedFailure retainedUsage retainedLedger retainedEvents => (ctor Step.incomplete (ctor Error.trialInternal retainedFailure retainedUsage retainedLedger retainedEvents) cursor)))
+      | Uorc.Search.ArchiveTrial::Step.rejected retainedFailure retainedUsage retainedLedger retainedEvents => (ctor Step.incomplete (ctor Error.trialInternal retainedFailure retainedUsage retainedLedger retainedEvents) cursor))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: advanceCheckerEvent,
   parameters: [cursor : Cursor],
   result: Step,
-  body: (dispatch (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (project cursor phase), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := ((project (project cursor ledger) checkerEvents) + 1), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+  body: (dispatch (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (project cursor phase), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := ((project (project cursor ledger) checkerEvents) + 1), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)})),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -491,7 +493,8 @@ definition{
     | Phase.parsing ignored0 ignored1 ignored2 ignored3 ignored4 => (advanceCheckerEvent cursor)
     | Phase.validating ignored0 ignored1 ignored2 => (advanceCheckerEvent cursor)
     | Phase.measuring ignored0 ignored1 ignored2 => (advanceCheckerEvent cursor)
-    | Phase.predecessorTrial ignored0 ignored1 => (advanceCheckerEvent cursor))
+    | Phase.predecessorTrial ignored0 ignored1 => (advanceCheckerEvent cursor)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -505,6 +508,7 @@ definition{
       | Step.counterexample found => (ctor Step.counterexample found)
       | Step.completeBodyReplay coverage => (ctor Step.completeBodyReplay coverage)
       | Step.incomplete error prefix => (ctor Step.incomplete error prefix))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 
@@ -656,7 +660,8 @@ theorem{
     nextWords : Uorc.Search.RopeWords::Cursor
   ],
   statement: ((step (record Cursor {request := request, expected := expected, phase := (ctor Phase.unresolvedTrial (ctor Uorc.Search.ArchiveTrial::Step.rejected failure failedUsage failedLedger failedEvents) nextWords), winner := winner, raw := raw, maximumBodyLength := maximumBodyLength, ledger := ledger, failures := failures})) = (ctor Step.incomplete (ctor Error.trialInternal failure failedUsage failedLedger failedEvents) (record Cursor {request := request, expected := expected, phase := (ctor Phase.unresolvedTrial (ctor Uorc.Search.ArchiveTrial::Step.rejected failure failedUsage failedLedger failedEvents) nextWords), winner := winner, raw := raw, maximumBodyLength := maximumBodyLength, ledger := ledger, failures := failures}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

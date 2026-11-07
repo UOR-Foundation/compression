@@ -178,7 +178,6 @@ definition{
   parameters: [],
   result: UInt64,
   body: (1464422982 : UInt64),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -209,7 +208,6 @@ definition{
     | Phase.number => (19 : UInt64)
     | Phase.end => (20 : UInt64)
     | Phase.done => (21 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -218,7 +216,6 @@ definition{
   parameters: [request : Request, mode : Uorc.Wire.Output::Mode],
   result: State,
   body: (record State {phase := (ctor Phase.attach), afterNumber := (ctor Phase.done), request := request, program := (ctor Option.none [Uorc.Wire.ProgramEmit::State]), raw := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), wireRoot := (Uorc.Core.RuntimeValue::nullHandle), index := (0 : UInt64), sum := (0 : UInt64), bodyLength := (0 : UInt64), number := (0 : UInt64), wireBytes := (0 : UInt64), pending := (ctor Option.none [Uorc.Wire.Output::Event]), mode := mode, failure := (ctor Option.none [Failure])}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -232,7 +229,6 @@ definition{
   ],
   result: Session,
   body: (record Session {state := (initialState request mode), arena := arena, usage := usage}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -243,7 +239,6 @@ definition{
   body: (if (Uorc.Core.RuntimeValue::isNull (project st wireRoot)) then (match (project st program)
     | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
     | Option.some childLocal1 => (project childLocal1 wireRoot)) else (project st wireRoot)),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -256,7 +251,6 @@ definition{
     | Option.none => (if (prim equal (phaseCode (project st phase)) (phaseCode (ctor Phase.body)) : Bool) then (match (project st program)
       | Option.none => (ctor Option.none [Uorc.Wire.Output::Event])
       | Option.some childLocal3 => (project childLocal3 pending)) else (ctor Option.none [Uorc.Wire.Output::Event]))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -292,7 +286,6 @@ definition{
   parameters: [x : Session, child : Uorc.Wire.ProgramEmit::State],
   result: Uorc.Wire.ProgramEmit::Session,
   body: (record Uorc.Wire.ProgramEmit::Session {state := child, arena := (project x arena), usage := (project x usage)}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -301,7 +294,6 @@ definition{
   parameters: [x : Session, number : UInt64, after : Phase],
   result: Transition,
   body: (let stLocal38 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.number), afterNumber := after, request := (project stLocal38 request), program := (project stLocal38 program), raw := (project stLocal38 raw), wireRoot := (project stLocal38 wireRoot), index := (project stLocal38 index), sum := (project stLocal38 sum), bodyLength := (project stLocal38 bodyLength), number := number, wireBytes := (project stLocal38 wireBytes), pending := (project stLocal38 pending), mode := (project stLocal38 mode), failure := (project stLocal38 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -459,7 +451,6 @@ definition{
   body: (let stLocal105 : State := (project x state); (match (project stLocal105 failure)
     | Option.some eLocal106 => x
     | Option.none => (record Session {state := (record State {phase := (project stLocal105 phase), afterNumber := (project stLocal105 afterNumber), request := (project stLocal105 request), program := (project stLocal105 program), raw := (project stLocal105 raw), wireRoot := (project stLocal105 wireRoot), index := (project stLocal105 index), sum := (project stLocal105 sum), bodyLength := (project stLocal105 bodyLength), number := (project stLocal105 number), wireBytes := (project stLocal105 wireBytes), pending := (project stLocal105 pending), mode := (project stLocal105 mode), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)}))),
-  axioms: [Quot.sound, propext],
   executable: true,
   production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
 }
@@ -488,7 +479,6 @@ definition{
   parameters: [],
   result: UInt64,
   body: (1024 : UInt64),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -587,7 +577,6 @@ definition{
   parameters: [],
   result: String,
   body: "Charged frame PREIMAGE emission. The identity owner supplies Binding; this datum neither accepts a format nor freezes a checksum identity. Format2 diagnostic bytes remain independent; streaming format3 must be bound by its integrity owner. Output.end terminates the preimage; the external integrity controller reads wireBytes and appends/verifies its separately versioned integrity construction. No accepted archive or ready token is produced here. Request.lengths.table is indexed metadata kind FrameEventContract.lengthsMetadataKind: leaf metadataLink(kind,index,record), record word(kind,0,length). All ordered zeros are read and emitted. Count and sum are checked operational U64 values; exhaustion refuses operation without narrowing the mathematical finite wire language. Body raw uses owned sequence spans; body program is measured then emitted from RuntimeProgram metadata. Controls contain no Arena; child operations move the same actual Arena and Usage, then immediately return them. Request.record is charged metadata kind frameMetadataKind with links0 lengths.table.root,1 raw root or program.blocks.root,2 basis image or null. These links are checked before output. A single ownerRoot(wire,record) roots every borrowed handle. Only one charged wire root is inventoried, even when a child control aliases its handle. Work, reads and output events are prepaid; pauses retain achieved state. All spans borrow from that aggregate until consumed or explicitly retained/transferred by acknowledgment. Cleanup drains the achieved arena release cursor. Physical backend copying and general refinement remain separate qualifications.",
-  axioms: [Quot.sound, propext],
   executable: true
 }
 \end{semanticmodule}

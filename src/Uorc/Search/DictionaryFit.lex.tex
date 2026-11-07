@@ -154,7 +154,8 @@ definition{
               | Result.error error => (ctor Step.rejected (ctor Error.coordinateOverflow))
               | Result.ok codeBytes => (ctor Step.proposal (Uorc.Search.Dictionary::program count width codeBytes codes f_dictionary tail) (f_completedEvents + 1)))))
         | Uorc.Core.Bytes::WorkEvent.byteDone unexpected => (ctor Step.rejected (ctor Error.invalidState))
-        | Uorc.Core.Bytes::WorkEvent.failed error => (ctor Step.rejected (ctor Error.rope error)))))
+        | Uorc.Core.Bytes::WorkEvent.failed error => (ctor Step.rejected (ctor Error.rope error))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -167,6 +168,7 @@ definition{
       | Step.pending nextCursor => (runCursor remainingFuel nextCursor)
       | Step.proposal graph events => (ctor Step.proposal graph events)
       | Step.rejected error => (ctor Step.rejected error))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -177,7 +179,8 @@ definition{
   body: (match state
     | Step.pending cursor => (runCursor fuel cursor)
     | Step.proposal graph events => (ctor Step.proposal graph events)
-    | Step.rejected error => (ctor Step.rejected error))
+    | Step.rejected error => (ctor Step.rejected error)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -196,7 +199,8 @@ theorem{
   statement: ((match (proposal (run 300 (start (Uorc.Core.Bytes::fromBytes 0x616263646162636458) 2)))
     | Option.none => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.emptyGraph))
     | Option.some graph => (Uorc.Core.Graph::validateGraph graph)) = (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ())),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{

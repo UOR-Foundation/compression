@@ -100,7 +100,8 @@ definition{
     | Phase.sharing sharingCursor => (match (Uorc.Search.Sharing::step sharingCursor)
       | Uorc.Search.Sharing::Step.pending next => (ctor Step.pending (record Cursor {phase := (ctor Phase.sharing next), completedEvents := ((project cursor completedEvents) + 1)}))
       | Uorc.Search.Sharing::Step.proposal graph events => (ctor Step.proposal graph ((project cursor completedEvents) + 1))
-      | Uorc.Search.Sharing::Step.rejected error => (ctor Step.rejected (ctor Error.sharing error))))
+      | Uorc.Search.Sharing::Step.rejected error => (ctor Step.rejected (ctor Error.sharing error)))),
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

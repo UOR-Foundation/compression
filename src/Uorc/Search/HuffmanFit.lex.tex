@@ -129,7 +129,8 @@ definition{
   result: Step,
   body: (match (Uorc.Search.Effort::checkedU64 (Uorc.Core.Bytes::length target))
     | Result.error failure => (ctor Step.rejected (ctor Error.addressSpaceExhausted) (record Statistics {events := 0, tableUnits := 0, inputBytes := (Uorc.Core.Bytes::length target), encodedBits := 0, alphabet := 0, maximumDepth := 0, treeBytes := 0, payloadBytes := 0}))
-    | Result.ok wordCount => (ctor Step.pending (record Cursor {target := target, totalBytes := (Uorc.Core.Bytes::length target), position := 0, frequencies := (ctor Uorc.Core.Lifetime::NatTrie.empty), parents := (ctor Uorc.Core.Lifetime::NatTrie.empty), nextNode := 256, root := 0, alphabet := 0, maximumDepth := 0, treeBuilder := (Uorc.Search.StreamBuilder::empty), payloadBuilder := (Uorc.Search.StreamBuilder::empty), tree := (ctor Uorc.Core.Bytes::Rope.empty), currentByte := 0, filledBits := 0, factor := 1, bitCount := 0, phase := (ctor Phase.histNext), eventCredit := 0, completedEvents := 0, tableUnits := 0})))
+    | Result.ok wordCount => (ctor Step.pending (record Cursor {target := target, totalBytes := (Uorc.Core.Bytes::length target), position := 0, frequencies := (ctor Uorc.Core.Lifetime::NatTrie.empty), parents := (ctor Uorc.Core.Lifetime::NatTrie.empty), nextNode := 256, root := 0, alphabet := 0, maximumDepth := 0, treeBuilder := (Uorc.Search.StreamBuilder::empty), payloadBuilder := (Uorc.Search.StreamBuilder::empty), tree := (ctor Uorc.Core.Bytes::Rope.empty), currentByte := 0, filledBits := 0, factor := 1, bitCount := 0, phase := (ctor Phase.histNext), eventCredit := 0, completedEvents := 0, tableUnits := 0}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -303,14 +304,16 @@ definition{
       }
     ],
     scrutinee: (project cursor phase)
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: step,
   parameters: [cursor : Cursor],
   result: Step,
-  body: (if ((project cursor completedEvents) <? 18446744073709551615) then (if (((project cursor eventCredit) + 1) <? (eventWork (project cursor phase))) then (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), position := (project cursor position), frequencies := (project cursor frequencies), parents := (project cursor parents), nextNode := (project cursor nextNode), root := (project cursor root), alphabet := (project cursor alphabet), maximumDepth := (project cursor maximumDepth), treeBuilder := (project cursor treeBuilder), payloadBuilder := (project cursor payloadBuilder), tree := (project cursor tree), currentByte := (project cursor currentByte), filledBits := (project cursor filledBits), factor := (project cursor factor), bitCount := (project cursor bitCount), phase := (project cursor phase), eventCredit := ((project cursor eventCredit) + 1), completedEvents := ((project cursor completedEvents) + 1), tableUnits := ((project cursor tableUnits) + (if (1 <? (eventWork (project cursor phase))) then 1 else 0))})) else (perform cursor)) else (ctor Step.rejected (ctor Error.addressSpaceExhausted) (statistics cursor)))
+  body: (if ((project cursor completedEvents) <? 18446744073709551615) then (if (((project cursor eventCredit) + 1) <? (eventWork (project cursor phase))) then (ctor Step.pending (record Cursor {target := (project cursor target), totalBytes := (project cursor totalBytes), position := (project cursor position), frequencies := (project cursor frequencies), parents := (project cursor parents), nextNode := (project cursor nextNode), root := (project cursor root), alphabet := (project cursor alphabet), maximumDepth := (project cursor maximumDepth), treeBuilder := (project cursor treeBuilder), payloadBuilder := (project cursor payloadBuilder), tree := (project cursor tree), currentByte := (project cursor currentByte), filledBits := (project cursor filledBits), factor := (project cursor factor), bitCount := (project cursor bitCount), phase := (project cursor phase), eventCredit := ((project cursor eventCredit) + 1), completedEvents := ((project cursor completedEvents) + 1), tableUnits := ((project cursor tableUnits) + (if (1 <? (eventWork (project cursor phase))) then 1 else 0))})) else (perform cursor)) else (ctor Step.rejected (ctor Error.addressSpaceExhausted) (statistics cursor))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -323,6 +326,7 @@ definition{
       | Step.pending cursor => (runWork remainingWork (step cursor))
       | Step.proposal graph statisticsValue => (ctor Step.proposal graph statisticsValue)
       | Step.rejected failure statisticsValue => (ctor Step.rejected failure statisticsValue))),
+  axioms: [Quot.sound, propext],
   recursive_argument: work
 }
 

@@ -34,7 +34,8 @@ definition{
   name: rootsValid,
   parameters: [cursor : Uorc.Search.OwnedLinearFit::Cursor],
   result: Bool,
-  body: (Uorc.Core.HeapAudit::auditRoots (project cursor arena) (Uorc.Search.OwnedLinearFit::rootInventory cursor))
+  body: (Uorc.Core.HeapAudit::auditRoots (project cursor arena) (Uorc.Search.OwnedLinearFit::rootInventory cursor)),
+  axioms: [Quot.sound, propext]
 }
 
 structure{
@@ -53,7 +54,8 @@ definition{
   name: startProbe,
   parameters: [cursor : Uorc.Search.OwnedLinearFit::Cursor],
   result: Probe,
-  body: (record Probe {cursor := cursor, rootChecks := (rootsValid cursor), paymentChecks := true, steps := 0})
+  body: (record Probe {cursor := cursor, rootChecks := (rootsValid cursor), paymentChecks := true, steps := 0}),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -74,7 +76,8 @@ definition{
     credits : UInt64
   ],
   result: Bool,
-  body: (if (Uorc.Core.Heap::less credits (Uorc.Core.Heap::wordSub (Uorc.Search.OwnedLinearFit::requiredWork before) (project before paid))) then (refusalPreserved before after) else true)
+  body: (if (Uorc.Core.Heap::less credits (Uorc.Core.Heap::wordSub (Uorc.Search.OwnedLinearFit::requiredWork before) (project before paid))) then (refusalPreserved before after) else true),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -85,14 +88,16 @@ definition{
     transition : Uorc.Search.OwnedLinearFit::Transition
   ],
   result: Probe,
-  body: (record Probe {cursor := (project transition cursor), rootChecks := ((project probe rootChecks) && (rootsValid (project transition cursor))), paymentChecks := ((project probe paymentChecks) && (partialWasRefused (project probe cursor) (project transition cursor) credits)), steps := ((project probe steps) + 1)})
+  body: (record Probe {cursor := (project transition cursor), rootChecks := ((project probe rootChecks) && (rootsValid (project transition cursor))), paymentChecks := ((project probe paymentChecks) && (partialWasRefused (project probe cursor) (project transition cursor) credits)), steps := ((project probe steps) + 1)}),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: advance,
   parameters: [probe : Probe, credits : UInt64],
   result: Probe,
-  body: (recordTransition probe credits (Uorc.Search.OwnedLinearFit::step (project probe cursor) credits))
+  body: (recordTransition probe credits (Uorc.Search.OwnedLinearFit::step (project probe cursor) credits)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -108,56 +113,64 @@ theorem{
   name: zero_funding_preserves_initial_cursor,
   parameters: [],
   statement: ((project (Uorc.Search.OwnedLinearFit::step (emptyCursor) (0 : UInt64)) cursor) = (emptyCursor)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: partial_funding_preserves_root_and_operation_prefix,
   parameters: [],
   statement: ((refusalPreserved (emptyCursor) (project (Uorc.Search.OwnedLinearFit::step (emptyCursor) (63 : UInt64)) cursor)) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: zero_funding_produces_no_proposal,
   parameters: [],
   statement: ((Uorc.Search.OwnedLinearFit::completed (project (Uorc.Search.OwnedLinearFit::step (emptyCursor) (0 : UInt64)) cursor)) = (ctor Option.none [Uorc.Search.LinearFit::Proposals])),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: initial_owning_roots_are_exact,
   parameters: [],
   statement: ((rootsValid (emptyCursor)) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: full_payment_commits_work_before_observation,
   parameters: [],
   statement: ((project (project (project (Uorc.Search.OwnedLinearFit::step (emptyCursor) (64 : UInt64)) cursor) usage) work) = (64 : UInt64)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: partial_payment_retains_actual_paid_prefix,
   parameters: [],
   statement: ((project (project (Uorc.Search.OwnedLinearFit::step (emptyCursor) (63 : UInt64)) cursor) paid) = (63 : UInt64)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: credit_counter_overflow_is_retained,
   parameters: [],
   statement: ((project (Uorc.Search.OwnedLinearFit::step (record Uorc.Search.OwnedLinearFit::Cursor {arena := (project (emptyCursor) arena), budget := (project (emptyCursor) budget), basis := (project (emptyCursor) basis), caller := (project (emptyCursor) caller), usage := (project (emptyCursor) usage), control := (project (emptyCursor) control), originalSearch := (project (emptyCursor) originalSearch), installed := (project (emptyCursor) installed), reader := (project (emptyCursor) reader), span := (project (emptyCursor) span), spanIndex := (project (emptyCursor) spanIndex), pendingByte := (project (emptyCursor) pendingByte), fit := (project (emptyCursor) fit), phase := (project (emptyCursor) phase), learned := (project (emptyCursor) learned), paid := (project (emptyCursor) paid), consumedCredits := (18446744073709551615 : UInt64), attemptedOperations := (project (emptyCursor) attemptedOperations), readerEvents := (project (emptyCursor) readerEvents), getterDispatches := (project (emptyCursor) getterDispatches), fittingEvents := (project (emptyCursor) fittingEvents), failure := (project (emptyCursor) failure)}) (1 : UInt64)) outcome) = (ctor Uorc.Search.OwnedLinearFit::Outcome.failed (ctor Uorc.Search.OwnedLinearFit::Error.counterOverflow))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: invalid_deposit_is_typed,
   parameters: [],
   statement: ((project (Uorc.Search.OwnedLinearFit::step (record Uorc.Search.OwnedLinearFit::Cursor {arena := (project (emptyCursor) arena), budget := (project (emptyCursor) budget), basis := (project (emptyCursor) basis), caller := (project (emptyCursor) caller), usage := (project (emptyCursor) usage), control := (project (emptyCursor) control), originalSearch := (project (emptyCursor) originalSearch), installed := (project (emptyCursor) installed), reader := (project (emptyCursor) reader), span := (project (emptyCursor) span), spanIndex := (project (emptyCursor) spanIndex), pendingByte := (project (emptyCursor) pendingByte), fit := (project (emptyCursor) fit), phase := (project (emptyCursor) phase), learned := (project (emptyCursor) learned), paid := (65 : UInt64), consumedCredits := (project (emptyCursor) consumedCredits), attemptedOperations := (project (emptyCursor) attemptedOperations), readerEvents := (project (emptyCursor) readerEvents), getterDispatches := (project (emptyCursor) getterDispatches), fittingEvents := (project (emptyCursor) fittingEvents), failure := (project (emptyCursor) failure)}) (1 : UInt64)) outcome) = (ctor Uorc.Search.OwnedLinearFit::Outcome.failed (ctor Uorc.Search.OwnedLinearFit::Error.invalidState))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{

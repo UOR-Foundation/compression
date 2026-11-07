@@ -19,7 +19,8 @@ definition{
       | Uorc.Core.ReferenceSemantics::Value.byte byteValue => false
       | Uorc.Core.ReferenceSemantics::Value.predicate predicateValue => false
       | Uorc.Core.ReferenceSemantics::Value.sequence sequenceValue => (Uorc.Core.ReferenceSemantics::equalSequences sequenceValue (Uorc.Core.ReferenceSemantics::sequenceFromBytes expected))
-      | Uorc.Core.ReferenceSemantics::Value.store storeValue => false))
+      | Uorc.Core.ReferenceSemantics::Value.store storeValue => false)),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -28,126 +29,144 @@ definition{
   result: Bool,
   body: (match (Uorc.Search.PackedFit::proposal state)
     | Option.none => false
-    | Option.some graph => (meaningFits graph expected))
+    | Option.some graph => (meaningFits graph expected)),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet_1_lookup_is_byte_order_independent,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (0 : UInt64) (Uorc.Core.Bytes::fromBytes 0x) (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0x)) 0x00) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet_2_lookup_is_byte_order_independent,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (1 : UInt64) (Uorc.Core.Bytes::fromBytes 0x01) (Uorc.Core.Bytes::fromBytes 0x0001) (Uorc.Core.Bytes::fromBytes 0x)) 0x01) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet_3_lookup_is_byte_order_independent,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (2 : UInt64) (Uorc.Core.Bytes::fromBytes 0x02) (Uorc.Core.Bytes::fromBytes 0x000102) (Uorc.Core.Bytes::fromBytes 0x)) 0x02) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet_127_lookup_is_byte_order_independent,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (7 : UInt64) (Uorc.Core.Bytes::fromBytes 0x7e) (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e) (Uorc.Core.Bytes::fromBytes 0x)) 0x7e) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet_128_lookup_is_byte_order_independent,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (7 : UInt64) (Uorc.Core.Bytes::fromBytes 0x7f) (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f) (Uorc.Core.Bytes::fromBytes 0x)) 0x7f) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet_129_lookup_is_byte_order_independent,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (8 : UInt64) (Uorc.Core.Bytes::fromBytes 0x80) (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80) (Uorc.Core.Bytes::fromBytes 0x)) 0x80) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet_256_lookup_is_byte_order_independent,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (8 : UInt64) (Uorc.Core.Bytes::fromBytes 0xff) (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff) (Uorc.Core.Bytes::fromBytes 0x)) 0xff) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: alphabet_257_uses_same_closed_program_family,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (2 : UInt64) (2 : UInt64) (9 : UInt64) (Uorc.Core.Bytes::fromBytes 0x0001) (Uorc.Core.Bytes::fromBytes 0x00000100020003000400050006000700080009000a000b000c000d000e000f0010001100120013001400150016001700180019001a001b001c001d001e001f0020002100220023002400250026002700280029002a002b002c002d002e002f0030003100320033003400350036003700380039003a003b003c003d003e003f0040004100420043004400450046004700480049004a004b004c004d004e004f0050005100520053005400550056005700580059005a005b005c005d005e005f0060006100620063006400650066006700680069006a006b006c006d006e006f0070007100720073007400750076007700780079007a007b007c007d007e007f0080008100820083008400850086008700880089008a008b008c008d008e008f0090009100920093009400950096009700980099009a009b009c009d009e009f00a000a100a200a300a400a500a600a700a800a900aa00ab00ac00ad00ae00af00b000b100b200b300b400b500b600b700b800b900ba00bb00bc00bd00be00bf00c000c100c200c300c400c500c600c700c800c900ca00cb00cc00cd00ce00cf00d000d100d200d300d400d500d600d700d800d900da00db00dc00dd00de00df00e000e100e200e300e400e500e600e700e800e900ea00eb00ec00ed00ee00ef00f000f100f200f300f400f500f600f700f800f900fa00fb00fc00fd00fe00ff000001) (Uorc.Core.Bytes::fromBytes 0x)) 0x0001) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: truncated_code_fails_denotational_execution,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (1 : UInt64) (Uorc.Core.Bytes::fromBytes 0x) (Uorc.Core.Bytes::fromBytes 0x6162) (Uorc.Core.Bytes::fromBytes 0x)) 0x61) = false),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: out_of_dictionary_ordinal_fails_execution,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (2 : UInt64) (Uorc.Core.Bytes::fromBytes 0x03) (Uorc.Core.Bytes::fromBytes 0x616263) (Uorc.Core.Bytes::fromBytes 0x)) 0x61) = false),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: padding_is_a_model_canonicality_rule_not_archive_semantics,
   parameters: [],
   statement: ((meaningFits (Uorc.Search.PackedDictionary::program (1 : UInt64) (1 : UInt64) (7 : UInt64) (Uorc.Core.Bytes::fromBytes 0x80) (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f) (Uorc.Core.Bytes::fromBytes 0x)) 0x00) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: learned_zero_bit_alphabet_reconstructs_exactly,
   parameters: [],
   statement: ((learnedFits (Uorc.Search.PackedFit::runWork 2000 (Uorc.Search.PackedFit::start (Uorc.Core.Bytes::fromBytes 0x5a5a) 1)) 0x5a5a) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: learned_two_symbol_cross_byte_reconstructs_exactly,
   parameters: [],
   statement: ((learnedFits (Uorc.Search.PackedFit::runWork 2000 (Uorc.Search.PackedFit::start (Uorc.Core.Bytes::fromBytes 0x61626162616261626162) 1)) 0x61626162616261626162) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: learned_three_symbol_partial_byte_reconstructs_exactly,
   parameters: [],
   statement: ((learnedFits (Uorc.Search.PackedFit::runWork 2000 (Uorc.Search.PackedFit::start (Uorc.Core.Bytes::fromBytes 0x616263616263) 1)) 0x616263616263) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: learned_wide_symbols_exact_tail_reconstructs_exactly,
   parameters: [],
   statement: ((learnedFits (Uorc.Search.PackedFit::runWork 2000 (Uorc.Search.PackedFit::start (Uorc.Core.Bytes::fromBytes 0x616263646162636458) 2)) 0x616263646162636458) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: learned_binary_byte_values_reconstructs_exactly,
   parameters: [],
   statement: ((learnedFits (Uorc.Search.PackedFit::runWork 2000 (Uorc.Search.PackedFit::start (Uorc.Core.Bytes::fromBytes 0x00ff00ff) 1)) 0x00ff00ff) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: packed_proposal_resume_is_exact,
   parameters: [],
   statement: ((Uorc.Search.PackedFit::runWork 31 (Uorc.Search.PackedFit::runWork 17 (Uorc.Search.PackedFit::start (Uorc.Core.Bytes::fromBytes 0x616263616263) 1))) = (Uorc.Search.PackedFit::runWork 48 (Uorc.Search.PackedFit::start (Uorc.Core.Bytes::fromBytes 0x616263616263) 1))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

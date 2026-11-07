@@ -44,8 +44,7 @@ definition{
   name: cancel_wire_release,
   parameters: [],
   result: Scenario,
-  body: (record Scenario {id := "UC-WIRE-ARCHIVE-PROGRAM-CANCEL-01", given := "actual ArchiveProgram replay with caller archive/length roots, at the detached producer wire-image release seam", when := "seek the source-owned active release, cancel there, and drive actual cancellation", then := "drain producer release before reattach, complete Core cancellation, preserve exact nonnull caller/basis roots, and transfer Cancelled once", owner := "Uorc.Wire.ArchiveProgramCancelScenarios.run"}),
-  axioms: [Quot.sound, propext]
+  body: (record Scenario {id := "UC-WIRE-ARCHIVE-PROGRAM-CANCEL-01", given := "actual ArchiveProgram replay with caller archive/length roots, at the detached producer wire-image release seam", when := "seek the source-owned active release, cancel there, and drive actual cancellation", then := "drain producer release before reattach, complete Core cancellation, preserve exact nonnull caller/basis roots, and transfer Cancelled once", owner := "Uorc.Wire.ArchiveProgramCancelScenarios.run"})
 }
 
 definition{
@@ -64,8 +63,7 @@ definition{
     | Uorc.Wire.ArchiveProgram::Owner.cancelling coreLocal11 => false
     | Uorc.Wire.ArchiveProgram::Owner.cancelled retainedLocal12 => false
     | Uorc.Wire.ArchiveProgram::Owner.ready readyLocal13 ledgerLocal14 => false
-    | Uorc.Wire.ArchiveProgram::Owner.handedOff usageLocal15 => false),
-  axioms: [Quot.sound, propext]
+    | Uorc.Wire.ArchiveProgram::Owner.handedOff usageLocal15 => false)
 }
 
 definition{
@@ -108,16 +106,14 @@ definition{
   name: addRoot,
   parameters: [h : Uorc.Core.RuntimeValue::Handle, roots : (List Uorc.Core.RuntimeValue::Handle)],
   result: (List Uorc.Core.RuntimeValue::Handle),
-  body: (if (Uorc.Core.RuntimeValue::isNull h) then roots else (cons h roots)),
-  axioms: [Quot.sound, propext]
+  body: (if (Uorc.Core.RuntimeValue::isNull h) then roots else (cons h roots))
 }
 
 definition{
   name: cancelledRoots,
   parameters: [retained : Uorc.Core.RuntimeAdmissionCancel::Cancelled],
   result: (List Uorc.Core.RuntimeValue::Handle),
-  body: (addRoot (project (project retained basis) root) (addRoot (project (project retained caller) wire) (addRoot (project (project retained caller) verification) (addRoot (project (project retained caller) certificate) (addRoot (project (project retained caller) checkpoint) (addRoot (project (project retained caller) search) (addRoot (project (project retained caller) archive) (addRoot (project (project retained caller) input) (nil Uorc.Core.RuntimeValue::Handle))))))))),
-  axioms: [Quot.sound, propext]
+  body: (addRoot (project (project retained basis) root) (addRoot (project (project retained caller) wire) (addRoot (project (project retained caller) verification) (addRoot (project (project retained caller) certificate) (addRoot (project (project retained caller) checkpoint) (addRoot (project (project retained caller) search) (addRoot (project (project retained caller) archive) (addRoot (project (project retained caller) input) (nil Uorc.Core.RuntimeValue::Handle)))))))))
 }
 
 definition{

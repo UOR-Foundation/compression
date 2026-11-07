@@ -99,7 +99,8 @@ definition{
       }
     ],
     scrutinee: (prim index input 0 : (Option UInt8))
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -133,14 +134,16 @@ definition{
       | Result.error inferenceError => (ctor Step.rejected inferenceError (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)}))
       | Result.ok parameters => (match (Uorc.Search.Effort::checkedU64 (prim length input : Nat))
         | Result.error sizeError => (ctor Step.rejected (ctor Error.arithmeticOverflow) (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)}))
-        | Result.ok count => (ctor Step.proposal (stateGraph parameters count) (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)}))))))
+        | Result.ok count => (ctor Step.proposal (stateGraph parameters count) (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)})))))),
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: transition_parameters_are_input_derived,
   parameters: [],
   statement: ((infer 0x0726c1c8 (5 : UInt64)) = (ctor Result.ok [Parameters, Error] (record Parameters {initial := (7 : UInt64), multiplier := (5 : UInt64), increment := (3 : UInt64)}))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -154,7 +157,8 @@ theorem{
   name: all_256_multipliers_only_priority_not_universe,
   parameters: [],
   statement: ((step 0x0001 (record Cursor {nextMultiplier := 256})) = (ctor Step.finished)),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{

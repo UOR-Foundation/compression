@@ -69,7 +69,6 @@ definition{
   parameters: [],
   result: State,
   body: (record State {mode := (ctor Mode.betweenBlocks), blockCount := (0 : UInt64), parameterCount := (0 : UInt64), parametersSeen := (0 : UInt64), instructionCount := (0 : UInt64), instructionsSeen := (0 : UInt64), opcode := (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant), scalarCount := (0 : UInt64), scalarsSeen := (0 : UInt64), captureLanes := (0 : UInt64), firstCount := (0 : UInt64), firstSeen := (0 : UInt64), secondCount := (0 : UInt64), secondSeen := (0 : UInt64), literalCount := (0 : UInt64), literalSeen := (0 : UInt64), firstOpened := false, secondOpened := false, literalExpected := false, literalOpened := false, activeCapture := (ctor Option.none [Uorc.Core.RuntimeProgram::CaptureLane])}),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -83,7 +82,6 @@ definition{
     | Mode.body => (2 : UInt64)
     | Mode.instruction => (3 : UInt64)
     | Mode.finished => (4 : UInt64)),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -92,7 +90,6 @@ definition{
   parameters: [state : State],
   result: Bool,
   body: (match (project state activeCapture) | Option.none => true | Option.some lane => false),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -101,7 +98,6 @@ definition{
   parameters: [state : State],
   result: Bool,
   body: ((project state firstOpened) && (prim equal (project state firstSeen) (project state firstCount) : Bool)),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -110,7 +106,6 @@ definition{
   parameters: [state : State],
   result: Bool,
   body: ((project state secondOpened) && (prim equal (project state secondSeen) (project state secondCount) : Bool)),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 
@@ -135,7 +130,6 @@ definition{
       | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
       | Uorc.Core.RuntimeOpcode::CallRule.fold => false
       | Uorc.Core.RuntimeOpcode::CallRule.scan => (prim equal scalarsSeen (4 : UInt64) : Bool))),
-  axioms: [Quot.sound, propext],
   executable: true
 }
 

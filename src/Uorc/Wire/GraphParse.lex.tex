@@ -1494,7 +1494,8 @@ definition{
             | Atom.blocks unused0 => (ctor Event.failed (ctor ParseError.invalidState) (project (project s cursor) position) ((project s work) + 1))
             | Atom.graph graphValue => (match stackTail
               | List.nil => (ctor Event.complete graphValue (project (project s cursor) position) ((project s work) + 1))
-              | List.cons extra extras => (ctor Event.failed (ctor ParseError.invalidState) (project (project s cursor) position) ((project s work) + 1))))) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, pending := (project s pending), values := (project s values), work := ((project s work) + 1)}))))))))
+              | List.cons extra extras => (ctor Event.failed (ctor ParseError.invalidState) (project (project s cursor) position) ((project s work) + 1))))) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, pending := (project s pending), values := (project s values), work := ((project s work) + 1)})))))))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{name: eventWork, parameters: [s : State, quantum : Nat], result: Nat, body: 1}
@@ -1537,6 +1538,7 @@ definition{
       | Event.needInput nextStateValue => (ctor Event.needInput nextStateValue)
       | Event.complete graphValue positionValue workValue => (ctor Event.complete graphValue positionValue workValue)
       | Event.failed errorValue positionValue workValue => (ctor Event.failed errorValue positionValue workValue))),
+  axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
 
@@ -1556,7 +1558,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 2000 (fixtureStart 0x0100030103000100))) = true),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1564,7 +1566,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 2000 (fixtureStart 0x01000301030300ff800100))) = true),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1572,7 +1574,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 2000 (fixtureStart 0x))) = false),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1580,7 +1582,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 2000 (fixtureStart 0x010005))) = false),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1588,7 +1590,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 2000 (fixtureStart 0x0100030127))) = false),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1596,7 +1598,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 2000 (fixtureStart 0x8000))) = false),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1604,7 +1606,7 @@ theorem{
   parameters: [],
   statement: ((accepted (runFixture 2000 (fixtureStart 0x000000))) = false),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1612,7 +1614,7 @@ theorem{
   parameters: [],
   statement: ((step (record State {cursor := (Uorc.Wire.Cursor::start (nil Bytes)), ended := true, waiting := false, pending := (cons (ctor Task.literalWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 0) (nil Task)), values := (nil Atom), work := 0}) 1) = (ctor Event.advanced (record State {cursor := (Uorc.Wire.Cursor::start (nil Bytes)), ended := true, waiting := false, pending := (cons (ctor Task.literalWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 1) (nil Task)), values := (nil Atom), work := 1}))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1620,7 +1622,7 @@ theorem{
   parameters: [],
   statement: ((step (record State {cursor := (Uorc.Wire.Cursor::start (nil Bytes)), ended := true, waiting := false, pending := (cons (ctor Task.literalWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 1) (nil Task)), values := (nil Atom), work := 1}) 1) = (ctor Event.advanced (record State {cursor := (Uorc.Wire.Cursor::start (nil Bytes)), ended := true, waiting := false, pending := (cons (ctor Task.literalWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 2) (nil Task)), values := (nil Atom), work := 2}))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1628,7 +1630,7 @@ theorem{
   parameters: [],
   statement: ((step (record State {cursor := (Uorc.Wire.Cursor::start (nil Bytes)), ended := true, waiting := false, pending := (cons (ctor Task.literalWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 2) (nil Task)), values := (nil Atom), work := 2}) 1) = (ctor Event.advanced (record State {cursor := (Uorc.Wire.Cursor::start (nil Bytes)), ended := true, waiting := false, pending := (cons (ctor Task.literalWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x0102 (nil (Option Bytes)) 1 2 4096) 0) (nil Task)), values := (nil Atom), work := 3}))),
   proof: reflexivity{},
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
