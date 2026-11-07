@@ -19,6 +19,7 @@ EXPECTED = {
     'test_symlinks_and_special_files_are_not_followed_or_read',
     'test_test_runner_rejects_missing_duplicate_and_skipped_results',
     'test_valid_language_11_data_is_delegated',
+    'test_acceptance_legs_run_every_vv_recipe_exactly_once',
     'test_workflow_audit_rejects_commented_or_conditional_guards',
     'test_workflow_runs_tests_and_preflight_before_every_project_pull',
 }

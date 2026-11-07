@@ -10,6 +10,7 @@ const SCRIPT = fileURLToPath(import.meta.url);
 const SDK = '/usr/local/bin/prismpm';
 const INVENTORY = '/opt/prismpm/share/inventory.json';
 const OMIT = new Set(['.git', '.lake', '.lexlean', '.prism', 'target', 'node_modules', '.tmp', 'reports']);
+export const OFFLINE_RECIPES = ['lexlean-authority', 'model'];
 export class ValidationFailure extends Error {
   constructor(code, message) { super(`${code}: ${message}`); this.code = code; }
 }
@@ -265,12 +266,14 @@ function offline(root, acquisition) {
     SOURCE_DATE_EPOCH: '0', TZ: 'UTC', LC_ALL: 'C.UTF-8' };
   Object.assign(process.env, env);
   // Current-build verification is always executed, never accepted from a cache receipt.
-  run(root, 'just', ['vv'], { env, log: path.join(root, '.prism/uorc/full-vv.log') });
+  // Every other recipe of `just vv` runs once in its own acceptance leg; this
+  // root proves the formal construction itself needs no network.
+  run(root, 'just', OFFLINE_RECIPES, { env, log: path.join(root, '.prism/uorc/offline-construction.log') });
   const paths = projectionPaths(root), built = lexlean(root, 'build'), verified = lexlean(root, 'verify');
   writeJson(path.join(root, '.prism/uorc/offline-artifacts.json'), artifactInventory(root, paths, built, verified));
   writeJson(path.join(root, '.prism/uorc/offline-execution.json'), { schema: 'uorc/offline-execution/1', source_sha256: receipt.source_sha256,
     sdk_image: receipt.sdk_image, sdk_inventory_sha256: receipt.sdk_inventory_sha256, network: 'none', docker_socket: false,
-    command: ['just', 'vv'], exit_code: 0, acquisition_sha256: sha(canonical(receipt.cache)), normalization: [] });
+    command: ['just', ...OFFLINE_RECIPES], exit_code: 0, acquisition_sha256: sha(canonical(receipt.cache)), normalization: [] });
 }
 function docker(root, image, args, command) {
   return run(root, 'docker', ['run', '--rm', '--pull=never', '--user', `${process.getuid()}:${process.getgid()}`,
@@ -328,7 +331,7 @@ function isolated(root) {
     checkSetup(source, acquisition);
     writeJson(path.join(root, '.prism/uorc/offline-comparison.json'), { schema: 'uorc/offline-comparison/1', status: 'passed',
       distinct_roots: true, shared_build_outputs: false, normalization: [], artifacts: results[0].artifacts, execution: results[0].execution });
-    console.log('Two full offline just vv runs passed with byte-identical artifacts and rejected setup negatives.');
+    console.log('Two offline formal constructions passed with byte-identical artifacts and rejected setup negatives.');
   } finally { fs.rmSync(workOutside, { recursive: true, force: true }); }
 }
 export function main(args) {

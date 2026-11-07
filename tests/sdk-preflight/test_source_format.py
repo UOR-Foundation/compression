@@ -223,12 +223,25 @@ class SourceFormatTests(unittest.TestCase):
         self.assertIn('lexlean fmt --check --all; just model-write; node scripts/offline-validation.mjs export-projections', workflow)
         self.assertIn('"$image" node scripts/offline-validation.mjs isolated', workflow)
         runner = (REPO / 'scripts/offline-validation.mjs').read_text()
-        self.assertIn("['vv']", runner)
-        self.assertIn("runner: [ubuntu-24.04, ubuntu-24.04-arm]", workflow)
-        self.assertIn('name: full offline acceptance / ${{ matrix.runner }}', workflow)
+        self.assertIn("OFFLINE_RECIPES = ['lexlean-authority', 'model']", runner)
+        self.assertIn("runner: [ubuntu-24.04]", workflow)
+        self.assertIn('name: offline formal construction / ${{ matrix.runner }}', workflow)
         self.assertIn('name: review-only generated projections', workflow)
         self.assertEqual([line.strip() for line in workflow.splitlines() if 'if:' in line], ['if: always()'])
 
+
+    def test_acceptance_legs_run_every_vv_recipe_exactly_once(self):
+        just = (REPO / 'Justfile').read_text()
+        vv = next(line for line in just.splitlines() if line.startswith('vv:')).split()[1:]
+        workflow = (REPO / '.github/workflows/bootstrap.yml').read_text()
+        rows = re.findall(r'- \{ leg: ([a-z-]+), runner: (ubuntu-24\.04(?:-arm)?), recipes: "([^"]+)" \}', workflow)
+        self.assertTrue(rows)
+        normative = [recipe for leg, runner, recipes in rows if runner == 'ubuntu-24.04' for recipe in recipes.split()]
+        self.assertEqual(sorted(normative), sorted(vv))
+        self.assertEqual(len(normative), len(set(normative)))
+        self.assertIn('exec just $LEG_RECIPES', workflow)
+        self.assertIn('needs: template-gate', workflow)
+        self.assertIn('run: test "$LEGS" = success', workflow)
 
     def test_workflow_runs_tests_and_preflight_before_every_project_pull(self):
         self.audit_workflow((REPO / '.github/workflows/offline-validation.yml').read_text())

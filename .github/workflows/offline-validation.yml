@@ -44,11 +44,11 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
   offline:
-    name: full offline acceptance / ${{ matrix.runner }}
+    name: offline formal construction / ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        runner: [ubuntu-24.04]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           python3 -B tests/sdk-preflight/run.py
           python3 -B scripts/sdk-source-format-preflight.py
-      - name: Setup then run two independent no-network SDK acceptances
+      - name: Setup then run two independent no-network SDK formal constructions
         shell: bash
         run: |
           set -euo pipefail
