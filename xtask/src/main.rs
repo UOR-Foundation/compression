@@ -44,6 +44,7 @@ fn main() -> ExitCode {
         "validate" => validate(&root),
         "data-form" => convert(true),
         "notation" => convert(false),
+        "runtime-sources" => runtime_sources(),
         _ => {
             eprintln!(
                 "cargo xtask <task>\n\
@@ -57,6 +58,7 @@ fn main() -> ExitCode {
                  validate          run every gate above\n\
                  data-form         stdin source to its canonical JSON data form (for reading)\n\
                  notation          stdin source to the canonical language-1.2 notation\n\
+                 runtime-sources   <dir>: the pinned LexLean runtime Lean modules, in import order\n\
                  \n\
                  --write           check-model only: rewrite generated model/document projections"
             );
@@ -92,6 +94,25 @@ fn convert(to_data: bool) -> Result<(), Fail> {
     }
     .map_err(|e| e.to_string())?;
     std::io::stdout().lock().write_all(converted.as_bytes())?;
+    Ok(())
+}
+
+/// Write the LexLean runtime's generated Lean modules (which every
+/// language-1.2 module imports) under `<dir>`, and print their names in
+/// dependency order, so a standalone `lean` can elaborate generated modules.
+fn runtime_sources() -> Result<(), Fail> {
+    let dir = std::env::args()
+        .nth(2)
+        .ok_or("runtime-sources needs an output directory")?;
+    let modules = lexlean::backend::runtime::modules().map_err(|e| format!("{e:?}"))?;
+    for module in modules {
+        let file = Path::new(&dir).join(format!("{}.lean", module.name.replace('.', "/")));
+        if let Some(parent) = file.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&file, &module.text)?;
+        println!("{}", module.name);
+    }
     Ok(())
 }
 
