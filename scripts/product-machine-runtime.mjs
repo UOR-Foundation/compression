@@ -11,7 +11,7 @@ import {readControllerMutationSpecimens} from './product-read-controller-mutatio
 import {outputDeliveryMutationSpecimens} from './product-output-delivery-mutations.mjs';
 import {mutationTargets as semanticMutationTargets, mutateMachineSemanticMigration} from './product-machine-semantic-mutations.mjs';
 import {mutationTargets as targetMutationTargets, mutateTargetDescriptor} from './product-target-descriptor-mutations.mjs';
-import {dataForm, notation} from './semantic-source.mjs';
+import {dataForm, notation, stageRuntime} from './semantic-source.mjs';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const requireFact=(b,m)=>{if(!b)throw new Error(m);};
 const defaultSuite='MachineBindingScenarios';
@@ -34,6 +34,7 @@ export function execute(root,only,runtimeLibrary,suite=defaultSuite){
  const generated=path.join(verified,'modules'),runtime=fs.mkdtempSync(path.join(os.tmpdir(),'uorc-machine-runtime-'));
  try{
   const files=new Map(filesBelow(generated,'.lean').map(p=>[path.relative(generated,p).slice(0,-5).split(path.sep).join('.'),p]));
+  stageRuntime(runtime);
   const done=new Set(),active=new Set();const leanPath=[runtime,runtimeLibrary??path.join(verified,'oleans')].join(path.delimiter);
   function compile(name){
    if(done.has(name))return;requireFact(!active.has(name),'module cycle');active.add(name);

@@ -6,7 +6,7 @@ import {spawnSync} from 'node:child_process';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {loadCorpus,sourceRecords,leanDriver,requireFact} from './integrity-vectors.mjs';
-import {dataForm, notation} from './semantic-source.mjs';
+import {dataForm, notation, stageRuntime} from './semantic-source.mjs';
 const script=fileURLToPath(import.meta.url);
 const shaFile='src/Uorc/Integrity/Sha256.lex.tex';
 const sources=[shaFile,'src/Uorc/Integrity/BoundedChain.lex.tex','src/Uorc/Integrity/Contract.lex.tex'];
@@ -85,11 +85,7 @@ export function run(root){
     const modelRoot=path.join(temporary,'generated');
     // Language-1.2 generated modules import the pinned LexLean runtime; it is
     // elaborated here from the compiler's own runtime sources, in import order.
-    const runtime=execute('cargo',['run','--locked','-q','-p','xtask','--','runtime-sources',modelRoot],root,output,'runtime-sources');succeeded(runtime,'runtime sources');
-    const runtimeModules=runtime.stdout.trim().split('\n');requireFact(runtimeModules.includes('LexLeanRuntime.Portable'),'runtime module inventory incomplete');
-    for(const name of runtimeModules){
-      const relative=name.replaceAll('.','/');const compiled=execute('lean',['-R',modelRoot,'-o',path.join(modelRoot,relative+'.olean'),path.join(modelRoot,relative+'.lean')],root,output,'compile-'+name,{env:{...process.env,LEAN_PATH:modelRoot}});succeeded(compiled,'runtime compile');
-    }
+    stageRuntime(modelRoot);
     for(const name of ['Sha256','BoundedChain']){
       const relative=`Uorc/Uorc/Integrity/${name}`;const target=path.join(modelRoot,relative+'.lean');fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(path.join(build,'modules',relative+'.lean'),target);
       const compiled=execute('lean',['-R',modelRoot,'-o',path.join(modelRoot,relative+'.olean'),target],root,output,'compile-'+name,{env:{...process.env,LEAN_PATH:modelRoot}});succeeded(compiled,'generated model compile');

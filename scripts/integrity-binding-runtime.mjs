@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {validateFixtures,sourceAudit,requireFact} from './integrity-binding.mjs';
+import {stageRuntime} from './semantic-source.mjs';
 const script=fileURLToPath(import.meta.url);
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 export function leanDriver(root){
@@ -31,6 +32,7 @@ export function run(root,driverFactory=leanDriver){
   const verified=path.resolve(root,verification.artifacts[0]);requireFact(verified.startsWith(path.resolve(root)+path.sep),'verified artifact escaped project');
   const modules=path.join(verified,'modules');
   const files=new Map(leanFiles(modules).map(p=>[path.relative(modules,p).slice(0,-5).split(path.sep).join('.'),p]));
+  stageRuntime(temporary);
   const done=new Set(),active=new Set(),leanPath=[temporary,path.join(verified,'oleans')].join(path.delimiter);
   function compile(name){
    if(done.has(name))return;requireFact(!active.has(name),'generated module cycle');active.add(name);

@@ -6,7 +6,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {dataForm, notation} from './semantic-source.mjs';
+import {dataForm, notation, stageRuntime} from './semantic-source.mjs';
 const script=fileURLToPath(import.meta.url);
 export const sourceNames=['Sha256','StreamEngine','StreamMax','StreamDiagnostic','StreamContract'];
 export const sourcePaths=sourceNames.map(n=>`src/Uorc/Integrity/${n}.lex.tex`);
@@ -230,7 +230,7 @@ export function run(root){
   const build=runCommand('lexlean',['--project',path.join(root,'lexlean.toml'),'--diagnostic-format','json','build',...sourcePaths],root,out,'build');passed(build,'build');
   const b=JSON.parse(build.stdout);required(b.success&&b.artifacts.length===1,'one stream build artifact');
   const modules=path.resolve(root,b.artifacts[0],'modules');required(modules.startsWith(path.resolve(root)+path.sep),'build escaped project');
-  const nativeObjects=[];
+  const nativeObjects=[...stageRuntime(tmp,{native:true}).objects];
   for(const n of sourceNames.slice(0,4)){
    const rel=`Uorc/Uorc/Integrity/${n}`,target=path.join(tmp,rel+'.lean');fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(path.join(modules,rel+'.lean'),target);
    passed(runCommand('lean',['-R',tmp,'-o',path.join(tmp,rel+'.olean'),'-c',path.join(tmp,rel+'.c'),target],root,out,'compile-'+n,{LEAN_PATH:tmp}),'compile '+n);
@@ -255,7 +255,7 @@ export function run(root){
    }else{
     passed(checked,'role mutant source');
     const built=runCommand('lexlean',['--project',path.join(project,'lexlean.toml'),'--diagnostic-format','json','build',...selected],project,out,mutation.id+'-build');passed(built,'role mutant build');
-    const artifact=JSON.parse(built.stdout);const mr=path.join(project,'generated');
+    const artifact=JSON.parse(built.stdout);const mr=path.join(project,'generated');stageRuntime(mr);
     for(const n of sourceNames.slice(0,4)){
      const rel=`Uorc/Uorc/Integrity/${n}`,target=path.join(mr,rel+'.lean');fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(path.join(project,artifact.artifacts[0],'modules',rel+'.lean'),target);
      passed(runCommand('lean',['-R',mr,'-o',path.join(mr,rel+'.olean'),target],project,out,mutation.id+'-'+n,{LEAN_PATH:mr}),'role mutant compile');
