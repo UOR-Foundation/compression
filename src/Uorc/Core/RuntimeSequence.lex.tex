@@ -561,6 +561,52 @@ definition{
 }
 
 definition{
+  name: balanceRightOrBranch,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle,
+    li : Uorc.Core.Heap::SequenceInfo,
+    ri : Uorc.Core.Heap::SequenceInfo
+  ],
+  result: (Result Plan SequenceFailure),
+  body: (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (match (sequenceChildren arena right)
+    | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
+    | Result.ok rc => (match (Uorc.Core.Heap::sequenceInfo arena (project rc first))
+      | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok rli => (match (Uorc.Core.Heap::sequenceInfo arena (project rc second))
+        | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+        | Result.ok rri => (if (Uorc.Core.Heap::less (project rri height) (project rli height)) then (match (sequenceChildren arena (project rc first))
+          | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
+          | Result.ok mid => (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := left, slot := (0 : UInt64)}), second := (record Ref {handle := (project mid first), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project mid second), slot := (0 : UInt64)}), second := (record Ref {handle := (project rc second), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (3 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (3 : UInt64)})}))) else (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := left, slot := (0 : UInt64)}), second := (record Ref {handle := (project rc first), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (project rc second), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (2 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)})})))))) else (ctor Result.ok [Plan, SequenceFailure] (branchPlan left right))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: balanceByHeight,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle,
+    li : Uorc.Core.Heap::SequenceInfo,
+    ri : Uorc.Core.Heap::SequenceInfo
+  ],
+  result: (Result Plan SequenceFailure),
+  body: (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (match (sequenceChildren arena left)
+    | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
+    | Result.ok lc => (match (Uorc.Core.Heap::sequenceInfo arena (project lc first))
+      | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+      | Result.ok lli => (match (Uorc.Core.Heap::sequenceInfo arena (project lc second))
+        | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
+        | Result.ok lri => (if (Uorc.Core.Heap::less (project lli height) (project lri height)) then (match (sequenceChildren arena (project lc second))
+          | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
+          | Result.ok mid => (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project lc first), slot := (0 : UInt64)}), second := (record Ref {handle := (project mid first), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project mid second), slot := (0 : UInt64)}), second := (record Ref {handle := right, slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (3 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (3 : UInt64)})}))) else (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project lc second), slot := (0 : UInt64)}), second := (record Ref {handle := right, slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project lc first), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (2 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)})})))))) else (balanceRightOrBranch arena left right li ri)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
   name: balancePlan,
   parameters: [
     arena : Uorc.Core.Heap::Arena,
@@ -572,23 +618,7 @@ definition{
     | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
     | Result.ok li => (match (Uorc.Core.Heap::sequenceInfo arena right)
       | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
-      | Result.ok ri => (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (match (sequenceChildren arena left)
-        | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
-        | Result.ok lc => (match (Uorc.Core.Heap::sequenceInfo arena (project lc first))
-          | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
-          | Result.ok lli => (match (Uorc.Core.Heap::sequenceInfo arena (project lc second))
-            | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
-            | Result.ok lri => (if (Uorc.Core.Heap::less (project lli height) (project lri height)) then (match (sequenceChildren arena (project lc second))
-              | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
-              | Result.ok mid => (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project lc first), slot := (0 : UInt64)}), second := (record Ref {handle := (project mid first), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project mid second), slot := (0 : UInt64)}), second := (record Ref {handle := right, slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (3 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (3 : UInt64)})}))) else (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project lc second), slot := (0 : UInt64)}), second := (record Ref {handle := right, slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project lc first), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (2 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)})})))))) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (match (sequenceChildren arena right)
-        | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
-        | Result.ok rc => (match (Uorc.Core.Heap::sequenceInfo arena (project rc first))
-          | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
-          | Result.ok rli => (match (Uorc.Core.Heap::sequenceInfo arena (project rc second))
-            | Result.error heapFailure => (ctor Result.error [Plan, SequenceFailure] (ctor SequenceFailure.heap heapFailure))
-            | Result.ok rri => (if (Uorc.Core.Heap::less (project rri height) (project rli height)) then (match (sequenceChildren arena (project rc first))
-              | Result.error failure => (ctor Result.error [Plan, SequenceFailure] failure)
-              | Result.ok mid => (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := left, slot := (0 : UInt64)}), second := (record Ref {handle := (project mid first), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (project mid second), slot := (0 : UInt64)}), second := (record Ref {handle := (project rc second), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (3 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (3 : UInt64)})}))) else (ctor Result.ok [Plan, SequenceFailure] (record Plan {first := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := left, slot := (0 : UInt64)}), second := (record Ref {handle := (project rc first), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), second := (record Instruction {tag := (0 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (1 : UInt64)}), second := (record Ref {handle := (project rc second), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), third := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), fourth := (record Instruction {tag := (99 : UInt64), first := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), second := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (0 : UInt64)}), a := (0 : UInt64), b := (0 : UInt64)}), length := (2 : UInt64), output := (record Ref {handle := (Uorc.Core.RuntimeValue::nullHandle), slot := (2 : UInt64)})})))))) else (ctor Result.ok [Plan, SequenceFailure] (branchPlan left right)))))),
+      | Result.ok ri => (balanceByHeight arena left right li ri))),
   axioms: [Quot.sound, propext],
   executable: true
 }
@@ -726,6 +756,43 @@ definition{
 }
 
 definition{
+  name: concatBalancedCursor,
+  parameters: [cursor : Cursor],
+  result: Cursor,
+  body: (record Cursor {phase := (12 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (2 : UInt64), planDest := (0 : UInt64), plan := (branchPlan (project cursor left) (project cursor right))}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: concatRightHeavy,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    li : Uorc.Core.Heap::SequenceInfo,
+    ri : Uorc.Core.Heap::SequenceInfo
+  ],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (concatDescendRight arena cursor) else (concatPending arena (concatBalancedCursor cursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: concatLeftHeavy,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    li : Uorc.Core.Heap::SequenceInfo,
+    ri : Uorc.Core.Heap::SequenceInfo
+  ],
+  result: (Result SequenceTransition SequenceFailure),
+  body: (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (concatDescendLeft arena cursor) else (concatRightHeavy arena cursor li ri)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
   name: concatByHeight,
   parameters: [
     arena : Uorc.Core.Heap::Arena,
@@ -734,7 +801,7 @@ definition{
     ri : Uorc.Core.Heap::SequenceInfo
   ],
   result: (Result SequenceTransition SequenceFailure),
-  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor right))) else (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor left))) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (concatDescendLeft arena cursor) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (concatDescendRight arena cursor) else (concatPending arena (record Cursor {phase := (12 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (Uorc.Core.RuntimeValue::nullHandle), slot1 := (Uorc.Core.RuntimeValue::nullHandle), slot2 := (Uorc.Core.RuntimeValue::nullHandle), slot3 := (Uorc.Core.RuntimeValue::nullHandle), slot4 := (Uorc.Core.RuntimeValue::nullHandle), planPosition := (0 : UInt64), planReturn := (2 : UInt64), planDest := (0 : UInt64), plan := (branchPlan (project cursor left) (project cursor right))})))))),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor right))) else (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (concatPending arena (concatCursor cursor (2 : UInt64) (project cursor left) (project cursor right) (project cursor left))) else (concatLeftHeavy arena cursor li ri))),
   axioms: [Quot.sound, propext],
   executable: true
 }

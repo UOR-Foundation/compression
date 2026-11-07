@@ -87,14 +87,16 @@ theorem{
   name: semantic_failure_retains_exact_execution_ledger,
   parameters: [],
   statement: ((retainedDivisionFailure (Uorc.Search.ProgramTrial::run 10000 (trial))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: semantic_failure_is_never_eligible,
   parameters: [],
   statement: ((Uorc.Search.ProgramTrial::accepted (Uorc.Search.ProgramTrial::run 10000 (trial))) = false),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -218,14 +220,16 @@ theorem{
   name: initialization_has_no_machine_one_unit_before_payment,
   parameters: [],
   statement: ((initializationIsStillUnmaterialized (Uorc.Search.ProgramTrial::run 5838 (trial))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: initialization_materializes_only_after_exact_payment,
   parameters: [],
   statement: ((initializationCommitsAfterExactPayment (Uorc.Search.ProgramTrial::run 5839 (trial))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -290,28 +294,32 @@ theorem{
   name: step_does_not_execute_with_one_escrow_unit_missing,
   parameters: [],
   statement: ((firstStepNotExecutedWithOneEscrowUnitMissing (Uorc.Search.ProgramTrial::run 6480 (trial))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: step_commits_only_after_declared_escrow_is_paid,
   parameters: [],
   statement: ((firstStepCommitsFromPaidEscrow (Uorc.Search.ProgramTrial::run 6482 (trial))) = true),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: archiveLiteralFixture,
   parameters: [],
   result: Uorc.Search.ArchiveTrial::Step,
-  body: (Uorc.Search.ArchiveControls::run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 16 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 16 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.program (Uorc.Core.Graph::literalGraph 0x000102030405060708090a0b0c0d0e0f))})))
+  body: (Uorc.Search.ArchiveControls::run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 16 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 16 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.program (Uorc.Core.Graph::literalGraph 0x000102030405060708090a0b0c0d0e0f))}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
   name: archiveDivisionFixture,
   parameters: [],
   result: Uorc.Search.ArchiveTrial::Step,
-  body: (Uorc.Search.ArchiveControls::run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 1 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x61), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 1 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.program (divisionByZeroGraph))})))
+  body: (Uorc.Search.ArchiveControls::run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 1 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x61), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 1 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.program (divisionByZeroGraph))}))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -343,7 +351,7 @@ definition{
   parameters: [],
   result: Bool,
   body: (archiveCompletionRetainsEscrow (archiveLiteralFixture)),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -351,7 +359,7 @@ definition{
   parameters: [],
   result: Bool,
   body: (archiveRejectionRetainsEscrow (archiveDivisionFixture)),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -359,7 +367,7 @@ definition{
   parameters: [],
   result: (List Observation),
   body: (cons (record Observation {id := "ExecutionAccountingControls.archive_semantic_failure_retains_execution_escrow", passed := (archive_semantic_failure_retains_execution_escrow)}) (cons (record Observation {id := "ExecutionAccountingControls.archive_completion_retains_execution_escrow", passed := (archive_completion_retains_execution_escrow)}) (nil Observation))),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -42,6 +42,7 @@ definition{
   body: (match blocks
     | Nat.zero => state
     | Nat.succ remaining => (runBlocks remaining (Uorc.Search.Certification::runWork 1000 state))),
+  axioms: [Quot.sound, propext],
   recursive_argument: blocks
 }
 
@@ -59,7 +60,7 @@ definition{
       | Uorc.Search.Certification::Outcome.checkedConditional => false
       | Uorc.Search.Certification::Outcome.counterexample => false
       | Uorc.Search.Certification::Outcome.incomplete => false)),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -76,7 +77,7 @@ definition{
       | Uorc.Search.Certification::Outcome.checkedConditional => true
       | Uorc.Search.Certification::Outcome.counterexample => false
       | Uorc.Search.Certification::Outcome.incomplete => false)),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -93,7 +94,7 @@ definition{
       | Uorc.Search.Certification::Outcome.checkedConditional => false
       | Uorc.Search.Certification::Outcome.counterexample => false
       | Uorc.Search.Certification::Outcome.incomplete => true)),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -110,7 +111,7 @@ definition{
       | Uorc.Search.Certification::Outcome.checkedConditional => false
       | Uorc.Search.Certification::Outcome.counterexample => false
       | Uorc.Search.Certification::Outcome.incomplete => true)),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -134,7 +135,7 @@ definition{
       | Option.some state => (ctor Option.some [Uorc.Search.Effort::Ledger] (observedEffort (Uorc.Search.Certification::runWork 20 state))))
     | Option.none => false
     | Option.some v => (((project v search) =? 0) && (((project v rawReserve) =? 0) && (((project v finalReserve) =? 0) && (((project v replay) =? 0) && (((project v certificateProduction) =? 5) && ((project v checker) =? 0))))))),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -166,7 +167,7 @@ definition{
       | Uorc.Search.Certification::Outcome.checkedConditional => false
       | Uorc.Search.Certification::Outcome.counterexample => false
       | Uorc.Search.Certification::Outcome.incomplete => false)),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -174,7 +175,7 @@ definition{
   parameters: [],
   result: (List Observation),
   body: (cons (record Observation {id := "CertificationControls.check_partition_0_30000", passed := (check_partition_0_30000)}) (cons (record Observation {id := "CertificationControls.adding_owned_production_credit_continues_exact_replay", passed := (adding_owned_production_credit_continues_exact_replay)}) (cons (record Observation {id := "CertificationControls.check_partition_30000_0", passed := (check_partition_30000_0)}) (cons (record Observation {id := "CertificationControls.produce_partition_0_30000", passed := (produce_partition_0_30000)}) (cons (record Observation {id := "CertificationControls.produce_partition_30000_0", passed := (produce_partition_30000_0)}) (cons (record Observation {id := "CertificationControls.production_limit_retains_exact_prefix_and_reserves", passed := (production_limit_retains_exact_prefix_and_reserves)}) (nil Observation))))))),
-  axioms: []
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}
