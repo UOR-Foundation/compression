@@ -3,11 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+import {dataForm, notation} from './semantic-source.mjs';
 const script=fileURLToPath(import.meta.url);
 const contract='src/Uorc/Integrity/Contract.lex.tex';
 export function requireFact(value,message){if(!value)throw Error(`UC-SHA-01: ${message}`);}
 export function sourceRecords(root){
-  const source=fs.readFileSync(path.join(root,contract),'utf8');
+  const source=dataForm(fs.readFileSync(path.join(root,contract),'utf8'));
   const matches=[...source.matchAll(/\\semanticdata\{(.*)\}\n/g)];
   requireFact(matches.length===1,'one source contract is required');
   const module=JSON.parse(matches[0][1]);

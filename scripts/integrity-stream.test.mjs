@@ -2,8 +2,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import {dataForm, notation} from './semantic-source.mjs';
 test('maximum-frame implementation and distinct diagnostic seam exist',()=>{
-  for(const name of ['StreamEngine','StreamMax','StreamDiagnostic'])assert.ok(fs.readFileSync(`src/Uorc/Integrity/${name}.lex.tex`,'utf8').includes('\\semanticdata{'));
+  for(const name of ['StreamEngine','StreamMax','StreamDiagnostic'])assert.ok(dataForm(fs.readFileSync(`src/Uorc/Integrity/${name}.lex.tex`,'utf8')).includes('\\semanticdata{'));
 });
 import os from 'node:os';
 import path from 'node:path';
@@ -11,9 +12,9 @@ import {inventory,leanDriver,records,sourcePaths,auditRun,nativeInput} from './i
 function changedContract(change){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'stream-contract-test-'));
  const target=path.join(root,'src/Uorc/Integrity/StreamContract.lex.tex');fs.mkdirSync(path.dirname(target),{recursive:true});
- const source=fs.readFileSync('src/Uorc/Integrity/StreamContract.lex.tex','utf8');
+ const source=dataForm(fs.readFileSync('src/Uorc/Integrity/StreamContract.lex.tex','utf8'));
  const raw=[...source.matchAll(/\\semanticdata\{(.*)\}\n/g)][0][1];const model=JSON.parse(raw);change(model);
- fs.writeFileSync(target,source.replace(raw,JSON.stringify(model)));return {root,remove:()=>fs.rmSync(root,{recursive:true,force:true})};
+ fs.writeFileSync(target,notation(source.replace(raw,JSON.stringify(model))));return {root,remove:()=>fs.rmSync(root,{recursive:true,force:true})};
 }
 test('all 94 cases and 189 independent frame records are complete',()=>{
  const {fixtures,frames}=inventory('.');assert.equal(fixtures.length,94);assert.equal(frames.length,189);
@@ -27,7 +28,7 @@ test('dropped, duplicate and changed framing records are rejected',()=>{
 });
 test('production profile has no diagnostic capacity or type dependency',()=>{
  const text=fs.readFileSync(sourcePaths.find(p=>p.endsWith('/StreamMax.lex.tex')),'utf8');
- const m=JSON.parse([...text.matchAll(/\\semanticdata\{(.*)\}\n/g)][0][1]);
+ const m=JSON.parse([...dataForm(text).matchAll(/\\semanticdata\{(.*)\}\n/g)][0][1]);
  assert.equal(m.declarations.find(d=>d.name==='init').parameters.length,0);
  for(const n of ['State','Update'])assert.ok(!m.declarations.find(d=>d.name===n).fields.some(f=>f.name==='frameLimit'));
  assert.ok(!text.includes('StreamDiagnostic'));
@@ -83,9 +84,9 @@ test('historical source bridge rejects changed bodies, metadata, snapshots and p
    for(const file of files){const dest=path.join(root,file);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(file,dest);}
    const r=structuredClone(receipt);
    if(variant.model){
-    const file=path.join(root,sourceFile),text=fs.readFileSync(file,'utf8');
+    const file=path.join(root,sourceFile),text=dataForm(fs.readFileSync(file,'utf8'));
     const raw=[...text.matchAll(/\\semanticdata\{(.*)\}\n/g)][0][1],m=JSON.parse(raw);variant.model(m);
-    fs.writeFileSync(file,text.replace(raw,JSON.stringify(m)));r.sources[sourceFile].current_source_sha256=hash(fs.readFileSync(file));
+    fs.writeFileSync(file,notation(text.replace(raw,JSON.stringify(m))));r.sources[sourceFile].current_source_sha256=hash(fs.readFileSync(file));
    }
    if(variant.change)variant.change(root,r);
    fs.writeFileSync(path.join(root,receiptFile),JSON.stringify(r));

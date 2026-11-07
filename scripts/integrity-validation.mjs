@@ -6,11 +6,13 @@ import {spawnSync} from 'node:child_process';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {loadCorpus,sourceRecords,leanDriver,requireFact} from './integrity-vectors.mjs';
+import {dataForm, notation} from './semantic-source.mjs';
 const script=fileURLToPath(import.meta.url);
 const shaFile='src/Uorc/Integrity/Sha256.lex.tex';
 const sources=[shaFile,'src/Uorc/Integrity/BoundedChain.lex.tex','src/Uorc/Integrity/Contract.lex.tex'];
 const sha=x=>crypto.createHash('sha256').update(x).digest('hex');
 export function plant(source,mutation){
+  source=dataForm(source);
   const rows=[...source.matchAll(/\\semanticdata\{(.*)\}\n/g)];requireFact(rows.length===1,'one SHA semantic module required');
   const module=JSON.parse(rows[0][1]);const decls=module.declarations.filter(d=>d.kind==='definition'&&d.name===mutation.definition);
   requireFact(decls.length===1,'mutation requires one computational owner');let changed=0;
@@ -22,7 +24,7 @@ export function plant(source,mutation){
     }
   };
   visit(decls[0].body);requireFact(changed>0,'mutation changed no literal');
-  return source.replace(rows[0][1],JSON.stringify(module));
+  return notation(source.replace(rows[0][1],JSON.stringify(module)));
 }
 export function expectedFailure(result,mutation,generated){
   requireFact(!result.error&&result.status!==null&&result.status!==0&&!result.signal,'mutation must complete with failure');

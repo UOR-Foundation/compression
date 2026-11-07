@@ -5,6 +5,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {copySource,sha,canonical} from './offline-validation.mjs';
+import {dataForm, notation} from './semantic-source.mjs';
 const script=fileURLToPath(import.meta.url);
 const sourcePath='src/Uorc/Varint.lex.tex';
 function requireFact(value,message){if(!value)throw new Error(`UC-VAR-01: ${message}`);}
@@ -15,7 +16,7 @@ export function auditGate(just,harness){
   for(const required of ['for(const mutation of cases)', 'expectedFailure(result,mutation);', "verified.modules.includes('Uorc.Varint')", 'receipts.length===cases.length'])requireFact(body.includes(required),`omitted ${required}`);
   requireFact(!/\b(if|switch|while|return|continue|break)\b|cases\.(filter|slice|splice)|process\.env/.test(body.replace('return result;','')),'filtered or conditional mutation execution');
 }
-export function parse(source){const rows=[...source.matchAll(/\\coredata\{(.*)\}\n/g)];requireFact(rows.length===1,'expected one core module');return JSON.parse(rows[0][1]);}
+export function parse(source){const rows=[...dataForm(source).matchAll(/\\coredata\{(.*)\}\n/g)];requireFact(rows.length===1,'expected one core module');return JSON.parse(rows[0][1]);}
 export function plant(source,mutation){
   const core=parse(source);
   const rows=core.declarations.filter(d=>d.name===mutation.definition);
@@ -30,11 +31,12 @@ export function plant(source,mutation){
   };
   rows[0].value=clone(rows[0].value);
   requireFact(changes>0,'mutation changed no intended literal');
-  return source.replace(source.match(/\\coredata\{(.*)\}\n/)[1],canonical(core));
+  const data=dataForm(source);
+  return notation(data.replace(data.match(/\\coredata\{(.*)\}\n/)[1],()=>canonical(core)));
 }
 export function mutations(root){
   const source=fs.readFileSync(path.join(root,'src/Uorc/VarintContract.lex.tex'),'utf8');
-  const module=JSON.parse(source.match(/\\semanticdata\{(.*)\}\n/)[1]);
+  const module=JSON.parse(dataForm(source).match(/\\semanticdata\{(.*)\}\n/)[1]);
   const rows=module.declarations.filter(d=>d.result?.member?.name==='CoreMutation').map(d=>Object.fromEntries(d.body.fields.map(f=>[f.field,f.value.value])));
   requireFact(rows.length>0&&new Set(rows.map(r=>r.id)).size===rows.length,'empty/duplicate mutation inventory');
   for(const row of rows){

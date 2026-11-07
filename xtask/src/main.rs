@@ -18,6 +18,8 @@ mod claims;
 mod integrity;
 #[cfg(test)]
 mod offline;
+#[cfg(test)]
+mod open_claims;
 mod product_execution;
 #[cfg(test)]
 mod product_receipts;
@@ -40,8 +42,8 @@ fn main() -> ExitCode {
         "audit-bootstrap" => bootstrap::audit(&root),
         "audit-dependency-updates" => bootstrap::audit_dependency_updates(&root),
         "validate" => validate(&root),
-        "semantic-read" => semantic_read(),
-        "semantic-write" => semantic_write(),
+        "data-form" => convert(true),
+        "notation" => convert(false),
         _ => {
             eprintln!(
                 "cargo xtask <task>\n\
@@ -53,8 +55,8 @@ fn main() -> ExitCode {
                  audit-bootstrap   immutable SDK and least-privilege workflow trust root\n\
                  audit-dependency-updates   SDK ownership and ordinary dependency maintenance\n\
                  validate          run every gate above\n\
-                 semantic-read <file>...   print each module's data as canonical JSON lines\n\
-                 semantic-write <file>     replace the module's data with JSON from stdin\n\
+                 data-form         stdin source to its canonical JSON data form (for reading)\n\
+                 notation          stdin source to the canonical language-1.2 notation\n\
                  \n\
                  --write           check-model only: rewrite generated model/document projections"
             );
@@ -74,29 +76,22 @@ fn main() -> ExitCode {
 /// A gate failure, reported with the rule it broke.
 type Fail = Box<dyn std::error::Error>;
 
-/// Language-1.2 modules are written in the notation; gates and controls read
-/// and rewrite their data only through the SDK's own conversion (LexLean
-/// SPEC 17.21.1, 24.8), one JSON line per named file.
-fn semantic_read() -> Result<(), Fail> {
-    use std::io::Write;
-    let mut out = std::io::stdout().lock();
-    for path in std::env::args().skip(2) {
-        let text = std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
-        let value = lexlean::sdk::read_module(&text).map_err(|e| format!("{path}: {e}"))?;
-        serde_json::to_writer(&mut out, &value)?;
-        out.write_all(b"\n")?;
+/// Language-1.2 modules are written in the notation; gates and controls that
+/// inspect or plant module data convert a source text (stdin to stdout) only
+/// through the SDK's own conversions (LexLean SPEC 17.21.1, 24.8). The data
+/// form is for reading: a 1.2 project refuses it, so planted sources are
+/// written back in the notation.
+fn convert(to_data: bool) -> Result<(), Fail> {
+    use std::io::{Read, Write};
+    let mut text = String::new();
+    std::io::stdin().lock().read_to_string(&mut text)?;
+    let converted = if to_data {
+        lexlean::sdk::to_data_form(&text)
+    } else {
+        lexlean::sdk::to_notation(&text)
     }
-    Ok(())
-}
-
-fn semantic_write() -> Result<(), Fail> {
-    let path = std::env::args()
-        .nth(2)
-        .ok_or("semantic-write needs a file")?;
-    let text = std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
-    let value: serde_json::Value = serde_json::from_reader(std::io::stdin().lock())?;
-    let written = lexlean::sdk::write_module(&text, &value).map_err(|e| format!("{path}: {e}"))?;
-    std::fs::write(&path, written).map_err(|e| format!("{path}: {e}"))?;
+    .map_err(|e| e.to_string())?;
+    std::io::stdout().lock().write_all(converted.as_bytes())?;
     Ok(())
 }
 

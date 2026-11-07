@@ -87,7 +87,7 @@ The three honesty levels (R2):
 
 | ID | Level | Statement |
 | --- | --- | --- |
-| `UC-EXE-01` | `open` | Product operation binding moves the actual admitted runtime owner, decoded ticket and achieved effects without inventing successful evidence. |
+| `UC-EXE-01` | `open` | Product operation binding moves the actual admitted runtime owner, decoded ticket and resulting effects without inventing successful evidence. |
 
 ## product-interfaces
 
@@ -105,7 +105,7 @@ The three honesty levels (R2):
 
 | ID | Level | Statement |
 | --- | --- | --- |
-| `UC-STG-01` | `open` | Storage admission and achieved job-owned storage remain separate from logical arena memory and physical observations. |
+| `UC-STG-01` | `open` | Storage admission and observed job-owned storage remain separate from logical arena memory and physical observations. |
 
 ## product-view
 
@@ -187,14 +187,14 @@ The three honesty levels (R2):
 | `UC-REAL-01` | `open` | `none` | `not_measured` | A real nonliteral archive is independently parsed, executed and compared against every original byte before encoder publication. |
 | `UC-CTL-01` | `open` | `none` | `not_measured` | Source-owned asynchronous product transitions preserve run, revision, ordered input and output ownership. |
 | `UC-VIW-01` | `open` | `none` | `not_measured` | Source-owned presentation values govern labels, enabled actions, focus, accessibility and evidence claims. |
-| `UC-STG-01` | `open` | `none` | `not_measured` | Storage admission and achieved job-owned storage remain separate from logical arena memory and physical observations. |
+| `UC-STG-01` | `open` | `none` | `not_measured` | Storage admission and observed job-owned storage remain separate from logical arena memory and physical observations. |
 | `UC-SHA-01` | `build` | `fixture_result` | `not_measured` | Incremental SHA-256 and the separately named bounded chain have source-owned streaming semantics, typed failures and independently locked byte-oriented CAVP oracle evidence. |
 | `AUTH-NIST-SHA256-SHORT` | `some-true` | `imported_fact` | `not_measured` | The locked NIST CAVP SHA-256 short byte-oriented response data supplies 65 independent expected digests, reproduced as finite oracle checks. |
 | `AUTH-NIST-SHA256-LONG` | `some-true` | `imported_fact` | `not_measured` | The locked NIST CAVP SHA-256 long byte-oriented response data supplies 64 independent expected digests, reproduced as finite oracle checks. |
 | `UC-SHA-02` | `build` | `fixture_result` | `not_measured` | The distinct UORC-SHA256-STREAM-MAX-v1 construction streams arbitrary finite input with standard-domain frame bounds, typed cancellation, explicit terminal framing and independently checked reduced-capacity segmentation controls. |
 | `UC-INT-02` | `build` | `fixture_result` | `not_measured` | Format3/machine1 explicitly binds STREAM-MAX-v1 to charged image spans, preserves format2 CHAIN-v1 semantics, and seals input, basis and checkpoint identity domains without replacing exact reconstruction comparison. |
 | `UC-INT-03` | `build` | `build_evidence` | `not_measured` | Source-owned checker soundness and constructive finite backward reduction are kernel checked for actual canonical framed messages and shape-valid source-SHA-authenticated traces, without global hash injectivity or an assumed frame codec. The decoder-to-authenticated-trace bridge and full product acceptance remain distinct. |
-| `UC-EXE-01` | `open` | `none` | `not_measured` | Product operation binding moves the actual admitted runtime owner, decoded ticket and achieved effects without inventing successful evidence. |
+| `UC-EXE-01` | `open` | `none` | `not_measured` | Product operation binding moves the actual admitted runtime owner, decoded ticket and resulting effects without inventing successful evidence. |
 | `UC-INT-04` | `build` | `build_evidence` | `not_measured` | Source-owned actual-call relations establish ordered hash admissions, drained selected-view EOF and checked cumulative basis/main work; composed generated-model controls reject failed-prefix resets and late corruption. Consumer snapshot preservation, canonical digest refinement and complete archive EOF remain separate obligations. |
 | `UC-INT-05` | `build` | `build_evidence` | `not_measured` | Source-owned completed-view and continuous publication proofs derive the actual chosen-profile digest and emitted-image reads, discharging canonical driver termination and OwnedHash control/cleanup lifetime for both explicit format identities and arbitrary finite source input. Initial source-layout correspondence and full product acceptance remain separate consumer obligations. |
 | `UC-INT-06` | `open` | `none` | `not_measured` | Actual archive snapshot, selected preimage traversal and trailer comparison are connected to canonical original-source layout bytes through source-derived consumer calls, structural coverage and retained-node ownership premises. |

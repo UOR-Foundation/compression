@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {moduleData,validateFixtures,sourceAudit,calledMembers} from './integrity-binding.mjs';
 import {leanDriver} from './integrity-binding-runtime.mjs';
+import {dataForm, notation} from './semantic-source.mjs';
 test('independent oracle checks all format, input, basis and checkpoint byte identities',()=>{
  assert.equal(validateFixtures('.').length,20);assert.equal(sourceAudit('.'),true);
 });
@@ -24,9 +25,9 @@ test('owned source consumes tickets and exposes exact cursor/outcome aggregates'
  assert.ok(!calledMembers(changed,'beginSpan').has('Uorc.Core.Heap::checkMoveRoot'));
 });
 test('changed digest, truncated archive and dropped fixture fail the independent owner',()=>{
- const source=fs.readFileSync('src/Uorc/Integrity/BindingFixtures.lex.tex','utf8');const raw=[...source.matchAll(/\\semanticdata\{(.*)\}\n/g)][0][1];
+ const source=dataForm(fs.readFileSync('src/Uorc/Integrity/BindingFixtures.lex.tex','utf8'));const raw=[...source.matchAll(/\\semanticdata\{(.*)\}\n/g)][0][1];
  for(const change of [m=>m.declarations.find(d=>d.name==='fixture_12').body.fields.find(f=>f.field==='expectedHex').value.value='00'.repeat(32),m=>{const f=m.declarations.find(d=>d.name==='fixture_12').body.fields.find(f=>f.field==='archiveHex');f.value.value=f.value.value.slice(0,-2);},m=>m.declarations.splice(m.declarations.findIndex(d=>d.name==='fixture_12'),1)]){
-  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'binding-mutant-'));try{const m=JSON.parse(raw);change(m);const dest=path.join(tmp,'src/Uorc/Integrity/BindingFixtures.lex.tex');fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,source.replace(raw,JSON.stringify(m)));assert.throws(()=>validateFixtures(tmp));}finally{fs.rmSync(tmp,{recursive:true,force:true});}
+  const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'binding-mutant-'));try{const m=JSON.parse(raw);change(m);const dest=path.join(tmp,'src/Uorc/Integrity/BindingFixtures.lex.tex');fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,notation(source.replace(raw,JSON.stringify(m))));assert.throws(()=>validateFixtures(tmp));}finally{fs.rmSync(tmp,{recursive:true,force:true});}
  }
 });
 test('collision evidence retains independent successful-SHA validation and scoped claims',()=>{

@@ -2,6 +2,7 @@
 """Project the literal source-owned generic adapter contract; no product behavior."""
 import argparse
 import json
+import subprocess
 from pathlib import Path
 import re
 
@@ -27,7 +28,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--write', action='store_true')
     args = parser.parse_args()
-    source = (ROOT / 'src/Uorc/Product/HostContract.lex.tex').read_text()
+    source = subprocess.run(['cargo', 'run', '--locked', '-q', '-p', 'xtask', '--', 'data-form'],
+                            cwd=ROOT, input=(ROOT / 'src/Uorc/Product/HostContract.lex.tex').read_text(),
+                            capture_output=True, text=True, check=True).stdout
     module = json.loads(re.search(r'\\semanticdata\{(.*)\}', source).group(1))
     declaration = next(d for d in module['declarations'] if d['name'] == 'contract')
     projected = literal(declaration['body'])

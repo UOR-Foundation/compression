@@ -4,11 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
+import {dataForm, notation} from './semantic-source.mjs';
 const receiptPath='validation/integrity/source-equivalence-v1.json';
 const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 function required(ok,message){if(!ok)throw new Error(`integrity source provenance: ${message}`);}
 function model(bytes){
- const rows=[...bytes.toString('utf8').matchAll(/\\semanticdata\{(.*)\}\n/g)];
+ const rows=[...dataForm(bytes.toString('utf8')).matchAll(/\\semanticdata\{(.*)\}\n/g)];
  required(rows.length===1,'one SDK semanticdata module required');return JSON.parse(rows[0][1]);
 }
 export function validateSourceProvenance(root){

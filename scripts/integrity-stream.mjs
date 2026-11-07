@@ -6,12 +6,13 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
+import {dataForm, notation} from './semantic-source.mjs';
 const script=fileURLToPath(import.meta.url);
 export const sourceNames=['Sha256','StreamEngine','StreamMax','StreamDiagnostic','StreamContract'];
 export const sourcePaths=sourceNames.map(n=>`src/Uorc/Integrity/${n}.lex.tex`);
 export function required(b,m){if(!b)throw new Error(m);}
 export function records(root){
- const s=fs.readFileSync(path.join(root,'src/Uorc/Integrity/StreamContract.lex.tex'),'utf8');
+ const s=dataForm(fs.readFileSync(path.join(root,'src/Uorc/Integrity/StreamContract.lex.tex'),'utf8'));
  const rows=[...s.matchAll(/\\semanticdata\{(.*)\}\n/g)];required(rows.length===1,'one stream source contract required');
  return JSON.parse(rows[0][1]).declarations.filter(d=>d.kind==='definition'&&d.body.kind==='record').map(d=>({name:d.name,type:d.body.type.name,...Object.fromEntries(d.body.fields.map(f=>[f.field,f.value.value]))}));
 }
@@ -189,6 +190,7 @@ end StreamOracle
 `;
 }
 export function plant(source,id){
+ source=dataForm(source);
  const raw=[...source.matchAll(/\\semanticdata\{(.*)\}\n/g)][0][1],module=JSON.parse(raw);
  const name=id==='production_limit'?'productionLimit':'footer';
  const owner=module.declarations.find(d=>d.name===name);required(owner,'missing mutation owner');
@@ -200,7 +202,7 @@ export function plant(source,id){
   for(const child of Object.values(x))visit(child);
  }
  visit(owner.body);required(changes===1,'mutation changed an unexpected number of literals');
- return source.replace(raw,JSON.stringify(module));
+ return notation(source.replace(raw,JSON.stringify(module)));
 }
 function runCommand(cmd,args,cwd,out,label,env={},timeout=300000){
  const r=spawnSync(cmd,args,{cwd,encoding:'utf8',timeout,maxBuffer:32*1024*1024,env:{...process.env,...env}});

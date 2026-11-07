@@ -3,9 +3,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {dataForm, notation} from './semantic-source.mjs';
 export function requireFact(b,message){if(!b)throw new Error(message);}
 export function moduleData(root,name){
- const text=fs.readFileSync(path.join(root,`src/Uorc/Integrity/${name}.lex.tex`),'utf8');
+ const text=dataForm(fs.readFileSync(path.join(root,`src/Uorc/Integrity/${name}.lex.tex`),'utf8'));
  const rows=[...text.matchAll(/\\semanticdata\{(.*)\}\n/g)];requireFact(rows.length===1,'one source semantic module required');
  return JSON.parse(rows[0][1]);
 }

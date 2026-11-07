@@ -11,6 +11,7 @@ import {readControllerMutationSpecimens} from './product-read-controller-mutatio
 import {outputDeliveryMutationSpecimens} from './product-output-delivery-mutations.mjs';
 import {mutationTargets as semanticMutationTargets, mutateMachineSemanticMigration} from './product-machine-semantic-mutations.mjs';
 import {mutationTargets as targetMutationTargets, mutateTargetDescriptor} from './product-target-descriptor-mutations.mjs';
+import {dataForm, notation} from './semantic-source.mjs';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const requireFact=(b,m)=>{if(!b)throw new Error(m);};
 const defaultSuite='MachineBindingScenarios';
@@ -53,8 +54,8 @@ function mutate(root,module,transform,authoring){
  return ()=>fs.writeFileSync(p,original);
 }
 const sourceData={
- read(p){const m=/\\semanticdata\{(.*)\}/.exec(fs.readFileSync(p,'utf8'));requireFact(m,'source data required; a diagnostic notation projection must supply its official SDK authoring API');return JSON.parse(m[1]);},
- write(p,data){const text=fs.readFileSync(p,'utf8');fs.writeFileSync(p,text.replace(/\\semanticdata\{(.*)\}/,'\\semanticdata{'+JSON.stringify(data)+'}'));}
+ read(p){const m=/\\semanticdata\{(.*)\}/.exec(dataForm(fs.readFileSync(p,'utf8')));requireFact(m,'source data required; a diagnostic notation projection must supply its official SDK authoring API');return JSON.parse(m[1]);},
+ write(p,data){const text=dataForm(fs.readFileSync(p,'utf8'));fs.writeFileSync(p,notation(text.replace(/\\semanticdata\{(.*)\}/,()=>'\\semanticdata{'+JSON.stringify(data)+'}')));}
 };
 export function mutationSpecimens(){
  return [

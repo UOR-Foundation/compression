@@ -40,14 +40,22 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def xtask(task, text):
+    """LexLean SPEC 17.21.1: 1.2 sources are notation; convert only via the SDK."""
+    subprocess.run(['cargo', 'build', '--locked', '-q', '-p', 'xtask'], cwd=ROOT, check=True)
+    target = Path(os.environ.get('CARGO_TARGET_DIR', ROOT / 'target'))
+    return subprocess.run([str(target / 'debug/xtask'), task], input=text, capture_output=True,
+                          text=True, check=True).stdout
+
+
 def read_module(path):
-    text = path.read_text()
+    text = xtask('data-form', path.read_text())
     return text, json.loads(re.search(r'\\semanticdata\{(.*)\}', text).group(1))
 
 
 def write_module(path, text, data):
-    path.write_text(re.sub(r'\\semanticdata\{.*\}', lambda _: '\\semanticdata{' +
-                          json.dumps(data, sort_keys=True, separators=(',', ':')) + '}', text))
+    path.write_text(xtask('notation', re.sub(r'\\semanticdata\{.*\}', lambda _: '\\semanticdata{' +
+                          json.dumps(data, sort_keys=True, separators=(',', ':')) + '}', text)))
 
 
 def run(args, cwd, env=None, expected=0):

@@ -1,0 +1,472 @@
+Uorc.Uorc.Integrity.ProfileFuelLaws.checked_subtract_present_iff (left right : UInt64) :
+  (Uorc.Uorc.Integrity.ProfileFuelLaws.checked_subtract_present_iff.match_1 (fun x => Bool)
+        (LexLeanRuntime.checkedSubtract left right) (fun _ => false) fun val => true) =
+      true ↔
+    right.toNat ≤ left.toNat
+Uorc.Uorc.Integrity.ProfileFuelLaws.u64_add_natural (left right : UInt64) (bound : left.toNat + right.toNat < 2 ^ 64) :
+  (Uorc.Uorc.Integrity.Sha256.u64Add left right).toNat = left.toNat + right.toNat
+Uorc.Uorc.Integrity.ProfileFuelLaws.prefix_nat_bound (first : Bool) :
+  Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first ≤ 59
+Uorc.Uorc.Integrity.ProfileFuelLaws.prefix_size_natural (first : Bool) :
+  (Uorc.Uorc.Integrity.StreamEngine.prefixSize first).toNat = Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first
+Uorc.Uorc.Integrity.ProfileFuelLaws.production_limit_natural :
+  Uorc.Uorc.Integrity.StreamEngine.productionLimit.toNat = 2305843009213693942
+Uorc.Uorc.Integrity.ProfileFuelLaws.production_limit_valid :
+  Uorc.Uorc.Integrity.StreamEngine.limitValid Uorc.Uorc.Integrity.StreamEngine.productionLimit = true
+Uorc.Uorc.Integrity.ProfileFuelLaws.production_limit_plus_nine :
+  (Uorc.Uorc.Integrity.Sha256.u64Add Uorc.Uorc.Integrity.StreamEngine.productionLimit 9).toNat = 2305843009213693951
+Uorc.Uorc.Integrity.ProfileFuelLaws.prefix_plus_nine (first : Bool) :
+  (Uorc.Uorc.Integrity.Sha256.u64Add (Uorc.Uorc.Integrity.StreamEngine.prefixSize first) 9).toNat =
+    Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first + 9
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_invariant_valid (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state) : Uorc.Uorc.Integrity.BoundedChain.valid state = true
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_ready_valid (first : Bool) (hashState : Uorc.Uorc.Integrity.Sha256.State)
+  (good : Uorc.Uorc.Integrity.Sha256.valid hashState = true)
+  (phase : hashState.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing)
+  (lower : Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first ≤ hashState.count.toNat)
+  (upper : hashState.count.toNat ≤ 2305843009213693942) :
+  Uorc.Uorc.Integrity.StreamEngine.readyValid Uorc.Uorc.Integrity.StreamEngine.productionLimit first hashState = true
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_prefix_valid (first : Bool) (job : Uorc.Uorc.Integrity.Sha256.Update)
+  (good : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job)
+  (size : job.input.size = Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first)
+  (count : job.state.count.toNat = job.offset) : Uorc.Uorc.Integrity.StreamEngine.prefixValid first job = true
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_suffix_valid (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (job : Uorc.Uorc.Integrity.Sha256.Update) (terminal : Bool)
+  (good : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job) (size : job.input.size = 9)
+  (lower : Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat state.first + 9 ≤ job.state.count.toNat + (9 - job.offset))
+  (upper : job.state.count.toNat + (9 - job.offset) ≤ 2305843009213693951)
+  (closing : terminal = true → state.closing = true) :
+  Uorc.Uorc.Integrity.StreamEngine.suffixValid Uorc.Uorc.Integrity.StreamEngine.productionLimit state.first job terminal
+      state.closing =
+    true
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_finalizing_valid (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (hashState : Uorc.Uorc.Integrity.Sha256.State) (terminal : Bool)
+  (good : Uorc.Uorc.Integrity.Sha256.valid hashState = true)
+  (phase : hashState.phase ≠ Uorc.Uorc.Integrity.Sha256.Phase.absorbing)
+  (lower : Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat state.first + 9 ≤ hashState.count.toNat)
+  (upper : hashState.count.toNat ≤ 2305843009213693951) (closing : terminal = true → state.closing = true)
+  (full : terminal = false → hashState.count.toNat = 2305843009213693951) :
+  Uorc.Uorc.Integrity.StreamEngine.finalizingValid Uorc.Uorc.Integrity.StreamEngine.productionLimit state.first
+      hashState terminal state.closing =
+    true
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_invariant_valid (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state) :
+  Uorc.Uorc.Integrity.StreamEngine.validAt Uorc.Uorc.Integrity.StreamEngine.productionLimit state = true
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_prefix_size (first : Bool) (previous : ByteArray)
+  (width : first = false → previous.size = 32) :
+  (Uorc.Uorc.Integrity.StreamEngine.prefix first previous).size = Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_footer_size (first : Bool) (count : UInt64) (terminal : Bool) :
+  (Uorc.Uorc.Integrity.StreamEngine.footer first count terminal).size = 9
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_data_frame_size (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (byte : UInt8) (chainSize : state.chain.size = 32) (bufferSize : state.buffer.size = 63) :
+  (Uorc.Uorc.Integrity.BoundedChain.dataFrame state byte).size = 118
+Uorc.Uorc.Integrity.ProfileFuelLaws.slice_success_size (bytes : ByteArray) (offset count : Nat) (output : ByteArray)
+  (success : LexLeanRuntime.slice bytes offset count = some output) : output.size = count
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_terminal_length_bound (state : Uorc.Uorc.Integrity.BoundedChain.State) :
+  (Uorc.Uorc.Integrity.BoundedChain.terminalLength state).size ≤ 1
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_terminal_frame_bound (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state) :
+  (Uorc.Uorc.Integrity.BoundedChain.terminalFrame state).size ≤ 118
+Uorc.Uorc.Integrity.ProfileFuelLaws.sha_initial_valid :
+  Uorc.Uorc.Integrity.Sha256.valid Uorc.Uorc.Integrity.Sha256.init = true
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_start_frame_establishes (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (frame : ByteArray) (closing : Bool) (chainSize : state.chain.size = 32) (frameSize : frame.size ≤ 118) :
+  ∃ after,
+    Uorc.Uorc.Integrity.BoundedChain.startFrame state frame closing = Except.ok after ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant after
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_start_prefix_establishes (first : Bool) (previous : ByteArray)
+  (closing : Bool) (width : first = false → previous.size = 32) :
+  ∃ after,
+    Uorc.Uorc.Integrity.StreamEngine.startPrefix first previous closing = Except.ok after ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant after
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_start_suffix_establishes (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (hashState : Uorc.Uorc.Integrity.Sha256.State) (terminal : Bool)
+  (good : Uorc.Uorc.Integrity.Sha256.valid hashState = true)
+  (phase : hashState.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing)
+  (lower : Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat state.first ≤ hashState.count.toNat)
+  (upper : hashState.count.toNat ≤ 2305843009213693942) (closing : terminal = true → state.closing = true)
+  (full : terminal = false → hashState.count.toNat = 2305843009213693942) :
+  ∃ after,
+    Uorc.Uorc.Integrity.StreamEngine.startSuffix state hashState terminal = Except.ok after ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant after
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_init_establishes :
+  ∃ state,
+    Uorc.Uorc.Integrity.BoundedChain.init = Except.ok state ∧ Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_init_establishes :
+  ∃ state,
+    Uorc.Uorc.Integrity.StreamEngine.initAt Uorc.Uorc.Integrity.StreamEngine.productionLimit = Except.ok state ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state
+Uorc.Uorc.Integrity.ProfileFuelLaws.prefix_job_advanced (first : Bool) (job next : Uorc.Uorc.Integrity.Sha256.Update)
+  (good : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job)
+  (size : job.input.size = Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first)
+  (count : job.state.count.toNat = job.offset)
+  (step :
+    Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok (Uorc.Uorc.Integrity.Sha256.UpdateEvent.advanced next)) :
+  Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid next ∧
+    next.input.size = Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first ∧ next.state.count.toNat = next.offset
+Uorc.Uorc.Integrity.ProfileFuelLaws.frame_job_advanced (job next : Uorc.Uorc.Integrity.Sha256.Update)
+  (good : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job) (size : job.input.size ≤ 118)
+  (count : job.state.count.toNat = job.offset)
+  (step :
+    Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok (Uorc.Uorc.Integrity.Sha256.UpdateEvent.advanced next)) :
+  Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid next ∧
+    next.input.size ≤ 118 ∧ next.state.count.toNat = next.offset
+Uorc.Uorc.Integrity.ProfileFuelLaws.suffix_job_advanced (first : Bool) (job next : Uorc.Uorc.Integrity.Sha256.Update)
+  (good : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job) (size : job.input.size = 9)
+  (step :
+    Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok (Uorc.Uorc.Integrity.Sha256.UpdateEvent.advanced next)) :
+  Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid next ∧
+    next.input.size = 9 ∧ next.state.count.toNat + (9 - next.offset) = job.state.count.toNat + (9 - job.offset)
+Uorc.Uorc.Integrity.ProfileFuelLaws.prefix_job_exists (first : Bool) (job : Uorc.Uorc.Integrity.Sha256.Update)
+  (good : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job)
+  (size : job.input.size = Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first)
+  (count : job.state.count.toNat = job.offset) : ∃ event, Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok event
+Uorc.Uorc.Integrity.ProfileFuelLaws.frame_job_exists (job : Uorc.Uorc.Integrity.Sha256.Update)
+  (good : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job) (size : job.input.size ≤ 118)
+  (count : job.state.count.toNat = job.offset) : ∃ event, Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok event
+Uorc.Uorc.Integrity.ProfileFuelLaws.suffix_job_exists (job : Uorc.Uorc.Integrity.Sha256.Update)
+  (good : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job) (size : job.input.size = 9)
+  (upper : job.state.count.toNat + (9 - job.offset) ≤ 2305843009213693951) :
+  ∃ event, Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok event
+Uorc.Uorc.Integrity.ProfileFuelLaws.sha_finalize_exists (state : Uorc.Uorc.Integrity.Sha256.State)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true)
+  (phase : state.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing) :
+  ∃ after,
+    Uorc.Uorc.Integrity.Sha256.finalize state = Except.ok after ∧
+      Uorc.Uorc.Integrity.Sha256.valid after = true ∧
+        after.phase ≠ Uorc.Uorc.Integrity.Sha256.Phase.absorbing ∧ after.count = state.count
+Uorc.Uorc.Integrity.ProfileFuelLaws.sha_finalizing_step_preserves (before after : Uorc.Uorc.Integrity.Sha256.State)
+  (pending : ByteArray) (phase : before.phase = Uorc.Uorc.Integrity.Sha256.Phase.finishing pending)
+  (step : Uorc.Uorc.Integrity.Sha256.finalizeStep before = Except.ok after) :
+  Uorc.Uorc.Integrity.Sha256.valid after = true ∧
+    after.phase ≠ Uorc.Uorc.Integrity.Sha256.Phase.absorbing ∧ after.count = before.count
+Uorc.Uorc.Integrity.ProfileFuelLaws.sha_finished_digest_exists (state : Uorc.Uorc.Integrity.Sha256.State)
+  (good : Uorc.Uorc.Integrity.Sha256.valid state = true)
+  (phase : state.phase = Uorc.Uorc.Integrity.Sha256.Phase.finished) :
+  ∃ output, Uorc.Uorc.Integrity.Sha256.digest state = Except.ok output ∧ output.size = 32
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_init_establishes (kind : Uorc.Uorc.Integrity.Profile.Kind) :
+  ∃ state,
+    Uorc.Uorc.Integrity.Profile.init kind = Except.ok state ∧ Uorc.Uorc.Integrity.ProfileFuelLaws.ProfileInvariant state
+Uorc.Uorc.Integrity.ProfileFuelLaws.update_potential_positive (job : Uorc.Uorc.Integrity.Sha256.Update) :
+  1 ≤ Uorc.Uorc.Integrity.FuelLaws.updatePotential job
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_active_step (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state)
+  (active : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainActive state) :
+  ∃ after,
+    Uorc.Uorc.Integrity.BoundedChain.step state = Except.ok after ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant after ∧
+        Uorc.Uorc.Integrity.ProfileFuelLaws.chainQuiet after < Uorc.Uorc.Integrity.ProfileFuelLaws.chainQuiet state
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_step_closing_preserved (before after : Uorc.Uorc.Integrity.BoundedChain.State)
+  (success : Uorc.Uorc.Integrity.BoundedChain.step before = Except.ok after) : after.closing = before.closing
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_start_frame_rank (state after : Uorc.Uorc.Integrity.BoundedChain.State)
+  (frame : ByteArray) (closing : Bool)
+  (success : Uorc.Uorc.Integrity.BoundedChain.startFrame state frame closing = Except.ok after) :
+  Uorc.Uorc.Integrity.ProfileFuelLaws.chainQuiet after = 3 * frame.size + 303
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_absorb_progress (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (byte : UInt8) (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state)
+  (idle : state.stage = Uorc.Uorc.Integrity.BoundedChain.Stage.idle) :
+  ∃ after,
+    Uorc.Uorc.Integrity.BoundedChain.absorbByte state byte = Except.ok after ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant after ∧
+        after.closing = false ∧
+          Uorc.Uorc.Integrity.ProfileFuelLaws.chainQuiet after <
+            Uorc.Uorc.Integrity.ProfileFuelLaws.chainQuiet state + 600
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_update_step_progress (job : Uorc.Uorc.Integrity.BoundedChain.Update)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant job.state) (closing : job.state.closing = false)
+  (bound : job.offset ≤ job.input.size) :
+  ∃ event,
+    Uorc.Uorc.Integrity.BoundedChain.updateStep job = Except.ok event ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.chain_update_step_progress.match_1 (fun event => Prop) event
+        (fun state => Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state ∧ state.closing = false) fun next =>
+        Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant next.state ∧
+          next.state.closing = false ∧
+            next.offset ≤ next.input.size ∧
+              Uorc.Uorc.Integrity.ProfileFuelLaws.chainJobPotential next <
+                Uorc.Uorc.Integrity.ProfileFuelLaws.chainJobPotential job
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_quiet_bound (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state) :
+  Uorc.Uorc.Integrity.ProfileFuelLaws.chainQuiet state ≤ 722
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_run_update_sufficient (fuel : Nat)
+  (job : Uorc.Uorc.Integrity.BoundedChain.Update) (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant job.state)
+  (closing : job.state.closing = false) (bound : job.offset ≤ job.input.size)
+  (sufficient : Uorc.Uorc.Integrity.ProfileFuelLaws.chainJobPotential job ≤ fuel) :
+  ∃ out,
+    Uorc.Uorc.Integrity.BoundedChain.runUpdate fuel job = Except.ok out ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant out ∧ out.closing = false
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_chosen_update_succeeds (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (input : ByteArray) (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state)
+  (closing : state.closing = false) :
+  ∃ out,
+    Uorc.Uorc.Integrity.BoundedChain.runUpdate (600 * input.size + 1200)
+          { state := state, input := input, offset := 0 } =
+        Except.ok out ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant out ∧ out.closing = false
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_run_finalize_sufficient (fuel : Nat)
+  (state : Uorc.Uorc.Integrity.BoundedChain.State) (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state)
+  (closing : state.closing = true) (sufficient : Uorc.Uorc.Integrity.ProfileFuelLaws.chainQuiet state ≤ fuel) :
+  ∃ output, Uorc.Uorc.Integrity.BoundedChain.runFinalize fuel state = Except.ok output ∧ output.size = 32
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_start_frame_closing (state after : Uorc.Uorc.Integrity.BoundedChain.State)
+  (frame : ByteArray) (closing : Bool)
+  (success : Uorc.Uorc.Integrity.BoundedChain.startFrame state frame closing = Except.ok after) :
+  after.closing = closing
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_finalize_settled_exists (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state)
+  (idle : state.stage = Uorc.Uorc.Integrity.BoundedChain.Stage.idle) :
+  ∃ after,
+    Uorc.Uorc.Integrity.BoundedChain.finalize state = Except.ok after ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant after ∧ after.closing = true
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_chosen_finalize_succeeds (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state) (closing : state.closing = true) :
+  ∃ output, Uorc.Uorc.Integrity.BoundedChain.runFinalize 1200 state = Except.ok output ∧ output.size = 32
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_chain_run_update_success (fuel : Nat)
+  (job : Uorc.Uorc.Integrity.BoundedChain.Update) (out : Uorc.Uorc.Integrity.BoundedChain.State)
+  (success : Uorc.Uorc.Integrity.BoundedChain.runUpdate fuel job = Except.ok out) :
+  Uorc.Uorc.Integrity.Profile.runUpdate fuel (Uorc.Uorc.Integrity.Profile.Update.chain job) =
+    Except.ok (Uorc.Uorc.Integrity.Profile.State.chain out)
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_chain_run_finalize_success (fuel : Nat)
+  (state : Uorc.Uorc.Integrity.BoundedChain.State) (output : ByteArray)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state) (closing : state.closing = true)
+  (success : Uorc.Uorc.Integrity.BoundedChain.runFinalize fuel state = Except.ok output) :
+  Uorc.Uorc.Integrity.Profile.runFinalize fuel (Uorc.Uorc.Integrity.Profile.State.chain state) = Except.ok output
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_chain_update_succeeds (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (input : ByteArray) (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state)
+  (closing : state.closing = false) :
+  ∃ out,
+    Uorc.Uorc.Integrity.Profile.update (Uorc.Uorc.Integrity.Profile.State.chain state) input =
+        Except.ok (Uorc.Uorc.Integrity.Profile.State.chain out) ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant out ∧ out.closing = false
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_run_update_settled (fuel : Nat)
+  (job : Uorc.Uorc.Integrity.BoundedChain.Update) (out : Uorc.Uorc.Integrity.BoundedChain.State)
+  (success : Uorc.Uorc.Integrity.BoundedChain.runUpdate fuel job = Except.ok out) :
+  out.stage = Uorc.Uorc.Integrity.BoundedChain.Stage.idle
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_chain_update_succeeds_settled
+  (state : Uorc.Uorc.Integrity.BoundedChain.State) (input : ByteArray)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state) (closing : state.closing = false) :
+  ∃ out,
+    Uorc.Uorc.Integrity.Profile.update (Uorc.Uorc.Integrity.Profile.State.chain state) input =
+        Except.ok (Uorc.Uorc.Integrity.Profile.State.chain out) ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant out ∧
+        out.closing = false ∧ out.stage = Uorc.Uorc.Integrity.BoundedChain.Stage.idle
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_hash_from_calls (kind : Uorc.Uorc.Integrity.Profile.Kind)
+  (purpose : Uorc.Uorc.Integrity.Profile.Purpose) (input : ByteArray)
+  (initial prefixed updated closing : Uorc.Uorc.Integrity.Profile.State) (output : ByteArray)
+  (initialized : Uorc.Uorc.Integrity.Profile.init kind = Except.ok initial)
+  (first :
+    Uorc.Uorc.Integrity.Profile.update initial (Uorc.Uorc.Integrity.Profile.prefix kind purpose) = Except.ok prefixed)
+  (second : Uorc.Uorc.Integrity.Profile.update prefixed input = Except.ok updated)
+  (finalized : Uorc.Uorc.Integrity.Profile.finalize updated = Except.ok closing)
+  (run : Uorc.Uorc.Integrity.Profile.runFinalize 1200 closing = Except.ok output) :
+  Uorc.Uorc.Integrity.Profile.hash kind purpose input = Except.ok output
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_chain_init_lift (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (initialized : Uorc.Uorc.Integrity.BoundedChain.init = Except.ok state) :
+  Uorc.Uorc.Integrity.Profile.init Uorc.Uorc.Integrity.Profile.Kind.format2Chain =
+    Except.ok (Uorc.Uorc.Integrity.Profile.State.chain state)
+Uorc.Uorc.Integrity.ProfileFuelLaws.chain_init_establishes_open :
+  ∃ state,
+    Uorc.Uorc.Integrity.BoundedChain.init = Except.ok state ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.ChainInvariant state ∧
+        state.closing = false ∧ state.stage = Uorc.Uorc.Integrity.BoundedChain.Stage.idle
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_chain_hash_succeeds (purpose : Uorc.Uorc.Integrity.Profile.Purpose)
+  (input : ByteArray) :
+  ∃ output,
+    Uorc.Uorc.Integrity.Profile.hash Uorc.Uorc.Integrity.Profile.Kind.format2Chain purpose input = Except.ok output ∧
+      output.size = 32
+Uorc.Uorc.Integrity.ProfileFuelLaws.work_remaining_none (state : Uorc.Uorc.Integrity.Sha256.State)
+  (none : state.work = none) : Uorc.Uorc.Integrity.FuelLaws.workRemaining state = 0
+Uorc.Uorc.Integrity.ProfileFuelLaws.count_not_full (count : UInt64) (bound : count.toNat < 2305843009213693942) :
+  LexLeanRuntime.equal count Uorc.Uorc.Integrity.StreamEngine.productionLimit = false
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_step_closing_preserved
+  (before after : Uorc.Uorc.Integrity.StreamEngine.State)
+  (success :
+    Uorc.Uorc.Integrity.StreamEngine.stepAt Uorc.Uorc.Integrity.StreamEngine.productionLimit before = Except.ok after) :
+  after.closing = before.closing
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_prefix_start_rank (first : Bool) (previous : ByteArray) (closing : Bool)
+  (after : Uorc.Uorc.Integrity.StreamEngine.State) (width : first = false → previous.size = 32)
+  (success : Uorc.Uorc.Integrity.StreamEngine.startPrefix first previous closing = Except.ok after) :
+  Uorc.Uorc.Integrity.ProfileFuelLaws.streamUpdateQuiet after =
+    3 * Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first + 1
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_suffix_start_rank (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (hashState : Uorc.Uorc.Integrity.Sha256.State) (terminal : Bool) (after : Uorc.Uorc.Integrity.StreamEngine.State)
+  (none : hashState.work = none)
+  (success : Uorc.Uorc.Integrity.StreamEngine.startSuffix state hashState terminal = Except.ok after) :
+  Uorc.Uorc.Integrity.ProfileFuelLaws.streamUpdateQuiet after = hashState.buffer.size + 508
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_prefix_done_shape (first : Bool) (job : Uorc.Uorc.Integrity.Sha256.Update)
+  (hashState : Uorc.Uorc.Integrity.Sha256.State) (good : Uorc.Uorc.Integrity.ShaLifecycleLaws.UpdateJobValid job)
+  (size : job.input.size = Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first)
+  (count : job.state.count.toNat = job.offset)
+  (step :
+    Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok (Uorc.Uorc.Integrity.Sha256.UpdateEvent.done hashState)) :
+  Uorc.Uorc.Integrity.Sha256.valid hashState = true ∧
+    hashState.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing ∧
+      hashState.count.toNat = Uorc.Uorc.Integrity.ProfileFuelLaws.prefixNat first ∧
+        hashState.work = none ∧ hashState.buffer.size < Uorc.Uorc.Integrity.FuelLaws.updatePotential job
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_suffix_done_shape (job : Uorc.Uorc.Integrity.Sha256.Update)
+  (hashState : Uorc.Uorc.Integrity.Sha256.State) (size : job.input.size = 9)
+  (step :
+    Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok (Uorc.Uorc.Integrity.Sha256.UpdateEvent.done hashState)) :
+  Uorc.Uorc.Integrity.Sha256.valid hashState = true ∧
+    hashState.phase = Uorc.Uorc.Integrity.Sha256.Phase.absorbing ∧
+      hashState.count.toNat = job.state.count.toNat + (9 - job.offset)
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_open_active_step (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state) (closing : state.closing = false)
+  (active : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamUpdateActive state) :
+  ∃ after,
+    Uorc.Uorc.Integrity.StreamEngine.stepAt Uorc.Uorc.Integrity.StreamEngine.productionLimit state = Except.ok after ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant after ∧
+        after.closing = false ∧
+          Uorc.Uorc.Integrity.ProfileFuelLaws.streamUpdateQuiet after <
+            Uorc.Uorc.Integrity.ProfileFuelLaws.streamUpdateQuiet state
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_ready_absorb_progress (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (hashState : Uorc.Uorc.Integrity.Sha256.State) (byte : UInt8)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state)
+  (stage : state.stage = Uorc.Uorc.Integrity.StreamEngine.Stage.ready hashState)
+  (noWork : ¬Uorc.Uorc.Integrity.Sha256.hasWork hashState = true)
+  (notFull : ¬LexLeanRuntime.equal hashState.count Uorc.Uorc.Integrity.StreamEngine.productionLimit = true) :
+  ∃ afterHash,
+    Uorc.Uorc.Integrity.Sha256.absorbByte hashState byte = Except.ok afterHash ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant
+          { first := state.first, stage := Uorc.Uorc.Integrity.StreamEngine.Stage.ready afterHash,
+            closing := state.closing } ∧
+        Uorc.Uorc.Integrity.ProfileFuelLaws.streamUpdateQuiet
+            { first := state.first, stage := Uorc.Uorc.Integrity.StreamEngine.Stage.ready afterHash,
+              closing := state.closing } <
+          Uorc.Uorc.Integrity.ProfileFuelLaws.streamUpdateQuiet state + 600
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_update_step_progress (job : Uorc.Uorc.Integrity.StreamEngine.Update)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant job.state) (closing : job.state.closing = false)
+  (bound : job.offset ≤ job.input.size) :
+  ∃ event,
+    Uorc.Uorc.Integrity.StreamEngine.updateStepAt Uorc.Uorc.Integrity.StreamEngine.productionLimit job =
+        Except.ok event ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.stream_update_step_progress.match_1 (fun event => Prop) event
+        (fun state => Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state ∧ state.closing = false) fun next =>
+        Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant next.state ∧
+          next.state.closing = false ∧
+            next.offset ≤ next.input.size ∧
+              Uorc.Uorc.Integrity.ProfileFuelLaws.streamJobPotential next <
+                Uorc.Uorc.Integrity.ProfileFuelLaws.streamJobPotential job
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_quiet_bound (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state) :
+  Uorc.Uorc.Integrity.ProfileFuelLaws.streamUpdateQuiet state ≤ 615
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_run_update_sufficient (fuel : Nat)
+  (job : Uorc.Uorc.Integrity.StreamEngine.Update) (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant job.state)
+  (closing : job.state.closing = false) (bound : job.offset ≤ job.input.size)
+  (sufficient : Uorc.Uorc.Integrity.ProfileFuelLaws.streamJobPotential job ≤ fuel) :
+  ∃ out,
+    Uorc.Uorc.Integrity.StreamEngine.runUpdateAt fuel Uorc.Uorc.Integrity.StreamEngine.productionLimit job =
+        Except.ok out ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant out ∧ out.closing = false
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_chosen_update_succeeds (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (input : ByteArray) (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state)
+  (closing : state.closing = false) :
+  ∃ out,
+    Uorc.Uorc.Integrity.StreamEngine.runUpdateAt (600 * input.size + 1200)
+          Uorc.Uorc.Integrity.StreamEngine.productionLimit { state := state, input := input, offset := 0 } =
+        Except.ok out ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant out ∧ out.closing = false
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_start_suffix_stage (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (hashState : Uorc.Uorc.Integrity.Sha256.State) (terminal : Bool) (after : Uorc.Uorc.Integrity.StreamEngine.State)
+  (success : Uorc.Uorc.Integrity.StreamEngine.startSuffix state hashState terminal = Except.ok after) :
+  ∃ job, after.stage = Uorc.Uorc.Integrity.StreamEngine.Stage.suffix job terminal ∧ after.closing = state.closing
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_finish_suffix_start_rank (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (hashState : Uorc.Uorc.Integrity.Sha256.State) (terminal : Bool) (after : Uorc.Uorc.Integrity.StreamEngine.State)
+  (none : hashState.work = none)
+  (success : Uorc.Uorc.Integrity.StreamEngine.startSuffix state hashState terminal = Except.ok after) :
+  Uorc.Uorc.Integrity.ProfileFuelLaws.streamFinishQuiet after = hashState.buffer.size + 329
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_finish_active_step (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamFinishInvariant state)
+  (active : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamFinishActive state) :
+  ∃ after,
+    Uorc.Uorc.Integrity.StreamEngine.stepAt Uorc.Uorc.Integrity.StreamEngine.productionLimit state = Except.ok after ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamFinishInvariant after ∧
+        Uorc.Uorc.Integrity.ProfileFuelLaws.streamFinishQuiet after <
+          Uorc.Uorc.Integrity.ProfileFuelLaws.streamFinishQuiet state
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_finish_quiet_bound (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamFinishInvariant state) :
+  Uorc.Uorc.Integrity.ProfileFuelLaws.streamFinishQuiet state ≤ 395
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_run_finalize_sufficient (fuel : Nat)
+  (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamFinishInvariant state)
+  (sufficient : Uorc.Uorc.Integrity.ProfileFuelLaws.streamFinishQuiet state ≤ fuel) :
+  ∃ output,
+    Uorc.Uorc.Integrity.StreamEngine.runFinalizeAt fuel Uorc.Uorc.Integrity.StreamEngine.productionLimit state =
+        Except.ok output ∧
+      output.size = 32
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_chosen_finalize_succeeds (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamFinishInvariant state) :
+  ∃ output,
+    Uorc.Uorc.Integrity.StreamEngine.runFinalizeAt 1200 Uorc.Uorc.Integrity.StreamEngine.productionLimit state =
+        Except.ok output ∧
+      output.size = 32
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_start_prefix_properties (first : Bool) (previous : ByteArray)
+  (closing : Bool) (after : Uorc.Uorc.Integrity.StreamEngine.State)
+  (success : Uorc.Uorc.Integrity.StreamEngine.startPrefix first previous closing = Except.ok after) :
+  after.closing = closing ∧ Uorc.Uorc.Integrity.ProfileFuelLaws.StreamAdmissible after
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_init_establishes_open :
+  ∃ state,
+    Uorc.Uorc.Integrity.StreamEngine.initAt Uorc.Uorc.Integrity.StreamEngine.productionLimit = Except.ok state ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state ∧
+        state.closing = false ∧ Uorc.Uorc.Integrity.ProfileFuelLaws.StreamAdmissible state
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_run_update_settled (fuel : Nat)
+  (job : Uorc.Uorc.Integrity.StreamEngine.Update) (out : Uorc.Uorc.Integrity.StreamEngine.State)
+  (success :
+    Uorc.Uorc.Integrity.StreamEngine.runUpdateAt fuel Uorc.Uorc.Integrity.StreamEngine.productionLimit job =
+      Except.ok out) :
+  ∃ hashState,
+    out.stage = Uorc.Uorc.Integrity.StreamEngine.Stage.ready hashState ∧
+      Uorc.Uorc.Integrity.Sha256.hasWork hashState = false ∧
+        LexLeanRuntime.equal hashState.count Uorc.Uorc.Integrity.StreamEngine.productionLimit = false
+Uorc.Uorc.Integrity.ProfileFuelLaws.count_less_of_not_full (count : UInt64) (upper : count.toNat ≤ 2305843009213693942)
+  (notFull : LexLeanRuntime.equal count Uorc.Uorc.Integrity.StreamEngine.productionLimit = false) :
+  count.toNat < 2305843009213693942
+Uorc.Uorc.Integrity.ProfileFuelLaws.stream_finalize_settled_exists (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (hashState : Uorc.Uorc.Integrity.Sha256.State) (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state)
+  (closing : state.closing = false) (stage : state.stage = Uorc.Uorc.Integrity.StreamEngine.Stage.ready hashState)
+  (notFull : LexLeanRuntime.equal hashState.count Uorc.Uorc.Integrity.StreamEngine.productionLimit = false) :
+  ∃ after,
+    Uorc.Uorc.Integrity.StreamEngine.finalizeAt Uorc.Uorc.Integrity.StreamEngine.productionLimit state =
+        Except.ok after ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamFinishInvariant after
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_stream_run_update_success (fuel : Nat)
+  (job : Uorc.Uorc.Integrity.StreamEngine.Update) (out : Uorc.Uorc.Integrity.StreamEngine.State)
+  (success :
+    Uorc.Uorc.Integrity.StreamEngine.runUpdateAt fuel Uorc.Uorc.Integrity.StreamEngine.productionLimit job =
+      Except.ok out) :
+  Uorc.Uorc.Integrity.Profile.runUpdate fuel (Uorc.Uorc.Integrity.Profile.Update.stream { engine := job }) =
+    Except.ok (Uorc.Uorc.Integrity.Profile.State.stream { engine := out })
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_stream_run_finalize_success (fuel : Nat)
+  (state : Uorc.Uorc.Integrity.StreamEngine.State) (output : ByteArray)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamFinishInvariant state)
+  (success :
+    Uorc.Uorc.Integrity.StreamEngine.runFinalizeAt fuel Uorc.Uorc.Integrity.StreamEngine.productionLimit state =
+      Except.ok output) :
+  Uorc.Uorc.Integrity.Profile.runFinalize fuel (Uorc.Uorc.Integrity.Profile.State.stream { engine := state }) =
+    Except.ok output
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_stream_update_succeeds_settled
+  (state : Uorc.Uorc.Integrity.StreamEngine.State) (input : ByteArray)
+  (inv : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant state) (closing : state.closing = false)
+  (admissible : Uorc.Uorc.Integrity.ProfileFuelLaws.StreamAdmissible state) :
+  ∃ out,
+    Uorc.Uorc.Integrity.Profile.update (Uorc.Uorc.Integrity.Profile.State.stream { engine := state }) input =
+        Except.ok (Uorc.Uorc.Integrity.Profile.State.stream { engine := out }) ∧
+      Uorc.Uorc.Integrity.ProfileFuelLaws.StreamInvariant out ∧
+        out.closing = false ∧
+          ∃ hashState,
+            out.stage = Uorc.Uorc.Integrity.StreamEngine.Stage.ready hashState ∧
+              Uorc.Uorc.Integrity.Sha256.hasWork hashState = false ∧
+                LexLeanRuntime.equal hashState.count Uorc.Uorc.Integrity.StreamEngine.productionLimit = false
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_stream_init_lift (state : Uorc.Uorc.Integrity.StreamEngine.State)
+  (initialized :
+    Uorc.Uorc.Integrity.StreamEngine.initAt Uorc.Uorc.Integrity.StreamEngine.productionLimit = Except.ok state) :
+  Uorc.Uorc.Integrity.Profile.init Uorc.Uorc.Integrity.Profile.Kind.format3Stream =
+    Except.ok (Uorc.Uorc.Integrity.Profile.State.stream { engine := state })
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_stream_hash_succeeds (purpose : Uorc.Uorc.Integrity.Profile.Purpose)
+  (input : ByteArray) :
+  ∃ output,
+    Uorc.Uorc.Integrity.Profile.hash Uorc.Uorc.Integrity.Profile.Kind.format3Stream purpose input = Except.ok output ∧
+      output.size = 32
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_hash_succeeds (kind : Uorc.Uorc.Integrity.Profile.Kind)
+  (purpose : Uorc.Uorc.Integrity.Profile.Purpose) (input : ByteArray) :
+  ∃ output, Uorc.Uorc.Integrity.Profile.hash kind purpose input = Except.ok output ∧ output.size = 32
+Uorc.Uorc.Integrity.ProfileFuelLaws.profile_hash_success_exists (kind : Uorc.Uorc.Integrity.Profile.Kind)
+  (purpose : Uorc.Uorc.Integrity.Profile.Purpose) (input : ByteArray) :
+  ∃ output, Uorc.Uorc.Integrity.Profile.hash kind purpose input = Except.ok output

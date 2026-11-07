@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {mutations, plant, expectedFailure, auditGate} from './claims-validation.mjs';
+import {dataForm, notation} from './semantic-source.mjs';
 
 const source=fs.readFileSync(new URL('../src/Uorc/Claims.lex.tex',import.meta.url),'utf8');
-const parse=s=>JSON.parse(s.match(/\\semanticdata\{(.*)\}\n/)[1]);
-const changed=f=>{const m=parse(source);f(m);return source.replace(source.match(/\\semanticdata\{(.*)\}\n/)[1],JSON.stringify(m));};
+const parse=s=>JSON.parse(dataForm(s).match(/\\semanticdata\{(.*)\}\n/)[1]);
+const changed=f=>{const m=parse(source);f(m);const data=dataForm(source);return data.replace(data.match(/\\semanticdata\{(.*)\}\n/)[1],JSON.stringify(m));};
 const cases=mutations(source);
 
 test('every source mutation changes precisely its designated field',()=>{

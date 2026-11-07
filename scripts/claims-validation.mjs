@@ -5,6 +5,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {copySource, sha, canonical} from './offline-validation.mjs';
+import {dataForm, notation} from './semantic-source.mjs';
 
 const script = fileURLToPath(import.meta.url);
 const sourcePath = 'src/Uorc/Claims.lex.tex';
@@ -17,6 +18,7 @@ export function auditGate(just, harness) {
   requireFact(!/\b(if|switch|while|return|continue|break)\b|cases\.(filter|slice|splice)|process\.env/.test(runBody.replace('return result;','')), 'mutation execution is filtered or conditional');
 }
 export function mutations(source) {
+  source = dataForm(source);
   const matches = [...source.matchAll(/\\semanticdata\{(.*)\}\n/g)];
   requireFact(matches.length === 1, 'expected one canonical source module');
   const module = JSON.parse(matches[0][1]);
@@ -34,6 +36,7 @@ export function mutations(source) {
   return rows;
 }
 export function plant(source, mutation) {
+  source = dataForm(source);
   const payload = source.match(/\\semanticdata\{(.*)\}\n/)[1];
   const module = JSON.parse(payload);
   const declarations = module.declarations.filter(d=>d.kind==='definition'&&d.name===mutation.definition);
@@ -46,7 +49,7 @@ export function plant(source, mutation) {
   else requireFact(false, 'unsupported source-owned mutation value');
   const result = source.replace(payload,JSON.stringify(module));
   requireFact(result!==source,'mutation changed no source');
-  return result;
+  return notation(result);
 }
 export function expectedFailure(result, mutation, generated) {
   requireFact(!result.error && result.status !== null && result.status !== 0 && !result.signal, 'mutation did not produce a completed failure');

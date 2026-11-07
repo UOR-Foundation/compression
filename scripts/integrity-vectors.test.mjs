@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {loadCorpus,sourceRecords,parseRsp,leanDriver} from './integrity-vectors.mjs';
+import {dataForm, notation} from './semantic-source.mjs';
 const root=process.cwd();
 const record=sourceRecords(root).find(r=>r.name==='SHA256ShortMsg');
 const original=fs.readFileSync(record.path);
@@ -32,7 +33,7 @@ test('source mutations preserve every expected observation and require a computa
   const source=fs.readFileSync('src/Uorc/Integrity/Sha256.lex.tex','utf8');
   const mutation=sourceRecords(root).find(r=>r.id==='wrapping_word');
   const mutant=plant(source,mutation);
-  const parse=text=>JSON.parse(text.match(/\\semanticdata\{(.*)\}\n/)[1]);
+  const parse=text=>JSON.parse(dataForm(text).match(/\\semanticdata\{(.*)\}\n/)[1]);
   const before=parse(source),after=parse(mutant);
   assert.notDeepEqual(before.declarations.find(d=>d.name===mutation.definition),after.declarations.find(d=>d.name===mutation.definition));
   assert.deepEqual(before.declarations.filter(d=>d.kind==='theorem'),after.declarations.filter(d=>d.kind==='theorem'));
@@ -51,5 +52,5 @@ test('gate audits reject skipped, conditional and prematurely ended execution',a
   const just=fs.readFileSync('Justfile','utf8'),harness=fs.readFileSync('scripts/integrity-validation.mjs','utf8');
   assert.doesNotThrow(()=>auditRun(just,harness));
   for(const bad of [harness.replaceAll('for(const mutation of mutations){','for(const mutation of mutations.filter(()=>false)){'),harness.replaceAll('expectedFailure(failed,mutation,generated);',''),harness.replace('const cases=loadCorpus(root)','return; const cases=loadCorpus(root)'),harness.replaceAll('expectedFailure(failed,mutation,generated);','if(false) expectedFailure(failed,mutation,generated);')])assert.throws(()=>auditRun(just,bad),/UC-SHA-01/);
-  assert.throws(()=>auditRun(just.replace('varint-proofs integrity reproducibility','varint-proofs reproducibility'),harness),/UC-SHA-01/);
+  assert.throws(()=>auditRun(just.replace(/^(vv:.*) integrity\b/m,'$1'),harness),/UC-SHA-01/);
 });
