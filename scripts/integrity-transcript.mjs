@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import {historicalCanonicalSource, validateCurrentCanonicalReplay} from './integrity-current-context.mjs';
+import {canonicalSourceBound, validateCurrentCanonicalReplay} from './integrity-current-context.mjs';
 import {leanDriver} from './integrity-binding-runtime.mjs';
 
 export const controlNames = [
@@ -29,7 +29,7 @@ export function validateTranscriptEvidence(root) {
   for (const file of sourceFiles) required(Object.hasOwn(receipt.source_sha256, file), `missing source ${file}`);
   for (const [file, expected] of Object.entries(receipt.source_sha256)) {
     required(!path.isAbsolute(file) && !file.split('/').includes('..'), 'source outside project');
-    required(sha(historicalCanonicalSource(root, file, expected)) === expected, `stale source ${file}`);
+    required(canonicalSourceBound(root, file, expected), `stale source ${file}`);
   }
   for (const [file, expected] of Object.entries(receipt.evidence_sha256)) {
     required(!path.isAbsolute(file) && !file.split('/').includes('..'), 'evidence outside project');

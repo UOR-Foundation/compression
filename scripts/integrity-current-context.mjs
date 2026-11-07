@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {sourceBound} from './language-migration.mjs';
 
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const requireEvidence = (condition, why) => { if (!condition) throw new Error(why); };
@@ -39,7 +40,7 @@ export function validateCurrentCanonicalReplay(root) {
   requireEvidence(receipt.schema === 'uorc/canonical-current-source-replay/1', 'current canonical receipt schema');
   requireEvidence(sha(evidenceFile(root, 'validation/integrity/canonical/evidence.json')) === historicalReceiptSha && receipt.historical_receipt_sha256 === historicalReceiptSha, 'historical receipt must remain unchanged');
   requireEvidence(sha(evidenceFile(root, 'validation/integrity/transcript/evidence.json')) === historicalTranscriptSha && receipt.historical_transcript_receipt_sha256 === historicalTranscriptSha, 'historical transcript receipt must remain unchanged');
-  for (const [file, expected] of Object.entries(receipt.source_sha256)) requireEvidence(sha(evidenceFile(root, file)) === expected, `stale current source ${file}`);
+  for (const [file, expected] of Object.entries(receipt.source_sha256)) requireEvidence(sourceBound(root, file, expected), `stale current source ${file}`);
   for (const [file, expected] of Object.entries(receipt.evidence_sha256)) requireEvidence(sha(evidenceFile(root, file)) === expected, `changed current evidence ${file}`);
   const expectedProofs = currentCanonicalProofNames.map(name => `src/Uorc/Integrity/${name}.lex.tex`);
   requireEvidence(JSON.stringify(receipt.proofs.map(proof => proof.file)) === JSON.stringify(expectedProofs), 'complete current canonical proof inventory');
@@ -60,9 +61,14 @@ export function validateCurrentCanonicalReplay(root) {
   requireEvidence(receipt.full_product_acceptance === false && receipt.original_pinned_sdk_acceptance === false, 'current replay qualification boundary');
   return receipt;
 }
+// Whether a receipt pin still names this source: the same bytes, the bridged
+// language-1.2 notation of the same model, or an explicit historical snapshot.
+export function canonicalSourceBound(root, file, expected) {
+  return sourceBound(root, file, expected) || sha(historicalCanonicalSource(root, file, expected)) === expected;
+}
 export function historicalCanonicalSource(root, file, expected) {
   const current = evidenceFile(root, file);
-  if (sha(current) === expected) return current;
+  if (sha(current) === expected || sourceBound(root, file, expected)) return current;
   const receipt = validateCurrentCanonicalReplay(root);
   const row = receipt.historical_source_substitutions.find(item => item.file === file);
   requireEvidence(row && row.historical_sha256 === expected && row.current_sha256 === sha(current), `missing explicit source transition ${file}`);

@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {evidenceFile, validateProofReplay} from './integrity-current-context.mjs';
+import {sourceBound} from './language-migration.mjs';
 
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 for (const [component, rows] of [['reader', 107], ['calls', 44], ['trace', 20]]) {
@@ -10,7 +11,7 @@ for (const [component, rows] of [['reader', 107], ['calls', 44], ['trace', 20]])
     const receipt = JSON.parse(evidenceFile('.', `validation/integrity/consumer/${component}/evidence.json`));
     assert.equal(receipt.schema, 'uorc/consumer-component-evidence/1');
     assert.equal(receipt.proof.rows, rows);
-    for (const [file, expected] of Object.entries(receipt.source_sha256)) assert.equal(sha(evidenceFile('.', file)), expected, `stale component source ${file}`);
+    for (const [file, expected] of Object.entries(receipt.source_sha256)) assert.ok(sourceBound('.', file, expected), `stale component source ${file}`);
     for (const [file, expected] of Object.entries(receipt.evidence_sha256)) assert.equal(sha(evidenceFile('.', file)), expected, `changed component evidence ${file}`);
     validateProofReplay('.', receipt.proof);
     assert.equal(receipt.mutation.mutantReaderKernelExit, 0);

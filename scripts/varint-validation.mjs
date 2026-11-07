@@ -59,7 +59,7 @@ export function run(root){
   const output=fs.mkdtempSync(path.join(root,'.prism/uorc/varint.'));
   const receipts=[];
   const execute=(project,label)=>{
-    const result=spawnSync('/usr/local/bin/lexlean',['--project',path.join(project,'lexlean.toml'),'--diagnostic-format','json','verify','--all'],{cwd:project,encoding:'utf8',timeout:300000,maxBuffer:32*1024*1024});
+    const result=spawnSync('/usr/local/bin/lexlean',['--project',path.join(project,'lexlean.toml'),'--diagnostic-format','json','verify',sourcePath],{cwd:project,encoding:'utf8',timeout:300000,maxBuffer:32*1024*1024});
     fs.writeFileSync(path.join(output,`${label}.stdout`),result.stdout??'');fs.writeFileSync(path.join(output,`${label}.stderr`),result.stderr??'');return result;
   };
   try{

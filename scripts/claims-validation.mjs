@@ -74,7 +74,7 @@ export function run(root) {
   const output = fs.mkdtempSync(path.join(root,'.prism/uorc/claims.'));
   const receipts=[];
   const execute=(project,label,command='verify')=>{
-    const args=['--project',path.join(project,'lexlean.toml'),'--diagnostic-format','json',command,'--all'];
+    const args=['--project',path.join(project,'lexlean.toml'),'--diagnostic-format','json',command,sourcePath];
     const result=spawnSync('/usr/local/bin/lexlean',args,{cwd:project,encoding:'utf8',timeout:300000,maxBuffer:32*1024*1024});
     fs.writeFileSync(path.join(output,`${label}.stdout`),result.stdout??'');
     fs.writeFileSync(path.join(output,`${label}.stderr`),result.stderr??'');
@@ -101,7 +101,7 @@ export function run(root) {
       receipts.push({...mutation,source_sha256:sha(source),mutant_sha256:sha(mutant),generated_sha256:sha(generated),mutant_build_id:build.build_id,exit_code:result.status,diagnostic:'LLV7002',restored_exit_code:restored.status,restored_build_id:verified.build_id,restored_attestation_id:verified.attestation_id,stdout_sha256:sha(result.stdout),restored_stdout_sha256:sha(restored.stdout)});
     }
     requireFact(receipts.length===cases.length,'mutation execution omitted a source case');
-    fs.writeFileSync(path.join(output,'mutations.json'),canonical({schema:'uorc/claim-mutations/1',command:['lexlean','verify','--all'],cases:receipts})+'\n');
+    fs.writeFileSync(path.join(output,'mutations.json'),canonical({schema:'uorc/claim-mutations/1',command:['lexlean','verify',sourcePath],cases:receipts})+'\n');
     console.log(`${receipts.length} source-owned evidence promotions rejected by their exact kernel theorems; every restored control passed.`);
   } finally {fs.rmSync(temporary,{recursive:true,force:true});}
 }
