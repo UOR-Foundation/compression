@@ -50,7 +50,7 @@ export function validateCurrentCanonicalReplay(root) {
   }
   const declarations = receipt.proofs.reduce((total, proof) => total + proof.rows, 0);
   requireEvidence(receipt.historical_declarations === 534 && receipt.current_declarations === declarations, 'complete current declaration replay and separate historical count');
-  requireEvidence(receipt.source_build.exit_code === 0 && receipt.source_build.compiler_sha256 === '38f8502e5c108a362265663253283a0f60f14538951e592b2d5dd4db9e67be0a', 'actual scoped source build');
+  requireEvidence(receipt.source_build.exit_code === 0 && receipt.source_build.compiler_sha256 === 'c4b08084a27cd1d2992702ce2f2dd2fcae789aeb8d68f6eb01346da59fabefb2', 'actual scoped source build');
   requireEvidence(receipt.runtime.exit_code === 0 && receipt.runtime.profile_comparisons === 258 && receipt.runtime.stream_cases === 44, 'actual current canonical controls');
   requireEvidence(receipt.transcript_current.rows === 85 && receipt.transcript_current.all_exact === true && receipt.transcript_current.charge_leanchecker_exit === 0, 'actual current transcript proof replay');
   requireEvidence(JSON.stringify(receipt.transcript_current.proofs.map(proof => proof.file)) === JSON.stringify(['OwnedTranscript', 'ChargeContracts', 'TranscriptControls'].map(name => `src/Uorc/Integrity/${name}.lex.tex`)), 'complete current transcript proof inventory');

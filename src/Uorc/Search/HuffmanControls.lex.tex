@@ -10,6 +10,13 @@
 \importmodule{Uorc.Search.StreamBuilder}
 \title{Parameters}
 \begin{semanticmodule}
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
 definition{
   name: isSemanticFailure,
   parameters: [graph : Uorc.Core.Graph::Graph],
@@ -421,14 +428,15 @@ definition{
   body: (Uorc.Search.HuffmanFit::runWork 4096 (ctor Uorc.Search.HuffmanFit::Step.pending (record Uorc.Search.HuffmanFit::Cursor {target := (Uorc.Core.Bytes::fromBytes 0x), totalBytes := 1, position := 0, frequencies := (ctor Uorc.Core.Lifetime::NatTrie.empty), parents := (ctor Uorc.Core.Lifetime::NatTrie.empty), nextNode := 511, root := 510, alphabet := 256, maximumDepth := 255, treeBuilder := (Uorc.Search.StreamBuilder::empty), payloadBuilder := (Uorc.Search.StreamBuilder::empty), tree := (Uorc.Core.Bytes::fromBytes 0x00010101000002010100030102000401030005010400060105000701060008010700090108000a0109000b010a000c010b000d010c000e010d000f010e0010010f001101100012011100130112001401130015011400160115001701160018011700190118001a0119001b011a001c011b001d011c001e011d001f011e0020011f002101200022012100230122002401230025012400260125002701260028012700290128002a0129002b012a002c012b002d012c002e012d002f012e0030012f003101300032013100330132003401330035013400360135003701360038013700390138003a0139003b013a003c013b003d013c003e013d003f013e0040013f004101400042014100430142004401430045014400460145004701460048014700490148004a0149004b014a004c014b004d014c004e014d004f014e0050014f005101500052015100530152005401530055015400560155005701560058015700590158005a0159005b015a005c015b005d015c005e015d005f015e0060015f006101600062016100630162006401630065016400660165006701660068016700690168006a0169006b016a006c016b006d016c006e016d006f016e0070016f007101700072017100730172007401730075017400760175007701760078017700790178007a0179007b017a007c017b007d017c007e017d007f017e0080017f008101800082018100830182008401830085018400860185008701860088018700890188008a0189008b018a008c018b008d018c008e018d008f018e0090018f009101900092019100930192009401930095019400960195009701960098019700990198009a0199009b019a009c019b009d019c009e019d009f019e00a0019f00a101a000a201a100a301a200a401a300a501a400a601a500a701a600a801a700a901a800aa01a900ab01aa00ac01ab00ad01ac00ae01ad00af01ae00b001af00b101b000b201b100b301b200b401b300b501b400b601b500b701b600b801b700b901b800ba01b900bb01ba00bc01bb00bd01bc00be01bd00bf01be00c001bf00c101c000c201c100c301c200c401c300c501c400c601c500c701c600c801c700c901c800ca01c900cb01ca00cc01cb00cd01cc00ce01cd00cf01ce00d001cf00d101d000d201d100d301d200d401d300d501d400d601d500d701d600d801d700d901d800da01d900db01da00dc01db00dd01dc00de01dd00df01de00e001df00e101e000e201e100e301e200e401e300e501e400e601e500e701e600e801e700e901e800ea01e900eb01ea00ec01eb00ed01ec00ee01ed00ef01ee00f001ef00f101f000f201f100f301f200f401f300f501f400f601f500f701f600f801f700f901f800fa01f900fb01fa00fc01fb00fd01fc00fe01fd00ff01), currentByte := 0, filledBits := 0, factor := 1, bitCount := 0, phase := (ctor Uorc.Search.HuffmanFit::Phase.bits (joinBoundedList0 (joinBoundedList0 (joinBoundedList0 (joinBoundedList0 (joinBoundedList0 (boundedListPart0) (boundedListPart1)) (joinBoundedList0 (boundedListPart2) (boundedListPart3))) (joinBoundedList0 (joinBoundedList0 (boundedListPart4) (boundedListPart5)) (joinBoundedList0 (boundedListPart6) (boundedListPart7)))) (joinBoundedList0 (joinBoundedList0 (joinBoundedList0 (boundedListPart8) (boundedListPart9)) (joinBoundedList0 (boundedListPart10) (boundedListPart11))) (joinBoundedList0 (joinBoundedList0 (boundedListPart12) (boundedListPart13)) (joinBoundedList0 (boundedListPart14) (boundedListPart15))))) (joinBoundedList0 (joinBoundedList0 (joinBoundedList0 (joinBoundedList0 (boundedListPart16) (boundedListPart17)) (joinBoundedList0 (boundedListPart18) (boundedListPart19))) (joinBoundedList0 (joinBoundedList0 (boundedListPart20) (boundedListPart21)) (joinBoundedList0 (boundedListPart22) (boundedListPart23)))) (joinBoundedList0 (joinBoundedList0 (joinBoundedList0 (boundedListPart24) (boundedListPart25)) (joinBoundedList0 (boundedListPart26) (boundedListPart27))) (joinBoundedList0 (joinBoundedList0 (boundedListPart28) (boundedListPart29)) (joinBoundedList0 (boundedListPart30) (boundedListPart31))))))), eventCredit := 0, completedEvents := 0, tableUnits := 0})))
 }
 
-theorem{
+definition{
   name: full_255_bit_path_packs_without_word_truncation,
   parameters: [],
-  statement: ((match (deepPackingFixture)
+  result: Bool,
+  body: (match (deepPackingFixture)
     | Uorc.Search.HuffmanFit::Step.pending unexpected => false
     | Uorc.Search.HuffmanFit::Step.proposal graph stats => (((project stats encodedBits) =? 255) && (((project stats payloadBytes) =? 32) && ((project stats treeBytes) =? 1020)))
-    | Uorc.Search.HuffmanFit::Step.rejected failure stats => false) = true),
-  proof: reflexivity{}
+    | Uorc.Search.HuffmanFit::Step.rejected failure stats => false),
+  axioms: []
 }
 
 theorem{
@@ -443,6 +451,14 @@ theorem{
   parameters: [],
   statement: ((Uorc.Search.HuffmanFit::runWork 1 (Uorc.Search.HuffmanFit::runWork 1 (Uorc.Search.HuffmanFit::start (Uorc.Core.Bytes::fromBytes 0x6162)))) = (Uorc.Search.HuffmanFit::runWork 2 (Uorc.Search.HuffmanFit::start (Uorc.Core.Bytes::fromBytes 0x6162)))),
   proof: reflexivity{}
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "HuffmanControls.full_255_bit_path_packs_without_word_truncation", passed := (full_255_bit_path_packs_without_word_truncation)}) (nil Observation)),
+  axioms: []
 }
 \end{semanticmodule}
 \end{lexlean}

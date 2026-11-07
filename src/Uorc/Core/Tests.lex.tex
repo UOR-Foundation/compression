@@ -9,6 +9,13 @@
 \importmodule{Uorc.Core.Validation}
 \title{Parameters}
 \begin{semanticmodule}
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
 definition{
   name: resultLength,
   parameters: [
@@ -195,11 +202,14 @@ theorem{
   proof: reflexivity{}
 }
 
-theorem{
+definition{
   name: partition_independent_machine_comparison,
   parameters: [],
-  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0x00ff) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0xff))) (cons (ctor Uorc.Core.Graph::Instruction.sequenceEqual 2 1) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (1 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.choose 3 2 1) (cons (ctor Uorc.Core.Graph::Instruction.singletonSequence 1) (nil Uorc.Core.Graph::Instruction)))))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 0) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (1 : UInt8))),
-  proof: reflexivity{}
+  result: Bool,
+  body: (match (resultByteAt (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0x00ff) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0xff))) (cons (ctor Uorc.Core.Graph::Instruction.sequenceEqual 2 1) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (1 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.choose 3 2 1) (cons (ctor Uorc.Core.Graph::Instruction.singletonSequence 1) (nil Uorc.Core.Graph::Instruction)))))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 0)
+    | Result.ok v => (prim equal v (1 : UInt8) : Bool)
+    | Result.error e => false),
+  axioms: []
 }
 
 definition{
@@ -258,6 +268,14 @@ theorem{
   parameters: [],
   statement: ((initializationFailureSteps (Uorc.Core.StepMachine::initializeFromUsage (record Uorc.Core.StepMachine::Context {graph := (record Uorc.Core.Graph::Graph {blocks := (nil Uorc.Core.Graph::Block), entry := 0}), basis := (nil Bytes), budget := (record Uorc.Core.Resources::Budget {maxSteps := 263, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100000}), checked := (ctor Option.none [Uorc.Core.Validation::CheckedGraph]), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])}) (record Uorc.Core.Resources::Usage {steps := 7, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 0}))) = (ctor Option.some [Nat] 7)),
   proof: reflexivity{}
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "Tests.partition_independent_machine_comparison", passed := (partition_independent_machine_comparison)}) (nil Observation)),
+  axioms: []
 }
 \end{semanticmodule}
 \end{lexlean}

@@ -15,7 +15,9 @@ import {dataForm, notation, stageRuntime} from './semantic-source.mjs';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const requireFact=(b,m)=>{if(!b)throw new Error(m);};
 const defaultSuite='MachineBindingScenarios';
-function selection(suite){requireFact(['MachineBindingScenarios','ReadImageScenarios','WriteImageScenarios','ApplicationScenarios','InspectionReportScenarios','ReadControllerScenarios','OutputDeliveryScenarios','TargetDescriptorScenarios'].includes(suite),'unknown typed runtime suite');return `src/Uorc/Product/${suite}.lex.tex`;}
+export const controlModules=['Core/Tests','Search/ArchiveControls','Search/HuffmanControls','Search/ReplayControls','Search/ExecutionAccountingControls','Search/CertificationControls'];
+const leanModule=suite=>suite.includes('/')?`Uorc.Uorc.${suite.split('/').join('.')}`:`Uorc.Uorc.Product.${suite}`;
+function selection(suite){if(suite.includes('/')){requireFact(controlModules.includes(suite),'unknown executed control module');return `src/Uorc/${suite}.lex.tex`;}requireFact(['MachineBindingScenarios','ReadImageScenarios','WriteImageScenarios','ApplicationScenarios','InspectionReportScenarios','ReadControllerScenarios','OutputDeliveryScenarios','TargetDescriptorScenarios'].includes(suite),'unknown typed runtime suite');return `src/Uorc/Product/${suite}.lex.tex`;}
 function run(command,args,cwd,env={}){
  const r=spawnSync(command,args,{cwd,env:{...process.env,...env},encoding:'utf8',timeout:600000,maxBuffer:32*1024*1024});
  requireFact(!r.error&&!r.signal,`${command}: ${r.error??r.signal}`);return r;
@@ -23,8 +25,8 @@ function run(command,args,cwd,env={}){
 function checked(command,args,cwd,env={}){const r=run(command,args,cwd,env);requireFact(r.status===0,`${command}: ${r.stdout}${r.stderr}`);return r;}
 function filesBelow(root,suffix){return fs.readdirSync(root,{withFileTypes:true}).flatMap(e=>e.isDirectory()?filesBelow(path.join(root,e.name),suffix):e.name.endsWith(suffix)?[path.join(root,e.name)]:[]);}
 export function driver(only,suite=defaultSuite){
- if(only)return `import Uorc.Uorc.Product.${suite}\nopen Uorc.Uorc.Product\ndef main : IO Unit := do\n if !${suite}.${only} then throw (IO.userError "FAIL ${only}")\n IO.println "PASS ${only}"\n`;
- return `import Uorc.Uorc.Product.${suite}\nopen Uorc.Uorc.Product\ndef main : IO Unit := do\n let mut passed := 0\n let mut total := 0\n let mut names : List String := []\n for observation in ${suite}.observations do\n  if names.contains observation.id then throw (IO.userError "duplicate observation")\n  names := observation.id :: names\n  total := total + 1\n  if observation.passed then passed := passed + 1 else IO.println s!"FAIL {observation.id}"\n IO.println s!"{passed}/{total} actual product-machine binding controls passed"\n if total == 0 || passed != total then throw (IO.userError "binding controls failed")\n`;
+ if(only)return `import ${leanModule(suite)}\ndef main : IO Unit := do\n if !${leanModule(suite)}.${only} then throw (IO.userError "FAIL ${only}")\n IO.println "PASS ${only}"\n`;
+ return `import ${leanModule(suite)}\ndef main : IO Unit := do\n let mut passed := 0\n let mut total := 0\n let mut names : List String := []\n for observation in ${leanModule(suite)}.observations do\n  if names.contains observation.id then throw (IO.userError "duplicate observation")\n  names := observation.id :: names\n  total := total + 1\n  if observation.passed then passed := passed + 1 else IO.println s!"FAIL {observation.id}"\n IO.println s!"{passed}/{total} actual product-machine binding controls passed"\n if total == 0 || passed != total then throw (IO.userError "binding controls failed")\n`;
 }
 export function execute(root,only,runtimeLibrary,suite=defaultSuite){
  const selected=selection(suite);

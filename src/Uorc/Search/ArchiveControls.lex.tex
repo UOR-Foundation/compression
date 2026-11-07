@@ -8,6 +8,13 @@
 \importmodule{Uorc.Search.VerifyRope}
 \title{Parameters}
 \begin{semanticmodule}
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
 definition{
   name: runCursor,
   parameters: [work : Nat, cursor : Uorc.Search.ArchiveTrial::Cursor],
@@ -43,39 +50,54 @@ definition{
     | Uorc.Search.ArchiveTrial::Step.rejected failure usage ledger events => (ctor Option.none [Nat]))
 }
 
-theorem{
+definition{
   name: zero_trial_work_cannot_supply_eligibility,
   parameters: [],
-  statement: ((size (run 0 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 2 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))})))) = (ctor Option.none [Nat])),
-  proof: reflexivity{}
+  result: Bool,
+  body: (match (size (run 0 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 2 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}))))
+    | Option.none => true
+    | Option.some v => false),
+  axioms: []
 }
 
-theorem{
+definition{
   name: actual_empty_archive_round_trip_size,
   parameters: [],
-  statement: ((size (run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})))) = (ctor Option.some [Nat] 42)),
-  proof: reflexivity{}
+  result: Bool,
+  body: (match (size (run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))}))))
+    | Option.none => false
+    | Option.some v => (v =? 42)),
+  axioms: []
 }
 
-theorem{
+definition{
   name: actual_ordered_empty_object_round_trip_size,
   parameters: [],
-  statement: ((size (run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 0 (cons 2 (cons 0 (nil Nat)))), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 0 (cons 2 (cons 0 (nil Nat)))), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))})))) = (ctor Option.some [Nat] 47)),
-  proof: reflexivity{}
+  result: Bool,
+  body: (match (size (run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 0 (cons 2 (cons 0 (nil Nat)))), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 0 (cons 2 (cons 0 (nil Nat)))), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}))))
+    | Option.none => false
+    | Option.some v => (v =? 47)),
+  axioms: []
 }
 
-theorem{
+definition{
   name: actual_literal_program_round_trip_size,
   parameters: [],
-  statement: ((size (run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 16 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 16 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.program (Uorc.Core.Graph::literalGraph 0x000102030405060708090a0b0c0d0e0f))})))) = (ctor Option.some [Nat] 67)),
-  proof: reflexivity{}
+  result: Bool,
+  body: (match (size (run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 16 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 16 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.program (Uorc.Core.Graph::literalGraph 0x000102030405060708090a0b0c0d0e0f))}))))
+    | Option.none => false
+    | Option.some v => (v =? 67)),
+  axioms: []
 }
 
-theorem{
+definition{
   name: valid_digest_does_not_hide_wrong_original_bytes,
   parameters: [],
-  statement: ((size (run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00fe), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 2 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))})))) = (ctor Option.none [Nat])),
-  proof: reflexivity{}
+  result: Bool,
+  body: (match (size (run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00fe), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 2 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}))))
+    | Option.none => true
+    | Option.some v => false),
+  axioms: []
 }
 
 theorem{
@@ -83,6 +105,14 @@ theorem{
   parameters: [state : Uorc.Search.ArchiveTrial::Step],
   statement: ((run 0 state) = state),
   proof: reflexivity{}
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "ArchiveControls.actual_literal_program_round_trip_size", passed := (actual_literal_program_round_trip_size)}) (cons (record Observation {id := "ArchiveControls.actual_empty_archive_round_trip_size", passed := (actual_empty_archive_round_trip_size)}) (cons (record Observation {id := "ArchiveControls.actual_ordered_empty_object_round_trip_size", passed := (actual_ordered_empty_object_round_trip_size)}) (cons (record Observation {id := "ArchiveControls.valid_digest_does_not_hide_wrong_original_bytes", passed := (valid_digest_does_not_hide_wrong_original_bytes)}) (cons (record Observation {id := "ArchiveControls.zero_trial_work_cannot_supply_eligibility", passed := (zero_trial_work_cannot_supply_eligibility)}) (nil Observation)))))),
+  axioms: []
 }
 \end{semanticmodule}
 \end{lexlean}
