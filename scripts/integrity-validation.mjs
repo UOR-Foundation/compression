@@ -64,6 +64,10 @@ export function run(root){
   const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'uorc-integrity-'));
   try{
     const current=verify(root,sources,output,'source');succeeded(current,'source verification');
+    // Language-1.2 generated modules import the shipped LexLean runtime; its
+    // oleans are the ones this source verification itself elaborated.
+    const verifiedArtifact=JSON.parse(current.stdout).artifacts?.[0];requireFact(typeof verifiedArtifact==='string','source verification artifact missing');
+    const runtimeOleans=path.resolve(root,verifiedArtifact,'oleans');requireFact(runtimeOleans.startsWith(path.resolve(root)+path.sep)&&fs.existsSync(path.join(runtimeOleans,'LexLeanRuntime')),'verified runtime oleans missing');
     const receipts=[];
     for(const mutation of mutations){
       const project=path.join(temporary,mutation.id);
@@ -85,10 +89,10 @@ export function run(root){
     const modelRoot=path.join(temporary,'generated');
     for(const name of ['Sha256','BoundedChain']){
       const relative=`Uorc/Uorc/Integrity/${name}`;const target=path.join(modelRoot,relative+'.lean');fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(path.join(build,'modules',relative+'.lean'),target);
-      const compiled=execute('lean',['-R',modelRoot,'-o',path.join(modelRoot,relative+'.olean'),target],root,output,'compile-'+name,{env:{...process.env,LEAN_PATH:modelRoot}});succeeded(compiled,'generated model compile');
+      const compiled=execute('lean',['-R',modelRoot,'-o',path.join(modelRoot,relative+'.olean'),target],root,output,'compile-'+name,{env:{...process.env,LEAN_PATH:[modelRoot,runtimeOleans].join(path.delimiter)}});succeeded(compiled,'generated model compile');
     }
     const driver=path.join(temporary,'Oracle.lean');fs.writeFileSync(driver,leanDriver(cases,sourceRecords(root).filter(r=>r.type==='ChainFixture')));
-    const checked=execute('lean',['-R',temporary,driver],root,output,'vectors',{env:{...process.env,LEAN_PATH:modelRoot}});succeeded(checked,'generated-model vectors');
+    const checked=execute('lean',['-R',temporary,driver],root,output,'vectors',{env:{...process.env,LEAN_PATH:[modelRoot,runtimeOleans].join(path.delimiter)}});succeeded(checked,'generated-model vectors');
     requireFact(checked.stdout.trim()==='129 complete CAVP cases; 2919 partitions; protocol and chain cases passed','vector output omitted expected coverage');
     const manifest=JSON.parse(fs.readFileSync(path.join(build,'manifest.json'),'utf8'));
     fs.writeFileSync(path.join(output,'receipt.json'),JSON.stringify({schema:'uorc/integrity-evidence/1',source_sha256:Object.fromEntries(sources.map(p=>[p,sha(fs.readFileSync(path.join(root,p)))])),build_manifest_sha256:sha(fs.readFileSync(path.join(build,'manifest.json'))),build_id:manifest.build_id??null,cases:cases.length,partitions:2919,vector_stdout_sha256:sha(checked.stdout),mutations:receipts,scope:'source verification and generated Lean execution; full just vv and certified production export remain separate acceptance requirements'})+'\n');
