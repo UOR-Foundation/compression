@@ -113,6 +113,8 @@ pub struct ScenarioProjection {
 /// The complete project-owned authority graph needed by the repository model.
 #[derive(Debug, Clone)]
 pub struct AuthorityGraph {
+    /// Source-owned bounded varint contract and kernel inventory.
+    pub varint: crate::varint::VarintContract,
     /// Product charter.
     pub charter: Charter,
     /// Claim-class distinctions.
@@ -138,6 +140,7 @@ pub struct AuthorityGraph {
 impl AuthorityGraph {
     /// Load and structurally validate the LexLean authority modules.
     pub fn load(root: &Path) -> Result<Self, ModelError> {
+        let varint = crate::varint::VarintContract::load(root)?;
         let specification =
             semantic_declarations(&root.join(SPECIFICATION_PATH), "Uorc.Specification")?;
         let registry = semantic_declarations(&root.join(REGISTRY_PATH), "Uorc.Registry")?;
@@ -263,6 +266,7 @@ impl AuthorityGraph {
         }
 
         let graph = Self {
+            varint,
             charter: Charter {
                 product_name: required(&charter, "productName")?,
                 purpose: required(&charter, "purpose")?,

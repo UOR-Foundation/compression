@@ -14,6 +14,7 @@ pub mod authority;
 pub mod claims;
 pub mod codegen;
 pub mod registry;
+pub mod varint;
 
 pub use authority::AuthorityGraph;
 pub use claims::ClaimPolicy;
