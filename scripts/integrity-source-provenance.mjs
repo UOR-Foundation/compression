@@ -29,8 +29,10 @@ export function validateSourceProvenance(root){
   required(sha(current)===row.current_source_sha256,`${file}: current source hash`);
   required(Array.isArray(row.executable_additions)&&new Set(row.executable_additions).size===row.executable_additions.length,`${file}: unique annotation inventory`);
   const before=model(historical),after=model(current);
-  if(row.executable_additions.length===0){
-   required(historical.equals(current),`${file}: unmodified source bytes`);
+  // Byte-identical, or the language-1.2 notation of the same model (only the
+  // listed executable annotations and the semantic-module/1 to /2 schema differ).
+  if(historical.equals(current)){
+   required(row.executable_additions.length===0,`${file}: unmodified source has no annotation additions`);
   }else{
    required(before.spec==='lexlean/semantic-module/1'&&after.spec==='lexlean/semantic-module/2',`${file}: exact schema migration`);
    after.spec=before.spec;

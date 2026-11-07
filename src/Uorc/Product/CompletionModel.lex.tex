@@ -57,7 +57,7 @@ definition{
     current : Uorc.Product.Session::Session
   ],
   result: Uorc.Product.Session::Session,
-  body: (if owned then updated else current)
+  body: (match owned | Bool.false => current | Bool.true => updated)
 }
 
 theorem{
@@ -72,8 +72,8 @@ theorem{
   name: stale_completion_branches,
   parameters: [request : CompletionRequest, owned : Bool, updated : Uorc.Product.Session::Session],
   statement: ((owned = false) -> (preservesSession request (select_session owned updated (project request session)))),
-  proof: simplify{definitions: [select_false_preserves]},
-  axioms: []
+  proof: linear_arithmetic{definitions: [preservesSession, select_session]},
+  axioms: [propext]
 }
 
 theorem{
@@ -101,7 +101,7 @@ evidence{
 
 model{
   name: CompletionModel,
-  axioms: [propext],
+  axioms: [],
   contract: {member: StaleCompletionContract},
   evidence: [{member: CompletionEvidence}],
   realization: {member: CompletionTransition}

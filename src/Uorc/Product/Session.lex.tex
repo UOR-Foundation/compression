@@ -99,7 +99,9 @@ definition{
   name: finish,
   parameters: [s : Session, runSerial : Nat, runRevision : Nat, result : ResultKind],
   result: Session,
-  body: (if (ownsRun s runSerial runRevision) then (record Session {revision := (project s revision), serial := (project s serial), active := false, hasResult := true, phase := (resultPhase result), result := result}) else s),
+  body: (match (ownsRun s runSerial runRevision)
+    | Bool.false => s
+    | Bool.true => (record Session {revision := (project s revision), serial := (project s serial), active := false, hasResult := true, phase := (resultPhase result), result := result})),
   executable: true
 }
 
