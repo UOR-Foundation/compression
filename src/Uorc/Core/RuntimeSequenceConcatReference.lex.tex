@@ -5,6 +5,91 @@
 \title{Parameters}
 \begin{semanticmodule}
 definition{
+  name: concatByHeightChain,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Uorc.Core.RuntimeSequence::Cursor,
+    li : Uorc.Core.Heap::SequenceInfo,
+    ri : Uorc.Core.Heap::SequenceInfo
+  ],
+  result: (Result Uorc.Core.RuntimeSequence::SequenceTransition Uorc.Core.RuntimeSequence::SequenceFailure),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (Uorc.Core.RuntimeSequence::concatTakeRight arena cursor) else (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (Uorc.Core.RuntimeSequence::concatTakeLeft arena cursor) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (Uorc.Core.RuntimeSequence::concatDescendLeft arena cursor) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (Uorc.Core.RuntimeSequence::concatDescendRight arena cursor) else (Uorc.Core.RuntimeSequence::concatPending arena (Uorc.Core.RuntimeSequence::concatBalancedCursor cursor)))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+theorem{
+  name: concatDispatch_case_selection,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Uorc.Core.RuntimeSequence::Cursor,
+    leftNull : Bool,
+    rightNull : Bool,
+    leftHeavy : Bool,
+    rightHeavy : Bool
+  ],
+  statement: ((Uorc.Core.RuntimeSequence::concatDispatch arena cursor (Uorc.Core.RuntimeSequence::concatCaseSelect (Uorc.Core.RuntimeSequence::concatFlag leftNull) (Uorc.Core.RuntimeSequence::concatFlag rightNull) (Uorc.Core.RuntimeSequence::concatFlag leftHeavy) (Uorc.Core.RuntimeSequence::concatFlag rightHeavy))) = (if leftNull then (Uorc.Core.RuntimeSequence::concatTakeRight arena cursor) else (if rightNull then (Uorc.Core.RuntimeSequence::concatTakeLeft arena cursor) else (if leftHeavy then (Uorc.Core.RuntimeSequence::concatDescendLeft arena cursor) else (if rightHeavy then (Uorc.Core.RuntimeSequence::concatDescendRight arena cursor) else (Uorc.Core.RuntimeSequence::concatPending arena (Uorc.Core.RuntimeSequence::concatBalancedCursor cursor))))))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: cases{
+                branches: [
+                  {
+                    proof: cases{
+                      branches: [
+                        {proof: reflexivity{}, binders: [], constructor: "false"},
+                        {proof: reflexivity{}, binders: [], constructor: "true"}
+                      ],
+                      scrutinee: rightHeavy
+                    },
+                    binders: [],
+                    constructor: "false"
+                  },
+                  {proof: reflexivity{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: leftHeavy
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {proof: reflexivity{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: rightNull
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: leftNull
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: concatByHeight_chain_equivalence,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Uorc.Core.RuntimeSequence::Cursor,
+    li : Uorc.Core.Heap::SequenceInfo,
+    ri : Uorc.Core.Heap::SequenceInfo
+  ],
+  statement: ((Uorc.Core.RuntimeSequence::concatByHeight arena cursor li ri) = (concatByHeightChain arena cursor li ri)),
+  proof: simplify{
+    definitions: [
+      concatByHeightChain,
+      concatDispatch_case_selection,
+      Uorc.Core.RuntimeSequence::concatByHeight,
+      Uorc.Core.RuntimeSequence::concatCase
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: concatDownUnfactored,
   parameters: [arena : Uorc.Core.Heap::Arena, cursor : Uorc.Core.RuntimeSequence::Cursor],
   result: (Result Uorc.Core.RuntimeSequence::SequenceTransition Uorc.Core.RuntimeSequence::SequenceFailure),
@@ -12,11 +97,7 @@ definition{
     | Result.error heapFailure => (ctor Result.error [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] (ctor Uorc.Core.RuntimeSequence::SequenceFailure.heap heapFailure))
     | Result.ok li => (match (Uorc.Core.Heap::sequenceInfo arena (project cursor right))
       | Result.error heapFailure => (ctor Result.error [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] (ctor Uorc.Core.RuntimeSequence::SequenceFailure.heap heapFailure))
-      | Result.ok ri => (if (Uorc.Core.RuntimeValue::isNull (project cursor left)) then (ctor Result.ok [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] (record Uorc.Core.RuntimeSequence::SequenceTransition {arena := arena, cursor := (record Uorc.Core.RuntimeSequence::Cursor {phase := (2 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor right), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), work := (1 : UInt64), outcome := (ctor Uorc.Core.RuntimeSequence::Outcome.pending)})) else (if (Uorc.Core.RuntimeValue::isNull (project cursor right)) then (ctor Result.ok [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] (record Uorc.Core.RuntimeSequence::SequenceTransition {arena := arena, cursor := (record Uorc.Core.RuntimeSequence::Cursor {phase := (2 : UInt64), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project cursor right), result := (project cursor left), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), work := (1 : UInt64), outcome := (ctor Uorc.Core.RuntimeSequence::Outcome.pending)})) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project ri height) (1 : UInt64)) (project li height)) then (match (Uorc.Core.RuntimeSequence::sequenceChildren arena (project cursor left))
-        | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] failure)
-        | Result.ok children => (ctor Result.ok [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] (record Uorc.Core.RuntimeSequence::SequenceTransition {arena := arena, cursor := (Uorc.Core.RuntimeSequence::schedulePlan (record Uorc.Core.RuntimeSequence::Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project children second), right := (project cursor right), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}) (Uorc.Core.RuntimeSequence::framePlan (project cursor joins) (project children first) (0 : UInt64) (0 : UInt64)) (1 : UInt64) (1 : UInt64)), delta := (Uorc.Core.RuntimeSequence::zeroDelta), work := (1 : UInt64), outcome := (ctor Uorc.Core.RuntimeSequence::Outcome.pending)}))) else (if (Uorc.Core.Heap::less (Uorc.Core.Heap::wordAdd (project li height) (1 : UInt64)) (project ri height)) then (match (Uorc.Core.RuntimeSequence::sequenceChildren arena (project cursor right))
-        | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] failure)
-        | Result.ok children => (ctor Result.ok [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] (record Uorc.Core.RuntimeSequence::SequenceTransition {arena := arena, cursor := (Uorc.Core.RuntimeSequence::schedulePlan (record Uorc.Core.RuntimeSequence::Cursor {phase := (project cursor phase), purpose := (project cursor purpose), capture := (project cursor capture), garbage := (project cursor garbage), stack := (project cursor stack), joins := (project cursor joins), current := (project cursor current), left := (project cursor left), right := (project children first), result := (project cursor result), start := (project cursor start), count := (project cursor count), byteValue := (project cursor byteValue), fresh := (project cursor fresh), slot1 := (project cursor slot1), slot2 := (project cursor slot2), slot3 := (project cursor slot3), slot4 := (project cursor slot4), planPosition := (project cursor planPosition), planReturn := (project cursor planReturn), planDest := (project cursor planDest), plan := (project cursor plan)}) (Uorc.Core.RuntimeSequence::framePlan (project cursor joins) (project children second) (1 : UInt64) (0 : UInt64)) (1 : UInt64) (1 : UInt64)), delta := (Uorc.Core.RuntimeSequence::zeroDelta), work := (1 : UInt64), outcome := (ctor Uorc.Core.RuntimeSequence::Outcome.pending)}))) else (ctor Result.ok [Uorc.Core.RuntimeSequence::SequenceTransition, Uorc.Core.RuntimeSequence::SequenceFailure] (record Uorc.Core.RuntimeSequence::SequenceTransition {arena := arena, cursor := (Uorc.Core.RuntimeSequence::schedulePlan cursor (Uorc.Core.RuntimeSequence::branchPlan (project cursor left) (project cursor right)) (2 : UInt64) (0 : UInt64)), delta := (Uorc.Core.RuntimeSequence::zeroDelta), work := (1 : UInt64), outcome := (ctor Uorc.Core.RuntimeSequence::Outcome.pending)})))))))),
+      | Result.ok ri => (Uorc.Core.RuntimeSequence::concatByHeight arena cursor li ri))),
   axioms: [Quot.sound, propext],
   executable: false
 }

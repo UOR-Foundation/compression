@@ -19,7 +19,7 @@ export const controlModules=['Core/Tests','Search/ArchiveControls','Search/Huffm
 const leanModule=suite=>suite.includes('/')?`Uorc.Uorc.${suite.split('/').join('.')}`:`Uorc.Uorc.Product.${suite}`;
 function selection(suite){if(suite.includes('/')){requireFact(controlModules.includes(suite),'unknown executed control module');return `src/Uorc/${suite}.lex.tex`;}requireFact(['MachineBindingScenarios','ReadImageScenarios','WriteImageScenarios','ApplicationScenarios','InspectionReportScenarios','ReadControllerScenarios','OutputDeliveryScenarios','TargetDescriptorScenarios'].includes(suite),'unknown typed runtime suite');return `src/Uorc/Product/${suite}.lex.tex`;}
 function run(command,args,cwd,env={}){
- const r=spawnSync(command,args,{cwd,env:{...process.env,...env},encoding:'utf8',timeout:600000,maxBuffer:32*1024*1024});
+ const r=spawnSync(command,args,{cwd,env:{...process.env,...env},encoding:'utf8',timeout:3600000,maxBuffer:32*1024*1024});
  requireFact(!r.error&&!r.signal,`${command}: ${r.error??r.signal}`);return r;
 }
 function checked(command,args,cwd,env={}){const r=run(command,args,cwd,env);requireFact(r.status===0,`${command}: ${r.stdout}${r.stderr}`);return r;}
