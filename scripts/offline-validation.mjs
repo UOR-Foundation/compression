@@ -201,7 +201,10 @@ export function negativeSdk(root, temporary) {
 }
 function reproduce(root) {
   sdk(root);
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'uorc-reproduce-'));
+  // Two clean roots each hold a full cargo target and LexLean build: they live
+  // on the checkout's disk (source-excluded `.tmp`), never the SDK's small /tmp.
+  fs.mkdirSync(path.join(root, '.tmp'), { recursive: true });
+  const temporary = fs.mkdtempSync(path.join(root, '.tmp', 'uorc-reproduce-'));
   try {
     const paths = projectionPaths(root), original = projections(root, paths);
     const left = path.join(temporary, 'left'), right = path.join(temporary, 'different', 'right-longer');
