@@ -54,7 +54,7 @@ export function compare(left, right) {
 }
 function run(root, command, args, options = {}) {
   const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
-    env: { ...process.env, ...options.env }, timeout: 30 * 60 * 1000 });
+    env: { ...process.env, ...options.env }, timeout: 55 * 60 * 1000 });
   if (options.log) {
     fs.mkdirSync(path.dirname(options.log), { recursive: true });
     fs.writeFileSync(options.log, `$ ${command} ${args.join(' ')}\n${result.stdout ?? ''}${result.stderr ?? ''}`);
@@ -99,7 +99,13 @@ function projections(root, paths) {
   }).sort((a, b) => a.path.localeCompare(b.path));
 }
 function lexlean(root, command) {
-  const result = JSON.parse(run(root, 'lexlean', ['--diagnostic-format', 'json', command, '--all']).stdout);
+  // Scheduling only (LexLean SPEC §22.11): width, memory budget and observed hints
+  // change no artifact; the offline container does not inherit the caller's environment.
+  const env = command === 'verify' ? {
+    LEXLEAN_VERIFY_WIDTH: process.env.LEXLEAN_VERIFY_WIDTH ?? '4',
+    LEXLEAN_VERIFY_MEMORY_KIB: process.env.LEXLEAN_VERIFY_MEMORY_KIB ?? '9437184',
+    LEXLEAN_VERIFY_HINTS: path.join(root, 'validation/lexlean-verify-hints.json') } : {};
+  const result = JSON.parse(run(root, 'lexlean', ['--diagnostic-format', 'json', command, '--all'], { env }).stdout);
   if (result.spec !== 'lexlean/command-result/1' || !result.success || result.exit_code !== 0 || !Array.isArray(result.modules) || !result.modules.length) {
     fail('URP004', `incomplete ${command} result`);
   }

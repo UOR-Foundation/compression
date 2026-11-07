@@ -1,5 +1,13 @@
 # `just vv` is the normative acceptance gate. Everything else is a slice of it.
 
+# LexLean scheduling only (SPEC.md §22.11): these select how many proof
+# processes run at once and within what summed expected memory; they are no
+# input of any verification and change no artifact. The hints are the
+# observed per-module wall time and peak of a complete verification.
+export LEXLEAN_VERIFY_WIDTH := env_var_or_default("LEXLEAN_VERIFY_WIDTH", "4")
+export LEXLEAN_VERIFY_MEMORY_KIB := env_var_or_default("LEXLEAN_VERIFY_MEMORY_KIB", "9437184")
+export LEXLEAN_VERIFY_HINTS := env_var_or_default("LEXLEAN_VERIFY_HINTS", justfile_directory() + "/validation/lexlean-verify-hints.json")
+
 default: vv
 
 # The whole gate.

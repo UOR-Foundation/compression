@@ -38,14 +38,20 @@ export function execute(root,only,runtimeLibrary,suite=defaultSuite){
  const generated=path.join(verified,'modules'),runtime=fs.mkdtempSync(path.join(os.tmpdir(),'uorc-machine-runtime-'));
  try{
   const files=new Map(filesBelow(generated,'.lean').map(p=>[path.relative(generated,p).slice(0,-5).split(path.sep).join('.'),p]));
-  stageRuntime(runtime);
-  const done=new Set(),active=new Set();const leanPath=runtimeLibrary?[runtime,runtimeLibrary].join(path.delimiter):runtime;
+  // A mutant run starts from the baseline runtime: the staged LexLean runtime and every unchanged object.
+  if(runtimeLibrary)fs.cpSync(runtimeLibrary,runtime,{recursive:true});else stageRuntime(runtime);
+  const done=new Set(),active=new Set(),rebuilt=new Set();const leanPath=runtimeLibrary?[runtime,runtimeLibrary].join(path.delimiter):runtime;
   function compile(name){
    if(done.has(name))return;requireFact(!active.has(name),'module cycle');active.add(name);
-   const source=fs.readFileSync(files.get(name),'utf8');
-   for(const m of source.matchAll(/^(?:public )?import (\S+)/gm))if(files.has(m[1]))compile(m[1]);
-   const target=path.join(runtime,path.relative(generated,files.get(name)));fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,source);
-   checked('lean',['-R',runtime,'-o',target.slice(0,-5)+'.olean',target],root,{LEAN_PATH:leanPath});active.delete(name);done.add(name);
+   const source=fs.readFileSync(files.get(name),'utf8');let depRebuilt=false;
+   for(const m of source.matchAll(/^(?:public )?import (\S+)/gm))if(files.has(m[1])){compile(m[1]);depRebuilt||=rebuilt.has(m[1]);}
+   const relative=path.relative(generated,files.get(name)),target=path.join(runtime,relative);fs.mkdirSync(path.dirname(target),{recursive:true});fs.writeFileSync(target,source);
+   // A mutant run reuses the baseline object of a module whose generated text and imports are unchanged.
+   const baseline=runtimeLibrary&&path.join(runtimeLibrary,relative);
+   if(baseline&&!depRebuilt&&fs.existsSync(baseline.slice(0,-5)+'.olean')&&fs.readFileSync(baseline,'utf8')===source){
+    for(const ext of ['.olean','.ilean','.olean.private','.olean.server','.ir'])if(fs.existsSync(baseline.slice(0,-5)+ext))fs.copyFileSync(baseline.slice(0,-5)+ext,target.slice(0,-5)+ext);
+   }else{checked('lean',['-R',runtime,'-o',target.slice(0,-5)+'.olean',target],root,{LEAN_PATH:leanPath});rebuilt.add(name);}
+   active.delete(name);done.add(name);
   }
   for(const name of files.keys())compile(name);
   const harness=path.join(runtime,'RunProductMachine.lean');fs.writeFileSync(harness,driver(only,suite));
