@@ -208,7 +208,15 @@ impl AuthorityGraph {
             let fields = definition_string_fields(
                 declaration,
                 "ConformanceRow",
-                &["id", "level", "suite", "statement", "given", "when", "then"],
+                &[
+                    "id",
+                    "level",
+                    "suite",
+                    "statement",
+                    "given",
+                    "when",
+                    "expected",
+                ],
             )?;
             let id = required(&fields, "id")?;
             let level = required(&fields, "level")?;
@@ -227,7 +235,7 @@ impl AuthorityGraph {
                 statement,
                 given: required(&fields, "given")?,
                 when: required(&fields, "when")?,
-                then: required(&fields, "then")?,
+                then: required(&fields, "expected")?,
             });
         }
         if ids.is_empty() {
@@ -511,7 +519,15 @@ fn validate_registry_declarations(declarations: &[Value]) -> Result<(), ModelErr
     validate_string_structure(
         declarations,
         "ConformanceRow",
-        &["id", "level", "suite", "statement", "given", "when", "then"],
+        &[
+            "id",
+            "level",
+            "suite",
+            "statement",
+            "given",
+            "when",
+            "expected",
+        ],
     )?;
     Ok(())
 }
@@ -738,6 +754,29 @@ mod tests {
         let graph = AuthorityGraph::load(&crate::repo_root()).expect("authority graph loads");
         assert!(!graph.charter.product_name.is_empty());
         assert!(!graph.ids.id.is_empty());
+    }
+
+    #[test]
+    fn registry_outcomes_keep_the_gherkin_then_step_uc_chr_01() {
+        let root = crate::repo_root();
+        let graph = AuthorityGraph::load(&root).expect("authority graph loads");
+        assert!(graph.scenarios.iter().all(|row| !row.then.is_empty()));
+        let declarations =
+            semantic_declarations(&root.join(REGISTRY_PATH), "Uorc.Registry").expect("registry");
+        validate_string_structure(
+            &declarations,
+            "ConformanceRow",
+            &[
+                "id",
+                "level",
+                "suite",
+                "statement",
+                "given",
+                "when",
+                "expected",
+            ],
+        )
+        .expect("the source outcome field is a plain Lean identifier");
     }
 
     #[test]

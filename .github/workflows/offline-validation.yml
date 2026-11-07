@@ -1,0 +1,76 @@
+name: SDK offline reproducibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    name: review-only generated projections
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Produce review candidates with the exact SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=$(node -p 'JSON.parse(require("fs").readFileSync("prismpm.lock")).sdk_image')
+          [[ "$image" =~ ^[a-z0-9.-]+(:[0-9]{1,5})?/[a-z0-9./_-]+@sha256:[0-9a-f]{64}$ ]]
+          docker pull "$image"
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --volume "$PWD:$PWD" --workdir "$PWD" \
+            --env PRISMPM_EPHEMERAL_HOME=1 \
+            --tmpfs /tmp:rw,exec,nosuid,size=4g \
+            "$image" bash -euc 'prismpm lock check; lexlean fmt --check --all; just model-write; node scripts/offline-validation.mjs export-projections .prism/projection-candidates'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: generated-projection-candidates
+          path: .prism/projection-candidates
+          if-no-files-found: error
+          include-hidden-files: true
+  offline:
+    name: full offline acceptance / ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup then run two independent no-network SDK acceptances
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=$(node -p 'JSON.parse(require("fs").readFileSync("prismpm.lock")).sdk_image')
+          [[ "$image" =~ ^[a-z0-9.-]+(:[0-9]{1,5})?/[a-z0-9./_-]+@sha256:[0-9a-f]{64}$ ]]
+          docker pull "$image"
+          # Only orchestration sees the daemon. The verifier containers have
+          # no socket, credentials, parent checkout mount, or network interface.
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --group-add "$(stat -c '%g' /var/run/docker.sock)" \
+            --volume "$PWD:$PWD" --workdir "$PWD" \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            --env PRISMPM_EPHEMERAL_HOME=1 \
+            --tmpfs /tmp:rw,exec,nosuid,size=4g \
+            "$image" node scripts/offline-validation.mjs isolated
+      - name: Preserve actual logs and evidence, including partial failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: offline-evidence-${{ matrix.runner }}
+          path: .prism/uorc
+          if-no-files-found: warn
+          include-hidden-files: true
