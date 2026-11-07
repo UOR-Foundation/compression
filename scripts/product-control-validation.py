@@ -58,6 +58,20 @@ def write_module(path, text, data):
                           json.dumps(data, sort_keys=True, separators=(',', ':')) + '}', text)))
 
 
+def stage_runtime(directory, lean, env):
+    """Elaborate the pinned LexLean runtime that 1.2 generated modules import."""
+    target = Path(os.environ.get('CARGO_TARGET_DIR', ROOT / 'target'))
+    subprocess.run(['cargo', 'build', '--locked', '-q', '-p', 'xtask'], cwd=ROOT, check=True)
+    names = subprocess.run([str(target / 'debug/xtask'), 'runtime-sources', str(directory)],
+                           capture_output=True, text=True, check=True).stdout.split()
+    if 'LexLeanRuntime.Portable' not in names:
+        raise RuntimeError('LexLean runtime inventory is incomplete')
+    for name in names:
+        base = directory.joinpath(*name.split('.'))
+        run([lean, '-R', directory, '-o', base.with_suffix('.olean'), base.with_suffix('.lean')],
+            directory, env)
+
+
 def run(args, cwd, env=None, expected=0):
     result = subprocess.run([str(a) for a in args], cwd=cwd, env=env,
                             capture_output=True, text=True)
@@ -156,9 +170,10 @@ def main():
             generated = project / '.lexlean/build' / attestation['build_id'] / 'modules'
             runtime = project / ('runtime-' + attestation['attestation_id'])
             runtime.mkdir()
+            env = dict(os.environ, LEAN_PATH=str(runtime))
+            stage_runtime(runtime, lean, env)
             files = list(generated.rglob('*.lean'))
             completed = set()
-            env = dict(os.environ, LEAN_PATH=str(runtime))
             while files:
                 ready = next((p for p in files if set(re.findall(r'public import (Uorc\.[\w.]+)',
                                                                                 p.read_text())) <= completed), None)
