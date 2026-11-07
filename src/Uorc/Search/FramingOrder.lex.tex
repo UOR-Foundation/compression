@@ -124,7 +124,8 @@ theorem{
   name: complete_size_order_reflects_body_order,
   parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
   statement: (((widthOrderCompatible left right leftWidth rightWidth) = true) -> (((completeSize header left leftWidth) < (completeSize header right rightWidth)) <-> (left < right))),
-  proof: linear_arithmetic{definitions: [completeSize, integrityBytes, widthOrderCompatible]}
+  proof: linear_arithmetic{definitions: [completeSize, integrityBytes, widthOrderCompatible]},
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 theorem{
@@ -159,7 +160,8 @@ theorem{
       }
     ],
     scrutinee: thresholds
-  }
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 definition{
@@ -180,48 +182,425 @@ theorem{
   name: u64_width_formula_matches_thresholds,
   parameters: [value : Nat],
   statement: ((u64WidthFormula value) = (widthAtThresholds (cons 128 (cons 16384 (cons 2097152 (cons 268435456 (cons 34359738368 (cons 4398046511104 (cons 562949953421312 (cons 72057594037927936 (cons 9223372036854775808 (nil Nat)))))))))) value)),
-  proof: linear_arithmetic{definitions: [u64WidthFormula, widthAtThresholds]}
+  proof: linear_arithmetic{definitions: [u64WidthFormula, widthAtThresholds]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{name: fo_width_unit_order, parameters: [], statement: (0 < 1), proof: decide{}}
+
+theorem{
+  name: fo_width_thresholds_monotone_iff,
+  parameters: [thresholds : (List Nat), left : Nat, right : Nat],
+  statement: (((left <= right) -> ((widthAtThresholds thresholds left) <= (widthAtThresholds thresholds right))) <-> (0 < 1)),
+  proof: constructor{
+    branches: [
+      linear_arithmetic{},
+      induction{
+        branches: [
+          {
+            proof: linear_arithmetic{definitions: [widthAtThresholds]},
+            binders: [],
+            constructor: nil
+          },
+          {
+            proof: linear_arithmetic{definitions: [widthAtThresholds]},
+            binders: [threshold, rest, ih],
+            constructor: cons
+          }
+        ],
+        scrutinee: thresholds
+      }
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 theorem{
   name: u64_width_formula_monotone,
   parameters: [left : Nat, right : Nat],
   statement: ((left <= right) -> ((u64WidthFormula left) <= (u64WidthFormula right))),
-  proof: simplify{definitions: [u64_width_formula_matches_thresholds, width_at_thresholds_monotone]}
+  proof: simplify{
+    definitions: [
+      fo_width_thresholds_monotone_iff,
+      fo_width_unit_order,
+      u64_width_formula_matches_thresholds
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: fo_width_checkedWidthLaw,
+  parameters: [result : (Option Nat), value : Nat],
+  result: Prop,
+  body: (match result
+    | Option.none => (0 = 0)
+    | Option.some width => ((value < 18446744073709551616) /\ ((1 <= width) /\ (width <= 10))))
+}
+
+theorem{
+  name: fo_width_unrepresentable_width_law,
+  parameters: [value : Nat],
+  statement: (((value <? 18446744073709551616) = false) -> (fo_width_checkedWidthLaw (ctor Option.none [Nat]) value)),
+  proof: linear_arithmetic{definitions: [fo_width_checkedWidthLaw]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_width_representable_width_law,
+  parameters: [value : Nat],
+  statement: (((value <? 18446744073709551616) = true) -> (fo_width_checkedWidthLaw (ctor Option.some [Nat] (u64WidthFormula value)) value)),
+  proof: linear_arithmetic{definitions: [fo_width_checkedWidthLaw, u64WidthFormula]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: fo_width_guarded_width_law,
+  parameters: [guard : Bool, value : Nat],
+  statement: (((value <? 18446744073709551616) = guard) -> (fo_width_checkedWidthLaw (if guard then (ctor Option.some [Nat] (u64WidthFormula value)) else (ctor Option.none [Nat])) value)),
+  proof: cases{
+    branches: [
+      {
+        proof: apply{arguments: [value], theorem: fo_width_unrepresentable_width_law},
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: apply{arguments: [value], theorem: fo_width_representable_width_law},
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: guard
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: fo_width_checked_width_law,
+  parameters: [value : Nat],
+  statement: (fo_width_checkedWidthLaw (checkedU64ULEBLength value) value),
+  proof: simplify{definitions: [checkedU64ULEBLength, fo_width_guarded_width_law]},
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 theorem{
   name: checked_uleb_success_is_representable,
-  parameters: [value : Nat, width : Nat],
-  statement: (((checkedU64ULEBLength value) = (ctor Option.some [Nat] width)) -> ((value < 18446744073709551616) /\ ((1 <= width) /\ (width <= 10)))),
-  proof: linear_arithmetic{definitions: [checkedU64ULEBLength, u64WidthFormula]}
+  parameters: [value : Nat],
+  statement: (match (checkedU64ULEBLength value)
+    | Option.none => (0 = 0)
+    | Option.some width => ((value < 18446744073709551616) /\ ((1 <= width) /\ (width <= 10)))),
+  proof: apply{arguments: [value], theorem: fo_width_checked_width_law},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: fo_width_checkedPairOrderLaw,
+  parameters: [leftResult : (Option Nat), rightResult : (Option Nat), left : Nat, right : Nat],
+  result: Prop,
+  body: (match leftResult
+    | Option.none => (0 = 0)
+    | Option.some leftWidth => (match rightResult
+      | Option.none => (0 = 0)
+      | Option.some rightWidth => ((widthOrderCompatible left right leftWidth rightWidth) = true)))
+}
+
+theorem{
+  name: fo_width_order_left_unrepresentable,
+  parameters: [left : Nat, right : Nat, rightGuard : Bool],
+  statement: (((left <? 18446744073709551616) = false) -> (((right <? 18446744073709551616) = rightGuard) -> (fo_width_checkedPairOrderLaw (ctor Option.none [Nat]) (if rightGuard then (ctor Option.some [Nat] (u64WidthFormula right)) else (ctor Option.none [Nat])) left right))),
+  proof: linear_arithmetic{definitions: [fo_width_checkedPairOrderLaw]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_width_order_right_unrepresentable,
+  parameters: [left : Nat, right : Nat],
+  statement: (((left <? 18446744073709551616) = true) -> (((right <? 18446744073709551616) = false) -> (fo_width_checkedPairOrderLaw (ctor Option.some [Nat] (u64WidthFormula left)) (ctor Option.none [Nat]) left right))),
+  proof: linear_arithmetic{definitions: [fo_width_checkedPairOrderLaw]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_width_order_representable,
+  parameters: [left : Nat, right : Nat],
+  statement: (((left <? 18446744073709551616) = true) -> (((right <? 18446744073709551616) = true) -> (fo_width_checkedPairOrderLaw (ctor Option.some [Nat] (u64WidthFormula left)) (ctor Option.some [Nat] (u64WidthFormula right)) left right))),
+  proof: linear_arithmetic{
+    definitions: [fo_width_checkedPairOrderLaw, u64WidthFormula, widthOrderCompatible]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: fo_width_order_guarded,
+  parameters: [leftGuard : Bool, rightGuard : Bool, left : Nat, right : Nat],
+  statement: (((left <? 18446744073709551616) = leftGuard) -> (((right <? 18446744073709551616) = rightGuard) -> (fo_width_checkedPairOrderLaw (if leftGuard then (ctor Option.some [Nat] (u64WidthFormula left)) else (ctor Option.none [Nat])) (if rightGuard then (ctor Option.some [Nat] (u64WidthFormula right)) else (ctor Option.none [Nat])) left right))),
+  proof: cases{
+    branches: [
+      {
+        proof: apply{
+          arguments: [left, right, rightGuard],
+          theorem: fo_width_order_left_unrepresentable
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: apply{arguments: [left, right], theorem: fo_width_order_right_unrepresentable},
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: apply{arguments: [left, right], theorem: fo_width_order_representable},
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: rightGuard
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: leftGuard
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: fo_width_order_checked,
+  parameters: [left : Nat, right : Nat],
+  statement: (fo_width_checkedPairOrderLaw (checkedU64ULEBLength left) (checkedU64ULEBLength right) left right),
+  proof: simplify{definitions: [checkedU64ULEBLength, fo_width_order_guarded]},
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 theorem{
   name: checked_uleb_pair_width_compatible,
-  parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
-  statement: (((checkedU64ULEBLength left) = (ctor Option.some [Nat] leftWidth)) -> (((checkedU64ULEBLength right) = (ctor Option.some [Nat] rightWidth)) -> ((widthOrderCompatible left right leftWidth rightWidth) = true))),
+  parameters: [left : Nat, right : Nat],
+  statement: (match (checkedU64ULEBLength left)
+    | Option.none => (0 = 0)
+    | Option.some leftWidth => (match (checkedU64ULEBLength right)
+      | Option.none => (0 = 0)
+      | Option.some rightWidth => ((widthOrderCompatible left right leftWidth rightWidth) = true))),
+  proof: apply{arguments: [left, right], theorem: fo_width_order_checked},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: fo_width_checkedPairStrictLaw,
+  parameters: [
+    leftResult : (Option Nat),
+    rightResult : (Option Nat),
+    header : Nat,
+    left : Nat,
+    right : Nat
+  ],
+  result: Prop,
+  body: (match leftResult
+    | Option.none => (0 = 0)
+    | Option.some leftWidth => (match rightResult
+      | Option.none => (0 = 0)
+      | Option.some rightWidth => ((left < right) -> ((completeSize header left leftWidth) < (completeSize header right rightWidth)))))
+}
+
+theorem{
+  name: fo_width_strict_left_unrepresentable,
+  parameters: [header : Nat, left : Nat, right : Nat, rightGuard : Bool],
+  statement: (((left <? 18446744073709551616) = false) -> (((right <? 18446744073709551616) = rightGuard) -> (fo_width_checkedPairStrictLaw (ctor Option.none [Nat]) (if rightGuard then (ctor Option.some [Nat] (u64WidthFormula right)) else (ctor Option.none [Nat])) header left right))),
+  proof: linear_arithmetic{definitions: [fo_width_checkedPairStrictLaw]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_width_strict_right_unrepresentable,
+  parameters: [header : Nat, left : Nat, right : Nat],
+  statement: (((left <? 18446744073709551616) = true) -> (((right <? 18446744073709551616) = false) -> (fo_width_checkedPairStrictLaw (ctor Option.some [Nat] (u64WidthFormula left)) (ctor Option.none [Nat]) header left right))),
+  proof: linear_arithmetic{definitions: [fo_width_checkedPairStrictLaw]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_width_strict_representable,
+  parameters: [header : Nat, left : Nat, right : Nat],
+  statement: (((left <? 18446744073709551616) = true) -> (((right <? 18446744073709551616) = true) -> (fo_width_checkedPairStrictLaw (ctor Option.some [Nat] (u64WidthFormula left)) (ctor Option.some [Nat] (u64WidthFormula right)) header left right))),
   proof: linear_arithmetic{
-    definitions: [checkedU64ULEBLength, u64WidthFormula, widthOrderCompatible]
-  }
+    definitions: [completeSize, fo_width_checkedPairStrictLaw, integrityBytes, u64WidthFormula]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_width_strict_guarded,
+  parameters: [leftGuard : Bool, rightGuard : Bool, header : Nat, left : Nat, right : Nat],
+  statement: (((left <? 18446744073709551616) = leftGuard) -> (((right <? 18446744073709551616) = rightGuard) -> (fo_width_checkedPairStrictLaw (if leftGuard then (ctor Option.some [Nat] (u64WidthFormula left)) else (ctor Option.none [Nat])) (if rightGuard then (ctor Option.some [Nat] (u64WidthFormula right)) else (ctor Option.none [Nat])) header left right))),
+  proof: cases{
+    branches: [
+      {
+        proof: apply{
+          arguments: [header, left, right, rightGuard],
+          theorem: fo_width_strict_left_unrepresentable
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: apply{
+                arguments: [header, left, right],
+                theorem: fo_width_strict_right_unrepresentable
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: apply{
+                arguments: [header, left, right],
+                theorem: fo_width_strict_representable
+              },
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: rightGuard
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: leftGuard
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_width_strict_checked,
+  parameters: [header : Nat, left : Nat, right : Nat],
+  statement: (fo_width_checkedPairStrictLaw (checkedU64ULEBLength left) (checkedU64ULEBLength right) header left right),
+  proof: simplify{definitions: [checkedU64ULEBLength, fo_width_strict_guarded]},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: checked_uleb_complete_size_strict_mono,
-  parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
-  statement: (((checkedU64ULEBLength left) = (ctor Option.some [Nat] leftWidth)) -> (((checkedU64ULEBLength right) = (ctor Option.some [Nat] rightWidth)) -> ((left < right) -> ((completeSize header left leftWidth) < (completeSize header right rightWidth))))),
+  parameters: [header : Nat, left : Nat, right : Nat],
+  statement: (match (checkedU64ULEBLength left)
+    | Option.none => (0 = 0)
+    | Option.some leftWidth => (match (checkedU64ULEBLength right)
+      | Option.none => (0 = 0)
+      | Option.some rightWidth => ((left < right) -> ((completeSize header left leftWidth) < (completeSize header right rightWidth))))),
+  proof: apply{arguments: [header, left, right], theorem: fo_width_strict_checked},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: fo_width_checkedPairEqualLaw,
+  parameters: [
+    leftResult : (Option Nat),
+    rightResult : (Option Nat),
+    header : Nat,
+    left : Nat,
+    right : Nat
+  ],
+  result: Prop,
+  body: (match leftResult
+    | Option.none => (0 = 0)
+    | Option.some leftWidth => (match rightResult
+      | Option.none => (0 = 0)
+      | Option.some rightWidth => (((completeSize header left leftWidth) = (completeSize header right rightWidth)) -> (left = right))))
+}
+
+theorem{
+  name: fo_width_equal_left_unrepresentable,
+  parameters: [header : Nat, left : Nat, right : Nat, rightGuard : Bool],
+  statement: (((left <? 18446744073709551616) = false) -> (((right <? 18446744073709551616) = rightGuard) -> (fo_width_checkedPairEqualLaw (ctor Option.none [Nat]) (if rightGuard then (ctor Option.some [Nat] (u64WidthFormula right)) else (ctor Option.none [Nat])) header left right))),
+  proof: linear_arithmetic{definitions: [fo_width_checkedPairEqualLaw]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_width_equal_right_unrepresentable,
+  parameters: [header : Nat, left : Nat, right : Nat],
+  statement: (((left <? 18446744073709551616) = true) -> (((right <? 18446744073709551616) = false) -> (fo_width_checkedPairEqualLaw (ctor Option.some [Nat] (u64WidthFormula left)) (ctor Option.none [Nat]) header left right))),
+  proof: linear_arithmetic{definitions: [fo_width_checkedPairEqualLaw]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_width_equal_representable,
+  parameters: [header : Nat, left : Nat, right : Nat],
+  statement: (((left <? 18446744073709551616) = true) -> (((right <? 18446744073709551616) = true) -> (fo_width_checkedPairEqualLaw (ctor Option.some [Nat] (u64WidthFormula left)) (ctor Option.some [Nat] (u64WidthFormula right)) header left right))),
   proof: linear_arithmetic{
-    definitions: [checkedU64ULEBLength, completeSize, integrityBytes, u64WidthFormula]
-  }
+    definitions: [completeSize, fo_width_checkedPairEqualLaw, integrityBytes, u64WidthFormula]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_width_equal_guarded,
+  parameters: [leftGuard : Bool, rightGuard : Bool, header : Nat, left : Nat, right : Nat],
+  statement: (((left <? 18446744073709551616) = leftGuard) -> (((right <? 18446744073709551616) = rightGuard) -> (fo_width_checkedPairEqualLaw (if leftGuard then (ctor Option.some [Nat] (u64WidthFormula left)) else (ctor Option.none [Nat])) (if rightGuard then (ctor Option.some [Nat] (u64WidthFormula right)) else (ctor Option.none [Nat])) header left right))),
+  proof: cases{
+    branches: [
+      {
+        proof: apply{
+          arguments: [header, left, right, rightGuard],
+          theorem: fo_width_equal_left_unrepresentable
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: apply{
+                arguments: [header, left, right],
+                theorem: fo_width_equal_right_unrepresentable
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: apply{arguments: [header, left, right], theorem: fo_width_equal_representable},
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: rightGuard
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: leftGuard
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_width_equal_checked,
+  parameters: [header : Nat, left : Nat, right : Nat],
+  statement: (fo_width_checkedPairEqualLaw (checkedU64ULEBLength left) (checkedU64ULEBLength right) header left right),
+  proof: simplify{definitions: [checkedU64ULEBLength, fo_width_equal_guarded]},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: checked_uleb_equal_complete_sizes_equal_body_lengths,
-  parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
-  statement: (((checkedU64ULEBLength left) = (ctor Option.some [Nat] leftWidth)) -> (((checkedU64ULEBLength right) = (ctor Option.some [Nat] rightWidth)) -> (((completeSize header left leftWidth) = (completeSize header right rightWidth)) -> (left = right)))),
-  proof: linear_arithmetic{
-    definitions: [checkedU64ULEBLength, completeSize, integrityBytes, u64WidthFormula]
-  }
+  parameters: [header : Nat, left : Nat, right : Nat],
+  statement: (match (checkedU64ULEBLength left)
+    | Option.none => (0 = 0)
+    | Option.some leftWidth => (match (checkedU64ULEBLength right)
+      | Option.none => (0 = 0)
+      | Option.some rightWidth => (((completeSize header left leftWidth) = (completeSize header right rightWidth)) -> (left = right)))),
+  proof: apply{arguments: [header, left, right], theorem: fo_width_equal_checked},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -306,7 +685,16 @@ theorem{
   name: nat_beq_self,
   parameters: [value : Nat],
   statement: ((value =? value) = true),
-  proof: linear_arithmetic{}
+  proof: linear_arithmetic{},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_word_less_cons_same,
+  parameters: [head : Nat, left : (List Nat), right : (List Nat)],
+  statement: ((wordLess (cons head left) (cons head right)) = (wordLess left right)),
+  proof: linear_arithmetic{definitions: [wordLess]},
+  axioms: [propext]
 }
 
 theorem{
@@ -317,20 +705,70 @@ theorem{
     branches: [
       {proof: simplify{definitions: [appendWords]}, binders: [], constructor: nil},
       {
-        proof: simplify{definitions: [appendWords, ih, nat_beq_self, wordLess]},
+        proof: simplify{definitions: [appendWords, fo_word_less_cons_same, ih]},
         binders: [head, tail, ih],
         constructor: cons
       }
     ],
     scrutinee: prefix
-  }
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_word_lt_blt,
+  parameters: [left : Nat, right : Nat],
+  statement: ((left < right) <-> ((left <? right) = true)),
+  proof: linear_arithmetic{},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_word_imp,
+  parameters: [],
+  statement: (forall (x : Bool), (forall (y : Bool), (((x = true) -> (y = true)) <-> (((not x) || y) = true)))),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: fo_word_or_ite,
+  parameters: [],
+  statement: (forall (c : Bool), (forall (e : Bool), (forall (w : Bool), (((not c) || (if e then w else c)) = (((not c) || (not e)) || w))))),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: fo_word_blt_beq,
+  parameters: [left : Nat, right : Nat],
+  statement: (((not (left <? right)) || (not (left =? right))) = true),
+  proof: linear_arithmetic{},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: fo_word_true_or,
+  parameters: [value : Bool],
+  statement: ((true || value) = true),
+  proof: reflexivity{}
 }
 
 theorem{
   name: smaller_first_word_decides,
   parameters: [leftWord : Nat, rightWord : Nat, leftTail : (List Nat), rightTail : (List Nat)],
   statement: ((leftWord < rightWord) -> ((wordLess (cons leftWord leftTail) (cons rightWord rightTail)) = true)),
-  proof: linear_arithmetic{definitions: [wordLess]}
+  proof: simplify{
+    definitions: [
+      fo_word_blt_beq,
+      fo_word_imp,
+      fo_word_lt_blt,
+      fo_word_or_ite,
+      fo_word_true_or,
+      wordLess
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 inductive{
@@ -364,6 +802,29 @@ definition{
 }
 
 theorem{
+  name: fo_word_beq_gap,
+  parameters: [low : Nat, gap : Nat],
+  statement: ((low =? ((low + gap) + 1)) = false),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_word_blt_gap,
+  parameters: [low : Nat, gap : Nat],
+  statement: ((low <? ((low + gap) + 1)) = true),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_word_ite_false,
+  parameters: [whenTrue : Bool, whenFalse : Bool],
+  statement: ((if false then whenTrue else whenFalse) = whenFalse),
+  proof: reflexivity{}
+}
+
+theorem{
   name: first_difference_beats_arbitrary_integrity,
   parameters: [
     difference : FirstDifference,
@@ -374,18 +835,28 @@ theorem{
   proof: induction{
     branches: [
       {
-        proof: linear_arithmetic{definitions: [differenceLeft, differenceRight, wordLess]},
+        proof: simplify{
+          definitions: [
+            differenceLeft,
+            differenceRight,
+            fo_word_beq_gap,
+            fo_word_blt_gap,
+            fo_word_ite_false,
+            wordLess
+          ]
+        },
         binders: [low, gap, leftTail, rightTail],
         constructor: here
       },
       {
-        proof: simplify{definitions: [differenceLeft, differenceRight, ih, nat_beq_self, wordLess]},
+        proof: simplify{definitions: [differenceLeft, differenceRight, fo_word_less_cons_same, ih]},
         binders: [head, rest, ih],
         constructor: next
       }
     ],
     scrutinee: difference
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -396,12 +867,24 @@ definition{
 }
 
 theorem{
+  name: fo_word_less_zero_one,
+  parameters: [left : (List Nat), right : (List Nat)],
+  statement: ((wordLess (cons 0 left) (cons 1 right)) = true),
+  proof: reflexivity{}
+}
+
+theorem{
   name: raw_tag_beats_program_tag_for_any_tails,
   parameters: [prefix : (List Nat), rawTail : (List Nat), programTail : (List Nat)],
   statement: ((rawProgramTagComparison prefix rawTail programTail) = true),
   proof: simplify{
-    definitions: [common_prefix_preserves_word_order, rawProgramTagComparison, wordLess]
-  }
+    definitions: [
+      common_prefix_preserves_word_order,
+      fo_word_less_zero_one,
+      rawProgramTagComparison
+    ]
+  },
+  axioms: [propext]
 }
 
 definition{
@@ -415,7 +898,8 @@ theorem{
   name: identical_preimages_have_identical_deterministic_digest,
   parameters: [digest : (Fn (Bytes) Bytes), leftPreimage : Bytes, rightPreimage : Bytes],
   statement: ((leftPreimage = rightPreimage) -> ((digestOf digest leftPreimage) = (digestOf digest rightPreimage))),
-  proof: linear_arithmetic{definitions: [digestOf]}
+  proof: linear_arithmetic{definitions: [digestOf]},
+  axioms: [propext]
 }
 
 definition{
@@ -457,14 +941,16 @@ theorem{
     archiveLength : Nat
   ],
   statement: ((frameSizeLinkObligation prepared header measuredPreimageLength) -> ((archiveLength = (measuredPreimageLength + (integrityBytes))) -> (archiveLength = (completeSize header (project prepared bodyLength) (natULEBLengthCandidate (project prepared bodyLength)))))),
-  proof: linear_arithmetic{definitions: [completeSize, frameSizeLinkObligation, integrityBytes]}
+  proof: linear_arithmetic{definitions: [completeSize, frameSizeLinkObligation, integrityBytes]},
+  axioms: [propext]
 }
 
 theorem{
   name: nat_uleb_quotient_decreases,
   parameters: [value : Nat],
   statement: (((value <? 128) = false) -> ((prim quotient value 128 0 : Nat) < value)),
-  proof: linear_arithmetic{}
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -472,6 +958,7 @@ definition{
   parameters: [value : Nat],
   result: Nat,
   body: (if (value <? 128) then 1 else (1 + (natShortestULEBLength (prim quotient value 128 0 : Nat)))),
+  axioms: [Quot.sound, propext],
   termination: {evidence: [nat_uleb_quotient_decreases], measure: value}
 }
 
@@ -480,14 +967,1704 @@ definition{
   parameters: [value : Nat],
   result: (List Nat),
   body: (if (value <? 128) then (cons value (nil Nat)) else (cons ((prim remainder value 128 0 : Nat) + 128) (natCanonicalULEBWords (prim quotient value 128 0 : Nat)))),
+  axioms: [Quot.sound, propext],
   termination: {evidence: [nat_uleb_quotient_decreases], measure: value}
+}
+
+theorem{
+  name: fo_count_terminal_above,
+  parameters: [rest : Nat],
+  statement: ((((rest + 128) <? 128) = true) -> (((natShortestULEBLength (rest + 128)) = 1) /\ ((natCanonicalULEBWords (rest + 128)) = (cons (rest + 128) (nil Nat))))),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_count_terminal_from_112,
+  parameters: [rest : Nat],
+  statement: ((((rest + 112) <? 128) = true) -> (((natShortestULEBLength (rest + 112)) = 1) /\ ((natCanonicalULEBWords (rest + 112)) = (cons (rest + 112) (nil Nat))))),
+  proof: cases{
+    branches: [
+      {proof: decide{}, binders: [], constructor: zero},
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: zero},
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: zero},
+                  {
+                    proof: cases{
+                      branches: [
+                        {proof: decide{}, binders: [], constructor: zero},
+                        {
+                          proof: cases{
+                            branches: [
+                              {proof: decide{}, binders: [], constructor: zero},
+                              {
+                                proof: cases{
+                                  branches: [
+                                    {proof: decide{}, binders: [], constructor: zero},
+                                    {
+                                      proof: cases{
+                                        branches: [
+                                          {proof: decide{}, binders: [], constructor: zero},
+                                          {
+                                            proof: cases{
+                                              branches: [
+                                                {proof: decide{}, binders: [], constructor: zero},
+                                                {
+                                                  proof: cases{
+                                                    branches: [
+                                                      {
+                                                        proof: decide{},
+                                                        binders: [],
+                                                        constructor: zero
+                                                      },
+                                                      {
+                                                        proof: cases{
+                                                          branches: [
+                                                            {
+                                                              proof: decide{},
+                                                              binders: [],
+                                                              constructor: zero
+                                                            },
+                                                            {
+                                                              proof: cases{
+                                                                branches: [
+                                                                  {
+                                                                    proof: decide{},
+                                                                    binders: [],
+                                                                    constructor: zero
+                                                                  },
+                                                                  {
+                                                                    proof: cases{
+                                                                      branches: [
+                                                                        {
+                                                                          proof: decide{},
+                                                                          binders: [],
+                                                                          constructor: zero
+                                                                        },
+                                                                        {
+                                                                          proof: cases{
+                                                                            branches: [
+                                                                              {
+                                                                                proof: decide{},
+                                                                                binders: [],
+                                                                                constructor: zero
+                                                                              },
+                                                                              {
+                                                                                proof: cases{
+                                                                                  branches: [
+                                                                                    {
+                                                                                      proof: decide{},
+                                                                                      binders: [],
+                                                                                      constructor: zero
+                                                                                    },
+                                                                                    {
+                                                                                      proof: cases{
+                                                                                        branches: [
+                                                                                          {
+                                                                                            proof: decide{},
+                                                                                            binders: [],
+                                                                                            constructor: zero
+                                                                                          },
+                                                                                          {
+                                                                                            proof: cases{
+                                                                                              branches: [
+                                                                                                {
+                                                                                                  proof: decide{},
+                                                                                                  binders: [],
+                                                                                                  constructor: zero
+                                                                                                },
+                                                                                                {
+                                                                                                  proof: apply{
+                                                                                                    arguments: [
+                                                                                                      r16
+                                                                                                    ],
+                                                                                                    theorem: fo_count_terminal_above
+                                                                                                  },
+                                                                                                  binders: [
+                                                                                                    r16
+                                                                                                  ],
+                                                                                                  constructor: succ
+                                                                                                }
+                                                                                              ],
+                                                                                              scrutinee: r15
+                                                                                            },
+                                                                                            binders: [
+                                                                                              r15
+                                                                                            ],
+                                                                                            constructor: succ
+                                                                                          }
+                                                                                        ],
+                                                                                        scrutinee: r14
+                                                                                      },
+                                                                                      binders: [
+                                                                                        r14
+                                                                                      ],
+                                                                                      constructor: succ
+                                                                                    }
+                                                                                  ],
+                                                                                  scrutinee: r13
+                                                                                },
+                                                                                binders: [r13],
+                                                                                constructor: succ
+                                                                              }
+                                                                            ],
+                                                                            scrutinee: r12
+                                                                          },
+                                                                          binders: [r12],
+                                                                          constructor: succ
+                                                                        }
+                                                                      ],
+                                                                      scrutinee: r11
+                                                                    },
+                                                                    binders: [r11],
+                                                                    constructor: succ
+                                                                  }
+                                                                ],
+                                                                scrutinee: r10
+                                                              },
+                                                              binders: [r10],
+                                                              constructor: succ
+                                                            }
+                                                          ],
+                                                          scrutinee: r9
+                                                        },
+                                                        binders: [r9],
+                                                        constructor: succ
+                                                      }
+                                                    ],
+                                                    scrutinee: r8
+                                                  },
+                                                  binders: [r8],
+                                                  constructor: succ
+                                                }
+                                              ],
+                                              scrutinee: r7
+                                            },
+                                            binders: [r7],
+                                            constructor: succ
+                                          }
+                                        ],
+                                        scrutinee: r6
+                                      },
+                                      binders: [r6],
+                                      constructor: succ
+                                    }
+                                  ],
+                                  scrutinee: r5
+                                },
+                                binders: [r5],
+                                constructor: succ
+                              }
+                            ],
+                            scrutinee: r4
+                          },
+                          binders: [r4],
+                          constructor: succ
+                        }
+                      ],
+                      scrutinee: r3
+                    },
+                    binders: [r3],
+                    constructor: succ
+                  }
+                ],
+                scrutinee: r2
+              },
+              binders: [r2],
+              constructor: succ
+            }
+          ],
+          scrutinee: r1
+        },
+        binders: [r1],
+        constructor: succ
+      }
+    ],
+    scrutinee: rest
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_count_terminal_from_96,
+  parameters: [rest : Nat],
+  statement: ((((rest + 96) <? 128) = true) -> (((natShortestULEBLength (rest + 96)) = 1) /\ ((natCanonicalULEBWords (rest + 96)) = (cons (rest + 96) (nil Nat))))),
+  proof: cases{
+    branches: [
+      {proof: decide{}, binders: [], constructor: zero},
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: zero},
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: zero},
+                  {
+                    proof: cases{
+                      branches: [
+                        {proof: decide{}, binders: [], constructor: zero},
+                        {
+                          proof: cases{
+                            branches: [
+                              {proof: decide{}, binders: [], constructor: zero},
+                              {
+                                proof: cases{
+                                  branches: [
+                                    {proof: decide{}, binders: [], constructor: zero},
+                                    {
+                                      proof: cases{
+                                        branches: [
+                                          {proof: decide{}, binders: [], constructor: zero},
+                                          {
+                                            proof: cases{
+                                              branches: [
+                                                {proof: decide{}, binders: [], constructor: zero},
+                                                {
+                                                  proof: cases{
+                                                    branches: [
+                                                      {
+                                                        proof: decide{},
+                                                        binders: [],
+                                                        constructor: zero
+                                                      },
+                                                      {
+                                                        proof: cases{
+                                                          branches: [
+                                                            {
+                                                              proof: decide{},
+                                                              binders: [],
+                                                              constructor: zero
+                                                            },
+                                                            {
+                                                              proof: cases{
+                                                                branches: [
+                                                                  {
+                                                                    proof: decide{},
+                                                                    binders: [],
+                                                                    constructor: zero
+                                                                  },
+                                                                  {
+                                                                    proof: cases{
+                                                                      branches: [
+                                                                        {
+                                                                          proof: decide{},
+                                                                          binders: [],
+                                                                          constructor: zero
+                                                                        },
+                                                                        {
+                                                                          proof: cases{
+                                                                            branches: [
+                                                                              {
+                                                                                proof: decide{},
+                                                                                binders: [],
+                                                                                constructor: zero
+                                                                              },
+                                                                              {
+                                                                                proof: cases{
+                                                                                  branches: [
+                                                                                    {
+                                                                                      proof: decide{},
+                                                                                      binders: [],
+                                                                                      constructor: zero
+                                                                                    },
+                                                                                    {
+                                                                                      proof: cases{
+                                                                                        branches: [
+                                                                                          {
+                                                                                            proof: decide{},
+                                                                                            binders: [],
+                                                                                            constructor: zero
+                                                                                          },
+                                                                                          {
+                                                                                            proof: cases{
+                                                                                              branches: [
+                                                                                                {
+                                                                                                  proof: decide{},
+                                                                                                  binders: [],
+                                                                                                  constructor: zero
+                                                                                                },
+                                                                                                {
+                                                                                                  proof: apply{
+                                                                                                    arguments: [
+                                                                                                      r16
+                                                                                                    ],
+                                                                                                    theorem: fo_count_terminal_from_112
+                                                                                                  },
+                                                                                                  binders: [
+                                                                                                    r16
+                                                                                                  ],
+                                                                                                  constructor: succ
+                                                                                                }
+                                                                                              ],
+                                                                                              scrutinee: r15
+                                                                                            },
+                                                                                            binders: [
+                                                                                              r15
+                                                                                            ],
+                                                                                            constructor: succ
+                                                                                          }
+                                                                                        ],
+                                                                                        scrutinee: r14
+                                                                                      },
+                                                                                      binders: [
+                                                                                        r14
+                                                                                      ],
+                                                                                      constructor: succ
+                                                                                    }
+                                                                                  ],
+                                                                                  scrutinee: r13
+                                                                                },
+                                                                                binders: [r13],
+                                                                                constructor: succ
+                                                                              }
+                                                                            ],
+                                                                            scrutinee: r12
+                                                                          },
+                                                                          binders: [r12],
+                                                                          constructor: succ
+                                                                        }
+                                                                      ],
+                                                                      scrutinee: r11
+                                                                    },
+                                                                    binders: [r11],
+                                                                    constructor: succ
+                                                                  }
+                                                                ],
+                                                                scrutinee: r10
+                                                              },
+                                                              binders: [r10],
+                                                              constructor: succ
+                                                            }
+                                                          ],
+                                                          scrutinee: r9
+                                                        },
+                                                        binders: [r9],
+                                                        constructor: succ
+                                                      }
+                                                    ],
+                                                    scrutinee: r8
+                                                  },
+                                                  binders: [r8],
+                                                  constructor: succ
+                                                }
+                                              ],
+                                              scrutinee: r7
+                                            },
+                                            binders: [r7],
+                                            constructor: succ
+                                          }
+                                        ],
+                                        scrutinee: r6
+                                      },
+                                      binders: [r6],
+                                      constructor: succ
+                                    }
+                                  ],
+                                  scrutinee: r5
+                                },
+                                binders: [r5],
+                                constructor: succ
+                              }
+                            ],
+                            scrutinee: r4
+                          },
+                          binders: [r4],
+                          constructor: succ
+                        }
+                      ],
+                      scrutinee: r3
+                    },
+                    binders: [r3],
+                    constructor: succ
+                  }
+                ],
+                scrutinee: r2
+              },
+              binders: [r2],
+              constructor: succ
+            }
+          ],
+          scrutinee: r1
+        },
+        binders: [r1],
+        constructor: succ
+      }
+    ],
+    scrutinee: rest
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_count_terminal_from_80,
+  parameters: [rest : Nat],
+  statement: ((((rest + 80) <? 128) = true) -> (((natShortestULEBLength (rest + 80)) = 1) /\ ((natCanonicalULEBWords (rest + 80)) = (cons (rest + 80) (nil Nat))))),
+  proof: cases{
+    branches: [
+      {proof: decide{}, binders: [], constructor: zero},
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: zero},
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: zero},
+                  {
+                    proof: cases{
+                      branches: [
+                        {proof: decide{}, binders: [], constructor: zero},
+                        {
+                          proof: cases{
+                            branches: [
+                              {proof: decide{}, binders: [], constructor: zero},
+                              {
+                                proof: cases{
+                                  branches: [
+                                    {proof: decide{}, binders: [], constructor: zero},
+                                    {
+                                      proof: cases{
+                                        branches: [
+                                          {proof: decide{}, binders: [], constructor: zero},
+                                          {
+                                            proof: cases{
+                                              branches: [
+                                                {proof: decide{}, binders: [], constructor: zero},
+                                                {
+                                                  proof: cases{
+                                                    branches: [
+                                                      {
+                                                        proof: decide{},
+                                                        binders: [],
+                                                        constructor: zero
+                                                      },
+                                                      {
+                                                        proof: cases{
+                                                          branches: [
+                                                            {
+                                                              proof: decide{},
+                                                              binders: [],
+                                                              constructor: zero
+                                                            },
+                                                            {
+                                                              proof: cases{
+                                                                branches: [
+                                                                  {
+                                                                    proof: decide{},
+                                                                    binders: [],
+                                                                    constructor: zero
+                                                                  },
+                                                                  {
+                                                                    proof: cases{
+                                                                      branches: [
+                                                                        {
+                                                                          proof: decide{},
+                                                                          binders: [],
+                                                                          constructor: zero
+                                                                        },
+                                                                        {
+                                                                          proof: cases{
+                                                                            branches: [
+                                                                              {
+                                                                                proof: decide{},
+                                                                                binders: [],
+                                                                                constructor: zero
+                                                                              },
+                                                                              {
+                                                                                proof: cases{
+                                                                                  branches: [
+                                                                                    {
+                                                                                      proof: decide{},
+                                                                                      binders: [],
+                                                                                      constructor: zero
+                                                                                    },
+                                                                                    {
+                                                                                      proof: cases{
+                                                                                        branches: [
+                                                                                          {
+                                                                                            proof: decide{},
+                                                                                            binders: [],
+                                                                                            constructor: zero
+                                                                                          },
+                                                                                          {
+                                                                                            proof: cases{
+                                                                                              branches: [
+                                                                                                {
+                                                                                                  proof: decide{},
+                                                                                                  binders: [],
+                                                                                                  constructor: zero
+                                                                                                },
+                                                                                                {
+                                                                                                  proof: apply{
+                                                                                                    arguments: [
+                                                                                                      r16
+                                                                                                    ],
+                                                                                                    theorem: fo_count_terminal_from_96
+                                                                                                  },
+                                                                                                  binders: [
+                                                                                                    r16
+                                                                                                  ],
+                                                                                                  constructor: succ
+                                                                                                }
+                                                                                              ],
+                                                                                              scrutinee: r15
+                                                                                            },
+                                                                                            binders: [
+                                                                                              r15
+                                                                                            ],
+                                                                                            constructor: succ
+                                                                                          }
+                                                                                        ],
+                                                                                        scrutinee: r14
+                                                                                      },
+                                                                                      binders: [
+                                                                                        r14
+                                                                                      ],
+                                                                                      constructor: succ
+                                                                                    }
+                                                                                  ],
+                                                                                  scrutinee: r13
+                                                                                },
+                                                                                binders: [r13],
+                                                                                constructor: succ
+                                                                              }
+                                                                            ],
+                                                                            scrutinee: r12
+                                                                          },
+                                                                          binders: [r12],
+                                                                          constructor: succ
+                                                                        }
+                                                                      ],
+                                                                      scrutinee: r11
+                                                                    },
+                                                                    binders: [r11],
+                                                                    constructor: succ
+                                                                  }
+                                                                ],
+                                                                scrutinee: r10
+                                                              },
+                                                              binders: [r10],
+                                                              constructor: succ
+                                                            }
+                                                          ],
+                                                          scrutinee: r9
+                                                        },
+                                                        binders: [r9],
+                                                        constructor: succ
+                                                      }
+                                                    ],
+                                                    scrutinee: r8
+                                                  },
+                                                  binders: [r8],
+                                                  constructor: succ
+                                                }
+                                              ],
+                                              scrutinee: r7
+                                            },
+                                            binders: [r7],
+                                            constructor: succ
+                                          }
+                                        ],
+                                        scrutinee: r6
+                                      },
+                                      binders: [r6],
+                                      constructor: succ
+                                    }
+                                  ],
+                                  scrutinee: r5
+                                },
+                                binders: [r5],
+                                constructor: succ
+                              }
+                            ],
+                            scrutinee: r4
+                          },
+                          binders: [r4],
+                          constructor: succ
+                        }
+                      ],
+                      scrutinee: r3
+                    },
+                    binders: [r3],
+                    constructor: succ
+                  }
+                ],
+                scrutinee: r2
+              },
+              binders: [r2],
+              constructor: succ
+            }
+          ],
+          scrutinee: r1
+        },
+        binders: [r1],
+        constructor: succ
+      }
+    ],
+    scrutinee: rest
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_count_terminal_from_64,
+  parameters: [rest : Nat],
+  statement: ((((rest + 64) <? 128) = true) -> (((natShortestULEBLength (rest + 64)) = 1) /\ ((natCanonicalULEBWords (rest + 64)) = (cons (rest + 64) (nil Nat))))),
+  proof: cases{
+    branches: [
+      {proof: decide{}, binders: [], constructor: zero},
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: zero},
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: zero},
+                  {
+                    proof: cases{
+                      branches: [
+                        {proof: decide{}, binders: [], constructor: zero},
+                        {
+                          proof: cases{
+                            branches: [
+                              {proof: decide{}, binders: [], constructor: zero},
+                              {
+                                proof: cases{
+                                  branches: [
+                                    {proof: decide{}, binders: [], constructor: zero},
+                                    {
+                                      proof: cases{
+                                        branches: [
+                                          {proof: decide{}, binders: [], constructor: zero},
+                                          {
+                                            proof: cases{
+                                              branches: [
+                                                {proof: decide{}, binders: [], constructor: zero},
+                                                {
+                                                  proof: cases{
+                                                    branches: [
+                                                      {
+                                                        proof: decide{},
+                                                        binders: [],
+                                                        constructor: zero
+                                                      },
+                                                      {
+                                                        proof: cases{
+                                                          branches: [
+                                                            {
+                                                              proof: decide{},
+                                                              binders: [],
+                                                              constructor: zero
+                                                            },
+                                                            {
+                                                              proof: cases{
+                                                                branches: [
+                                                                  {
+                                                                    proof: decide{},
+                                                                    binders: [],
+                                                                    constructor: zero
+                                                                  },
+                                                                  {
+                                                                    proof: cases{
+                                                                      branches: [
+                                                                        {
+                                                                          proof: decide{},
+                                                                          binders: [],
+                                                                          constructor: zero
+                                                                        },
+                                                                        {
+                                                                          proof: cases{
+                                                                            branches: [
+                                                                              {
+                                                                                proof: decide{},
+                                                                                binders: [],
+                                                                                constructor: zero
+                                                                              },
+                                                                              {
+                                                                                proof: cases{
+                                                                                  branches: [
+                                                                                    {
+                                                                                      proof: decide{},
+                                                                                      binders: [],
+                                                                                      constructor: zero
+                                                                                    },
+                                                                                    {
+                                                                                      proof: cases{
+                                                                                        branches: [
+                                                                                          {
+                                                                                            proof: decide{},
+                                                                                            binders: [],
+                                                                                            constructor: zero
+                                                                                          },
+                                                                                          {
+                                                                                            proof: cases{
+                                                                                              branches: [
+                                                                                                {
+                                                                                                  proof: decide{},
+                                                                                                  binders: [],
+                                                                                                  constructor: zero
+                                                                                                },
+                                                                                                {
+                                                                                                  proof: apply{
+                                                                                                    arguments: [
+                                                                                                      r16
+                                                                                                    ],
+                                                                                                    theorem: fo_count_terminal_from_80
+                                                                                                  },
+                                                                                                  binders: [
+                                                                                                    r16
+                                                                                                  ],
+                                                                                                  constructor: succ
+                                                                                                }
+                                                                                              ],
+                                                                                              scrutinee: r15
+                                                                                            },
+                                                                                            binders: [
+                                                                                              r15
+                                                                                            ],
+                                                                                            constructor: succ
+                                                                                          }
+                                                                                        ],
+                                                                                        scrutinee: r14
+                                                                                      },
+                                                                                      binders: [
+                                                                                        r14
+                                                                                      ],
+                                                                                      constructor: succ
+                                                                                    }
+                                                                                  ],
+                                                                                  scrutinee: r13
+                                                                                },
+                                                                                binders: [r13],
+                                                                                constructor: succ
+                                                                              }
+                                                                            ],
+                                                                            scrutinee: r12
+                                                                          },
+                                                                          binders: [r12],
+                                                                          constructor: succ
+                                                                        }
+                                                                      ],
+                                                                      scrutinee: r11
+                                                                    },
+                                                                    binders: [r11],
+                                                                    constructor: succ
+                                                                  }
+                                                                ],
+                                                                scrutinee: r10
+                                                              },
+                                                              binders: [r10],
+                                                              constructor: succ
+                                                            }
+                                                          ],
+                                                          scrutinee: r9
+                                                        },
+                                                        binders: [r9],
+                                                        constructor: succ
+                                                      }
+                                                    ],
+                                                    scrutinee: r8
+                                                  },
+                                                  binders: [r8],
+                                                  constructor: succ
+                                                }
+                                              ],
+                                              scrutinee: r7
+                                            },
+                                            binders: [r7],
+                                            constructor: succ
+                                          }
+                                        ],
+                                        scrutinee: r6
+                                      },
+                                      binders: [r6],
+                                      constructor: succ
+                                    }
+                                  ],
+                                  scrutinee: r5
+                                },
+                                binders: [r5],
+                                constructor: succ
+                              }
+                            ],
+                            scrutinee: r4
+                          },
+                          binders: [r4],
+                          constructor: succ
+                        }
+                      ],
+                      scrutinee: r3
+                    },
+                    binders: [r3],
+                    constructor: succ
+                  }
+                ],
+                scrutinee: r2
+              },
+              binders: [r2],
+              constructor: succ
+            }
+          ],
+          scrutinee: r1
+        },
+        binders: [r1],
+        constructor: succ
+      }
+    ],
+    scrutinee: rest
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_count_terminal_from_48,
+  parameters: [rest : Nat],
+  statement: ((((rest + 48) <? 128) = true) -> (((natShortestULEBLength (rest + 48)) = 1) /\ ((natCanonicalULEBWords (rest + 48)) = (cons (rest + 48) (nil Nat))))),
+  proof: cases{
+    branches: [
+      {proof: decide{}, binders: [], constructor: zero},
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: zero},
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: zero},
+                  {
+                    proof: cases{
+                      branches: [
+                        {proof: decide{}, binders: [], constructor: zero},
+                        {
+                          proof: cases{
+                            branches: [
+                              {proof: decide{}, binders: [], constructor: zero},
+                              {
+                                proof: cases{
+                                  branches: [
+                                    {proof: decide{}, binders: [], constructor: zero},
+                                    {
+                                      proof: cases{
+                                        branches: [
+                                          {proof: decide{}, binders: [], constructor: zero},
+                                          {
+                                            proof: cases{
+                                              branches: [
+                                                {proof: decide{}, binders: [], constructor: zero},
+                                                {
+                                                  proof: cases{
+                                                    branches: [
+                                                      {
+                                                        proof: decide{},
+                                                        binders: [],
+                                                        constructor: zero
+                                                      },
+                                                      {
+                                                        proof: cases{
+                                                          branches: [
+                                                            {
+                                                              proof: decide{},
+                                                              binders: [],
+                                                              constructor: zero
+                                                            },
+                                                            {
+                                                              proof: cases{
+                                                                branches: [
+                                                                  {
+                                                                    proof: decide{},
+                                                                    binders: [],
+                                                                    constructor: zero
+                                                                  },
+                                                                  {
+                                                                    proof: cases{
+                                                                      branches: [
+                                                                        {
+                                                                          proof: decide{},
+                                                                          binders: [],
+                                                                          constructor: zero
+                                                                        },
+                                                                        {
+                                                                          proof: cases{
+                                                                            branches: [
+                                                                              {
+                                                                                proof: decide{},
+                                                                                binders: [],
+                                                                                constructor: zero
+                                                                              },
+                                                                              {
+                                                                                proof: cases{
+                                                                                  branches: [
+                                                                                    {
+                                                                                      proof: decide{},
+                                                                                      binders: [],
+                                                                                      constructor: zero
+                                                                                    },
+                                                                                    {
+                                                                                      proof: cases{
+                                                                                        branches: [
+                                                                                          {
+                                                                                            proof: decide{},
+                                                                                            binders: [],
+                                                                                            constructor: zero
+                                                                                          },
+                                                                                          {
+                                                                                            proof: cases{
+                                                                                              branches: [
+                                                                                                {
+                                                                                                  proof: decide{},
+                                                                                                  binders: [],
+                                                                                                  constructor: zero
+                                                                                                },
+                                                                                                {
+                                                                                                  proof: apply{
+                                                                                                    arguments: [
+                                                                                                      r16
+                                                                                                    ],
+                                                                                                    theorem: fo_count_terminal_from_64
+                                                                                                  },
+                                                                                                  binders: [
+                                                                                                    r16
+                                                                                                  ],
+                                                                                                  constructor: succ
+                                                                                                }
+                                                                                              ],
+                                                                                              scrutinee: r15
+                                                                                            },
+                                                                                            binders: [
+                                                                                              r15
+                                                                                            ],
+                                                                                            constructor: succ
+                                                                                          }
+                                                                                        ],
+                                                                                        scrutinee: r14
+                                                                                      },
+                                                                                      binders: [
+                                                                                        r14
+                                                                                      ],
+                                                                                      constructor: succ
+                                                                                    }
+                                                                                  ],
+                                                                                  scrutinee: r13
+                                                                                },
+                                                                                binders: [r13],
+                                                                                constructor: succ
+                                                                              }
+                                                                            ],
+                                                                            scrutinee: r12
+                                                                          },
+                                                                          binders: [r12],
+                                                                          constructor: succ
+                                                                        }
+                                                                      ],
+                                                                      scrutinee: r11
+                                                                    },
+                                                                    binders: [r11],
+                                                                    constructor: succ
+                                                                  }
+                                                                ],
+                                                                scrutinee: r10
+                                                              },
+                                                              binders: [r10],
+                                                              constructor: succ
+                                                            }
+                                                          ],
+                                                          scrutinee: r9
+                                                        },
+                                                        binders: [r9],
+                                                        constructor: succ
+                                                      }
+                                                    ],
+                                                    scrutinee: r8
+                                                  },
+                                                  binders: [r8],
+                                                  constructor: succ
+                                                }
+                                              ],
+                                              scrutinee: r7
+                                            },
+                                            binders: [r7],
+                                            constructor: succ
+                                          }
+                                        ],
+                                        scrutinee: r6
+                                      },
+                                      binders: [r6],
+                                      constructor: succ
+                                    }
+                                  ],
+                                  scrutinee: r5
+                                },
+                                binders: [r5],
+                                constructor: succ
+                              }
+                            ],
+                            scrutinee: r4
+                          },
+                          binders: [r4],
+                          constructor: succ
+                        }
+                      ],
+                      scrutinee: r3
+                    },
+                    binders: [r3],
+                    constructor: succ
+                  }
+                ],
+                scrutinee: r2
+              },
+              binders: [r2],
+              constructor: succ
+            }
+          ],
+          scrutinee: r1
+        },
+        binders: [r1],
+        constructor: succ
+      }
+    ],
+    scrutinee: rest
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_count_terminal_from_32,
+  parameters: [rest : Nat],
+  statement: ((((rest + 32) <? 128) = true) -> (((natShortestULEBLength (rest + 32)) = 1) /\ ((natCanonicalULEBWords (rest + 32)) = (cons (rest + 32) (nil Nat))))),
+  proof: cases{
+    branches: [
+      {proof: decide{}, binders: [], constructor: zero},
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: zero},
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: zero},
+                  {
+                    proof: cases{
+                      branches: [
+                        {proof: decide{}, binders: [], constructor: zero},
+                        {
+                          proof: cases{
+                            branches: [
+                              {proof: decide{}, binders: [], constructor: zero},
+                              {
+                                proof: cases{
+                                  branches: [
+                                    {proof: decide{}, binders: [], constructor: zero},
+                                    {
+                                      proof: cases{
+                                        branches: [
+                                          {proof: decide{}, binders: [], constructor: zero},
+                                          {
+                                            proof: cases{
+                                              branches: [
+                                                {proof: decide{}, binders: [], constructor: zero},
+                                                {
+                                                  proof: cases{
+                                                    branches: [
+                                                      {
+                                                        proof: decide{},
+                                                        binders: [],
+                                                        constructor: zero
+                                                      },
+                                                      {
+                                                        proof: cases{
+                                                          branches: [
+                                                            {
+                                                              proof: decide{},
+                                                              binders: [],
+                                                              constructor: zero
+                                                            },
+                                                            {
+                                                              proof: cases{
+                                                                branches: [
+                                                                  {
+                                                                    proof: decide{},
+                                                                    binders: [],
+                                                                    constructor: zero
+                                                                  },
+                                                                  {
+                                                                    proof: cases{
+                                                                      branches: [
+                                                                        {
+                                                                          proof: decide{},
+                                                                          binders: [],
+                                                                          constructor: zero
+                                                                        },
+                                                                        {
+                                                                          proof: cases{
+                                                                            branches: [
+                                                                              {
+                                                                                proof: decide{},
+                                                                                binders: [],
+                                                                                constructor: zero
+                                                                              },
+                                                                              {
+                                                                                proof: cases{
+                                                                                  branches: [
+                                                                                    {
+                                                                                      proof: decide{},
+                                                                                      binders: [],
+                                                                                      constructor: zero
+                                                                                    },
+                                                                                    {
+                                                                                      proof: cases{
+                                                                                        branches: [
+                                                                                          {
+                                                                                            proof: decide{},
+                                                                                            binders: [],
+                                                                                            constructor: zero
+                                                                                          },
+                                                                                          {
+                                                                                            proof: cases{
+                                                                                              branches: [
+                                                                                                {
+                                                                                                  proof: decide{},
+                                                                                                  binders: [],
+                                                                                                  constructor: zero
+                                                                                                },
+                                                                                                {
+                                                                                                  proof: apply{
+                                                                                                    arguments: [
+                                                                                                      r16
+                                                                                                    ],
+                                                                                                    theorem: fo_count_terminal_from_48
+                                                                                                  },
+                                                                                                  binders: [
+                                                                                                    r16
+                                                                                                  ],
+                                                                                                  constructor: succ
+                                                                                                }
+                                                                                              ],
+                                                                                              scrutinee: r15
+                                                                                            },
+                                                                                            binders: [
+                                                                                              r15
+                                                                                            ],
+                                                                                            constructor: succ
+                                                                                          }
+                                                                                        ],
+                                                                                        scrutinee: r14
+                                                                                      },
+                                                                                      binders: [
+                                                                                        r14
+                                                                                      ],
+                                                                                      constructor: succ
+                                                                                    }
+                                                                                  ],
+                                                                                  scrutinee: r13
+                                                                                },
+                                                                                binders: [r13],
+                                                                                constructor: succ
+                                                                              }
+                                                                            ],
+                                                                            scrutinee: r12
+                                                                          },
+                                                                          binders: [r12],
+                                                                          constructor: succ
+                                                                        }
+                                                                      ],
+                                                                      scrutinee: r11
+                                                                    },
+                                                                    binders: [r11],
+                                                                    constructor: succ
+                                                                  }
+                                                                ],
+                                                                scrutinee: r10
+                                                              },
+                                                              binders: [r10],
+                                                              constructor: succ
+                                                            }
+                                                          ],
+                                                          scrutinee: r9
+                                                        },
+                                                        binders: [r9],
+                                                        constructor: succ
+                                                      }
+                                                    ],
+                                                    scrutinee: r8
+                                                  },
+                                                  binders: [r8],
+                                                  constructor: succ
+                                                }
+                                              ],
+                                              scrutinee: r7
+                                            },
+                                            binders: [r7],
+                                            constructor: succ
+                                          }
+                                        ],
+                                        scrutinee: r6
+                                      },
+                                      binders: [r6],
+                                      constructor: succ
+                                    }
+                                  ],
+                                  scrutinee: r5
+                                },
+                                binders: [r5],
+                                constructor: succ
+                              }
+                            ],
+                            scrutinee: r4
+                          },
+                          binders: [r4],
+                          constructor: succ
+                        }
+                      ],
+                      scrutinee: r3
+                    },
+                    binders: [r3],
+                    constructor: succ
+                  }
+                ],
+                scrutinee: r2
+              },
+              binders: [r2],
+              constructor: succ
+            }
+          ],
+          scrutinee: r1
+        },
+        binders: [r1],
+        constructor: succ
+      }
+    ],
+    scrutinee: rest
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_count_terminal_from_16,
+  parameters: [rest : Nat],
+  statement: ((((rest + 16) <? 128) = true) -> (((natShortestULEBLength (rest + 16)) = 1) /\ ((natCanonicalULEBWords (rest + 16)) = (cons (rest + 16) (nil Nat))))),
+  proof: cases{
+    branches: [
+      {proof: decide{}, binders: [], constructor: zero},
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: zero},
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: zero},
+                  {
+                    proof: cases{
+                      branches: [
+                        {proof: decide{}, binders: [], constructor: zero},
+                        {
+                          proof: cases{
+                            branches: [
+                              {proof: decide{}, binders: [], constructor: zero},
+                              {
+                                proof: cases{
+                                  branches: [
+                                    {proof: decide{}, binders: [], constructor: zero},
+                                    {
+                                      proof: cases{
+                                        branches: [
+                                          {proof: decide{}, binders: [], constructor: zero},
+                                          {
+                                            proof: cases{
+                                              branches: [
+                                                {proof: decide{}, binders: [], constructor: zero},
+                                                {
+                                                  proof: cases{
+                                                    branches: [
+                                                      {
+                                                        proof: decide{},
+                                                        binders: [],
+                                                        constructor: zero
+                                                      },
+                                                      {
+                                                        proof: cases{
+                                                          branches: [
+                                                            {
+                                                              proof: decide{},
+                                                              binders: [],
+                                                              constructor: zero
+                                                            },
+                                                            {
+                                                              proof: cases{
+                                                                branches: [
+                                                                  {
+                                                                    proof: decide{},
+                                                                    binders: [],
+                                                                    constructor: zero
+                                                                  },
+                                                                  {
+                                                                    proof: cases{
+                                                                      branches: [
+                                                                        {
+                                                                          proof: decide{},
+                                                                          binders: [],
+                                                                          constructor: zero
+                                                                        },
+                                                                        {
+                                                                          proof: cases{
+                                                                            branches: [
+                                                                              {
+                                                                                proof: decide{},
+                                                                                binders: [],
+                                                                                constructor: zero
+                                                                              },
+                                                                              {
+                                                                                proof: cases{
+                                                                                  branches: [
+                                                                                    {
+                                                                                      proof: decide{},
+                                                                                      binders: [],
+                                                                                      constructor: zero
+                                                                                    },
+                                                                                    {
+                                                                                      proof: cases{
+                                                                                        branches: [
+                                                                                          {
+                                                                                            proof: decide{},
+                                                                                            binders: [],
+                                                                                            constructor: zero
+                                                                                          },
+                                                                                          {
+                                                                                            proof: cases{
+                                                                                              branches: [
+                                                                                                {
+                                                                                                  proof: decide{},
+                                                                                                  binders: [],
+                                                                                                  constructor: zero
+                                                                                                },
+                                                                                                {
+                                                                                                  proof: apply{
+                                                                                                    arguments: [
+                                                                                                      r16
+                                                                                                    ],
+                                                                                                    theorem: fo_count_terminal_from_32
+                                                                                                  },
+                                                                                                  binders: [
+                                                                                                    r16
+                                                                                                  ],
+                                                                                                  constructor: succ
+                                                                                                }
+                                                                                              ],
+                                                                                              scrutinee: r15
+                                                                                            },
+                                                                                            binders: [
+                                                                                              r15
+                                                                                            ],
+                                                                                            constructor: succ
+                                                                                          }
+                                                                                        ],
+                                                                                        scrutinee: r14
+                                                                                      },
+                                                                                      binders: [
+                                                                                        r14
+                                                                                      ],
+                                                                                      constructor: succ
+                                                                                    }
+                                                                                  ],
+                                                                                  scrutinee: r13
+                                                                                },
+                                                                                binders: [r13],
+                                                                                constructor: succ
+                                                                              }
+                                                                            ],
+                                                                            scrutinee: r12
+                                                                          },
+                                                                          binders: [r12],
+                                                                          constructor: succ
+                                                                        }
+                                                                      ],
+                                                                      scrutinee: r11
+                                                                    },
+                                                                    binders: [r11],
+                                                                    constructor: succ
+                                                                  }
+                                                                ],
+                                                                scrutinee: r10
+                                                              },
+                                                              binders: [r10],
+                                                              constructor: succ
+                                                            }
+                                                          ],
+                                                          scrutinee: r9
+                                                        },
+                                                        binders: [r9],
+                                                        constructor: succ
+                                                      }
+                                                    ],
+                                                    scrutinee: r8
+                                                  },
+                                                  binders: [r8],
+                                                  constructor: succ
+                                                }
+                                              ],
+                                              scrutinee: r7
+                                            },
+                                            binders: [r7],
+                                            constructor: succ
+                                          }
+                                        ],
+                                        scrutinee: r6
+                                      },
+                                      binders: [r6],
+                                      constructor: succ
+                                    }
+                                  ],
+                                  scrutinee: r5
+                                },
+                                binders: [r5],
+                                constructor: succ
+                              }
+                            ],
+                            scrutinee: r4
+                          },
+                          binders: [r4],
+                          constructor: succ
+                        }
+                      ],
+                      scrutinee: r3
+                    },
+                    binders: [r3],
+                    constructor: succ
+                  }
+                ],
+                scrutinee: r2
+              },
+              binders: [r2],
+              constructor: succ
+            }
+          ],
+          scrutinee: r1
+        },
+        binders: [r1],
+        constructor: succ
+      }
+    ],
+    scrutinee: rest
+  },
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: canonical_uleb_terminal_digit,
   parameters: [value : Nat],
   statement: (((value <? 128) = true) -> (((natShortestULEBLength value) = 1) /\ ((natCanonicalULEBWords value) = (cons value (nil Nat))))),
-  proof: linear_arithmetic{definitions: [natCanonicalULEBWords, natShortestULEBLength]}
+  proof: cases{
+    branches: [
+      {proof: decide{}, binders: [], constructor: zero},
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: zero},
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: zero},
+                  {
+                    proof: cases{
+                      branches: [
+                        {proof: decide{}, binders: [], constructor: zero},
+                        {
+                          proof: cases{
+                            branches: [
+                              {proof: decide{}, binders: [], constructor: zero},
+                              {
+                                proof: cases{
+                                  branches: [
+                                    {proof: decide{}, binders: [], constructor: zero},
+                                    {
+                                      proof: cases{
+                                        branches: [
+                                          {proof: decide{}, binders: [], constructor: zero},
+                                          {
+                                            proof: cases{
+                                              branches: [
+                                                {proof: decide{}, binders: [], constructor: zero},
+                                                {
+                                                  proof: cases{
+                                                    branches: [
+                                                      {
+                                                        proof: decide{},
+                                                        binders: [],
+                                                        constructor: zero
+                                                      },
+                                                      {
+                                                        proof: cases{
+                                                          branches: [
+                                                            {
+                                                              proof: decide{},
+                                                              binders: [],
+                                                              constructor: zero
+                                                            },
+                                                            {
+                                                              proof: cases{
+                                                                branches: [
+                                                                  {
+                                                                    proof: decide{},
+                                                                    binders: [],
+                                                                    constructor: zero
+                                                                  },
+                                                                  {
+                                                                    proof: cases{
+                                                                      branches: [
+                                                                        {
+                                                                          proof: decide{},
+                                                                          binders: [],
+                                                                          constructor: zero
+                                                                        },
+                                                                        {
+                                                                          proof: cases{
+                                                                            branches: [
+                                                                              {
+                                                                                proof: decide{},
+                                                                                binders: [],
+                                                                                constructor: zero
+                                                                              },
+                                                                              {
+                                                                                proof: cases{
+                                                                                  branches: [
+                                                                                    {
+                                                                                      proof: decide{},
+                                                                                      binders: [],
+                                                                                      constructor: zero
+                                                                                    },
+                                                                                    {
+                                                                                      proof: cases{
+                                                                                        branches: [
+                                                                                          {
+                                                                                            proof: decide{},
+                                                                                            binders: [],
+                                                                                            constructor: zero
+                                                                                          },
+                                                                                          {
+                                                                                            proof: cases{
+                                                                                              branches: [
+                                                                                                {
+                                                                                                  proof: decide{},
+                                                                                                  binders: [],
+                                                                                                  constructor: zero
+                                                                                                },
+                                                                                                {
+                                                                                                  proof: apply{
+                                                                                                    arguments: [
+                                                                                                      r16
+                                                                                                    ],
+                                                                                                    theorem: fo_count_terminal_from_16
+                                                                                                  },
+                                                                                                  binders: [
+                                                                                                    r16
+                                                                                                  ],
+                                                                                                  constructor: succ
+                                                                                                }
+                                                                                              ],
+                                                                                              scrutinee: r15
+                                                                                            },
+                                                                                            binders: [
+                                                                                              r15
+                                                                                            ],
+                                                                                            constructor: succ
+                                                                                          }
+                                                                                        ],
+                                                                                        scrutinee: r14
+                                                                                      },
+                                                                                      binders: [
+                                                                                        r14
+                                                                                      ],
+                                                                                      constructor: succ
+                                                                                    }
+                                                                                  ],
+                                                                                  scrutinee: r13
+                                                                                },
+                                                                                binders: [r13],
+                                                                                constructor: succ
+                                                                              }
+                                                                            ],
+                                                                            scrutinee: r12
+                                                                          },
+                                                                          binders: [r12],
+                                                                          constructor: succ
+                                                                        }
+                                                                      ],
+                                                                      scrutinee: r11
+                                                                    },
+                                                                    binders: [r11],
+                                                                    constructor: succ
+                                                                  }
+                                                                ],
+                                                                scrutinee: r10
+                                                              },
+                                                              binders: [r10],
+                                                              constructor: succ
+                                                            }
+                                                          ],
+                                                          scrutinee: r9
+                                                        },
+                                                        binders: [r9],
+                                                        constructor: succ
+                                                      }
+                                                    ],
+                                                    scrutinee: r8
+                                                  },
+                                                  binders: [r8],
+                                                  constructor: succ
+                                                }
+                                              ],
+                                              scrutinee: r7
+                                            },
+                                            binders: [r7],
+                                            constructor: succ
+                                          }
+                                        ],
+                                        scrutinee: r6
+                                      },
+                                      binders: [r6],
+                                      constructor: succ
+                                    }
+                                  ],
+                                  scrutinee: r5
+                                },
+                                binders: [r5],
+                                constructor: succ
+                              }
+                            ],
+                            scrutinee: r4
+                          },
+                          binders: [r4],
+                          constructor: succ
+                        }
+                      ],
+                      scrutinee: r3
+                    },
+                    binders: [r3],
+                    constructor: succ
+                  }
+                ],
+                scrutinee: r2
+              },
+              binders: [r2],
+              constructor: succ
+            }
+          ],
+          scrutinee: r1
+        },
+        binders: [r1],
+        constructor: succ
+      }
+    ],
+    scrutinee: value
+  },
+  axioms: [Quot.sound, propext]
 }
 
 inductive{
@@ -595,18 +2772,90 @@ definition{
 }
 
 theorem{
+  name: fo_pair_zero_width_compatible,
+  parameters: [leftLess : Bool, rightLess : Bool, same : Bool],
+  statement: ((((not leftLess) || (0 <=? 0)) && (((not rightLess) || (0 <=? 0)) && ((not same) || (0 =? 0)))) = true),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: cases{
+                branches: [
+                  {proof: reflexivity{}, binders: [], constructor: "false"},
+                  {proof: reflexivity{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: same
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: cases{
+                branches: [
+                  {proof: reflexivity{}, binders: [], constructor: "false"},
+                  {proof: reflexivity{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: same
+              },
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: rightLess
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: cases{
+                branches: [
+                  {proof: reflexivity{}, binders: [], constructor: "false"},
+                  {proof: reflexivity{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: same
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: cases{
+                branches: [
+                  {proof: reflexivity{}, binders: [], constructor: "false"},
+                  {proof: reflexivity{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: same
+              },
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: rightLess
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: leftLess
+  }
+}
+
+theorem{
   name: canonical_positive_pair_digit_count_order,
   parameters: [pair : PositiveULEBPair],
   statement: ((widthOrderCompatible (pairLeftRank pair) (pairRightRank pair) (pairLeftExtra pair) (pairRightExtra pair)) = true),
   proof: induction{
     branches: [
       {
-        proof: linear_arithmetic{
+        proof: simplify{
           definitions: [
+            fo_pair_zero_width_compatible,
             pairLeftExtra,
-            pairLeftRank,
             pairRightExtra,
-            pairRightRank,
             widthOrderCompatible
           ]
         },
@@ -654,13 +2903,22 @@ theorem{
       }
     ],
     scrutinee: pair
-  }
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 theorem{
-  name: canonical_positive_pair_digit_count_monotone,
+  name: fo_pair_le_implication_as_boolean_or,
+  parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((left <= right) -> (leftWidth <= rightWidth)) <-> (((right <? left) || (leftWidth <=? rightWidth)) = true)),
+  proof: linear_arithmetic{},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: fo_pair_digit_count_monotone_boolean_or,
   parameters: [pair : PositiveULEBPair],
-  statement: (((pairLeftRank pair) <= (pairRightRank pair)) -> ((pairLeftExtra pair) <= (pairRightExtra pair))),
+  statement: ((((pairRightRank pair) <? (pairLeftRank pair)) || ((pairLeftExtra pair) <=? (pairRightExtra pair))) = true),
   proof: induction{
     branches: [
       {
@@ -693,7 +2951,18 @@ theorem{
       }
     ],
     scrutinee: pair
-  }
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: canonical_positive_pair_digit_count_monotone,
+  parameters: [pair : PositiveULEBPair],
+  statement: (((pairLeftRank pair) <= (pairRightRank pair)) -> ((pairLeftExtra pair) <= (pairRightExtra pair))),
+  proof: simplify{
+    definitions: [fo_pair_digit_count_monotone_boolean_or, fo_pair_le_implication_as_boolean_or]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 inductive{
@@ -770,7 +3039,8 @@ theorem{
       }
     ],
     scrutinee: left
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -795,7 +3065,8 @@ theorem{
   name: number_measure_is_exact_emission_erasure,
   parameters: [value : Nat, tail : (List Uorc.Wire.GraphEmit::Task), position : Nat, work : Nat],
   statement: ((Uorc.Wire.GraphEmit::measureStep (numberState value tail position work)) = (eraseEmission (Uorc.Wire.GraphEmit::step (numberState value tail position work) 1))),
-  proof: reflexivity{}
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -809,20 +3080,40 @@ definition{
     | Uorc.Wire.GraphEmit::Event.failed error offset events => ((offset = position) /\ (events = (work + 1))))
 }
 
+definition{
+  name: fo_emit_stepLaw,
+  parameters: [event : Uorc.Wire.GraphEmit::Event, position : Nat, work : Nat],
+  result: Prop,
+  body: (match event
+    | Uorc.Wire.GraphEmit::Event.advanced next => (0 = 1)
+    | Uorc.Wire.GraphEmit::Event.produced bytes next => (match next
+      | Uorc.Wire.GraphEmit::State.mk pending nextPosition nextWork => ((nextPosition = (position + 1)) /\ (nextWork = (work + 1))))
+    | Uorc.Wire.GraphEmit::Event.complete size events => (0 = 1)
+    | Uorc.Wire.GraphEmit::Event.failed error offset events => ((offset = position) /\ (events = (work + 1))))
+}
+
+theorem{
+  name: fo_emit_number_step_law,
+  parameters: [value : Nat, tail : (List Uorc.Wire.GraphEmit::Task), position : Nat, work : Nat],
+  statement: (fo_emit_stepLaw (Uorc.Wire.GraphEmit::step (numberState value tail position work) 1) position work),
+  proof: linear_arithmetic{definitions: [Uorc.Wire.GraphEmit::step, numberState]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
 theorem{
   name: number_emission_advances_exactly_one_or_fails,
   parameters: [value : Nat, tail : (List Uorc.Wire.GraphEmit::Task), position : Nat, work : Nat],
   statement: (numberEmissionPositionLaw (Uorc.Wire.GraphEmit::step (numberState value tail position work) 1) position work),
-  proof: linear_arithmetic{
-    definitions: [Uorc.Wire.GraphEmit::step, numberEmissionPositionLaw, numberState]
-  }
+  proof: apply{arguments: [value, tail, position, work], theorem: fo_emit_number_step_law},
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 definition{
   name: canonicalPairRepresentsNatWidths,
   parameters: [pair : CanonicalULEBPair, left : Nat, right : Nat],
   result: Prop,
-  body: ((((canonicalPairLeftValue pair) = left) /\ ((canonicalPairRightValue pair) = right)) /\ (((canonicalPairLeftCount pair) = (natShortestULEBLength left)) /\ ((canonicalPairRightCount pair) = (natShortestULEBLength right))))
+  body: ((((canonicalPairLeftValue pair) = left) /\ ((canonicalPairRightValue pair) = right)) /\ (((canonicalPairLeftCount pair) = (natShortestULEBLength left)) /\ ((canonicalPairRightCount pair) = (natShortestULEBLength right)))),
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -833,10 +3124,70 @@ definition{
 }
 
 theorem{
+  name: fo_width_bool_equality_reflects,
+  parameters: [left : Bool, right : Bool],
+  statement: ((left = right) <-> ((left = true) <-> (right = true))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: "false"},
+            {proof: decide{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: right
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: "false"},
+            {proof: decide{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: right
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: left
+  }
+}
+
+theorem{
+  name: fo_width_successor_compatibility_reflects,
+  parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((widthOrderCompatible (1 + left) (1 + right) (1 + leftWidth) (1 + rightWidth)) = true) <-> ((widthOrderCompatible left right leftWidth rightWidth) = true)),
+  proof: linear_arithmetic{definitions: [widthOrderCompatible]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: fo_width_successor_compatibility_equality,
+  parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((widthOrderCompatible (1 + left) (1 + right) (1 + leftWidth) (1 + rightWidth)) = (widthOrderCompatible left right leftWidth rightWidth)) <-> (((widthOrderCompatible (1 + left) (1 + right) (1 + leftWidth) (1 + rightWidth)) = true) <-> ((widthOrderCompatible left right leftWidth rightWidth) = true))),
+  proof: apply{
+    arguments: [
+      (widthOrderCompatible (1 + left) (1 + right) (1 + leftWidth) (1 + rightWidth)),
+      (widthOrderCompatible left right leftWidth rightWidth)
+    ],
+    theorem: fo_width_bool_equality_reflects
+  }
+}
+
+theorem{
   name: width_order_compatible_successor_invariant,
   parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
   statement: ((widthOrderCompatible (1 + left) (1 + right) (1 + leftWidth) (1 + rightWidth)) = (widthOrderCompatible left right leftWidth rightWidth)),
-  proof: linear_arithmetic{definitions: [widthOrderCompatible]}
+  proof: simplify{
+    definitions: [
+      fo_width_successor_compatibility_equality,
+      fo_width_successor_compatibility_reflects
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 theorem{
@@ -845,19 +3196,7 @@ theorem{
   statement: ((widthOrderCompatible (canonicalPairLeftValue pair) (canonicalPairRightValue pair) (canonicalPairLeftCount pair) (canonicalPairRightCount pair)) = true),
   proof: cases{
     branches: [
-      {
-        proof: linear_arithmetic{
-          definitions: [
-            canonicalPairLeftCount,
-            canonicalPairLeftValue,
-            canonicalPairRightCount,
-            canonicalPairRightValue,
-            widthOrderCompatible
-          ]
-        },
-        binders: [],
-        constructor: bothZero
-      },
+      {proof: reflexivity{}, binders: [], constructor: bothZero},
       {
         proof: linear_arithmetic{
           definitions: [
@@ -904,14 +3243,69 @@ theorem{
       }
     ],
     scrutinee: pair
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: fo_emit_bool_eq_iff,
+  parameters: [left : Bool, right : Bool],
+  statement: ((left = right) <-> ((left = true) <-> (right = true))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: "false"},
+            {proof: decide{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: right
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: "false"},
+            {proof: decide{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: right
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: left
   }
+}
+
+theorem{
+  name: fo_emit_nat_beq_eq_iff,
+  parameters: [a : Nat, b : Nat, c : Nat, d : Nat],
+  statement: (((a =? b) = (c =? d)) <-> (((a =? b) = true) <-> ((c =? d) = true))),
+  proof: apply{arguments: [(a =? b), (c =? d)], theorem: fo_emit_bool_eq_iff}
+}
+
+theorem{
+  name: fo_emit_complete_size_beq_unit,
+  parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: ((((widthOrderCompatible left right leftWidth rightWidth) = true) -> ((((completeSize header left leftWidth) =? (completeSize header right rightWidth)) = true) <-> ((left =? right) = true))) <-> (0 = 0)),
+  proof: constructor{
+    branches: [
+      linear_arithmetic{},
+      linear_arithmetic{definitions: [completeSize, integrityBytes, widthOrderCompatible]}
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 theorem{
   name: complete_size_beq_reflects_body_beq,
   parameters: [header : Nat, left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
   statement: (((widthOrderCompatible left right leftWidth rightWidth) = true) -> (((completeSize header left leftWidth) =? (completeSize header right rightWidth)) = (left =? right))),
-  proof: linear_arithmetic{definitions: [completeSize, integrityBytes, widthOrderCompatible]}
+  proof: simplify{definitions: [fo_emit_complete_size_beq_unit, fo_emit_nat_beq_eq_iff]},
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 theorem{
@@ -920,7 +3314,8 @@ theorem{
   statement: (((completeSize header (canonicalPairLeftValue pair) (canonicalPairLeftCount pair)) < (completeSize header (canonicalPairRightValue pair) (canonicalPairRightCount pair))) <-> ((canonicalPairLeftValue pair) < (canonicalPairRightValue pair))),
   proof: simplify{
     definitions: [canonical_pair_digit_count_order, complete_size_order_reflects_body_order]
-  }
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 theorem{
@@ -929,7 +3324,8 @@ theorem{
   statement: (((completeSize header (canonicalPairLeftValue pair) (canonicalPairLeftCount pair)) =? (completeSize header (canonicalPairRightValue pair) (canonicalPairRightCount pair))) = ((canonicalPairLeftValue pair) =? (canonicalPairRightValue pair))),
   proof: simplify{
     definitions: [canonical_pair_digit_count_order, complete_size_beq_reflects_body_beq]
-  }
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 
 definition{
@@ -964,59 +3360,40 @@ theorem{
       }
     ],
     scrutinee: digits
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: canonical_continuation_quotient,
   parameters: [payload : Nat, tailRank : Nat],
   statement: ((prim quotient (1 + (((prim remainder payload 128 0 : Nat) + 127) + (prim multiply 128 tailRank : Nat))) 128 0 : Nat) = (1 + tailRank)),
-  proof: linear_arithmetic{}
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: canonical_continuation_remainder,
   parameters: [payload : Nat, tailRank : Nat],
   statement: ((prim remainder (1 + (((prim remainder payload 128 0 : Nat) + 127) + (prim multiply 128 tailRank : Nat))) 128 0 : Nat) = (prim remainder payload 128 0 : Nat)),
-  proof: linear_arithmetic{}
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: canonical_continuation_requires_more_digit,
   parameters: [payload : Nat, tailRank : Nat],
   statement: (((1 + (((prim remainder payload 128 0 : Nat) + 127) + (prim multiply 128 tailRank : Nat))) <? 128) = false),
-  proof: linear_arithmetic{}
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
   name: canonical_terminal_requires_one_digit,
   parameters: [payload : Nat],
   statement: (((1 + (prim remainder payload 127 0 : Nat)) <? 128) = true),
-  proof: linear_arithmetic{}
-}
-
-definition{
-  name: numberEmissionQueueLaw,
-  parameters: [
-    event : Uorc.Wire.GraphEmit::Event,
-    value : Nat,
-    tail : (List Uorc.Wire.GraphEmit::Task)
-  ],
-  result: Prop,
-  body: (match event
-    | Uorc.Wire.GraphEmit::Event.advanced next => (0 = 1)
-    | Uorc.Wire.GraphEmit::Event.produced bytes next => ((project next pending) = (if (value <? 128) then tail else (cons (ctor Uorc.Wire.GraphEmit::Task.number (prim quotient value 128 0 : Nat)) tail)))
-    | Uorc.Wire.GraphEmit::Event.complete size events => (0 = 1)
-    | Uorc.Wire.GraphEmit::Event.failed error offset events => (0 = 0))
-}
-
-theorem{
-  name: number_emission_has_exact_canonical_next_queue,
-  parameters: [value : Nat, tail : (List Uorc.Wire.GraphEmit::Task), position : Nat, work : Nat],
-  statement: (numberEmissionQueueLaw (Uorc.Wire.GraphEmit::step (numberState value tail position work) 1) value tail),
-  proof: linear_arithmetic{
-    definitions: [Uorc.Wire.GraphEmit::step, numberEmissionQueueLaw, numberState]
-  }
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1040,28 +3417,121 @@ definition{
 }
 
 theorem{
+  name: fo_succ_rank_ite,
+  parameters: [flag : Bool, left : PositiveULEBDigits, right : PositiveULEBDigits],
+  statement: ((positiveDigitRank (if flag then left else right)) = (if flag then (positiveDigitRank left) else (positiveDigitRank right))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: flag
+  }
+}
+
+theorem{
+  name: fo_succ_rank_inc_terminal,
+  parameters: [payload : Nat],
+  statement: ((positiveDigitValue (incrementPositiveDigits (ctor PositiveULEBDigits.terminal payload))) = (1 + (if ((prim remainder payload 127 0 : Nat) <? 126) then (positiveDigitRank (ctor PositiveULEBDigits.terminal ((prim remainder payload 127 0 : Nat) + 1))) else (positiveDigitRank (ctor PositiveULEBDigits.continuation 0 (ctor PositiveULEBDigits.terminal 0)))))),
+  proof: simplify{definitions: [fo_succ_rank_ite, incrementPositiveDigits, positiveDigitValue]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_succ_rank_terminal_arith,
+  parameters: [payload : Nat],
+  statement: ((1 + (if ((prim remainder payload 127 0 : Nat) <? 126) then (positiveDigitRank (ctor PositiveULEBDigits.terminal ((prim remainder payload 127 0 : Nat) + 1))) else (positiveDigitRank (ctor PositiveULEBDigits.continuation 0 (ctor PositiveULEBDigits.terminal 0))))) = ((positiveDigitValue (ctor PositiveULEBDigits.terminal payload)) + 1)),
+  proof: linear_arithmetic{definitions: [positiveDigitRank, positiveDigitValue]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_succ_rank_inc_continuation,
+  parameters: [payload : Nat, rest : PositiveULEBDigits],
+  statement: ((positiveDigitValue (incrementPositiveDigits (ctor PositiveULEBDigits.continuation payload rest))) = (1 + (if ((prim remainder payload 128 0 : Nat) <? 127) then (positiveDigitRank (ctor PositiveULEBDigits.continuation ((prim remainder payload 128 0 : Nat) + 1) rest)) else (positiveDigitRank (ctor PositiveULEBDigits.continuation 0 (incrementPositiveDigits rest)))))),
+  proof: simplify{definitions: [fo_succ_rank_ite, incrementPositiveDigits, positiveDigitValue]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_succ_rank_continuation_arith,
+  parameters: [payload : Nat, rest : PositiveULEBDigits],
+  statement: (((positiveDigitValue (incrementPositiveDigits rest)) = ((positiveDigitValue rest) + 1)) -> ((1 + (if ((prim remainder payload 128 0 : Nat) <? 127) then (positiveDigitRank (ctor PositiveULEBDigits.continuation ((prim remainder payload 128 0 : Nat) + 1) rest)) else (positiveDigitRank (ctor PositiveULEBDigits.continuation 0 (incrementPositiveDigits rest))))) = ((positiveDigitValue (ctor PositiveULEBDigits.continuation payload rest)) + 1))),
+  proof: linear_arithmetic{definitions: [positiveDigitRank, positiveDigitValue]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
   name: canonical_positive_successor_value,
   parameters: [digits : PositiveULEBDigits],
   statement: ((positiveDigitValue (incrementPositiveDigits digits)) = ((positiveDigitValue digits) + 1)),
   proof: induction{
     branches: [
       {
-        proof: linear_arithmetic{
-          definitions: [incrementPositiveDigits, positiveDigitRank, positiveDigitValue]
-        },
+        proof: simplify{definitions: [fo_succ_rank_inc_terminal, fo_succ_rank_terminal_arith]},
         binders: [payload],
         constructor: terminal
       },
       {
-        proof: linear_arithmetic{
-          definitions: [incrementPositiveDigits, positiveDigitRank, positiveDigitValue]
+        proof: simplify{
+          definitions: [fo_succ_rank_continuation_arith, fo_succ_rank_inc_continuation, ih]
         },
         binders: [payload, rest, ih],
         constructor: continuation
       }
     ],
     scrutinee: digits
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_succ_extra_ite,
+  parameters: [flag : Bool, left : PositiveULEBDigits, right : PositiveULEBDigits],
+  statement: ((positiveDigitExtra (if flag then left else right)) = (if flag then (positiveDigitExtra left) else (positiveDigitExtra right))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: flag
   }
+}
+
+theorem{
+  name: fo_succ_extra_inc_terminal,
+  parameters: [payload : Nat],
+  statement: ((positiveDigitCount (incrementPositiveDigits (ctor PositiveULEBDigits.terminal payload))) = (1 + (if ((prim remainder payload 127 0 : Nat) <? 126) then (positiveDigitExtra (ctor PositiveULEBDigits.terminal ((prim remainder payload 127 0 : Nat) + 1))) else (positiveDigitExtra (ctor PositiveULEBDigits.continuation 0 (ctor PositiveULEBDigits.terminal 0)))))),
+  proof: simplify{definitions: [fo_succ_extra_ite, incrementPositiveDigits, positiveDigitCount]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_succ_extra_terminal_arith,
+  parameters: [payload : Nat],
+  statement: ((1 + (if ((prim remainder payload 127 0 : Nat) <? 126) then (positiveDigitExtra (ctor PositiveULEBDigits.terminal ((prim remainder payload 127 0 : Nat) + 1))) else (positiveDigitExtra (ctor PositiveULEBDigits.continuation 0 (ctor PositiveULEBDigits.terminal 0))))) = ((positiveDigitCount (ctor PositiveULEBDigits.terminal payload)) + (positiveIncrementExtra (ctor PositiveULEBDigits.terminal payload)))),
+  proof: linear_arithmetic{
+    definitions: [positiveDigitCount, positiveDigitExtra, positiveIncrementExtra]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_succ_extra_inc_continuation,
+  parameters: [payload : Nat, rest : PositiveULEBDigits],
+  statement: ((positiveDigitCount (incrementPositiveDigits (ctor PositiveULEBDigits.continuation payload rest))) = (1 + (if ((prim remainder payload 128 0 : Nat) <? 127) then (positiveDigitExtra (ctor PositiveULEBDigits.continuation ((prim remainder payload 128 0 : Nat) + 1) rest)) else (positiveDigitExtra (ctor PositiveULEBDigits.continuation 0 (incrementPositiveDigits rest)))))),
+  proof: simplify{definitions: [fo_succ_extra_ite, incrementPositiveDigits, positiveDigitCount]},
+  axioms: [propext]
+}
+
+theorem{
+  name: fo_succ_extra_continuation_arith,
+  parameters: [payload : Nat, rest : PositiveULEBDigits],
+  statement: (((positiveDigitCount (incrementPositiveDigits rest)) = ((positiveDigitCount rest) + (positiveIncrementExtra rest))) -> ((1 + (if ((prim remainder payload 128 0 : Nat) <? 127) then (positiveDigitExtra (ctor PositiveULEBDigits.continuation ((prim remainder payload 128 0 : Nat) + 1) rest)) else (positiveDigitExtra (ctor PositiveULEBDigits.continuation 0 (incrementPositiveDigits rest))))) = ((positiveDigitCount (ctor PositiveULEBDigits.continuation payload rest)) + (positiveIncrementExtra (ctor PositiveULEBDigits.continuation payload rest))))),
+  proof: linear_arithmetic{
+    definitions: [positiveDigitCount, positiveDigitExtra, positiveIncrementExtra]
+  },
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1071,32 +3541,21 @@ theorem{
   proof: induction{
     branches: [
       {
-        proof: linear_arithmetic{
-          definitions: [
-            incrementPositiveDigits,
-            positiveDigitCount,
-            positiveDigitExtra,
-            positiveIncrementExtra
-          ]
-        },
+        proof: simplify{definitions: [fo_succ_extra_inc_terminal, fo_succ_extra_terminal_arith]},
         binders: [payload],
         constructor: terminal
       },
       {
-        proof: linear_arithmetic{
-          definitions: [
-            incrementPositiveDigits,
-            positiveDigitCount,
-            positiveDigitExtra,
-            positiveIncrementExtra
-          ]
+        proof: simplify{
+          definitions: [fo_succ_extra_continuation_arith, fo_succ_extra_inc_continuation, ih]
         },
         binders: [payload, rest, ih],
         constructor: continuation
       }
     ],
     scrutinee: digits
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1123,7 +3582,8 @@ theorem{
       }
     ],
     scrutinee: rank
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1157,7 +3617,31 @@ theorem{
       }
     ],
     scrutinee: rank
-  }
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_count_nat_le_self,
+  parameters: [value : Nat],
+  statement: (value <= value),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fo_count_digit_count_add_succ,
+  parameters: [rank : Nat, gap : Nat],
+  statement: ((digitCountByRank (rank + (gap + 1))) = ((digitCountByRank (rank + gap)) + (positiveIncrementExtra (digitsOfRank (rank + gap))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: fo_count_le_add_right,
+  parameters: [low : Nat, high : Nat, extra : Nat],
+  statement: ((low <= high) -> (low <= (high + extra))),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
 }
 
 theorem{
@@ -1166,15 +3650,20 @@ theorem{
   statement: ((digitCountByRank rank) <= (digitCountByRank (rank + gap))),
   proof: induction{
     branches: [
-      {proof: linear_arithmetic{definitions: [digitCountByRank]}, binders: [], constructor: zero},
       {
-        proof: linear_arithmetic{definitions: [digitCountByRank]},
+        proof: apply{arguments: [(digitCountByRank rank)], theorem: fo_count_nat_le_self},
+        binders: [],
+        constructor: zero
+      },
+      {
+        proof: simplify{definitions: [fo_count_digit_count_add_succ, fo_count_le_add_right, ih]},
         binders: [previousGap, ih],
         constructor: succ
       }
     ],
     scrutinee: gap
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1188,6 +3677,13 @@ definition{
 }
 
 theorem{
+  name: fo_count_canonical_count_double_succ,
+  parameters: [previous : Nat],
+  statement: ((natCanonicalULEBCount (ctor Nat.succ (previous + 1))) = ((natCanonicalULEBCount (ctor Nat.succ previous)) + (positiveIncrementExtra (digitsOfRank previous)))),
+  proof: reflexivity{}
+}
+
+theorem{
   name: nat_canonical_positive_count_adequacy,
   parameters: [rank : Nat],
   statement: ((natCanonicalULEBCount (ctor Nat.succ rank)) = (digitCountByRank rank)),
@@ -1195,13 +3691,43 @@ theorem{
     branches: [
       {proof: reflexivity{}, binders: [], constructor: zero},
       {
-        proof: linear_arithmetic{definitions: [digitCountByRank, natCanonicalULEBCount]},
+        proof: simplify{definitions: [digitCountByRank, fo_count_canonical_count_double_succ, ih]},
         binders: [previous, ih],
         constructor: succ
       }
     ],
     scrutinee: rank
+  },
+  axioms: [propext]
+}
+
+definition{
+  name: fo_count_canonicalIncrement,
+  parameters: [value : Nat],
+  result: Nat,
+  body: (match value
+    | Nat.zero => 0
+    | Nat.succ previous => (positiveIncrementExtra (digitsOfRank previous)))
+}
+
+theorem{
+  name: fo_count_canonical_count_succ,
+  parameters: [value : Nat],
+  statement: ((natCanonicalULEBCount (ctor Nat.succ value)) = ((natCanonicalULEBCount value) + (fo_count_canonicalIncrement value))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {proof: reflexivity{}, binders: [previous], constructor: succ}
+    ],
+    scrutinee: value
   }
+}
+
+theorem{
+  name: fo_count_canonical_count_add_succ,
+  parameters: [value : Nat, gap : Nat],
+  statement: ((natCanonicalULEBCount (value + (gap + 1))) = ((natCanonicalULEBCount (value + gap)) + (fo_count_canonicalIncrement (value + gap)))),
+  proof: apply{arguments: [(value + gap)], theorem: fo_count_canonical_count_succ}
 }
 
 theorem{
@@ -1211,18 +3737,21 @@ theorem{
   proof: induction{
     branches: [
       {
-        proof: linear_arithmetic{definitions: [natCanonicalULEBCount]},
+        proof: apply{arguments: [(natCanonicalULEBCount value)], theorem: fo_count_nat_le_self},
         binders: [],
         constructor: zero
       },
       {
-        proof: linear_arithmetic{definitions: [natCanonicalULEBCount]},
+        proof: simplify{
+          definitions: [fo_count_canonical_count_add_succ, fo_count_le_add_right, ih]
+        },
         binders: [previousGap, ih],
         constructor: succ
       }
     ],
     scrutinee: gap
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1255,7 +3784,8 @@ theorem{
       }
     ],
     scrutinee: value
-  }
+  },
+  axioms: [Quot.sound, propext]
 }
 
 definition{
@@ -1266,10 +3796,94 @@ definition{
 }
 
 theorem{
+  name: fo_width_bool_branch_normal_form,
+  parameters: [guard : Bool, accepted : Bool, rejected : Bool],
+  statement: ((if guard then accepted else rejected) = ((guard && accepted) || ((not guard) && rejected))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: "false"},
+                  {proof: decide{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: rejected
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: "false"},
+                  {proof: decide{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: rejected
+              },
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: accepted
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: "false"},
+                  {proof: decide{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: rejected
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: "false"},
+                  {proof: decide{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: rejected
+              },
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: accepted
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: guard
+  }
+}
+
+theorem{
+  name: fo_width_order_branches_reflect_compatibility,
+  parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
+  statement: (((((left <? right) && (leftWidth <=? rightWidth)) || ((not (left <? right)) && (((right <? left) && (rightWidth <=? leftWidth)) || ((not (right <? left)) && (leftWidth =? rightWidth))))) = true) <-> ((widthOrderCompatible left right leftWidth rightWidth) = true)),
+  proof: linear_arithmetic{definitions: [widthOrderCompatible]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
   name: width_order_normal_form_preserves_branch_meaning,
   parameters: [left : Nat, right : Nat, leftWidth : Nat, rightWidth : Nat],
   statement: (((if (left <? right) then (leftWidth <=? rightWidth) else (if (right <? left) then (rightWidth <=? leftWidth) else (leftWidth =? rightWidth))) = true) <-> ((widthOrderCompatible left right leftWidth rightWidth) = true)),
-  proof: linear_arithmetic{definitions: [widthOrderCompatible]}
+  proof: simplify{
+    definitions: [fo_width_bool_branch_normal_form, fo_width_order_branches_reflect_compatibility]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}
