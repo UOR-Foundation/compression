@@ -1,0 +1,149 @@
+\begin{lexlean}{Uorc.Core.RuntimeIndexTests}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeTable}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: IndexScenario,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: statement, type: String}]
+}
+
+definition{
+  name: sequentialScenario,
+  parameters: [],
+  result: IndexScenario,
+  body: (record IndexScenario {id := "UC-RES-04.index-prefix-sharing", statement := "Sequential arena IDs and runtime slot indices share their most-significant zero prefix; sixteen handles use95 index nodes, sixteen slots use91 owned nodes; lookup behavior and ownership remain exact."}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: entry,
+  parameters: [],
+  result: Uorc.Core.Heap::Entry,
+  body: (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.storeLeaf (7 : UInt8)), incoming := (1 : UInt64), roots := (1 : UInt64), weight := (40 : UInt64)}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: seedIndex,
+  parameters: [remaining : Nat, key : UInt64, tree : Uorc.Core.Heap::Index],
+  result: Uorc.Core.Heap::Index,
+  body: (match remaining
+    | Nat.zero => tree
+    | Nat.succ rest => (seedIndex rest (Uorc.Core.Heap::wordAdd key (1 : UInt64)) (Uorc.Core.Heap::writeIndex 64 tree key (ctor Option.some [Uorc.Core.Heap::Entry] (entry))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: remaining
+}
+
+definition{
+  name: indexNodeCount,
+  parameters: [fuel : Nat, tree : Uorc.Core.Heap::Index],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => 0
+    | Nat.succ rest => (match tree
+      | Uorc.Core.Heap::Index.empty => 0
+      | Uorc.Core.Heap::Index.leaf item => 1
+      | Uorc.Core.Heap::Index.branch childA childB => (1 + ((indexNodeCount rest childA) + (indexNodeCount rest childB))))),
+  axioms: [],
+  executable: false,
+  recursive_argument: fuel
+}
+
+definition{
+  name: sequentialHandleNodeCount,
+  parameters: [],
+  result: Nat,
+  body: (indexNodeCount 65 (seedIndex 16 (1 : UInt64) (ctor Uorc.Core.Heap::Index.empty))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: readControl,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::readIndex 64 (seedIndex 1 (1 : UInt64) (ctor Uorc.Core.Heap::Index.empty)) (1 : UInt64))
+    | Option.none => false
+    | Option.some item => (prim equal (project item roots) (1 : UInt64) : Bool)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+theorem{
+  name: conformance_bit_order_read_control,
+  parameters: [],
+  statement: ((readControl) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drain,
+  parameters: [fuel : Nat, state : Uorc.Core.Heap::Arena],
+  result: (Result Uorc.Core.Heap::Arena Uorc.Core.Heap::HeapError),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.protocolFailure))
+    | Nat.succ rest => (if (Uorc.Core.Heap::isReleasing state) then (match (Uorc.Core.Heap::releaseStep state)
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] failure)
+      | Result.ok transition => (drain rest (project transition arena))) else (ctor Result.ok [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] state))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: fuel
+}
+
+definition{
+  name: seedTable,
+  parameters: [
+    remaining : Nat,
+    key : UInt64,
+    state : Uorc.Core.Heap::Arena,
+    root : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError),
+  body: (match remaining
+    | Nat.zero => (ctor Result.ok [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Allocation {arena := state, handle := root, delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)})}))
+    | Nat.succ rest => (match (Uorc.Core.RuntimeTable::put state (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.frame)), root := root}) key (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.frame) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural key)))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
+      | Result.ok written => (match (Uorc.Core.Heap::release (project written arena) root)
+        | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
+        | Result.ok started => (match (drain 512 (project started arena))
+          | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
+          | Result.ok cleaned => (seedTable rest (Uorc.Core.Heap::wordAdd key (1 : UInt64)) cleaned (project written handle)))))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: remaining
+}
+
+definition{
+  name: sequentialSlotsControl,
+  parameters: [],
+  result: Bool,
+  body: (match (seedTable 16 (0 : UInt64) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeValue::nullHandle))
+    | Result.error failure => false
+    | Result.ok built => (if (prim equal (project (project built arena) liveEntries) (91 : UInt64) : Bool) then (if (prim equal (project (project built arena) ownedBytes) (5224 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots (project built arena) (cons (project built handle) (nil Uorc.Core.RuntimeValue::Handle))) then (if (match (Uorc.Core.Heap::release (project built arena) (project built handle))
+      | Result.error failure => false
+      | Result.ok drop => (match (drain 512 (project drop arena))
+        | Result.error failure => false
+        | Result.ok empty => (if (prim equal (project empty ownedBytes) (0 : UInt64) : Bool) then (if (prim equal (project empty liveEntries) (0 : UInt64) : Bool) then (if (Uorc.Core.HeapAudit::auditRoots empty (nil Uorc.Core.RuntimeValue::Handle)) then true else false) else false) else false))) then true else false) else false) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: suite,
+  parameters: [],
+  result: Bool,
+  body: (if ((sequentialHandleNodeCount) =? 95) then (if (readControl) then (if (sequentialSlotsControl) then true else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -1,0 +1,426 @@
+\begin{lexlean}{Uorc.Search.TemplateRelease}
+\importmodule{Uorc.Search.TemplateAdmission}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Core.RuntimeAdmissionCredit}
+\importmodule{Uorc.Search.TemplateFunding}
+\importmodule{Uorc.Search.TemplateStream}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Stage,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: splitOriginal, fields: []},
+    {name: findControl, fields: []},
+    {name: retainControl, fields: []},
+    {name: releaseProducer, fields: []},
+    {name: drainProducer, fields: []},
+    {name: releaseControl, fields: []},
+    {name: drainControl, fields: []},
+    {name: complete, fields: []}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: notAdmitted, fields: []},
+    {name: protocol, fields: []},
+    {name: counterExhausted, fields: []},
+    {name: invalidFunding, fields: []},
+    {name: resource, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: owner, fields: [Uorc.Core.RuntimeOwnerRoots::Error]}
+  ]
+}
+
+structure{
+  name: Header,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: program, type: Uorc.Core.RuntimeProgram::Program},
+    {name: caller, type: Uorc.Core.RuntimeProgram::CallerRoots},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: producer, type: Uorc.Core.RuntimeValue::Handle},
+    {name: control, type: Uorc.Core.RuntimeValue::Handle},
+    {name: walk, type: Uorc.Core.RuntimeValue::Handle},
+    {name: walkDepth, type: UInt64},
+    {name: originalSearch, type: Uorc.Core.RuntimeValue::Handle}
+  ]
+}
+
+structure{
+  name: Evidence,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: producerCredits, type: UInt64},
+    {name: controllerCredits, type: UInt64},
+    {name: admissionLedger, type: (Option Uorc.Core.RuntimeAdmissionCredit::Ledger)},
+    {name: acknowledgedEvents, type: UInt64}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: active, fields: [Uorc.Core.Heap::Arena, Header, Stage]},
+    {name: splitting, fields: [Uorc.Core.RuntimeOwnerRoots::SplitCursor, Header]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: budget, type: Uorc.Core.RuntimeResources::Budget},
+    {name: phase, type: Phase},
+    {name: evidence, type: Evidence},
+    {name: paid, type: UInt64},
+    {name: consumedCredits, type: UInt64},
+    {name: attemptedOperations, type: UInt64},
+    {name: failure, type: (Option Error)}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: released, fields: []},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Cursor},
+    {name: remainingCredits, type: UInt64},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+definition{
+  name: fromReady,
+  parameters: [
+    ready : Uorc.Core.RuntimeProgram::Ready,
+    budget : Uorc.Core.RuntimeResources::Budget,
+    originalSearch : Uorc.Core.RuntimeValue::Handle,
+    joinedOriginal : Bool,
+    evidence : Evidence
+  ],
+  result: Cursor,
+  body: (record Cursor {budget := budget, phase := (ctor Phase.active (project ready arena) (record Header {program := (project ready program), caller := (if joinedOriginal then (project ready caller) else (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project ready caller) input), archive := (project (project ready caller) archive), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (project (project ready caller) checkpoint), certificate := (project (project ready caller) certificate), verification := (project (project ready caller) verification), wire := (project (project ready caller) wire)})), usage := (project ready usage), producer := (if joinedOriginal then (Uorc.Core.RuntimeValue::nullHandle) else (project (project ready caller) search)), control := (Uorc.Core.RuntimeValue::nullHandle), walk := (project (project ready caller) search), walkDepth := (0 : UInt64), originalSearch := originalSearch}) (if joinedOriginal then (ctor Stage.splitOriginal) else (ctor Stage.findControl))), evidence := evidence, paid := (0 : UInt64), consumedCredits := (0 : UInt64), attemptedOperations := (0 : UInt64), failure := (ctor Option.none [Error])})
+}
+
+definition{
+  name: start,
+  parameters: [admitted : Uorc.Search.TemplateAdmission::Cursor],
+  result: (Result Cursor Error),
+  body: (match (Uorc.Search.TemplateAdmission::admitted admitted)
+    | Option.none => (ctor Result.error [Cursor, Error] (ctor Error.notAdmitted))
+    | Option.some ready => (ctor Result.ok [Cursor, Error] (fromReady ready (project admitted budget) (project (project admitted meta) originalSearch) (project (project admitted meta) joinedOriginal) (record Evidence {producerCredits := (project (project (project admitted meta) source) consumedCredits), controllerCredits := (project admitted controllerCredits), admissionLedger := (project (project admitted meta) admissionLedger), acknowledgedEvents := (project (project (project (project admitted meta) source) source) acknowledgments)}))))
+}
+
+definition{
+  name: observe,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    achievedArena : Uorc.Core.Heap::Arena,
+    header : Header,
+    stage : Stage
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena (project cursor budget) (project header usage) achievedArena)
+    | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.active achievedArena header stage), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+    | Result.ok observedUsage => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.active achievedArena (record Header {program := (project header program), caller := (project header caller), usage := observedUsage, producer := (project header producer), control := (project header control), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)}) stage), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (match stage
+      | Stage.complete => (ctor Outcome.released)
+      | Stage.splitOriginal => (ctor Outcome.pending)
+      | Stage.findControl => (ctor Outcome.pending)
+      | Stage.retainControl => (ctor Outcome.pending)
+      | Stage.releaseProducer => (ctor Outcome.pending)
+      | Stage.drainProducer => (ctor Outcome.pending)
+      | Stage.releaseControl => (ctor Outcome.pending)
+      | Stage.drainControl => (ctor Outcome.pending))}))
+}
+
+definition{
+  name: observeSplit,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    splitCursor : Uorc.Core.RuntimeOwnerRoots::SplitCursor,
+    header : Header
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena (project cursor budget) (project header usage) (project splitCursor arena))
+    | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.splitting splitCursor header), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+    | Result.ok observedUsage => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.splitting splitCursor (record Header {program := (project header program), caller := (project header caller), usage := observedUsage, producer := (project header producer), control := (project header control), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)})), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}), remainingCredits := available, outcome := (ctor Outcome.pending)}))
+}
+
+definition{
+  name: finishSplit,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    achievedArena : Uorc.Core.Heap::Arena,
+    left : Uorc.Core.RuntimeValue::Handle,
+    right : Uorc.Core.RuntimeValue::Handle,
+    header : Header
+  ],
+  result: Transition,
+  body: (let restoredHeader : Header := (record Header {program := (project header program), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project header caller) input), archive := (project (project header caller) archive), search := left, checkpoint := (project (project header caller) checkpoint), certificate := (project (project header caller) certificate), verification := (project (project header caller) verification), wire := (project (project header caller) wire)}), usage := (project header usage), producer := right, control := (project header control), walk := right, walkDepth := (0 : UInt64), originalSearch := (project header originalSearch)}); (if (prim equal (project left id) (project (project header originalSearch) id) : Bool) then (observe cursor available achievedArena restoredHeader (ctor Stage.findControl)) else (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.active achievedArena restoredHeader (ctor Stage.findControl)), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})))
+}
+
+definition{
+  name: splitStep,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    splitCursor : Uorc.Core.RuntimeOwnerRoots::SplitCursor,
+    header : Header
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeOwnerRoots::splitStep splitCursor)
+    | Uorc.Core.RuntimeOwnerRoots::SplitEvent.advanced continued delta => (observeSplit cursor available continued header)
+    | Uorc.Core.RuntimeOwnerRoots::SplitEvent.done achievedArena left right => (finishSplit cursor available achievedArena left right header)
+    | Uorc.Core.RuntimeOwnerRoots::SplitEvent.failed ownerFailure retained => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (ctor Phase.splitting retained header), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.owner ownerFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.owner ownerFailure))}))
+}
+
+definition{
+  name: findControl,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    activeArena : Uorc.Core.Heap::Arena,
+    header : Header
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.Heap::lookup activeArena (project header walk))
+    | Result.error heapFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.metadataBranch ownerKind left right => (if ((prim equal ownerKind (Uorc.Core.RuntimeOwnerRoots::kindCode (ctor Uorc.Core.RuntimeOwnerRoots::Role.search)) : Bool) && (Uorc.Core.Heap::less (project header walkDepth) (3 : UInt64))) then (match (prim checked_add (project header walkDepth) (1 : UInt64) : (Option UInt64))
+        | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+        | Option.some nextDepth => (observe cursor available activeArena (record Header {program := (project header program), caller := (project header caller), usage := (project header usage), producer := (project header producer), control := (project header control), walk := left, walkDepth := nextDepth, originalSearch := (project header originalSearch)}) (ctor Stage.findControl))) else (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))}))
+      | Uorc.Core.Heap::Node.imageReservation imageKind capacity => (match imageKind
+        | Uorc.Core.Heap::ImageKind.control => (if (Uorc.Core.Heap::less capacity (Uorc.Core.RuntimeOwnerRoots::controlBytes)) then (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))}) else (observe cursor available activeArena (record Header {program := (project header program), caller := (project header caller), usage := (project header usage), producer := (project header producer), control := (project header walk), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)}) (ctor Stage.retainControl)))
+        | Uorc.Core.Heap::ImageKind.input => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+        | Uorc.Core.Heap::ImageKind.archive => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+        | Uorc.Core.Heap::ImageKind.basis => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+        | Uorc.Core.Heap::ImageKind.runtime => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))}))
+      | Uorc.Core.Heap::Node.image kind bytes => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Uorc.Core.Heap::Node.sequenceLeaf image offset length => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Uorc.Core.Heap::Node.sequenceBranch length height left right => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Uorc.Core.Heap::Node.storeLeaf value => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Uorc.Core.Heap::Node.storeBranch left right => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Uorc.Core.Heap::Node.slot role value => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Uorc.Core.Heap::Node.rootBranch role left right => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Uorc.Core.Heap::Node.metadataWord kind index value => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Uorc.Core.Heap::Node.metadataLink kind value target => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Uorc.Core.Heap::Node.ownerRoot role target => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.protocol))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.protocol))})))
+}
+
+definition{
+  name: heapResult,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    header : Header,
+    nextStage : Stage,
+    result : (Result Uorc.Core.Heap::Transition Uorc.Core.Heap::HeapError)
+  ],
+  result: Transition,
+  body: (match result
+    | Result.error heapFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
+    | Result.ok mutation => (observe cursor available (project mutation arena) header nextStage))
+}
+
+definition{
+  name: activeStep,
+  parameters: [
+    cursor : Cursor,
+    available : UInt64,
+    activeArena : Uorc.Core.Heap::Arena,
+    header : Header,
+    stage : Stage
+  ],
+  result: Transition,
+  body: (match stage
+    | Stage.splitOriginal => (match (Uorc.Core.RuntimeOwnerRoots::startSplit activeArena (ctor Uorc.Core.RuntimeOwnerRoots::Role.search) (project (project header caller) search))
+      | Result.error ownerFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.owner ownerFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.owner ownerFailure))})
+      | Result.ok splitCursor => (observeSplit cursor available splitCursor (record Header {program := (project header program), caller := (record Uorc.Core.RuntimeProgram::CallerRoots {input := (project (project header caller) input), archive := (project (project header caller) archive), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (project (project header caller) checkpoint), certificate := (project (project header caller) certificate), verification := (project (project header caller) verification), wire := (project (project header caller) wire)}), usage := (project header usage), producer := (project header producer), control := (project header control), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)})))
+    | Stage.findControl => (findControl cursor available activeArena header)
+    | Stage.retainControl => (match (Uorc.Core.Heap::retain activeArena (project header control))
+      | Result.error heapFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
+      | Result.ok mutation => (observe cursor available (project mutation arena) header (ctor Stage.releaseProducer)))
+    | Stage.releaseProducer => (heapResult cursor available (record Header {program := (project header program), caller := (project header caller), usage := (project header usage), producer := (Uorc.Core.RuntimeValue::nullHandle), control := (project header control), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)}) (ctor Stage.drainProducer) (Uorc.Core.Heap::release activeArena (project header producer)))
+    | Stage.drainProducer => (match (Uorc.Core.Heap::releaseStep activeArena)
+      | Result.error heapFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
+      | Result.ok mutation => (observe cursor available (project mutation arena) header (if (project mutation complete) then (ctor Stage.releaseControl) else stage)))
+    | Stage.releaseControl => (heapResult cursor available (record Header {program := (project header program), caller := (project header caller), usage := (project header usage), producer := (project header producer), control := (Uorc.Core.RuntimeValue::nullHandle), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)}) (ctor Stage.drainControl) (Uorc.Core.Heap::release activeArena (project header control)))
+    | Stage.drainControl => (match (Uorc.Core.Heap::releaseStep activeArena)
+      | Result.error heapFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.heap heapFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.heap heapFailure))})
+      | Result.ok mutation => (observe cursor available (project mutation arena) header (if (project mutation complete) then (ctor Stage.complete) else stage)))
+    | Stage.complete => (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.released)}))
+}
+
+definition{
+  name: requiredWork,
+  parameters: [cursor : Cursor],
+  result: UInt64,
+  body: (match (project cursor phase)
+    | Phase.splitting splitCursor header => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerSplitStep))
+    | Phase.active activeArena header stage => (match stage
+      | Stage.splitOriginal => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.ownerSplitStart))
+      | Stage.findControl => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.metadataMutation))
+      | Stage.retainControl => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRetain))
+      | Stage.releaseProducer => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease))
+      | Stage.drainProducer => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep))
+      | Stage.releaseControl => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease))
+      | Stage.drainControl => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep))
+      | Stage.complete => (0 : UInt64)))
+}
+
+definition{
+  name: usage,
+  parameters: [cursor : Cursor],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (project cursor phase)
+    | Phase.active activeArena header stage => (project header usage)
+    | Phase.splitting splitCursor header => (project header usage))
+}
+
+definition{
+  name: arena,
+  parameters: [cursor : Cursor],
+  result: Uorc.Core.Heap::Arena,
+  body: (match (project cursor phase)
+    | Phase.active activeArena header stage => activeArena
+    | Phase.splitting splitCursor header => (project splitCursor arena))
+}
+
+definition{
+  name: setUsage,
+  parameters: [cursor : Cursor, nextUsage : Uorc.Core.RuntimeResources::Usage],
+  result: Cursor,
+  body: (record Cursor {budget := (project cursor budget), phase := (match (project cursor phase)
+    | Phase.active activeArena header stage => (ctor Phase.active activeArena (record Header {program := (project header program), caller := (project header caller), usage := nextUsage, producer := (project header producer), control := (project header control), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)}) stage)
+    | Phase.splitting splitCursor header => (ctor Phase.splitting splitCursor (record Header {program := (project header program), caller := (project header caller), usage := nextUsage, producer := (project header producer), control := (project header control), walk := (project header walk), walkDepth := (project header walkDepth), originalSearch := (project header originalSearch)}))), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)})
+}
+
+definition{
+  name: perform,
+  parameters: [cursor : Cursor, available : UInt64],
+  result: Transition,
+  body: (match (project cursor phase)
+    | Phase.active activeArena header stage => (activeStep cursor available activeArena header stage)
+    | Phase.splitting splitCursor header => (splitStep cursor available splitCursor header))
+}
+
+definition{
+  name: executePaid,
+  parameters: [cursor : Cursor, available : UInt64, fee : UInt64],
+  result: Transition,
+  body: (match (prim checked_add (project cursor attemptedOperations) (1 : UInt64) : (Option UInt64))
+    | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+    | Option.some operations => (match (Uorc.Core.RuntimeResources::charge (project cursor budget) (usage cursor) (record Uorc.Core.RuntimeResources::Event {work := fee, emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error resourceFailure => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.resource resourceFailure))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.resource resourceFailure))})
+      | Result.ok prepaidUsage => (perform (setUsage (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (0 : UInt64), consumedCredits := (project cursor consumedCredits), attemptedOperations := operations, failure := (project cursor failure)}) prepaidUsage) available)))
+}
+
+definition{
+  name: fund,
+  parameters: [cursor : Cursor, available : UInt64, fee : UInt64],
+  result: Transition,
+  body: (match (prim checked_subtract fee (project cursor paid) : (Option UInt64))
+    | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.invalidFunding))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.invalidFunding))})
+    | Option.some needed => (let taken : UInt64 := (if (Uorc.Core.Heap::less available needed) then available else needed); (match (prim checked_subtract available taken : (Option UInt64))
+      | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.invalidFunding))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.invalidFunding))})
+      | Option.some remaining => (match (prim checked_add (project cursor consumedCredits) taken : (Option UInt64))
+        | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+        | Option.some credits => (match (prim checked_add (project cursor paid) taken : (Option UInt64))
+          | Option.none => (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := (project cursor paid), consumedCredits := (project cursor consumedCredits), attemptedOperations := (project cursor attemptedOperations), failure := (ctor Option.some [Error] (ctor Error.counterExhausted))}), remainingCredits := available, outcome := (ctor Outcome.failed (ctor Error.counterExhausted))})
+          | Option.some newPaid => (if (prim equal newPaid fee : Bool) then (executePaid (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := newPaid, consumedCredits := credits, attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}) remaining fee) else (record Transition {cursor := (record Cursor {budget := (project cursor budget), phase := (project cursor phase), evidence := (project cursor evidence), paid := newPaid, consumedCredits := credits, attemptedOperations := (project cursor attemptedOperations), failure := (project cursor failure)}), remainingCredits := remaining, outcome := (ctor Outcome.pending)})))))))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor, available : UInt64],
+  result: Transition,
+  body: (match (project cursor failure)
+    | Option.some retainedFailure => (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.failed retainedFailure)})
+    | Option.none => (let fee : UInt64 := (requiredWork cursor); (if (prim equal fee (0 : UInt64) : Bool) then (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.released)}) else (if (prim equal available (0 : UInt64) : Bool) then (record Transition {cursor := cursor, remainingCredits := available, outcome := (ctor Outcome.pending)}) else (fund cursor available fee)))))
+}
+
+definition{
+  name: addRoot,
+  parameters: [
+    root : Uorc.Core.RuntimeValue::Handle,
+    roots : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull root) then roots else (cons root roots))
+}
+
+definition{
+  name: rootInventory,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project cursor phase)
+    | Phase.active activeArena header stage => (addRoot (project header producer) (addRoot (if (match stage
+      | Stage.retainControl => true
+      | Stage.splitOriginal => false
+      | Stage.findControl => false
+      | Stage.releaseProducer => false
+      | Stage.drainProducer => false
+      | Stage.releaseControl => false
+      | Stage.drainControl => false
+      | Stage.complete => false) then (Uorc.Core.RuntimeValue::nullHandle) else (project header control)) (Uorc.Core.RuntimeProgram::rootInventory (project header program) (project header caller))))
+    | Phase.splitting splitCursor header => (Uorc.Search.TemplateAdmission::joinRoots (Uorc.Core.RuntimeOwnerRoots::splitRootInventory splitCursor) (Uorc.Core.RuntimeProgram::rootInventory (project header program) (project header caller))))
+}
+
+definition{
+  name: released,
+  parameters: [cursor : Cursor],
+  result: (Option Uorc.Core.RuntimeProgram::Ready),
+  body: (match (project cursor failure)
+    | Option.some retainedFailure => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+    | Option.none => (match (project cursor phase)
+      | Phase.splitting splitCursor header => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+      | Phase.active activeArena header stage => (match stage
+        | Stage.complete => (ctor Option.some [Uorc.Core.RuntimeProgram::Ready] (record Uorc.Core.RuntimeProgram::Ready {arena := activeArena, program := (project header program), caller := (project header caller), usage := (project header usage)}))
+        | Stage.splitOriginal => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+        | Stage.findControl => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+        | Stage.retainControl => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+        | Stage.releaseProducer => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+        | Stage.drainProducer => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+        | Stage.releaseControl => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready])
+        | Stage.drainControl => (ctor Option.none [Uorc.Core.RuntimeProgram::Ready]))))
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "Successful owned-template cleanup consumes only a genuinely admitted producer token, restores the original caller search ticket through real registered owner splitting, and retains a separate ticket to the existing 4096-byte control reservation before releasing producer pins. It discovers that reservation through at most three fixed-template dependency links, never through literal data or an arbitrary graph. The control ticket remains live while all producer metadata/payload pins are released, then transfers into the Heap release cursor and is released last in the same transition that exposes complete cleanup. Every actual lookup/retain/release/split is fully funded and operationally precharged before execution, and failed/partial prefixes retain one achieved arena, all actual tickets, usage and payment. Completed Ready contains only the admitted owned program, restored caller roots and cumulative usage, not the producer cursor or literal snapshots. Full interrupted cancellation, detached policy extension, wire roundtrip, execution, semantic-cost refinement and archive eligibility remain separate required bindings."
+}
+\end{semanticmodule}
+\end{lexlean}

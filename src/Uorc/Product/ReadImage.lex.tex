@@ -1,0 +1,770 @@
+\begin{lexlean}{Uorc.Product.ReadImage}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.ResourceIO}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: LeaseReady,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: source, type: Uorc.Product.Api::ResourceRef},
+    {name: ticket, type: Nat},
+    {name: offset, type: Nat},
+    {name: lease, type: Uorc.Product.Api::ResourceRef},
+    {name: length, type: Nat},
+    {name: eof, type: Bool},
+    {name: failed, type: Bool}
+  ]
+}
+
+structure{
+  name: PayloadReply,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: source, type: Uorc.Product.Api::ResourceRef},
+    {name: ticket, type: Nat},
+    {name: offset, type: Nat},
+    {name: lease, type: Uorc.Product.Api::ResourceRef},
+    {name: bytes, type: Bytes},
+    {name: failed, type: Bool}
+  ]
+}
+
+structure{
+  name: PayloadStopped,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: source, type: Uorc.Product.Api::ResourceRef},
+    {name: ticket, type: Nat},
+    {name: offset, type: Nat},
+    {name: lease, type: Uorc.Product.Api::ResourceRef},
+    {name: stopped, type: Bool}
+  ]
+}
+
+structure{
+  name: LeaseReleased,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: source, type: Uorc.Product.Api::ResourceRef},
+    {name: ticket, type: Nat},
+    {name: offset, type: Nat},
+    {name: lease, type: Uorc.Product.Api::ResourceRef},
+    {name: released, type: Bool}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: awaitLease, fields: []},
+    {name: control, fields: []},
+    {name: reserve, fields: []},
+    {name: requestPayload, fields: []},
+    {name: awaitingPayload, fields: []},
+    {name: imageReady, fields: []},
+    {name: emptyReady, fields: []},
+    {name: cleaning, fields: []},
+    {name: draining, fields: []},
+    {name: awaitingLeaseRelease, fields: []},
+    {name: clean, fields: []},
+    {name: blocked, fields: []}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: staleReply, fields: []},
+    {name: wrongSource, fields: []},
+    {name: wrongOffset, fields: []},
+    {name: wrongLease, fields: []},
+    {name: oversizedReply, fields: []},
+    {name: noProgress, fields: []},
+    {name: addressSpaceExhausted, fields: []},
+    {name: readFailure, fields: []},
+    {name: payloadFailure, fields: []},
+    {name: payloadLengthMismatch, fields: []},
+    {name: protocol, fields: []},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: request, type: Uorc.Product.ResourceIO::ReadRequest},
+    {name: phase, type: Phase},
+    {name: lease, type: (Option LeaseReady)},
+    {name: length, type: UInt64},
+    {name: control, type: Uorc.Core.RuntimeValue::Handle},
+    {name: reservation, type: Uorc.Core.RuntimeValue::Handle},
+    {name: image, type: Uorc.Core.RuntimeValue::Handle},
+    {name: leasePending, type: Bool},
+    {name: payloadPending, type: Bool},
+    {name: stopRequested, type: Bool},
+    {name: cancelled, type: Bool},
+    {name: failure, type: (Option Error)},
+    {name: refusal, type: (Option Uorc.Core.RuntimeResources::Error)},
+    {name: pendingDelta, type: (Option Uorc.Core.Heap::Delta)}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: []},
+    {name: awaitLease, fields: []},
+    {name: requestPayload, fields: [LeaseReady]},
+    {name: awaitPayload, fields: []},
+    {name: cancelRead, fields: [Uorc.Product.ResourceIO::ReadRequest]},
+    {name: cancelPayload, fields: [LeaseReady]},
+    {name: awaitStopped, fields: []},
+    {name: imageReady, fields: []},
+    {name: emptyReady, fields: []},
+    {name: transferred, fields: [LeaseReady, Uorc.Core.RuntimeSequence::Span]},
+    {name: empty, fields: [LeaseReady]},
+    {name: releaseLease, fields: [LeaseReady]},
+    {name: awaitLeaseRelease, fields: []},
+    {name: clean, fields: []},
+    {name: cancelled, fields: []},
+    {name: failed, fields: [Error]},
+    {name: refused, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: awaitDelta, fields: []},
+    {name: notReady, fields: []},
+    {name: rejected, fields: [Error, (Option Uorc.Product.Api::ResourceRef)]}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: cursor, type: Cursor},
+    {name: delta, type: Uorc.Core.Heap::Delta},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+definition{
+  name: zeroDelta,
+  parameters: [],
+  result: Uorc.Core.Heap::Delta,
+  body: (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}),
+  axioms: []
+}
+
+definition{
+  name: phaseCode,
+  parameters: [phase : Phase],
+  result: Nat,
+  body: (match phase
+    | Phase.awaitLease => 0
+    | Phase.control => 1
+    | Phase.reserve => 2
+    | Phase.requestPayload => 3
+    | Phase.awaitingPayload => 4
+    | Phase.imageReady => 5
+    | Phase.emptyReady => 6
+    | Phase.cleaning => 7
+    | Phase.draining => 8
+    | Phase.awaitingLeaseRelease => 9
+    | Phase.clean => 10
+    | Phase.blocked => 11),
+  axioms: []
+}
+
+definition{
+  name: controlBytes,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeOwnerRoots::controlBytes),
+  axioms: []
+}
+
+definition{
+  name: controlWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)),
+  axioms: []
+}
+
+definition{
+  name: reserveWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapAllocate)),
+  axioms: []
+}
+
+definition{
+  name: commitWork,
+  parameters: [quote : UInt64],
+  result: (Option UInt64),
+  body: (Uorc.Core.RuntimeWork::feeWithCopy (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapAllocate)) quote),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "The fixed 4096-byte control covers a fixed cursor of request identities, lease metadata, phase, three handle slots and one delta receipt; it retains no Arena or Bytes. A payload is requested only after its exact image reservation exists. commitImage installs its immutable byte value independently of the external lease. Rejected lease metadata returns explicit incoming-lease custody to the caller. Work refusal retains the same reservation and unresolved immutable payload receipt for retry, without a new source read or lease. takeImage transfers the image and external lease once; the controller owns attachment and ResourceIO consumption.",
+  axioms: []
+}
+
+definition{
+  name: start,
+  parameters: [request : Uorc.Product.ResourceIO::ReadRequest],
+  result: Cursor,
+  body: (record Cursor {request := request, phase := (ctor Phase.awaitLease), lease := (ctor Option.none [LeaseReady]), length := (0 : UInt64), control := (Uorc.Core.RuntimeValue::nullHandle), reservation := (Uorc.Core.RuntimeValue::nullHandle), image := (Uorc.Core.RuntimeValue::nullHandle), leasePending := true, payloadPending := false, stopRequested := false, cancelled := false, failure := (ctor Option.none [Error]), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}),
+  axioms: []
+}
+
+definition{
+  name: leaseIdentityError,
+  parameters: [s : Cursor, ready : LeaseReady],
+  result: (Option Error),
+  body: (if (not (Uorc.Product.ResourceIO::sameRunIdentity (project (project s request) run) (project ready run))) then (ctor Option.some [Error] (ctor Error.staleReply)) else (if (not (Uorc.Product.Api::sameResource (project (project s request) source) (project ready source))) then (ctor Option.some [Error] (ctor Error.wrongSource)) else (if (not ((project (project s request) ticket) =? (project ready ticket))) then (ctor Option.some [Error] (ctor Error.staleReply)) else (if (not ((project (project s request) offset) =? (project ready offset))) then (ctor Option.some [Error] (ctor Error.wrongOffset)) else (ctor Option.none [Error]))))),
+  axioms: []
+}
+
+definition{
+  name: payloadIdentityError,
+  parameters: [s : Cursor, reply : PayloadReply],
+  result: (Option Error),
+  body: (if (not (Uorc.Product.ResourceIO::sameRunIdentity (project (project s request) run) (project reply run))) then (ctor Option.some [Error] (ctor Error.staleReply)) else (if (not (Uorc.Product.Api::sameResource (project (project s request) source) (project reply source))) then (ctor Option.some [Error] (ctor Error.wrongSource)) else (if (not ((project (project s request) ticket) =? (project reply ticket))) then (ctor Option.some [Error] (ctor Error.staleReply)) else (if (not ((project (project s request) offset) =? (project reply offset))) then (ctor Option.some [Error] (ctor Error.wrongOffset)) else (ctor Option.none [Error]))))),
+  axioms: []
+}
+
+definition{
+  name: stoppedIdentityError,
+  parameters: [s : Cursor, reply : PayloadStopped],
+  result: (Option Error),
+  body: (if (not (Uorc.Product.ResourceIO::sameRunIdentity (project (project s request) run) (project reply run))) then (ctor Option.some [Error] (ctor Error.staleReply)) else (if (not (Uorc.Product.Api::sameResource (project (project s request) source) (project reply source))) then (ctor Option.some [Error] (ctor Error.wrongSource)) else (if (not ((project (project s request) ticket) =? (project reply ticket))) then (ctor Option.some [Error] (ctor Error.staleReply)) else (if (not ((project (project s request) offset) =? (project reply offset))) then (ctor Option.some [Error] (ctor Error.wrongOffset)) else (ctor Option.none [Error]))))),
+  axioms: []
+}
+
+definition{
+  name: releasedIdentityError,
+  parameters: [s : Cursor, reply : LeaseReleased],
+  result: (Option Error),
+  body: (if (not (Uorc.Product.ResourceIO::sameRunIdentity (project (project s request) run) (project reply run))) then (ctor Option.some [Error] (ctor Error.staleReply)) else (if (not (Uorc.Product.Api::sameResource (project (project s request) source) (project reply source))) then (ctor Option.some [Error] (ctor Error.wrongSource)) else (if (not ((project (project s request) ticket) =? (project reply ticket))) then (ctor Option.some [Error] (ctor Error.staleReply)) else (if (not ((project (project s request) offset) =? (project reply offset))) then (ctor Option.some [Error] (ctor Error.wrongOffset)) else (ctor Option.none [Error]))))),
+  axioms: []
+}
+
+definition{
+  name: incomingLease,
+  parameters: [s : Cursor, ready : LeaseReady],
+  result: (Option Uorc.Product.Api::ResourceRef),
+  body: (match (project s lease)
+    | Option.none => (ctor Option.some [Uorc.Product.Api::ResourceRef] (project ready lease))
+    | Option.some current => (if (Uorc.Product.Api::sameResource (project current lease) (project ready lease)) then (ctor Option.none [Uorc.Product.Api::ResourceRef]) else (ctor Option.some [Uorc.Product.Api::ResourceRef] (project ready lease)))),
+  axioms: []
+}
+
+definition{
+  name: leaseReady,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    ready : LeaseReady
+  ],
+  result: Transition,
+  body: (match (leaseIdentityError s ready)
+    | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected reason (incomingLease s ready))})
+    | Option.none => (if (project s leasePending) then (if ((project (project ready lease) instance) =? (project (project (project s request) run) instance)) then (if (project s cancelled) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (ctor Option.some [LeaseReady] ready), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := false, payloadPending := (project s payloadPending), stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}) else (if (project ready failed) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (ctor Option.some [LeaseReady] ready), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := false, payloadPending := (project s payloadPending), stopRequested := false, cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.readFailure)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.readFailure))}) else (if ((project (project s request) maximum) <? (project ready length)) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (ctor Option.some [LeaseReady] ready), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := false, payloadPending := (project s payloadPending), stopRequested := false, cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.oversizedReply)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.oversizedReply))}) else (if (((project ready length) =? 0) && ((not (project ready eof)) && true)) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (ctor Option.some [LeaseReady] ready), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := false, payloadPending := (project s payloadPending), stopRequested := false, cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.noProgress)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.noProgress))}) else (match (Uorc.Core.Heap::wordOfNat (project ready length))
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (ctor Option.some [LeaseReady] ready), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := false, payloadPending := (project s payloadPending), stopRequested := false, cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.addressSpaceExhausted)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.addressSpaceExhausted))})
+      | Option.some length => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.control), lease := (ctor Option.some [LeaseReady] ready), length := length, control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := false, payloadPending := (project s payloadPending), stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)})))))) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.wrongLease) (incomingLease s ready))})) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (incomingLease s ready))}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: achievedUsage,
+  parameters: [usage : Uorc.Core.RuntimeResources::Usage, arena : Uorc.Core.Heap::Arena],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (Uorc.Core.Heap::totalOwnedBytes arena)
+    | Result.error reason => usage
+    | Result.ok bytes => (record Uorc.Core.RuntimeResources::Usage {work := (project usage work), ownedBytes := bytes, peakOwnedBytes := (if (Uorc.Core.Heap::less (project usage peakOwnedBytes) bytes) then bytes else (project usage peakOwnedBytes)), outputBytes := (project usage outputBytes), frames := (project usage frames)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: afterMutation,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    delta : Uorc.Core.Heap::Delta,
+    outcome : Outcome
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena budget (achievedUsage usage arena) arena)
+    | Result.error reason => (record Transition {arena := arena, usage := (achievedUsage usage arena), cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] delta)}), delta := delta, outcome := (ctor Outcome.refused reason)})
+    | Result.ok observed => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] delta)}), delta := delta, outcome := outcome})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: heapFailure,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    error : Uorc.Core.Heap::HeapError,
+    paid : Uorc.Core.RuntimeResources::Usage,
+    blocked : Bool
+  ],
+  result: Transition,
+  body: (match error
+    | Uorc.Core.Heap::HeapError.malformedHandle => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})
+    | Uorc.Core.Heap::HeapError.invalidNode => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})
+    | Uorc.Core.Heap::HeapError.countOverflow => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})
+    | Uorc.Core.Heap::HeapError.countUnderflow => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})
+    | Uorc.Core.Heap::HeapError.handleOverflow => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})
+    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})
+    | Uorc.Core.Heap::HeapError.budgetExceeded => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.ownedByteLimit)), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.ownedByteLimit))})
+    | Uorc.Core.Heap::HeapError.releaseInProgress => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})
+    | Uorc.Core.Heap::HeapError.releaseNotStarted => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})
+    | Uorc.Core.Heap::HeapError.invalidRoot => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})
+    | Uorc.Core.Heap::HeapError.protocolFailure => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (if blocked then (ctor Phase.blocked) else (ctor Phase.cleaning)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.heap error)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.heap error))})),
+  axioms: []
+}
+
+definition{
+  name: allocateControlObserved,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.Heap::allocateControl arena (controlBytes))
+    | Result.error heapError => (heapFailure budget arena usage s heapError usage false)
+    | Result.ok allocation => (afterMutation budget (project allocation arena) usage (record Cursor {request := (project s request), phase := (if (Uorc.Core.Heap::less (0 : UInt64) (project s length)) then (ctor Phase.reserve) else (ctor Phase.emptyReady)), lease := (project s lease), length := (project s length), control := (project allocation handle), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project allocation delta) (if (Uorc.Core.Heap::less (0 : UInt64) (project s length)) then (ctor Outcome.advanced) else (ctor Outcome.emptyReady)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: allocateControlPaid,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    paid : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena budget paid arena)
+    | Result.error reason => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+    | Result.ok observed => (allocateControlObserved budget arena observed s)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: reserve,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+    | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+    | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (reserveWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+      | Result.ok paid => (match (Uorc.Core.Heap::reserveImage arena (ctor Uorc.Core.Heap::ImageKind.archive) (project s length))
+        | Result.error heapError => (heapFailure budget arena usage s heapError paid false)
+        | Result.ok allocation => (afterMutation budget (project allocation arena) paid (record Cursor {request := (project s request), phase := (ctor Phase.requestPayload), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project allocation handle), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project allocation delta) (ctor Outcome.advanced))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: commitHeapFailure,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    error : Uorc.Core.Heap::HeapError,
+    paid : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: Transition,
+  body: (match error
+    | Uorc.Core.Heap::HeapError.malformedHandle => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)
+    | Uorc.Core.Heap::HeapError.invalidNode => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)
+    | Uorc.Core.Heap::HeapError.countOverflow => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)
+    | Uorc.Core.Heap::HeapError.countUnderflow => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)
+    | Uorc.Core.Heap::HeapError.handleOverflow => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)
+    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)
+    | Uorc.Core.Heap::HeapError.budgetExceeded => (heapFailure budget arena usage s error paid false)
+    | Uorc.Core.Heap::HeapError.releaseInProgress => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)
+    | Uorc.Core.Heap::HeapError.releaseNotStarted => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)
+    | Uorc.Core.Heap::HeapError.invalidRoot => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)
+    | Uorc.Core.Heap::HeapError.protocolFailure => (heapFailure budget arena usage (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) error paid false)),
+  axioms: []
+}
+
+definition{
+  name: commitPaid,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reply : PayloadReply
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+    | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+    | Result.ok observed => (match (Uorc.Core.Heap::preflightImageCommit arena (project s reservation) (project s length))
+      | Result.error heapError => (commitHeapFailure budget arena usage s heapError observed)
+      | Result.ok quote => (match (commitWork quote)
+        | Option.none => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.workLimit)), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.workLimit))})
+        | Option.some work => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := work, emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::commitImage arena (project s reservation) (project reply bytes))
+            | Result.error heapError => (commitHeapFailure budget arena usage s heapError paid)
+            | Result.ok allocation => (afterMutation budget (project allocation arena) paid (record Cursor {request := (project s request), phase := (ctor Phase.imageReady), lease := (project s lease), length := (project s length), control := (project s control), reservation := (Uorc.Core.RuntimeValue::nullHandle), image := (project allocation handle), leasePending := (project s leasePending), payloadPending := false, stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project allocation delta) (ctor Outcome.imageReady))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: commit,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reply : PayloadReply
+  ],
+  result: Transition,
+  body: (match (payloadIdentityError s reply)
+    | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected reason (ctor Option.none [Uorc.Product.Api::ResourceRef]))})
+    | Option.none => (match (project s lease)
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})
+      | Option.some ready => (if (not (Uorc.Product.Api::sameResource (project ready lease) (project reply lease))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.wrongLease) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (project s payloadPending) then (if (project s cancelled) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}) else (if (project reply failed) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.payloadFailure)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.payloadFailure))}) else (if (not ((prim length (project reply bytes) : Nat) =? (project ready length))) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.payloadLengthMismatch)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.payloadLengthMismatch))}) else (match (project s pendingDelta)
+        | Option.some pending => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})
+        | Option.none => (match (project s refusal)
+          | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Option.none => (commitPaid budget arena usage s reply)))))) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: takeImage,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    run : Uorc.Product.Api::Run
+  ],
+  result: Transition,
+  body: (if (Uorc.Product.ResourceIO::sameRunIdentity (project (project s request) run) run) then (match (project s pendingDelta)
+    | Option.some pending => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})
+    | Option.none => (if (project s payloadPending) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.notReady)}) else (match (project s lease)
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.notReady)})
+      | Option.some ready => (if (((phaseCode (project s phase)) =? 5) && ((not (project s cancelled)) && true)) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (ctor Option.none [LeaseReady]), length := (project s length), control := (project s control), reservation := (project s reservation), image := (Uorc.Core.RuntimeValue::nullHandle), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.transferred ready (record Uorc.Core.RuntimeSequence::Span {image := (project s image), offset := (0 : UInt64), length := (project s length)}))}) else (if (((phaseCode (project s phase)) =? 6) && ((not (project s cancelled)) && true)) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (ctor Option.none [LeaseReady]), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.empty ready)}) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.notReady)})))))) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})),
+  axioms: []
+}
+
+definition{
+  name: acknowledgeDelta,
+  parameters: [s : Cursor, run : Uorc.Product.Api::Run],
+  result: Cursor,
+  body: (if (Uorc.Product.ResourceIO::sameRunIdentity (project (project s request) run) run) then (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}) else s),
+  axioms: []
+}
+
+definition{
+  name: cancel,
+  parameters: [s : Cursor, run : Uorc.Product.Api::Run],
+  result: Cursor,
+  body: (if (Uorc.Product.ResourceIO::sameRunIdentity (project (project s request) run) run) then (if (((phaseCode (project s phase)) =? 11) || ((phaseCode (project s phase)) =? 10)) then s else (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := true, failure := (project s failure), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})) else s),
+  axioms: []
+}
+
+definition{
+  name: readStopped,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reply : Uorc.Product.ResourceIO::ReadCancellationReply
+  ],
+  result: Transition,
+  body: (if ((Uorc.Product.ResourceIO::sameRunIdentity (project (project s request) run) (project reply run)) && ((Uorc.Product.Api::sameResource (project (project s request) source) (project reply source)) && (((project (project s request) ticket) =? (project reply ticket)) && (((project (project s request) offset) =? (project reply offset)) && true)))) then (if ((project s cancelled) && ((project s leasePending) && true)) then (if (project reply stopped) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := false, payloadPending := (project s payloadPending), stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitStopped)})) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})),
+  axioms: []
+}
+
+definition{
+  name: payloadStopped,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reply : PayloadStopped
+  ],
+  result: Transition,
+  body: (match (stoppedIdentityError s reply)
+    | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected reason (ctor Option.none [Uorc.Product.Api::ResourceRef]))})
+    | Option.none => (match (project s lease)
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})
+      | Option.some ready => (if (Uorc.Product.Api::sameResource (project ready lease) (project reply lease)) then (if ((project s cancelled) && ((project s payloadPending) && true)) then (if (project reply stopped) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := false, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitStopped)})) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.wrongLease) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})))),
+  axioms: []
+}
+
+definition{
+  name: leaseReleased,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reply : LeaseReleased
+  ],
+  result: Transition,
+  body: (match (releasedIdentityError s reply)
+    | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected reason (ctor Option.none [Uorc.Product.Api::ResourceRef]))})
+    | Option.none => (match (project s lease)
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})
+      | Option.some ready => (if (Uorc.Product.Api::sameResource (project ready lease) (project reply lease)) then (if ((phaseCode (project s phase)) =? 9) then (if (project reply released) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (ctor Option.none [LeaseReady]), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitLeaseRelease)})) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.wrongLease) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})))),
+  axioms: []
+}
+
+definition{
+  name: drain,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.some pending => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})
+    | Option.none => (match (project s refusal)
+      | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+      | Option.none => (if ((phaseCode (project s phase)) =? 8) then (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::releaseStep arena)
+            | Result.error heapError => (heapFailure budget arena usage s heapError paid true)
+            | Result.ok transition => (afterMutation budget (project transition arena) paid (record Cursor {request := (project s request), phase := (if (project transition complete) then (ctor Phase.cleaning) else (ctor Phase.draining)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project transition delta) (ctor Outcome.advanced))))) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.protocol) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cleanup,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.some pending => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})
+    | Option.none => (match (project s refusal)
+      | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+      | Option.none => (if ((project s leasePending) || (project s payloadPending)) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitStopped)}) else (if ((phaseCode (project s phase)) =? 9) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitLeaseRelease)}) else (if ((phaseCode (project s phase)) =? 11) then (match (project s failure)
+        | Option.none => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+        | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.failed reason)})) else (if ((phaseCode (project s phase)) =? 8) then (drain budget arena usage s) else (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok observed => (if (not (Uorc.Core.RuntimeValue::isNull (project s reservation))) then (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::release arena (project s reservation))
+            | Result.error heapError => (heapFailure budget arena usage s heapError paid true)
+            | Result.ok transition => (afterMutation budget (project transition arena) paid (record Cursor {request := (project s request), phase := (if (project transition complete) then (ctor Phase.cleaning) else (ctor Phase.draining)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (Uorc.Core.RuntimeValue::nullHandle), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project transition delta) (ctor Outcome.advanced)))) else (if (not (Uorc.Core.RuntimeValue::isNull (project s image))) then (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::release arena (project s image))
+            | Result.error heapError => (heapFailure budget arena usage s heapError paid true)
+            | Result.ok transition => (afterMutation budget (project transition arena) paid (record Cursor {request := (project s request), phase := (if (project transition complete) then (ctor Phase.cleaning) else (ctor Phase.draining)), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (Uorc.Core.RuntimeValue::nullHandle), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project transition delta) (ctor Outcome.advanced)))) else (if (not (Uorc.Core.RuntimeValue::isNull (project s control))) then (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::release arena (project s control))
+            | Result.error heapError => (heapFailure budget arena usage s heapError paid true)
+            | Result.ok transition => (afterMutation budget (project transition arena) paid (record Cursor {request := (project s request), phase := (if (project transition complete) then (ctor Phase.cleaning) else (ctor Phase.draining)), lease := (project s lease), length := (project s length), control := (Uorc.Core.RuntimeValue::nullHandle), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project transition delta) (ctor Outcome.advanced)))) else (match (project s lease)
+          | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.clean), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (if (project s cancelled) then (ctor Outcome.cancelled) else (match (project s failure)
+            | Option.none => (ctor Outcome.clean)
+            | Option.some reason => (ctor Outcome.failed reason)))})
+          | Option.some ready => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.awaitingLeaseRelease), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.releaseLease ready)})))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: tick,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.some pending => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})
+    | Option.none => (match (project s refusal)
+      | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+      | Option.none => (if (project s cancelled) then (if ((project s leasePending) || (project s payloadPending)) then (if (project s stopRequested) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitStopped)}) else (if (project s leasePending) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := true, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.cancelRead (project s request))}) else (match (project s lease)
+        | Option.none => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+        | Option.some ready => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := true, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.cancelPayload ready)})))) else (if ((phaseCode (project s phase)) =? 8) then (drain budget arena usage s) else (cleanup budget arena usage s))) else (match (project s phase)
+        | Phase.awaitLease => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitLease)})
+        | Phase.control => (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (controlWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (allocateControlPaid budget arena usage s paid))
+        | Phase.reserve => (reserve budget arena usage s)
+        | Phase.requestPayload => (match (project s lease)
+          | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.cleaning), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (ctor Option.some [Error] (ctor Error.protocol)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+          | Option.some ready => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.awaitingPayload), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := true, stopRequested := false, cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.requestPayload ready)}))
+        | Phase.awaitingPayload => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitPayload)})
+        | Phase.imageReady => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.imageReady)})
+        | Phase.emptyReady => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.emptyReady)})
+        | Phase.cleaning => (cleanup budget arena usage s)
+        | Phase.draining => (drain budget arena usage s)
+        | Phase.awaitingLeaseRelease => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitLeaseRelease)})
+        | Phase.clean => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {request := (project s request), phase := (ctor Phase.clean), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (if (project s cancelled) then (ctor Outcome.cancelled) else (match (project s failure)
+          | Option.none => (ctor Outcome.clean)
+          | Option.some reason => (ctor Outcome.failed reason)))})
+        | Phase.blocked => (match (project s failure)
+          | Option.none => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+          | Option.some reason => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.failed reason)})))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: extend,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    run : Uorc.Product.Api::Run
+  ],
+  result: Transition,
+  body: (if (Uorc.Product.ResourceIO::sameRunIdentity (project (project s request) run) run) then (match (Uorc.Core.RuntimeResources::observeArena budget usage (record Uorc.Core.Heap::Arena {index := (project arena index), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project budget maxOwnedBytes), cursor := (project arena cursor)}))
+    | Result.error reason => (record Transition {arena := (record Uorc.Core.Heap::Arena {index := (project arena index), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project budget maxOwnedBytes), cursor := (project arena cursor)}), usage := usage, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+    | Result.ok observed => (record Transition {arena := (record Uorc.Core.Heap::Arena {index := (project arena index), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project budget maxOwnedBytes), cursor := (project arena cursor)}), usage := observed, cursor := (record Cursor {request := (project s request), phase := (project s phase), lease := (project s lease), length := (project s length), control := (project s control), reservation := (project s reservation), image := (project s image), leasePending := (project s leasePending), payloadPending := (project s payloadPending), stopRequested := (project s stopRequested), cancelled := (project s cancelled), failure := (project s failure), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)})) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ownedRoots,
+  parameters: [s : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull (project s control)) then (if (Uorc.Core.RuntimeValue::isNull (project s reservation)) then (if (Uorc.Core.RuntimeValue::isNull (project s image)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project s image) (nil Uorc.Core.RuntimeValue::Handle))) else (cons (project s reservation) (if (Uorc.Core.RuntimeValue::isNull (project s image)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project s image) (nil Uorc.Core.RuntimeValue::Handle))))) else (cons (project s control) (if (Uorc.Core.RuntimeValue::isNull (project s reservation)) then (if (Uorc.Core.RuntimeValue::isNull (project s image)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project s image) (nil Uorc.Core.RuntimeValue::Handle))) else (cons (project s reservation) (if (Uorc.Core.RuntimeValue::isNull (project s image)) then (nil Uorc.Core.RuntimeValue::Handle) else (cons (project s image) (nil Uorc.Core.RuntimeValue::Handle))))))),
+  axioms: []
+}
+
+definition{
+  name: outcomeRoots,
+  parameters: [outcome : Outcome],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match outcome
+    | Outcome.advanced => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.awaitLease => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.requestPayload v0 => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.awaitPayload => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.cancelRead v0 => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.cancelPayload v0 => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.awaitStopped => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.imageReady => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.emptyReady => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.transferred ready span => (if (Uorc.Core.Heap::less (0 : UInt64) (project span length)) then (cons (project span image) (nil Uorc.Core.RuntimeValue::Handle)) else (nil Uorc.Core.RuntimeValue::Handle))
+    | Outcome.empty v0 => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.releaseLease v0 => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.awaitLeaseRelease => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.clean => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.cancelled => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.failed v0 => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.refused v0 => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.awaitDelta => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.notReady => (nil Uorc.Core.RuntimeValue::Handle)
+    | Outcome.rejected v0 v1 => (nil Uorc.Core.RuntimeValue::Handle)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ownedLease,
+  parameters: [s : Cursor],
+  result: (Option Uorc.Product.Api::ResourceRef),
+  body: (match (project s lease)
+    | Option.none => (ctor Option.none [Uorc.Product.Api::ResourceRef])
+    | Option.some ready => (ctor Option.some [Uorc.Product.Api::ResourceRef] (project ready lease))),
+  axioms: []
+}
+
+definition{
+  name: outcomeLeases,
+  parameters: [outcome : Outcome],
+  result: (List Uorc.Product.Api::ResourceRef),
+  body: (match outcome
+    | Outcome.advanced => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitLease => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.requestPayload v0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitPayload => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.cancelRead v0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.cancelPayload v0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitStopped => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.imageReady => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.emptyReady => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.transferred ready span => (cons (project ready lease) (nil Uorc.Product.Api::ResourceRef))
+    | Outcome.empty ready => (cons (project ready lease) (nil Uorc.Product.Api::ResourceRef))
+    | Outcome.releaseLease v0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitLeaseRelease => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.clean => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.cancelled => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.failed v0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.refused v0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitDelta => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.notReady => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.rejected reason incoming => (match incoming
+      | Option.none => (nil Uorc.Product.Api::ResourceRef)
+      | Option.some lease => (cons lease (nil Uorc.Product.Api::ResourceRef)))),
+  axioms: []
+}
+
+definition{
+  name: releaseDisposition,
+  parameters: [s : Cursor],
+  result: Uorc.Product.Api::ReleaseDisposition,
+  body: (if ((project s leasePending) || (project s payloadPending)) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.pendingIo)) else (if ((phaseCode (project s phase)) =? 8) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena)) else (match (project s pendingDelta)
+    | Option.some delta => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt))
+    | Option.none => (if ((not (Uorc.Core.RuntimeValue::isNull (project s control))) || ((not (Uorc.Core.RuntimeValue::isNull (project s reservation))) || (not (Uorc.Core.RuntimeValue::isNull (project s image))))) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.imageTicket)) else (match (project s lease)
+      | Option.some ready => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.resourceLease))
+      | Option.none => (ctor Uorc.Product.Api::ReleaseDisposition.releasable)))))),
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

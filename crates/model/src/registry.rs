@@ -42,6 +42,7 @@ pub struct Ledger {
 
 /// One claim, at exactly one honesty level.
 #[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Claim {
     /// The conformance ID, or an `AUTH-`/`OPEN-` prefixed identifier.
     pub id: String,
@@ -55,6 +56,10 @@ pub struct Claim {
     /// The authority a `some-true` claim is reproduced from.
     #[serde(default)]
     pub authority: Option<String>,
+    /// Source-owned evidence class; separate from the template honesty level.
+    pub evidence_kind: String,
+    /// Research disposition; never implied by implementation acceptance.
+    pub research_disposition: String,
     /// Recorded sample size, for a claim that is a statistic.
     #[serde(default)]
     pub sample_size: Option<u64>,

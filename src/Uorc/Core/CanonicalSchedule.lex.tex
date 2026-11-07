@@ -1,0 +1,774 @@
+\begin{lexlean}{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: scheduleIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.logical-reference-event-schedule/1",
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: realizationPolicyIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.fixed4096-byte-leaves/1",
+  axioms: [],
+  executable: false
+}
+
+inductive{
+  name: Action,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: scalar, fields: []},
+    {name: literal, fields: []},
+    {name: index, fields: []},
+    {name: view, fields: []},
+    {name: comparison, fields: []},
+    {name: singleton, fields: []},
+    {name: basis, fields: []},
+    {name: store, fields: []},
+    {name: apply, fields: []},
+    {name: tabulate, fields: []},
+    {name: fold, fields: []},
+    {name: scan, fields: []}
+  ]
+}
+
+definition{
+  name: actionFor,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: Action,
+  body: (match opcode
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalConstant => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteConstant => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateConstant => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant => (ctor Action.literal)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAdd => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalSubtract => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalMultiply => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalDivide => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalRemainder => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAnd => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalOr => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalXor => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalNot => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftLeft => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftRight => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalEqual => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalLess => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteEqual => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteLess => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalToByte => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteToNatural => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateNot => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateAnd => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateOr => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceLength => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex => (ctor Action.index)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceSlice => (ctor Action.view)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConcat => (ctor Action.view)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceEqual => (ctor Action.comparison)
+    | Uorc.Core.RuntimeOpcode::Opcode.singletonSequence => (ctor Action.singleton)
+    | Uorc.Core.RuntimeOpcode::Opcode.basisGet => (ctor Action.basis)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeNew => (ctor Action.store)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeRead => (ctor Action.store)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeWrite => (ctor Action.store)
+    | Uorc.Core.RuntimeOpcode::Opcode.choose => (ctor Action.scalar)
+    | Uorc.Core.RuntimeOpcode::Opcode.apply => (ctor Action.apply)
+    | Uorc.Core.RuntimeOpcode::Opcode.tabulate => (ctor Action.tabulate)
+    | Uorc.Core.RuntimeOpcode::Opcode.fold => (ctor Action.fold)
+    | Uorc.Core.RuntimeOpcode::Opcode.scan => (ctor Action.scan)),
+  axioms: [],
+  executable: false
+}
+
+structure{
+  name: OpcodePlan,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: signature, type: Uorc.Core.RuntimeOpcode::Spec},
+    {name: action, type: Action},
+    {name: dispatch, type: Uorc.Core.CanonicalCost::SemanticEvent}
+  ]
+}
+
+definition{
+  name: opcodePlan,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: OpcodePlan,
+  body: (record OpcodePlan {signature := (Uorc.Core.RuntimeOpcode::spec opcode), action := (actionFor opcode), dispatch := (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction opcode)}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: operandEvents,
+  parameters: [role : Uorc.Core.RuntimeOpcode::OperandRole],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (match role
+    | Uorc.Core.RuntimeOpcode::OperandRole.absent => (nil Uorc.Core.CanonicalCost::SemanticEvent)
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateNatural => (nil Uorc.Core.CanonicalCost::SemanticEvent)
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateByte => (nil Uorc.Core.CanonicalCost::SemanticEvent)
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediatePredicate => (nil Uorc.Core.CanonicalCost::SemanticEvent)
+    | Uorc.Core.RuntimeOpcode::OperandRole.localNatural => (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localByte => (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localPredicate => (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localSequence => (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localStore => (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localAny => (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent))
+    | Uorc.Core.RuntimeOpcode::OperandRole.blockReference => (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: operandPrefix,
+  parameters: [signature : Uorc.Core.RuntimeOpcode::Spec],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalCost::appendEvents (operandEvents (project signature operand0)) (Uorc.Core.CanonicalCost::appendEvents (operandEvents (project signature operand1)) (Uorc.Core.CanonicalCost::appendEvents (operandEvents (project signature operand2)) (Uorc.Core.CanonicalCost::appendEvents (operandEvents (project signature operand3)) (nil Uorc.Core.CanonicalCost::SemanticEvent))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: instructionPrefix,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction opcode) (operandPrefix (Uorc.Core.RuntimeOpcode::spec opcode))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: repeatEvent,
+  parameters: [count : Nat, event : Uorc.Core.CanonicalCost::SemanticEvent],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (match count
+    | Nat.zero => (nil Uorc.Core.CanonicalCost::SemanticEvent)
+    | Nat.succ remaining => (cons event (repeatEvent remaining event))),
+  axioms: [],
+  executable: false,
+  recursive_argument: count
+}
+
+definition{
+  name: captureReadEvents,
+  parameters: [captureCount : Nat],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (repeatEvent captureCount (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: literalTraversal,
+  parameters: [length : Nat],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (repeatEvent length (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteRead)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: indexObservation,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: comparisonObservation,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteRead) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteRead) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteComparison) (nil Uorc.Core.CanonicalCost::SemanticEvent)))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: singletonConstruction,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteWrite) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: outputTraversal,
+  parameters: [length : Nat],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (match length
+    | Nat.zero => (nil Uorc.Core.CanonicalCost::SemanticEvent)
+    | Nat.succ remaining => (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteRead) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.outputByte) (outputTraversal remaining)))),
+  axioms: [],
+  executable: false,
+  recursive_argument: length
+}
+
+definition{
+  name: completedResult,
+  parameters: [
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits (Uorc.Core.CanonicalBindings::units binding)) (Uorc.Core.CanonicalBindings::lastUseEvents deadBindings)),
+  axioms: [],
+  executable: false
+}
+
+structure{
+  name: ValuePlan,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: binding, type: Uorc.Core.CanonicalBindings::Binding},
+    {name: events, type: (List Uorc.Core.CanonicalCost::SemanticEvent)}
+  ]
+}
+
+definition{
+  name: literalPlan,
+  parameters: [bytes : Bytes, deadBindings : (List Uorc.Core.CanonicalBindings::Binding)],
+  result: ValuePlan,
+  body: (let resultBinding : Uorc.Core.CanonicalBindings::Binding := (Uorc.Core.CanonicalBindings::literal bytes); (record ValuePlan {binding := resultBinding, events := (Uorc.Core.CanonicalCost::appendEvents (instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant)) (Uorc.Core.CanonicalCost::appendEvents (literalTraversal (prim length bytes : Nat)) (completedResult resultBinding deadBindings)))})),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: literalSequencePlan,
+  parameters: [
+    sequence : Uorc.Core.ReferenceSemantics::Sequence,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  result: ValuePlan,
+  body: (let resultBinding : Uorc.Core.CanonicalBindings::Binding := (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence sequence)}); (record ValuePlan {binding := resultBinding, events := (Uorc.Core.CanonicalCost::appendEvents (instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant)) (Uorc.Core.CanonicalCost::appendEvents (literalTraversal (project sequence length)) (completedResult resultBinding deadBindings)))})),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: basisLookupEvents,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: returnPlan,
+  parameters: [
+    returned : Uorc.Core.CanonicalBindings::Binding,
+    otherBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  result: ValuePlan,
+  body: (record ValuePlan {binding := (Uorc.Core.CanonicalBindings::transfer returned (ctor Uorc.Core.CanonicalBindings::Role.returnValue)), events := (Uorc.Core.CanonicalBindings::frameReturnEvents otherBindings)}),
+  axioms: [],
+  executable: false
+}
+
+inductive{
+  name: CallLane,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: apply, fields: []},
+    {name: tabulateBody, fields: []},
+    {name: foldBody, fields: []},
+    {name: scanObserver, fields: []},
+    {name: scanUpdater, fields: []}
+  ]
+}
+
+structure{
+  name: CallPlan,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: lane, type: CallLane},
+    {name: arguments, type: (List Uorc.Core.ReferenceSemantics::Value)},
+    {name: entryEvents, type: (List Uorc.Core.CanonicalCost::SemanticEvent)}
+  ]
+}
+
+definition{
+  name: callPlan,
+  parameters: [lane : CallLane, arguments : (List Uorc.Core.ReferenceSemantics::Value)],
+  result: CallPlan,
+  body: (record CallPlan {lane := lane, arguments := arguments, entryEvents := (Uorc.Core.CanonicalBindings::frameEntryEvents arguments)}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: loopCondition,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.loopObserve) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: outputAccumulatorStart,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits 0) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: stateAccumulatorStart,
+  parameters: [initial : Uorc.Core.CanonicalBindings::Binding],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits (Uorc.Core.CanonicalBindings::units initial)) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: appendReturnedByte,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteWrite) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits 1) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits 1) (nil Uorc.Core.CanonicalCost::SemanticEvent)))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: replaceLoopState,
+  parameters: [oldState : Uorc.Core.CanonicalBindings::Binding],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits (Uorc.Core.CanonicalBindings::units oldState)) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: completedIteration,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: scanFinish,
+  parameters: [state : Uorc.Core.CanonicalBindings::Binding],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits (Uorc.Core.CanonicalBindings::units state)) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: tabulateIterationEvents,
+  parameters: [bodyEvents : (List Uorc.Core.CanonicalCost::SemanticEvent)],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalCost::appendEvents bodyEvents (Uorc.Core.CanonicalCost::appendEvents (appendReturnedByte) (completedIteration))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: foldIterationEvents,
+  parameters: [
+    bodyEvents : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    oldState : Uorc.Core.CanonicalBindings::Binding
+  ],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalCost::appendEvents bodyEvents (Uorc.Core.CanonicalCost::appendEvents (replaceLoopState oldState) (completedIteration))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: scanIterationEvents,
+  parameters: [
+    observerEvents : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    updaterEvents : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    oldState : Uorc.Core.CanonicalBindings::Binding
+  ],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalCost::appendEvents observerEvents (Uorc.Core.CanonicalCost::appendEvents (appendReturnedByte) (Uorc.Core.CanonicalCost::appendEvents updaterEvents (Uorc.Core.CanonicalCost::appendEvents (replaceLoopState oldState) (completedIteration))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: outputObjectEvents,
+  parameters: [length : Nat],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary) (outputTraversal length)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: basisObjectEvents,
+  parameters: [executionAndOutput : (List Uorc.Core.CanonicalCost::SemanticEvent)],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary) executionAndOutput),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: acceptedEofEvents,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof) (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  axioms: [],
+  executable: false
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: meaning, type: Uorc.Core.ReferenceSemantics::Value},
+    {name: pending, type: (List Uorc.Core.CanonicalCost::SemanticEvent)},
+    {name: usage, type: Uorc.Core.CanonicalCost::Usage}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {
+      name: completed,
+      fields: [Uorc.Core.ReferenceSemantics::Value, Uorc.Core.CanonicalCost::Usage]
+    },
+    {name: failed, fields: [Uorc.Core.CanonicalCost::Error, Cursor]}
+  ]
+}
+
+definition{
+  name: startPlan,
+  parameters: [plan : ValuePlan, usage : Uorc.Core.CanonicalCost::Usage],
+  result: Cursor,
+  body: (record Cursor {meaning := (project (project plan binding) value), pending := (project plan events), usage := usage}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: withCommittedEvent,
+  parameters: [
+    cursor : Cursor,
+    remaining : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    achieved : Uorc.Core.CanonicalCost::Usage
+  ],
+  result: Cursor,
+  body: (record Cursor {meaning := (project cursor meaning), pending := remaining, usage := achieved}),
+  axioms: [],
+  executable: false
+}
+
+inductive{
+  name: EventDecision,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: committed, fields: [Uorc.Core.CanonicalCost::Usage]},
+    {name: refused, fields: [Uorc.Core.CanonicalCost::Error]}
+  ]
+}
+
+definition{
+  name: decideEvent,
+  parameters: [
+    budget : Uorc.Core.CanonicalCost::Budget,
+    usage : Uorc.Core.CanonicalCost::Usage,
+    event : Uorc.Core.CanonicalCost::SemanticEvent
+  ],
+  result: EventDecision,
+  body: (match (Uorc.Core.CanonicalCost::charge budget usage event)
+    | Result.ok achieved => (ctor EventDecision.committed achieved)
+    | Result.error failure => (ctor EventDecision.refused failure)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: completeAttempt,
+  parameters: [
+    cursor : Cursor,
+    remaining : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    decision : EventDecision
+  ],
+  result: Step,
+  body: (match decision
+    | EventDecision.committed achieved => (ctor Step.pending (withCommittedEvent cursor remaining achieved))
+    | EventDecision.refused failure => (ctor Step.failed failure cursor)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: dispatchPending,
+  parameters: [
+    budget : Uorc.Core.CanonicalCost::Budget,
+    cursor : Cursor,
+    pending : (List Uorc.Core.CanonicalCost::SemanticEvent)
+  ],
+  result: Step,
+  body: (match pending
+    | List.nil => (ctor Step.completed (project cursor meaning) (project cursor usage))
+    | List.cons event remaining => (completeAttempt cursor remaining (decideEvent budget (project cursor usage) event))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: step,
+  parameters: [budget : Uorc.Core.CanonicalCost::Budget, cursor : Cursor],
+  result: Step,
+  body: (dispatchPending budget cursor (project cursor pending)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: stepMeaning,
+  parameters: [eventStep : Step],
+  result: Uorc.Core.ReferenceSemantics::Value,
+  body: (match eventStep
+    | Step.pending pending => (project pending meaning)
+    | Step.completed meaning usage => meaning
+    | Step.failed failure retained => (project retained meaning)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: stepUsage,
+  parameters: [eventStep : Step],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (match eventStep
+    | Step.pending pending => (project pending usage)
+    | Step.completed meaning usage => usage
+    | Step.failed failure retained => (project retained usage)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, budget : Uorc.Core.CanonicalCost::Budget, cursor : Cursor],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => (ctor Step.pending cursor)
+    | Nat.succ remainingFuel => (match (step budget cursor)
+      | Step.pending next => (run remainingFuel budget next)
+      | Step.completed meaning usage => (ctor Step.completed meaning usage)
+      | Step.failed failure retained => (ctor Step.failed failure retained))),
+  axioms: [],
+  executable: false,
+  recursive_argument: fuel
+}
+
+theorem{
+  name: literal_sequence_plan_preserves_logical_carrier,
+  parameters: [
+    sequence : Uorc.Core.ReferenceSemantics::Sequence,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((project (project (literalSequencePlan sequence deadBindings) binding) value) = (ctor Uorc.Core.ReferenceSemantics::Value.sequence sequence)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_plan_reuses_authoritative_signature,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  statement: ((project (opcodePlan opcode) signature) = (Uorc.Core.RuntimeOpcode::spec opcode)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: committed_event_preserves_reference_meaning,
+  parameters: [
+    cursor : Cursor,
+    remaining : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    achieved : Uorc.Core.CanonicalCost::Usage
+  ],
+  statement: ((project (withCommittedEvent cursor remaining achieved) meaning) = (project cursor meaning)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: return_transfers_the_same_reference_value,
+  parameters: [
+    returned : Uorc.Core.CanonicalBindings::Binding,
+    otherBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((project (project (returnPlan returned otherBindings) binding) value) = (project returned value)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: literal_plan_agrees_with_independent_instruction,
+  parameters: [bytes : Bytes, deadBindings : (List Uorc.Core.CanonicalBindings::Binding)],
+  statement: ((Uorc.Core.ReferenceSemantics::evaluateInstruction (nil Uorc.Core.ReferenceSemantics::BlockMeaning) (nil Uorc.Core.ReferenceSemantics::Sequence) (nil Uorc.Core.ReferenceSemantics::Value) (ctor Uorc.Core.Graph::Instruction.sequenceConstant bytes)) = (ctor Result.ok [Uorc.Core.ReferenceSemantics::Value, Uorc.Core.ReferenceSemantics::Failure] (project (project (literalPlan bytes deadBindings) binding) value))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: empty_output_still_has_object_boundary,
+  parameters: [],
+  statement: ((outputObjectEvents 0) = (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary) (nil Uorc.Core.CanonicalCost::SemanticEvent))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: scan_observer_precedes_append_and_updater,
+  parameters: [
+    observerEvents : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    updaterEvents : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    oldState : Uorc.Core.CanonicalBindings::Binding
+  ],
+  statement: ((scanIterationEvents observerEvents updaterEvents oldState) = (Uorc.Core.CanonicalCost::appendEvents observerEvents (Uorc.Core.CanonicalCost::appendEvents (appendReturnedByte) (Uorc.Core.CanonicalCost::appendEvents updaterEvents (Uorc.Core.CanonicalCost::appendEvents (replaceLoopState oldState) (completedIteration)))))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: literal_traversal_has_one_event_per_logical_byte,
+  parameters: [length : Nat],
+  statement: ((Uorc.Core.CanonicalCost::workOf (literalTraversal length)) = length),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            Uorc.Core.CanonicalCost::eventWork,
+            Uorc.Core.CanonicalCost::workOf,
+            literalTraversal,
+            repeatEvent
+          ]
+        },
+        binders: [remaining, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: length
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: complete_attempt_preserves_reference_meaning,
+  parameters: [
+    cursor : Cursor,
+    remaining : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    decision : EventDecision
+  ],
+  statement: ((stepMeaning (completeAttempt cursor remaining decision)) = (project cursor meaning)),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [achieved], constructor: committed},
+      {proof: reflexivity{}, binders: [failure], constructor: refused}
+    ],
+    scrutinee: decision
+  },
+  axioms: []
+}
+
+theorem{
+  name: dispatch_pending_preserves_reference_meaning,
+  parameters: [
+    budget : Uorc.Core.CanonicalCost::Budget,
+    cursor : Cursor,
+    pending : (List Uorc.Core.CanonicalCost::SemanticEvent)
+  ],
+  statement: ((stepMeaning (dispatchPending budget cursor pending)) = (project cursor meaning)),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [complete_attempt_preserves_reference_meaning, dispatchPending]
+        },
+        binders: [event, remaining],
+        constructor: cons
+      }
+    ],
+    scrutinee: pending
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: one_event_driver_preserves_reference_meaning,
+  parameters: [budget : Uorc.Core.CanonicalCost::Budget, cursor : Cursor],
+  statement: ((stepMeaning (step budget cursor)) = (project cursor meaning)),
+  proof: simplify{definitions: [dispatch_pending_preserves_reference_meaning, step]},
+  axioms: [propext]
+}
+
+theorem{
+  name: refused_event_retains_exact_committed_usage,
+  parameters: [
+    cursor : Cursor,
+    remaining : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    failure : Uorc.Core.CanonicalCost::Error
+  ],
+  statement: ((stepUsage (completeAttempt cursor remaining (ctor EventDecision.refused failure))) = (project cursor usage)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: committed_event_exposes_exact_achieved_usage,
+  parameters: [
+    cursor : Cursor,
+    remaining : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    achieved : Uorc.Core.CanonicalCost::Usage
+  ],
+  statement: ((stepUsage (completeAttempt cursor remaining (ctor EventDecision.committed achieved))) = achieved),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: segmented_literal_plan_agrees_with_independent_instruction,
+  parameters: [
+    rope : Uorc.Core.Bytes::Rope,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((Uorc.Core.ReferenceSemantics::evaluateInstruction (nil Uorc.Core.ReferenceSemantics::BlockMeaning) (nil Uorc.Core.ReferenceSemantics::Sequence) (nil Uorc.Core.ReferenceSemantics::Value) (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant rope)) = (ctor Result.ok [Uorc.Core.ReferenceSemantics::Value, Uorc.Core.ReferenceSemantics::Failure] (project (project (literalSequencePlan (Uorc.Core.ReferenceSemantics::sequenceFromRope rope) deadBindings) binding) value))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

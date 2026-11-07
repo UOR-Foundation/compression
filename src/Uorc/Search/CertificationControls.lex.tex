@@ -1,0 +1,122 @@
+\begin{lexlean}{Uorc.Search.CertificationControls}
+\importmodule{Uorc.Search.Certification}
+\importmodule{Uorc.Search.Replay}
+\importmodule{Uorc.Search.ReplayControls}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Identity}
+\importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Core.Resources}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: fromFixture,
+  parameters: [
+    fixture : (Option Uorc.Search.Replay::Step),
+    checkMode : Uorc.Search.Certification::Mode,
+    allowances : Uorc.Search.Effort::Allowances
+  ],
+  result: (Option Uorc.Search.Certification::Step),
+  body: (match fixture
+    | Option.none => (ctor Option.none [Uorc.Search.Certification::Step])
+    | Option.some replayState => (match replayState
+      | Uorc.Search.Replay::Step.pending prefix => (ctor Option.some [Uorc.Search.Certification::Step] (ctor Uorc.Search.Certification::Step.pending (match checkMode
+        | Uorc.Search.Certification::Mode.produce => (Uorc.Search.Certification::startProduction (project prefix request) (project prefix expected) allowances)
+        | Uorc.Search.Certification::Mode.check => (Uorc.Search.Certification::startChecking (record Uorc.Search.Certification::Artifact {request := (project prefix request), claimedBodyWords := 18446744073709551615, claimedMaximumBodyLength := 18446744073709551615}) (project prefix expected) allowances))))
+      | Uorc.Search.Replay::Step.counterexample found => (ctor Option.none [Uorc.Search.Certification::Step])
+      | Uorc.Search.Replay::Step.completeBodyReplay coverage => (ctor Option.none [Uorc.Search.Certification::Step])
+      | Uorc.Search.Replay::Step.incomplete failure prefix => (ctor Option.none [Uorc.Search.Certification::Step])))
+}
+
+definition{
+  name: runBlocks,
+  parameters: [blocks : Nat, state : Uorc.Search.Certification::Step],
+  result: Uorc.Search.Certification::Step,
+  body: (match blocks
+    | Nat.zero => state
+    | Nat.succ remaining => (runBlocks remaining (Uorc.Search.Certification::runWork 1000 state))),
+  recursive_argument: blocks
+}
+
+theorem{
+  name: produce_partition_30000_0,
+  parameters: [],
+  statement: ((match (fromFixture (Uorc.Search.ReplayControls::fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})) (ctor Uorc.Search.Certification::Mode.produce) (record Uorc.Search.Effort::Allowances {search := 0, rawReserve := 0, finalReserve := 0, replay := 0, certificateProduction := 30000, checker := 0}))
+    | Option.none => (ctor Option.none [Uorc.Search.Certification::Outcome])
+    | Option.some certificateState => (ctor Option.some [Uorc.Search.Certification::Outcome] (Uorc.Search.Certification::outcome (runBlocks 30 certificateState)))) = (ctor Option.some [Uorc.Search.Certification::Outcome] (ctor Uorc.Search.Certification::Outcome.producedConditional))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: check_partition_0_30000,
+  parameters: [],
+  statement: ((match (fromFixture (Uorc.Search.ReplayControls::fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})) (ctor Uorc.Search.Certification::Mode.check) (record Uorc.Search.Effort::Allowances {search := 0, rawReserve := 0, finalReserve := 0, replay := 0, certificateProduction := 0, checker := 30000}))
+    | Option.none => (ctor Option.none [Uorc.Search.Certification::Outcome])
+    | Option.some certificateState => (ctor Option.some [Uorc.Search.Certification::Outcome] (Uorc.Search.Certification::outcome (runBlocks 30 certificateState)))) = (ctor Option.some [Uorc.Search.Certification::Outcome] (ctor Uorc.Search.Certification::Outcome.checkedConditional))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: produce_partition_0_30000,
+  parameters: [],
+  statement: ((match (fromFixture (Uorc.Search.ReplayControls::fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})) (ctor Uorc.Search.Certification::Mode.produce) (record Uorc.Search.Effort::Allowances {search := 0, rawReserve := 0, finalReserve := 0, replay := 0, certificateProduction := 0, checker := 30000}))
+    | Option.none => (ctor Option.none [Uorc.Search.Certification::Outcome])
+    | Option.some certificateState => (ctor Option.some [Uorc.Search.Certification::Outcome] (Uorc.Search.Certification::outcome (runBlocks 30 certificateState)))) = (ctor Option.some [Uorc.Search.Certification::Outcome] (ctor Uorc.Search.Certification::Outcome.incomplete))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: check_partition_30000_0,
+  parameters: [],
+  statement: ((match (fromFixture (Uorc.Search.ReplayControls::fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})) (ctor Uorc.Search.Certification::Mode.check) (record Uorc.Search.Effort::Allowances {search := 0, rawReserve := 0, finalReserve := 0, replay := 0, certificateProduction := 30000, checker := 0}))
+    | Option.none => (ctor Option.none [Uorc.Search.Certification::Outcome])
+    | Option.some certificateState => (ctor Option.some [Uorc.Search.Certification::Outcome] (Uorc.Search.Certification::outcome (runBlocks 30 certificateState)))) = (ctor Option.some [Uorc.Search.Certification::Outcome] (ctor Uorc.Search.Certification::Outcome.incomplete))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: observedEffort,
+  parameters: [state : Uorc.Search.Certification::Step],
+  result: Uorc.Search.Effort::Ledger,
+  body: (match state
+    | Uorc.Search.Certification::Step.pending cursor => (project cursor effortLedger)
+    | Uorc.Search.Certification::Step.produced artifact coverage ledger => ledger
+    | Uorc.Search.Certification::Step.checked coverage ledger => ledger
+    | Uorc.Search.Certification::Step.counterexample found ledger => ledger
+    | Uorc.Search.Certification::Step.incomplete failure cancellation => (project (project cancellation continuation) effortLedger))
+}
+
+theorem{
+  name: production_limit_retains_exact_prefix_and_reserves,
+  parameters: [],
+  statement: ((match (fromFixture (Uorc.Search.ReplayControls::fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})) (ctor Uorc.Search.Certification::Mode.produce) (record Uorc.Search.Effort::Allowances {search := 0, rawReserve := 0, finalReserve := 0, replay := 0, certificateProduction := 5, checker := 0}))
+    | Option.none => (ctor Option.none [Uorc.Search.Effort::Ledger])
+    | Option.some state => (ctor Option.some [Uorc.Search.Effort::Ledger] (observedEffort (Uorc.Search.Certification::runWork 20 state)))) = (ctor Option.some [Uorc.Search.Effort::Ledger] (record Uorc.Search.Effort::Ledger {search := 0, rawReserve := 0, finalReserve := 0, replay := 0, certificateProduction := 5, checker := 0}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: owned_resume_preserves_replay_and_effort,
+  parameters: [
+    cursor : Uorc.Search.Certification::Cursor,
+    allowances : Uorc.Search.Effort::Allowances
+  ],
+  statement: ((Uorc.Search.Certification::resumeOwned (Uorc.Search.Certification::cancel cursor) allowances) = (Uorc.Search.Certification::withAllowances cursor allowances)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: adding_owned_production_credit_continues_exact_replay,
+  parameters: [],
+  statement: ((match (fromFixture (Uorc.Search.ReplayControls::fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})) (ctor Uorc.Search.Certification::Mode.produce) (record Uorc.Search.Effort::Allowances {search := 0, rawReserve := 0, finalReserve := 0, replay := 0, certificateProduction := 5, checker := 0}))
+    | Option.none => (ctor Option.none [Uorc.Search.Certification::Outcome])
+    | Option.some state => (match (Uorc.Search.Certification::runWork 20 state)
+      | Uorc.Search.Certification::Step.incomplete failure cancellation => (ctor Option.some [Uorc.Search.Certification::Outcome] (Uorc.Search.Certification::outcome (runBlocks 30 (ctor Uorc.Search.Certification::Step.pending (Uorc.Search.Certification::resumeOwned cancellation (record Uorc.Search.Effort::Allowances {search := 0, rawReserve := 0, finalReserve := 0, replay := 0, certificateProduction := 30000, checker := 0}))))))
+      | Uorc.Search.Certification::Step.pending prefix => (ctor Option.none [Uorc.Search.Certification::Outcome])
+      | Uorc.Search.Certification::Step.produced artifact coverage ledger => (ctor Option.none [Uorc.Search.Certification::Outcome])
+      | Uorc.Search.Certification::Step.checked coverage ledger => (ctor Option.none [Uorc.Search.Certification::Outcome])
+      | Uorc.Search.Certification::Step.counterexample found ledger => (ctor Option.none [Uorc.Search.Certification::Outcome]))) = (ctor Option.some [Uorc.Search.Certification::Outcome] (ctor Uorc.Search.Certification::Outcome.producedConditional))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

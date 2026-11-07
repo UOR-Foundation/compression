@@ -1,0 +1,64 @@
+<!-- uorc:non-authoritative -->
+Uorc.Uorc.Integrity.PartitionLaws.input_append_length (left right : ByteArray) :
+  LexLeanRuntime.length (left ++ right) = LexLeanRuntime.length left + LexLeanRuntime.length right
+Uorc.Uorc.Integrity.PartitionLaws.input_append_index_left (left right : ByteArray) (offset : Nat)
+  (bound : offset < LexLeanRuntime.length left) :
+  LexLeanRuntime.index (left ++ right) offset = LexLeanRuntime.index left offset
+Uorc.Uorc.Integrity.PartitionLaws.input_append_index_right (left right : ByteArray) (offset : Nat) :
+  LexLeanRuntime.index (left ++ right) (LexLeanRuntime.length left + offset) = LexLeanRuntime.index right offset
+Uorc.Uorc.Integrity.PartitionLaws.run_update_append_suffix (fuel : Nat) (state : Uorc.Uorc.Integrity.Sha256.State)
+  (left right : ByteArray) :
+  Uorc.Uorc.Integrity.Sha256.runUpdate fuel
+      { state := state, input := left ++ right, offset := LexLeanRuntime.length left } =
+    Uorc.Uorc.Integrity.Sha256.runUpdate fuel { state := state, input := right, offset := 0 }
+Uorc.Uorc.Integrity.PartitionLaws.update_step_append_advanced (job next : Uorc.Uorc.Integrity.Sha256.Update)
+  (suffix : ByteArray)
+  (success :
+    Uorc.Uorc.Integrity.Sha256.updateStep job = Except.ok (Uorc.Uorc.Integrity.Sha256.UpdateEvent.advanced next)) :
+  Uorc.Uorc.Integrity.Sha256.updateStep { state := job.state, input := job.input ++ suffix, offset := job.offset } =
+    Except.ok
+      (Uorc.Uorc.Integrity.Sha256.UpdateEvent.advanced
+        { state := next.state, input := next.input ++ suffix, offset := next.offset })
+Uorc.Uorc.Integrity.PartitionLaws.run_update_successor (fuel : Nat) (job : Uorc.Uorc.Integrity.Sha256.Update) :
+  Uorc.Uorc.Integrity.Sha256.runUpdate (fuel + 1) job =
+    Uorc.Uorc.Integrity.PartitionLaws.run_update_successor.match_3
+      (fun x => Except Uorc.Uorc.Integrity.Sha256.Error Uorc.Uorc.Integrity.Sha256.State)
+      (Uorc.Uorc.Integrity.Sha256.updateStep job) (fun failure => Except.error failure) fun event =>
+      Uorc.Uorc.Integrity.PartitionLaws.run_update_successor.match_1
+        (fun event => Except Uorc.Uorc.Integrity.Sha256.Error Uorc.Uorc.Integrity.Sha256.State) event
+        (fun next => Uorc.Uorc.Integrity.Sha256.runUpdate fuel next) fun out => Except.ok out
+Uorc.Uorc.Integrity.PartitionLaws.run_update_success_more_fuel (fuel extra : Nat)
+  (job : Uorc.Uorc.Integrity.Sha256.Update) (out : Uorc.Uorc.Integrity.Sha256.State)
+  (success : Uorc.Uorc.Integrity.Sha256.runUpdate fuel job = Except.ok out) :
+  Uorc.Uorc.Integrity.Sha256.runUpdate (fuel + extra) job = Except.ok out
+Uorc.Uorc.Integrity.PartitionLaws.run_update_append_composition (firstFuel secondFuel : Nat)
+  (job : Uorc.Uorc.Integrity.Sha256.Update) (suffix : ByteArray) (middle out : Uorc.Uorc.Integrity.Sha256.State)
+  (first : Uorc.Uorc.Integrity.Sha256.runUpdate firstFuel job = Except.ok middle)
+  (second :
+    Uorc.Uorc.Integrity.Sha256.runUpdate secondFuel { state := middle, input := suffix, offset := 0 } = Except.ok out) :
+  Uorc.Uorc.Integrity.Sha256.runUpdate (firstFuel + secondFuel)
+      { state := job.state, input := job.input ++ suffix, offset := job.offset } =
+    Except.ok out
+Uorc.Uorc.Integrity.PartitionLaws.run_update_success_unique_fuel (leftFuel rightFuel : Nat)
+  (job : Uorc.Uorc.Integrity.Sha256.Update) (leftState rightState : Uorc.Uorc.Integrity.Sha256.State)
+  (left : Uorc.Uorc.Integrity.Sha256.runUpdate leftFuel job = Except.ok leftState)
+  (right : Uorc.Uorc.Integrity.Sha256.runUpdate rightFuel job = Except.ok rightState) : leftState = rightState
+Uorc.Uorc.Integrity.PartitionLaws.update_success_driver (state : Uorc.Uorc.Integrity.Sha256.State) (input : ByteArray)
+  (out : Uorc.Uorc.Integrity.Sha256.State) (success : Uorc.Uorc.Integrity.Sha256.update state input = Except.ok out) :
+  Uorc.Uorc.Integrity.Sha256.runUpdate (LexLeanRuntime.multiply 3 (LexLeanRuntime.length input) + 132)
+      { state := state, input := input, offset := 0 } =
+    Except.ok out
+Uorc.Uorc.Integrity.PartitionLaws.update_partition_success_agrees (state : Uorc.Uorc.Integrity.Sha256.State)
+  (left right : ByteArray) (middle partitioned whole : Uorc.Uorc.Integrity.Sha256.State)
+  (first : Uorc.Uorc.Integrity.Sha256.update state left = Except.ok middle)
+  (second : Uorc.Uorc.Integrity.Sha256.update middle right = Except.ok partitioned)
+  (single : Uorc.Uorc.Integrity.Sha256.update state (left ++ right) = Except.ok whole) : partitioned = whole
+Uorc.Uorc.Integrity.PartitionLaws.hash_partition_finalization_agrees (left right : ByteArray)
+  (middle partitioned : Uorc.Uorc.Integrity.Sha256.State) (expected : ByteArray)
+  (first : Uorc.Uorc.Integrity.Sha256.update Uorc.Uorc.Integrity.Sha256.init left = Except.ok middle)
+  (second : Uorc.Uorc.Integrity.Sha256.update middle right = Except.ok partitioned)
+  (single : Uorc.Uorc.Integrity.Sha256.hash (left ++ right) = Except.ok expected) :
+  (Uorc.Uorc.Integrity.PartitionLaws.hash_partition_finalization_agrees.match_1
+      (fun x => Except Uorc.Uorc.Integrity.Sha256.Error ByteArray) (Uorc.Uorc.Integrity.Sha256.finalize partitioned)
+      (fun failure => Except.error failure) fun finalizing => Uorc.Uorc.Integrity.Sha256.runFinalize 300 finalizing) =
+    Except.ok expected

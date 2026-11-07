@@ -1,0 +1,98 @@
+\begin{lexlean}{Uorc.Core.CanonicalComposition}
+\importmodule{Uorc.Core.CanonicalCallComposition}
+\importmodule{Uorc.Core.CanonicalRetirement}
+\importmodule{Uorc.Core.CanonicalActionComposition}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: compositionIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.canonical-event-composition/1",
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: applyEntry,
+  parameters: [arguments : (List Uorc.Core.ReferenceSemantics::Value)],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.apply)) (project (Uorc.Core.CanonicalCallComposition::appliedCallPlan arguments) entryEvents)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: tabulateStart,
+  parameters: [captureCount : Nat],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.tabulate)) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCallComposition::capturePreparation captureCount) (Uorc.Core.CanonicalSchedule::outputAccumulatorStart))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: foldStart,
+  parameters: [captureCount : Nat, initial : Uorc.Core.CanonicalBindings::Binding],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.fold)) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCallComposition::capturePreparation captureCount) (Uorc.Core.CanonicalSchedule::stateAccumulatorStart initial))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: scanStart,
+  parameters: [
+    observerCaptures : Nat,
+    updaterCaptures : Nat,
+    initial : Uorc.Core.CanonicalBindings::Binding
+  ],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.scan)) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCallComposition::scanCapturePreparation observerCaptures updaterCaptures) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::outputAccumulatorStart) (Uorc.Core.CanonicalSchedule::stateAccumulatorStart initial)))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: finishTabulate,
+  parameters: [
+    output : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  result: Uorc.Core.CanonicalSchedule::ValuePlan,
+  body: (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred) output deadBindings),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: finishFold,
+  parameters: [
+    state : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  result: Uorc.Core.CanonicalSchedule::ValuePlan,
+  body: (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred) state deadBindings),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: finishScan,
+  parameters: [
+    output : Uorc.Core.CanonicalBindings::Binding,
+    finalState : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  result: Uorc.Core.CanonicalSchedule::ValuePlan,
+  body: (record Uorc.Core.CanonicalSchedule::ValuePlan {binding := (project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred) output deadBindings) binding), events := (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::scanFinish finalState) (project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred) output deadBindings) events))}),
+  axioms: [],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

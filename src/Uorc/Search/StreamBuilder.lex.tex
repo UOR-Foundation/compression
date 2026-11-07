@@ -1,0 +1,112 @@
+\begin{lexlean}{Uorc.Search.StreamBuilder}
+\importmodule{Uorc.Core.ByteBuilder}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Builder,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: bytes, type: Uorc.Core.ByteBuilder::Builder}, {name: byteCount, type: Nat}]
+}
+
+inductive{
+  name: Work,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: chunk, fields: [Uorc.Core.ByteBuilder::Builder, Bytes, Nat, Nat]},
+    {name: byteWork, fields: [Uorc.Core.ByteBuilder::Work, Bytes, Nat, Nat]},
+    {name: finishing, fields: [Uorc.Core.ByteBuilder::Work, Nat]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: work, type: Work}, {name: eventCredit, type: Nat}]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: builder, fields: [Uorc.Core.ByteBuilder::Error]},
+    {name: invalidState, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: appended, fields: [Builder]},
+    {name: finished, fields: [Uorc.Core.Bytes::Rope, Nat]},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: empty,
+  parameters: [],
+  result: Builder,
+  body: (record Builder {bytes := (Uorc.Core.ByteBuilder::empty), byteCount := 0})
+}
+
+definition{
+  name: appendChunk,
+  parameters: [builder : Builder, chunk : Bytes],
+  result: Cursor,
+  body: (record Cursor {work := (ctor Work.chunk (project builder bytes) chunk 0 (project builder byteCount)), eventCredit := 0})
+}
+
+definition{
+  name: finish,
+  parameters: [builder : Builder],
+  result: Cursor,
+  body: (record Cursor {work := (ctor Work.finishing (Uorc.Core.ByteBuilder::finish (project builder bytes)) (project builder byteCount)), eventCredit := 0})
+}
+
+definition{
+  name: eventWork,
+  parameters: [work : Work],
+  result: Nat,
+  body: (match work
+    | Work.chunk builder chunk offset byteCount => 1
+    | Work.byteWork builderWork chunk offset byteCount => (Uorc.Core.ByteBuilder::eventWork builderWork)
+    | Work.finishing builderWork byteCount => (Uorc.Core.ByteBuilder::eventWork builderWork))
+}
+
+definition{
+  name: perform,
+  parameters: [work : Work],
+  result: Step,
+  body: (match work
+    | Work.chunk builder chunk offset byteCount => (if (offset <? (prim length chunk : Nat)) then (match (prim index chunk offset : (Option UInt8))
+      | Option.none => (ctor Step.failed (ctor Error.invalidState))
+      | Option.some byte => (if (byteCount <? 18446744073709551615) then (ctor Step.pending (record Cursor {work := (ctor Work.byteWork (Uorc.Core.ByteBuilder::appendByte builder byte) chunk (offset + 1) (byteCount + 1)), eventCredit := 0})) else (ctor Step.failed (ctor Error.addressSpaceExhausted)))) else (if (offset =? (prim length chunk : Nat)) then (ctor Step.appended (record Builder {bytes := builder, byteCount := byteCount})) else (ctor Step.failed (ctor Error.invalidState))))
+    | Work.byteWork builderWork chunk offset byteCount => (match (Uorc.Core.ByteBuilder::step builderWork)
+      | Uorc.Core.ByteBuilder::Event.advanced next => (ctor Step.pending (record Cursor {work := (ctor Work.byteWork next chunk offset byteCount), eventCredit := 0}))
+      | Uorc.Core.ByteBuilder::Event.appended builder => (ctor Step.pending (record Cursor {work := (ctor Work.chunk builder chunk offset byteCount), eventCredit := 0}))
+      | Uorc.Core.ByteBuilder::Event.finished rope => (ctor Step.failed (ctor Error.invalidState))
+      | Uorc.Core.ByteBuilder::Event.failed error => (ctor Step.failed (ctor Error.builder error)))
+    | Work.finishing builderWork byteCount => (match (Uorc.Core.ByteBuilder::step builderWork)
+      | Uorc.Core.ByteBuilder::Event.advanced next => (ctor Step.pending (record Cursor {work := (ctor Work.finishing next byteCount), eventCredit := 0}))
+      | Uorc.Core.ByteBuilder::Event.appended builder => (ctor Step.failed (ctor Error.invalidState))
+      | Uorc.Core.ByteBuilder::Event.finished rope => (ctor Step.finished rope byteCount)
+      | Uorc.Core.ByteBuilder::Event.failed error => (ctor Step.failed (ctor Error.builder error))))
+}
+
+definition{
+  name: tick,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (if (((project cursor eventCredit) + 1) <? (eventWork (project cursor work))) then (ctor Step.pending (record Cursor {work := (project cursor work), eventCredit := ((project cursor eventCredit) + 1)})) else (perform (project cursor work)))
+}
+\end{semanticmodule}
+\end{lexlean}

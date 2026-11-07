@@ -1,0 +1,152 @@
+\begin{lexlean}{Uorc.Search.Enumerate}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Word,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: reversedDigits, type: (List Nat)}, {name: length, type: Nat}]
+}
+
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: ready, fields: [Word]},
+    {name: carry, fields: [(List Nat), (List Nat), Nat]},
+    {name: restore, fields: [(List Nat), (List Nat), Nat]},
+    {name: finished, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: word, fields: [Word, Cursor]},
+    {name: finished, fields: []},
+    {name: invalidDigit, fields: []}
+  ]
+}
+
+inductive{
+  name: Build,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: reverse, fields: [(List Nat), (List Nat)]},
+    {name: emit, fields: [(List Nat), Bytes]},
+    {name: done, fields: [Bytes]},
+    {name: invalidDigit, fields: []}
+  ]
+}
+
+definition{
+  name: initial,
+  parameters: [],
+  result: Cursor,
+  body: (ctor Cursor.ready (record Word {reversedDigits := (nil Nat), length := 0}))
+}
+
+definition{
+  name: alphabet,
+  parameters: [],
+  result: Bytes,
+  body: 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
+}
+
+definition{
+  name: step,
+  parameters: [maximumLength : Nat, cursor : Cursor],
+  result: Step,
+  body: (match cursor
+    | Cursor.ready word => (if ((project word length) <=? maximumLength) then (ctor Step.word word (ctor Cursor.carry (project word reversedDigits) (nil Nat) (project word length))) else (ctor Step.finished))
+    | Cursor.carry rest zeroPrefix wordLength => (match rest
+      | List.nil => (if (wordLength <? maximumLength) then (ctor Step.pending (ctor Cursor.ready (record Word {reversedDigits := (cons 0 zeroPrefix), length := (wordLength + 1)}))) else (ctor Step.finished))
+      | List.cons digit tail => (if (digit <? 255) then (ctor Step.pending (ctor Cursor.restore zeroPrefix (cons (digit + 1) tail) wordLength)) else (if (digit =? 255) then (ctor Step.pending (ctor Cursor.carry tail (cons 0 zeroPrefix) wordLength)) else (ctor Step.invalidDigit))))
+    | Cursor.restore zeroPrefix suffix wordLength => (match zeroPrefix
+      | List.nil => (ctor Step.pending (ctor Cursor.ready (record Word {reversedDigits := suffix, length := wordLength})))
+      | List.cons zero tail => (ctor Step.pending (ctor Cursor.restore tail (cons zero suffix) wordLength)))
+    | Cursor.finished => (ctor Step.finished))
+}
+
+definition{
+  name: beginBuild,
+  parameters: [word : Word],
+  result: Build,
+  body: (ctor Build.reverse (project word reversedDigits) (nil Nat))
+}
+
+definition{
+  name: natByteSlice,
+  parameters: [n : Nat],
+  result: (Option Bytes),
+  body: (if (256 <=? n) then (ctor Option.none [Bytes]) else (if (n <? 128) then (if (n <? 64) then (if (n <? 32) then (if (n <? 16) then (if (n <? 8) then (if (n <? 4) then (if (n <? 2) then (if (n <? 1) then (ctor Option.some [Bytes] 0x00) else (ctor Option.some [Bytes] 0x01)) else (if (n <? 3) then (ctor Option.some [Bytes] 0x02) else (ctor Option.some [Bytes] 0x03))) else (if (n <? 6) then (if (n <? 5) then (ctor Option.some [Bytes] 0x04) else (ctor Option.some [Bytes] 0x05)) else (if (n <? 7) then (ctor Option.some [Bytes] 0x06) else (ctor Option.some [Bytes] 0x07)))) else (if (n <? 12) then (if (n <? 10) then (if (n <? 9) then (ctor Option.some [Bytes] 0x08) else (ctor Option.some [Bytes] 0x09)) else (if (n <? 11) then (ctor Option.some [Bytes] 0x0a) else (ctor Option.some [Bytes] 0x0b))) else (if (n <? 14) then (if (n <? 13) then (ctor Option.some [Bytes] 0x0c) else (ctor Option.some [Bytes] 0x0d)) else (if (n <? 15) then (ctor Option.some [Bytes] 0x0e) else (ctor Option.some [Bytes] 0x0f))))) else (if (n <? 24) then (if (n <? 20) then (if (n <? 18) then (if (n <? 17) then (ctor Option.some [Bytes] 0x10) else (ctor Option.some [Bytes] 0x11)) else (if (n <? 19) then (ctor Option.some [Bytes] 0x12) else (ctor Option.some [Bytes] 0x13))) else (if (n <? 22) then (if (n <? 21) then (ctor Option.some [Bytes] 0x14) else (ctor Option.some [Bytes] 0x15)) else (if (n <? 23) then (ctor Option.some [Bytes] 0x16) else (ctor Option.some [Bytes] 0x17)))) else (if (n <? 28) then (if (n <? 26) then (if (n <? 25) then (ctor Option.some [Bytes] 0x18) else (ctor Option.some [Bytes] 0x19)) else (if (n <? 27) then (ctor Option.some [Bytes] 0x1a) else (ctor Option.some [Bytes] 0x1b))) else (if (n <? 30) then (if (n <? 29) then (ctor Option.some [Bytes] 0x1c) else (ctor Option.some [Bytes] 0x1d)) else (if (n <? 31) then (ctor Option.some [Bytes] 0x1e) else (ctor Option.some [Bytes] 0x1f)))))) else (if (n <? 48) then (if (n <? 40) then (if (n <? 36) then (if (n <? 34) then (if (n <? 33) then (ctor Option.some [Bytes] 0x20) else (ctor Option.some [Bytes] 0x21)) else (if (n <? 35) then (ctor Option.some [Bytes] 0x22) else (ctor Option.some [Bytes] 0x23))) else (if (n <? 38) then (if (n <? 37) then (ctor Option.some [Bytes] 0x24) else (ctor Option.some [Bytes] 0x25)) else (if (n <? 39) then (ctor Option.some [Bytes] 0x26) else (ctor Option.some [Bytes] 0x27)))) else (if (n <? 44) then (if (n <? 42) then (if (n <? 41) then (ctor Option.some [Bytes] 0x28) else (ctor Option.some [Bytes] 0x29)) else (if (n <? 43) then (ctor Option.some [Bytes] 0x2a) else (ctor Option.some [Bytes] 0x2b))) else (if (n <? 46) then (if (n <? 45) then (ctor Option.some [Bytes] 0x2c) else (ctor Option.some [Bytes] 0x2d)) else (if (n <? 47) then (ctor Option.some [Bytes] 0x2e) else (ctor Option.some [Bytes] 0x2f))))) else (if (n <? 56) then (if (n <? 52) then (if (n <? 50) then (if (n <? 49) then (ctor Option.some [Bytes] 0x30) else (ctor Option.some [Bytes] 0x31)) else (if (n <? 51) then (ctor Option.some [Bytes] 0x32) else (ctor Option.some [Bytes] 0x33))) else (if (n <? 54) then (if (n <? 53) then (ctor Option.some [Bytes] 0x34) else (ctor Option.some [Bytes] 0x35)) else (if (n <? 55) then (ctor Option.some [Bytes] 0x36) else (ctor Option.some [Bytes] 0x37)))) else (if (n <? 60) then (if (n <? 58) then (if (n <? 57) then (ctor Option.some [Bytes] 0x38) else (ctor Option.some [Bytes] 0x39)) else (if (n <? 59) then (ctor Option.some [Bytes] 0x3a) else (ctor Option.some [Bytes] 0x3b))) else (if (n <? 62) then (if (n <? 61) then (ctor Option.some [Bytes] 0x3c) else (ctor Option.some [Bytes] 0x3d)) else (if (n <? 63) then (ctor Option.some [Bytes] 0x3e) else (ctor Option.some [Bytes] 0x3f))))))) else (if (n <? 96) then (if (n <? 80) then (if (n <? 72) then (if (n <? 68) then (if (n <? 66) then (if (n <? 65) then (ctor Option.some [Bytes] 0x40) else (ctor Option.some [Bytes] 0x41)) else (if (n <? 67) then (ctor Option.some [Bytes] 0x42) else (ctor Option.some [Bytes] 0x43))) else (if (n <? 70) then (if (n <? 69) then (ctor Option.some [Bytes] 0x44) else (ctor Option.some [Bytes] 0x45)) else (if (n <? 71) then (ctor Option.some [Bytes] 0x46) else (ctor Option.some [Bytes] 0x47)))) else (if (n <? 76) then (if (n <? 74) then (if (n <? 73) then (ctor Option.some [Bytes] 0x48) else (ctor Option.some [Bytes] 0x49)) else (if (n <? 75) then (ctor Option.some [Bytes] 0x4a) else (ctor Option.some [Bytes] 0x4b))) else (if (n <? 78) then (if (n <? 77) then (ctor Option.some [Bytes] 0x4c) else (ctor Option.some [Bytes] 0x4d)) else (if (n <? 79) then (ctor Option.some [Bytes] 0x4e) else (ctor Option.some [Bytes] 0x4f))))) else (if (n <? 88) then (if (n <? 84) then (if (n <? 82) then (if (n <? 81) then (ctor Option.some [Bytes] 0x50) else (ctor Option.some [Bytes] 0x51)) else (if (n <? 83) then (ctor Option.some [Bytes] 0x52) else (ctor Option.some [Bytes] 0x53))) else (if (n <? 86) then (if (n <? 85) then (ctor Option.some [Bytes] 0x54) else (ctor Option.some [Bytes] 0x55)) else (if (n <? 87) then (ctor Option.some [Bytes] 0x56) else (ctor Option.some [Bytes] 0x57)))) else (if (n <? 92) then (if (n <? 90) then (if (n <? 89) then (ctor Option.some [Bytes] 0x58) else (ctor Option.some [Bytes] 0x59)) else (if (n <? 91) then (ctor Option.some [Bytes] 0x5a) else (ctor Option.some [Bytes] 0x5b))) else (if (n <? 94) then (if (n <? 93) then (ctor Option.some [Bytes] 0x5c) else (ctor Option.some [Bytes] 0x5d)) else (if (n <? 95) then (ctor Option.some [Bytes] 0x5e) else (ctor Option.some [Bytes] 0x5f)))))) else (if (n <? 112) then (if (n <? 104) then (if (n <? 100) then (if (n <? 98) then (if (n <? 97) then (ctor Option.some [Bytes] 0x60) else (ctor Option.some [Bytes] 0x61)) else (if (n <? 99) then (ctor Option.some [Bytes] 0x62) else (ctor Option.some [Bytes] 0x63))) else (if (n <? 102) then (if (n <? 101) then (ctor Option.some [Bytes] 0x64) else (ctor Option.some [Bytes] 0x65)) else (if (n <? 103) then (ctor Option.some [Bytes] 0x66) else (ctor Option.some [Bytes] 0x67)))) else (if (n <? 108) then (if (n <? 106) then (if (n <? 105) then (ctor Option.some [Bytes] 0x68) else (ctor Option.some [Bytes] 0x69)) else (if (n <? 107) then (ctor Option.some [Bytes] 0x6a) else (ctor Option.some [Bytes] 0x6b))) else (if (n <? 110) then (if (n <? 109) then (ctor Option.some [Bytes] 0x6c) else (ctor Option.some [Bytes] 0x6d)) else (if (n <? 111) then (ctor Option.some [Bytes] 0x6e) else (ctor Option.some [Bytes] 0x6f))))) else (if (n <? 120) then (if (n <? 116) then (if (n <? 114) then (if (n <? 113) then (ctor Option.some [Bytes] 0x70) else (ctor Option.some [Bytes] 0x71)) else (if (n <? 115) then (ctor Option.some [Bytes] 0x72) else (ctor Option.some [Bytes] 0x73))) else (if (n <? 118) then (if (n <? 117) then (ctor Option.some [Bytes] 0x74) else (ctor Option.some [Bytes] 0x75)) else (if (n <? 119) then (ctor Option.some [Bytes] 0x76) else (ctor Option.some [Bytes] 0x77)))) else (if (n <? 124) then (if (n <? 122) then (if (n <? 121) then (ctor Option.some [Bytes] 0x78) else (ctor Option.some [Bytes] 0x79)) else (if (n <? 123) then (ctor Option.some [Bytes] 0x7a) else (ctor Option.some [Bytes] 0x7b))) else (if (n <? 126) then (if (n <? 125) then (ctor Option.some [Bytes] 0x7c) else (ctor Option.some [Bytes] 0x7d)) else (if (n <? 127) then (ctor Option.some [Bytes] 0x7e) else (ctor Option.some [Bytes] 0x7f)))))))) else (if (n <? 192) then (if (n <? 160) then (if (n <? 144) then (if (n <? 136) then (if (n <? 132) then (if (n <? 130) then (if (n <? 129) then (ctor Option.some [Bytes] 0x80) else (ctor Option.some [Bytes] 0x81)) else (if (n <? 131) then (ctor Option.some [Bytes] 0x82) else (ctor Option.some [Bytes] 0x83))) else (if (n <? 134) then (if (n <? 133) then (ctor Option.some [Bytes] 0x84) else (ctor Option.some [Bytes] 0x85)) else (if (n <? 135) then (ctor Option.some [Bytes] 0x86) else (ctor Option.some [Bytes] 0x87)))) else (if (n <? 140) then (if (n <? 138) then (if (n <? 137) then (ctor Option.some [Bytes] 0x88) else (ctor Option.some [Bytes] 0x89)) else (if (n <? 139) then (ctor Option.some [Bytes] 0x8a) else (ctor Option.some [Bytes] 0x8b))) else (if (n <? 142) then (if (n <? 141) then (ctor Option.some [Bytes] 0x8c) else (ctor Option.some [Bytes] 0x8d)) else (if (n <? 143) then (ctor Option.some [Bytes] 0x8e) else (ctor Option.some [Bytes] 0x8f))))) else (if (n <? 152) then (if (n <? 148) then (if (n <? 146) then (if (n <? 145) then (ctor Option.some [Bytes] 0x90) else (ctor Option.some [Bytes] 0x91)) else (if (n <? 147) then (ctor Option.some [Bytes] 0x92) else (ctor Option.some [Bytes] 0x93))) else (if (n <? 150) then (if (n <? 149) then (ctor Option.some [Bytes] 0x94) else (ctor Option.some [Bytes] 0x95)) else (if (n <? 151) then (ctor Option.some [Bytes] 0x96) else (ctor Option.some [Bytes] 0x97)))) else (if (n <? 156) then (if (n <? 154) then (if (n <? 153) then (ctor Option.some [Bytes] 0x98) else (ctor Option.some [Bytes] 0x99)) else (if (n <? 155) then (ctor Option.some [Bytes] 0x9a) else (ctor Option.some [Bytes] 0x9b))) else (if (n <? 158) then (if (n <? 157) then (ctor Option.some [Bytes] 0x9c) else (ctor Option.some [Bytes] 0x9d)) else (if (n <? 159) then (ctor Option.some [Bytes] 0x9e) else (ctor Option.some [Bytes] 0x9f)))))) else (if (n <? 176) then (if (n <? 168) then (if (n <? 164) then (if (n <? 162) then (if (n <? 161) then (ctor Option.some [Bytes] 0xa0) else (ctor Option.some [Bytes] 0xa1)) else (if (n <? 163) then (ctor Option.some [Bytes] 0xa2) else (ctor Option.some [Bytes] 0xa3))) else (if (n <? 166) then (if (n <? 165) then (ctor Option.some [Bytes] 0xa4) else (ctor Option.some [Bytes] 0xa5)) else (if (n <? 167) then (ctor Option.some [Bytes] 0xa6) else (ctor Option.some [Bytes] 0xa7)))) else (if (n <? 172) then (if (n <? 170) then (if (n <? 169) then (ctor Option.some [Bytes] 0xa8) else (ctor Option.some [Bytes] 0xa9)) else (if (n <? 171) then (ctor Option.some [Bytes] 0xaa) else (ctor Option.some [Bytes] 0xab))) else (if (n <? 174) then (if (n <? 173) then (ctor Option.some [Bytes] 0xac) else (ctor Option.some [Bytes] 0xad)) else (if (n <? 175) then (ctor Option.some [Bytes] 0xae) else (ctor Option.some [Bytes] 0xaf))))) else (if (n <? 184) then (if (n <? 180) then (if (n <? 178) then (if (n <? 177) then (ctor Option.some [Bytes] 0xb0) else (ctor Option.some [Bytes] 0xb1)) else (if (n <? 179) then (ctor Option.some [Bytes] 0xb2) else (ctor Option.some [Bytes] 0xb3))) else (if (n <? 182) then (if (n <? 181) then (ctor Option.some [Bytes] 0xb4) else (ctor Option.some [Bytes] 0xb5)) else (if (n <? 183) then (ctor Option.some [Bytes] 0xb6) else (ctor Option.some [Bytes] 0xb7)))) else (if (n <? 188) then (if (n <? 186) then (if (n <? 185) then (ctor Option.some [Bytes] 0xb8) else (ctor Option.some [Bytes] 0xb9)) else (if (n <? 187) then (ctor Option.some [Bytes] 0xba) else (ctor Option.some [Bytes] 0xbb))) else (if (n <? 190) then (if (n <? 189) then (ctor Option.some [Bytes] 0xbc) else (ctor Option.some [Bytes] 0xbd)) else (if (n <? 191) then (ctor Option.some [Bytes] 0xbe) else (ctor Option.some [Bytes] 0xbf))))))) else (if (n <? 224) then (if (n <? 208) then (if (n <? 200) then (if (n <? 196) then (if (n <? 194) then (if (n <? 193) then (ctor Option.some [Bytes] 0xc0) else (ctor Option.some [Bytes] 0xc1)) else (if (n <? 195) then (ctor Option.some [Bytes] 0xc2) else (ctor Option.some [Bytes] 0xc3))) else (if (n <? 198) then (if (n <? 197) then (ctor Option.some [Bytes] 0xc4) else (ctor Option.some [Bytes] 0xc5)) else (if (n <? 199) then (ctor Option.some [Bytes] 0xc6) else (ctor Option.some [Bytes] 0xc7)))) else (if (n <? 204) then (if (n <? 202) then (if (n <? 201) then (ctor Option.some [Bytes] 0xc8) else (ctor Option.some [Bytes] 0xc9)) else (if (n <? 203) then (ctor Option.some [Bytes] 0xca) else (ctor Option.some [Bytes] 0xcb))) else (if (n <? 206) then (if (n <? 205) then (ctor Option.some [Bytes] 0xcc) else (ctor Option.some [Bytes] 0xcd)) else (if (n <? 207) then (ctor Option.some [Bytes] 0xce) else (ctor Option.some [Bytes] 0xcf))))) else (if (n <? 216) then (if (n <? 212) then (if (n <? 210) then (if (n <? 209) then (ctor Option.some [Bytes] 0xd0) else (ctor Option.some [Bytes] 0xd1)) else (if (n <? 211) then (ctor Option.some [Bytes] 0xd2) else (ctor Option.some [Bytes] 0xd3))) else (if (n <? 214) then (if (n <? 213) then (ctor Option.some [Bytes] 0xd4) else (ctor Option.some [Bytes] 0xd5)) else (if (n <? 215) then (ctor Option.some [Bytes] 0xd6) else (ctor Option.some [Bytes] 0xd7)))) else (if (n <? 220) then (if (n <? 218) then (if (n <? 217) then (ctor Option.some [Bytes] 0xd8) else (ctor Option.some [Bytes] 0xd9)) else (if (n <? 219) then (ctor Option.some [Bytes] 0xda) else (ctor Option.some [Bytes] 0xdb))) else (if (n <? 222) then (if (n <? 221) then (ctor Option.some [Bytes] 0xdc) else (ctor Option.some [Bytes] 0xdd)) else (if (n <? 223) then (ctor Option.some [Bytes] 0xde) else (ctor Option.some [Bytes] 0xdf)))))) else (if (n <? 240) then (if (n <? 232) then (if (n <? 228) then (if (n <? 226) then (if (n <? 225) then (ctor Option.some [Bytes] 0xe0) else (ctor Option.some [Bytes] 0xe1)) else (if (n <? 227) then (ctor Option.some [Bytes] 0xe2) else (ctor Option.some [Bytes] 0xe3))) else (if (n <? 230) then (if (n <? 229) then (ctor Option.some [Bytes] 0xe4) else (ctor Option.some [Bytes] 0xe5)) else (if (n <? 231) then (ctor Option.some [Bytes] 0xe6) else (ctor Option.some [Bytes] 0xe7)))) else (if (n <? 236) then (if (n <? 234) then (if (n <? 233) then (ctor Option.some [Bytes] 0xe8) else (ctor Option.some [Bytes] 0xe9)) else (if (n <? 235) then (ctor Option.some [Bytes] 0xea) else (ctor Option.some [Bytes] 0xeb))) else (if (n <? 238) then (if (n <? 237) then (ctor Option.some [Bytes] 0xec) else (ctor Option.some [Bytes] 0xed)) else (if (n <? 239) then (ctor Option.some [Bytes] 0xee) else (ctor Option.some [Bytes] 0xef))))) else (if (n <? 248) then (if (n <? 244) then (if (n <? 242) then (if (n <? 241) then (ctor Option.some [Bytes] 0xf0) else (ctor Option.some [Bytes] 0xf1)) else (if (n <? 243) then (ctor Option.some [Bytes] 0xf2) else (ctor Option.some [Bytes] 0xf3))) else (if (n <? 246) then (if (n <? 245) then (ctor Option.some [Bytes] 0xf4) else (ctor Option.some [Bytes] 0xf5)) else (if (n <? 247) then (ctor Option.some [Bytes] 0xf6) else (ctor Option.some [Bytes] 0xf7)))) else (if (n <? 252) then (if (n <? 250) then (if (n <? 249) then (ctor Option.some [Bytes] 0xf8) else (ctor Option.some [Bytes] 0xf9)) else (if (n <? 251) then (ctor Option.some [Bytes] 0xfa) else (ctor Option.some [Bytes] 0xfb))) else (if (n <? 254) then (if (n <? 253) then (ctor Option.some [Bytes] 0xfc) else (ctor Option.some [Bytes] 0xfd)) else (if (n <? 255) then (ctor Option.some [Bytes] 0xfe) else (ctor Option.some [Bytes] 0xff))))))))))
+}
+
+definition{
+  name: buildStep,
+  parameters: [build : Build],
+  result: Build,
+  body: (match build
+    | Build.reverse rest forward => (match rest
+      | List.nil => (ctor Build.emit forward 0x)
+      | List.cons digit tail => (if (digit <? 256) then (ctor Build.reverse tail (cons digit forward)) else (ctor Build.invalidDigit)))
+    | Build.emit rest output => (match rest
+      | List.nil => (ctor Build.done output)
+      | List.cons digit tail => (if (digit <? 256) then (match (natByteSlice digit)
+        | Option.none => (ctor Build.invalidDigit)
+        | Option.some singleton => (ctor Build.emit tail (prim append output singleton : Bytes))) else (ctor Build.invalidDigit)))
+    | Build.done output => (ctor Build.done output)
+    | Build.invalidDigit => (ctor Build.invalidDigit))
+}
+
+definition{
+  name: runBuild,
+  parameters: [fuel : Nat, build : Build],
+  result: Build,
+  body: (match fuel
+    | Nat.zero => build
+    | Nat.succ restFuel => (runBuild restFuel (buildStep build))),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: empty_word_is_included,
+  parameters: [],
+  statement: ((step 0 (initial)) = (ctor Step.word (record Word {reversedDigits := (nil Nat), length := 0}) (ctor Cursor.carry (nil Nat) (nil Nat) 0))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_length_bound_finishes_after_terminal_word,
+  parameters: [],
+  statement: ((step 0 (ctor Cursor.carry (nil Nat) (nil Nat) 0)) = (ctor Step.finished)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: length_transition_255_to_00_00,
+  parameters: [],
+  statement: ((step 2 (ctor Cursor.carry (nil Nat) (cons 0 (nil Nat)) 1)) = (ctor Step.pending (ctor Cursor.ready (record Word {reversedDigits := (cons 0 (cons 0 (nil Nat))), length := 2})))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: word_materialization_is_unsigned_big_endian,
+  parameters: [],
+  statement: ((runBuild 20 (beginBuild (record Word {reversedDigits := (cons 255 (cons 128 (cons 0 (nil Nat)))), length := 3}))) = (ctor Build.done 0x0080ff)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: bad_digit_is_not_syntax_rejection,
+  parameters: [],
+  statement: ((buildStep (ctor Build.emit (cons 256 (nil Nat)) 0x)) = (ctor Build.invalidDigit)),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

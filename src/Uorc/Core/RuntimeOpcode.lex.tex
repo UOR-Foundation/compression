@@ -1,0 +1,278 @@
+\begin{lexlean}{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.Graph}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Opcode,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: naturalConstant, fields: []},
+    {name: byteConstant, fields: []},
+    {name: predicateConstant, fields: []},
+    {name: sequenceConstant, fields: []},
+    {name: naturalAdd, fields: []},
+    {name: naturalSubtract, fields: []},
+    {name: naturalMultiply, fields: []},
+    {name: naturalDivide, fields: []},
+    {name: naturalRemainder, fields: []},
+    {name: naturalAnd, fields: []},
+    {name: naturalOr, fields: []},
+    {name: naturalXor, fields: []},
+    {name: naturalNot, fields: []},
+    {name: naturalShiftLeft, fields: []},
+    {name: naturalShiftRight, fields: []},
+    {name: naturalEqual, fields: []},
+    {name: naturalLess, fields: []},
+    {name: byteEqual, fields: []},
+    {name: byteLess, fields: []},
+    {name: naturalToByte, fields: []},
+    {name: byteToNatural, fields: []},
+    {name: predicateNot, fields: []},
+    {name: predicateAnd, fields: []},
+    {name: predicateOr, fields: []},
+    {name: sequenceLength, fields: []},
+    {name: sequenceIndex, fields: []},
+    {name: sequenceSlice, fields: []},
+    {name: sequenceConcat, fields: []},
+    {name: sequenceEqual, fields: []},
+    {name: singletonSequence, fields: []},
+    {name: basisGet, fields: []},
+    {name: storeNew, fields: []},
+    {name: storeRead, fields: []},
+    {name: storeWrite, fields: []},
+    {name: choose, fields: []},
+    {name: apply, fields: []},
+    {name: tabulate, fields: []},
+    {name: fold, fields: []},
+    {name: scan, fields: []}
+  ]
+}
+
+inductive{
+  name: OperandRole,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: absent, fields: []},
+    {name: immediateNatural, fields: []},
+    {name: immediateByte, fields: []},
+    {name: immediatePredicate, fields: []},
+    {name: localNatural, fields: []},
+    {name: localByte, fields: []},
+    {name: localPredicate, fields: []},
+    {name: localSequence, fields: []},
+    {name: localStore, fields: []},
+    {name: localAny, fields: []},
+    {name: blockReference, fields: []}
+  ]
+}
+
+inductive{
+  name: ResultRule,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: natural, fields: []},
+    {name: byte, fields: []},
+    {name: predicate, fields: []},
+    {name: sequence, fields: []},
+    {name: store, fields: []},
+    {name: choice, fields: []},
+    {name: callee, fields: []},
+    {name: foldState, fields: []}
+  ]
+}
+
+inductive{
+  name: CallRule,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: none, fields: []},
+    {name: apply, fields: []},
+    {name: tabulate, fields: []},
+    {name: fold, fields: []},
+    {name: scan, fields: []}
+  ]
+}
+
+structure{
+  name: Spec,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: operandCount, type: UInt8},
+    {name: operand0, type: OperandRole},
+    {name: operand1, type: OperandRole},
+    {name: operand2, type: OperandRole},
+    {name: operand3, type: OperandRole},
+    {name: result, type: ResultRule},
+    {name: call, type: CallRule},
+    {name: captureLanes, type: UInt8},
+    {name: literal, type: Bool}
+  ]
+}
+
+definition{
+  name: code,
+  parameters: [opcode : Opcode],
+  result: UInt64,
+  body: (match opcode
+    | Opcode.naturalConstant => (0 : UInt64)
+    | Opcode.byteConstant => (1 : UInt64)
+    | Opcode.predicateConstant => (2 : UInt64)
+    | Opcode.sequenceConstant => (3 : UInt64)
+    | Opcode.naturalAdd => (4 : UInt64)
+    | Opcode.naturalSubtract => (5 : UInt64)
+    | Opcode.naturalMultiply => (6 : UInt64)
+    | Opcode.naturalDivide => (7 : UInt64)
+    | Opcode.naturalRemainder => (8 : UInt64)
+    | Opcode.naturalAnd => (9 : UInt64)
+    | Opcode.naturalOr => (10 : UInt64)
+    | Opcode.naturalXor => (11 : UInt64)
+    | Opcode.naturalNot => (12 : UInt64)
+    | Opcode.naturalShiftLeft => (13 : UInt64)
+    | Opcode.naturalShiftRight => (14 : UInt64)
+    | Opcode.naturalEqual => (15 : UInt64)
+    | Opcode.naturalLess => (16 : UInt64)
+    | Opcode.byteEqual => (17 : UInt64)
+    | Opcode.byteLess => (18 : UInt64)
+    | Opcode.naturalToByte => (19 : UInt64)
+    | Opcode.byteToNatural => (20 : UInt64)
+    | Opcode.predicateNot => (21 : UInt64)
+    | Opcode.predicateAnd => (22 : UInt64)
+    | Opcode.predicateOr => (23 : UInt64)
+    | Opcode.sequenceLength => (24 : UInt64)
+    | Opcode.sequenceIndex => (25 : UInt64)
+    | Opcode.sequenceSlice => (26 : UInt64)
+    | Opcode.sequenceConcat => (27 : UInt64)
+    | Opcode.sequenceEqual => (28 : UInt64)
+    | Opcode.singletonSequence => (29 : UInt64)
+    | Opcode.basisGet => (30 : UInt64)
+    | Opcode.storeNew => (31 : UInt64)
+    | Opcode.storeRead => (32 : UInt64)
+    | Opcode.storeWrite => (33 : UInt64)
+    | Opcode.choose => (34 : UInt64)
+    | Opcode.apply => (35 : UInt64)
+    | Opcode.tabulate => (36 : UInt64)
+    | Opcode.fold => (37 : UInt64)
+    | Opcode.scan => (38 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: fromCode,
+  parameters: [encoded : UInt64],
+  result: (Option Opcode),
+  body: (if (prim equal encoded (0 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalConstant)) else (if (prim equal encoded (1 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.byteConstant)) else (if (prim equal encoded (2 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.predicateConstant)) else (if (prim equal encoded (3 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.sequenceConstant)) else (if (prim equal encoded (4 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalAdd)) else (if (prim equal encoded (5 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalSubtract)) else (if (prim equal encoded (6 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalMultiply)) else (if (prim equal encoded (7 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalDivide)) else (if (prim equal encoded (8 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalRemainder)) else (if (prim equal encoded (9 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalAnd)) else (if (prim equal encoded (10 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalOr)) else (if (prim equal encoded (11 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalXor)) else (if (prim equal encoded (12 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalNot)) else (if (prim equal encoded (13 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalShiftLeft)) else (if (prim equal encoded (14 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalShiftRight)) else (if (prim equal encoded (15 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalEqual)) else (if (prim equal encoded (16 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalLess)) else (if (prim equal encoded (17 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.byteEqual)) else (if (prim equal encoded (18 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.byteLess)) else (if (prim equal encoded (19 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.naturalToByte)) else (if (prim equal encoded (20 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.byteToNatural)) else (if (prim equal encoded (21 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.predicateNot)) else (if (prim equal encoded (22 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.predicateAnd)) else (if (prim equal encoded (23 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.predicateOr)) else (if (prim equal encoded (24 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.sequenceLength)) else (if (prim equal encoded (25 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.sequenceIndex)) else (if (prim equal encoded (26 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.sequenceSlice)) else (if (prim equal encoded (27 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.sequenceConcat)) else (if (prim equal encoded (28 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.sequenceEqual)) else (if (prim equal encoded (29 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.singletonSequence)) else (if (prim equal encoded (30 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.basisGet)) else (if (prim equal encoded (31 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.storeNew)) else (if (prim equal encoded (32 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.storeRead)) else (if (prim equal encoded (33 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.storeWrite)) else (if (prim equal encoded (34 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.choose)) else (if (prim equal encoded (35 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.apply)) else (if (prim equal encoded (36 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.tabulate)) else (if (prim equal encoded (37 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.fold)) else (if (prim equal encoded (38 : UInt64) : Bool) then (ctor Option.some [Opcode] (ctor Opcode.scan)) else (ctor Option.none [Opcode])))))))))))))))))))))))))))))))))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: ofInstruction,
+  parameters: [instruction : Uorc.Core.Graph::Instruction],
+  result: Opcode,
+  body: (match instruction
+    | Uorc.Core.Graph::Instruction.naturalConstant unused_naturalConstant_0 => (ctor Opcode.naturalConstant)
+    | Uorc.Core.Graph::Instruction.byteConstant unused_byteConstant_0 => (ctor Opcode.byteConstant)
+    | Uorc.Core.Graph::Instruction.predicateConstant unused_predicateConstant_0 => (ctor Opcode.predicateConstant)
+    | Uorc.Core.Graph::Instruction.sequenceConstant unused_sequenceConstant_0 => (ctor Opcode.sequenceConstant)
+    | Uorc.Core.Graph::Instruction.naturalAdd unused_naturalAdd_0 unused_naturalAdd_1 => (ctor Opcode.naturalAdd)
+    | Uorc.Core.Graph::Instruction.naturalSubtract unused_naturalSubtract_0 unused_naturalSubtract_1 => (ctor Opcode.naturalSubtract)
+    | Uorc.Core.Graph::Instruction.naturalMultiply unused_naturalMultiply_0 unused_naturalMultiply_1 => (ctor Opcode.naturalMultiply)
+    | Uorc.Core.Graph::Instruction.naturalDivide unused_naturalDivide_0 unused_naturalDivide_1 => (ctor Opcode.naturalDivide)
+    | Uorc.Core.Graph::Instruction.naturalRemainder unused_naturalRemainder_0 unused_naturalRemainder_1 => (ctor Opcode.naturalRemainder)
+    | Uorc.Core.Graph::Instruction.naturalAnd unused_naturalAnd_0 unused_naturalAnd_1 => (ctor Opcode.naturalAnd)
+    | Uorc.Core.Graph::Instruction.naturalOr unused_naturalOr_0 unused_naturalOr_1 => (ctor Opcode.naturalOr)
+    | Uorc.Core.Graph::Instruction.naturalXor unused_naturalXor_0 unused_naturalXor_1 => (ctor Opcode.naturalXor)
+    | Uorc.Core.Graph::Instruction.naturalNot unused_naturalNot_0 => (ctor Opcode.naturalNot)
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft unused_naturalShiftLeft_0 unused_naturalShiftLeft_1 => (ctor Opcode.naturalShiftLeft)
+    | Uorc.Core.Graph::Instruction.naturalShiftRight unused_naturalShiftRight_0 unused_naturalShiftRight_1 => (ctor Opcode.naturalShiftRight)
+    | Uorc.Core.Graph::Instruction.naturalEqual unused_naturalEqual_0 unused_naturalEqual_1 => (ctor Opcode.naturalEqual)
+    | Uorc.Core.Graph::Instruction.naturalLess unused_naturalLess_0 unused_naturalLess_1 => (ctor Opcode.naturalLess)
+    | Uorc.Core.Graph::Instruction.byteEqual unused_byteEqual_0 unused_byteEqual_1 => (ctor Opcode.byteEqual)
+    | Uorc.Core.Graph::Instruction.byteLess unused_byteLess_0 unused_byteLess_1 => (ctor Opcode.byteLess)
+    | Uorc.Core.Graph::Instruction.naturalToByte unused_naturalToByte_0 => (ctor Opcode.naturalToByte)
+    | Uorc.Core.Graph::Instruction.byteToNatural unused_byteToNatural_0 => (ctor Opcode.byteToNatural)
+    | Uorc.Core.Graph::Instruction.predicateNot unused_predicateNot_0 => (ctor Opcode.predicateNot)
+    | Uorc.Core.Graph::Instruction.predicateAnd unused_predicateAnd_0 unused_predicateAnd_1 => (ctor Opcode.predicateAnd)
+    | Uorc.Core.Graph::Instruction.predicateOr unused_predicateOr_0 unused_predicateOr_1 => (ctor Opcode.predicateOr)
+    | Uorc.Core.Graph::Instruction.sequenceLength unused_sequenceLength_0 => (ctor Opcode.sequenceLength)
+    | Uorc.Core.Graph::Instruction.sequenceIndex unused_sequenceIndex_0 unused_sequenceIndex_1 => (ctor Opcode.sequenceIndex)
+    | Uorc.Core.Graph::Instruction.sequenceSlice unused_sequenceSlice_0 unused_sequenceSlice_1 unused_sequenceSlice_2 => (ctor Opcode.sequenceSlice)
+    | Uorc.Core.Graph::Instruction.sequenceConcat unused_sequenceConcat_0 unused_sequenceConcat_1 => (ctor Opcode.sequenceConcat)
+    | Uorc.Core.Graph::Instruction.sequenceEqual unused_sequenceEqual_0 unused_sequenceEqual_1 => (ctor Opcode.sequenceEqual)
+    | Uorc.Core.Graph::Instruction.singletonSequence unused_singletonSequence_0 => (ctor Opcode.singletonSequence)
+    | Uorc.Core.Graph::Instruction.basisGet unused_basisGet_0 => (ctor Opcode.basisGet)
+    | Uorc.Core.Graph::Instruction.storeNew unused_storeNew_0 => (ctor Opcode.storeNew)
+    | Uorc.Core.Graph::Instruction.storeRead unused_storeRead_0 unused_storeRead_1 => (ctor Opcode.storeRead)
+    | Uorc.Core.Graph::Instruction.storeWrite unused_storeWrite_0 unused_storeWrite_1 unused_storeWrite_2 => (ctor Opcode.storeWrite)
+    | Uorc.Core.Graph::Instruction.choose unused_choose_0 unused_choose_1 unused_choose_2 => (ctor Opcode.choose)
+    | Uorc.Core.Graph::Instruction.apply unused_apply_0 unused_apply_1 => (ctor Opcode.apply)
+    | Uorc.Core.Graph::Instruction.tabulate unused_tabulate_0 unused_tabulate_1 unused_tabulate_2 => (ctor Opcode.tabulate)
+    | Uorc.Core.Graph::Instruction.fold unused_fold_0 unused_fold_1 unused_fold_2 unused_fold_3 => (ctor Opcode.fold)
+    | Uorc.Core.Graph::Instruction.scan unused_scan_0 unused_scan_1 unused_scan_2 unused_scan_3 unused_scan_4 unused_scan_5 => (ctor Opcode.scan)
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant unused_sequenceRopeConstant_0 => (ctor Opcode.sequenceConstant))
+}
+
+definition{
+  name: spec,
+  parameters: [opcode : Opcode],
+  result: Spec,
+  body: (match opcode
+    | Opcode.naturalConstant => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.immediateNatural), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.byteConstant => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.immediateByte), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.byte), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.predicateConstant => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.immediatePredicate), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.predicate), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.sequenceConstant => (record Spec {operandCount := (0 : UInt8), operand0 := (ctor OperandRole.absent), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.sequence), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := true})
+    | Opcode.naturalAdd => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalSubtract => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalMultiply => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalDivide => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalRemainder => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalAnd => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalOr => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalXor => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalNot => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalShiftLeft => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalShiftRight => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalEqual => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.predicate), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalLess => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.predicate), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.byteEqual => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localByte), operand1 := (ctor OperandRole.localByte), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.predicate), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.byteLess => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localByte), operand1 := (ctor OperandRole.localByte), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.predicate), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.naturalToByte => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.byte), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.byteToNatural => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.localByte), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.predicateNot => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.localPredicate), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.predicate), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.predicateAnd => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localPredicate), operand1 := (ctor OperandRole.localPredicate), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.predicate), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.predicateOr => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localPredicate), operand1 := (ctor OperandRole.localPredicate), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.predicate), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.sequenceLength => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.localSequence), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.natural), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.sequenceIndex => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localSequence), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.byte), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.sequenceSlice => (record Spec {operandCount := (3 : UInt8), operand0 := (ctor OperandRole.localSequence), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.localNatural), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.sequence), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.sequenceConcat => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localSequence), operand1 := (ctor OperandRole.localSequence), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.sequence), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.sequenceEqual => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localSequence), operand1 := (ctor OperandRole.localSequence), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.predicate), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.singletonSequence => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.localByte), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.sequence), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.basisGet => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.sequence), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.storeNew => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.localByte), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.store), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.storeRead => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localStore), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.byte), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.storeWrite => (record Spec {operandCount := (3 : UInt8), operand0 := (ctor OperandRole.localStore), operand1 := (ctor OperandRole.localNatural), operand2 := (ctor OperandRole.localByte), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.store), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.choose => (record Spec {operandCount := (3 : UInt8), operand0 := (ctor OperandRole.localPredicate), operand1 := (ctor OperandRole.localAny), operand2 := (ctor OperandRole.localAny), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.choice), call := (ctor CallRule.none), captureLanes := (0 : UInt8), literal := false})
+    | Opcode.apply => (record Spec {operandCount := (1 : UInt8), operand0 := (ctor OperandRole.blockReference), operand1 := (ctor OperandRole.absent), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.callee), call := (ctor CallRule.apply), captureLanes := (1 : UInt8), literal := false})
+    | Opcode.tabulate => (record Spec {operandCount := (2 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.blockReference), operand2 := (ctor OperandRole.absent), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.sequence), call := (ctor CallRule.tabulate), captureLanes := (1 : UInt8), literal := false})
+    | Opcode.fold => (record Spec {operandCount := (3 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localAny), operand2 := (ctor OperandRole.blockReference), operand3 := (ctor OperandRole.absent), result := (ctor ResultRule.foldState), call := (ctor CallRule.fold), captureLanes := (1 : UInt8), literal := false})
+    | Opcode.scan => (record Spec {operandCount := (4 : UInt8), operand0 := (ctor OperandRole.localNatural), operand1 := (ctor OperandRole.localAny), operand2 := (ctor OperandRole.blockReference), operand3 := (ctor OperandRole.blockReference), result := (ctor ResultRule.sequence), call := (ctor CallRule.scan), captureLanes := (2 : UInt8), literal := false})),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: operandAt,
+  parameters: [signature : Spec, index : UInt64],
+  result: (Option OperandRole),
+  body: (if (prim equal index (0 : UInt64) : Bool) then (ctor Option.some [OperandRole] (project signature operand0)) else (if (prim equal index (1 : UInt64) : Bool) then (ctor Option.some [OperandRole] (project signature operand1)) else (if (prim equal index (2 : UInt64) : Bool) then (ctor Option.some [OperandRole] (project signature operand2)) else (if (prim equal index (3 : UInt64) : Bool) then (ctor Option.some [OperandRole] (project signature operand3)) else (ctor Option.none [OperandRole]))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

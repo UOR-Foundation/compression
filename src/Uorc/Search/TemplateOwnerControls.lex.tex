@@ -1,0 +1,173 @@
+\begin{lexlean}{Uorc.Search.TemplateOwnerControls}
+\importmodule{Uorc.Search.TemplateOwner}
+\importmodule{Uorc.Search.TemplateStreamControls}
+\importmodule{Uorc.Search.FixedTemplates}
+\importmodule{Uorc.Search.TemplateStream}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Search.WaitingEquality}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Trial,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Uorc.Search.TemplateOwner::Cursor},
+    {name: externalRoots, type: (List Uorc.Core.RuntimeValue::Handle)},
+    {name: initialSource, type: Uorc.Search.TemplateStream::State},
+    {name: initialBytes, type: UInt64},
+    {name: done, type: Bool},
+    {name: failed, type: Bool},
+    {name: audited, type: Bool}
+  ]
+}
+
+definition{
+  name: startTrial,
+  parameters: [fixture : Uorc.Search.TemplateStreamControls::Fixture, withOriginal : Bool],
+  result: (Result Trial Uorc.Core.Heap::HeapError),
+  body: (if withOriginal then (match (Uorc.Core.RuntimeOwnerRoots::beginControl (project fixture arena))
+    | Result.error heapFailure => (ctor Result.error [Trial, Uorc.Core.Heap::HeapError] heapFailure)
+    | Result.ok allocation => (ctor Result.ok [Trial, Uorc.Core.Heap::HeapError] (record Trial {cursor := (Uorc.Search.TemplateOwner::start (project allocation arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (project allocation handle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) (record Uorc.Core.RuntimeResources::Usage {work := (0 : UInt64), ownedBytes := (project (project allocation arena) ownedBytes), peakOwnedBytes := (project (project allocation arena) ownedBytes), outputBytes := (0 : UInt64), frames := (0 : UInt64)}) (ctor Uorc.Search.FixedTemplates::Template.packedSingleton (3 : UInt64) (3 : UInt64) (project fixture root) (Uorc.Core.RuntimeValue::nullHandle))), externalRoots := (project fixture roots), initialSource := (project (Uorc.Search.TemplateOwner::start (project allocation arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (project allocation handle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) (record Uorc.Core.RuntimeResources::Usage {work := (0 : UInt64), ownedBytes := (project (project allocation arena) ownedBytes), peakOwnedBytes := (project (project allocation arena) ownedBytes), outputBytes := (0 : UInt64), frames := (0 : UInt64)}) (ctor Uorc.Search.FixedTemplates::Template.packedSingleton (3 : UInt64) (3 : UInt64) (project fixture root) (Uorc.Core.RuntimeValue::nullHandle))) source), initialBytes := (project (project allocation arena) ownedBytes), done := false, failed := false, audited := true}))) else (ctor Result.ok [Trial, Uorc.Core.Heap::HeapError] (record Trial {cursor := (Uorc.Search.TemplateOwner::start (project fixture arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) (record Uorc.Core.RuntimeResources::Usage {work := (0 : UInt64), ownedBytes := (project (project fixture arena) ownedBytes), peakOwnedBytes := (project (project fixture arena) ownedBytes), outputBytes := (0 : UInt64), frames := (0 : UInt64)}) (ctor Uorc.Search.FixedTemplates::Template.packedSingleton (3 : UInt64) (3 : UInt64) (project fixture root) (Uorc.Core.RuntimeValue::nullHandle))), externalRoots := (project fixture roots), initialSource := (project (Uorc.Search.TemplateOwner::start (project fixture arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) (record Uorc.Core.RuntimeResources::Usage {work := (0 : UInt64), ownedBytes := (project (project fixture arena) ownedBytes), peakOwnedBytes := (project (project fixture arena) ownedBytes), outputBytes := (0 : UInt64), frames := (0 : UInt64)}) (ctor Uorc.Search.FixedTemplates::Template.packedSingleton (3 : UInt64) (3 : UInt64) (project fixture root) (Uorc.Core.RuntimeValue::nullHandle))) source), initialBytes := (project (project fixture arena) ownedBytes), done := false, failed := false, audited := true})))
+}
+
+definition{
+  name: advance,
+  parameters: [trial : Trial],
+  result: Trial,
+  body: (let change : Uorc.Search.TemplateOwner::Transition := (Uorc.Search.TemplateOwner::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project trial cursor) (Uorc.Search.TemplateOwner::requiredWork (project trial cursor))); (record Trial {cursor := (project change cursor), externalRoots := (project trial externalRoots), initialSource := (project trial initialSource), initialBytes := (project trial initialBytes), done := (Uorc.Search.WaitingEquality::waitingEqSearchTemplateOwnerOutcome (project change outcome) (ctor Uorc.Search.TemplateOwner::Outcome.ready)), failed := (match (project change outcome)
+    | Uorc.Search.TemplateOwner::Outcome.failed failure => true
+    | Uorc.Search.TemplateOwner::Outcome.pending => false
+    | Uorc.Search.TemplateOwner::Outcome.ready => false), audited := ((project trial audited) && (Uorc.Core.HeapAudit::auditRoots (project (project change cursor) arena) (Uorc.Search.TemplateStreamControls::joinRoots (project trial externalRoots) (Uorc.Search.TemplateOwner::rootInventory (project change cursor)))))}))
+}
+
+definition{
+  name: run,
+  parameters: [work : Nat, trial : Trial],
+  result: Trial,
+  body: (match work
+    | Nat.zero => trial
+    | Nat.succ remaining => (if ((project trial done) || (project trial failed)) then trial else (run remaining (advance trial)))),
+  recursive_argument: work
+}
+
+definition{
+  name: oneImageWithoutOriginalProbe,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Search.TemplateStreamControls::oneImage)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (match (startTrial fixture false)
+      | Result.error ownerFailure => false
+      | Result.ok started => (let trialResult : Trial := (run 20 started); (((project trialResult done) && (not (project trialResult failed))) && ((project trialResult audited) && ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project (project trialResult cursor) source) (project trialResult initialSource)) && ((prim equal (project (project (project trialResult cursor) usage) work) (project (project trialResult cursor) consumedCredits) : Bool) && ((prim equal (project (project trialResult cursor) joinedOriginal) false : Bool) && (match (prim checked_add (project trialResult initialBytes) (4095 : UInt64) : (Option UInt64))
+        | Option.none => false
+        | Option.some minimumOwned => ((Uorc.Core.Heap::less minimumOwned (project (project (project trialResult cursor) arena) ownedBytes)) && (match (Uorc.Core.Heap::lookup (project (project trialResult cursor) arena) (project fixture root))
+          | Result.error lookupFailure => false
+          | Result.ok payloadEntry => (Uorc.Core.Heap::less (1 : UInt64) (project payloadEntry incoming)))))))))))))
+}
+
+theorem{
+  name: oneImageWithoutOriginal_reserves_control_and_pins_payload_roots,
+  parameters: [],
+  statement: ((oneImageWithoutOriginalProbe) = true),
+  proof: reflexivity{}
+}
+
+definition{
+  name: oneImageWithOriginalProbe,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Search.TemplateStreamControls::oneImage)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (match (startTrial fixture true)
+      | Result.error ownerFailure => false
+      | Result.ok started => (let trialResult : Trial := (run 20 started); (((project trialResult done) && (not (project trialResult failed))) && ((project trialResult audited) && ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project (project trialResult cursor) source) (project trialResult initialSource)) && ((prim equal (project (project (project trialResult cursor) usage) work) (project (project trialResult cursor) consumedCredits) : Bool) && ((prim equal (project (project trialResult cursor) joinedOriginal) true : Bool) && (match (prim checked_add (project trialResult initialBytes) (4095 : UInt64) : (Option UInt64))
+        | Option.none => false
+        | Option.some minimumOwned => ((Uorc.Core.Heap::less minimumOwned (project (project (project trialResult cursor) arena) ownedBytes)) && (match (Uorc.Core.Heap::lookup (project (project trialResult cursor) arena) (project fixture root))
+          | Result.error lookupFailure => false
+          | Result.ok payloadEntry => (Uorc.Core.Heap::less (1 : UInt64) (project payloadEntry incoming)))))))))))))
+}
+
+theorem{
+  name: oneImageWithOriginal_reserves_control_and_pins_payload_roots,
+  parameters: [],
+  statement: ((oneImageWithOriginalProbe) = true),
+  proof: reflexivity{}
+}
+
+definition{
+  name: twoImagesWithoutOriginalProbe,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Search.TemplateStreamControls::twoImages)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (match (startTrial fixture false)
+      | Result.error ownerFailure => false
+      | Result.ok started => (let trialResult : Trial := (run 20 started); (((project trialResult done) && (not (project trialResult failed))) && ((project trialResult audited) && ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project (project trialResult cursor) source) (project trialResult initialSource)) && ((prim equal (project (project (project trialResult cursor) usage) work) (project (project trialResult cursor) consumedCredits) : Bool) && ((prim equal (project (project trialResult cursor) joinedOriginal) false : Bool) && (match (prim checked_add (project trialResult initialBytes) (4095 : UInt64) : (Option UInt64))
+        | Option.none => false
+        | Option.some minimumOwned => ((Uorc.Core.Heap::less minimumOwned (project (project (project trialResult cursor) arena) ownedBytes)) && (match (Uorc.Core.Heap::lookup (project (project trialResult cursor) arena) (project fixture root))
+          | Result.error lookupFailure => false
+          | Result.ok payloadEntry => (Uorc.Core.Heap::less (1 : UInt64) (project payloadEntry incoming)))))))))))))
+}
+
+theorem{
+  name: twoImagesWithoutOriginal_reserves_control_and_pins_payload_roots,
+  parameters: [],
+  statement: ((twoImagesWithoutOriginalProbe) = true),
+  proof: reflexivity{}
+}
+
+definition{
+  name: twoImagesWithOriginalProbe,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Search.TemplateStreamControls::twoImages)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (match (startTrial fixture true)
+      | Result.error ownerFailure => false
+      | Result.ok started => (let trialResult : Trial := (run 20 started); (((project trialResult done) && (not (project trialResult failed))) && ((project trialResult audited) && ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project (project trialResult cursor) source) (project trialResult initialSource)) && ((prim equal (project (project (project trialResult cursor) usage) work) (project (project trialResult cursor) consumedCredits) : Bool) && ((prim equal (project (project trialResult cursor) joinedOriginal) true : Bool) && (match (prim checked_add (project trialResult initialBytes) (4095 : UInt64) : (Option UInt64))
+        | Option.none => false
+        | Option.some minimumOwned => ((Uorc.Core.Heap::less minimumOwned (project (project (project trialResult cursor) arena) ownedBytes)) && (match (Uorc.Core.Heap::lookup (project (project trialResult cursor) arena) (project fixture root))
+          | Result.error lookupFailure => false
+          | Result.ok payloadEntry => (Uorc.Core.Heap::less (1 : UInt64) (project payloadEntry incoming)))))))))))))
+}
+
+theorem{
+  name: twoImagesWithOriginal_reserves_control_and_pins_payload_roots,
+  parameters: [],
+  statement: ((twoImagesWithOriginalProbe) = true),
+  proof: reflexivity{}
+}
+
+definition{
+  name: partialAndRejectedProbe,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Search.TemplateStreamControls::oneImage)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (match (startTrial fixture false)
+      | Result.error ownerFailure => false
+      | Result.ok started => (let initial : Uorc.Search.TemplateOwner::Cursor := (project started cursor); (let partialCursor : Uorc.Search.TemplateOwner::Transition := (Uorc.Search.TemplateOwner::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) initial (255 : UInt64)); (let rejected : Uorc.Search.TemplateOwner::Transition := (Uorc.Search.TemplateOwner::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (255 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) initial (256 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqCoreHeapArena (project (project partialCursor cursor) arena) (project initial arena)) && ((Uorc.Search.WaitingEquality::waitingEqCoreRuntimeValueHandle (project (project partialCursor cursor) owner) (Uorc.Core.RuntimeValue::nullHandle)) && ((prim equal (project (project (project partialCursor cursor) usage) work) (0 : UInt64) : Bool) && ((Uorc.Search.WaitingEquality::waitingEqCoreHeapArena (project (project rejected cursor) arena) (project initial arena)) && (Uorc.Search.WaitingEquality::waitingEqSearchTemplateOwnerOutcome (project rejected outcome) (ctor Uorc.Search.TemplateOwner::Outcome.failed (ctor Uorc.Search.TemplateOwner::Error.resource (ctor Uorc.Core.RuntimeResources::Error.workLimit)))))))))))))
+}
+
+theorem{
+  name: control_allocation_is_prepaid_before_actual_allocation,
+  parameters: [],
+  statement: ((partialAndRejectedProbe) = true),
+  proof: reflexivity{}
+}
+
+definition{
+  name: qualification,
+  parameters: [],
+  result: String,
+  body: "Finite actual arena/control/payload-pinning source controls, including one/two images and moved preexisting search ownership. Every tested preparation prefix is audited with the external fixture roots. This token is not admitted syntax; admission, exact wire reconstruction, cleanup/cancellation and native qualification remain separate."
+}
+\end{semanticmodule}
+\end{lexlean}

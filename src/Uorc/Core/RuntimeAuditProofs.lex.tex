@@ -1,0 +1,328 @@
+\begin{lexlean}{Uorc.Core.RuntimeAuditProofs}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: RowCountInvariant,
+  parameters: [
+    row : Uorc.Core.HeapAudit::Row,
+    all : (List Uorc.Core.HeapAudit::Row),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  result: Prop,
+  body: (((0 : UInt64) < (project (project row entry) incoming)) /\ ((Uorc.Core.HeapAudit::wordToNat (project (project row entry) incoming)) = ((Uorc.Core.HeapAudit::wordToNat (project (project row entry) roots)) + ((Uorc.Core.HeapAudit::edgeCount all (project row handle)) + (if (project (project arena cursor) rootStep) then 0 else (Uorc.Core.HeapAudit::occurrences (project (project arena cursor) pending) (project row handle))))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: CountsInvariant,
+  parameters: [
+    rows : (List Uorc.Core.HeapAudit::Row),
+    all : (List Uorc.Core.HeapAudit::Row),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  result: Prop,
+  body: (match rows
+    | List.nil => (0 = 0)
+    | List.cons head tail => ((RowCountInvariant head all arena) /\ (CountsInvariant tail all arena))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: rows
+}
+
+definition{
+  name: RowRootsInvariant,
+  parameters: [
+    row : Uorc.Core.HeapAudit::Row,
+    roots : (List Uorc.Core.RuntimeValue::Handle),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  result: Prop,
+  body: ((Uorc.Core.HeapAudit::wordToNat (project (project row entry) roots)) = ((Uorc.Core.HeapAudit::occurrences roots (project row handle)) + (if (project (project arena cursor) rootStep) then (Uorc.Core.HeapAudit::occurrences (project (project arena cursor) pending) (project row handle)) else 0))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: RootsInvariant,
+  parameters: [
+    rows : (List Uorc.Core.HeapAudit::Row),
+    roots : (List Uorc.Core.RuntimeValue::Handle),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  result: Prop,
+  body: (match rows
+    | List.nil => (0 = 0)
+    | List.cons head tail => ((RowRootsInvariant head roots arena) /\ (RootsInvariant tail roots arena))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: rows
+}
+
+theorem{
+  name: boolGuard_reflect,
+  parameters: [guard : Bool, rest : Bool],
+  statement: (((if guard then rest else false) = true) <-> ((guard = true) /\ (rest = true))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: "false"},
+            {proof: decide{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: rest
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {proof: decide{}, binders: [], constructor: "false"},
+            {proof: decide{}, binders: [], constructor: "true"}
+          ],
+          scrutinee: rest
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: guard
+  },
+  axioms: []
+}
+
+theorem{
+  name: boolGuard2_reflect,
+  parameters: [guard : Bool, condition : Bool, rest : Bool],
+  statement: (((if (if guard then condition else false) then rest else false) = true) <-> (((guard = true) /\ (condition = true)) /\ (rest = true))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: "false"},
+                  {proof: decide{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: rest
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: "false"},
+                  {proof: decide{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: rest
+              },
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: condition
+        },
+        binders: [],
+        constructor: "false"
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: "false"},
+                  {proof: decide{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: rest
+              },
+              binders: [],
+              constructor: "false"
+            },
+            {
+              proof: cases{
+                branches: [
+                  {proof: decide{}, binders: [], constructor: "false"},
+                  {proof: decide{}, binders: [], constructor: "true"}
+                ],
+                scrutinee: rest
+              },
+              binders: [],
+              constructor: "true"
+            }
+          ],
+          scrutinee: condition
+        },
+        binders: [],
+        constructor: "true"
+      }
+    ],
+    scrutinee: guard
+  },
+  axioms: []
+}
+
+theorem{
+  name: negatedGuard_reflect,
+  parameters: [guard : Bool],
+  statement: (((if guard then false else true) = true) <-> (guard = false)),
+  proof: cases{
+    branches: [
+      {proof: decide{}, binders: [], constructor: "false"},
+      {proof: decide{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: guard
+  },
+  axioms: []
+}
+
+theorem{
+  name: positiveWord_reflect,
+  parameters: [incoming : UInt64],
+  statement: (((prim equal incoming (0 : UInt64) : Bool) = false) <-> ((0 : UInt64) < incoming)),
+  proof: linear_arithmetic{},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: naturalEquality_reflect,
+  parameters: [left : Nat, right : Nat],
+  statement: (((left =? right) = true) <-> (left = right)),
+  proof: linear_arithmetic{},
+  axioms: [propext]
+}
+
+theorem{
+  name: countsCons_boolean,
+  parameters: [
+    head : Uorc.Core.HeapAudit::Row,
+    tail : (List Uorc.Core.HeapAudit::Row),
+    all : (List Uorc.Core.HeapAudit::Row),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  statement: (((Uorc.Core.HeapAudit::countsRows (cons head tail) all arena) = true) <-> ((((if (prim equal (project (project head entry) incoming) (0 : UInt64) : Bool) then false else true) = true) /\ (((Uorc.Core.HeapAudit::wordToNat (project (project head entry) incoming)) =? ((Uorc.Core.HeapAudit::wordToNat (project (project head entry) roots)) + ((Uorc.Core.HeapAudit::edgeCount all (project head handle)) + (if (project (project arena cursor) rootStep) then 0 else (Uorc.Core.HeapAudit::occurrences (project (project arena cursor) pending) (project head handle)))))) = true)) /\ ((Uorc.Core.HeapAudit::countsRows tail all arena) = true))),
+  proof: apply{
+    arguments: [
+      (if (prim equal (project (project head entry) incoming) (0 : UInt64) : Bool) then false else true),
+      ((Uorc.Core.HeapAudit::wordToNat (project (project head entry) incoming)) =? ((Uorc.Core.HeapAudit::wordToNat (project (project head entry) roots)) + ((Uorc.Core.HeapAudit::edgeCount all (project head handle)) + (if (project (project arena cursor) rootStep) then 0 else (Uorc.Core.HeapAudit::occurrences (project (project arena cursor) pending) (project head handle)))))),
+      (Uorc.Core.HeapAudit::countsRows tail all arena)
+    ],
+    theorem: boolGuard2_reflect
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: countsCons_reflect,
+  parameters: [
+    head : Uorc.Core.HeapAudit::Row,
+    tail : (List Uorc.Core.HeapAudit::Row),
+    all : (List Uorc.Core.HeapAudit::Row),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  statement: (((Uorc.Core.HeapAudit::countsRows (cons head tail) all arena) = true) <-> ((RowCountInvariant head all arena) /\ ((Uorc.Core.HeapAudit::countsRows tail all arena) = true))),
+  proof: simplify{
+    definitions: [
+      RowCountInvariant,
+      countsCons_boolean,
+      naturalEquality_reflect,
+      negatedGuard_reflect,
+      positiveWord_reflect
+    ]
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: rootsCons_boolean,
+  parameters: [
+    head : Uorc.Core.HeapAudit::Row,
+    tail : (List Uorc.Core.HeapAudit::Row),
+    roots : (List Uorc.Core.RuntimeValue::Handle),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  statement: (((Uorc.Core.HeapAudit::rootRows (cons head tail) roots arena) = true) <-> ((((Uorc.Core.HeapAudit::wordToNat (project (project head entry) roots)) =? ((Uorc.Core.HeapAudit::occurrences roots (project head handle)) + (if (project (project arena cursor) rootStep) then (Uorc.Core.HeapAudit::occurrences (project (project arena cursor) pending) (project head handle)) else 0))) = true) /\ ((Uorc.Core.HeapAudit::rootRows tail roots arena) = true))),
+  proof: apply{
+    arguments: [
+      ((Uorc.Core.HeapAudit::wordToNat (project (project head entry) roots)) =? ((Uorc.Core.HeapAudit::occurrences roots (project head handle)) + (if (project (project arena cursor) rootStep) then (Uorc.Core.HeapAudit::occurrences (project (project arena cursor) pending) (project head handle)) else 0))),
+      (Uorc.Core.HeapAudit::rootRows tail roots arena)
+    ],
+    theorem: boolGuard_reflect
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rootsCons_reflect,
+  parameters: [
+    head : Uorc.Core.HeapAudit::Row,
+    tail : (List Uorc.Core.HeapAudit::Row),
+    roots : (List Uorc.Core.RuntimeValue::Handle),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  statement: (((Uorc.Core.HeapAudit::rootRows (cons head tail) roots arena) = true) <-> ((RowRootsInvariant head roots arena) /\ ((Uorc.Core.HeapAudit::rootRows tail roots arena) = true))),
+  proof: simplify{definitions: [RowRootsInvariant, naturalEquality_reflect, rootsCons_boolean]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: countsRows_reflect,
+  parameters: [
+    rows : (List Uorc.Core.HeapAudit::Row),
+    all : (List Uorc.Core.HeapAudit::Row),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  statement: (((Uorc.Core.HeapAudit::countsRows rows all arena) = true) <-> (CountsInvariant rows all arena)),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [CountsInvariant, Uorc.Core.HeapAudit::countsRows]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: simplify{definitions: [CountsInvariant, countsCons_reflect, ih]},
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: rows
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: rootRows_reflect,
+  parameters: [
+    rows : (List Uorc.Core.HeapAudit::Row),
+    roots : (List Uorc.Core.RuntimeValue::Handle),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  statement: (((Uorc.Core.HeapAudit::rootRows rows roots arena) = true) <-> (RootsInvariant rows roots arena)),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [RootsInvariant, Uorc.Core.HeapAudit::rootRows]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: simplify{definitions: [RootsInvariant, ih, rootsCons_reflect]},
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: rows
+  },
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

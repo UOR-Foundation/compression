@@ -1,0 +1,86 @@
+\begin{lexlean}{Uorc.Wire.TableCancelRepro}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.HeapAudit}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: fuel, fields: []},
+    {name: heap, fields: []},
+    {name: wrongOutcome, fields: []},
+    {name: ownership, fields: []}
+  ]
+}
+
+structure{
+  name: Witness,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: transition, type: Uorc.Core.RuntimeTable::PutTransition},
+    {name: steps, type: Nat}
+  ]
+}
+
+definition{
+  name: reach,
+  parameters: [fuel : Nat, steps : Nat, x : Uorc.Core.RuntimeTable::PutTransition],
+  result: (Result Witness Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Witness, Error] (ctor Error.fuel))
+    | Nat.succ restLocal1 => (match (project x cursor)
+      | Option.none => (ctor Result.error [Witness, Error] (ctor Error.wrongOutcome))
+      | Option.some cursorLocal2 => (if (if (match (project cursorLocal2 phase)
+        | Uorc.Core.RuntimeTable::PutPhase.captureTable => false
+        | Uorc.Core.RuntimeTable::PutPhase.captureLeaf => false
+        | Uorc.Core.RuntimeTable::PutPhase.descend => false
+        | Uorc.Core.RuntimeTable::PutPhase.ascend => false
+        | Uorc.Core.RuntimeTable::PutPhase.cleanup => false
+        | Uorc.Core.RuntimeTable::PutPhase.draining => true) then (if (Uorc.Core.RuntimeValue::isNull (project cursorLocal2 control)) then (if (Uorc.Core.RuntimeValue::isNull (project cursorLocal2 subtree)) then false else true) else false) else false) then (ctor Result.ok [Witness, Error] (record Witness {transition := x, steps := steps})) else (reach restLocal1 (steps + 1) (Uorc.Core.RuntimeTable::step x))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: cancelUntil,
+  parameters: [fuel : Nat, x : Uorc.Core.RuntimeTable::PutTransition],
+  result: (Result Uorc.Core.Heap::Arena Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.fuel))
+    | Nat.succ restLocal3 => (let nextLocal4 : Uorc.Core.RuntimeTable::PutTransition := (Uorc.Core.RuntimeTable::step (Uorc.Core.RuntimeTable::cancel x)); (match (project nextLocal4 outcome)
+      | Uorc.Core.RuntimeTable::PutOutcome.pending => (cancelUntil restLocal3 nextLocal4)
+      | Uorc.Core.RuntimeTable::PutOutcome.cancelled => (ctor Result.ok [Uorc.Core.Heap::Arena, Error] (project nextLocal4 arena))
+      | Uorc.Core.RuntimeTable::PutOutcome.complete tableLocal5 => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.wrongOutcome))
+      | Uorc.Core.RuntimeTable::PutOutcome.failed whyLocal6 => (ctor Result.error [Uorc.Core.Heap::Arena, Error] (ctor Error.heap))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: witness,
+  parameters: [],
+  result: (Result Witness Error),
+  body: (match (Uorc.Core.RuntimeTable::beginPutReserved (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.wire)), root := (Uorc.Core.RuntimeValue::nullHandle)}) (0 : UInt64) (ctor Option.some [Uorc.Core.RuntimeTable::PutLeaf] (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.wire) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural (129 : UInt64)))))
+    | Result.error whyLocal7 => (ctor Result.error [Witness, Error] (ctor Error.heap))
+    | Result.ok xLocal8 => (reach 1000 0 xLocal8)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (witness)
+    | Result.error whyLocal9 => (ctor Result.error [Unit, Error] whyLocal9)
+    | Result.ok witnessLocal10 => (match (cancelUntil 1000 (project witnessLocal10 transition))
+      | Result.error whyLocal11 => (ctor Result.error [Unit, Error] whyLocal11)
+      | Result.ok arenaLocal12 => (if (Uorc.Core.HeapAudit::auditRoots arenaLocal12 (nil Uorc.Core.RuntimeValue::Handle)) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

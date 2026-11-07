@@ -1,0 +1,617 @@
+\begin{lexlean}{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Store}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ProfileId,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: canonicalReferenceWork1, fields: []},
+    {name: logicalReferenceEvents1, fields: []}
+  ]
+}
+
+definition{
+  name: currentProfile,
+  parameters: [],
+  result: ProfileId,
+  body: (ctor ProfileId.logicalReferenceEvents1),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: sameProfile,
+  parameters: [first : ProfileId, second : ProfileId],
+  result: Bool,
+  body: (match var{name: first}
+    | ProfileId.canonicalReferenceWork1 => (match var{name: second}
+      | ProfileId.canonicalReferenceWork1 => true
+      | ProfileId.logicalReferenceEvents1 => false)
+    | ProfileId.logicalReferenceEvents1 => (match var{name: second}
+      | ProfileId.canonicalReferenceWork1 => false
+      | ProfileId.logicalReferenceEvents1 => true)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: profileIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.logical-reference-events/1",
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: representationIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.fixed4096-byte-leaves/1",
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: refinementIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.logical-reference-owned-binding-bridge/1",
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: storageUnitIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.logical-live-binding-payload-units/1",
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: scopeIdentity,
+  parameters: [],
+  result: String,
+  body: "semantic-execution;parsing-admission-integrity-operational",
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: qualificationStatus,
+  parameters: [],
+  result: String,
+  body: "logical-schedule-and-binding-spine-authored-full-refinement-unproved",
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: profileIdentityFor,
+  parameters: [profile : ProfileId],
+  result: String,
+  body: (match profile
+    | ProfileId.canonicalReferenceWork1 => "uorc.canonical-reference-work/1"
+    | ProfileId.logicalReferenceEvents1 => (profileIdentity)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: profileSupported,
+  parameters: [profile : ProfileId],
+  result: Bool,
+  body: (match profile
+    | ProfileId.canonicalReferenceWork1 => false
+    | ProfileId.logicalReferenceEvents1 => true),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: semanticValueIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.logical-reference-values/1",
+  axioms: [],
+  executable: true
+}
+
+inductive{
+  name: StorageScope,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: unconstrained, fields: []},
+    {name: liveBindingPayloadBytes, fields: [Nat]},
+    {name: liveBindingPayloadUnits, fields: [Nat]}
+  ]
+}
+
+structure{
+  name: Budget,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: maxSemanticWork, type: Nat}, {name: storage, type: StorageScope}]
+}
+
+structure{
+  name: Usage,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: semanticWork, type: Nat},
+    {name: semanticStorageUnits, type: Nat},
+    {name: peakSemanticStorageUnits, type: Nat},
+    {name: outputBytes, type: Nat},
+    {name: activeFrames, type: Nat},
+    {name: peakFrames, type: Nat},
+    {name: acceptedArchives, type: Nat},
+    {name: basisObjects, type: Nat}
+  ]
+}
+
+inductive{
+  name: SemanticEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: instruction, fields: [Uorc.Core.RuntimeOpcode::Opcode]},
+    {name: parameterBind, fields: []},
+    {name: referenceRead, fields: []},
+    {name: blockEnter, fields: []},
+    {name: blockLeave, fields: []},
+    {name: loopObserve, fields: []},
+    {name: loopUpdate, fields: []},
+    {name: byteRead, fields: []},
+    {name: byteWrite, fields: []},
+    {name: byteComparison, fields: []},
+    {name: outputBoundary, fields: []},
+    {name: outputByte, fields: []},
+    {name: basisBoundary, fields: []},
+    {name: canonicalEof, fields: []},
+    {name: allocateValueUnits, fields: [Nat]},
+    {name: releaseValueUnits, fields: [Nat]}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidUsage, fields: []},
+    {name: workLimit, fields: []},
+    {name: storageLimit, fields: []},
+    {name: storageUnderflow, fields: []},
+    {name: frameUnderflow, fields: []}
+  ]
+}
+
+definition{
+  name: budgetSupported,
+  parameters: [profile : ProfileId, budget : Budget],
+  result: Bool,
+  body: ((profileSupported profile) && (match (project budget storage)
+    | StorageScope.unconstrained => true
+    | StorageScope.liveBindingPayloadBytes limit => false
+    | StorageScope.liveBindingPayloadUnits limit => true)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: zeroUsage,
+  parameters: [],
+  result: Usage,
+  body: (record Usage {semanticWork := 0, semanticStorageUnits := 0, peakSemanticStorageUnits := 0, outputBytes := 0, activeFrames := 0, peakFrames := 0, acceptedArchives := 0, basisObjects := 0}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: instructionWork,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: Nat,
+  body: (match opcode
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalConstant => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.byteConstant => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateConstant => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAdd => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalSubtract => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalMultiply => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalDivide => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalRemainder => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAnd => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalOr => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalXor => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalNot => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftLeft => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftRight => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalEqual => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalLess => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.byteEqual => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.byteLess => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalToByte => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.byteToNatural => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateNot => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateAnd => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateOr => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceLength => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceSlice => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConcat => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceEqual => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.singletonSequence => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.basisGet => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.storeNew => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.storeRead => 65
+    | Uorc.Core.RuntimeOpcode::Opcode.storeWrite => 65
+    | Uorc.Core.RuntimeOpcode::Opcode.choose => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.apply => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.tabulate => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.fold => 1
+    | Uorc.Core.RuntimeOpcode::Opcode.scan => 1),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: eventWork,
+  parameters: [event : SemanticEvent],
+  result: Nat,
+  body: (match event
+    | SemanticEvent.instruction payload => (instructionWork payload)
+    | SemanticEvent.parameterBind => 1
+    | SemanticEvent.referenceRead => 1
+    | SemanticEvent.blockEnter => 1
+    | SemanticEvent.blockLeave => 1
+    | SemanticEvent.loopObserve => 1
+    | SemanticEvent.loopUpdate => 1
+    | SemanticEvent.byteRead => 1
+    | SemanticEvent.byteWrite => 1
+    | SemanticEvent.byteComparison => 1
+    | SemanticEvent.outputBoundary => 1
+    | SemanticEvent.outputByte => 1
+    | SemanticEvent.basisBoundary => 1
+    | SemanticEvent.canonicalEof => 1
+    | SemanticEvent.allocateValueUnits payload => 1
+    | SemanticEvent.releaseValueUnits payload => 1),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: allocatedUnits,
+  parameters: [event : SemanticEvent],
+  result: Nat,
+  body: (match event
+    | SemanticEvent.instruction payload => 0
+    | SemanticEvent.parameterBind => 0
+    | SemanticEvent.referenceRead => 0
+    | SemanticEvent.blockEnter => 0
+    | SemanticEvent.blockLeave => 0
+    | SemanticEvent.loopObserve => 0
+    | SemanticEvent.loopUpdate => 0
+    | SemanticEvent.byteRead => 0
+    | SemanticEvent.byteWrite => 0
+    | SemanticEvent.byteComparison => 0
+    | SemanticEvent.outputBoundary => 0
+    | SemanticEvent.outputByte => 0
+    | SemanticEvent.basisBoundary => 0
+    | SemanticEvent.canonicalEof => 0
+    | SemanticEvent.allocateValueUnits payload => payload
+    | SemanticEvent.releaseValueUnits payload => 0),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: releasedUnits,
+  parameters: [event : SemanticEvent],
+  result: Nat,
+  body: (match event
+    | SemanticEvent.instruction payload => 0
+    | SemanticEvent.parameterBind => 0
+    | SemanticEvent.referenceRead => 0
+    | SemanticEvent.blockEnter => 0
+    | SemanticEvent.blockLeave => 0
+    | SemanticEvent.loopObserve => 0
+    | SemanticEvent.loopUpdate => 0
+    | SemanticEvent.byteRead => 0
+    | SemanticEvent.byteWrite => 0
+    | SemanticEvent.byteComparison => 0
+    | SemanticEvent.outputBoundary => 0
+    | SemanticEvent.outputByte => 0
+    | SemanticEvent.basisBoundary => 0
+    | SemanticEvent.canonicalEof => 0
+    | SemanticEvent.allocateValueUnits payload => 0
+    | SemanticEvent.releaseValueUnits payload => payload),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: outputCount,
+  parameters: [event : SemanticEvent],
+  result: Nat,
+  body: (match event
+    | SemanticEvent.instruction payload => 0
+    | SemanticEvent.parameterBind => 0
+    | SemanticEvent.referenceRead => 0
+    | SemanticEvent.blockEnter => 0
+    | SemanticEvent.blockLeave => 0
+    | SemanticEvent.loopObserve => 0
+    | SemanticEvent.loopUpdate => 0
+    | SemanticEvent.byteRead => 0
+    | SemanticEvent.byteWrite => 0
+    | SemanticEvent.byteComparison => 0
+    | SemanticEvent.outputBoundary => 0
+    | SemanticEvent.outputByte => 1
+    | SemanticEvent.basisBoundary => 0
+    | SemanticEvent.canonicalEof => 0
+    | SemanticEvent.allocateValueUnits payload => 0
+    | SemanticEvent.releaseValueUnits payload => 0),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: enteredFrames,
+  parameters: [event : SemanticEvent],
+  result: Nat,
+  body: (match event
+    | SemanticEvent.instruction payload => 0
+    | SemanticEvent.parameterBind => 0
+    | SemanticEvent.referenceRead => 0
+    | SemanticEvent.blockEnter => 1
+    | SemanticEvent.blockLeave => 0
+    | SemanticEvent.loopObserve => 0
+    | SemanticEvent.loopUpdate => 0
+    | SemanticEvent.byteRead => 0
+    | SemanticEvent.byteWrite => 0
+    | SemanticEvent.byteComparison => 0
+    | SemanticEvent.outputBoundary => 0
+    | SemanticEvent.outputByte => 0
+    | SemanticEvent.basisBoundary => 0
+    | SemanticEvent.canonicalEof => 0
+    | SemanticEvent.allocateValueUnits payload => 0
+    | SemanticEvent.releaseValueUnits payload => 0),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: leftFrames,
+  parameters: [event : SemanticEvent],
+  result: Nat,
+  body: (match event
+    | SemanticEvent.instruction payload => 0
+    | SemanticEvent.parameterBind => 0
+    | SemanticEvent.referenceRead => 0
+    | SemanticEvent.blockEnter => 0
+    | SemanticEvent.blockLeave => 1
+    | SemanticEvent.loopObserve => 0
+    | SemanticEvent.loopUpdate => 0
+    | SemanticEvent.byteRead => 0
+    | SemanticEvent.byteWrite => 0
+    | SemanticEvent.byteComparison => 0
+    | SemanticEvent.outputBoundary => 0
+    | SemanticEvent.outputByte => 0
+    | SemanticEvent.basisBoundary => 0
+    | SemanticEvent.canonicalEof => 0
+    | SemanticEvent.allocateValueUnits payload => 0
+    | SemanticEvent.releaseValueUnits payload => 0),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: eofCount,
+  parameters: [event : SemanticEvent],
+  result: Nat,
+  body: (match event
+    | SemanticEvent.instruction payload => 0
+    | SemanticEvent.parameterBind => 0
+    | SemanticEvent.referenceRead => 0
+    | SemanticEvent.blockEnter => 0
+    | SemanticEvent.blockLeave => 0
+    | SemanticEvent.loopObserve => 0
+    | SemanticEvent.loopUpdate => 0
+    | SemanticEvent.byteRead => 0
+    | SemanticEvent.byteWrite => 0
+    | SemanticEvent.byteComparison => 0
+    | SemanticEvent.outputBoundary => 0
+    | SemanticEvent.outputByte => 0
+    | SemanticEvent.basisBoundary => 0
+    | SemanticEvent.canonicalEof => 1
+    | SemanticEvent.allocateValueUnits payload => 0
+    | SemanticEvent.releaseValueUnits payload => 0),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: basisCount,
+  parameters: [event : SemanticEvent],
+  result: Nat,
+  body: (match event
+    | SemanticEvent.instruction payload => 0
+    | SemanticEvent.parameterBind => 0
+    | SemanticEvent.referenceRead => 0
+    | SemanticEvent.blockEnter => 0
+    | SemanticEvent.blockLeave => 0
+    | SemanticEvent.loopObserve => 0
+    | SemanticEvent.loopUpdate => 0
+    | SemanticEvent.byteRead => 0
+    | SemanticEvent.byteWrite => 0
+    | SemanticEvent.byteComparison => 0
+    | SemanticEvent.outputBoundary => 0
+    | SemanticEvent.outputByte => 0
+    | SemanticEvent.basisBoundary => 1
+    | SemanticEvent.canonicalEof => 0
+    | SemanticEvent.allocateValueUnits payload => 0
+    | SemanticEvent.releaseValueUnits payload => 0),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: advance,
+  parameters: [usage : Usage, event : SemanticEvent],
+  result: Usage,
+  body: (record Usage {semanticWork := ((project usage semanticWork) + (eventWork event)), semanticStorageUnits := (prim subtract ((project usage semanticStorageUnits) + (allocatedUnits event)) (releasedUnits event) : Nat), peakSemanticStorageUnits := (if ((project usage peakSemanticStorageUnits) <=? ((project usage semanticStorageUnits) + (allocatedUnits event))) then ((project usage semanticStorageUnits) + (allocatedUnits event)) else (project usage peakSemanticStorageUnits)), outputBytes := ((project usage outputBytes) + (outputCount event)), activeFrames := (prim subtract ((project usage activeFrames) + (enteredFrames event)) (leftFrames event) : Nat), peakFrames := (if ((project usage peakFrames) <=? ((project usage activeFrames) + (enteredFrames event))) then ((project usage activeFrames) + (enteredFrames event)) else (project usage peakFrames)), acceptedArchives := ((project usage acceptedArchives) + (eofCount event)), basisObjects := ((project usage basisObjects) + (basisCount event))}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: storageFits,
+  parameters: [scope : StorageScope, peak : Nat],
+  result: Bool,
+  body: (match scope
+    | StorageScope.unconstrained => true
+    | StorageScope.liveBindingPayloadBytes limit => (peak <=? limit)
+    | StorageScope.liveBindingPayloadUnits limit => (peak <=? limit)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: charge,
+  parameters: [budget : Budget, usage : Usage, event : SemanticEvent],
+  result: (Result Usage Error),
+  body: (if ((((project usage semanticStorageUnits) <=? (project usage peakSemanticStorageUnits)) && ((project usage activeFrames) <=? (project usage peakFrames))) && (((project usage semanticWork) <=? (project budget maxSemanticWork)) && (storageFits (project budget storage) (project usage peakSemanticStorageUnits)))) then (if (not (((project usage semanticWork) + (eventWork event)) <=? (project budget maxSemanticWork))) then (ctor Result.error [Usage, Error] (ctor Error.workLimit)) else (if (not ((releasedUnits event) <=? ((project usage semanticStorageUnits) + (allocatedUnits event)))) then (ctor Result.error [Usage, Error] (ctor Error.storageUnderflow)) else (if (not ((leftFrames event) <=? ((project usage activeFrames) + (enteredFrames event)))) then (ctor Result.error [Usage, Error] (ctor Error.frameUnderflow)) else (if (storageFits (project budget storage) (project (advance usage event) peakSemanticStorageUnits)) then (ctor Result.ok [Usage, Error] (advance usage event)) else (ctor Result.error [Usage, Error] (ctor Error.storageLimit)))))) else (ctor Result.error [Usage, Error] (ctor Error.invalidUsage))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: storeEntries,
+  parameters: [trie : Uorc.Core.Store::Trie],
+  result: Nat,
+  body: (match trie
+    | Uorc.Core.Store::Trie.empty => 0
+    | Uorc.Core.Store::Trie.leaf value => 1
+    | Uorc.Core.Store::Trie.branch leftTrie rightTrie => ((storeEntries leftTrie) + (storeEntries rightTrie))),
+  axioms: [],
+  executable: false,
+  recursive_argument: trie
+}
+
+definition{
+  name: valueUnits,
+  parameters: [value : Uorc.Core.Types::Value],
+  result: Nat,
+  body: (match value
+    | Uorc.Core.Types::Value.natural payload => 8
+    | Uorc.Core.Types::Value.byte payload => 1
+    | Uorc.Core.Types::Value.predicate payload => 1
+    | Uorc.Core.Types::Value.sequence payload => (prim length payload : Nat)
+    | Uorc.Core.Types::Value.store payload => (1 + (prim multiply 9 (storeEntries (project payload root)) : Nat))
+    | Uorc.Core.Types::Value.segmentedSequence payload => (Uorc.Core.Bytes::length payload)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: appendEvents,
+  parameters: [first : (List SemanticEvent), second : (List SemanticEvent)],
+  result: (List SemanticEvent),
+  body: (match var{name: first}
+    | List.nil => var{name: second}
+    | List.cons event rest => (cons event (appendEvents rest var{name: second}))),
+  axioms: [],
+  executable: false,
+  recursive_argument: first
+}
+
+definition{
+  name: workOf,
+  parameters: [events : (List SemanticEvent)],
+  result: Nat,
+  body: (match events
+    | List.nil => 0
+    | List.cons event rest => ((eventWork event) + (workOf rest))),
+  axioms: [],
+  executable: false,
+  recursive_argument: events
+}
+
+theorem{
+  name: advance_commits_exact_semantic_work,
+  parameters: [usage : Usage, event : SemanticEvent],
+  statement: ((project (advance usage event) semanticWork) = ((project usage semanticWork) + (eventWork event))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: advance_commits_exact_output_count,
+  parameters: [usage : Usage, event : SemanticEvent],
+  statement: ((project (advance usage event) outputBytes) = ((project usage outputBytes) + (outputCount event))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: advance_keeps_basis_work_in_the_same_ledger,
+  parameters: [usage : Usage],
+  statement: ((project (advance usage (ctor SemanticEvent.basisBoundary)) semanticWork) = ((project usage semanticWork) + 1)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: work_sum_associativity,
+  parameters: [firstWork : Nat, secondWork : Nat, thirdWork : Nat],
+  statement: ((firstWork + (secondWork + thirdWork)) = ((firstWork + secondWork) + thirdWork)),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: event_work_is_compositional,
+  parameters: [first : (List SemanticEvent), second : (List SemanticEvent)],
+  statement: ((workOf (appendEvents var{
+    name: first
+  } var{name: second})) = ((workOf var{name: first}) + (workOf var{name: second}))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [appendEvents, workOf]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: simplify{definitions: [appendEvents, ih, workOf, work_sum_associativity]},
+        binders: [event, rest, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: first
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: referenceValueUnits,
+  parameters: [value : Uorc.Core.ReferenceSemantics::Value],
+  result: Nat,
+  body: (match value
+    | Uorc.Core.ReferenceSemantics::Value.natural payload => 8
+    | Uorc.Core.ReferenceSemantics::Value.byte payload => 1
+    | Uorc.Core.ReferenceSemantics::Value.predicate payload => 1
+    | Uorc.Core.ReferenceSemantics::Value.sequence payload => (project payload length)
+    | Uorc.Core.ReferenceSemantics::Value.store payload => (1 + (prim multiply 9 (prim length (project payload exceptions) : Nat) : Nat))),
+  axioms: [],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

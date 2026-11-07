@@ -1,0 +1,153 @@
+\begin{lexlean}{Uorc.Search.PackedDictionary}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: indexFold,
+  parameters: [],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.sequence) (nil Uorc.Core.Types::ValueType))))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 2 4) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (8 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalDivide 2 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 3 2) (cons (ctor Uorc.Core.Graph::Instruction.sequenceIndex 5 2) (cons (ctor Uorc.Core.Graph::Instruction.byteToNatural 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalShiftRight 1 3) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalAnd 2 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalShiftLeft 1 13) (cons (ctor Uorc.Core.Graph::Instruction.naturalOr 13 1) (nil Uorc.Core.Graph::Instruction)))))))))))), returnDistance := 1})
+}
+
+definition{
+  name: lookupBlock,
+  parameters: [
+    width : UInt64,
+    bits : UInt64,
+    codes : Uorc.Core.Bytes::Rope,
+    dictionary : Uorc.Core.Bytes::Rope
+  ],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant width) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant bits) (cons (ctor Uorc.Core.Graph::Instruction.naturalDivide 3 2) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 4 3) (cons (ctor Uorc.Core.Graph::Instruction.naturalMultiply 2 3) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant codes) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant dictionary) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.fold 7 1 1 (cons 4 (cons 3 (nil Nat)))) (cons (ctor Uorc.Core.Graph::Instruction.naturalMultiply 1 9) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 1 7) (cons (ctor Uorc.Core.Graph::Instruction.sequenceIndex 5 1) (nil Uorc.Core.Graph::Instruction))))))))))))), returnDistance := 1})
+}
+
+definition{
+  name: foldProgram,
+  parameters: [
+    count : UInt64,
+    width : UInt64,
+    bits : UInt64,
+    codes : Uorc.Core.Bytes::Rope,
+    dictionary : Uorc.Core.Bytes::Rope,
+    tail : Uorc.Core.Bytes::Rope
+  ],
+  result: Uorc.Core.Graph::Graph,
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons (indexFold) (cons (lookupBlock width bits codes dictionary) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (nil Nat)) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant tail) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConcat 2 1) (nil Uorc.Core.Graph::Instruction))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2})
+}
+
+definition{
+  name: zeroBitLookup,
+  parameters: [width : UInt64, dictionary : Uorc.Core.Bytes::Rope],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant width) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 2 1) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant dictionary) (cons (ctor Uorc.Core.Graph::Instruction.sequenceIndex 1 2) (nil Uorc.Core.Graph::Instruction))))), returnDistance := 1})
+}
+
+definition{
+  name: zeroBitProgram,
+  parameters: [
+    count : UInt64,
+    width : UInt64,
+    dictionary : Uorc.Core.Bytes::Rope,
+    tail : Uorc.Core.Bytes::Rope
+  ],
+  result: Uorc.Core.Graph::Graph,
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons (zeroBitLookup width dictionary) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (nil Nat)) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant tail) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConcat 2 1) (nil Uorc.Core.Graph::Instruction))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1})
+}
+
+definition{
+  name: program,
+  parameters: [
+    count : UInt64,
+    width : UInt64,
+    bits : UInt64,
+    codes : Uorc.Core.Bytes::Rope,
+    dictionary : Uorc.Core.Bytes::Rope,
+    tail : Uorc.Core.Bytes::Rope
+  ],
+  result: Uorc.Core.Graph::Graph,
+  body: (if (prim equal bits (0 : UInt64) : Bool) then (zeroBitProgram count width dictionary tail) else (foldProgram count width bits codes dictionary tail))
+}
+
+definition{
+  name: indexBitsAux,
+  parameters: [fuel : Nat, maximumCode : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => 0
+    | Nat.succ remaining => (if (maximumCode =? 0) then 0 else (1 + (indexBitsAux remaining (prim quotient maximumCode 2 0 : Nat))))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: indexBits,
+  parameters: [maximumCode : Nat],
+  result: Nat,
+  body: (indexBitsAux maximumCode maximumCode)
+}
+
+theorem{
+  name: alphabet_1_has_exact_index_width,
+  parameters: [],
+  statement: ((indexBits 0) = 0),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet_2_has_exact_index_width,
+  parameters: [],
+  statement: ((indexBits 1) = 1),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet_3_has_exact_index_width,
+  parameters: [],
+  statement: ((indexBits 2) = 2),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet_127_has_exact_index_width,
+  parameters: [],
+  statement: ((indexBits 126) = 7),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet_128_has_exact_index_width,
+  parameters: [],
+  statement: ((indexBits 127) = 7),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet_129_has_exact_index_width,
+  parameters: [],
+  statement: ((indexBits 128) = 8),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet_256_has_exact_index_width,
+  parameters: [],
+  statement: ((indexBits 255) = 8),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet_257_has_exact_index_width,
+  parameters: [],
+  statement: ((indexBits 256) = 9),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: alphabet_65537_has_exact_index_width,
+  parameters: [],
+  statement: ((indexBits 65536) = 17),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

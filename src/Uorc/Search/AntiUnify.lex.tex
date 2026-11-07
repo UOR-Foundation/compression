@@ -1,0 +1,316 @@
+\begin{lexlean}{Uorc.Search.AntiUnify}
+\importmodule{Uorc.Search.Expression}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Binding,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: index, type: Nat},
+    {name: type, type: Uorc.Core.Types::ValueType},
+    {name: leftExpression, type: Uorc.Search.Expression::Expression},
+    {name: rightExpression, type: Uorc.Search.Expression::Expression}
+  ]
+}
+
+structure{
+  name: Generalization,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: expression, type: Uorc.Search.Expression::Expression},
+    {name: bindings, type: (List Binding)},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Task,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: generalize,
+      fields: [Uorc.Search.Expression::Expression, Uorc.Search.Expression::Expression]
+    },
+    {
+      name: arguments,
+      fields: [
+        (List Uorc.Search.Expression::Expression),
+        (List Uorc.Search.Expression::Expression),
+        (List Uorc.Search.Expression::Expression),
+        Nat,
+        Uorc.Core.Types::ValueType
+      ]
+    },
+    {
+      name: collectArgument,
+      fields: [
+        (List Uorc.Search.Expression::Expression),
+        (List Uorc.Search.Expression::Expression),
+        (List Uorc.Search.Expression::Expression),
+        Nat,
+        Uorc.Core.Types::ValueType
+      ]
+    },
+    {
+      name: reverseArguments,
+      fields: [
+        (List Uorc.Search.Expression::Expression),
+        (List Uorc.Search.Expression::Expression),
+        Nat,
+        Uorc.Core.Types::ValueType
+      ]
+    }
+  ]
+}
+
+inductive{
+  name: Mode,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: tasks, fields: []},
+    {name: compareEqual, fields: []},
+    {name: arity, fields: []},
+    {name: scanBindings, fields: []},
+    {name: compareBindingLeft, fields: []},
+    {name: compareBindingRight, fields: []}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: mode, type: Mode},
+    {name: tasks, type: (List Task)},
+    {name: values, type: (List Uorc.Search.Expression::Expression)},
+    {name: bindings, type: (List Binding)},
+    {name: nextParameter, type: Nat},
+    {name: activeLeft, type: Uorc.Search.Expression::Expression},
+    {name: activeRight, type: Uorc.Search.Expression::Expression},
+    {name: equality, type: (Option Uorc.Search.Expression::EqualityCursor)},
+    {name: remainingBindings, type: (List Binding)},
+    {name: candidateBinding, type: (Option Binding)},
+    {name: arityLeft, type: (List Uorc.Search.Expression::Expression)},
+    {name: arityRight, type: (List Uorc.Search.Expression::Expression)},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [Generalization]},
+    {name: typeMismatch, fields: [Uorc.Core.Types::ValueType, Uorc.Core.Types::ValueType]},
+    {name: invalidCursor, fields: []},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    leftExpression : Uorc.Search.Expression::Expression,
+    rightExpression : Uorc.Search.Expression::Expression
+  ],
+  result: Cursor,
+  body: (record Cursor {mode := (ctor Mode.tasks), tasks := (cons (ctor Task.generalize leftExpression rightExpression) (nil Task)), values := (nil Uorc.Search.Expression::Expression), bindings := (nil Binding), nextParameter := 0, activeLeft := leftExpression, activeRight := rightExpression, equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (nil Binding), candidateBinding := (ctor Option.none [Binding]), arityLeft := (nil Uorc.Search.Expression::Expression), arityRight := (nil Uorc.Search.Expression::Expression), completedEvents := 0})
+}
+
+definition{
+  name: tasksStep,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor tasks)
+    | List.nil => (match (project cursor values)
+      | List.nil => (ctor Step.invalidCursor)
+      | List.cons expressionValue otherValues => (match otherValues
+        | List.nil => (ctor Step.complete (record Generalization {expression := expressionValue, bindings := (project cursor bindings), completedEvents := ((project cursor completedEvents) + 1)}))
+        | List.cons extraValue extraValues => (ctor Step.invalidCursor)))
+    | List.cons task restTasks => (match task
+      | Task.generalize leftExpression rightExpression => (if (Uorc.Core.Types::sameType (Uorc.Search.Expression::resultType leftExpression) (Uorc.Search.Expression::resultType rightExpression)) then (ctor Step.pending (record Cursor {mode := (ctor Mode.compareEqual), tasks := restTasks, values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := leftExpression, activeRight := rightExpression, equality := (ctor Option.some [Uorc.Search.Expression::EqualityCursor] (Uorc.Search.Expression::startEquality leftExpression rightExpression)), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.typeMismatch (Uorc.Search.Expression::resultType leftExpression) (Uorc.Search.Expression::resultType rightExpression)))
+      | Task.arguments leftArguments rightArguments reverseArguments functionIndex type => (match leftArguments
+        | List.nil => (match rightArguments
+          | List.nil => (ctor Step.pending (record Cursor {mode := (project cursor mode), tasks := (cons (ctor Task.reverseArguments reverseArguments (nil Uorc.Search.Expression::Expression) functionIndex type) restTasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (project cursor equality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+          | List.cons extraRight otherRight => (ctor Step.invalidCursor))
+        | List.cons leftHead leftTail => (match rightArguments
+          | List.nil => (ctor Step.invalidCursor)
+          | List.cons rightHead rightTail => (ctor Step.pending (record Cursor {mode := (project cursor mode), tasks := (cons (ctor Task.generalize leftHead rightHead) (cons (ctor Task.collectArgument leftTail rightTail reverseArguments functionIndex type) restTasks)), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (project cursor equality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))))
+      | Task.collectArgument leftArguments rightArguments reverseArguments functionIndex type => (match (project cursor values)
+        | List.nil => (ctor Step.invalidCursor)
+        | List.cons argument otherValues => (ctor Step.pending (record Cursor {mode := (project cursor mode), tasks := (cons (ctor Task.arguments leftArguments rightArguments (cons argument reverseArguments) functionIndex type) restTasks), values := otherValues, bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (project cursor equality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)})))
+      | Task.reverseArguments remaining forward functionIndex type => (match remaining
+        | List.nil => (ctor Step.pending (record Cursor {mode := (project cursor mode), tasks := restTasks, values := (cons (ctor Uorc.Search.Expression::Expression.call functionIndex type forward) (project cursor values)), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (project cursor equality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+        | List.cons argument rest => (ctor Step.pending (record Cursor {mode := (project cursor mode), tasks := (cons (ctor Task.reverseArguments rest (cons argument forward) functionIndex type) restTasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (project cursor equality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)})))))
+}
+
+definition{
+  name: compareEqualStep,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor equality)
+    | Option.none => (ctor Step.invalidCursor)
+    | Option.some equalityCursor => (match (Uorc.Search.Expression::equalityStep equalityCursor)
+      | Uorc.Search.Expression::EqualityStep.pending nextEquality => (ctor Step.pending (record Cursor {mode := (project cursor mode), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.some [Uorc.Search.Expression::EqualityCursor] nextEquality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Expression::EqualityStep.equal sameExpressions equalityEvents => (if sameExpressions then (ctor Step.pending (record Cursor {mode := (ctor Mode.tasks), tasks := (project cursor tasks), values := (cons (project cursor activeLeft) (project cursor values)), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)})) else (match (project cursor activeLeft)
+        | Uorc.Search.Expression::Expression.literal leftLiteral => (ctor Step.pending (record Cursor {mode := (ctor Mode.scanBindings), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor bindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Search.Expression::Expression.parameter leftIndex leftType => (ctor Step.pending (record Cursor {mode := (ctor Mode.scanBindings), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor bindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Search.Expression::Expression.call leftFunction leftType leftArguments => (match (project cursor activeRight)
+          | Uorc.Search.Expression::Expression.literal rightLiteral => (ctor Step.pending (record Cursor {mode := (ctor Mode.scanBindings), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor bindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Search.Expression::Expression.parameter rightIndex rightType => (ctor Step.pending (record Cursor {mode := (ctor Mode.scanBindings), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor bindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Search.Expression::Expression.call rightFunction rightType rightArguments => (if (leftFunction =? rightFunction) then (ctor Step.pending (record Cursor {mode := (ctor Mode.arity), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := leftArguments, arityRight := rightArguments, completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.pending (record Cursor {mode := (ctor Mode.scanBindings), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor bindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))))))
+      | Uorc.Search.Expression::EqualityStep.ropeFailure ropeError equalityEvents => (ctor Step.ropeFailure ropeError)))
+}
+
+definition{
+  name: arityStep,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor arityLeft)
+    | List.nil => (match (project cursor arityRight)
+      | List.nil => (match (project cursor activeLeft)
+        | Uorc.Search.Expression::Expression.literal literal => (ctor Step.invalidCursor)
+        | Uorc.Search.Expression::Expression.parameter index type => (ctor Step.invalidCursor)
+        | Uorc.Search.Expression::Expression.call functionIndex type leftArguments => (match (project cursor activeRight)
+          | Uorc.Search.Expression::Expression.literal otherLiteral => (ctor Step.invalidCursor)
+          | Uorc.Search.Expression::Expression.parameter otherIndex otherType => (ctor Step.invalidCursor)
+          | Uorc.Search.Expression::Expression.call otherFunction otherType rightArguments => (ctor Step.pending (record Cursor {mode := (ctor Mode.tasks), tasks := (cons (ctor Task.arguments leftArguments rightArguments (nil Uorc.Search.Expression::Expression) functionIndex type) (project cursor tasks)), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (project cursor equality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))))
+      | List.cons rightHead rightTail => (ctor Step.pending (record Cursor {mode := (ctor Mode.scanBindings), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor bindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)})))
+    | List.cons leftHead leftTail => (match (project cursor arityRight)
+      | List.nil => (ctor Step.pending (record Cursor {mode := (ctor Mode.scanBindings), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor bindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons rightHead rightTail => (ctor Step.pending (record Cursor {mode := (project cursor mode), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (project cursor equality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := leftTail, arityRight := rightTail, completedEvents := ((project cursor completedEvents) + 1)}))))
+}
+
+definition{
+  name: scanBindingsStep,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor remainingBindings)
+    | List.nil => (ctor Step.pending (record Cursor {mode := (ctor Mode.tasks), tasks := (project cursor tasks), values := (cons (ctor Uorc.Search.Expression::Expression.parameter (project cursor nextParameter) (Uorc.Search.Expression::resultType (project cursor activeLeft))) (project cursor values)), bindings := (cons (record Binding {index := (project cursor nextParameter), type := (Uorc.Search.Expression::resultType (project cursor activeLeft)), leftExpression := (project cursor activeLeft), rightExpression := (project cursor activeRight)}) (project cursor bindings)), nextParameter := ((project cursor nextParameter) + 1), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+    | List.cons binding remainingBindings => (ctor Step.pending (record Cursor {mode := (ctor Mode.compareBindingLeft), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.some [Uorc.Search.Expression::EqualityCursor] (Uorc.Search.Expression::startEquality (project cursor activeLeft) (project binding leftExpression))), remainingBindings := remainingBindings, candidateBinding := (ctor Option.some [Binding] binding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)})))
+}
+
+definition{
+  name: compareBindingLeftStep,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor equality)
+    | Option.none => (ctor Step.invalidCursor)
+    | Option.some equalityCursor => (match (Uorc.Search.Expression::equalityStep equalityCursor)
+      | Uorc.Search.Expression::EqualityStep.pending nextEquality => (ctor Step.pending (record Cursor {mode := (project cursor mode), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.some [Uorc.Search.Expression::EqualityCursor] nextEquality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Expression::EqualityStep.equal sameExpressions equalityEvents => (if sameExpressions then (match (project cursor candidateBinding)
+        | Option.none => (ctor Step.invalidCursor)
+        | Option.some binding => (ctor Step.pending (record Cursor {mode := (ctor Mode.compareBindingRight), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.some [Uorc.Search.Expression::EqualityCursor] (Uorc.Search.Expression::startEquality (project cursor activeRight) (project binding rightExpression))), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))) else (ctor Step.pending (record Cursor {mode := (ctor Mode.scanBindings), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor remainingBindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)})))
+      | Uorc.Search.Expression::EqualityStep.ropeFailure ropeError equalityEvents => (ctor Step.ropeFailure ropeError)))
+}
+
+definition{
+  name: compareBindingRightStep,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor equality)
+    | Option.none => (ctor Step.invalidCursor)
+    | Option.some equalityCursor => (match (Uorc.Search.Expression::equalityStep equalityCursor)
+      | Uorc.Search.Expression::EqualityStep.pending nextEquality => (ctor Step.pending (record Cursor {mode := (project cursor mode), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.some [Uorc.Search.Expression::EqualityCursor] nextEquality), remainingBindings := (project cursor remainingBindings), candidateBinding := (project cursor candidateBinding), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Expression::EqualityStep.equal sameExpressions equalityEvents => (if sameExpressions then (match (project cursor candidateBinding)
+        | Option.none => (ctor Step.invalidCursor)
+        | Option.some binding => (ctor Step.pending (record Cursor {mode := (ctor Mode.tasks), tasks := (project cursor tasks), values := (cons (ctor Uorc.Search.Expression::Expression.parameter (project binding index) (project binding type)) (project cursor values)), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor remainingBindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)}))) else (ctor Step.pending (record Cursor {mode := (ctor Mode.scanBindings), tasks := (project cursor tasks), values := (project cursor values), bindings := (project cursor bindings), nextParameter := (project cursor nextParameter), activeLeft := (project cursor activeLeft), activeRight := (project cursor activeRight), equality := (ctor Option.none [Uorc.Search.Expression::EqualityCursor]), remainingBindings := (project cursor remainingBindings), candidateBinding := (ctor Option.none [Binding]), arityLeft := (project cursor arityLeft), arityRight := (project cursor arityRight), completedEvents := ((project cursor completedEvents) + 1)})))
+      | Uorc.Search.Expression::EqualityStep.ropeFailure ropeError equalityEvents => (ctor Step.ropeFailure ropeError)))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor mode)
+    | Mode.tasks => (tasksStep cursor)
+    | Mode.compareEqual => (compareEqualStep cursor)
+    | Mode.arity => (arityStep cursor)
+    | Mode.scanBindings => (scanBindingsStep cursor)
+    | Mode.compareBindingLeft => (compareBindingLeftStep cursor)
+    | Mode.compareBindingRight => (compareBindingRightStep cursor))
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ remainingFuel => (match state
+      | Step.pending cursor => (run remainingFuel (step cursor))
+      | Step.complete generalization => (ctor Step.complete generalization)
+      | Step.typeMismatch leftType rightType => (ctor Step.typeMismatch leftType rightType)
+      | Step.invalidCursor => (ctor Step.invalidCursor)
+      | Step.ropeFailure ropeError => (ctor Step.ropeFailure ropeError))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: result,
+  parameters: [state : Step],
+  result: (Option Generalization),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [Generalization])
+    | Step.complete generalization => (ctor Option.some [Generalization] generalization)
+    | Step.typeMismatch leftType rightType => (ctor Option.none [Generalization])
+    | Step.invalidCursor => (ctor Option.none [Generalization])
+    | Step.ropeFailure ropeError => (ctor Option.none [Generalization]))
+}
+
+definition{
+  name: expression,
+  parameters: [state : Step],
+  result: (Option Uorc.Search.Expression::Expression),
+  body: (match (result state)
+    | Option.none => (ctor Option.none [Uorc.Search.Expression::Expression])
+    | Option.some generalization => (ctor Option.some [Uorc.Search.Expression::Expression] (project generalization expression)))
+}
+
+definition{
+  name: parameterCount,
+  parameters: [state : Step],
+  result: (Option Nat),
+  body: (match (result state)
+    | Option.none => (ctor Option.none [Nat])
+    | Option.some generalization => (ctor Option.some [Nat] (prim length (project generalization bindings) : Nat)))
+}
+
+theorem{
+  name: consistent_parameter_reuse,
+  parameters: [],
+  statement: ((parameterCount (run 1000 (ctor Step.pending (start (ctor Uorc.Search.Expression::Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (3 : UInt64))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (7 : UInt64))) (nil Uorc.Search.Expression::Expression))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (7 : UInt64))) (nil Uorc.Search.Expression::Expression))) (nil Uorc.Search.Expression::Expression))))) (ctor Uorc.Search.Expression::Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (3 : UInt64))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (9 : UInt64))) (nil Uorc.Search.Expression::Expression))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (9 : UInt64))) (nil Uorc.Search.Expression::Expression))) (nil Uorc.Search.Expression::Expression))))))))) = (ctor Option.some [Nat] 1)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: typed_nested_common_abstraction,
+  parameters: [],
+  statement: ((expression (run 1000 (ctor Step.pending (start (ctor Uorc.Search.Expression::Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (3 : UInt64))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (7 : UInt64))) (nil Uorc.Search.Expression::Expression))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (7 : UInt64))) (nil Uorc.Search.Expression::Expression))) (nil Uorc.Search.Expression::Expression))))) (ctor Uorc.Search.Expression::Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (3 : UInt64))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (9 : UInt64))) (nil Uorc.Search.Expression::Expression))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (9 : UInt64))) (nil Uorc.Search.Expression::Expression))) (nil Uorc.Search.Expression::Expression))))))))) = (ctor Option.some [Uorc.Search.Expression::Expression] (ctor Uorc.Search.Expression::Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (3 : UInt64))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.parameter 0 (ctor Uorc.Core.Types::ValueType.natural)) (nil Uorc.Search.Expression::Expression))) (cons (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.parameter 0 (ctor Uorc.Core.Types::ValueType.natural)) (nil Uorc.Search.Expression::Expression))) (nil Uorc.Search.Expression::Expression))))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: different_calls_generalize_as_whole_typed_expression,
+  parameters: [],
+  statement: ((expression (run 1000 (ctor Step.pending (start (ctor Uorc.Search.Expression::Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (1 : UInt64))) (nil Uorc.Search.Expression::Expression))) (ctor Uorc.Search.Expression::Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (1 : UInt64))) (nil Uorc.Search.Expression::Expression))))))) = (ctor Option.some [Uorc.Search.Expression::Expression] (ctor Uorc.Search.Expression::Expression.parameter 0 (ctor Uorc.Core.Types::ValueType.natural)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: mismatched_types_do_not_generalize,
+  parameters: [],
+  statement: ((run 1000 (ctor Step.pending (start (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (7 : UInt64))) (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.byte (7 : UInt8)))))) = (ctor Step.typeMismatch (ctor Uorc.Core.Types::ValueType.natural) (ctor Uorc.Core.Types::ValueType.byte))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

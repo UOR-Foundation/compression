@@ -1,0 +1,257 @@
+\begin{lexlean}{Uorc.Wire.Cursor}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ReadError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidCursor, fields: []},
+    {name: invalidQuantum, fields: []},
+    {name: truncated, fields: []},
+    {name: overflow, fields: []},
+    {name: nonShortest, fields: []}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: parts, type: (List Bytes)},
+    {name: offset, type: Nat},
+    {name: position, type: Nat}
+  ]
+}
+
+structure{
+  name: LocatedError,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: kind, type: ReadError}, {name: offset, type: Nat}]
+}
+
+inductive{
+  name: ReadEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [Cursor]},
+    {name: byte, fields: [UInt8, Cursor]},
+    {name: end, fields: [Cursor]},
+    {name: failed, fields: [LocatedError]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [parts : (List Bytes)],
+  result: Cursor,
+  body: (record Cursor {parts := parts, offset := 0, position := 0})
+}
+
+definition{
+  name: readStep,
+  parameters: [c : Cursor],
+  result: ReadEvent,
+  body: (match (project c parts)
+    | List.nil => (if ((project c offset) =? 0) then (ctor ReadEvent.end c) else (ctor ReadEvent.failed (record LocatedError {kind := (ctor ReadError.invalidCursor), offset := (project c position)})))
+    | List.cons head tail => (if ((project c offset) <? (prim length head : Nat)) then (match (prim index head (project c offset) : (Option UInt8))
+      | Option.none => (ctor ReadEvent.failed (record LocatedError {kind := (ctor ReadError.invalidCursor), offset := (project c position)}))
+      | Option.some b => (ctor ReadEvent.byte b (record Cursor {parts := (project c parts), offset := ((project c offset) + 1), position := ((project c position) + 1)}))) else (if ((project c offset) =? (prim length head : Nat)) then (ctor ReadEvent.advanced (record Cursor {parts := tail, offset := 0, position := (project c position)})) else (ctor ReadEvent.failed (record LocatedError {kind := (ctor ReadError.invalidCursor), offset := (project c position)})))))
+}
+
+inductive{
+  name: ChunkEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [Cursor]},
+    {name: bytes, fields: [Bytes, Cursor]},
+    {name: end, fields: [Cursor]},
+    {name: failed, fields: [LocatedError]}
+  ]
+}
+
+definition{
+  name: readChunkStep,
+  parameters: [c : Cursor, quantum : Nat],
+  result: ChunkEvent,
+  body: (if (quantum =? 0) then (ctor ChunkEvent.failed (record LocatedError {kind := (ctor ReadError.invalidQuantum), offset := (project c position)})) else (match (project c parts)
+    | List.nil => (if ((project c offset) =? 0) then (ctor ChunkEvent.end c) else (ctor ChunkEvent.failed (record LocatedError {kind := (ctor ReadError.invalidCursor), offset := (project c position)})))
+    | List.cons head tail => (if ((project c offset) <? (prim length head : Nat)) then (match (prim slice head (project c offset) (if ((prim subtract (prim length head : Nat) (project c offset) : Nat) <? quantum) then (prim subtract (prim length head : Nat) (project c offset) : Nat) else quantum) : (Option Bytes))
+      | Option.none => (ctor ChunkEvent.failed (record LocatedError {kind := (ctor ReadError.invalidCursor), offset := (project c position)}))
+      | Option.some chunk => (ctor ChunkEvent.bytes chunk (record Cursor {parts := (project c parts), offset := ((project c offset) + (if ((prim subtract (prim length head : Nat) (project c offset) : Nat) <? quantum) then (prim subtract (prim length head : Nat) (project c offset) : Nat) else quantum)), position := ((project c position) + (if ((prim subtract (prim length head : Nat) (project c offset) : Nat) <? quantum) then (prim subtract (prim length head : Nat) (project c offset) : Nat) else quantum))}))) else (if ((project c offset) =? (prim length head : Nat)) then (ctor ChunkEvent.advanced (record Cursor {parts := tail, offset := 0, position := (project c position)})) else (ctor ChunkEvent.failed (record LocatedError {kind := (ctor ReadError.invalidCursor), offset := (project c position)}))))))
+}
+
+structure{
+  name: UlebState,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Cursor},
+    {name: start, type: Nat},
+    {name: value, type: Nat},
+    {name: factor, type: Nat},
+    {name: consumed, type: Nat}
+  ]
+}
+
+inductive{
+  name: UlebEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: more, fields: [UlebState]},
+    {name: done, fields: [Nat, Cursor]},
+    {name: failed, fields: [LocatedError]}
+  ]
+}
+
+definition{
+  name: startUleb,
+  parameters: [c : Cursor],
+  result: UlebState,
+  body: (record UlebState {cursor := c, start := (project c position), value := 0, factor := 1, consumed := 0})
+}
+
+definition{
+  name: ulebStep,
+  parameters: [u : UlebState],
+  result: UlebEvent,
+  body: (if (10 <=? (project u consumed)) then (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.overflow), offset := ((project u start) + (project u consumed))})) else (match (readStep (project u cursor))
+    | ReadEvent.advanced next => (ctor UlebEvent.more (record UlebState {cursor := next, start := (project u start), value := (project u value), factor := (project u factor), consumed := (project u consumed)}))
+    | ReadEvent.byte b next => (if ((prim to_nat b : Nat) <? 128) then (if (((project u consumed) =? 9) && ((1 <? (prim remainder (prim to_nat b : Nat) 128 0 : Nat)) && true)) then (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.overflow), offset := ((project u start) + (project u consumed))})) else (if ((0 <? (project u consumed)) && (((prim remainder (prim to_nat b : Nat) 128 0 : Nat) =? 0) && true)) then (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.nonShortest), offset := ((project u start) + (project u consumed))})) else (ctor UlebEvent.done ((project u value) + (prim multiply (prim remainder (prim to_nat b : Nat) 128 0 : Nat) (project u factor) : Nat)) next))) else (ctor UlebEvent.more (record UlebState {cursor := next, start := (project u start), value := (if ((project u consumed) =? 9) then (project u value) else ((project u value) + (prim multiply (prim remainder (prim to_nat b : Nat) 128 0 : Nat) (project u factor) : Nat))), factor := (if ((project u consumed) =? 9) then (project u factor) else (prim multiply (project u factor) 128 : Nat)), consumed := ((project u consumed) + 1)})))
+    | ReadEvent.end next => (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.truncated), offset := ((project u start) + (project u consumed))}))
+    | ReadEvent.failed error => (ctor UlebEvent.failed error))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runUleb,
+  parameters: [fuel : Nat, u : UlebState],
+  result: UlebEvent,
+  body: (match fuel
+    | Nat.zero => (ctor UlebEvent.more u)
+    | Nat.succ remaining => (match (ulebStep u)
+      | UlebEvent.more next => (runUleb remaining next)
+      | UlebEvent.done value next => (ctor UlebEvent.done value next)
+      | UlebEvent.failed error => (ctor UlebEvent.failed error))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+theorem{
+  name: empty_cursor,
+  parameters: [],
+  statement: ((readStep (start (nil Bytes))) = (ctor ReadEvent.end (start (nil Bytes)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: empty_chunk_advances,
+  parameters: [],
+  statement: ((readStep (start (cons 0x (nil Bytes)))) = (ctor ReadEvent.advanced (start (nil Bytes)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: uleb_0,
+  parameters: [],
+  statement: ((runUleb 30 (startUleb (start (cons 0x00 (nil Bytes))))) = (ctor UlebEvent.done 0 (record Cursor {parts := (cons 0x00 (nil Bytes)), offset := 1, position := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: uleb_1,
+  parameters: [],
+  statement: ((runUleb 30 (startUleb (start (cons 0x01 (nil Bytes))))) = (ctor UlebEvent.done 1 (record Cursor {parts := (cons 0x01 (nil Bytes)), offset := 1, position := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: uleb_127,
+  parameters: [],
+  statement: ((runUleb 30 (startUleb (start (cons 0x7f (nil Bytes))))) = (ctor UlebEvent.done 127 (record Cursor {parts := (cons 0x7f (nil Bytes)), offset := 1, position := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: uleb_128,
+  parameters: [],
+  statement: ((runUleb 30 (startUleb (start (cons 0x8001 (nil Bytes))))) = (ctor UlebEvent.done 128 (record Cursor {parts := (cons 0x8001 (nil Bytes)), offset := 2, position := 2}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: uleb_16384,
+  parameters: [],
+  statement: ((runUleb 30 (startUleb (start (cons 0x808001 (nil Bytes))))) = (ctor UlebEvent.done 16384 (record Cursor {parts := (cons 0x808001 (nil Bytes)), offset := 3, position := 3}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: uleb_18446744073709551615,
+  parameters: [],
+  statement: ((runUleb 30 (startUleb (start (cons 0xffffffffffffffffff01 (nil Bytes))))) = (ctor UlebEvent.done 18446744073709551615 (record Cursor {parts := (cons 0xffffffffffffffffff01 (nil Bytes)), offset := 10, position := 10}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: uleb_across_empty_partitions,
+  parameters: [],
+  statement: ((runUleb 30 (startUleb (start (cons 0x (cons 0x80 (cons 0x (cons 0x01 (nil Bytes)))))))) = (ctor UlebEvent.done 128 (record Cursor {parts := (cons 0x01 (nil Bytes)), offset := 1, position := 2}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: truncated,
+  parameters: [],
+  statement: ((runUleb 40 (startUleb (start (cons 0x (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.truncated), offset := 0}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: truncated_continuation,
+  parameters: [],
+  statement: ((runUleb 40 (startUleb (start (cons 0x80 (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.truncated), offset := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: overlong,
+  parameters: [],
+  statement: ((runUleb 40 (startUleb (start (cons 0x8000 (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.nonShortest), offset := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: terminal_overflow,
+  parameters: [],
+  statement: ((runUleb 40 (startUleb (start (cons 0xffffffffffffffffff02 (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.overflow), offset := 9}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: continuation_overflow,
+  parameters: [],
+  statement: ((runUleb 40 (startUleb (start (cons 0x80808080808080808080 (nil Bytes))))) = (ctor UlebEvent.failed (record LocatedError {kind := (ctor ReadError.overflow), offset := 10}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

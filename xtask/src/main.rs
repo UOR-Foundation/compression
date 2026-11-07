@@ -12,6 +12,19 @@ use repo_model::{codegen, AuthorityGraph, Model};
 
 mod audit;
 mod bootstrap;
+#[cfg(test)]
+mod claims;
+#[cfg(test)]
+mod integrity;
+#[cfg(test)]
+mod offline;
+#[cfg(test)]
+mod open_claims;
+mod product_execution;
+#[cfg(test)]
+mod product_receipts;
+#[cfg(test)]
+mod varint;
 
 fn main() -> ExitCode {
     let task = std::env::args()
@@ -22,12 +35,16 @@ fn main() -> ExitCode {
 
     let result = match task.as_str() {
         "check-model" => check_model(&root, write),
+        "projection-inventory" => projection_inventory(&root),
         "audit-source-authority" => audit::audit_source_authority(&root),
         "audit-limits" => audit::audit_limits(&root),
         "audit-deferral" => audit::audit_deferral(&root),
         "audit-bootstrap" => bootstrap::audit(&root),
         "audit-dependency-updates" => bootstrap::audit_dependency_updates(&root),
         "validate" => validate(&root),
+        "data-form" => convert(true),
+        "notation" => convert(false),
+        "runtime-sources" => runtime_sources(),
         _ => {
             eprintln!(
                 "cargo xtask <task>\n\
@@ -39,6 +56,9 @@ fn main() -> ExitCode {
                  audit-bootstrap   immutable SDK and least-privilege workflow trust root\n\
                  audit-dependency-updates   SDK ownership and ordinary dependency maintenance\n\
                  validate          run every gate above\n\
+                 data-form         stdin source to its canonical JSON data form (for reading)\n\
+                 notation          stdin source to the canonical language-1.2 notation\n\
+                 runtime-sources   <dir>: the pinned LexLean runtime Lean modules, in import order\n\
                  \n\
                  --write           check-model only: rewrite generated model/document projections"
             );
@@ -57,6 +77,56 @@ fn main() -> ExitCode {
 
 /// A gate failure, reported with the rule it broke.
 type Fail = Box<dyn std::error::Error>;
+
+/// Language-1.2 modules are written in the notation; gates and controls that
+/// inspect or plant module data convert a source text (stdin to stdout) only
+/// through the SDK's own conversions (LexLean SPEC 17.21.1, 24.8). The data
+/// form is for reading: a 1.2 project refuses it, so planted sources are
+/// written back in the notation.
+fn convert(to_data: bool) -> Result<(), Fail> {
+    use std::io::{Read, Write};
+    let mut text = String::new();
+    std::io::stdin().lock().read_to_string(&mut text)?;
+    let converted = if to_data {
+        lexlean::sdk::to_data_form(&text)
+    } else {
+        lexlean::sdk::to_notation(&text)
+    }
+    .map_err(|e| e.to_string())?;
+    std::io::stdout().lock().write_all(converted.as_bytes())?;
+    Ok(())
+}
+
+/// Write the LexLean runtime's generated Lean modules (which every
+/// language-1.2 module imports) under `<dir>`, and print their names in
+/// dependency order, so a standalone `lean` can elaborate generated modules.
+fn runtime_sources() -> Result<(), Fail> {
+    let dir = std::env::args()
+        .nth(2)
+        .ok_or("runtime-sources needs an output directory")?;
+    let modules = lexlean::backend::runtime::modules().map_err(|e| format!("{e:?}"))?;
+    for module in modules {
+        let file = Path::new(&dir).join(format!("{}.lean", module.name.replace('.', "/")));
+        if let Some(parent) = file.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&file, &module.text)?;
+        println!("{}", module.name);
+    }
+    Ok(())
+}
+
+/// Expose the renderer-owned artifact inventory to validation orchestration.
+fn projection_inventory(root: &Path) -> Result<(), Fail> {
+    let graph = AuthorityGraph::load(root)?;
+    let mut paths: Vec<String> = codegen::render_all(&graph)
+        .into_iter()
+        .map(|(path, _)| path)
+        .collect();
+    paths.sort();
+    println!("{}", serde_json::to_string(&paths)?);
+    Ok(())
+}
 
 /// R1: regenerate every committed projection from the LexLean authority graph.
 fn check_model(root: &Path, write: bool) -> Result<(), Fail> {

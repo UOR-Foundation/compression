@@ -1,0 +1,321 @@
+\begin{lexlean}{Uorc.Core.Basis}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Store}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Resources}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: TableError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidReference, fields: []},
+    {name: addressSpaceExhausted, fields: []},
+    {name: missingEntry, fields: []}
+  ]
+}
+
+inductive{
+  name: Trie,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: empty, fields: []},
+    {name: leaf, fields: [Uorc.Core.Bytes::Rope]},
+    {name: branch, fields: [Trie, Trie]}
+  ]
+}
+
+structure{
+  name: Table,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: length, type: Nat}, {name: root, type: Trie}]
+}
+
+inductive{
+  name: BasisFailure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: table, fields: [TableError]},
+    {name: invalidRope, fields: []},
+    {name: operational, fields: [Uorc.Core.Resources::OperationalError]}
+  ]
+}
+
+inductive{
+  name: Input,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: roots, fields: [(List Uorc.Core.Bytes::Rope)]},
+    {name: chunks, fields: [(List Bytes)]}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: selecting, fields: []},
+    {name: validating, fields: []},
+    {name: inserting, fields: []}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: remaining, type: Input},
+    {name: phase, type: Phase},
+    {name: current, type: (Option Uorc.Core.Bytes::Rope)},
+    {name: queue, type: (List Uorc.Core.Bytes::Rope)},
+    {name: table, type: Table},
+    {name: usage, type: Uorc.Core.Resources::Usage},
+    {name: credit, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: ready, fields: [Table, Uorc.Core.Resources::Usage]},
+    {name: failed, fields: [BasisFailure, Uorc.Core.Resources::Usage]}
+  ]
+}
+
+definition{
+  name: empty,
+  parameters: [],
+  result: Table,
+  body: (record Table {length := 0, root := (ctor Trie.empty)})
+}
+
+definition{
+  name: leftChild,
+  parameters: [tree : Trie],
+  result: Trie,
+  body: (match tree
+    | Trie.empty => (ctor Trie.empty)
+    | Trie.leaf rope => (ctor Trie.empty)
+    | Trie.branch leftTree rightTree => leftTree)
+}
+
+definition{
+  name: rightChild,
+  parameters: [tree : Trie],
+  result: Trie,
+  body: (match tree
+    | Trie.empty => (ctor Trie.empty)
+    | Trie.leaf rope => (ctor Trie.empty)
+    | Trie.branch leftTree rightTree => rightTree)
+}
+
+definition{
+  name: readTrie,
+  parameters: [depth : Nat, tree : Trie, key : UInt64],
+  result: (Option Uorc.Core.Bytes::Rope),
+  body: (match depth
+    | Nat.zero => (match tree
+      | Trie.empty => (ctor Option.none [Uorc.Core.Bytes::Rope])
+      | Trie.leaf rope => (ctor Option.some [Uorc.Core.Bytes::Rope] rope)
+      | Trie.branch leftTree rightTree => (ctor Option.none [Uorc.Core.Bytes::Rope]))
+    | Nat.succ remainingDepth => (match tree
+      | Trie.empty => (ctor Option.none [Uorc.Core.Bytes::Rope])
+      | Trie.leaf rope => (ctor Option.none [Uorc.Core.Bytes::Rope])
+      | Trie.branch leftTree rightTree => (readTrie remainingDepth (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  recursive_argument: depth
+}
+
+definition{
+  name: writeTrie,
+  parameters: [depth : Nat, tree : Trie, key : UInt64, rope : Uorc.Core.Bytes::Rope],
+  result: Trie,
+  body: (match depth
+    | Nat.zero => (ctor Trie.leaf rope)
+    | Nat.succ remainingDepth => (if (Uorc.Core.Store::lowBit key) then (ctor Trie.branch (leftChild tree) (writeTrie remainingDepth (rightChild tree) (Uorc.Core.Store::nextKey key) rope)) else (ctor Trie.branch (writeTrie remainingDepth (leftChild tree) (Uorc.Core.Store::nextKey key) rope) (rightChild tree)))),
+  recursive_argument: depth
+}
+
+definition{
+  name: append,
+  parameters: [table : Table, rope : Uorc.Core.Bytes::Rope],
+  result: (Result Table TableError),
+  body: (if (18446744073709551615 <=? (project table length)) then (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted)) else (match (Uorc.Core.Types::wordOfNat (project table length))
+    | Option.none => (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted))
+    | Option.some key => (ctor Result.ok [Table, TableError] (record Table {length := ((project table length) + 1), root := (writeTrie 64 (project table root) key rope)}))))
+}
+
+definition{
+  name: atIndex,
+  parameters: [table : Table, index : Nat],
+  result: (Result Uorc.Core.Bytes::Rope TableError),
+  body: (if (index <? (project table length)) then (match (Uorc.Core.Types::wordOfNat index)
+    | Option.none => (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.addressSpaceExhausted))
+    | Option.some key => (match (readTrie 64 (project table root) key)
+      | Option.none => (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.missingEntry))
+      | Option.some selectedRope => (ctor Result.ok [Uorc.Core.Bytes::Rope, TableError] selectedRope))) else (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.invalidReference)))
+}
+
+definition{
+  name: start,
+  parameters: [input : Input, initialUsage : Uorc.Core.Resources::Usage],
+  result: Cursor,
+  body: (record Cursor {remaining := input, phase := (ctor Phase.selecting), current := (ctor Option.none [Uorc.Core.Bytes::Rope]), queue := (nil Uorc.Core.Bytes::Rope), table := (empty), usage := initialUsage, credit := 0})
+}
+
+definition{
+  name: eventWork,
+  parameters: [cursorValue : Cursor],
+  result: Nat,
+  body: (match (project cursorValue phase)
+    | Phase.selecting => 1
+    | Phase.validating => 1
+    | Phase.inserting => 129)
+}
+
+definition{
+  name: selectEvent,
+  parameters: [cursorValue : Cursor],
+  result: Step,
+  body: (match (project cursorValue remaining)
+    | Input.roots roots => (match roots
+      | List.nil => (ctor Step.ready (project cursorValue table) (project cursorValue usage))
+      | List.cons rootRope restRoots => (ctor Step.pending (record Cursor {remaining := (ctor Input.roots restRoots), phase := (ctor Phase.validating), current := (ctor Option.some [Uorc.Core.Bytes::Rope] rootRope), queue := (cons rootRope (nil Uorc.Core.Bytes::Rope)), table := (project cursorValue table), usage := (project cursorValue usage), credit := 0})))
+    | Input.chunks chunks => (match chunks
+      | List.nil => (ctor Step.ready (project cursorValue table) (project cursorValue usage))
+      | List.cons chunk restChunks => (ctor Step.pending (record Cursor {remaining := (ctor Input.chunks restChunks), phase := (ctor Phase.validating), current := (ctor Option.some [Uorc.Core.Bytes::Rope] (Uorc.Core.Bytes::fromBytes chunk)), queue := (cons (Uorc.Core.Bytes::fromBytes chunk) (nil Uorc.Core.Bytes::Rope)), table := (project cursorValue table), usage := (project cursorValue usage), credit := 0}))))
+}
+
+definition{
+  name: validateEvent,
+  parameters: [cursorValue : Cursor],
+  result: Step,
+  body: (match (project cursorValue queue)
+    | List.nil => (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (ctor Phase.inserting), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := (project cursorValue usage), credit := 0}))
+    | List.cons rootRope restRoots => (match (Uorc.Core.Bytes::checkNode rootRope)
+      | Uorc.Core.Bytes::NodeStatus.valid => (match rootRope
+        | Uorc.Core.Bytes::Rope.empty => (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := restRoots, table := (project cursorValue table), usage := (project cursorValue usage), credit := 0}))
+        | Uorc.Core.Bytes::Rope.leaf chunk => (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := restRoots, table := (project cursorValue table), usage := (project cursorValue usage), credit := 0}))
+        | Uorc.Core.Bytes::Rope.branch cachedLength cachedHeight leftRope rightRope => (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (cons leftRope (cons rightRope restRoots)), table := (project cursorValue table), usage := (project cursorValue usage), credit := 0}))
+        | Uorc.Core.Bytes::Rope.view backing viewOffset viewLength => (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := restRoots, table := (project cursorValue table), usage := (project cursorValue usage), credit := 0})))
+      | Uorc.Core.Bytes::NodeStatus.invalid => (ctor Step.failed (ctor BasisFailure.invalidRope) (project cursorValue usage))
+      | Uorc.Core.Bytes::NodeStatus.addressSpaceExhausted => (ctor Step.failed (ctor BasisFailure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)) (project cursorValue usage))))
+}
+
+definition{
+  name: insertEvent,
+  parameters: [cursorValue : Cursor],
+  result: Step,
+  body: (match (project cursorValue current)
+    | Option.none => (ctor Step.failed (ctor BasisFailure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) (project cursorValue usage))
+    | Option.some rootRope => (match (append (project cursorValue table) rootRope)
+      | Result.error tableError => (ctor Step.failed (ctor BasisFailure.table tableError) (project cursorValue usage))
+      | Result.ok nextTable => (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (ctor Phase.selecting), current := (ctor Option.none [Uorc.Core.Bytes::Rope]), queue := (nil Uorc.Core.Bytes::Rope), table := nextTable, usage := (project cursorValue usage), credit := 0}))))
+}
+
+definition{
+  name: applyEvent,
+  parameters: [cursorValue : Cursor],
+  result: Step,
+  body: (match (project cursorValue phase)
+    | Phase.selecting => (selectEvent cursorValue)
+    | Phase.validating => (validateEvent cursorValue)
+    | Phase.inserting => (insertEvent cursorValue))
+}
+
+definition{
+  name: step,
+  parameters: [budget : Uorc.Core.Resources::Budget, cursorValue : Cursor],
+  result: Step,
+  body: (if ((eventWork cursorValue) <=? (project cursorValue credit)) then (ctor Step.failed (ctor BasisFailure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) (project cursorValue usage)) else (match (Uorc.Core.Resources::charge budget (project cursorValue usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := (prim subtract (eventWork cursorValue) (project cursorValue credit) : Nat), allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+    | Result.error budgetError => (ctor Step.failed (ctor BasisFailure.operational budgetError) (project cursorValue usage))
+    | Result.ok chargedUsage => (applyEvent (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := chargedUsage, credit := 0}))))
+}
+
+definition{
+  name: tick,
+  parameters: [budget : Uorc.Core.Resources::Budget, cursorValue : Cursor],
+  result: Step,
+  body: (if ((eventWork cursorValue) <=? (project cursorValue credit)) then (ctor Step.failed (ctor BasisFailure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)) (project cursorValue usage)) else (match (Uorc.Core.Resources::charge budget (project cursorValue usage) (record Uorc.Core.Resources::Event {kind := (ctor Uorc.Core.Resources::EventKind.control), work := 1, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0}))
+    | Result.error budgetError => (ctor Step.failed (ctor BasisFailure.operational budgetError) (project cursorValue usage))
+    | Result.ok chargedUsage => (if (((project cursorValue credit) + 1) <? (eventWork cursorValue)) then (ctor Step.pending (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := chargedUsage, credit := ((project cursorValue credit) + 1)})) else (applyEvent (record Cursor {remaining := (project cursorValue remaining), phase := (project cursorValue phase), current := (project cursorValue current), queue := (project cursorValue queue), table := (project cursorValue table), usage := chargedUsage, credit := 0})))))
+}
+
+definition{
+  name: runEvents,
+  parameters: [fuel : Nat, budget : Uorc.Core.Resources::Budget, cursorValue : Cursor],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => (ctor Step.pending cursorValue)
+    | Nat.succ remainingFuel => (match (step budget cursorValue)
+      | Step.pending nextCursor => (runEvents remainingFuel budget nextCursor)
+      | Step.ready table usage => (ctor Step.ready table usage)
+      | Step.failed error usage => (ctor Step.failed error usage))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: runWork,
+  parameters: [work : Nat, budget : Uorc.Core.Resources::Budget, cursorValue : Cursor],
+  result: Step,
+  body: (match work
+    | Nat.zero => (ctor Step.pending cursorValue)
+    | Nat.succ remainingWork => (match (tick budget cursorValue)
+      | Step.pending nextCursor => (runWork remainingWork budget nextCursor)
+      | Step.ready table usage => (ctor Step.ready table usage)
+      | Step.failed error usage => (ctor Step.failed error usage))),
+  recursive_argument: work
+}
+
+definition{
+  name: preparedByteAt,
+  parameters: [stepResult : Step, index : Nat],
+  result: (Result UInt8 BasisFailure),
+  body: (match stepResult
+    | Step.pending nextCursor => (ctor Result.error [UInt8, BasisFailure] (ctor BasisFailure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+    | Step.failed error usage => (ctor Result.error [UInt8, BasisFailure] error)
+    | Step.ready table usage => (match (atIndex table index)
+      | Result.error tableError => (ctor Result.error [UInt8, BasisFailure] (ctor BasisFailure.table tableError))
+      | Result.ok selectedRope => (match (Uorc.Core.Bytes::at selectedRope 0)
+        | Result.error ropeError => (ctor Result.error [UInt8, BasisFailure] (ctor BasisFailure.invalidRope))
+        | Result.ok selectedByte => (ctor Result.ok [UInt8, BasisFailure] selectedByte))))
+}
+
+theorem{
+  name: empty_basis_lookup_is_typed,
+  parameters: [],
+  statement: ((atIndex (empty) 0) = (ctor Result.error [Uorc.Core.Bytes::Rope, TableError] (ctor TableError.invalidReference))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: basis_second_root_resolves_by_index,
+  parameters: [],
+  statement: ((preparedByteAt (runWork 1000 (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100000}) (start (ctor Input.chunks (cons 0x00 (cons 0xff (nil Bytes)))) (Uorc.Core.Resources::zeroUsage))) 1) = (ctor Result.ok [UInt8, BasisFailure] (255 : UInt8))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: basis_work_zero_preserves_cursor,
+  parameters: [budget : Uorc.Core.Resources::Budget, cursorValue : Cursor],
+  statement: ((runWork 0 budget cursorValue) = (ctor Step.pending cursorValue)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: basis_count_overflow_is_typed,
+  parameters: [],
+  statement: ((append (record Table {length := 18446744073709551615, root := (ctor Trie.empty)}) (ctor Uorc.Core.Bytes::Rope.empty)) = (ctor Result.error [Table, TableError] (ctor TableError.addressSpaceExhausted))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

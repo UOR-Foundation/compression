@@ -1,0 +1,24 @@
+\begin{lexlean}{Uorc.Core.RuntimeMachineCompletionRefinement}
+\importmodule{Uorc.Core.RuntimeMachineSemantic}
+\importmodule{Uorc.Core.CanonicalCallComposition}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\title{Parameters}
+\begin{semanticmodule}
+theorem{
+  name: completion_origin_agrees_with_core_action,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  statement: ((Uorc.Core.RuntimeMachineSemantic::completionOrigin opcode) = (Uorc.Core.CanonicalCallComposition::originForAction (Uorc.Core.CanonicalSchedule::actionFor opcode))),
+  proof: term_cases{
+    definitions: [
+      Uorc.Core.CanonicalCallComposition::originForAction,
+      Uorc.Core.CanonicalSchedule::actionFor,
+      Uorc.Core.RuntimeMachineSemantic::completionOrigin,
+      Uorc.Core.RuntimeOpcode::spec
+    ],
+    scrutinee: opcode
+  },
+  axioms: [propext]
+}
+\end{semanticmodule}
+\end{lexlean}

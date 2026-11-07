@@ -1,0 +1,501 @@
+\begin{lexlean}{Uorc.Core.Lifetime}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Store}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Use,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: slot, type: Nat}, {name: event, type: Nat}]
+}
+
+structure{
+  name: Release,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: slot, type: Nat}, {name: event, type: Nat}]
+}
+
+definition{
+  name: operandReferences,
+  parameters: [instruction : Uorc.Core.Graph::Instruction],
+  result: (List Nat),
+  body: (match instruction
+    | Uorc.Core.Graph::Instruction.naturalConstant field0 => (nil Nat)
+    | Uorc.Core.Graph::Instruction.byteConstant field0 => (nil Nat)
+    | Uorc.Core.Graph::Instruction.predicateConstant field0 => (nil Nat)
+    | Uorc.Core.Graph::Instruction.sequenceConstant field0 => (nil Nat)
+    | Uorc.Core.Graph::Instruction.naturalAdd field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalSubtract field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalMultiply field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalDivide field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalRemainder field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalAnd field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalOr field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalXor field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalNot field0 => (cons field0 (nil Nat))
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalShiftRight field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalEqual field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalLess field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.byteEqual field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.byteLess field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.naturalToByte field0 => (cons field0 (nil Nat))
+    | Uorc.Core.Graph::Instruction.byteToNatural field0 => (cons field0 (nil Nat))
+    | Uorc.Core.Graph::Instruction.predicateNot field0 => (cons field0 (nil Nat))
+    | Uorc.Core.Graph::Instruction.predicateAnd field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.predicateOr field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.sequenceLength field0 => (cons field0 (nil Nat))
+    | Uorc.Core.Graph::Instruction.sequenceIndex field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.sequenceSlice field0 field1 field2 => (cons field0 (cons field1 (cons field2 (nil Nat))))
+    | Uorc.Core.Graph::Instruction.sequenceConcat field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.sequenceEqual field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.singletonSequence field0 => (cons field0 (nil Nat))
+    | Uorc.Core.Graph::Instruction.basisGet field0 => (cons field0 (nil Nat))
+    | Uorc.Core.Graph::Instruction.storeNew field0 => (cons field0 (nil Nat))
+    | Uorc.Core.Graph::Instruction.storeRead field0 field1 => (cons field0 (cons field1 (nil Nat)))
+    | Uorc.Core.Graph::Instruction.storeWrite field0 field1 field2 => (cons field0 (cons field1 (cons field2 (nil Nat))))
+    | Uorc.Core.Graph::Instruction.choose field0 field1 field2 => (cons field0 (cons field1 (cons field2 (nil Nat))))
+    | Uorc.Core.Graph::Instruction.apply field0 field1 => field1
+    | Uorc.Core.Graph::Instruction.tabulate field0 field1 field2 => (cons field0 field2)
+    | Uorc.Core.Graph::Instruction.fold field0 field1 field2 field3 => (cons field0 (cons field1 field3))
+    | Uorc.Core.Graph::Instruction.scan field0 field1 field2 field3 field4 field5 => (cons field0 (cons field1 (prim append field3 field5 : (List Nat))))
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant field0 => (nil Nat))
+}
+
+definition{
+  name: referenceUses,
+  parameters: [references : (List Nat), available : Nat, event : Nat],
+  result: (Result (List Use) Uorc.Core.Types::StaticError),
+  body: (match references
+    | List.nil => (ctor Result.ok [(List Use), Uorc.Core.Types::StaticError] (nil Use))
+    | List.cons distance rest => (if ((distance =? 0) || (available <? distance)) then (ctor Result.error [(List Use), Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference)) else (match (referenceUses rest available event)
+      | Result.error error => (ctor Result.error [(List Use), Uorc.Core.Types::StaticError] error)
+      | Result.ok tailUses => (ctor Result.ok [(List Use), Uorc.Core.Types::StaticError] (cons (record Use {slot := (prim subtract available distance : Nat), event := event}) tailUses))))),
+  recursive_argument: references
+}
+
+definition{
+  name: instructionUses,
+  parameters: [
+    instructions : (List Uorc.Core.Graph::Instruction),
+    available : Nat,
+    event : Nat,
+    returnDistance : Nat
+  ],
+  result: (Result (List Use) Uorc.Core.Types::StaticError),
+  body: (match instructions
+    | List.nil => (referenceUses (cons returnDistance (nil Nat)) available event)
+    | List.cons instruction rest => (match (referenceUses (operandReferences instruction) available event)
+      | Result.error headError => (ctor Result.error [(List Use), Uorc.Core.Types::StaticError] headError)
+      | Result.ok headUses => (match (instructionUses rest (available + 1) (event + 1) returnDistance)
+        | Result.error tailError => (ctor Result.error [(List Use), Uorc.Core.Types::StaticError] tailError)
+        | Result.ok tailUses => (ctor Result.ok [(List Use), Uorc.Core.Types::StaticError] (prim append headUses tailUses : (List Use)))))),
+  recursive_argument: instructions
+}
+
+definition{
+  name: lastEvent,
+  parameters: [uses : (List Use), slot : Nat],
+  result: Nat,
+  body: (match uses
+    | List.nil => 0
+    | List.cons use rest => (if ((if ((project use slot) =? slot) then (project use event) else 0) <=? (lastEvent rest slot)) then (lastEvent rest slot) else (if ((project use slot) =? slot) then (project use event) else 0))),
+  recursive_argument: uses
+}
+
+definition{
+  name: makeReleases,
+  parameters: [remaining : Nat, slot : Nat, parameterCount : Nat, uses : (List Use)],
+  result: (List Release),
+  body: (match remaining
+    | Nat.zero => (nil Release)
+    | Nat.succ rest => (cons (record Release {slot := slot, event := (if ((if (slot <? parameterCount) then 0 else ((prim subtract slot parameterCount : Nat) + 1)) <=? (lastEvent uses slot)) then (lastEvent uses slot) else (if (slot <? parameterCount) then 0 else ((prim subtract slot parameterCount : Nat) + 1)))}) (makeReleases rest (slot + 1) parameterCount uses))),
+  recursive_argument: remaining
+}
+
+definition{
+  name: releaseBucket,
+  parameters: [releases : (List Release), event : Nat],
+  result: (List Nat),
+  body: (match releases
+    | List.nil => (nil Nat)
+    | List.cons release rest => (if ((project release event) =? event) then (cons (project release slot) (releaseBucket rest event)) else (releaseBucket rest event))),
+  recursive_argument: releases
+}
+
+definition{
+  name: makeBuckets,
+  parameters: [remaining : Nat, event : Nat, releases : (List Release)],
+  result: (List (List Nat)),
+  body: (match remaining
+    | Nat.zero => (nil (List Nat))
+    | Nat.succ rest => (cons (releaseBucket releases event) (makeBuckets rest (event + 1) releases))),
+  recursive_argument: remaining
+}
+
+definition{
+  name: scheduleFromUses,
+  parameters: [block : Uorc.Core.Graph::Block, uses : (List Use)],
+  result: (List (List Nat)),
+  body: (makeBuckets ((prim length (project block instructions) : Nat) + 2) 0 (makeReleases ((prim length (project block parameters) : Nat) + (prim length (project block instructions) : Nat)) 0 (prim length (project block parameters) : Nat) uses))
+}
+
+definition{
+  name: buildSchedule,
+  parameters: [block : Uorc.Core.Graph::Block],
+  result: (Result (List (List Nat)) Uorc.Core.Types::StaticError),
+  body: (match (instructionUses (project block instructions) (prim length (project block parameters) : Nat) 1 (project block returnDistance))
+    | Result.error error => (ctor Result.error [(List (List Nat)), Uorc.Core.Types::StaticError] error)
+    | Result.ok uses => (ctor Result.ok [(List (List Nat)), Uorc.Core.Types::StaticError] (scheduleFromUses block uses)))
+}
+
+theorem{
+  name: unused_result_released_at_creation,
+  parameters: [],
+  statement: ((buildSchedule (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0xff) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1})) = (ctor Result.ok [(List (List Nat)), Uorc.Core.Types::StaticError] (cons (nil Nat) (cons (cons 0 (nil Nat)) (cons (nil Nat) (cons (cons 1 (nil Nat)) (nil (List Nat)))))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: scan_captures_included,
+  parameters: [],
+  statement: ((operandReferences (ctor Uorc.Core.Graph::Instruction.scan 1 2 3 (cons 4 (cons 5 (nil Nat))) 6 (cons 7 (nil Nat)))) = (cons 1 (cons 2 (cons 4 (cons 5 (cons 7 (nil Nat))))))),
+  proof: reflexivity{}
+}
+
+inductive{
+  name: NatTrie,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: empty, fields: []},
+    {name: leaf, fields: [Nat]},
+    {name: branch, fields: [NatTrie, NatTrie]}
+  ]
+}
+
+inductive{
+  name: BucketTrie,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: empty, fields: []},
+    {name: leaf, fields: [(List Nat)]},
+    {name: branch, fields: [BucketTrie, BucketTrie]}
+  ]
+}
+
+definition{
+  name: natLeft,
+  parameters: [tree : NatTrie],
+  result: NatTrie,
+  body: (match tree
+    | NatTrie.empty => (ctor NatTrie.empty)
+    | NatTrie.leaf leafValue => (ctor NatTrie.empty)
+    | NatTrie.branch leftTree rightTree => leftTree)
+}
+
+definition{
+  name: natRight,
+  parameters: [tree : NatTrie],
+  result: NatTrie,
+  body: (match tree
+    | NatTrie.empty => (ctor NatTrie.empty)
+    | NatTrie.leaf leafValue => (ctor NatTrie.empty)
+    | NatTrie.branch leftTree rightTree => rightTree)
+}
+
+definition{
+  name: natRead,
+  parameters: [depth : Nat, tree : NatTrie, key : UInt64],
+  result: Nat,
+  body: (match depth
+    | Nat.zero => (match tree
+      | NatTrie.empty => 0
+      | NatTrie.leaf leafValue => leafValue
+      | NatTrie.branch leftTree rightTree => 0)
+    | Nat.succ remaining => (match tree
+      | NatTrie.empty => 0
+      | NatTrie.leaf leafValue => 0
+      | NatTrie.branch leftTree rightTree => (natRead remaining (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  recursive_argument: depth
+}
+
+definition{
+  name: natWrite,
+  parameters: [depth : Nat, tree : NatTrie, key : UInt64, value : Nat],
+  result: NatTrie,
+  body: (match depth
+    | Nat.zero => (ctor NatTrie.leaf value)
+    | Nat.succ remaining => (if (Uorc.Core.Store::lowBit key) then (ctor NatTrie.branch (natLeft tree) (natWrite remaining (natRight tree) (Uorc.Core.Store::nextKey key) value)) else (ctor NatTrie.branch (natWrite remaining (natLeft tree) (Uorc.Core.Store::nextKey key) value) (natRight tree)))),
+  recursive_argument: depth
+}
+
+definition{
+  name: bucketLeft,
+  parameters: [tree : BucketTrie],
+  result: BucketTrie,
+  body: (match tree
+    | BucketTrie.empty => (ctor BucketTrie.empty)
+    | BucketTrie.leaf leafValue => (ctor BucketTrie.empty)
+    | BucketTrie.branch leftTree rightTree => leftTree)
+}
+
+definition{
+  name: bucketRight,
+  parameters: [tree : BucketTrie],
+  result: BucketTrie,
+  body: (match tree
+    | BucketTrie.empty => (ctor BucketTrie.empty)
+    | BucketTrie.leaf leafValue => (ctor BucketTrie.empty)
+    | BucketTrie.branch leftTree rightTree => rightTree)
+}
+
+definition{
+  name: bucketRead,
+  parameters: [depth : Nat, tree : BucketTrie, key : UInt64],
+  result: (List Nat),
+  body: (match depth
+    | Nat.zero => (match tree
+      | BucketTrie.empty => (nil Nat)
+      | BucketTrie.leaf leafValue => leafValue
+      | BucketTrie.branch leftTree rightTree => (nil Nat))
+    | Nat.succ remaining => (match tree
+      | BucketTrie.empty => (nil Nat)
+      | BucketTrie.leaf leafValue => (nil Nat)
+      | BucketTrie.branch leftTree rightTree => (bucketRead remaining (if (Uorc.Core.Store::lowBit key) then rightTree else leftTree) (Uorc.Core.Store::nextKey key)))),
+  recursive_argument: depth
+}
+
+definition{
+  name: bucketWrite,
+  parameters: [depth : Nat, tree : BucketTrie, key : UInt64, value : (List Nat)],
+  result: BucketTrie,
+  body: (match depth
+    | Nat.zero => (ctor BucketTrie.leaf value)
+    | Nat.succ remaining => (if (Uorc.Core.Store::lowBit key) then (ctor BucketTrie.branch (bucketLeft tree) (bucketWrite remaining (bucketRight tree) (Uorc.Core.Store::nextKey key) value)) else (ctor BucketTrie.branch (bucketWrite remaining (bucketLeft tree) (Uorc.Core.Store::nextKey key) value) (bucketRight tree)))),
+  recursive_argument: depth
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: instructions, fields: []},
+    {name: returnReference, fields: []},
+    {name: releases, fields: []},
+    {name: materialize, fields: []}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: block, type: Uorc.Core.Graph::Block},
+    {name: phase, type: Phase},
+    {name: remainingInstructions, type: (List Uorc.Core.Graph::Instruction)},
+    {name: segments, type: (List (List Nat))},
+    {name: loaded, type: Bool},
+    {name: available, type: Nat},
+    {name: event, type: Nat},
+    {name: parameterCount, type: Nat},
+    {name: instructionCount, type: Nat},
+    {name: lastUses, type: NatTrie},
+    {name: buckets, type: BucketTrie},
+    {name: remainingSlots, type: Nat},
+    {name: remainingBuckets, type: Nat},
+    {name: plan, type: (List (List Nat))}
+  ]
+}
+
+inductive{
+  name: CursorEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: advanced, fields: [Cursor]}, {name: complete, fields: [(List (List Nat))]}]
+}
+
+definition{
+  name: referenceSegments,
+  parameters: [instruction : Uorc.Core.Graph::Instruction],
+  result: (List (List Nat)),
+  body: (match instruction
+    | Uorc.Core.Graph::Instruction.naturalConstant field0 => (nil (List Nat))
+    | Uorc.Core.Graph::Instruction.byteConstant field0 => (nil (List Nat))
+    | Uorc.Core.Graph::Instruction.predicateConstant field0 => (nil (List Nat))
+    | Uorc.Core.Graph::Instruction.sequenceConstant field0 => (nil (List Nat))
+    | Uorc.Core.Graph::Instruction.naturalAdd field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalSubtract field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalMultiply field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalDivide field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalRemainder field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalAnd field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalOr field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalXor field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalNot field0 => (cons (cons field0 (nil Nat)) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalShiftRight field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalEqual field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalLess field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.byteEqual field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.byteLess field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.naturalToByte field0 => (cons (cons field0 (nil Nat)) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.byteToNatural field0 => (cons (cons field0 (nil Nat)) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.predicateNot field0 => (cons (cons field0 (nil Nat)) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.predicateAnd field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.predicateOr field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.sequenceLength field0 => (cons (cons field0 (nil Nat)) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.sequenceIndex field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.sequenceSlice field0 field1 field2 => (cons (cons field0 (cons field1 (cons field2 (nil Nat)))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.sequenceConcat field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.sequenceEqual field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.singletonSequence field0 => (cons (cons field0 (nil Nat)) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.basisGet field0 => (cons (cons field0 (nil Nat)) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.storeNew field0 => (cons (cons field0 (nil Nat)) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.storeRead field0 field1 => (cons (cons field0 (cons field1 (nil Nat))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.storeWrite field0 field1 field2 => (cons (cons field0 (cons field1 (cons field2 (nil Nat)))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.choose field0 field1 field2 => (cons (cons field0 (cons field1 (cons field2 (nil Nat)))) (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.apply field0 field1 => (cons field1 (nil (List Nat)))
+    | Uorc.Core.Graph::Instruction.tabulate field0 field1 field2 => (cons (cons field0 (nil Nat)) (cons field2 (nil (List Nat))))
+    | Uorc.Core.Graph::Instruction.fold field0 field1 field2 field3 => (cons (cons field0 (cons field1 (nil Nat))) (cons field3 (nil (List Nat))))
+    | Uorc.Core.Graph::Instruction.scan field0 field1 field2 field3 field4 field5 => (cons (cons field0 (cons field1 (nil Nat))) (cons field3 (cons field5 (nil (List Nat)))))
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant field0 => (nil (List Nat)))
+}
+
+definition{
+  name: toKey,
+  parameters: [index : Nat],
+  result: (Result UInt64 Uorc.Core.Types::StaticError),
+  body: (match (Uorc.Core.Types::wordOfNat index)
+    | Option.none => (ctor Result.error [UInt64, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.addressSpaceExhausted))
+    | Option.some key => (ctor Result.ok [UInt64, Uorc.Core.Types::StaticError] key))
+}
+
+definition{
+  name: startKnown,
+  parameters: [block : Uorc.Core.Graph::Block, parameterCount : Nat, instructionCount : Nat],
+  result: Cursor,
+  body: (record Cursor {block := block, phase := (ctor Phase.instructions), remainingInstructions := (project block instructions), segments := (nil (List Nat)), loaded := false, available := parameterCount, event := 1, parameterCount := parameterCount, instructionCount := instructionCount, lastUses := (ctor NatTrie.empty), buckets := (ctor BucketTrie.empty), remainingSlots := (parameterCount + instructionCount), remainingBuckets := (instructionCount + 2), plan := (nil (List Nat))})
+}
+
+definition{
+  name: start,
+  parameters: [block : Uorc.Core.Graph::Block],
+  result: Cursor,
+  body: (startKnown block (prim length (project block parameters) : Nat) (prim length (project block instructions) : Nat))
+}
+
+definition{
+  name: recordReference,
+  parameters: [
+    cursorValue : Cursor,
+    distance : Nat,
+    restReferences : (List Nat),
+    restSegments : (List (List Nat))
+  ],
+  result: (Result CursorEvent Uorc.Core.Types::StaticError),
+  body: (if ((distance =? 0) || ((project cursorValue available) <? distance)) then (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference)) else (match (toKey (prim subtract (project cursorValue available) distance : Nat))
+    | Result.error keyError => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] keyError)
+    | Result.ok key => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (cons restReferences restSegments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (natWrite 64 (project cursorValue lastUses) key (if ((natRead 64 (project cursorValue lastUses) key) <=? (project cursorValue event)) then (project cursorValue event) else (natRead 64 (project cursorValue lastUses) key))), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)})))))
+}
+
+definition{
+  name: stepCollect,
+  parameters: [cursorValue : Cursor],
+  result: (Result CursorEvent Uorc.Core.Types::StaticError),
+  body: (match (project cursorValue segments)
+    | List.nil => (match (project cursorValue phase)
+      | Phase.instructions => (if (project cursorValue loaded) then (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (project cursorValue segments), loaded := false, available := ((project cursorValue available) + 1), event := ((project cursorValue event) + 1), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)}))) else (match (project cursorValue remainingInstructions)
+        | List.nil => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (ctor Phase.returnReference), remainingInstructions := (project cursorValue remainingInstructions), segments := (cons (cons (project (project cursorValue block) returnDistance) (nil Nat)) (nil (List Nat))), loaded := true, available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)})))
+        | List.cons instruction restInstructions => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := restInstructions, segments := (referenceSegments instruction), loaded := true, available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)})))))
+      | Phase.returnReference => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (ctor Phase.releases), remainingInstructions := (project cursorValue remainingInstructions), segments := (project cursorValue segments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)})))
+      | Phase.releases => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference))
+      | Phase.materialize => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference)))
+    | List.cons references restSegments => (match references
+      | List.nil => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := restSegments, loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)})))
+      | List.cons distance restReferences => (recordReference cursorValue distance restReferences restSegments)))
+}
+
+definition{
+  name: stepReleases,
+  parameters: [cursorValue : Cursor],
+  result: (Result CursorEvent Uorc.Core.Types::StaticError),
+  body: (match (project cursorValue remainingSlots)
+    | Nat.zero => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (ctor Phase.materialize), remainingInstructions := (project cursorValue remainingInstructions), segments := (project cursorValue segments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)})))
+    | Nat.succ slot => (match (toKey slot)
+      | Result.error slotError => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] slotError)
+      | Result.ok slotKey => (match (toKey (if ((if (slot <? (project cursorValue parameterCount)) then 0 else ((prim subtract slot (project cursorValue parameterCount) : Nat) + 1)) <=? (natRead 64 (project cursorValue lastUses) slotKey)) then (natRead 64 (project cursorValue lastUses) slotKey) else (if (slot <? (project cursorValue parameterCount)) then 0 else ((prim subtract slot (project cursorValue parameterCount) : Nat) + 1))))
+        | Result.error eventError => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] eventError)
+        | Result.ok eventKey => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (project cursorValue segments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (bucketWrite 64 (project cursorValue buckets) eventKey (cons slot (bucketRead 64 (project cursorValue buckets) eventKey))), remainingSlots := slot, remainingBuckets := (project cursorValue remainingBuckets), plan := (project cursorValue plan)}))))))
+}
+
+definition{
+  name: stepMaterialize,
+  parameters: [cursorValue : Cursor],
+  result: (Result CursorEvent Uorc.Core.Types::StaticError),
+  body: (match (project cursorValue remainingBuckets)
+    | Nat.zero => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.complete (project cursorValue plan)))
+    | Nat.succ event => (match (toKey event)
+      | Result.error eventError => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] eventError)
+      | Result.ok eventKey => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced (record Cursor {block := (project cursorValue block), phase := (project cursorValue phase), remainingInstructions := (project cursorValue remainingInstructions), segments := (project cursorValue segments), loaded := (project cursorValue loaded), available := (project cursorValue available), event := (project cursorValue event), parameterCount := (project cursorValue parameterCount), instructionCount := (project cursorValue instructionCount), lastUses := (project cursorValue lastUses), buckets := (project cursorValue buckets), remainingSlots := (project cursorValue remainingSlots), remainingBuckets := event, plan := (cons (bucketRead 64 (project cursorValue buckets) eventKey) (project cursorValue plan))})))))
+}
+
+definition{
+  name: step,
+  parameters: [cursorValue : Cursor],
+  result: (Result CursorEvent Uorc.Core.Types::StaticError),
+  body: (match (project cursorValue phase)
+    | Phase.instructions => (stepCollect cursorValue)
+    | Phase.returnReference => (stepCollect cursorValue)
+    | Phase.releases => (stepReleases cursorValue)
+    | Phase.materialize => (stepMaterialize cursorValue))
+}
+
+definition{
+  name: runFor,
+  parameters: [fuel : Nat, cursorValue : Cursor],
+  result: (Result CursorEvent Uorc.Core.Types::StaticError),
+  body: (match fuel
+    | Nat.zero => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.advanced cursorValue))
+    | Nat.succ remaining => (match (step cursorValue)
+      | Result.error error => (ctor Result.error [CursorEvent, Uorc.Core.Types::StaticError] error)
+      | Result.ok event => (match event
+        | CursorEvent.advanced nextCursor => (runFor remaining nextCursor)
+        | CursorEvent.complete schedule => (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.complete schedule))))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: eventWork,
+  parameters: [cursorValue : Cursor],
+  result: Nat,
+  body: (match (project cursorValue phase)
+    | Phase.instructions => (match (project cursorValue segments)
+      | List.nil => 1
+      | List.cons references restSegments => (match references
+        | List.nil => 1
+        | List.cons distance restReferences => 193))
+    | Phase.returnReference => (match (project cursorValue segments)
+      | List.nil => 1
+      | List.cons references restSegments => (match references
+        | List.nil => 1
+        | List.cons distance restReferences => 193))
+    | Phase.releases => (if ((project cursorValue remainingSlots) =? 0) then 1 else 321)
+    | Phase.materialize => (if ((project cursorValue remainingBuckets) =? 0) then 1 else 129))
+}
+
+theorem{
+  name: incremental_schedule_matches_reference_vector,
+  parameters: [],
+  statement: ((runFor 64 (start (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0xff) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}))) = (ctor Result.ok [CursorEvent, Uorc.Core.Types::StaticError] (ctor CursorEvent.complete (cons (nil Nat) (cons (cons 0 (nil Nat)) (cons (nil Nat) (cons (cons 1 (nil Nat)) (nil (List Nat))))))))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

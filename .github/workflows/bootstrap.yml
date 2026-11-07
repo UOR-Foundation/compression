@@ -11,22 +11,35 @@ permissions:
   contents: read
 
 jobs:
+  # `just vv` runs here as independent legs, each from its own clean checkout,
+  # at once. Together the legs run every recipe of `vv` exactly once on the
+  # normative x86-64 host; the arm host runs the host-dependent `rest` leg.
+  # Wall time is the slowest leg, not the sum.
   template-gate:
-    name: acceptance / ${{ matrix.runner }}
+    name: acceptance / ${{ matrix.leg }} / ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        include:
+          - { leg: rest, runner: ubuntu-24.04, recipes: "lexlean-authority template-check fmt-check model lint test features bdd deny" }
+          - { leg: rest, runner: ubuntu-24.04-arm, recipes: "lexlean-authority template-check fmt-check model lint test features bdd deny" }
+          - { leg: artifacts, runner: ubuntu-24.04, recipes: "lexlean-artifacts" }
+          - { leg: claims, runner: ubuntu-24.04, recipes: "claim-dispositions" }
+          - { leg: varint, runner: ubuntu-24.04, recipes: "varint-proofs" }
+          - { leg: reproducibility, runner: ubuntu-24.04, recipes: "reproducibility" }
+          - { leg: integrity, runner: ubuntu-24.04, recipes: "integrity" }
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Check out the exact event revision
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Run the template gate through the locked SDK
+      - name: Run this leg of the template gate through the locked SDK
         shell: bash
+        env:
+          LEG_RECIPES: ${{ matrix.recipes }}
         run: |
           set -euo pipefail
           image=$(sed -n 's/.*"sdk_image":"\([^"]*\)".*/\1/p' prismpm.lock)
@@ -54,6 +67,7 @@ jobs:
             --env HOME=/tmp/prismpm-home \
             --env PRISMPM_EPHEMERAL_HOME=1 \
             --env SDK_IMAGE="$image" \
+            --env LEG_RECIPES="$LEG_RECIPES" \
             "$image" bash -c '
               set -euo pipefail
               umask 077
@@ -63,5 +77,22 @@ jobs:
               grep -q "linux/amd64" <<< "$manifest"
               grep -q "linux/arm64" <<< "$manifest"
               devcontainer --version
-              exec just vv
+              exec just $LEG_RECIPES
             '
+
+  # The single required signal per host: it passes only when every leg passed.
+  acceptance:
+    name: acceptance / ${{ matrix.runner }}
+    needs: template-gate
+    if: always()
+    strategy:
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every leg of the gate
+        shell: bash
+        env:
+          LEGS: ${{ needs.template-gate.result }}
+        run: test "$LEGS" = success

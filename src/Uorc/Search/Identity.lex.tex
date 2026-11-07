@@ -1,0 +1,156 @@
+\begin{lexlean}{Uorc.Search.Identity}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Search.Boundaries}
+\importmodule{Uorc.Search.VerifyRope}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Objective,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: wireLengthThenUnsignedLex, fields: []}]
+}
+
+structure{
+  name: Snapshot,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: archiveFormat, type: Nat},
+    {name: machineProfile, type: Nat},
+    {name: scope, type: Uorc.Wire.Frame::Scope},
+    {name: objectLengths, type: (List Nat)},
+    {name: target, type: Uorc.Core.Bytes::Rope},
+    {name: basis, type: (List Uorc.Core.Bytes::Rope)},
+    {name: budget, type: Uorc.Core.Resources::Budget},
+    {name: objective, type: Objective}
+  ]
+}
+
+inductive{
+  name: Field,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: profile, fields: []},
+    {name: scope, fields: []},
+    {name: objectBoundaries, fields: []},
+    {name: targetBytes, fields: []},
+    {name: basisBytes, fields: []},
+    {name: decodeBudget, fields: []}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: metadata, fields: []},
+    {name: boundaries, fields: [Uorc.Search.Boundaries::Cursor]},
+    {name: target, fields: [Uorc.Search.VerifyRope::Cursor]},
+    {name: basis, fields: [Uorc.Search.VerifyRope::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: left, type: Snapshot}, {name: right, type: Snapshot}, {name: phase, type: Phase}]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: matched, fields: []},
+    {name: different, fields: [Field]},
+    {name: invalidScope, fields: []},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [left : Snapshot, right : Snapshot],
+  result: Cursor,
+  body: (record Cursor {left := left, right := right, phase := (ctor Phase.metadata)})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.metadata => (if (((project (project cursor left) archiveFormat) =? (project (project cursor right) archiveFormat)) && ((project (project cursor left) machineProfile) =? (project (project cursor right) machineProfile))) then (if (((project (project (project cursor left) budget) maxFrames) =? (project (project (project cursor right) budget) maxFrames)) && (((project (project (project cursor left) budget) maxOutputBytes) =? (project (project (project cursor right) budget) maxOutputBytes)) && (((project (project (project cursor left) budget) maxLiveCells) =? (project (project (project cursor right) budget) maxLiveCells)) && (((project (project (project cursor left) budget) maxSteps) =? (project (project (project cursor right) budget) maxSteps)) && true)))) then (match (project (project cursor left) scope)
+      | Uorc.Wire.Frame::Scope.selfContained => (match (project (project cursor right) scope)
+        | Uorc.Wire.Frame::Scope.selfContained => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.boundaries (Uorc.Search.Boundaries::start (project (project cursor left) objectLengths) (project (project cursor right) objectLengths)))}))
+        | Uorc.Wire.Frame::Scope.conditional rightBasisId => (ctor Step.different (ctor Field.scope)))
+      | Uorc.Wire.Frame::Scope.conditional leftBasisId => (match (project (project cursor right) scope)
+        | Uorc.Wire.Frame::Scope.selfContained => (ctor Step.different (ctor Field.scope))
+        | Uorc.Wire.Frame::Scope.conditional rightBasisId => (if (((prim length leftBasisId : Nat) =? 32) && ((prim length rightBasisId : Nat) =? 32)) then (if (prim equal leftBasisId rightBasisId : Bool) then (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.boundaries (Uorc.Search.Boundaries::start (project (project cursor left) objectLengths) (project (project cursor right) objectLengths)))})) else (ctor Step.different (ctor Field.scope))) else (ctor Step.invalidScope)))) else (ctor Step.different (ctor Field.decodeBudget))) else (ctor Step.different (ctor Field.profile)))
+    | Phase.boundaries comparison => (match (Uorc.Search.Boundaries::step comparison)
+      | Uorc.Search.Boundaries::Step.pending next => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.boundaries next)}))
+      | Uorc.Search.Boundaries::Step.matched objects => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.target (Uorc.Search.VerifyRope::start (cons (project (project cursor left) target) (nil Uorc.Core.Bytes::Rope)) (cons (project (project cursor right) target) (nil Uorc.Core.Bytes::Rope))))}))
+      | Uorc.Search.Boundaries::Step.mismatch index => (ctor Step.different (ctor Field.objectBoundaries)))
+    | Phase.target comparison => (match (Uorc.Search.VerifyRope::step comparison)
+      | Uorc.Search.VerifyRope::Step.pending next => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.target next)}))
+      | Uorc.Search.VerifyRope::Step.matched compared boundaries => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.basis (Uorc.Search.VerifyRope::start (project (project cursor left) basis) (project (project cursor right) basis)))}))
+      | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor Step.different (ctor Field.targetBytes))
+      | Uorc.Search.VerifyRope::Step.ropeFailure error => (ctor Step.ropeFailure error))
+    | Phase.basis comparison => (match (Uorc.Search.VerifyRope::step comparison)
+      | Uorc.Search.VerifyRope::Step.pending next => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), phase := (ctor Phase.basis next)}))
+      | Uorc.Search.VerifyRope::Step.matched compared boundaries => (ctor Step.matched)
+      | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor Step.different (ctor Field.basisBytes))
+      | Uorc.Search.VerifyRope::Step.ropeFailure error => (ctor Step.ropeFailure error)))
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ remainingFuel => (match state
+      | Step.pending cursor => (run remainingFuel (step cursor))
+      | Step.matched => (ctor Step.matched)
+      | Step.different field => (ctor Step.different field)
+      | Step.invalidScope => (ctor Step.invalidScope)
+      | Step.ropeFailure error => (ctor Step.ropeFailure error))),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: identity_compares_full_target_not_digest,
+  parameters: [],
+  statement: ((run 100 (ctor Step.pending (start (record Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1000, maxLiveCells := 1000, maxOutputBytes := 1000, maxFrames := 100}), objective := (ctor Objective.wireLengthThenUnsignedLex)}) (record Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00fe), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1000, maxLiveCells := 1000, maxOutputBytes := 1000, maxFrames := 100}), objective := (ctor Objective.wireLengthThenUnsignedLex)})))) = (ctor Step.different (ctor Field.targetBytes))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: decode_envelope_is_sealed_identity,
+  parameters: [],
+  statement: ((run 100 (ctor Step.pending (start (record Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1000, maxLiveCells := 1000, maxOutputBytes := 1000, maxFrames := 100}), objective := (ctor Objective.wireLengthThenUnsignedLex)}) (record Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1001, maxLiveCells := 1000, maxOutputBytes := 1000, maxFrames := 100}), objective := (ctor Objective.wireLengthThenUnsignedLex)})))) = (ctor Step.different (ctor Field.decodeBudget))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: ordered_empty_boundaries_are_sealed_identity,
+  parameters: [],
+  statement: ((run 100 (ctor Step.pending (start (record Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1000, maxLiveCells := 1000, maxOutputBytes := 1000, maxFrames := 100}), objective := (ctor Objective.wireLengthThenUnsignedLex)}) (record Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 0 (cons 2 (nil Nat))), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1000, maxLiveCells := 1000, maxOutputBytes := 1000, maxFrames := 100}), objective := (ctor Objective.wireLengthThenUnsignedLex)})))) = (ctor Step.different (ctor Field.objectBoundaries))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: exact_equal_query_is_same_universe,
+  parameters: [],
+  statement: ((run 100 (ctor Step.pending (start (record Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1000, maxLiveCells := 1000, maxOutputBytes := 1000, maxFrames := 100}), objective := (ctor Objective.wireLengthThenUnsignedLex)}) (record Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1000, maxLiveCells := 1000, maxOutputBytes := 1000, maxFrames := 100}), objective := (ctor Objective.wireLengthThenUnsignedLex)})))) = (ctor Step.matched)),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

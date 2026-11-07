@@ -1,0 +1,204 @@
+\begin{lexlean}{Uorc.Search.Schedule}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: typedGeneration, fields: []},
+    {name: addressCharts, fields: []},
+    {name: antiUnification, fields: []},
+    {name: sharingLayout, fields: []},
+    {name: stateGenerators, fields: []},
+    {name: completeEnumeration, fields: []}
+  ]
+}
+
+structure{
+  name: Policy,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: quantum, type: Nat},
+    {name: sourceBinding, type: Bytes},
+    {name: seedInventoryBinding, type: Bytes}
+  ]
+}
+
+structure{
+  name: Availability,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: typedGeneration, type: Bool},
+    {name: addressCharts, type: Bool},
+    {name: antiUnification, type: Bool},
+    {name: sharingLayout, type: Bool},
+    {name: stateGenerators, type: Bool},
+    {name: completeEnumeration, type: Bool}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: phase, type: Phase},
+    {name: remaining, type: Nat},
+    {name: round, type: Nat},
+    {name: discretionarySteps, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: dispatch, fields: [Phase, Cursor]},
+    {name: rotate, fields: [Cursor]},
+    {name: invalidQuantum, fields: []}
+  ]
+}
+
+definition{
+  name: initial,
+  parameters: [policy : Policy],
+  result: Cursor,
+  body: (record Cursor {phase := (ctor Phase.typedGeneration), remaining := (project policy quantum), round := 0, discretionarySteps := 0})
+}
+
+definition{
+  name: nextPhase,
+  parameters: [phase : Phase],
+  result: Phase,
+  body: (match phase
+    | Phase.typedGeneration => (ctor Phase.addressCharts)
+    | Phase.addressCharts => (ctor Phase.antiUnification)
+    | Phase.antiUnification => (ctor Phase.sharingLayout)
+    | Phase.sharingLayout => (ctor Phase.stateGenerators)
+    | Phase.stateGenerators => (ctor Phase.completeEnumeration)
+    | Phase.completeEnumeration => (ctor Phase.typedGeneration))
+}
+
+definition{
+  name: hasWork,
+  parameters: [availability : Availability, phase : Phase],
+  result: Bool,
+  body: (match phase
+    | Phase.typedGeneration => (project availability typedGeneration)
+    | Phase.addressCharts => (project availability addressCharts)
+    | Phase.antiUnification => (project availability antiUnification)
+    | Phase.sharingLayout => (project availability sharingLayout)
+    | Phase.stateGenerators => (project availability stateGenerators)
+    | Phase.completeEnumeration => (project availability completeEnumeration))
+}
+
+definition{
+  name: nextRound,
+  parameters: [phase : Phase, round : Nat],
+  result: Nat,
+  body: (match phase
+    | Phase.typedGeneration => round
+    | Phase.addressCharts => round
+    | Phase.antiUnification => round
+    | Phase.sharingLayout => round
+    | Phase.stateGenerators => round
+    | Phase.completeEnumeration => (round + 1))
+}
+
+definition{
+  name: step,
+  parameters: [policy : Policy, availability : Availability, cursor : Cursor],
+  result: Step,
+  body: (if ((project policy quantum) =? 0) then (ctor Step.invalidQuantum) else (if ((0 <? (project cursor remaining)) && (hasWork availability (project cursor phase))) then (ctor Step.dispatch (project cursor phase) (record Cursor {phase := (project cursor phase), remaining := (prim subtract (project cursor remaining) 1 : Nat), round := (project cursor round), discretionarySteps := ((project cursor discretionarySteps) + 1)})) else (ctor Step.rotate (record Cursor {phase := (nextPhase (project cursor phase)), remaining := (project policy quantum), round := (nextRound (project cursor phase) (project cursor round)), discretionarySteps := ((project cursor discretionarySteps) + 1)}))))
+}
+
+definition{
+  name: cursorAfter,
+  parameters: [stepValue : Step],
+  result: (Option Cursor),
+  body: (match stepValue
+    | Step.dispatch phase cursor => (ctor Option.some [Cursor] cursor)
+    | Step.rotate cursor => (ctor Option.some [Cursor] cursor)
+    | Step.invalidQuantum => (ctor Option.none [Cursor]))
+}
+
+definition{
+  name: advance,
+  parameters: [fuel : Nat, policy : Policy, availability : Availability, cursor : Cursor],
+  result: (Option Cursor),
+  body: (match fuel
+    | Nat.zero => (ctor Option.some [Cursor] cursor)
+    | Nat.succ restFuel => (match (cursorAfter (step policy availability cursor))
+      | Option.none => (ctor Option.none [Cursor])
+      | Option.some next => (advance restFuel policy availability next))),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: phase_cycle_0,
+  parameters: [],
+  statement: ((nextPhase (ctor Phase.typedGeneration)) = (ctor Phase.addressCharts)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: phase_cycle_1,
+  parameters: [],
+  statement: ((nextPhase (ctor Phase.addressCharts)) = (ctor Phase.antiUnification)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: phase_cycle_2,
+  parameters: [],
+  statement: ((nextPhase (ctor Phase.antiUnification)) = (ctor Phase.sharingLayout)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: phase_cycle_3,
+  parameters: [],
+  statement: ((nextPhase (ctor Phase.sharingLayout)) = (ctor Phase.stateGenerators)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: phase_cycle_4,
+  parameters: [],
+  statement: ((nextPhase (ctor Phase.stateGenerators)) = (ctor Phase.completeEnumeration)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: phase_cycle_5,
+  parameters: [],
+  statement: ((nextPhase (ctor Phase.completeEnumeration)) = (ctor Phase.typedGeneration)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: all_six_phases_receive_work,
+  parameters: [],
+  statement: ((advance 18 (record Policy {quantum := 2, sourceBinding := 0x01, seedInventoryBinding := 0x02}) (record Availability {typedGeneration := true, addressCharts := true, antiUnification := true, sharingLayout := true, stateGenerators := true, completeEnumeration := true}) (initial (record Policy {quantum := 2, sourceBinding := 0x01, seedInventoryBinding := 0x02}))) = (ctor Option.some [Cursor] (record Cursor {phase := (ctor Phase.typedGeneration), remaining := 2, round := 1, discretionarySteps := 18}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: later_phase_not_starved_by_empty_phases,
+  parameters: [],
+  statement: ((advance 5 (record Policy {quantum := 2, sourceBinding := 0x01, seedInventoryBinding := 0x02}) (record Availability {typedGeneration := false, addressCharts := false, antiUnification := false, sharingLayout := false, stateGenerators := false, completeEnumeration := true}) (initial (record Policy {quantum := 2, sourceBinding := 0x01, seedInventoryBinding := 0x02}))) = (ctor Option.some [Cursor] (record Cursor {phase := (ctor Phase.completeEnumeration), remaining := 2, round := 0, discretionarySteps := 5}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_quantum_rejected,
+  parameters: [],
+  statement: ((step (record Policy {quantum := 0, sourceBinding := 0x, seedInventoryBinding := 0x}) (record Availability {typedGeneration := true, addressCharts := true, antiUnification := true, sharingLayout := true, stateGenerators := true, completeEnumeration := true}) (initial (record Policy {quantum := 2, sourceBinding := 0x01, seedInventoryBinding := 0x02}))) = (ctor Step.invalidQuantum)),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

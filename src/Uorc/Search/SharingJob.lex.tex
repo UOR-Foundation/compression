@@ -1,0 +1,106 @@
+\begin{lexlean}{Uorc.Search.SharingJob}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Search.Expression}
+\importmodule{Uorc.Core.Validation}
+\importmodule{Uorc.Search.Sharing}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Spec,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: library, type: Uorc.Core.Graph::Graph},
+    {name: joinFunction, type: Nat},
+    {name: joinResultType, type: Uorc.Core.Types::ValueType},
+    {name: leftExpression, type: Uorc.Search.Expression::Expression},
+    {name: rightExpression, type: Uorc.Search.Expression::Expression}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: validating, fields: [Spec, Uorc.Core.Validation::Cursor]},
+    {name: sharing, fields: [Uorc.Search.Sharing::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: phase, type: Phase}, {name: completedEvents, type: Nat}]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: static, fields: [Uorc.Core.Types::StaticError]},
+    {name: table, fields: [Uorc.Core.Validation::TableError]},
+    {name: sharing, fields: [Uorc.Search.Sharing::Error]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Nat]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [spec : Spec],
+  result: Cursor,
+  body: (record Cursor {phase := (ctor Phase.validating spec (Uorc.Core.Validation::start (project spec library))), completedEvents := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.validating spec validation => match{
+      branches: [
+        {
+          body: (ctor Step.pending (record Cursor {phase := (ctor Phase.validating spec next), completedEvents := ((project cursor completedEvents) + 1)})),
+          binders: [next],
+          constructor: Uorc.Core.Validation::Step.pending
+        },
+        {
+          body: (ctor Step.pending (record Cursor {phase := (ctor Phase.sharing (Uorc.Search.Sharing::start var{
+            name: checked
+          } (project spec joinFunction) (project spec joinResultType) (project spec leftExpression) (project spec rightExpression))), completedEvents := ((project cursor completedEvents) + 1)})),
+          binders: [checked],
+          constructor: Uorc.Core.Validation::Step.validated
+        },
+        {
+          body: (ctor Step.rejected (ctor Error.static error)),
+          binders: [error, events, visits],
+          constructor: Uorc.Core.Validation::Step.rejected
+        },
+        {
+          body: (ctor Step.rejected (ctor Error.table error)),
+          binders: [error, events, visits],
+          constructor: Uorc.Core.Validation::Step.tableFailure
+        }
+      ],
+      scrutinee: (Uorc.Core.Validation::tick validation)
+    }
+    | Phase.sharing sharingCursor => (match (Uorc.Search.Sharing::step sharingCursor)
+      | Uorc.Search.Sharing::Step.pending next => (ctor Step.pending (record Cursor {phase := (ctor Phase.sharing next), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Sharing::Step.proposal graph events => (ctor Step.proposal graph ((project cursor completedEvents) + 1))
+      | Uorc.Search.Sharing::Step.rejected error => (ctor Step.rejected (ctor Error.sharing error))))
+}
+\end{semanticmodule}
+\end{lexlean}

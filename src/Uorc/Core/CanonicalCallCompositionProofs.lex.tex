@@ -1,0 +1,282 @@
+\begin{lexlean}{Uorc.Core.CanonicalCallCompositionProofs}
+\importmodule{Uorc.Core.CanonicalCallComposition}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\title{Parameters}
+\begin{semanticmodule}
+theorem{
+  name: capture_preparation_authority,
+  parameters: [count : Nat],
+  statement: ((Uorc.Core.CanonicalCallComposition::capturePreparation count) = (Uorc.Core.CanonicalSchedule::captureReadEvents count)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: capture_preparation_zero,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::capturePreparation 0) = (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: capture_preparation_successor,
+  parameters: [count : Nat],
+  statement: ((Uorc.Core.CanonicalCallComposition::capturePreparation (ctor Nat.succ count)) = (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (Uorc.Core.CanonicalCallComposition::capturePreparation count))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: scan_preparation_observer_then_updater,
+  parameters: [observerCount : Nat, updaterCount : Nat],
+  statement: ((Uorc.Core.CanonicalCallComposition::scanCapturePreparation observerCount updaterCount) = (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::captureReadEvents observerCount) (Uorc.Core.CanonicalSchedule::captureReadEvents updaterCount))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: resolved_call_lane,
+  parameters: [
+    lane : Uorc.Core.CanonicalSchedule::CallLane,
+    prefixArguments : (List Uorc.Core.ReferenceSemantics::Value),
+    capturedArguments : (List Uorc.Core.ReferenceSemantics::Value)
+  ],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::resolvedCallPlan lane prefixArguments capturedArguments) lane) = lane),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: resolved_call_arguments_prefix_first,
+  parameters: [
+    lane : Uorc.Core.CanonicalSchedule::CallLane,
+    prefixArguments : (List Uorc.Core.ReferenceSemantics::Value),
+    capturedArguments : (List Uorc.Core.ReferenceSemantics::Value)
+  ],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::resolvedCallPlan lane prefixArguments capturedArguments) arguments) = (prim append prefixArguments capturedArguments : (List Uorc.Core.ReferenceSemantics::Value))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: resolved_call_entry_only,
+  parameters: [
+    lane : Uorc.Core.CanonicalSchedule::CallLane,
+    prefixArguments : (List Uorc.Core.ReferenceSemantics::Value),
+    capturedArguments : (List Uorc.Core.ReferenceSemantics::Value)
+  ],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::resolvedCallPlan lane prefixArguments capturedArguments) entryEvents) = (Uorc.Core.CanonicalBindings::frameEntryEvents (prim append prefixArguments capturedArguments : (List Uorc.Core.ReferenceSemantics::Value)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: applied_call_lane,
+  parameters: [arguments : (List Uorc.Core.ReferenceSemantics::Value)],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::appliedCallPlan arguments) lane) = (ctor Uorc.Core.CanonicalSchedule::CallLane.apply)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: applied_call_arguments,
+  parameters: [arguments : (List Uorc.Core.ReferenceSemantics::Value)],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::appliedCallPlan arguments) arguments) = arguments),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: applied_call_capture_before_entry,
+  parameters: [arguments : (List Uorc.Core.ReferenceSemantics::Value)],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::appliedCallPlan arguments) entryEvents) = (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::captureReadEvents (prim length arguments : Nat)) (Uorc.Core.CanonicalBindings::frameEntryEvents arguments))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: completion_value_preserved,
+  parameters: [
+    origin : Uorc.Core.CanonicalCallComposition::CompletionOrigin,
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((project (project (Uorc.Core.CanonicalCallComposition::completeInstruction origin binding deadBindings) binding) value) = (project binding value)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: completion_role_instruction,
+  parameters: [
+    origin : Uorc.Core.CanonicalCallComposition::CompletionOrigin,
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((project (project (Uorc.Core.CanonicalCallComposition::completeInstruction origin binding deadBindings) binding) role) = (ctor Uorc.Core.CanonicalBindings::Role.instruction)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: completion_units_preserved,
+  parameters: [
+    origin : Uorc.Core.CanonicalCallComposition::CompletionOrigin,
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((Uorc.Core.CanonicalBindings::units (project (Uorc.Core.CanonicalCallComposition::completeInstruction origin binding deadBindings) binding)) = (Uorc.Core.CanonicalBindings::units binding)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: fresh_completion_authority,
+  parameters: [
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh) binding deadBindings) events) = (Uorc.Core.CanonicalSchedule::completedResult (Uorc.Core.CanonicalBindings::transfer binding (ctor Uorc.Core.CanonicalBindings::Role.instruction)) deadBindings)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: fresh_completion_allocates_before_last_use,
+  parameters: [
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh) binding deadBindings) events) = (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits (Uorc.Core.CanonicalBindings::units binding)) (Uorc.Core.CanonicalBindings::lastUseEvents deadBindings))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: transferred_completion_only_last_use,
+  parameters: [
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred) binding deadBindings) events) = (Uorc.Core.CanonicalBindings::lastUseEvents deadBindings)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: transferred_completion_empty_dead_has_no_events,
+  parameters: [binding : Uorc.Core.CanonicalBindings::Binding],
+  statement: ((project (Uorc.Core.CanonicalCallComposition::completeInstruction (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred) binding (nil Uorc.Core.CanonicalBindings::Binding)) events) = (nil Uorc.Core.CanonicalCost::SemanticEvent)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: role_transfer_has_no_event,
+  parameters: [binding : Uorc.Core.CanonicalBindings::Binding],
+  statement: ((project (Uorc.Core.CanonicalBindings::move binding (ctor Uorc.Core.CanonicalBindings::Role.instruction)) event) = (ctor Option.none [Uorc.Core.CanonicalCost::SemanticEvent])),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_scalar,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.scalar)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_literal,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.literal)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_index,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.index)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_view,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.view)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_comparison,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.comparison)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_singleton,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.singleton)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_basis,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.basis)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_store,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.store)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_apply,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.apply)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_tabulate,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.tabulate)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_fold,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.fold)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: origin_scan,
+  parameters: [],
+  statement: ((Uorc.Core.CanonicalCallComposition::originForAction (ctor Uorc.Core.CanonicalSchedule::Action.scan)) = (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)),
+  proof: reflexivity{},
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

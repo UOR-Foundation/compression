@@ -1,0 +1,62 @@
+\begin{lexlean}{Uorc.Wire.OwnedBasisContract}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Scenario,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: given, type: String},
+    {name: when, type: String},
+    {name: then, type: String},
+    {name: owner, type: String}
+  ]
+}
+
+definition{
+  name: uc_owned_basis_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-OWNED-BASIS-01", given := "empty basis and ordered empty/nonempty/empty objects", when := "build snapshot, seal, hash under both Profile kinds", then := "minimal ULEB count and every ordered length/byte match independent Profile.hash reference", owner := "Uorc.Wire.OwnedBasisScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_owned_basis_02,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-OWNED-BASIS-02", given := "an append/seal/hash prefix and its exact actual arena", when := "pause before every action and cancel at each ownership phase", then := "no acquired ticket disappears; scalar image is reserved before materialization; cleanup preserves snapshot", owner := "Uorc.Wire.OwnedBasisScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_owned_basis_03,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-OWNED-BASIS-03", given := "a sealed snapshot and copied descriptor", when := "transfer descriptor twice, forge count or table link", then := "one transfer; descriptor mismatch rejected; snapshots never confer program readiness", owner := "Uorc.Wire.OwnedBasisScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: uc_owned_basis_04,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-OWNED-BASIS-04", given := "planted omission of an empty length or duplicate domain prefix", when := "execute the same named run owner", then := "the canonical hash comparison rejects the defect", owner := "Uorc.Wire.OwnedBasisScenarios.run"}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "Owned canonical basis construction uses append-only RuntimeTable slots(basis), source-counted from empty; Snapshot.record is the sole owned ticket after seal and contains a direct count word tagged0 and table link tagged1, under one fixed metadata branch read only by OwnedBasisSnapshot.view. Descriptor copies acquire no roots and are not Ready/validation tokens. Conditional admission retains that exact table root, while hashing borrows the same immutable snapshot. Profile owns both versioned domains and hash identities; OwnedHash supplies its purpose prefix once. U64 exhaustion is operational, with no object/media cap.",
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

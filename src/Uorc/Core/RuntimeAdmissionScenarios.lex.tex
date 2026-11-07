@@ -1,0 +1,130 @@
+\begin{lexlean}{Uorc.Core.RuntimeAdmissionScenarios}
+\importmodule{Uorc.Core.RuntimeAdmission}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeAdmissionCancel}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: failed, fields: []},
+    {name: fuelExhausted, fields: []},
+    {name: admissionRejected, fields: []},
+    {name: auditFailed, fields: []},
+    {name: prematureReady, fields: []},
+    {name: missingSeal, fields: []}
+  ]
+}
+
+definition{
+  name: fixture,
+  parameters: [],
+  result: Uorc.Core.RuntimeAdmission::Step,
+  body: (Uorc.Core.RuntimeAdmission::start (record Uorc.Core.RuntimeResources::Budget {maxWork := (18446744073709551615 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (1000 : UInt64)}) (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) (Uorc.Core.RuntimeResources::zeroUsage)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drive,
+  parameters: [fuel : Nat, cursor : Uorc.Core.RuntimeAdmission::Cursor],
+  result: Uorc.Core.RuntimeAdmission::Step,
+  body: (match fuel
+    | Nat.zero => (ctor Uorc.Core.RuntimeAdmission::Step.pending cursor)
+    | Nat.succ rest => (match (Uorc.Core.RuntimeAdmission::step cursor)
+      | Uorc.Core.RuntimeAdmission::Step.pending next => (drive rest next)
+      | Uorc.Core.RuntimeAdmission::Step.awaiting next => (ctor Uorc.Core.RuntimeAdmission::Step.awaiting next)
+      | Uorc.Core.RuntimeAdmission::Step.ready ready => (ctor Uorc.Core.RuntimeAdmission::Step.ready ready)
+      | Uorc.Core.RuntimeAdmission::Step.failed failure next => (ctor Uorc.Core.RuntimeAdmission::Step.failed failure next))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: feed,
+  parameters: [
+    events : (List Uorc.Core.RuntimeProgram::Event),
+    cursor : Uorc.Core.RuntimeAdmission::Cursor
+  ],
+  result: (Result Uorc.Core.RuntimeProgram::Ready ScenarioError),
+  body: (match events
+    | List.nil => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.missingSeal))
+    | List.cons event rest => (match (Uorc.Core.RuntimeAdmission::offer cursor event)
+      | Result.error offerFailure => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.admissionRejected))
+      | Result.ok offered => (match (drive 2000 offered)
+        | Uorc.Core.RuntimeAdmission::Step.pending next => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.fuelExhausted))
+        | Uorc.Core.RuntimeAdmission::Step.awaiting next => (if (Uorc.Core.HeapAudit::auditRoots (project next arena) (Uorc.Core.RuntimeAdmission::rootInventory next)) then (feed rest next) else (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.auditFailed)))
+        | Uorc.Core.RuntimeAdmission::Step.ready ready => (match rest
+          | List.nil => (ctor Result.ok [Uorc.Core.RuntimeProgram::Ready, ScenarioError] ready)
+          | List.cons extra more => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.prematureReady)))
+        | Uorc.Core.RuntimeAdmission::Step.failed failure next => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.admissionRejected))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: events
+}
+
+definition{
+  name: emptyLiteralReady,
+  parameters: [],
+  result: (Result Uorc.Core.RuntimeProgram::Ready ScenarioError),
+  body: (match (fixture)
+    | Uorc.Core.RuntimeAdmission::Step.pending next => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.fuelExhausted))
+    | Uorc.Core.RuntimeAdmission::Step.awaiting next => (feed (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginLiteral (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.seal (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event)))))))) next)
+    | Uorc.Core.RuntimeAdmission::Step.ready ready => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.prematureReady))
+    | Uorc.Core.RuntimeAdmission::Step.failed failure next => (ctor Result.error [Uorc.Core.RuntimeProgram::Ready, ScenarioError] (ctor ScenarioError.admissionRejected))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (match (emptyLiteralReady)
+    | Result.error scenarioFailure => (ctor Result.error [Unit, ScenarioError] scenarioFailure)
+    | Result.ok ready => (if ((Uorc.Core.HeapAudit::auditRoots (project ready arena) (Uorc.Core.RuntimeProgram::rootInventory (project ready program) (project ready caller))) && (prim equal (project (project ready usage) ownedBytes) (project (project ready arena) ownedBytes) : Bool)) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelDrive,
+  parameters: [fuel : Nat, cursor : Uorc.Core.RuntimeAdmissionCancel::Cursor],
+  result: Uorc.Core.RuntimeAdmissionCancel::Event,
+  body: (match fuel
+    | Nat.zero => (ctor Uorc.Core.RuntimeAdmissionCancel::Event.pending cursor)
+    | Nat.succ rest => (match (Uorc.Core.RuntimeAdmissionCancel::tick cursor)
+      | Uorc.Core.RuntimeAdmissionCancel::Event.pending next => (cancelDrive rest next)
+      | Uorc.Core.RuntimeAdmissionCancel::Event.cancelled done => (ctor Uorc.Core.RuntimeAdmissionCancel::Event.cancelled done)
+      | Uorc.Core.RuntimeAdmissionCancel::Event.failed failure next => (ctor Uorc.Core.RuntimeAdmissionCancel::Event.failed failure next))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: runCancellation,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (match (fixture)
+    | Uorc.Core.RuntimeAdmission::Step.pending next => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))
+    | Uorc.Core.RuntimeAdmission::Step.ready ready => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))
+    | Uorc.Core.RuntimeAdmission::Step.failed failure next => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))
+    | Uorc.Core.RuntimeAdmission::Step.awaiting next => (match (cancelDrive 100 (Uorc.Core.RuntimeAdmissionCancel::start next))
+      | Uorc.Core.RuntimeAdmissionCancel::Event.pending cancel => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fuelExhausted))
+      | Uorc.Core.RuntimeAdmissionCancel::Event.failed failure cancel => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))
+      | Uorc.Core.RuntimeAdmissionCancel::Event.cancelled done => (if ((prim equal (project (project done arena) ownedBytes) (0 : UInt64) : Bool) && (Uorc.Core.HeapAudit::auditRoots (project done arena) (nil Uorc.Core.RuntimeValue::Handle))) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

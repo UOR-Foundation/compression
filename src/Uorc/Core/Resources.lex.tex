@@ -1,0 +1,424 @@
+\begin{lexlean}{Uorc.Core.Resources}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: OperationalError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: stepLimit, fields: []},
+    {name: liveCellLimit, fields: []},
+    {name: outputLimit, fields: []},
+    {name: frameLimit, fields: []},
+    {name: cancelled, fields: []},
+    {name: hostMemory, fields: []},
+    {name: timeLimit, fields: []},
+    {name: ioFailure, fields: []},
+    {name: internalInvariant, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+structure{
+  name: Budget,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: maxSteps, type: Nat},
+    {name: maxLiveCells, type: Nat},
+    {name: maxOutputBytes, type: Nat},
+    {name: maxFrames, type: Nat}
+  ]
+}
+
+structure{
+  name: Usage,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: steps, type: Nat},
+    {name: liveCells, type: Nat},
+    {name: peakCells, type: Nat},
+    {name: outputBytes, type: Nat},
+    {name: frames, type: Nat}
+  ]
+}
+
+inductive{
+  name: EventKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: dispatch, fields: []},
+    {name: scalarRead, fields: []},
+    {name: indexedRead, fields: []},
+    {name: byteWrite, fields: []},
+    {name: compareByte, fields: []},
+    {name: trieEdge, fields: []},
+    {name: allocate, fields: []},
+    {name: retainRoot, fields: []},
+    {name: dropRoot, fields: []},
+    {name: control, fields: []},
+    {name: outputBoundary, fields: []},
+    {name: outputByte, fields: []}
+  ]
+}
+
+structure{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: kind, type: EventKind},
+    {name: work, type: Nat},
+    {name: allocatedCells, type: Nat},
+    {name: releasedCells, type: Nat},
+    {name: emittedBytes, type: Nat},
+    {name: enteredFrames, type: Nat},
+    {name: exitedFrames, type: Nat}
+  ]
+}
+
+definition{
+  name: zeroUsage,
+  parameters: [],
+  result: Usage,
+  body: (record Usage {steps := 0, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 0})
+}
+
+definition{
+  name: eventUsage,
+  parameters: [u : Usage, e : Event],
+  result: Usage,
+  body: (record Usage {steps := ((project u steps) + (project e work)), liveCells := (prim subtract ((project u liveCells) + (project e allocatedCells)) (project e releasedCells) : Nat), peakCells := (if ((project u peakCells) <=? ((project u liveCells) + (project e allocatedCells))) then ((project u liveCells) + (project e allocatedCells)) else (project u peakCells)), outputBytes := ((project u outputBytes) + (project e emittedBytes)), frames := (prim subtract ((project u frames) + (project e enteredFrames)) (project e exitedFrames) : Nat)})
+}
+
+definition{
+  name: validateUsage,
+  parameters: [budget : Budget, u : Usage],
+  result: (Result Usage OperationalError),
+  body: (if ((project budget maxSteps) <? (project u steps)) then (ctor Result.error [Usage, OperationalError] (ctor OperationalError.stepLimit)) else (if ((project budget maxLiveCells) <? (project u peakCells)) then (ctor Result.error [Usage, OperationalError] (ctor OperationalError.liveCellLimit)) else (if ((project budget maxOutputBytes) <? (project u outputBytes)) then (ctor Result.error [Usage, OperationalError] (ctor OperationalError.outputLimit)) else (if ((project budget maxFrames) <? (project u frames)) then (ctor Result.error [Usage, OperationalError] (ctor OperationalError.frameLimit)) else (ctor Result.ok [Usage, OperationalError] u)))))
+}
+
+definition{
+  name: fitsAddition,
+  parameters: [limit : Nat, used : Nat, increase : Nat],
+  result: Bool,
+  body: (if (used <=? limit) then (increase <=? (prim subtract limit used : Nat)) else false)
+}
+
+definition{
+  name: releaseUnderflows,
+  parameters: [owned : Nat, allocated : Nat, released : Nat],
+  result: Bool,
+  body: (if (released <=? owned) then false else (allocated <? (prim subtract released owned : Nat)))
+}
+
+definition{
+  name: charge,
+  parameters: [budget : Budget, u : Usage, e : Event],
+  result: (Result Usage OperationalError),
+  body: (if (not (fitsAddition (project budget maxSteps) (project u steps) (project e work))) then (ctor Result.error [Usage, OperationalError] (ctor OperationalError.stepLimit)) else (if ((releaseUnderflows (project u liveCells) (project e allocatedCells) (project e releasedCells)) || (releaseUnderflows (project u frames) (project e enteredFrames) (project e exitedFrames))) then (ctor Result.error [Usage, OperationalError] (ctor OperationalError.internalInvariant)) else (if (((project budget maxLiveCells) <? (project u peakCells)) || (not (fitsAddition (project budget maxLiveCells) (project u liveCells) (project e allocatedCells)))) then (ctor Result.error [Usage, OperationalError] (ctor OperationalError.liveCellLimit)) else (if (not (fitsAddition (project budget maxOutputBytes) (project u outputBytes) (project e emittedBytes))) then (ctor Result.error [Usage, OperationalError] (ctor OperationalError.outputLimit)) else (if (not (fitsAddition (project budget maxFrames) (project u frames) (project e enteredFrames))) then (ctor Result.error [Usage, OperationalError] (ctor OperationalError.frameLimit)) else (ctor Result.ok [Usage, OperationalError] (eventUsage u e)))))))
+}
+
+definition{
+  name: runEvents,
+  parameters: [events : (List Event), budget : Budget, u : Usage],
+  result: (Result Usage OperationalError),
+  body: (match events
+    | List.nil => (validateUsage budget u)
+    | List.cons event rest => (match (charge budget u event)
+      | Result.error error => (ctor Result.error [Usage, OperationalError] error)
+      | Result.ok value => (runEvents rest budget value))),
+  recursive_argument: events
+}
+
+definition{
+  name: unitEvent,
+  parameters: [kind : EventKind],
+  result: Event,
+  body: (record Event {kind := kind, work := 1, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0})
+}
+
+structure{
+  name: WorkPartition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: admission, type: Nat},
+    {name: rawBaseline, type: Nat},
+    {name: search, type: Nat},
+    {name: verification, type: Nat},
+    {name: replay, type: Nat},
+    {name: certificate, type: Nat}
+  ]
+}
+
+definition{
+  name: totalLogicalWork,
+  parameters: [partition : WorkPartition],
+  result: Nat,
+  body: ((((project partition admission) + (project partition rawBaseline)) + ((project partition search) + (project partition verification))) + ((project partition replay) + (project partition certificate)))
+}
+
+structure{
+  name: PhysicalTelemetry,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: hashBytes, type: Nat},
+    {name: ioReadBytes, type: Nat},
+    {name: ioWrittenBytes, type: Nat},
+    {name: elapsedNanoseconds, type: Nat},
+    {name: peakResidentBytes, type: Nat}
+  ]
+}
+
+theorem{
+  name: event_step_limit,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 100, maxLiveCells := 100, maxOutputBytes := 100, maxFrames := 100}) (zeroUsage) (record Event {kind := (ctor EventKind.dispatch), work := 101, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.stepLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: event_live_peak_before_release,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 100, maxLiveCells := 100, maxOutputBytes := 100, maxFrames := 100}) (zeroUsage) (record Event {kind := (ctor EventKind.allocate), work := 1, allocatedCells := 101, releasedCells := 101, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.liveCellLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: event_release_underflow,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 100, maxLiveCells := 100, maxOutputBytes := 100, maxFrames := 100}) (zeroUsage) (record Event {kind := (ctor EventKind.dropRoot), work := 1, allocatedCells := 0, releasedCells := 1, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.internalInvariant))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: event_output_limit,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 100, maxLiveCells := 100, maxOutputBytes := 100, maxFrames := 100}) (zeroUsage) (record Event {kind := (ctor EventKind.outputByte), work := 1, allocatedCells := 0, releasedCells := 0, emittedBytes := 101, enteredFrames := 0, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.outputLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: event_frame_limit,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 100, maxLiveCells := 100, maxOutputBytes := 100, maxFrames := 100}) (zeroUsage) (record Event {kind := (ctor EventKind.control), work := 1, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 101, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.frameLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_events_identity,
+  parameters: [budget : Budget, u : Usage],
+  statement: ((runEvents (nil Event) budget u) = (validateUsage budget u)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: work_overflow_is_typed_before_addition,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 18446744073709551615, maxLiveCells := 18446744073709551615, maxOutputBytes := 18446744073709551615, maxFrames := 18446744073709551615}) (record Usage {steps := 18446744073709551615, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 0}) (record Event {kind := (ctor EventKind.allocate), work := 1, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.stepLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: owned_peak_overflow_is_typed_before_addition,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 18446744073709551615, maxLiveCells := 18446744073709551615, maxOutputBytes := 18446744073709551615, maxFrames := 18446744073709551615}) (record Usage {steps := 0, liveCells := 18446744073709551615, peakCells := 18446744073709551615, outputBytes := 0, frames := 0}) (record Event {kind := (ctor EventKind.allocate), work := 0, allocatedCells := 1, releasedCells := 0, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.liveCellLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: output_overflow_is_typed_before_addition,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 18446744073709551615, maxLiveCells := 18446744073709551615, maxOutputBytes := 18446744073709551615, maxFrames := 18446744073709551615}) (record Usage {steps := 0, liveCells := 0, peakCells := 0, outputBytes := 18446744073709551615, frames := 0}) (record Event {kind := (ctor EventKind.allocate), work := 0, allocatedCells := 0, releasedCells := 0, emittedBytes := 1, enteredFrames := 0, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.outputLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: frame_overflow_is_typed_before_addition,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 18446744073709551615, maxLiveCells := 18446744073709551615, maxOutputBytes := 18446744073709551615, maxFrames := 18446744073709551615}) (record Usage {steps := 0, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 18446744073709551615}) (record Event {kind := (ctor EventKind.allocate), work := 0, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 1, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.frameLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: replacement_checks_transient_owned_peak,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 10, maxLiveCells := 1, maxOutputBytes := 10, maxFrames := 10}) (record Usage {steps := 0, liveCells := 1, peakCells := 1, outputBytes := 0, frames := 0}) (record Event {kind := (ctor EventKind.allocate), work := 0, allocatedCells := 1, releasedCells := 1, emittedBytes := 0, enteredFrames := 0, exitedFrames := 0})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.liveCellLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: replacement_checks_transient_frame_depth,
+  parameters: [],
+  statement: ((charge (record Budget {maxSteps := 10, maxLiveCells := 10, maxOutputBytes := 10, maxFrames := 1}) (record Usage {steps := 0, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 1}) (record Event {kind := (ctor EventKind.allocate), work := 0, allocatedCells := 0, releasedCells := 0, emittedBytes := 0, enteredFrames := 1, exitedFrames := 1})) = (ctor Result.error [Usage, OperationalError] (ctor OperationalError.frameLimit))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: false_guard_selects_false,
+  parameters: [value : Bool],
+  statement: ((if false then value else false) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: overfull_addition_guard_false,
+  parameters: [limit : Nat],
+  statement: (((limit + 1) <=? limit) = false),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: addition_guard_rejects_overfull_state,
+  parameters: [limit : Nat, increase : Nat],
+  statement: ((fitsAddition limit (limit + 1) increase) = false),
+  proof: simplify{
+    definitions: [false_guard_selects_false, fitsAddition, overfull_addition_guard_false]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: success_guard_observation,
+  parameters: [
+    isRejected : Bool,
+    failureValue : OperationalError,
+    continuation : (Result Usage OperationalError),
+    failureObservation : Prop,
+    observation : (Fn (Usage) Prop)
+  ],
+  statement: ((match (if isRejected then (ctor Result.error [Usage, OperationalError] failureValue) else continuation)
+    | Result.error rejectedError => failureObservation
+    | Result.ok committedUsage => (apply observation committedUsage)) <-> (if isRejected then failureObservation else (match continuation
+    | Result.error rejectedError => failureObservation
+    | Result.ok committedUsage => (apply observation committedUsage)))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: isRejected
+  },
+  axioms: []
+}
+
+theorem{
+  name: identical_guard_observation,
+  parameters: [isRejected : Bool, observation : Prop],
+  statement: ((if isRejected then observation else observation) <-> observation),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: isRejected
+  },
+  axioms: []
+}
+
+theorem{
+  name: event_work_projection,
+  parameters: [initialUsage : Usage, event : Event],
+  statement: ((project (eventUsage initialUsage event) steps) = ((project initialUsage steps) + (project event work))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: event_output_projection,
+  parameters: [initialUsage : Usage, event : Event],
+  statement: ((project (eventUsage initialUsage event) outputBytes) = ((project initialUsage outputBytes) + (project event emittedBytes))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: event_work_non_decrease,
+  parameters: [initialUsage : Usage, event : Event],
+  statement: (((project initialUsage steps) <=? (project (eventUsage initialUsage event) steps)) = true),
+  proof: linear_arithmetic{definitions: [eventUsage]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: event_peak_non_decrease,
+  parameters: [initialUsage : Usage, event : Event],
+  statement: (((project initialUsage peakCells) <=? (project (eventUsage initialUsage event) peakCells)) = true),
+  proof: linear_arithmetic{definitions: [eventUsage]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: successful_charge_commits_exact_event_work,
+  parameters: [budget : Budget, initialUsage : Usage, event : Event],
+  statement: (match (charge budget initialUsage event)
+    | Result.error resourceError => (0 = 0)
+    | Result.ok chargedUsage => ((project chargedUsage steps) = ((project initialUsage steps) + (project event work)))),
+  proof: simplify{
+    definitions: [
+      charge,
+      event_work_projection,
+      identical_guard_observation,
+      success_guard_observation
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: successful_charge_never_decreases_work,
+  parameters: [budget : Budget, initialUsage : Usage, event : Event],
+  statement: (match (charge budget initialUsage event)
+    | Result.error resourceError => (0 = 0)
+    | Result.ok chargedUsage => (((project initialUsage steps) <=? (project chargedUsage steps)) = true)),
+  proof: simplify{
+    definitions: [
+      charge,
+      event_work_non_decrease,
+      identical_guard_observation,
+      success_guard_observation
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: successful_charge_commits_exact_output_count,
+  parameters: [budget : Budget, initialUsage : Usage, event : Event],
+  statement: (match (charge budget initialUsage event)
+    | Result.error resourceError => (0 = 0)
+    | Result.ok chargedUsage => ((project chargedUsage outputBytes) = ((project initialUsage outputBytes) + (project event emittedBytes)))),
+  proof: simplify{
+    definitions: [
+      charge,
+      event_output_projection,
+      identical_guard_observation,
+      success_guard_observation
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: successful_charge_never_lowers_owned_peak,
+  parameters: [budget : Budget, initialUsage : Usage, event : Event],
+  statement: (match (charge budget initialUsage event)
+    | Result.error resourceError => (0 = 0)
+    | Result.ok chargedUsage => (((project initialUsage peakCells) <=? (project chargedUsage peakCells)) = true)),
+  proof: simplify{
+    definitions: [
+      charge,
+      event_peak_non_decrease,
+      identical_guard_observation,
+      success_guard_observation
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

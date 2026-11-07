@@ -1,0 +1,348 @@
+\begin{lexlean}{Uorc.Search.ExecutionAccountingControls}
+\importmodule{Uorc.Search.ProgramTrial}
+\importmodule{Uorc.Core.ExecutionCredit}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Basis}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.StepMachine}
+\importmodule{Uorc.Core.Validation}
+\importmodule{Uorc.Search.ArchiveTrial}
+\importmodule{Uorc.Search.ArchiveControls}
+\importmodule{Uorc.Search.Identity}
+\importmodule{Uorc.Wire.Frame}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: divisionByZeroGraph,
+  parameters: [],
+  result: Uorc.Core.Graph::Graph,
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalDivide 2 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (cons (ctor Uorc.Core.Graph::Instruction.singletonSequence 1) (nil Uorc.Core.Graph::Instruction)))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0})
+}
+
+definition{
+  name: query,
+  parameters: [],
+  result: Uorc.Search.ProgramTrial::Query,
+  body: (record Uorc.Search.ProgramTrial::Query {target := (Uorc.Core.Bytes::fromBytes 0x61), basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 1000}), initialUsage := (Uorc.Core.Resources::zeroUsage)})
+}
+
+definition{
+  name: trial,
+  parameters: [],
+  result: Uorc.Search.ProgramTrial::Step,
+  body: (ctor Uorc.Search.ProgramTrial::Step.pending (Uorc.Search.ProgramTrial::start (query) (divisionByZeroGraph)))
+}
+
+definition{
+  name: retainedDivisionFailure,
+  parameters: [state : Uorc.Search.ProgramTrial::Step],
+  result: Bool,
+  body: (match state
+    | Uorc.Search.ProgramTrial::Step.pending pending => false
+    | Uorc.Search.ProgramTrial::Step.complete complete => false
+    | Uorc.Search.ProgramTrial::Step.rejected error events => (match error
+      | Uorc.Search.ProgramTrial::Error.executionAccounted failure usage ledger => (((((project ledger remainingDebt) =? 0) && (((project (project ledger committedUsage) steps) =? (project ledger paidSteps)) && (((project (project ledger reservedUsage) steps) =? (project ledger paidSteps)) && (((project ledger consumedUnits) =? (((project ledger attemptUnits) + (project ledger prepaidUnits)) + (project ledger planningUnits))) && true)))) && (((project usage steps) =? (project (project ledger reservedUsage) steps)) && ((match failure
+        | Uorc.Core.StepMachine::Failure.semantic semantic => (match semantic
+          | Uorc.Core.Types::SemanticError.divisionByZero => true
+          | Uorc.Core.Types::SemanticError.arithmeticOverflow => false
+          | Uorc.Core.Types::SemanticError.negativeDifference => false
+          | Uorc.Core.Types::SemanticError.byteOutOfRange => false
+          | Uorc.Core.Types::SemanticError.shiftOutOfRange => false
+          | Uorc.Core.Types::SemanticError.indexOutOfBounds => false
+          | Uorc.Core.Types::SemanticError.sliceOutOfBounds => false
+          | Uorc.Core.Types::SemanticError.basisOutOfBounds => false
+          | Uorc.Core.Types::SemanticError.sequenceLengthOverflow => false
+          | Uorc.Core.Types::SemanticError.outputMismatch => false)
+        | Uorc.Core.StepMachine::Failure.operational operational => false
+        | Uorc.Core.StepMachine::Failure.static static => false) && true))) && ((((project ledger decoderUnits) + (project ledger availableCredit)) =? (project ledger prepaidUnits)) && (((project ledger remainingEventWork) =? 0) && true)))
+      | Uorc.Search.ProgramTrial::Error.emit discard0 => false
+      | Uorc.Search.ProgramTrial::Error.normalize discard0 => false
+      | Uorc.Search.ProgramTrial::Error.rope discard0 => false
+      | Uorc.Search.ProgramTrial::Error.parse discard0 => false
+      | Uorc.Search.ProgramTrial::Error.static discard0 => false
+      | Uorc.Search.ProgramTrial::Error.table discard0 => false
+      | Uorc.Search.ProgramTrial::Error.execution discard0 discard1 => false
+      | Uorc.Search.ProgramTrial::Error.initialization discard0 => false
+      | Uorc.Search.ProgramTrial::Error.admission discard0 => false
+      | Uorc.Search.ProgramTrial::Error.resource discard0 => false
+      | Uorc.Search.ProgramTrial::Error.credit discard0 => false
+      | Uorc.Search.ProgramTrial::Error.outputType => false
+      | Uorc.Search.ProgramTrial::Error.mismatch discard0 => false
+      | Uorc.Search.ProgramTrial::Error.creditAccounted discard0 discard1 => false
+      | Uorc.Search.ProgramTrial::Error.outputTypeAccounted discard0 => false
+      | Uorc.Search.ProgramTrial::Error.mismatchAccounted discard0 discard1 => false
+      | Uorc.Search.ProgramTrial::Error.verificationRopeAccounted discard0 discard1 => false))
+}
+
+theorem{
+  name: semantic_failure_retains_exact_execution_ledger,
+  parameters: [],
+  statement: ((retainedDivisionFailure (Uorc.Search.ProgramTrial::run 10000 (trial))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: semantic_failure_is_never_eligible,
+  parameters: [],
+  statement: ((Uorc.Search.ProgramTrial::accepted (Uorc.Search.ProgramTrial::run 10000 (trial))) = false),
+  proof: reflexivity{}
+}
+
+definition{
+  name: cancellationRetainsPrefix,
+  parameters: [credit : Uorc.Core.ExecutionCredit::Cursor],
+  result: Bool,
+  body: ((((project (project (Uorc.Core.ExecutionCredit::cancel credit) usage) steps) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) steps)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) usage) liveCells) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) liveCells)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) usage) peakCells) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) peakCells)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) usage) outputBytes) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) outputBytes)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) usage) frames) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) frames)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) paidSteps) =? (project credit paidSteps)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) remainingDebt) =? (project credit remainingDebt)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) consumedUnits) =? (project credit consumedUnits)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) attemptUnits) =? (project credit attemptUnits)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) decoderUnits) =? (project credit decoderUnits)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) committedUsage) steps) =? (project (project credit committedUsage) steps)) && true))))))))))) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) availableCredit) =? (project credit availableCredit)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) prepaidUnits) =? (project credit prepaidUnits)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) planningUnits) =? (project credit planningUnits)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) planningCredit) =? (project credit planningCredit)) && (((project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) remainingEventWork) =? (Uorc.Core.ExecutionCredit::remainingEventWork credit)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) reservedUsage) steps) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) steps)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) reservedUsage) liveCells) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) liveCells)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) reservedUsage) peakCells) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) peakCells)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) reservedUsage) outputBytes) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) outputBytes)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) reservedUsage) frames) =? (project (Uorc.Core.ExecutionCredit::reservedUsage credit) frames)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) committedUsage) steps) =? (project (project credit committedUsage) steps)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) committedUsage) liveCells) =? (project (project credit committedUsage) liveCells)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) committedUsage) peakCells) =? (project (project credit committedUsage) peakCells)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) committedUsage) outputBytes) =? (project (project credit committedUsage) outputBytes)) && (((project (project (project (Uorc.Core.ExecutionCredit::cancel credit) ledger) committedUsage) frames) =? (project (project credit committedUsage) frames)) && true))))))))))))))))
+}
+
+definition{
+  name: qualificationBoundary,
+  parameters: [],
+  result: String,
+  body: "These are diagnostic controls for exact source scheduling prepayment, rejection evidence and cancellation/unused-escrow retention. The frozen legacy trace remains negative evidence. They do not prove the general planned-work bound, qualify RuntimeProgram.Event physical ownership, establish native speed, or replace pinned SDK acceptance."
+}
+
+definition{
+  name: creditOfState,
+  parameters: [state : Uorc.Search.ProgramTrial::Step],
+  result: (Option Uorc.Core.ExecutionCredit::Cursor),
+  body: (match state
+    | Uorc.Search.ProgramTrial::Step.pending cursor => match{
+      branches: [
+        {
+          body: (ctor Option.none [Uorc.Core.ExecutionCredit::Cursor]),
+          binders: [phase0, phase1],
+          constructor: Uorc.Search.ProgramTrial::Phase.emitting
+        },
+        {
+          body: (ctor Option.none [Uorc.Core.ExecutionCredit::Cursor]),
+          binders: [phase0],
+          constructor: Uorc.Search.ProgramTrial::Phase.building
+        },
+        {
+          body: (ctor Option.none [Uorc.Core.ExecutionCredit::Cursor]),
+          binders: [phase0, phase1, phase2],
+          constructor: Uorc.Search.ProgramTrial::Phase.parsing
+        },
+        {
+          body: (ctor Option.none [Uorc.Core.ExecutionCredit::Cursor]),
+          binders: [phase0],
+          constructor: Uorc.Search.ProgramTrial::Phase.validating
+        },
+        {
+          body: (ctor Option.none [Uorc.Core.ExecutionCredit::Cursor]),
+          binders: [phase0, phase1],
+          constructor: Uorc.Search.ProgramTrial::Phase.admitting
+        },
+        {
+          body: (ctor Option.some [Uorc.Core.ExecutionCredit::Cursor] credit),
+          binders: [checked, basis, credit],
+          constructor: Uorc.Search.ProgramTrial::Phase.executing
+        },
+        {
+          body: (ctor Option.none [Uorc.Core.ExecutionCredit::Cursor]),
+          binders: [phase0, phase1, phase2, phase3],
+          constructor: Uorc.Search.ProgramTrial::Phase.checking
+        }
+      ],
+      scrutinee: (project cursor phase)
+    }
+    | Uorc.Search.ProgramTrial::Step.complete checkedProgram => (ctor Option.none [Uorc.Core.ExecutionCredit::Cursor])
+    | Uorc.Search.ProgramTrial::Step.rejected error events => (ctor Option.none [Uorc.Core.ExecutionCredit::Cursor]))
+}
+
+definition{
+  name: initializationIsStillUnmaterialized,
+  parameters: [state : Uorc.Search.ProgramTrial::Step],
+  result: Bool,
+  body: (match (creditOfState state)
+    | Option.none => false
+    | Option.some credit => match{
+      branches: [
+        {
+          body: (((project (Uorc.Core.ExecutionCredit::reservedUsage credit) steps) =? (project credit paidSteps)) && (((project (project credit committedUsage) steps) =? (project credit paidSteps)) && (((project credit decoderUnits) =? 0) && (((project credit availableCredit) =? 256) && (((Uorc.Core.ExecutionCredit::remainingEventWork credit) =? 1) && (((project (Uorc.Core.ExecutionCredit::reservedUsage credit) liveCells) =? 0) && ((cancellationRetainsPrefix credit) && true))))))),
+          binders: [checked, basis, budget, usage],
+          constructor: Uorc.Core.ExecutionCredit::Future.initializing
+        },
+        {body: false, binders: [machine], constructor: Uorc.Core.ExecutionCredit::Future.running},
+        {body: false, binders: [execution], constructor: Uorc.Core.ExecutionCredit::Future.done},
+        {
+          body: false,
+          binders: [failure, usage],
+          constructor: Uorc.Core.ExecutionCredit::Future.failed
+        }
+      ],
+      scrutinee: (project credit future)
+    })
+}
+
+definition{
+  name: initializationCommitsAfterExactPayment,
+  parameters: [state : Uorc.Search.ProgramTrial::Step],
+  result: Bool,
+  body: (match (creditOfState state)
+    | Option.none => false
+    | Option.some credit => match{
+      branches: [
+        {
+          body: false,
+          binders: [checked, basis, budget, usage],
+          constructor: Uorc.Core.ExecutionCredit::Future.initializing
+        },
+        {
+          body: (((project credit availableCredit) =? 0) && (((project credit prepaidUnits) =? 257) && (((project credit decoderUnits) =? 257) && (((project (project machine usage) steps) =? (project credit paidSteps)) && (((project (project machine usage) liveCells) =? 1) && (((project credit remainingDebt) =? 0) && true)))))),
+          binders: [machine],
+          constructor: Uorc.Core.ExecutionCredit::Future.running
+        },
+        {body: false, binders: [execution], constructor: Uorc.Core.ExecutionCredit::Future.done},
+        {
+          body: false,
+          binders: [failure, usage],
+          constructor: Uorc.Core.ExecutionCredit::Future.failed
+        }
+      ],
+      scrutinee: (project credit future)
+    })
+}
+
+theorem{
+  name: initialization_has_no_machine_one_unit_before_payment,
+  parameters: [],
+  statement: ((initializationIsStillUnmaterialized (Uorc.Search.ProgramTrial::run 5838 (trial))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: initialization_materializes_only_after_exact_payment,
+  parameters: [],
+  statement: ((initializationCommitsAfterExactPayment (Uorc.Search.ProgramTrial::run 5839 (trial))) = true),
+  proof: reflexivity{}
+}
+
+definition{
+  name: firstStepNotExecutedWithOneEscrowUnitMissing,
+  parameters: [state : Uorc.Search.ProgramTrial::Step],
+  result: Bool,
+  body: (match (creditOfState state)
+    | Option.none => false
+    | Option.some credit => match{
+      branches: [
+        {
+          body: false,
+          binders: [checked, basis, budget, usage],
+          constructor: Uorc.Core.ExecutionCredit::Future.initializing
+        },
+        {
+          body: (((project credit availableCredit) =? 640) && (((project credit decoderUnits) =? 257) && (((project credit attemptUnits) =? 0) && (((project (project machine frame) nextInstruction) =? 0) && (((Uorc.Core.ExecutionCredit::remainingEventWork credit) =? 1) && ((Uorc.Core.ExecutionCredit::balanced credit) && ((cancellationRetainsPrefix credit) && true))))))),
+          binders: [machine],
+          constructor: Uorc.Core.ExecutionCredit::Future.running
+        },
+        {body: false, binders: [execution], constructor: Uorc.Core.ExecutionCredit::Future.done},
+        {
+          body: false,
+          binders: [failure, usage],
+          constructor: Uorc.Core.ExecutionCredit::Future.failed
+        }
+      ],
+      scrutinee: (project credit future)
+    })
+}
+
+definition{
+  name: firstStepCommitsFromPaidEscrow,
+  parameters: [state : Uorc.Search.ProgramTrial::Step],
+  result: Bool,
+  body: (match (creditOfState state)
+    | Option.none => false
+    | Option.some credit => match{
+      branches: [
+        {
+          body: false,
+          binders: [checked, basis, budget, usage],
+          constructor: Uorc.Core.ExecutionCredit::Future.initializing
+        },
+        {
+          body: (((project credit availableCredit) =? 512) && (((project credit decoderUnits) =? 386) && (((project credit attemptUnits) =? 1) && (((project (project machine frame) nextInstruction) =? 1) && (((Uorc.Core.ExecutionCredit::remainingEventWork credit) =? 0) && ((Uorc.Core.ExecutionCredit::balanced credit) && ((cancellationRetainsPrefix credit) && true))))))),
+          binders: [machine],
+          constructor: Uorc.Core.ExecutionCredit::Future.running
+        },
+        {body: false, binders: [execution], constructor: Uorc.Core.ExecutionCredit::Future.done},
+        {
+          body: false,
+          binders: [failure, usage],
+          constructor: Uorc.Core.ExecutionCredit::Future.failed
+        }
+      ],
+      scrutinee: (project credit future)
+    })
+}
+
+theorem{
+  name: step_does_not_execute_with_one_escrow_unit_missing,
+  parameters: [],
+  statement: ((firstStepNotExecutedWithOneEscrowUnitMissing (Uorc.Search.ProgramTrial::run 6480 (trial))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: step_commits_only_after_declared_escrow_is_paid,
+  parameters: [],
+  statement: ((firstStepCommitsFromPaidEscrow (Uorc.Search.ProgramTrial::run 6482 (trial))) = true),
+  proof: reflexivity{}
+}
+
+definition{
+  name: archiveLiteralFixture,
+  parameters: [],
+  result: Uorc.Search.ArchiveTrial::Step,
+  body: (Uorc.Search.ArchiveControls::run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 16 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 16 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.program (Uorc.Core.Graph::literalGraph 0x000102030405060708090a0b0c0d0e0f))})))
+}
+
+definition{
+  name: archiveDivisionFixture,
+  parameters: [],
+  result: Uorc.Search.ArchiveTrial::Step,
+  body: (Uorc.Search.ArchiveControls::run 10000 (Uorc.Search.ArchiveTrial::startFrame (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 1 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x61), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 1 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.program (divisionByZeroGraph))})))
+}
+
+definition{
+  name: archiveCompletionRetainsEscrow,
+  parameters: [state : Uorc.Search.ArchiveTrial::Step],
+  result: Bool,
+  body: (match state
+    | Uorc.Search.ArchiveTrial::Step.pending cursor => false
+    | Uorc.Search.ArchiveTrial::Step.complete eligible => (match (project (project eligible ledger) executionCredit)
+      | Option.none => false
+      | Option.some execution => ((((project execution decoderUnits) + (project execution availableCredit)) =? (project execution prepaidUnits)) && (((project execution consumedUnits) =? (((project execution attemptUnits) + (project execution prepaidUnits)) + (project execution planningUnits))) && (((project execution remainingDebt) =? 0) && (((project (project execution reservedUsage) steps) =? (project execution paidSteps)) && true)))))
+    | Uorc.Search.ArchiveTrial::Step.rejected error usage ledger events => false)
+}
+
+definition{
+  name: archiveRejectionRetainsEscrow,
+  parameters: [state : Uorc.Search.ArchiveTrial::Step],
+  result: Bool,
+  body: (match state
+    | Uorc.Search.ArchiveTrial::Step.pending cursor => false
+    | Uorc.Search.ArchiveTrial::Step.complete eligible => false
+    | Uorc.Search.ArchiveTrial::Step.rejected error usage ledger events => (match (project ledger executionCredit)
+      | Option.none => false
+      | Option.some execution => ((((project execution decoderUnits) + (project execution availableCredit)) =? (project execution prepaidUnits)) && (((project execution consumedUnits) =? (((project execution attemptUnits) + (project execution prepaidUnits)) + (project execution planningUnits))) && (((project execution remainingDebt) =? 0) && (((project (project execution reservedUsage) steps) =? (project execution paidSteps)) && true))))))
+}
+
+theorem{
+  name: archive_completion_retains_execution_escrow,
+  parameters: [],
+  statement: ((archiveCompletionRetainsEscrow (archiveLiteralFixture)) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: archive_semantic_failure_retains_execution_escrow,
+  parameters: [],
+  statement: ((archiveRejectionRetainsEscrow (archiveDivisionFixture)) = true),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

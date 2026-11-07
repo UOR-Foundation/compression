@@ -1,0 +1,238 @@
+\begin{lexlean}{Uorc.Core.RuntimeAdmissionPolicyTests}
+\importmodule{Uorc.Core.RuntimeAdmissionPolicy}
+\importmodule{Uorc.Core.RuntimeAdmissionCredit}
+\importmodule{Uorc.Core.RuntimeAdmissionCreditTests}
+\importmodule{Uorc.Core.RuntimeAdmissionCancel}
+\importmodule{Uorc.Core.RuntimeAdmission}
+\importmodule{Uorc.Core.RuntimeAdmissionScenarios}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeAdmissionOrder}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: failed, fields: []}]
+}
+
+definition{
+  name: failedInitialization,
+  parameters: [],
+  result: Uorc.Core.RuntimeAdmissionCredit::Event,
+  body: (project (Uorc.Core.RuntimeAdmissionCredit::fund (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1023 : UInt64)) (1024 : UInt64)) event),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: failedInitializationRequiresNewPrepayment,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeAdmissionPolicy::extendCreditWork (failedInitialization) (4096 : UInt64))
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.extended update => ((((true && (prim equal (project (project update evidence) previousLimit) (1023 : UInt64) : Bool)) && (prim equal (project (project update evidence) retainedWork) (0 : UInt64) : Bool)) && (prim equal (project (project update cursor) consumedCredits) (1024 : UInt64) : Bool)) && (match (project (Uorc.Core.RuntimeAdmissionCredit::fund (project update cursor) (1023 : UInt64)) event)
+      | Uorc.Core.RuntimeAdmissionCredit::Event.pending partialCursor => ((prim equal (project (Uorc.Core.RuntimeAdmissionCredit::arena partialCursor) ownedBytes) (0 : UInt64) : Bool) && (match (project (Uorc.Core.RuntimeAdmissionCredit::fund partialCursor (1 : UInt64)) event)
+        | Uorc.Core.RuntimeAdmissionCredit::Event.pending funding => false
+        | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting funding => (((((true && (prim equal (project funding consumedCredits) (2048 : UInt64) : Bool)) && (prim equal (project funding attemptedOperations) (2 : UInt64) : Bool)) && (prim equal (project (project funding usage) work) (1088 : UInt64) : Bool)) && (prim equal (project (Uorc.Core.RuntimeAdmissionCredit::arena funding) ownedBytes) (4144 : UInt64) : Bool)) && (Uorc.Core.HeapAudit::auditRoots (Uorc.Core.RuntimeAdmissionCredit::arena funding) (Uorc.Core.RuntimeAdmissionCredit::rootInventory funding)))
+        | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => false
+        | Uorc.Core.RuntimeAdmissionCredit::Event.failed failure state ledger => false
+        | Uorc.Core.RuntimeAdmissionCredit::Event.rejected failure funding => false))
+      | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting other => false
+      | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => false
+      | Uorc.Core.RuntimeAdmissionCredit::Event.failed failure state ledger => false
+      | Uorc.Core.RuntimeAdmissionCredit::Event.rejected failure other => false))
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.rejected policyError original => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: stoppedPolicyRejectsNarrowingAndEqualLimits,
+  parameters: [],
+  result: Bool,
+  body: ((match (Uorc.Core.RuntimeAdmissionPolicy::extendCreditWork (failedInitialization) (1022 : UInt64))
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.extended unexpected => false
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.rejected policyError original => (match policyError
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.policyNarrowing => true
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.nonIncreasingStop => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.nonResumableFailure => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidUsage payload => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.fundingFailure => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidFundingLedger => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.completed => false)) && (match (Uorc.Core.RuntimeAdmissionPolicy::extendCreditWork (failedInitialization) (1023 : UInt64))
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.extended unexpected => false
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.rejected policyError original => (match policyError
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.policyNarrowing => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.nonIncreasingStop => true
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.nonResumableFailure => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidUsage payload => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.fundingFailure => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidFundingLedger => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.completed => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: malformedEvent,
+  parameters: [],
+  result: (Option Uorc.Core.RuntimeAdmissionCredit::Event),
+  body: (match (project (Uorc.Core.RuntimeAdmissionCredit::fund (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) (1024 : UInt64)) event)
+    | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting funding => (match (Uorc.Core.RuntimeAdmissionCredit::offer funding (ctor Uorc.Core.RuntimeProgram::Event.endBlock (1 : UInt64)))
+      | Result.error offerError => (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Event])
+      | Result.ok offered => (ctor Option.some [Uorc.Core.RuntimeAdmissionCredit::Event] (project (Uorc.Core.RuntimeAdmissionCredit::fund offered (1 : UInt64)) event)))
+    | Uorc.Core.RuntimeAdmissionCredit::Event.pending funding => (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Event])
+    | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Event])
+    | Uorc.Core.RuntimeAdmissionCredit::Event.failed failure state ledger => (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Event])
+    | Uorc.Core.RuntimeAdmissionCredit::Event.rejected failure funding => (ctor Option.none [Uorc.Core.RuntimeAdmissionCredit::Event])),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: malformedAdmissionCannotResume,
+  parameters: [],
+  result: Bool,
+  body: (match (malformedEvent)
+    | Option.none => false
+    | Option.some original => (match (Uorc.Core.RuntimeAdmissionPolicy::extendCreditWork original (2000000 : UInt64))
+      | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.extended unexpected => false
+      | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.rejected policyError retained => (match policyError
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.policyNarrowing => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.nonIncreasingStop => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.nonResumableFailure => true
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidUsage payload => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.fundingFailure => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidFundingLedger => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.completed => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: inconsistentFailureLedgerRejected,
+  parameters: [],
+  result: Bool,
+  body: (match (failedInitialization)
+    | Uorc.Core.RuntimeAdmissionCredit::Event.pending funding => false
+    | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting funding => false
+    | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => false
+    | Uorc.Core.RuntimeAdmissionCredit::Event.failed failure state ledger => (match (Uorc.Core.RuntimeAdmissionPolicy::extendCreditWork (ctor Uorc.Core.RuntimeAdmissionCredit::Event.failed failure state (record Uorc.Core.RuntimeAdmissionCredit::Ledger {activeCost := (1 : UInt64), paidCost := (project ledger paidCost), consumedCredits := (project ledger consumedCredits), attemptedOperations := (project ledger attemptedOperations), usage := (project ledger usage)})) (4096 : UInt64))
+      | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.extended unexpected => false
+      | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.rejected policyError retained => (match policyError
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.policyNarrowing => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.nonIncreasingStop => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.nonResumableFailure => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidUsage payload => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.fundingFailure => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidFundingLedger => true
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.completed => false))
+    | Uorc.Core.RuntimeAdmissionCredit::Event.rejected failure funding => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: fundingCounterFailureCannotResume,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeAdmissionPolicy::extendCreditWork (project (Uorc.Core.RuntimeAdmissionCredit::fund (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (18446744073709551615 : UInt64), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) usage), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)}) (1 : UInt64)) event) (2000000 : UInt64))
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.extended unexpected => false
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.rejected policyError retained => (match policyError
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.policyNarrowing => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.nonIncreasingStop => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.nonResumableFailure => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidUsage payload => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.fundingFailure => true
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidFundingLedger => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.completed => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: invalidUsageCannotBeExtended,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeAdmissionPolicy::extendCreditWork (ctor Uorc.Core.RuntimeAdmissionCredit::Event.pending (match (project (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)}) intent)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.initialize budget arena basis caller initialUsage => (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (ctor Uorc.Core.RuntimeAdmissionCredit::Intent.initialize budget arena basis caller (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)})), activeCost := (project (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)}) activeCost), paidCost := (project (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)}) paidCost), consumedCredits := (project (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)}) consumedCredits), attemptedOperations := (project (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)}) attemptedOperations), usage := (project (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)}) usage), error := (project (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)}) error)})
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.execute state => (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)})
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.offer state event => (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)})
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.terminal outcome => (record Uorc.Core.RuntimeAdmissionCredit::Cursor {intent := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) intent), activeCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) activeCost), paidCost := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) paidCost), consumedCredits := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) consumedCredits), attemptedOperations := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) attemptedOperations), usage := (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) ownedBytes), peakOwnedBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) peakOwnedBytes), outputBytes := (project (Uorc.Core.RuntimeResources::zeroUsage) outputBytes), frames := (project (Uorc.Core.RuntimeResources::zeroUsage) frames)}), error := (project (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1000000 : UInt64)) error)}))) (2000000 : UInt64))
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.extended unexpected => false
+    | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.rejected policyError retained => (match policyError
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.policyNarrowing => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.nonIncreasingStop => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.nonResumableFailure => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidUsage payload => true
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.fundingFailure => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidFundingLedger => false
+      | Uorc.Core.RuntimeAdmissionPolicy::Error.completed => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: exhaustedCleanupRetainsRootsUntilExplicitExtension,
+  parameters: [],
+  result: Bool,
+  body: (match (project (Uorc.Core.RuntimeAdmissionCredit::fund (Uorc.Core.RuntimeAdmissionCreditTests::fixture (1024 : UInt64)) (1024 : UInt64)) event)
+    | Uorc.Core.RuntimeAdmissionCredit::Event.pending funding => false
+    | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting funding => (match (project funding intent)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.terminal outcome => (match outcome
+        | Uorc.Core.RuntimeAdmission::Step.awaiting admissionState => (match (Uorc.Core.RuntimeAdmissionCancel::tick (Uorc.Core.RuntimeAdmissionCancel::start admissionState))
+          | Uorc.Core.RuntimeAdmissionCancel::Event.failed cleanupFailure stopped => (match (Uorc.Core.RuntimeAdmissionPolicy::extendCancellationWork stopped (100000 : UInt64))
+            | Uorc.Core.RuntimeAdmissionPolicy::CancellationOutcome.extended cleanupUpdate => (match (Uorc.Core.RuntimeAdmissionScenarios::cancelDrive 100 (project cleanupUpdate cursor))
+              | Uorc.Core.RuntimeAdmissionCancel::Event.cancelled done => ((prim equal (project (project done arena) ownedBytes) (0 : UInt64) : Bool) && (Uorc.Core.HeapAudit::auditRoots (project done arena) (nil Uorc.Core.RuntimeValue::Handle)))
+              | Uorc.Core.RuntimeAdmissionCancel::Event.pending left => false
+              | Uorc.Core.RuntimeAdmissionCancel::Event.failed error left => false)
+            | Uorc.Core.RuntimeAdmissionPolicy::CancellationOutcome.rejected policyError left => false)
+          | Uorc.Core.RuntimeAdmissionCancel::Event.pending other => false
+          | Uorc.Core.RuntimeAdmissionCancel::Event.cancelled done => false)
+        | Uorc.Core.RuntimeAdmission::Step.pending other => false
+        | Uorc.Core.RuntimeAdmission::Step.failed failure other => false
+        | Uorc.Core.RuntimeAdmission::Step.ready ready => false)
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.initialize budget arena basis caller initialUsage => false
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.execute other => false
+      | Uorc.Core.RuntimeAdmissionCredit::Intent.offer other event => false)
+    | Uorc.Core.RuntimeAdmissionCredit::Event.ready ready ledger => false
+    | Uorc.Core.RuntimeAdmissionCredit::Event.failed failure state ledger => false
+    | Uorc.Core.RuntimeAdmissionCredit::Event.rejected failure funding => false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: completedAdmissionCannotBeRetried,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeAdmissionScenarios::emptyLiteralReady)
+    | Result.error scenarioError => false
+    | Result.ok ready => (match (Uorc.Core.RuntimeAdmissionPolicy::extendCreditWork (ctor Uorc.Core.RuntimeAdmissionCredit::Event.ready ready (record Uorc.Core.RuntimeAdmissionCredit::Ledger {activeCost := (0 : UInt64), paidCost := (0 : UInt64), consumedCredits := (0 : UInt64), attemptedOperations := (0 : UInt64), usage := (project ready usage)})) (18446744073709551615 : UInt64))
+      | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.extended unexpected => false
+      | Uorc.Core.RuntimeAdmissionPolicy::CreditOutcome.rejected policyError retained => (match policyError
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.policyNarrowing => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.nonIncreasingStop => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.nonResumableFailure => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidUsage payload => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.fundingFailure => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.invalidFundingLedger => false
+        | Uorc.Core.RuntimeAdmissionPolicy::Error.completed => true))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if ((((((((true && (failedInitializationRequiresNewPrepayment)) && (stoppedPolicyRejectsNarrowingAndEqualLimits)) && (malformedAdmissionCannotResume)) && (inconsistentFailureLedgerRejected)) && (fundingCounterFailureCannotResume)) && (invalidUsageCannotBeExtended)) && (exhaustedCleanupRetainsRootsUntilExplicitExtension)) && (completedAdmissionCannotBeRetried)) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

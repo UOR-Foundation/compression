@@ -1,0 +1,158 @@
+\begin{lexlean}{Uorc.Integrity.StreamDiagnostic}
+\importmodule{Uorc.Integrity.StreamEngine}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frameLimit, type: UInt64},
+    {name: engine, type: Uorc.Integrity.StreamEngine::State}
+  ]
+}
+
+structure{
+  name: Update,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frameLimit, type: UInt64},
+    {name: engine, type: Uorc.Integrity.StreamEngine::Update}
+  ]
+}
+
+inductive{
+  name: UpdateEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: advanced, fields: [Update]}, {name: done, fields: [State]}]
+}
+
+definition{
+  name: init,
+  parameters: [frameLimit : UInt64],
+  result: (Result State Uorc.Integrity.StreamEngine::Error),
+  body: (match (Uorc.Integrity.StreamEngine::initAt frameLimit)
+    | Result.error engineCause => (ctor Result.error [State, Uorc.Integrity.StreamEngine::Error] engineCause)
+    | Result.ok initialEngine => (ctor Result.ok [State, Uorc.Integrity.StreamEngine::Error] (record State {frameLimit := frameLimit, engine := initialEngine}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: step,
+  parameters: [state : State],
+  result: (Result State Uorc.Integrity.StreamEngine::Error),
+  body: (match (Uorc.Integrity.StreamEngine::stepAt (project state frameLimit) (project state engine))
+    | Result.error engineCause => (ctor Result.error [State, Uorc.Integrity.StreamEngine::Error] engineCause)
+    | Result.ok nextEngine => (ctor Result.ok [State, Uorc.Integrity.StreamEngine::Error] (record State {frameLimit := (project state frameLimit), engine := nextEngine}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: finalize,
+  parameters: [state : State],
+  result: (Result State Uorc.Integrity.StreamEngine::Error),
+  body: (match (Uorc.Integrity.StreamEngine::finalizeAt (project state frameLimit) (project state engine))
+    | Result.error engineCause => (ctor Result.error [State, Uorc.Integrity.StreamEngine::Error] engineCause)
+    | Result.ok nextEngine => (ctor Result.ok [State, Uorc.Integrity.StreamEngine::Error] (record State {frameLimit := (project state frameLimit), engine := nextEngine}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: finalizeStep,
+  parameters: [state : State],
+  result: (Result State Uorc.Integrity.StreamEngine::Error),
+  body: (step state),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: digest,
+  parameters: [state : State],
+  result: (Result Bytes Uorc.Integrity.StreamEngine::Error),
+  body: (Uorc.Integrity.StreamEngine::digestAt (project state frameLimit) (project state engine)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancel,
+  parameters: [state : State],
+  result: State,
+  body: (record State {frameLimit := (project state frameLimit), engine := (Uorc.Integrity.StreamEngine::cancel (project state engine))}),
+  axioms: []
+}
+
+definition{
+  name: cancelUpdate,
+  parameters: [job : Update],
+  result: State,
+  body: (record State {frameLimit := (project job frameLimit), engine := (Uorc.Integrity.StreamEngine::cancel (project (project job engine) state))}),
+  axioms: []
+}
+
+definition{
+  name: beginUpdate,
+  parameters: [state : State, input : Bytes],
+  result: (Result Update Uorc.Integrity.StreamEngine::Error),
+  body: (match (Uorc.Integrity.StreamEngine::beginUpdateAt (project state frameLimit) (project state engine) input)
+    | Result.error engineCause => (ctor Result.error [Update, Uorc.Integrity.StreamEngine::Error] engineCause)
+    | Result.ok nextEngine => (ctor Result.ok [Update, Uorc.Integrity.StreamEngine::Error] (record Update {frameLimit := (project state frameLimit), engine := nextEngine}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: updateStep,
+  parameters: [job : Update],
+  result: (Result UpdateEvent Uorc.Integrity.StreamEngine::Error),
+  body: (match (Uorc.Integrity.StreamEngine::updateStepAt (project job frameLimit) (project job engine))
+    | Result.error engineCause => (ctor Result.error [UpdateEvent, Uorc.Integrity.StreamEngine::Error] engineCause)
+    | Result.ok engineEvent => (match engineEvent
+      | Uorc.Integrity.StreamEngine::UpdateEvent.advanced nextEngine => (ctor Result.ok [UpdateEvent, Uorc.Integrity.StreamEngine::Error] (ctor UpdateEvent.advanced (record Update {frameLimit := (project job frameLimit), engine := nextEngine})))
+      | Uorc.Integrity.StreamEngine::UpdateEvent.done nextEngine => (ctor Result.ok [UpdateEvent, Uorc.Integrity.StreamEngine::Error] (ctor UpdateEvent.done (record State {frameLimit := (project job frameLimit), engine := nextEngine}))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: update,
+  parameters: [state : State, input : Bytes],
+  result: (Result State Uorc.Integrity.StreamEngine::Error),
+  body: (match (Uorc.Integrity.StreamEngine::updateAt (project state frameLimit) (project state engine) input)
+    | Result.error engineCause => (ctor Result.error [State, Uorc.Integrity.StreamEngine::Error] engineCause)
+    | Result.ok nextEngine => (ctor Result.ok [State, Uorc.Integrity.StreamEngine::Error] (record State {frameLimit := (project state frameLimit), engine := nextEngine}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runFinalize,
+  parameters: [fuel : Nat, state : State],
+  result: (Result Bytes Uorc.Integrity.StreamEngine::Error),
+  body: (Uorc.Integrity.StreamEngine::runFinalizeAt fuel (project state frameLimit) (project state engine)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: hash,
+  parameters: [frameLimit : UInt64, input : Bytes],
+  result: (Result Bytes Uorc.Integrity.StreamEngine::Error),
+  body: (Uorc.Integrity.StreamEngine::hashAt frameLimit input),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: compressionPending,
+  parameters: [state : State],
+  result: Bool,
+  body: (Uorc.Integrity.StreamEngine::compressionPending (project state engine)),
+  axioms: []
+}
+
+definition{
+  name: updateCompressionPending,
+  parameters: [job : Update],
+  result: Bool,
+  body: (Uorc.Integrity.StreamEngine::compressionPending (project (project job engine) state)),
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

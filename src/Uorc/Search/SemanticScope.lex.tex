@@ -1,0 +1,347 @@
+\begin{lexlean}{Uorc.Search.SemanticScope}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Search.Identity}
+\importmodule{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Search.Verify}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Schema,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: canonicalSemanticScope1, fields: []},
+    {name: legacyOperationalDiagnostic1, fields: []},
+    {name: logicalReferenceScope1, fields: []}
+  ]
+}
+
+structure{
+  name: Query,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: archiveFormat, type: Nat},
+    {name: machineProfile, type: Nat},
+    {name: scope, type: Uorc.Wire.Frame::Scope},
+    {name: objectLengths, type: (List Nat)},
+    {name: target, type: Uorc.Core.Bytes::Rope},
+    {name: basis, type: (List Uorc.Core.Bytes::Rope)},
+    {name: membership, type: Uorc.Core.CanonicalCost::Budget},
+    {name: objective, type: Uorc.Search.Identity::Objective}
+  ]
+}
+
+structure{
+  name: Seal,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: schema, type: Schema},
+    {name: query, type: Query},
+    {name: costProfile, type: Uorc.Core.CanonicalCost::ProfileId},
+    {name: wireProfile, type: Uorc.Core.Bytes::Rope},
+    {name: machineSource, type: Uorc.Core.Bytes::Rope},
+    {name: basisSemantics, type: Uorc.Core.Bytes::Rope},
+    {name: outputSemantics, type: Uorc.Core.Bytes::Rope},
+    {name: objectiveSemantics, type: Uorc.Core.Bytes::Rope}
+  ]
+}
+
+inductive{
+  name: Envelope,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: owned, fields: [Uorc.Core.RuntimeResources::Budget]},
+    {name: referenceDiagnostic, fields: [Uorc.Core.Resources::Budget]}
+  ]
+}
+
+structure{
+  name: Realization,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: envelope, type: Envelope},
+    {name: operationalAddressing, type: Uorc.Core.Bytes::Rope},
+    {name: implementationSource, type: Uorc.Core.Bytes::Rope},
+    {name: refinementSource, type: Uorc.Core.Bytes::Rope}
+  ]
+}
+
+inductive{
+  name: Difference,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: profile, fields: []},
+    {name: membership, fields: []},
+    {name: input, fields: [Uorc.Search.Identity::Field]},
+    {name: identities, fields: [Uorc.Search.Verify::Mismatch]}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: header, fields: []},
+    {name: inputs, fields: [Uorc.Search.Identity::Cursor]},
+    {name: identities, fields: [Uorc.Search.VerifyRope::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: first, type: Seal}, {name: second, type: Seal}, {name: phase, type: Phase}]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: matched, fields: []},
+    {name: different, fields: [Difference]},
+    {name: legacyInterpretationRequired, fields: []},
+    {name: invalidScope, fields: []},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+inductive{
+  name: RealizationPhase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: header, fields: []},
+    {name: identities, fields: [Uorc.Search.VerifyRope::Cursor]}
+  ]
+}
+
+structure{
+  name: RealizationCursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: first, type: Realization},
+    {name: second, type: Realization},
+    {name: phase, type: RealizationPhase}
+  ]
+}
+
+inductive{
+  name: RealizationStep,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [RealizationCursor]},
+    {name: matched, fields: []},
+    {name: differentEnvelope, fields: []},
+    {name: differentIdentities, fields: [Uorc.Search.Verify::Mismatch]},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: canonicalSchema,
+  parameters: [schema : Schema],
+  result: Bool,
+  body: (match schema
+    | Schema.logicalReferenceScope1 => true
+    | Schema.legacyOperationalDiagnostic1 => false
+    | Schema.canonicalSemanticScope1 => false)
+}
+
+definition{
+  name: sameStorage,
+  parameters: [
+    first : Uorc.Core.CanonicalCost::StorageScope,
+    second : Uorc.Core.CanonicalCost::StorageScope
+  ],
+  result: Bool,
+  body: (match var{name: first}
+    | Uorc.Core.CanonicalCost::StorageScope.unconstrained => (match var{name: second}
+      | Uorc.Core.CanonicalCost::StorageScope.unconstrained => true
+      | Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadBytes secondBound => false
+      | Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadUnits secondBound => false)
+    | Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadBytes firstBound => (match var{
+        name: second
+      }
+      | Uorc.Core.CanonicalCost::StorageScope.unconstrained => false
+      | Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadBytes secondBound => (firstBound =? secondBound)
+      | Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadUnits secondBound => false)
+    | Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadUnits firstBound => (match var{
+        name: second
+      }
+      | Uorc.Core.CanonicalCost::StorageScope.unconstrained => false
+      | Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadBytes secondBound => false
+      | Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadUnits secondBound => (firstBound =? secondBound)))
+}
+
+definition{
+  name: sameMembership,
+  parameters: [first : Uorc.Core.CanonicalCost::Budget, second : Uorc.Core.CanonicalCost::Budget],
+  result: Bool,
+  body: (((project var{
+    name: first
+  } maxSemanticWork) =? (project var{
+    name: second
+  } maxSemanticWork)) && (sameStorage (project var{
+    name: first
+  } storage) (project var{name: second} storage)))
+}
+
+definition{
+  name: inputComparisonView,
+  parameters: [query : Query],
+  result: Uorc.Search.Identity::Snapshot,
+  body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (project query archiveFormat), machineProfile := (project query machineProfile), scope := (project query scope), objectLengths := (project query objectLengths), target := (project query target), basis := (project query basis), budget := (record Uorc.Core.Resources::Budget {maxSteps := 0, maxLiveCells := 0, maxOutputBytes := 0, maxFrames := 0}), objective := (project query objective)})
+}
+
+definition{
+  name: identityRoots,
+  parameters: [seal : Seal],
+  result: (List Uorc.Core.Bytes::Rope),
+  body: (cons (project seal wireProfile) (cons (project seal machineSource) (cons (project seal basisSemantics) (cons (project seal outputSemantics) (cons (project seal objectiveSemantics) (nil Uorc.Core.Bytes::Rope))))))
+}
+
+definition{
+  name: start,
+  parameters: [first : Seal, second : Seal],
+  result: Cursor,
+  body: (record Cursor {first := var{
+    name: first
+  }, second := var{name: second}, phase := (ctor Phase.header)})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.header => (if ((canonicalSchema (project (project cursor first) schema)) && (canonicalSchema (project (project cursor second) schema))) then (if (((Uorc.Core.CanonicalCost::profileSupported (project (project cursor first) costProfile)) && (Uorc.Core.CanonicalCost::budgetSupported (project (project cursor first) costProfile) (project (project (project cursor first) query) membership))) && ((Uorc.Core.CanonicalCost::profileSupported (project (project cursor second) costProfile)) && (Uorc.Core.CanonicalCost::budgetSupported (project (project cursor second) costProfile) (project (project (project cursor second) query) membership)))) then (if (Uorc.Core.CanonicalCost::sameProfile (project (project cursor first) costProfile) (project (project cursor second) costProfile)) then (if (sameMembership (project (project (project cursor first) query) membership) (project (project (project cursor second) query) membership)) then (ctor Step.pending (record Cursor {first := (project cursor first), second := (project cursor second), phase := (ctor Phase.inputs (Uorc.Search.Identity::start (inputComparisonView (project (project cursor first) query)) (inputComparisonView (project (project cursor second) query))))})) else (ctor Step.different (ctor Difference.membership))) else (ctor Step.different (ctor Difference.profile))) else (ctor Step.invalidScope)) else (ctor Step.legacyInterpretationRequired))
+    | Phase.inputs inputCursor => (match (Uorc.Search.Identity::step inputCursor)
+      | Uorc.Search.Identity::Step.pending continuedInput => (ctor Step.pending (record Cursor {first := (project cursor first), second := (project cursor second), phase := (ctor Phase.inputs continuedInput)}))
+      | Uorc.Search.Identity::Step.matched => (ctor Step.pending (record Cursor {first := (project cursor first), second := (project cursor second), phase := (ctor Phase.identities (Uorc.Search.VerifyRope::start (identityRoots (project cursor first)) (identityRoots (project cursor second))))}))
+      | Uorc.Search.Identity::Step.different fieldDifference => (ctor Step.different (ctor Difference.input fieldDifference))
+      | Uorc.Search.Identity::Step.invalidScope => (ctor Step.invalidScope)
+      | Uorc.Search.Identity::Step.ropeFailure ropeFailure => (ctor Step.ropeFailure ropeFailure))
+    | Phase.identities identityCursor => (match (Uorc.Search.VerifyRope::step identityCursor)
+      | Uorc.Search.VerifyRope::Step.pending continuedIdentity => (ctor Step.pending (record Cursor {first := (project cursor first), second := (project cursor second), phase := (ctor Phase.identities continuedIdentity)}))
+      | Uorc.Search.VerifyRope::Step.matched byteCount objectCount => (ctor Step.matched)
+      | Uorc.Search.VerifyRope::Step.mismatch identityDifference => (ctor Step.different (ctor Difference.identities identityDifference))
+      | Uorc.Search.VerifyRope::Step.ropeFailure ropeFailure => (ctor Step.ropeFailure ropeFailure)))
+}
+
+definition{
+  name: run,
+  parameters: [work : Nat, state : Step],
+  result: Step,
+  body: (match work
+    | Nat.zero => state
+    | Nat.succ remainingWork => (match state
+      | Step.pending nextCursor => (run remainingWork (step nextCursor))
+      | Step.matched => state
+      | Step.different difference => state
+      | Step.legacyInterpretationRequired => state
+      | Step.invalidScope => state
+      | Step.ropeFailure ropeFailure => state)),
+  recursive_argument: work
+}
+
+definition{
+  name: sameEnvelope,
+  parameters: [first : Envelope, second : Envelope],
+  result: Bool,
+  body: (match var{name: first}
+    | Envelope.owned firstBudget => (match var{name: second}
+      | Envelope.referenceDiagnostic secondBudget => false
+      | Envelope.owned secondBudget => (((prim equal (project firstBudget maxWork) (project secondBudget maxWork) : Bool) && (prim equal (project firstBudget maxOwnedBytes) (project secondBudget maxOwnedBytes) : Bool)) && ((prim equal (project firstBudget maxOutputBytes) (project secondBudget maxOutputBytes) : Bool) && (prim equal (project firstBudget maxFrames) (project secondBudget maxFrames) : Bool))))
+    | Envelope.referenceDiagnostic firstBudget => (match var{name: second}
+      | Envelope.owned secondBudget => false
+      | Envelope.referenceDiagnostic secondBudget => ((((project firstBudget maxSteps) =? (project secondBudget maxSteps)) && ((project firstBudget maxLiveCells) =? (project secondBudget maxLiveCells))) && (((project firstBudget maxOutputBytes) =? (project secondBudget maxOutputBytes)) && ((project firstBudget maxFrames) =? (project secondBudget maxFrames))))))
+}
+
+definition{
+  name: realizationRoots,
+  parameters: [realization : Realization],
+  result: (List Uorc.Core.Bytes::Rope),
+  body: (cons (project realization operationalAddressing) (cons (project realization implementationSource) (cons (project realization refinementSource) (nil Uorc.Core.Bytes::Rope))))
+}
+
+definition{
+  name: startRealization,
+  parameters: [first : Realization, second : Realization],
+  result: RealizationCursor,
+  body: (record RealizationCursor {first := var{
+    name: first
+  }, second := var{name: second}, phase := (ctor RealizationPhase.header)})
+}
+
+definition{
+  name: realizationStep,
+  parameters: [cursor : RealizationCursor],
+  result: RealizationStep,
+  body: (match (project cursor phase)
+    | RealizationPhase.header => (if (sameEnvelope (project (project cursor first) envelope) (project (project cursor second) envelope)) then (ctor RealizationStep.pending (record RealizationCursor {first := (project cursor first), second := (project cursor second), phase := (ctor RealizationPhase.identities (Uorc.Search.VerifyRope::start (realizationRoots (project cursor first)) (realizationRoots (project cursor second))))})) else (ctor RealizationStep.differentEnvelope))
+    | RealizationPhase.identities identityCursor => (match (Uorc.Search.VerifyRope::step identityCursor)
+      | Uorc.Search.VerifyRope::Step.pending continuedIdentity => (ctor RealizationStep.pending (record RealizationCursor {first := (project cursor first), second := (project cursor second), phase := (ctor RealizationPhase.identities continuedIdentity)}))
+      | Uorc.Search.VerifyRope::Step.matched byteCount objectCount => (ctor RealizationStep.matched)
+      | Uorc.Search.VerifyRope::Step.mismatch identityDifference => (ctor RealizationStep.differentIdentities identityDifference)
+      | Uorc.Search.VerifyRope::Step.ropeFailure ropeFailure => (ctor RealizationStep.ropeFailure ropeFailure)))
+}
+
+definition{
+  name: runRealization,
+  parameters: [work : Nat, state : RealizationStep],
+  result: RealizationStep,
+  body: (match work
+    | Nat.zero => state
+    | Nat.succ remainingWork => (match state
+      | RealizationStep.pending nextCursor => (runRealization remainingWork (realizationStep nextCursor))
+      | RealizationStep.matched => state
+      | RealizationStep.differentEnvelope => state
+      | RealizationStep.differentIdentities difference => state
+      | RealizationStep.ropeFailure ropeFailure => state)),
+  recursive_argument: work
+}
+
+definition{
+  name: schemaIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.logical-reference-scope/1"
+}
+
+definition{
+  name: realizationIdentity,
+  parameters: [],
+  result: String,
+  body: "uorc.operational-realization-policy/1"
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "The new logical-reference scope schema binds exact ordered target/basis bytes and boundaries, wire/machine/source/objective identities, the supported typed logicalReferenceEvents1 cost profile and full supported semantic work/storage-unit budget. Parsing, integrity, Heap work/owned bytes, transport partition, fixed leaf policy, operational addressing, implementation and reference-owned refinement belong to realization rather than semantic membership. Old canonicalSemanticScope1 and operational schemas retain legacy interpretation and are never retyped. Obsolete cost profiles and byte-labelled storage bounds are rejected under the new schema. Actual source meanings and mathematical Nat bounds remain separate from bounded target representation/comparison. This exact reference identity checker is not the still-required ordinary reference-owned bridge, a production bounded-natural comparison implementation, or a minimum certificate."
+}
+
+theorem{
+  name: input_comparison_does_not_convert_membership_to_legacy_budget,
+  parameters: [query : Query],
+  statement: ((project (inputComparisonView query) budget) = (record Uorc.Core.Resources::Budget {maxSteps := 0, maxLiveCells := 0, maxOutputBytes := 0, maxFrames := 0})),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

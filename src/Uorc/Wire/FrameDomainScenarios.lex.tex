@@ -1,0 +1,126 @@
+\begin{lexlean}{Uorc.Wire.FrameDomainScenarios}
+\importmodule{Uorc.Wire.FrameParse}
+\importmodule{Uorc.Wire.Cursor}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: fuel, fields: []}, {name: parse, fields: []}, {name: assertion, fields: []}]
+}
+
+inductive{
+  name: Goal,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: count, fields: []},
+    {name: length, fields: []},
+    {name: sum, fields: []},
+    {name: body, fields: []}
+  ]
+}
+
+definition{
+  name: beyondU64,
+  parameters: [],
+  result: Nat,
+  body: 18446744073709551616,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: reached,
+  parameters: [x : Uorc.Wire.FrameParse::State, goal : Goal],
+  result: Bool,
+  body: (match goal
+    | Goal.count => (prim equal (project (project x header) objectCount) (beyondU64) : Bool)
+    | Goal.length => (match (project (project x header) objectLengths)
+      | List.nil => false
+      | List.cons headLocal1 tailLocal2 => (prim equal headLocal1 (beyondU64) : Bool))
+    | Goal.sum => (prim equal (project (project x header) outputLength) (beyondU64) : Bool)
+    | Goal.body => (prim equal (project (project x header) bodyLength) (beyondU64) : Bool)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drive,
+  parameters: [fuel : Nat, x : Uorc.Wire.FrameParse::State, goal : Goal],
+  result: (Result Unit Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Unit, Error] (ctor Error.fuel))
+    | Nat.succ restLocal3 => (if (reached x goal) then (ctor Result.ok [Unit, Error] ()) else (match (Uorc.Wire.FrameParse::step x 1)
+      | Uorc.Wire.FrameParse::Event.advanced nextLocal4 => (drive restLocal3 nextLocal4 goal)
+      | Uorc.Wire.FrameParse::Event.needInput nextLocal5 => (if (reached nextLocal5 goal) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))
+      | Uorc.Wire.FrameParse::Event.complete archiveLocal6 workLocal7 => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+      | Uorc.Wire.FrameParse::Event.failed reasonLocal8 workLocal9 => (ctor Result.error [Unit, Error] (ctor Error.parse))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: check,
+  parameters: [bytes : Bytes, goal : Goal],
+  result: (Result Unit Error),
+  body: (match (Uorc.Wire.FrameParse::step (Uorc.Wire.FrameParse::start) 1)
+    | Uorc.Wire.FrameParse::Event.needInput awaitingLocal10 => (match (Uorc.Wire.FrameParse::feed awaitingLocal10 bytes)
+      | Uorc.Wire.FrameParse::Event.advanced xLocal11 => (drive 300 xLocal11 goal)
+      | Uorc.Wire.FrameParse::Event.needInput xLocal12 => (drive 300 xLocal12 goal)
+      | Uorc.Wire.FrameParse::Event.complete archiveLocal13 workLocal14 => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+      | Uorc.Wire.FrameParse::Event.failed reasonLocal15 workLocal16 => (ctor Result.error [Unit, Error] (ctor Error.parse)))
+    | Uorc.Wire.FrameParse::Event.advanced unexpectedLocal17 => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+    | Uorc.Wire.FrameParse::Event.complete archiveLocal18 workLocal19 => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+    | Uorc.Wire.FrameParse::Event.failed reasonLocal20 workLocal21 => (ctor Result.error [Unit, Error] (ctor Error.parse))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: check_count,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (check 0x554f52430201000180808080808080808002 (ctor Goal.count)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: check_length,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (check 0x554f5243020100010180808080808080808002 (ctor Goal.length)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: check_sum,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (check 0x554f52430201000102ffffffffffffffffff0101 (ctor Goal.sum)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: check_body,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (check 0x554f5243020100010080808080808080808002 (ctor Goal.body)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (check_count)
+    | Result.error whyLocal22 => (ctor Result.error [Unit, Error] whyLocal22)
+    | Result.ok ignoredLocal23 => (match (check_length)
+      | Result.error whyLocal24 => (ctor Result.error [Unit, Error] whyLocal24)
+      | Result.ok ignoredLocal25 => (match (check_sum)
+        | Result.error whyLocal26 => (ctor Result.error [Unit, Error] whyLocal26)
+        | Result.ok ignoredLocal27 => (match (check_body)
+          | Result.error whyLocal28 => (ctor Result.error [Unit, Error] whyLocal28)
+          | Result.ok ignoredLocal29 => (ctor Result.ok [Unit, Error] ()))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

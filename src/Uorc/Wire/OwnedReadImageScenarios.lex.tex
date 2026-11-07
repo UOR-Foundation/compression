@@ -1,0 +1,447 @@
+\begin{lexlean}{Uorc.Wire.OwnedReadImageScenarios}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Wire.OwnedRead}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Core.HeapAudit}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: fixture, fields: []},
+    {name: fuel, fields: []},
+    {name: span, fields: []},
+    {name: bytes, fields: []},
+    {name: index, fields: []},
+    {name: shape, fields: []},
+    {name: mapping, fields: []},
+    {name: roots, fields: []}
+  ]
+}
+
+structure{
+  name: Scenario,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: given, type: String},
+    {name: when, type: String},
+    {name: then, type: String},
+    {name: owner, type: String}
+  ]
+}
+
+definition{
+  name: owned_read_image_01,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-OWNED-READ-IMAGE-01", given := "charged ordinary input/archive/basis/runtime image with sequence slice offset1 length2", when := "run actual OwnedRead traversal and Core RuntimeImage reads", then := "image/offset/length and byte values preserved; relative end index rejected", owner := "Uorc.Wire.OwnedReadImageScenarios.run"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: owned_read_image_02,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-OWNED-READ-IMAGE-02", given := "negative-only forged control image with unchanged bytes, length, entry weight and root counts", when := "Core validates then actual OwnedRead traverses the same sequence", then := "typed invalidShape, never borrowedSpan", owner := "Uorc.Wire.OwnedReadImageScenarios.run"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: owned_read_image_03,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-OWNED-READ-IMAGE-03", given := "negative-only malformed/overflow leaf spans and malformed cursor controls", when := "run actual OwnedRead step", then := "range/addressSpaceExhausted/heap mapping preserved", owner := "Uorc.Wire.OwnedReadImageScenarios.run"}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: owned_read_image_04,
+  parameters: [],
+  result: Scenario,
+  body: (record Scenario {id := "UC-WIRE-OWNED-READ-IMAGE-04", given := "an explicit malformed Core span descriptor", when := "readSpanByte at out-of-range and overflowing relative indices", then := "typed range and lengthOverflow; no global retention claim", owner := "Uorc.Wire.OwnedReadImageScenarios.run"}),
+  axioms: [Quot.sound, propext]
+}
+
+structure{
+  name: Fixture,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: image, type: Uorc.Core.RuntimeValue::Handle},
+    {name: root, type: Uorc.Core.RuntimeValue::Handle}
+  ]
+}
+
+definition{
+  name: payload,
+  parameters: [],
+  result: Bytes,
+  body: 0x10203040,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: fixture,
+  parameters: [kind : Uorc.Core.Heap::ImageKind],
+  result: (Result Fixture Error),
+  body: (match (Uorc.Core.Heap::reserveImage (Uorc.Core.Heap::emptyArena (100000 : UInt64)) kind (4 : UInt64))
+    | Result.error whyLocal1 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+    | Result.ok reservationLocal2 => (match (Uorc.Core.Heap::commitImage (project reservationLocal2 arena) (project reservationLocal2 handle) (payload))
+      | Result.error whyLocal3 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Result.ok imageLocal4 => (match (Uorc.Core.Heap::allocateMoved (project imageLocal4 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal4 handle) (1 : UInt64) (2 : UInt64)) true false)
+        | Result.error whyLocal5 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+        | Result.ok sequenceLocal6 => (ctor Result.ok [Fixture, Error] (record Fixture {arena := (project sequenceLocal6 arena), image := (project imageLocal4 handle), root := (project sequenceLocal6 handle)}))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: beginCursor,
+  parameters: [f : Fixture],
+  result: (Result Uorc.Wire.OwnedRead::Cursor Error),
+  body: (match (Uorc.Wire.OwnedRead::begin (project f arena) (project f root))
+    | Result.error whyLocal7 => (ctor Result.error [Uorc.Wire.OwnedRead::Cursor, Error] (ctor Error.fixture))
+    | Result.ok cursorLocal8 => (ctor Result.ok [Uorc.Wire.OwnedRead::Cursor, Error] cursorLocal8)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: seek,
+  parameters: [fuel : Nat, arena : Uorc.Core.Heap::Arena, cursor : Uorc.Wire.OwnedRead::Cursor],
+  result: (Result Uorc.Wire.OwnedRead::Step Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.OwnedRead::Step, Error] (ctor Error.fuel))
+    | Nat.succ restLocal9 => (match (Uorc.Wire.OwnedRead::step arena cursor)
+      | Uorc.Wire.OwnedRead::Step.advanced nextLocal10 => (seek restLocal9 arena nextLocal10)
+      | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal11 offsetLocal12 lengthLocal13 nextLocal14 => (ctor Result.ok [Uorc.Wire.OwnedRead::Step, Error] (ctor Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal11 offsetLocal12 lengthLocal13 nextLocal14))
+      | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.ok [Uorc.Wire.OwnedRead::Step, Error] (ctor Uorc.Wire.OwnedRead::Step.complete))
+      | Uorc.Wire.OwnedRead::Step.failed whyLocal15 => (ctor Result.ok [Uorc.Wire.OwnedRead::Step, Error] (ctor Uorc.Wire.OwnedRead::Step.failed whyLocal15)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: replaceNode,
+  parameters: [f : Fixture, handle : Uorc.Core.RuntimeValue::Handle, node : Uorc.Core.Heap::Node],
+  result: (Result Fixture Error),
+  body: (match (Uorc.Core.Heap::lookup (project f arena) handle)
+    | Result.error whyLocal16 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+    | Result.ok entryLocal17 => (ctor Result.ok [Fixture, Error] (record Fixture {arena := (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (project (project f arena) index) (project handle id) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := node, incoming := (project entryLocal17 incoming), roots := (project entryLocal17 roots), weight := (project entryLocal17 weight)}))), nextHandle := (project (project f arena) nextHandle), exhausted := (project (project f arena) exhausted), ownedBytes := (project (project f arena) ownedBytes), liveEntries := (project (project f arena) liveEntries), maxOwnedBytes := (project (project f arena) maxOwnedBytes), cursor := (project (project f arena) cursor)}), image := (project f image), root := (project f root)}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: forgeControl,
+  parameters: [f : Fixture],
+  result: (Result Fixture Error),
+  body: (match (Uorc.Core.Heap::lookup (project f arena) (project f image))
+    | Result.error whyLocal18 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+    | Result.ok entryLocal19 => (match (project entryLocal19 node)
+      | Uorc.Core.Heap::Node.image kindLocal20 bytesLocal21 => (replaceNode f (project f image) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.control) bytesLocal21))
+      | Uorc.Core.Heap::Node.sequenceLeaf unused0Local22 unused1Local23 unused2Local24 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.sequenceBranch unused0Local25 unused1Local26 unused2Local27 unused3Local28 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.storeLeaf unused0Local29 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.storeBranch unused0Local30 unused1Local31 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.slot unused0Local32 unused1Local33 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.rootBranch unused0Local34 unused1Local35 unused2Local36 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.metadataWord unused0Local37 unused1Local38 unused2Local39 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.metadataLink unused0Local40 unused1Local41 unused2Local42 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.metadataBranch unused0Local43 unused1Local44 unused2Local45 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.ownerRoot unused0Local46 unused1Local47 => (ctor Result.error [Fixture, Error] (ctor Error.fixture))
+      | Uorc.Core.Heap::Node.imageReservation unused0Local48 unused1Local49 => (ctor Result.error [Fixture, Error] (ctor Error.fixture)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: fixtureCounts,
+  parameters: [f : Fixture],
+  result: Bool,
+  body: (match (Uorc.Core.Heap::lookup (project f arena) (project f image))
+    | Result.error whyLocal50 => false
+    | Result.ok imageLocal51 => (match (Uorc.Core.Heap::lookup (project f arena) (project f root))
+      | Result.error whyLocal52 => false
+      | Result.ok rootLocal53 => (((prim equal (project imageLocal51 roots) (0 : UInt64) : Bool) && (prim equal (project imageLocal51 incoming) (1 : UInt64) : Bool)) && ((prim equal (project rootLocal53 roots) (1 : UInt64) : Bool) && (prim equal (project rootLocal53 incoming) (1 : UInt64) : Bool))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drain,
+  parameters: [fuel : Nat, arena : Uorc.Core.Heap::Arena],
+  result: (Result Unit Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Unit, Error] (ctor Error.fuel))
+    | Nat.succ restLocal54 => (if (Uorc.Core.Heap::isReleasing arena) then (match (Uorc.Core.Heap::releaseStep arena)
+      | Result.error whyLocal55 => (ctor Result.error [Unit, Error] (ctor Error.fixture))
+      | Result.ok nextLocal56 => (drain restLocal54 (project nextLocal56 arena))) else (if (Uorc.Core.HeapAudit::auditRoots arena (nil Uorc.Core.RuntimeValue::Handle)) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.roots))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: clean,
+  parameters: [f : Fixture],
+  result: (Result Unit Error),
+  body: (match (Uorc.Core.Heap::release (project f arena) (project f root))
+    | Result.error whyLocal57 => (ctor Result.error [Unit, Error] (ctor Error.fixture))
+    | Result.ok nextLocal58 => (drain 100 (project nextLocal58 arena))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: byteEquals,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    span : Uorc.Core.RuntimeImage::BorrowedSpan,
+    index : UInt64,
+    expected : UInt8
+  ],
+  result: (Result Unit Error),
+  body: (match (Uorc.Core.RuntimeImage::readSpanByte arena span index)
+    | Result.error whyLocal59 => (ctor Result.error [Unit, Error] (ctor Error.bytes))
+    | Result.ok byteLocal60 => (if (prim equal byteLocal60 expected : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.bytes)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: indexError,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    span : Uorc.Core.RuntimeImage::BorrowedSpan,
+    index : UInt64,
+    overflow : Bool
+  ],
+  result: (Result Unit Error),
+  body: (match (Uorc.Core.RuntimeImage::readSpanByte arena span index)
+    | Result.ok byteLocal61 => (ctor Result.error [Unit, Error] (ctor Error.index))
+    | Result.error whyLocal62 => (match whyLocal62
+      | Uorc.Core.RuntimeImage::ImageFailure.heap whyLocal63 => (if overflow then (ctor Result.error [Unit, Error] (ctor Error.index)) else (ctor Result.error [Unit, Error] (ctor Error.index)))
+      | Uorc.Core.RuntimeImage::ImageFailure.invalidShape => (if overflow then (ctor Result.error [Unit, Error] (ctor Error.index)) else (ctor Result.error [Unit, Error] (ctor Error.index)))
+      | Uorc.Core.RuntimeImage::ImageFailure.range => (if overflow then (ctor Result.error [Unit, Error] (ctor Error.index)) else (ctor Result.ok [Unit, Error] ()))
+      | Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow => (if overflow then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.index))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ordinary,
+  parameters: [kind : Uorc.Core.Heap::ImageKind],
+  result: (Result Unit Error),
+  body: (match (fixture kind)
+    | Result.error whyLocal64 => (ctor Result.error [Unit, Error] whyLocal64)
+    | Result.ok fLocal65 => (match (Uorc.Core.RuntimeImage::validateSpan (project fLocal65 arena) (project fLocal65 image) (1 : UInt64) (2 : UInt64))
+      | Result.error whyLocal66 => (ctor Result.error [Unit, Error] (ctor Error.fixture))
+      | Result.ok validatedLocal67 => (match (beginCursor fLocal65)
+        | Result.error whyLocal68 => (ctor Result.error [Unit, Error] whyLocal68)
+        | Result.ok cursorLocal69 => (match (seek 10 (project fLocal65 arena) cursorLocal69)
+          | Result.error whyLocal70 => (ctor Result.error [Unit, Error] whyLocal70)
+          | Result.ok observedLocal71 => (match observedLocal71
+            | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal72 offsetLocal73 lengthLocal74 nextLocal75 => (if ((Uorc.Core.RuntimeValue::sameHandle imageLocal72 (project fLocal65 image)) && ((prim equal offsetLocal73 (1 : UInt64) : Bool) && ((prim equal lengthLocal74 (2 : UInt64) : Bool) && (fixtureCounts fLocal65)))) then (match (byteEquals (project fLocal65 arena) (record Uorc.Core.RuntimeImage::BorrowedSpan {image := imageLocal72, offset := offsetLocal73, length := lengthLocal74}) (0 : UInt64) (32 : UInt8))
+              | Result.error whyLocal76 => (ctor Result.error [Unit, Error] whyLocal76)
+              | Result.ok firstLocal77 => (match (byteEquals (project fLocal65 arena) (record Uorc.Core.RuntimeImage::BorrowedSpan {image := imageLocal72, offset := offsetLocal73, length := lengthLocal74}) (1 : UInt64) (48 : UInt8))
+                | Result.error whyLocal78 => (ctor Result.error [Unit, Error] whyLocal78)
+                | Result.ok secondLocal79 => (match (indexError (project fLocal65 arena) (record Uorc.Core.RuntimeImage::BorrowedSpan {image := imageLocal72, offset := offsetLocal73, length := lengthLocal74}) (2 : UInt64) false)
+                  | Result.error whyLocal80 => (ctor Result.error [Unit, Error] whyLocal80)
+                  | Result.ok endIndexLocal81 => (match (Uorc.Wire.OwnedRead::step (project fLocal65 arena) nextLocal75)
+                    | Uorc.Wire.OwnedRead::Step.complete => (clean fLocal65)
+                    | Uorc.Wire.OwnedRead::Step.advanced wrongLocal82 => (ctor Result.error [Unit, Error] (ctor Error.span))
+                    | Uorc.Wire.OwnedRead::Step.borrowedSpan wrongImageLocal83 wrongOffsetLocal84 wrongLengthLocal85 wrongNextLocal86 => (ctor Result.error [Unit, Error] (ctor Error.span))
+                    | Uorc.Wire.OwnedRead::Step.failed whyLocal87 => (ctor Result.error [Unit, Error] (ctor Error.span)))))) else (ctor Result.error [Unit, Error] (ctor Error.span)))
+            | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.error [Unit, Error] (ctor Error.span))
+            | Uorc.Wire.OwnedRead::Step.advanced wrongLocal88 => (ctor Result.error [Unit, Error] (ctor Error.span))
+            | Uorc.Wire.OwnedRead::Step.failed whyLocal89 => (ctor Result.error [Unit, Error] (ctor Error.span))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: controlRejected,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (fixture (ctor Uorc.Core.Heap::ImageKind.input))
+    | Result.error whyLocal90 => (ctor Result.error [Unit, Error] whyLocal90)
+    | Result.ok goodLocal91 => (match (forgeControl goodLocal91)
+      | Result.error whyLocal92 => (ctor Result.error [Unit, Error] whyLocal92)
+      | Result.ok badLocal93 => (if ((fixtureCounts badLocal93) && ((prim equal (project (project goodLocal91 arena) ownedBytes) (project (project badLocal93 arena) ownedBytes) : Bool) && (prim equal (project (project goodLocal91 arena) nextHandle) (project (project badLocal93 arena) nextHandle) : Bool))) then (match (Uorc.Core.RuntimeImage::validateSpan (project badLocal93 arena) (project badLocal93 image) (1 : UInt64) (2 : UInt64))
+        | Result.ok spanLocal94 => (ctor Result.error [Unit, Error] (ctor Error.shape))
+        | Result.error whyLocal95 => (match whyLocal95
+          | Uorc.Core.RuntimeImage::ImageFailure.heap whyLocal96 => (ctor Result.error [Unit, Error] (ctor Error.shape))
+          | Uorc.Core.RuntimeImage::ImageFailure.invalidShape => (match (beginCursor badLocal93)
+            | Result.error whyLocal97 => (ctor Result.error [Unit, Error] whyLocal97)
+            | Result.ok cursorLocal98 => (match (seek 10 (project badLocal93 arena) cursorLocal98)
+              | Result.error whyLocal99 => (ctor Result.error [Unit, Error] whyLocal99)
+              | Result.ok observedLocal100 => (match observedLocal100
+                | Uorc.Wire.OwnedRead::Step.failed whyLocal101 => (match whyLocal101
+                  | Uorc.Wire.OwnedRead::Failure.heap whyLocal102 => (ctor Result.error [Unit, Error] (ctor Error.shape))
+                  | Uorc.Wire.OwnedRead::Failure.range => (ctor Result.error [Unit, Error] (ctor Error.shape))
+                  | Uorc.Wire.OwnedRead::Failure.addressSpaceExhausted => (ctor Result.error [Unit, Error] (ctor Error.shape))
+                  | Uorc.Wire.OwnedRead::Failure.invalidShape => (clean badLocal93))
+                | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal103 offsetLocal104 lengthLocal105 nextLocal106 => (ctor Result.error [Unit, Error] (ctor Error.shape))
+                | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.error [Unit, Error] (ctor Error.shape))
+                | Uorc.Wire.OwnedRead::Step.advanced nextLocal107 => (ctor Result.error [Unit, Error] (ctor Error.shape)))))
+          | Uorc.Core.RuntimeImage::ImageFailure.range => (ctor Result.error [Unit, Error] (ctor Error.shape))
+          | Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow => (ctor Result.error [Unit, Error] (ctor Error.shape)))) else (ctor Result.error [Unit, Error] (ctor Error.roots))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: badRange,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (fixture (ctor Uorc.Core.Heap::ImageKind.input))
+    | Result.error whyLocal108 => (ctor Result.error [Unit, Error] whyLocal108)
+    | Result.ok fLocal109 => (match (replaceNode fLocal109 (project fLocal109 root) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project fLocal109 image) (3 : UInt64) (2 : UInt64)))
+      | Result.error whyLocal110 => (ctor Result.error [Unit, Error] whyLocal110)
+      | Result.ok badLocal111 => (match (beginCursor badLocal111)
+        | Result.error whyLocal112 => (ctor Result.error [Unit, Error] whyLocal112)
+        | Result.ok cursorLocal113 => (match (seek 10 (project badLocal111 arena) cursorLocal113)
+          | Result.error whyLocal114 => (ctor Result.error [Unit, Error] whyLocal114)
+          | Result.ok observedLocal115 => (match observedLocal115
+            | Uorc.Wire.OwnedRead::Step.failed whyLocal116 => (match whyLocal116
+              | Uorc.Wire.OwnedRead::Failure.heap whyLocal117 => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+              | Uorc.Wire.OwnedRead::Failure.range => (clean badLocal111)
+              | Uorc.Wire.OwnedRead::Failure.addressSpaceExhausted => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+              | Uorc.Wire.OwnedRead::Failure.invalidShape => (ctor Result.error [Unit, Error] (ctor Error.mapping)))
+            | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal118 offsetLocal119 lengthLocal120 nextLocal121 => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+            | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+            | Uorc.Wire.OwnedRead::Step.advanced nextLocal122 => (ctor Result.error [Unit, Error] (ctor Error.mapping))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: badOverflow,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (fixture (ctor Uorc.Core.Heap::ImageKind.input))
+    | Result.error whyLocal123 => (ctor Result.error [Unit, Error] whyLocal123)
+    | Result.ok fLocal124 => (match (replaceNode fLocal124 (project fLocal124 root) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project fLocal124 image) (18446744073709551615 : UInt64) (2 : UInt64)))
+      | Result.error whyLocal125 => (ctor Result.error [Unit, Error] whyLocal125)
+      | Result.ok badLocal126 => (match (beginCursor badLocal126)
+        | Result.error whyLocal127 => (ctor Result.error [Unit, Error] whyLocal127)
+        | Result.ok cursorLocal128 => (match (seek 10 (project badLocal126 arena) cursorLocal128)
+          | Result.error whyLocal129 => (ctor Result.error [Unit, Error] whyLocal129)
+          | Result.ok observedLocal130 => (match observedLocal130
+            | Uorc.Wire.OwnedRead::Step.failed whyLocal131 => (match whyLocal131
+              | Uorc.Wire.OwnedRead::Failure.heap whyLocal132 => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+              | Uorc.Wire.OwnedRead::Failure.range => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+              | Uorc.Wire.OwnedRead::Failure.addressSpaceExhausted => (clean badLocal126)
+              | Uorc.Wire.OwnedRead::Failure.invalidShape => (ctor Result.error [Unit, Error] (ctor Error.mapping)))
+            | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal133 offsetLocal134 lengthLocal135 nextLocal136 => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+            | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+            | Uorc.Wire.OwnedRead::Step.advanced nextLocal137 => (ctor Result.error [Unit, Error] (ctor Error.mapping))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cursorRange,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (fixture (ctor Uorc.Core.Heap::ImageKind.input))
+    | Result.error whyLocal138 => (ctor Result.error [Unit, Error] whyLocal138)
+    | Result.ok fLocal139 => (match (beginCursor fLocal139)
+      | Result.error whyLocal140 => (ctor Result.error [Unit, Error] whyLocal140)
+      | Result.ok cursorLocal141 => (match (Uorc.Wire.OwnedRead::step (project fLocal139 arena) (record Uorc.Wire.OwnedRead::Cursor {root := (project cursorLocal141 root), length := (project cursorLocal141 length), offset := (3 : UInt64), current := (project cursorLocal141 current), index := (project cursorLocal141 index), walking := (project cursorLocal141 walking)}))
+        | Uorc.Wire.OwnedRead::Step.failed whyLocal142 => (match whyLocal142
+          | Uorc.Wire.OwnedRead::Failure.heap whyLocal143 => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+          | Uorc.Wire.OwnedRead::Failure.range => (clean fLocal139)
+          | Uorc.Wire.OwnedRead::Failure.addressSpaceExhausted => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+          | Uorc.Wire.OwnedRead::Failure.invalidShape => (ctor Result.error [Unit, Error] (ctor Error.mapping)))
+        | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal144 offsetLocal145 lengthLocal146 nextLocal147 => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+        | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+        | Uorc.Wire.OwnedRead::Step.advanced nextLocal148 => (ctor Result.error [Unit, Error] (ctor Error.mapping))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cursorIndex,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (fixture (ctor Uorc.Core.Heap::ImageKind.input))
+    | Result.error whyLocal149 => (ctor Result.error [Unit, Error] whyLocal149)
+    | Result.ok fLocal150 => (match (beginCursor fLocal150)
+      | Result.error whyLocal151 => (ctor Result.error [Unit, Error] whyLocal151)
+      | Result.ok cursorLocal152 => (match (Uorc.Wire.OwnedRead::step (project fLocal150 arena) (record Uorc.Wire.OwnedRead::Cursor {root := (project cursorLocal152 root), length := (project cursorLocal152 length), offset := (project cursorLocal152 offset), current := (project cursorLocal152 current), index := (2 : UInt64), walking := true}))
+        | Uorc.Wire.OwnedRead::Step.failed whyLocal153 => (match whyLocal153
+          | Uorc.Wire.OwnedRead::Failure.heap whyLocal154 => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+          | Uorc.Wire.OwnedRead::Failure.range => (clean fLocal150)
+          | Uorc.Wire.OwnedRead::Failure.addressSpaceExhausted => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+          | Uorc.Wire.OwnedRead::Failure.invalidShape => (ctor Result.error [Unit, Error] (ctor Error.mapping)))
+        | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal155 offsetLocal156 lengthLocal157 nextLocal158 => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+        | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+        | Uorc.Wire.OwnedRead::Step.advanced nextLocal159 => (ctor Result.error [Unit, Error] (ctor Error.mapping))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cursorMissing,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (fixture (ctor Uorc.Core.Heap::ImageKind.input))
+    | Result.error whyLocal160 => (ctor Result.error [Unit, Error] whyLocal160)
+    | Result.ok fLocal161 => (match (beginCursor fLocal161)
+      | Result.error whyLocal162 => (ctor Result.error [Unit, Error] whyLocal162)
+      | Result.ok cursorLocal163 => (match (Uorc.Wire.OwnedRead::step (project fLocal161 arena) (record Uorc.Wire.OwnedRead::Cursor {root := (project cursorLocal163 root), length := (project cursorLocal163 length), offset := (project cursorLocal163 offset), current := (record Uorc.Core.RuntimeValue::Handle {id := (999 : UInt64)}), index := (project cursorLocal163 index), walking := true}))
+        | Uorc.Wire.OwnedRead::Step.failed whyLocal164 => (match whyLocal164
+          | Uorc.Wire.OwnedRead::Failure.heap whyLocal165 => (clean fLocal161)
+          | Uorc.Wire.OwnedRead::Failure.range => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+          | Uorc.Wire.OwnedRead::Failure.addressSpaceExhausted => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+          | Uorc.Wire.OwnedRead::Failure.invalidShape => (ctor Result.error [Unit, Error] (ctor Error.mapping)))
+        | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal166 offsetLocal167 lengthLocal168 nextLocal169 => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+        | Uorc.Wire.OwnedRead::Step.complete => (ctor Result.error [Unit, Error] (ctor Error.mapping))
+        | Uorc.Wire.OwnedRead::Step.advanced nextLocal170 => (ctor Result.error [Unit, Error] (ctor Error.mapping))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: coreOverflow,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (fixture (ctor Uorc.Core.Heap::ImageKind.input))
+    | Result.error whyLocal171 => (ctor Result.error [Unit, Error] whyLocal171)
+    | Result.ok fLocal172 => (match (indexError (project fLocal172 arena) (record Uorc.Core.RuntimeImage::BorrowedSpan {image := (project fLocal172 image), offset := (18446744073709551615 : UInt64), length := (2 : UInt64)}) (1 : UInt64) true)
+      | Result.error whyLocal173 => (ctor Result.error [Unit, Error] whyLocal173)
+      | Result.ok checkedLocal174 => (clean fLocal172))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (ordinary (ctor Uorc.Core.Heap::ImageKind.input))
+    | Result.error whyLocal175 => (ctor Result.error [Unit, Error] whyLocal175)
+    | Result.ok checkedLocal176 => (match (ordinary (ctor Uorc.Core.Heap::ImageKind.archive))
+      | Result.error whyLocal177 => (ctor Result.error [Unit, Error] whyLocal177)
+      | Result.ok checkedLocal178 => (match (ordinary (ctor Uorc.Core.Heap::ImageKind.basis))
+        | Result.error whyLocal179 => (ctor Result.error [Unit, Error] whyLocal179)
+        | Result.ok checkedLocal180 => (match (ordinary (ctor Uorc.Core.Heap::ImageKind.runtime))
+          | Result.error whyLocal181 => (ctor Result.error [Unit, Error] whyLocal181)
+          | Result.ok checkedLocal182 => (match (controlRejected)
+            | Result.error whyLocal183 => (ctor Result.error [Unit, Error] whyLocal183)
+            | Result.ok checkedLocal184 => (match (badRange)
+              | Result.error whyLocal185 => (ctor Result.error [Unit, Error] whyLocal185)
+              | Result.ok checkedLocal186 => (match (badOverflow)
+                | Result.error whyLocal187 => (ctor Result.error [Unit, Error] whyLocal187)
+                | Result.ok checkedLocal188 => (match (cursorRange)
+                  | Result.error whyLocal189 => (ctor Result.error [Unit, Error] whyLocal189)
+                  | Result.ok checkedLocal190 => (match (cursorIndex)
+                    | Result.error whyLocal191 => (ctor Result.error [Unit, Error] whyLocal191)
+                    | Result.ok checkedLocal192 => (match (cursorMissing)
+                      | Result.error whyLocal193 => (ctor Result.error [Unit, Error] whyLocal193)
+                      | Result.ok checkedLocal194 => (match (coreOverflow)
+                        | Result.error whyLocal195 => (ctor Result.error [Unit, Error] whyLocal195)
+                        | Result.ok checkedLocal196 => (ctor Result.ok [Unit, Error] ())))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "Narrow runtime ordinary-image-span premise controls. Ordinary fixtures reserve and commit charged immutable image backing and move its ticket into an actual sequence leaf. OwnedRead spans are borrowed, with unchanged root counts; Core RuntimeImage supplies kind/range/byte authority. The only raw writeIndex mutations are negative-only image-kind/leaf-range fixtures preserving entry counts, weight and backing bytes. They do not authorize a production fallback, forge a Ready token, or establish global heap retention/refinement. Existing range, addressSpaceExhausted and heap failure mappings remain separate typed observations. All fixtures release their actual root and drain to an empty root audit after their expected observation.",
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

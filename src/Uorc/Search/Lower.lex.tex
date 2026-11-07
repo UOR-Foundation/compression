@@ -1,0 +1,151 @@
+\begin{lexlean}{Uorc.Search.Lower}
+\importmodule{Uorc.Search.Expression}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidParameter, fields: []},
+    {name: invalidFunction, fields: []},
+    {name: invalidCursor, fields: []},
+    {name: referenceOverflow, fields: []}
+  ]
+}
+
+inductive{
+  name: Task,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: lower, fields: [Uorc.Search.Expression::Expression]},
+    {name: arguments, fields: [(List Uorc.Search.Expression::Expression), (List Nat), Nat]},
+    {name: collect, fields: [(List Uorc.Search.Expression::Expression), (List Nat), Nat]},
+    {name: references, fields: [(List Nat), (List Nat), Nat]},
+    {name: reverseReferences, fields: [(List Nat), (List Nat), Nat]},
+    {
+      name: reverseInstructions,
+      fields: [(List Uorc.Core.Graph::Instruction), (List Uorc.Core.Graph::Instruction), Nat]
+    }
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: parameters, type: (List Uorc.Core.Types::ValueType)},
+    {name: parameterTail, type: (List Uorc.Core.Types::ValueType)},
+    {name: parameterCount, type: Nat},
+    {name: libraryCount, type: Nat},
+    {name: resultType, type: Uorc.Core.Types::ValueType},
+    {name: tasks, type: (List Task)},
+    {name: values, type: (List Nat)},
+    {name: instructionsReversed, type: (List Uorc.Core.Graph::Instruction)},
+    {name: nextSlot, type: Nat},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [Uorc.Core.Graph::Block, Nat]},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    parameters : (List Uorc.Core.Types::ValueType),
+    libraryCount : Nat,
+    expression : Uorc.Search.Expression::Expression
+  ],
+  result: Cursor,
+  body: (record Cursor {parameters := parameters, parameterTail := parameters, parameterCount := 0, libraryCount := libraryCount, resultType := (Uorc.Search.Expression::resultType expression), tasks := (cons (ctor Task.lower expression) (nil Task)), values := (nil Nat), instructionsReversed := (nil Uorc.Core.Graph::Instruction), nextSlot := 0, completedEvents := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor parameterTail)
+    | List.nil => (match (project cursor tasks)
+      | List.nil => (match (project cursor values)
+        | List.nil => (ctor Step.failed (ctor Error.invalidCursor))
+        | List.cons absoluteReturn remainingValues => (match remainingValues
+          | List.nil => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := (cons (ctor Task.reverseInstructions (project cursor instructionsReversed) (nil Uorc.Core.Graph::Instruction) absoluteReturn) (nil Task)), values := (project cursor values), instructionsReversed := (project cursor instructionsReversed), nextSlot := (project cursor nextSlot), completedEvents := ((project cursor completedEvents) + 1)}))
+          | List.cons extraValue extraValues => (ctor Step.failed (ctor Error.invalidCursor))))
+      | List.cons task restTasks => (match task
+        | Task.lower expression => (match expression
+          | Uorc.Search.Expression::Expression.literal literal => (match literal
+            | Uorc.Search.Expression::Literal.natural payload => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := restTasks, values := (cons (project cursor nextSlot) (project cursor values)), instructionsReversed := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant payload) (project cursor instructionsReversed)), nextSlot := ((project cursor nextSlot) + 1), completedEvents := ((project cursor completedEvents) + 1)}))
+            | Uorc.Search.Expression::Literal.byte payload => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := restTasks, values := (cons (project cursor nextSlot) (project cursor values)), instructionsReversed := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant payload) (project cursor instructionsReversed)), nextSlot := ((project cursor nextSlot) + 1), completedEvents := ((project cursor completedEvents) + 1)}))
+            | Uorc.Search.Expression::Literal.predicate payload => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := restTasks, values := (cons (project cursor nextSlot) (project cursor values)), instructionsReversed := (cons (ctor Uorc.Core.Graph::Instruction.predicateConstant payload) (project cursor instructionsReversed)), nextSlot := ((project cursor nextSlot) + 1), completedEvents := ((project cursor completedEvents) + 1)}))
+            | Uorc.Search.Expression::Literal.sequence payload => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := restTasks, values := (cons (project cursor nextSlot) (project cursor values)), instructionsReversed := (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant payload) (project cursor instructionsReversed)), nextSlot := ((project cursor nextSlot) + 1), completedEvents := ((project cursor completedEvents) + 1)})))
+          | Uorc.Search.Expression::Expression.parameter index type => (if (index <? (project cursor parameterCount)) then (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := restTasks, values := (cons index (project cursor values)), instructionsReversed := (project cursor instructionsReversed), nextSlot := (project cursor nextSlot), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.failed (ctor Error.invalidParameter)))
+          | Uorc.Search.Expression::Expression.call functionIndex type arguments => (if (functionIndex <? (project cursor libraryCount)) then (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := (cons (ctor Task.arguments arguments (nil Nat) functionIndex) restTasks), values := (project cursor values), instructionsReversed := (project cursor instructionsReversed), nextSlot := (project cursor nextSlot), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.failed (ctor Error.invalidFunction))))
+        | Task.arguments remainingExpressions reverseAbsolute functionIndex => (match remainingExpressions
+          | List.nil => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := (cons (ctor Task.references reverseAbsolute (nil Nat) functionIndex) restTasks), values := (project cursor values), instructionsReversed := (project cursor instructionsReversed), nextSlot := (project cursor nextSlot), completedEvents := ((project cursor completedEvents) + 1)}))
+          | List.cons argument remainingArguments => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := (cons (ctor Task.lower argument) (cons (ctor Task.collect remainingArguments reverseAbsolute functionIndex) restTasks)), values := (project cursor values), instructionsReversed := (project cursor instructionsReversed), nextSlot := (project cursor nextSlot), completedEvents := ((project cursor completedEvents) + 1)})))
+        | Task.collect remainingExpressions reverseAbsolute functionIndex => (match (project cursor values)
+          | List.nil => (ctor Step.failed (ctor Error.invalidCursor))
+          | List.cons absolute remainingValues => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := (cons (ctor Task.arguments remainingExpressions (cons absolute reverseAbsolute) functionIndex) restTasks), values := remainingValues, instructionsReversed := (project cursor instructionsReversed), nextSlot := (project cursor nextSlot), completedEvents := ((project cursor completedEvents) + 1)})))
+        | Task.references remainingAbsolute forwardReferences functionIndex => (match remainingAbsolute
+          | List.nil => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := restTasks, values := (cons (project cursor nextSlot) (project cursor values)), instructionsReversed := (cons (ctor Uorc.Core.Graph::Instruction.apply (prim subtract (project cursor libraryCount) functionIndex : Nat) forwardReferences) (project cursor instructionsReversed)), nextSlot := ((project cursor nextSlot) + 1), completedEvents := ((project cursor completedEvents) + 1)}))
+          | List.cons absolute remainingAbsoluteTail => (if (absolute <? (project cursor nextSlot)) then (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := (cons (ctor Task.references remainingAbsoluteTail (cons (prim subtract (project cursor nextSlot) absolute : Nat) forwardReferences) functionIndex) restTasks), values := (project cursor values), instructionsReversed := (project cursor instructionsReversed), nextSlot := (project cursor nextSlot), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.failed (ctor Error.referenceOverflow))))
+        | Task.reverseReferences remainingReferences forwardReferences functionIndex => (match remainingReferences
+          | List.nil => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := restTasks, values := (cons (project cursor nextSlot) (project cursor values)), instructionsReversed := (cons (ctor Uorc.Core.Graph::Instruction.apply (prim subtract (project cursor libraryCount) functionIndex : Nat) forwardReferences) (project cursor instructionsReversed)), nextSlot := ((project cursor nextSlot) + 1), completedEvents := ((project cursor completedEvents) + 1)}))
+          | List.cons reference remainingReferencesTail => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := (cons (ctor Task.reverseReferences remainingReferencesTail (cons reference forwardReferences) functionIndex) restTasks), values := (project cursor values), instructionsReversed := (project cursor instructionsReversed), nextSlot := (project cursor nextSlot), completedEvents := ((project cursor completedEvents) + 1)})))
+        | Task.reverseInstructions remainingInstructions forwardInstructions absoluteReturn => (match remainingInstructions
+          | List.nil => (ctor Step.complete (record Uorc.Core.Graph::Block {parameters := (project cursor parameters), result := (project cursor resultType), instructions := forwardInstructions, returnDistance := (prim subtract (project cursor nextSlot) absoluteReturn : Nat)}) ((project cursor completedEvents) + 1))
+          | List.cons instruction remainingInstructionsTail => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := (project cursor parameterTail), parameterCount := (project cursor parameterCount), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := (cons (ctor Task.reverseInstructions remainingInstructionsTail (cons instruction forwardInstructions) absoluteReturn) restTasks), values := (project cursor values), instructionsReversed := (project cursor instructionsReversed), nextSlot := (project cursor nextSlot), completedEvents := ((project cursor completedEvents) + 1)})))))
+    | List.cons parameterType remainingParameterTypes => (ctor Step.pending (record Cursor {parameters := (project cursor parameters), parameterTail := remainingParameterTypes, parameterCount := ((project cursor parameterCount) + 1), libraryCount := (project cursor libraryCount), resultType := (project cursor resultType), tasks := (project cursor tasks), values := (project cursor values), instructionsReversed := (project cursor instructionsReversed), nextSlot := ((project cursor nextSlot) + 1), completedEvents := ((project cursor completedEvents) + 1)})))
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ remainingFuel => (match state
+      | Step.pending cursor => (run remainingFuel (step cursor))
+      | Step.complete blockValue events => (ctor Step.complete blockValue events)
+      | Step.failed error => (ctor Step.failed error))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: block,
+  parameters: [state : Step],
+  result: (Option Uorc.Core.Graph::Block),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [Uorc.Core.Graph::Block])
+    | Step.complete completedBlock events => (ctor Option.some [Uorc.Core.Graph::Block] completedBlock)
+    | Step.failed error => (ctor Option.none [Uorc.Core.Graph::Block]))
+}
+
+theorem{
+  name: nested_lowering_charges_literals_and_parameters,
+  parameters: [],
+  statement: ((block (run 80 (ctor Step.pending (start (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)) 1 (ctor Uorc.Search.Expression::Expression.call 0 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.parameter 0 (ctor Uorc.Core.Types::ValueType.natural)) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (9 : UInt64))) (nil Uorc.Search.Expression::Expression)))))))) = (ctor Option.some [Uorc.Core.Graph::Block] (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (9 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.apply 1 (cons 2 (cons 1 (nil Nat)))) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: unknown_function_cannot_be_free_decoder_capability,
+  parameters: [],
+  statement: ((block (run 20 (ctor Step.pending (start (nil Uorc.Core.Types::ValueType) 0 (ctor Uorc.Search.Expression::Expression.call 0 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Search.Expression::Expression.parameter 0 (ctor Uorc.Core.Types::ValueType.natural)) (cons (ctor Uorc.Search.Expression::Expression.literal (ctor Uorc.Search.Expression::Literal.natural (9 : UInt64))) (nil Uorc.Search.Expression::Expression)))))))) = (ctor Option.none [Uorc.Core.Graph::Block])),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

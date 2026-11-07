@@ -1,0 +1,186 @@
+\begin{lexlean}{Uorc.VarintContract}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Varint}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: VarintContract,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: domain, type: String},
+    {name: encoding, type: String},
+    {name: decoding, type: String},
+    {name: errorOrder, type: String},
+    {name: offsets, type: String},
+    {name: proofScope, type: String},
+    {name: axiomPolicy, type: String},
+    {name: authority, type: String}
+  ]
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: VarintContract,
+  body: (record VarintContract {domain := "Unsigned 64-bit integers: natural values from 0 through 18446744073709551615. The public encoder rejects larger values before encoding. Byte inputs are natural values checked against 0..255.", encoding := "Shortest unsigned little-endian base-128 encoding. Each non-final byte carries seven payload bits and sets bit 7; the final byte clears bit 7. Zero is the single byte 00. A successful U64 encoding occupies one through ten bytes.", decoding := "Prefix decoding consumes at most ten bytes and returns the numeric value, consumed length, and untouched suffix. Exact decoding additionally rejects any suffix. The prefix is accepted only if the bounded encoder reproduces its exact bytes.", errorOrder := "At each consumed byte: exhausted ten-byte allowance, absent byte, invalid byte domain, then termination/continuation. After termination: U64 overflow, non-shortest spelling, then (for exact decoding) trailing bytes. Prefix decoding does not inspect suffix bytes.", offsets := "Offsets are zero-based relative to the varint start. Truncation identifies the first missing byte; an invalid byte identifies itself; overflow or non-shortest spelling identifies the final consumed byte; trailing bytes identify the first unconsumed byte; encoder domain rejection uses offset zero.", proofScope := "The two public round trips quantify over all domain values or all accepted inputs. Additional theorems establish exact size, a one-to-ten-byte bound, minimum possible base-128 representation length, and preservation of prefix/suffix concatenation. Closed vectors are separate exact observations.", axiomPolicy := "Computational entry points have empty axiom sets. Proof declarations carry their exact kernel-audited subset of Lean foundations propext, Quot.sound, and Classical.choice. No additional axiom or admitted proof is allowed.", authority := "The native core declarations, computational definitions, and proof terms in Uorc.Varint are LexLean source. Verification reconstructs them from the source graph without any handwritten Lean file or precompiled product object as an input."})
+}
+
+structure{
+  name: KernelRoot,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: symbol, type: String}]
+}
+
+definition{
+  name: root_uleb_encode_decode,
+  parameters: [],
+  result: KernelRoot,
+  body: (record KernelRoot {symbol := "Uorc.Varint.uleb_encode_decode"})
+}
+
+definition{
+  name: root_uleb_decode_encode,
+  parameters: [],
+  result: KernelRoot,
+  body: (record KernelRoot {symbol := "Uorc.Varint.uleb_decode_encode"})
+}
+
+definition{
+  name: root_uleb_size_exact,
+  parameters: [],
+  result: KernelRoot,
+  body: (record KernelRoot {symbol := "Uorc.Varint.uleb_size_exact"})
+}
+
+definition{
+  name: root_uleb_size_bounded,
+  parameters: [],
+  result: KernelRoot,
+  body: (record KernelRoot {symbol := "Uorc.Varint.uleb_size_bounded"})
+}
+
+definition{
+  name: root_shortest,
+  parameters: [],
+  result: KernelRoot,
+  body: (record KernelRoot {symbol := "Uorc.Varint.shortest"})
+}
+
+definition{
+  name: root_scan_reconstruct,
+  parameters: [],
+  result: KernelRoot,
+  body: (record KernelRoot {symbol := "Uorc.Varint.scan_reconstruct"})
+}
+
+definition{
+  name: root_chunk_encode,
+  parameters: [],
+  result: KernelRoot,
+  body: (record KernelRoot {symbol := "Uorc.Varint.chunk_encode"})
+}
+
+definition{
+  name: root_fuel_eq,
+  parameters: [],
+  result: KernelRoot,
+  body: (record KernelRoot {symbol := "Uorc.Varint.fuel_eq"})
+}
+
+definition{
+  name: root_bounded_eq,
+  parameters: [],
+  result: KernelRoot,
+  body: (record KernelRoot {symbol := "Uorc.Varint.bounded_eq"})
+}
+
+structure{
+  name: VarintFailure,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: variant, type: String},
+    {name: meaning, type: String},
+    {name: negativeFamily, type: String}
+  ]
+}
+
+definition{
+  name: failure_truncated,
+  parameters: [],
+  result: VarintFailure,
+  body: (record VarintFailure {variant := "truncated", meaning := "Input ends before a terminating byte.", negativeFamily := "truncated_"})
+}
+
+definition{
+  name: failure_overflow,
+  parameters: [],
+  result: VarintFailure,
+  body: (record VarintFailure {variant := "overflow", meaning := "The ten-byte allowance or U64 numeric range is exceeded.", negativeFamily := "overflow_"})
+}
+
+definition{
+  name: failure_nonShortest,
+  parameters: [],
+  result: VarintFailure,
+  body: (record VarintFailure {variant := "nonShortest", meaning := "The consumed bytes are not the shortest spelling of their value.", negativeFamily := "overlong_"})
+}
+
+definition{
+  name: failure_invalidByte,
+  parameters: [],
+  result: VarintFailure,
+  body: (record VarintFailure {variant := "invalidByte", meaning := "A consumed input element is outside the byte domain.", negativeFamily := "invalid_byte_"})
+}
+
+definition{
+  name: failure_trailingBytes,
+  parameters: [],
+  result: VarintFailure,
+  body: (record VarintFailure {variant := "trailingBytes", meaning := "Exact decoding finds a suffix after a valid prefix.", negativeFamily := "trailing_"})
+}
+
+definition{
+  name: failure_valueOutOfRange,
+  parameters: [],
+  result: VarintFailure,
+  body: (record VarintFailure {variant := "valueOutOfRange", meaning := "The encoder input is outside the U64 domain.", negativeFamily := "encode_overflow_"})
+}
+
+structure{
+  name: CoreMutation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: definition, type: String},
+    {name: before, type: String},
+    {name: after, type: String},
+    {name: owner, type: String}
+  ]
+}
+
+definition{
+  name: mutation_wrong_radix,
+  parameters: [],
+  result: CoreMutation,
+  body: (record CoreMutation {id := "wrong_radix", definition := "Uorc.Varint.encodeFuel._f", before := "128", after := "129", owner := "Uorc.Varint.fuel_eq"})
+}
+
+definition{
+  name: mutation_short_budget,
+  parameters: [],
+  result: CoreMutation,
+  body: (record CoreMutation {id := "short_budget", definition := "Uorc.Varint.decodePrefix", before := "10", after := "9", owner := "Uorc.Varint.chunk_encode"})
+}
+
+definition{
+  name: mutation_wide_domain,
+  parameters: [],
+  result: CoreMutation,
+  body: (record CoreMutation {id := "wide_domain", definition := "Uorc.Varint.maximum", before := "18446744073709551615", after := "18446744073709551616", owner := "Uorc.Varint.encode_overflow_18446744073709551616"})
+}
+\end{semanticmodule}
+\end{lexlean}

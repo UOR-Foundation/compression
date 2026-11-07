@@ -1,0 +1,477 @@
+\begin{lexlean}{Uorc.Core.RuntimeOwnershipProofs}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: ResidentState,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: index, type: Uorc.Core.Heap::Index},
+    {name: nextHandle, type: UInt64},
+    {name: exhausted, type: Bool},
+    {name: ownedBytes, type: UInt64},
+    {name: liveEntries, type: UInt64},
+    {name: maxOwnedBytes, type: UInt64}
+  ]
+}
+
+definition{
+  name: residentState,
+  parameters: [arena : Uorc.Core.Heap::Arena],
+  result: ResidentState,
+  body: (record ResidentState {index := (project arena index), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project arena maxOwnedBytes)}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: withCursor,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Uorc.Core.Heap::ReleaseCursor],
+  result: Uorc.Core.Heap::Arena,
+  body: (record Uorc.Core.Heap::Arena {index := (project arena index), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project arena maxOwnedBytes), cursor := cursor}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: rootCursor,
+  parameters: [handle : Uorc.Core.RuntimeValue::Handle],
+  result: Uorc.Core.Heap::ReleaseCursor,
+  body: (record Uorc.Core.Heap::ReleaseCursor {pending := (cons handle (nil Uorc.Core.RuntimeValue::Handle)), pendingCount := (1 : UInt64), rootStep := true}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: zeroTransferDelta,
+  parameters: [],
+  result: Uorc.Core.Heap::Delta,
+  body: (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (1 : UInt64)}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: rootHandle,
+  parameters: [],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (record Uorc.Core.RuntimeValue::Handle {id := (1 : UInt64)}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: singletonArena,
+  parameters: [
+    node : Uorc.Core.Heap::Node,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  result: Uorc.Core.Heap::Arena,
+  body: (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (ctor Uorc.Core.Heap::Index.empty) (1 : UInt64) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := node, incoming := (1 : UInt64), roots := (1 : UInt64), weight := weight}))), nextHandle := (2 : UInt64), exhausted := false, ownedBytes := owned, liveEntries := live, maxOwnedBytes := maximum, cursor := (Uorc.Core.Heap::emptyCursor)}),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+theorem{
+  name: cursor_frame,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Uorc.Core.Heap::ReleaseCursor],
+  statement: ((residentState (withCursor arena cursor)) = (residentState arena)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: retainEntry_null,
+  parameters: [arena : Uorc.Core.Heap::Arena, external : Bool],
+  statement: ((Uorc.Core.Heap::retainEntry arena (Uorc.Core.RuntimeValue::nullHandle) external) = (ctor Result.ok [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] arena)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: retain_null_idle,
+  parameters: [arena : Uorc.Core.Heap::Arena],
+  statement: ((Uorc.Core.Heap::retain (withCursor arena (Uorc.Core.Heap::emptyCursor)) (Uorc.Core.RuntimeValue::nullHandle)) = (ctor Result.ok [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Transition {arena := (withCursor arena (Uorc.Core.Heap::emptyCursor)), delta := (zeroTransferDelta), complete := true}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: release_null_idle,
+  parameters: [arena : Uorc.Core.Heap::Arena],
+  statement: ((Uorc.Core.Heap::release (withCursor arena (Uorc.Core.Heap::emptyCursor)) (Uorc.Core.RuntimeValue::nullHandle)) = (ctor Result.ok [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Transition {arena := (withCursor arena (Uorc.Core.Heap::emptyCursor)), delta := (zeroTransferDelta), complete := true}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: allocate_rejects_pending_root,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    handle : Uorc.Core.RuntimeValue::Handle,
+    node : Uorc.Core.Heap::Node
+  ],
+  statement: ((Uorc.Core.Heap::allocate (withCursor arena (rootCursor handle)) node) = (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.releaseInProgress))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: retain_rejects_pending_root,
+  parameters: [arena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  statement: ((Uorc.Core.Heap::retain (withCursor arena (rootCursor handle)) handle) = (ctor Result.error [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.releaseInProgress))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: release_rejects_pending_root,
+  parameters: [arena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  statement: ((Uorc.Core.Heap::release (withCursor arena (rootCursor handle)) handle) = (ctor Result.error [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.releaseInProgress))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: withdraw_rejects_idle,
+  parameters: [arena : Uorc.Core.Heap::Arena],
+  statement: ((Uorc.Core.Heap::withdrawRootRelease (withCursor arena (Uorc.Core.Heap::emptyCursor))) = (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.releaseNotStarted))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_lookup,
+  parameters: [
+    node : Uorc.Core.Heap::Node,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::lookup (singletonArena node weight owned live maximum) (rootHandle)) = (ctor Result.ok [Uorc.Core.Heap::Entry, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Entry {node := node, incoming := (1 : UInt64), roots := (1 : UInt64), weight := weight}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_release_transfer,
+  parameters: [
+    node : Uorc.Core.Heap::Node,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::release (singletonArena node weight owned live maximum) (rootHandle)) = (ctor Result.ok [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Transition {arena := (withCursor (singletonArena node weight owned live maximum) (rootCursor (rootHandle))), delta := (zeroTransferDelta), complete := false}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_release_frame,
+  parameters: [
+    node : Uorc.Core.Heap::Node,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: (match (Uorc.Core.Heap::release (singletonArena node weight owned live maximum) (rootHandle))
+    | Result.error failure => (0 = 0)
+    | Result.ok transfer => ((residentState (project transfer arena)) = (residentState (singletonArena node weight owned live maximum)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_withdraw_transfer,
+  parameters: [
+    node : Uorc.Core.Heap::Node,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::withdrawRootRelease (withCursor (singletonArena node weight owned live maximum) (rootCursor (rootHandle)))) = (ctor Result.ok [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Allocation {arena := (singletonArena node weight owned live maximum), handle := (rootHandle), delta := (zeroTransferDelta)}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_withdraw_frame,
+  parameters: [
+    node : Uorc.Core.Heap::Node,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: (match (Uorc.Core.Heap::withdrawRootRelease (withCursor (singletonArena node weight owned live maximum) (rootCursor (rootHandle))))
+    | Result.error failure => (0 = 0)
+    | Result.ok transfer => ((residentState (project transfer arena)) = (residentState (singletonArena node weight owned live maximum)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_release_withdraw_roundtrip,
+  parameters: [
+    node : Uorc.Core.Heap::Node,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::withdrawRootRelease (match (Uorc.Core.Heap::release (singletonArena node weight owned live maximum) (rootHandle))
+    | Result.error failure => (singletonArena node weight owned live maximum)
+    | Result.ok transfer => (project transfer arena))) = (ctor Result.ok [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Allocation {arena := (singletonArena node weight owned live maximum), handle := (rootHandle), delta := (zeroTransferDelta)}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_retain_root_ownedBytes,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: (match (Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) true)
+    | Result.error failure => (0 = 0)
+    | Result.ok kept => ((project kept ownedBytes) = owned)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_retain_root_liveEntries,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: (match (Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) true)
+    | Result.error failure => (0 = 0)
+    | Result.ok kept => ((project kept liveEntries) = live)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_retain_root_maxOwnedBytes,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: (match (Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) true)
+    | Result.error failure => (0 = 0)
+    | Result.ok kept => ((project kept maxOwnedBytes) = maximum)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_retain_root_counts,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((match (Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) true)
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Entry, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok kept => (Uorc.Core.Heap::lookup kept (rootHandle))) = (ctor Result.ok [Uorc.Core.Heap::Entry, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.image kind bytes), incoming := (2 : UInt64), roots := (2 : UInt64), weight := weight}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_retain_edge_ownedBytes,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: (match (Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) false)
+    | Result.error failure => (0 = 0)
+    | Result.ok kept => ((project kept ownedBytes) = owned)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_retain_edge_liveEntries,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: (match (Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) false)
+    | Result.error failure => (0 = 0)
+    | Result.ok kept => ((project kept liveEntries) = live)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_retain_edge_maxOwnedBytes,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: (match (Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) false)
+    | Result.error failure => (0 = 0)
+    | Result.ok kept => ((project kept maxOwnedBytes) = maximum)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_retain_edge_counts,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((match (Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) false)
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Entry, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok kept => (Uorc.Core.Heap::lookup kept (rootHandle))) = (ctor Result.ok [Uorc.Core.Heap::Entry, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.image kind bytes), incoming := (2 : UInt64), roots := (1 : UInt64), weight := weight}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: allocate_store_leaf_characterization,
+  parameters: [byte : UInt8, maximum : UInt64],
+  statement: ((Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena maximum) (ctor Uorc.Core.Heap::Node.storeLeaf byte)) = (if (Uorc.Core.Heap::less maximum (40 : UInt64)) then (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.budgetExceeded)) else (ctor Result.ok [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Allocation {arena := (singletonArena (ctor Uorc.Core.Heap::Node.storeLeaf byte) (40 : UInt64) (40 : UInt64) (1 : UInt64) maximum), handle := (rootHandle), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (40 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (1 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (1 : UInt64), droppedRoots := (0 : UInt64), work := (1 : UInt64)})})))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: release_store_leaf_reclaims_all,
+  parameters: [byte : UInt8, maximum : UInt64],
+  statement: ((Uorc.Core.Heap::releaseStep (withCursor (singletonArena (ctor Uorc.Core.Heap::Node.storeLeaf byte) (40 : UInt64) (40 : UInt64) (1 : UInt64) maximum) (rootCursor (rootHandle)))) = (ctor Result.ok [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Transition {arena := (record Uorc.Core.Heap::Arena {index := (ctor Uorc.Core.Heap::Index.empty), nextHandle := (2 : UInt64), exhausted := false, ownedBytes := (0 : UInt64), liveEntries := (0 : UInt64), maxOwnedBytes := maximum, cursor := (Uorc.Core.Heap::emptyCursor)}), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (40 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (1 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (1 : UInt64), work := (1 : UInt64)}), complete := true}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: doubleRootArena,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  result: Uorc.Core.Heap::Arena,
+  body: (record Uorc.Core.Heap::Arena {index := (Uorc.Core.Heap::writeIndex 64 (ctor Uorc.Core.Heap::Index.empty) (1 : UInt64) (ctor Option.some [Uorc.Core.Heap::Entry] (record Uorc.Core.Heap::Entry {node := (ctor Uorc.Core.Heap::Node.image kind bytes), incoming := (2 : UInt64), roots := (2 : UInt64), weight := weight}))), nextHandle := (2 : UInt64), exhausted := false, ownedBytes := owned, liveEntries := live, maxOwnedBytes := maximum, cursor := (Uorc.Core.Heap::emptyCursor)}),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+theorem{
+  name: singleton_retain_root_transfer,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) true) = (ctor Result.ok [Uorc.Core.Heap::Arena, Uorc.Core.Heap::HeapError] (doubleRootArena kind bytes weight owned live maximum))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: double_root_release_transfer,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::release (doubleRootArena kind bytes weight owned live maximum) (rootHandle)) = (ctor Result.ok [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Transition {arena := (withCursor (doubleRootArena kind bytes weight owned live maximum) (rootCursor (rootHandle))), delta := (zeroTransferDelta), complete := false}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: double_root_release_step_restores,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((Uorc.Core.Heap::releaseStep (withCursor (doubleRootArena kind bytes weight owned live maximum) (rootCursor (rootHandle)))) = (ctor Result.ok [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Transition {arena := (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (1 : UInt64), work := (1 : UInt64)}), complete := true}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: retain_release_restores_image_arena,
+  parameters: [
+    kind : Uorc.Core.Heap::ImageKind,
+    bytes : Bytes,
+    weight : UInt64,
+    owned : UInt64,
+    live : UInt64,
+    maximum : UInt64
+  ],
+  statement: ((match (Uorc.Core.Heap::retainEntry (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum) (rootHandle) true)
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok kept => (match (Uorc.Core.Heap::release kept (rootHandle))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] failure)
+      | Result.ok transfer => (Uorc.Core.Heap::releaseStep (project transfer arena)))) = (ctor Result.ok [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] (record Uorc.Core.Heap::Transition {arena := (singletonArena (ctor Uorc.Core.Heap::Node.image kind bytes) weight owned live maximum), delta := (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (1 : UInt64), work := (1 : UInt64)}), complete := true}))),
+  proof: simplify{
+    definitions: [
+      double_root_release_step_restores,
+      double_root_release_transfer,
+      singleton_retain_root_transfer
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+
+\end{lexlean}

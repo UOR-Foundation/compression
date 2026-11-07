@@ -1,0 +1,136 @@
+\begin{lexlean}{Uorc.Search.LzProgram}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Search.Effort}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Builder,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: instructionsReversed, type: (List Uorc.Core.Graph::Instruction)},
+    {name: instructionCount, type: Nat},
+    {name: outputSlot, type: (Option Nat)},
+    {name: outputBytes, type: Nat},
+    {name: usesPeriod, type: Bool}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: builder, type: Builder},
+    {name: remaining, type: (List Uorc.Core.Graph::Instruction)},
+    {name: finalSlot, type: Nat},
+    {name: finalBytes, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidState, fields: []},
+    {name: invalidRange, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: appended, fields: [Builder]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+structure{
+  name: FinishCursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: builder, type: Builder},
+    {name: remaining, type: (List Uorc.Core.Graph::Instruction)},
+    {name: forward, type: (List Uorc.Core.Graph::Instruction)}
+  ]
+}
+
+inductive{
+  name: FinishStep,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [FinishCursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+definition{
+  name: empty,
+  parameters: [],
+  result: Builder,
+  body: (record Builder {instructionsReversed := (nil Uorc.Core.Graph::Instruction), instructionCount := 0, outputSlot := (ctor Option.none [Nat]), outputBytes := 0, usesPeriod := false})
+}
+
+definition{
+  name: beginLiteral,
+  parameters: [builder : Builder, literal : Uorc.Core.Bytes::Rope, length : Nat],
+  result: (Result Cursor Error),
+  body: (if ((Uorc.Core.Resources::fitsAddition 18446744073709551615 (project builder outputBytes) length) && (Uorc.Core.Resources::fitsAddition 18446744073709551615 (project builder instructionCount) 2)) then (if ((Uorc.Core.Bytes::length literal) =? length) then (match (project builder outputSlot)
+    | Option.none => (if ((project builder outputBytes) =? 0) then (ctor Result.ok [Cursor, Error] (record Cursor {builder := builder, remaining := (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant literal) (nil Uorc.Core.Graph::Instruction)), finalSlot := (project builder instructionCount), finalBytes := ((project builder outputBytes) + length)})) else (ctor Result.error [Cursor, Error] (ctor Error.invalidState)))
+    | Option.some previous => (if (previous <? (project builder instructionCount)) then (ctor Result.ok [Cursor, Error] (record Cursor {builder := builder, remaining := (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant literal) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConcat (prim subtract ((project builder instructionCount) + 1) previous : Nat) 1) (nil Uorc.Core.Graph::Instruction))), finalSlot := ((project builder instructionCount) + 1), finalBytes := ((project builder outputBytes) + length)})) else (ctor Result.error [Cursor, Error] (ctor Error.invalidState)))) else (ctor Result.error [Cursor, Error] (ctor Error.invalidRange))) else (ctor Result.error [Cursor, Error] (ctor Error.addressSpaceExhausted)))
+}
+
+definition{
+  name: beginReference,
+  parameters: [builder : Builder, start : Nat, length : Nat],
+  result: (Result Cursor Error),
+  body: (if (start <? (project builder outputBytes)) then (if ((Uorc.Core.Resources::fitsAddition 18446744073709551615 (project builder outputBytes) length) && (Uorc.Core.Resources::fitsAddition 18446744073709551615 (project builder instructionCount) 6)) then (match (project builder outputSlot)
+    | Option.none => (ctor Result.error [Cursor, Error] (ctor Error.invalidState))
+    | Option.some previous => (if (previous <? (project builder instructionCount)) then (match (Uorc.Search.Effort::checkedU64 start)
+      | Result.error failure => (ctor Result.error [Cursor, Error] (ctor Error.addressSpaceExhausted))
+      | Result.ok startWord => (match (Uorc.Search.Effort::checkedU64 length)
+        | Result.error failure => (ctor Result.error [Cursor, Error] (ctor Error.addressSpaceExhausted))
+        | Result.ok lengthWord => (match (Uorc.Search.Effort::checkedU64 (prim subtract (project builder outputBytes) start : Nat))
+          | Result.error failure => (ctor Result.error [Cursor, Error] (ctor Error.addressSpaceExhausted))
+          | Result.ok distanceWord => (if (length <=? (prim subtract (project builder outputBytes) start : Nat)) then (ctor Result.ok [Cursor, Error] (record Cursor {builder := builder, remaining := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant startWord) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant lengthWord) (cons (ctor Uorc.Core.Graph::Instruction.sequenceSlice (prim subtract ((project builder instructionCount) + 2) previous : Nat) 2 1) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConcat (prim subtract ((project builder instructionCount) + 3) previous : Nat) 1) (nil Uorc.Core.Graph::Instruction))))), finalSlot := ((project builder instructionCount) + 3), finalBytes := ((project builder outputBytes) + length)})) else (ctor Result.ok [Cursor, Error] (record Cursor {builder := (record Builder {instructionsReversed := (project builder instructionsReversed), instructionCount := (project builder instructionCount), outputSlot := (project builder outputSlot), outputBytes := (project builder outputBytes), usesPeriod := true}), remaining := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant startWord) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant distanceWord) (cons (ctor Uorc.Core.Graph::Instruction.sequenceSlice (prim subtract ((project builder instructionCount) + 2) previous : Nat) 2 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant lengthWord) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (cons 2 (nil Nat))) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConcat (prim subtract ((project builder instructionCount) + 5) previous : Nat) 1) (nil Uorc.Core.Graph::Instruction))))))), finalSlot := ((project builder instructionCount) + 5), finalBytes := ((project builder outputBytes) + length)})))))) else (ctor Result.error [Cursor, Error] (ctor Error.invalidState)))) else (ctor Result.error [Cursor, Error] (ctor Error.addressSpaceExhausted))) else (ctor Result.error [Cursor, Error] (ctor Error.invalidRange)))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor remaining)
+    | List.nil => (if ((project cursor finalSlot) <? (project (project cursor builder) instructionCount)) then (ctor Step.appended (record Builder {instructionsReversed := (project (project cursor builder) instructionsReversed), instructionCount := (project (project cursor builder) instructionCount), outputSlot := (ctor Option.some [Nat] (project cursor finalSlot)), outputBytes := (project cursor finalBytes), usesPeriod := (project (project cursor builder) usesPeriod)})) else (ctor Step.rejected (ctor Error.invalidState)))
+    | List.cons instruction rest => (if ((project (project cursor builder) instructionCount) <? 18446744073709551615) then (ctor Step.pending (record Cursor {builder := (record Builder {instructionsReversed := (cons instruction (project (project cursor builder) instructionsReversed)), instructionCount := ((project (project cursor builder) instructionCount) + 1), outputSlot := (project (project cursor builder) outputSlot), outputBytes := (project (project cursor builder) outputBytes), usesPeriod := (project (project cursor builder) usesPeriod)}), remaining := rest, finalSlot := (project cursor finalSlot), finalBytes := (project cursor finalBytes)})) else (ctor Step.rejected (ctor Error.addressSpaceExhausted))))
+}
+
+definition{
+  name: finish,
+  parameters: [builder : Builder],
+  result: FinishCursor,
+  body: (record FinishCursor {builder := builder, remaining := (project builder instructionsReversed), forward := (nil Uorc.Core.Graph::Instruction)})
+}
+
+definition{
+  name: finishStep,
+  parameters: [cursor : FinishCursor],
+  result: FinishStep,
+  body: (match (project cursor remaining)
+    | List.nil => (match (project (project cursor builder) outputSlot)
+      | Option.none => (if ((project (project cursor builder) instructionCount) =? 0) then (ctor FinishStep.proposal (Uorc.Core.Graph::literalGraph 0x)) else (ctor FinishStep.rejected (ctor Error.invalidState)))
+      | Option.some output => (if (output <? (project (project cursor builder) instructionCount)) then (ctor FinishStep.proposal (record Uorc.Core.Graph::Graph {blocks := (if (project (project cursor builder) usesPeriod) then (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.sequence) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.sequenceLength 1) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 3 1) (cons (ctor Uorc.Core.Graph::Instruction.sequenceIndex 3 1) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (project cursor forward), returnDistance := (prim subtract (project (project cursor builder) instructionCount) output : Nat)}) (nil Uorc.Core.Graph::Block))) else (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (project cursor forward), returnDistance := (prim subtract (project (project cursor builder) instructionCount) output : Nat)}) (nil Uorc.Core.Graph::Block))), entry := (if (project (project cursor builder) usesPeriod) then 1 else 0)})) else (ctor FinishStep.rejected (ctor Error.invalidState))))
+    | List.cons instruction rest => (ctor FinishStep.pending (record FinishCursor {builder := (project cursor builder), remaining := rest, forward := (cons instruction (project cursor forward))})))
+}
+\end{semanticmodule}
+\end{lexlean}

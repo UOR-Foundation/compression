@@ -1,0 +1,99 @@
+\begin{lexlean}{Uorc.Core.RuntimeRecordTests}
+\importmodule{Uorc.Core.RuntimeRecordBuilder}
+\importmodule{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.HeapAudit}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: auditFailed, fields: []},
+    {name: fuelExhausted, fields: []},
+    {name: fixtureFailed, fields: []}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: completed, fields: [Uorc.Core.Heap::Arena, Uorc.Core.RuntimeValue::Handle]},
+    {name: failed, fields: [Uorc.Core.Heap::Arena, Uorc.Core.RuntimeRecordBuilder::Cursor]}
+  ]
+}
+
+definition{
+  name: runAudited,
+  parameters: [
+    fuel : Nat,
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Uorc.Core.RuntimeRecordBuilder::Cursor
+  ],
+  result: (Result Outcome ScenarioError),
+  body: (match fuel
+    | Nat.zero => (if (Uorc.Core.HeapAudit::auditRoots arena (Uorc.Core.RuntimeRecordBuilder::rootInventory cursor)) then (ctor Result.error [Outcome, ScenarioError] (ctor ScenarioError.fuelExhausted)) else (ctor Result.error [Outcome, ScenarioError] (ctor ScenarioError.auditFailed)))
+    | Nat.succ rest => (if (Uorc.Core.HeapAudit::auditRoots arena (Uorc.Core.RuntimeRecordBuilder::rootInventory cursor)) then (match (Uorc.Core.RuntimeRecordBuilder::step arena cursor)
+      | Uorc.Core.RuntimeRecordBuilder::Event.advanced nextArena nextCursor delta => (runAudited rest nextArena nextCursor)
+      | Uorc.Core.RuntimeRecordBuilder::Event.failed error nextArena nextCursor => (if (Uorc.Core.HeapAudit::auditRoots nextArena (Uorc.Core.RuntimeRecordBuilder::rootInventory nextCursor)) then (ctor Result.ok [Outcome, ScenarioError] (ctor Outcome.failed nextArena nextCursor)) else (ctor Result.error [Outcome, ScenarioError] (ctor ScenarioError.auditFailed)))
+      | Uorc.Core.RuntimeRecordBuilder::Event.done nextArena newRoot delta => (if (Uorc.Core.HeapAudit::auditRoots nextArena (cons newRoot (nil Uorc.Core.RuntimeValue::Handle))) then (ctor Result.ok [Outcome, ScenarioError] (ctor Outcome.completed nextArena newRoot)) else (ctor Result.error [Outcome, ScenarioError] (ctor ScenarioError.auditFailed)))) else (ctor Result.error [Outcome, ScenarioError] (ctor ScenarioError.auditFailed)))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: replacementFixture,
+  parameters: [limit : UInt64, expectFailure : Bool, expectedOwned : UInt64],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeRecordBuilder::start (Uorc.Core.RuntimeValue::nullHandle) (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockRecord)) (0 : UInt64) (ctor Uorc.Core.RuntimeMetadata::Field.word (7 : UInt64)))
+    | Result.error startError_first => false
+    | Result.ok writeCursor_first => match{
+      branches: [
+        {body: false, binders: [runError_first], constructor: Result.error},
+        {
+          body: (match var{name: first}
+            | Outcome.completed firstArena firstRoot => (match (Uorc.Core.RuntimeRecordBuilder::start firstRoot (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockRecord)) (15 : UInt64) (ctor Uorc.Core.RuntimeMetadata::Field.word (9 : UInt64)))
+              | Result.error startError_second => false
+              | Result.ok writeCursor_second => match{
+                branches: [
+                  {body: false, binders: [runError_second], constructor: Result.error},
+                  {
+                    body: (match var{name: second}
+                      | Outcome.completed finalArena finalRoot => ((not expectFailure) && ((match (Uorc.Core.RuntimeMetadata::wordAt finalArena finalRoot (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockRecord)) (0 : UInt64))
+                        | Result.error readError0 => false
+                        | Result.ok value0 => (prim equal value0 (7 : UInt64) : Bool)) && ((match (Uorc.Core.RuntimeMetadata::wordAt finalArena finalRoot (Uorc.Core.RuntimeMetadata::kindCode (ctor Uorc.Core.RuntimeMetadata::Kind.blockRecord)) (15 : UInt64))
+                        | Result.error readError15 => false
+                        | Result.ok value15 => (prim equal value15 (9 : UInt64) : Bool)) && (prim equal (project finalArena ownedBytes) (504 : UInt64) : Bool))))
+                      | Outcome.failed failedArena failedCursor => (expectFailure && (prim equal (project failedArena ownedBytes) expectedOwned : Bool))),
+                    binders: [second],
+                    constructor: Result.ok
+                  }
+                ],
+                scrutinee: (runAudited 100 firstArena writeCursor_second)
+              })
+            | Outcome.failed failedArena failedCursor => false),
+          binders: [first],
+          constructor: Result.ok
+        }
+      ],
+      scrutinee: (runAudited 100 (Uorc.Core.Heap::emptyArena limit) writeCursor_first)
+    }),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if ((replacementFixture (350 : UInt64) true (336 : UInt64)) && ((replacementFixture (420 : UInt64) true (392 : UInt64)) && (replacementFixture (10000 : UInt64) false (504 : UInt64)))) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.fixtureFailed))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

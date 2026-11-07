@@ -1,0 +1,79 @@
+\begin{lexlean}{Uorc.Search.HuffmanTrialControls}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.HuffmanProgram}
+\importmodule{Uorc.Search.ProgramTrial}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Core.Basis}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: branchFixture,
+  parameters: [],
+  result: Uorc.Core.Graph::Graph,
+  body: (Uorc.Search.HuffmanProgram::branchProgram (1 : UInt64) (1 : UInt64) (1 : UInt64) (0 : UInt64) (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0x61016201))
+}
+
+definition{
+  name: forcedStart,
+  parameters: [target : Uorc.Core.Bytes::Rope],
+  result: Uorc.Search.ProgramTrial::Step,
+  body: (ctor Uorc.Search.ProgramTrial::Step.pending (Uorc.Search.ProgramTrial::start (record Uorc.Search.ProgramTrial::Query {target := target, basis := (ctor Uorc.Core.Basis::Input.roots (nil Uorc.Core.Bytes::Rope)), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), initialUsage := (Uorc.Core.Resources::zeroUsage)}) (branchFixture)))
+}
+
+definition{
+  name: forcedExactTrial,
+  parameters: [],
+  result: Uorc.Search.ProgramTrial::Step,
+  body: (forcedStart (Uorc.Core.Bytes::fromBytes 0x61))
+}
+
+definition{
+  name: forcedChangedTrial,
+  parameters: [],
+  result: Uorc.Search.ProgramTrial::Step,
+  body: (forcedStart (Uorc.Core.Bytes::fromBytes 0x62))
+}
+
+definition{
+  name: checkedOneByte,
+  parameters: [state : Uorc.Search.ProgramTrial::Step],
+  result: Bool,
+  body: match{
+    branches: [
+      {body: false, binders: [cursor], constructor: Uorc.Search.ProgramTrial::Step.pending},
+      {
+        body: (((project var{
+          name: checked
+        } bytesCompared) =? 1) && (0 <? (Uorc.Core.Bytes::length (project var{
+          name: checked
+        } wire)))),
+        binders: [checked],
+        constructor: Uorc.Search.ProgramTrial::Step.complete
+      },
+      {
+        body: false,
+        binders: [failure, events],
+        constructor: Uorc.Search.ProgramTrial::Step.rejected
+      }
+    ],
+    scrutinee: state
+  }
+}
+
+theorem{
+  name: zero_trial_work_never_certifies_symbolic_meaning,
+  parameters: [],
+  statement: ((Uorc.Search.ProgramTrial::accepted (Uorc.Search.ProgramTrial::run 0 (forcedExactTrial))) = false),
+  proof: reflexivity{}
+}
+
+definition{
+  name: qualificationBoundary,
+  parameters: [],
+  result: String,
+  body: "This forced one-byte branch fixture separately exercises source ProgramTrial emission, normalization, reparsing, static validation, budgeted legacy execution and fresh comparison. It intentionally bypasses no production pruning rule because it is only a test fixture. Completion is diagnostic legacy Graph/ExecutionCredit evidence, not RuntimeProgram.Event arena ownership, pinned SDK acceptance, production handle qualification or native speed evidence."
+}
+\end{semanticmodule}
+\end{lexlean}

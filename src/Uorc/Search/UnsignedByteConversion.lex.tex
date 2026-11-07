@@ -1,0 +1,33 @@
+\begin{lexlean}{Uorc.Search.UnsignedByteConversion}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: nextByte,
+  parameters: [value : UInt8],
+  result: UInt8,
+  body: (match (prim checked_add value (1 : UInt8) : (Option UInt8))
+    | Option.none => (0 : UInt8)
+    | Option.some converted => converted),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: fromNat,
+  parameters: [remaining : Nat],
+  result: UInt8,
+  body: (match remaining
+    | Nat.zero => (0 : UInt8)
+    | Nat.succ previous => (nextByte (fromNat previous))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: remaining
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "Pure non-production source helper using Nat structural recursion and the admitted UInt8 checked_add operation. The intended full-Nat law is toNat(fromNat(n)) = n modulo 256. That law is a new outstanding proof obligation, not an imported fact or axiom. Existing modelUnsignedByte calls this helper only after its existing pointwise modelByte(payload), preserving the full public Nat domain and every finite byte word/zero/length contract. Normalization is intrinsic byte width, not a product input or enumeration bound. Source checking, general lemma, false controls, kernel/axiom audit, native and full SDK acceptance remain separate.",
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

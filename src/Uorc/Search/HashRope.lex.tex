@@ -1,0 +1,90 @@
+\begin{lexlean}{Uorc.Search.HashRope}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Integrity.BoundedChain}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: reading, fields: [Uorc.Integrity.BoundedChain::State]},
+    {name: updating, fields: [Uorc.Integrity.BoundedChain::Update]},
+    {name: finalizing, fields: [Uorc.Integrity.BoundedChain::State]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: reader, type: Uorc.Core.Bytes::Cursor},
+    {name: remaining, type: Nat},
+    {name: phase, type: Phase},
+    {name: bytesHashed, type: Nat},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: integrity, fields: [Uorc.Integrity.BoundedChain::Error]},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: earlyEof, fields: []},
+    {name: invalidChunk, fields: []},
+    {name: digestLength, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [Bytes, Nat, Nat]},
+    {name: failed, fields: [Error, Nat]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [rope : Uorc.Core.Bytes::Rope, count : Nat],
+  result: Step,
+  body: (match (Uorc.Integrity.BoundedChain::init)
+    | Result.ok hash => (ctor Step.pending (record Cursor {reader := (Uorc.Core.Bytes::cursor rope), remaining := count, phase := (ctor Phase.reading hash), bytesHashed := 0, completedEvents := 0}))
+    | Result.error error => (ctor Step.failed (ctor Error.integrity error) 0))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.reading hash => (if ((project cursor remaining) =? 0) then (match (Uorc.Integrity.BoundedChain::finalize hash)
+      | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
+      | Result.ok nextHash => (ctor Step.pending (record Cursor {reader := (project cursor reader), remaining := (project cursor remaining), phase := (ctor Phase.finalizing nextHash), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)}))) else (match (Uorc.Core.Bytes::nextChunk (project cursor reader) 1)
+      | Result.error error => (ctor Step.failed (ctor Error.rope error) ((project cursor completedEvents) + 1))
+      | Result.ok event => (match event
+        | Uorc.Core.Bytes::CursorEvent.advanced nextReader => (ctor Step.pending (record Cursor {reader := nextReader, remaining := (project cursor remaining), phase := (ctor Phase.reading hash), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Core.Bytes::CursorEvent.produced chunk nextReader => (if ((prim length chunk : Nat) =? 1) then (match (Uorc.Integrity.BoundedChain::beginUpdate hash chunk)
+          | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
+          | Result.ok update => (ctor Step.pending (record Cursor {reader := nextReader, remaining := (prim subtract (project cursor remaining) 1 : Nat), phase := (ctor Phase.updating update), bytesHashed := ((project cursor bytesHashed) + 1), completedEvents := ((project cursor completedEvents) + 1)}))) else (ctor Step.failed (ctor Error.invalidChunk) ((project cursor completedEvents) + 1)))
+        | Uorc.Core.Bytes::CursorEvent.done => (ctor Step.failed (ctor Error.earlyEof) ((project cursor completedEvents) + 1)))))
+    | Phase.updating hashUpdate => (match (Uorc.Integrity.BoundedChain::updateStep hashUpdate)
+      | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
+      | Result.ok event => (match event
+        | Uorc.Integrity.BoundedChain::UpdateEvent.advanced next => (ctor Step.pending (record Cursor {reader := (project cursor reader), remaining := (project cursor remaining), phase := (ctor Phase.updating next), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Integrity.BoundedChain::UpdateEvent.done nextHash => (ctor Step.pending (record Cursor {reader := (project cursor reader), remaining := (project cursor remaining), phase := (ctor Phase.reading nextHash), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)}))))
+    | Phase.finalizing hash => (match (Uorc.Integrity.BoundedChain::digest hash)
+      | Result.ok digestBytes => (if ((prim length digestBytes : Nat) =? 32) then (ctor Step.complete digestBytes (project cursor bytesHashed) ((project cursor completedEvents) + 1)) else (ctor Step.failed (ctor Error.digestLength) ((project cursor completedEvents) + 1)))
+      | Result.error notReady => (match (Uorc.Integrity.BoundedChain::step hash)
+        | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor completedEvents) + 1))
+        | Result.ok nextHash => (ctor Step.pending (record Cursor {reader := (project cursor reader), remaining := (project cursor remaining), phase := (ctor Phase.finalizing nextHash), bytesHashed := (project cursor bytesHashed), completedEvents := ((project cursor completedEvents) + 1)})))))
+}
+\end{semanticmodule}
+\end{lexlean}

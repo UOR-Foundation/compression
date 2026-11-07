@@ -1,0 +1,662 @@
+\begin{lexlean}{Uorc.Search.Replay}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Identity}
+\importmodule{Uorc.Search.ArchiveTrial}
+\importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Search.RopeWords}
+\importmodule{Uorc.Wire.GraphParse}
+\importmodule{Uorc.Core.Validation}
+\importmodule{Uorc.Search.FrameMeasure}
+\importmodule{Uorc.Search.OrderRope}
+\importmodule{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Search.Verify}
+\importmodule{Uorc.Core.StepMachine}
+\importmodule{Uorc.Core.Basis}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Search.FramingOrder}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Core.ExecutionCredit}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Seal,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: query, type: Uorc.Search.Identity::Snapshot},
+    {name: wireProfile, type: Uorc.Core.Bytes::Rope},
+    {name: machineSource, type: Uorc.Core.Bytes::Rope},
+    {name: basisSemantics, type: Uorc.Core.Bytes::Rope},
+    {name: outputSemantics, type: Uorc.Core.Bytes::Rope},
+    {name: objectiveSemantics, type: Uorc.Core.Bytes::Rope},
+    {name: operationalAddressing, type: Uorc.Core.Bytes::Rope}
+  ]
+}
+
+structure{
+  name: Request,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: seal, type: Seal}, {name: winnerWire, type: Uorc.Core.Bytes::Rope}]
+}
+
+inductive{
+  name: Role,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: claimedWinner, fields: []},
+    {name: canonicalRaw, fields: []},
+    {name: programBody, fields: []}
+  ]
+}
+
+structure{
+  name: Ledger,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: checkerEvents, type: Nat},
+    {name: identityEvents, type: Nat},
+    {name: enumerationEvents, type: Nat},
+    {name: parseEvents, type: Nat},
+    {name: validationEvents, type: Nat},
+    {name: measurementEvents, type: Nat},
+    {name: orderingEvents, type: Nat},
+    {name: bodyWords, type: Nat},
+    {name: syntaxRejected, type: Nat},
+    {name: staticRejected, type: Nat},
+    {name: sizePruned, type: Nat},
+    {name: eligiblePredecessors, type: Nat},
+    {name: notBetter, type: Nat},
+    {name: trialRejected, type: Nat},
+    {name: archiveTrials, type: Uorc.Search.ArchiveTrial::Ledger}
+  ]
+}
+
+structure{
+  name: TrialFailure,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: role, type: Role},
+    {name: bodyOrdinal, type: Nat},
+    {name: failure, type: Uorc.Search.ArchiveTrial::Error},
+    {name: usage, type: Uorc.Core.Resources::Usage},
+    {name: ledger, type: Uorc.Search.ArchiveTrial::Ledger},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: OpenObligation,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: ulebShortestnessAndMonotonicity, fields: []},
+    {name: emitterMeasurementLink, fields: []},
+    {name: canonicalBodyAndRopeOrder, fields: []},
+    {name: predecessorBoundReduction, fields: []},
+    {name: profileAndSourceSealQualification, fields: []},
+    {name: handleRuntimeQualification, fields: []},
+    {name: generalSimulationQualification, fields: []},
+    {name: canonicalSemanticCostSeal, fields: []},
+    {name: canonicalPartitionIndependence, fields: []},
+    {name: referenceOperationalRefinement, fields: []}
+  ]
+}
+
+structure{
+  name: CompleteBodyReplay,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: seal, type: Seal},
+    {name: winner, type: Uorc.Search.ArchiveTrial::EligibleArchive},
+    {name: canonicalRaw, type: Uorc.Search.ArchiveTrial::EligibleArchive},
+    {name: maximumBodyLength, type: Nat},
+    {name: ledger, type: Ledger},
+    {name: failures, type: (List TrialFailure)},
+    {name: outstanding, type: (List OpenObligation)}
+  ]
+}
+
+structure{
+  name: Counterexample,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: seal, type: Seal},
+    {name: claimedWinner, type: Uorc.Search.ArchiveTrial::EligibleArchive},
+    {name: betterArchive, type: Uorc.Search.ArchiveTrial::EligibleArchive},
+    {name: role, type: Role},
+    {name: ledger, type: Ledger},
+    {name: failures, type: (List TrialFailure)}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: queryIdentity, fields: [Uorc.Search.Identity::Cursor]},
+    {name: sealIdentity, fields: [Uorc.Search.VerifyRope::Cursor]},
+    {name: winnerTrial, fields: [Uorc.Search.ArchiveTrial::Step]},
+    {name: winnerPreparation, fields: [Uorc.Wire.Frame::PrepareState]},
+    {name: rawTrial, fields: [Uorc.Search.ArchiveTrial::Step]},
+    {
+      name: ordering,
+      fields: [
+        Role,
+        Uorc.Search.ArchiveTrial::EligibleArchive,
+        Uorc.Search.OrderRope::DecisionStep,
+        Uorc.Search.RopeWords::Cursor
+      ]
+    },
+    {name: words, fields: [Uorc.Search.RopeWords::Cursor]},
+    {
+      name: parsing,
+      fields: [
+        Uorc.Core.Bytes::Rope,
+        Uorc.Wire.GraphParse::Event,
+        Uorc.Core.Bytes::Cursor,
+        Bool,
+        Uorc.Search.RopeWords::Cursor
+      ]
+    },
+    {
+      name: validating,
+      fields: [Uorc.Core.Bytes::Rope, Uorc.Core.Validation::Cursor, Uorc.Search.RopeWords::Cursor]
+    },
+    {
+      name: measuring,
+      fields: [
+        Uorc.Core.Validation::CheckedGraph,
+        Uorc.Search.FrameMeasure::Cursor,
+        Uorc.Search.RopeWords::Cursor
+      ]
+    },
+    {
+      name: predecessorTrial,
+      fields: [Uorc.Search.ArchiveTrial::Step, Uorc.Search.RopeWords::Cursor]
+    },
+    {name: unresolvedTrial, fields: [Uorc.Search.ArchiveTrial::Step, Uorc.Search.RopeWords::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: request, type: Request},
+    {name: expected, type: Seal},
+    {name: phase, type: Phase},
+    {name: winner, type: (Option Uorc.Search.ArchiveTrial::EligibleArchive)},
+    {name: raw, type: (Option Uorc.Search.ArchiveTrial::EligibleArchive)},
+    {name: maximumBodyLength, type: Nat},
+    {name: ledger, type: Ledger},
+    {name: failures, type: (List TrialFailure)}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: queryMismatch, fields: [Uorc.Search.Identity::Field]},
+    {name: sealMismatch, fields: [Uorc.Search.Verify::Mismatch]},
+    {name: invalidScope, fields: []},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {
+      name: winnerRejected,
+      fields: [
+        Uorc.Search.ArchiveTrial::Error,
+        Uorc.Core.Resources::Usage,
+        Uorc.Search.ArchiveTrial::Ledger,
+        Nat
+      ]
+    },
+    {
+      name: rawRejected,
+      fields: [
+        Uorc.Search.ArchiveTrial::Error,
+        Uorc.Core.Resources::Usage,
+        Uorc.Search.ArchiveTrial::Ledger,
+        Nat
+      ]
+    },
+    {
+      name: trialInternal,
+      fields: [
+        Uorc.Search.ArchiveTrial::Error,
+        Uorc.Core.Resources::Usage,
+        Uorc.Search.ArchiveTrial::Ledger,
+        Nat
+      ]
+    },
+    {name: winnerPreparation, fields: [Uorc.Wire.Frame::PrepareError]},
+    {name: enumeration, fields: [Uorc.Search.RopeWords::Error]},
+    {name: parserOperational, fields: [Uorc.Wire.GraphParse::ParseError]},
+    {name: parserProtocol, fields: []},
+    {name: table, fields: [Uorc.Core.Validation::TableError]},
+    {name: staticOperational, fields: [Uorc.Core.Types::StaticError]},
+    {name: measurement, fields: [Uorc.Search.FrameMeasure::Error]},
+    {name: orderingProtocol, fields: []},
+    {name: addressSpaceExhausted, fields: []},
+    {name: invalidState, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: counterexample, fields: [Counterexample]},
+    {name: completeBodyReplay, fields: [CompleteBodyReplay]},
+    {name: incomplete, fields: [Error, Cursor]}
+  ]
+}
+
+definition{
+  name: outstandingObligations,
+  parameters: [],
+  result: (List OpenObligation),
+  body: (cons (ctor OpenObligation.ulebShortestnessAndMonotonicity) (cons (ctor OpenObligation.emitterMeasurementLink) (cons (ctor OpenObligation.canonicalBodyAndRopeOrder) (cons (ctor OpenObligation.predecessorBoundReduction) (cons (ctor OpenObligation.profileAndSourceSealQualification) (cons (ctor OpenObligation.handleRuntimeQualification) (cons (ctor OpenObligation.generalSimulationQualification) (cons (ctor OpenObligation.canonicalSemanticCostSeal) (cons (ctor OpenObligation.canonicalPartitionIndependence) (cons (ctor OpenObligation.referenceOperationalRefinement) (nil OpenObligation)))))))))))
+}
+
+definition{
+  name: operationalAddressingIdentity,
+  parameters: [],
+  result: Uorc.Core.Bytes::Rope,
+  body: (Uorc.Core.Bytes::fromBytes 0x554f52432d6e61746976652d61646472657373696e672d5536342d636865636b65642d76313b206d617468656d61746963616c2066696e69746520627974657320756e72657374726963746564)
+}
+
+definition{
+  name: sealRoots,
+  parameters: [seal : Seal],
+  result: (List Uorc.Core.Bytes::Rope),
+  body: (cons (project seal wireProfile) (cons (project seal machineSource) (cons (project seal basisSemantics) (cons (project seal outputSemantics) (cons (project seal objectiveSemantics) (cons (project seal operationalAddressing) (nil Uorc.Core.Bytes::Rope)))))))
+}
+
+definition{
+  name: start,
+  parameters: [request : Request, expected : Seal],
+  result: Cursor,
+  body: (record Cursor {request := request, expected := expected, phase := (ctor Phase.queryIdentity (Uorc.Search.Identity::start (project (project request seal) query) (project expected query))), winner := (ctor Option.none [Uorc.Search.ArchiveTrial::EligibleArchive]), raw := (ctor Option.none [Uorc.Search.ArchiveTrial::EligibleArchive]), maximumBodyLength := 0, ledger := (record Ledger {checkerEvents := 0, identityEvents := 0, enumerationEvents := 0, parseEvents := 0, validationEvents := 0, measurementEvents := 0, orderingEvents := 0, bodyWords := 0, syntaxRejected := 0, staticRejected := 0, sizePruned := 0, eligiblePredecessors := 0, notBetter := 0, trialRejected := 0, archiveTrials := (record Uorc.Search.ArchiveTrial::Ledger {production := 0, canonicalNormalization := 0, physicalNormalization := 0, parse := 0, integrity := 0, basisDerivation := 0, validation := 0, basisAdmission := 0, execution := 0, boundary := 0, originalComparison := 0, rawOutput := 0, normalizationCredits := 0, basisNormalizationCredits := 0, basisCanonicalNormalization := 0, basisPhysicalNormalization := 0, executionCredit := (ctor Option.none [Uorc.Core.ExecutionCredit::Ledger])})}), failures := (nil TrialFailure)})
+}
+
+definition{
+  name: syntaxFailure,
+  parameters: [error : Uorc.Wire.GraphParse::ParseError],
+  result: Bool,
+  body: (match error
+    | Uorc.Wire.GraphParse::ParseError.truncated => true
+    | Uorc.Wire.GraphParse::ParseError.nonShortest => true
+    | Uorc.Wire.GraphParse::ParseError.invalidType => true
+    | Uorc.Wire.GraphParse::ParseError.invalidOpcode => true
+    | Uorc.Wire.GraphParse::ParseError.invalidBoolean => true
+    | Uorc.Wire.GraphParse::ParseError.naturalOverflow => true
+    | Uorc.Wire.GraphParse::ParseError.invalidState => false
+    | Uorc.Wire.GraphParse::ParseError.trailingBytes => true
+    | Uorc.Wire.GraphParse::ParseError.cursorFailure => false
+    | Uorc.Wire.GraphParse::ParseError.invalidQuantum => false
+    | Uorc.Wire.GraphParse::ParseError.addressSpaceExhausted => false)
+}
+
+definition{
+  name: decodeExclusion,
+  parameters: [error : Uorc.Core.Resources::OperationalError],
+  result: Bool,
+  body: false
+}
+
+definition{
+  name: staticExclusion,
+  parameters: [error : Uorc.Core.Types::StaticError],
+  result: Bool,
+  body: (match error
+    | Uorc.Core.Types::StaticError.invalidLocalReference => true
+    | Uorc.Core.Types::StaticError.invalidBlockReference => true
+    | Uorc.Core.Types::StaticError.typeMismatch => true
+    | Uorc.Core.Types::StaticError.arityMismatch => true
+    | Uorc.Core.Types::StaticError.returnMismatch => true
+    | Uorc.Core.Types::StaticError.entrySignatureMismatch => true
+    | Uorc.Core.Types::StaticError.emptyGraph => true
+    | Uorc.Core.Types::StaticError.invalidTypeTag => true
+    | Uorc.Core.Types::StaticError.undefinedOpcode => true
+    | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+    | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+    | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+}
+
+definition{
+  name: semanticExclusion,
+  parameters: [error : Uorc.Core.Types::SemanticError],
+  result: Bool,
+  body: (match error
+    | Uorc.Core.Types::SemanticError.divisionByZero => true
+    | Uorc.Core.Types::SemanticError.arithmeticOverflow => true
+    | Uorc.Core.Types::SemanticError.negativeDifference => true
+    | Uorc.Core.Types::SemanticError.byteOutOfRange => true
+    | Uorc.Core.Types::SemanticError.shiftOutOfRange => true
+    | Uorc.Core.Types::SemanticError.indexOutOfBounds => true
+    | Uorc.Core.Types::SemanticError.sliceOutOfBounds => true
+    | Uorc.Core.Types::SemanticError.basisOutOfBounds => true
+    | Uorc.Core.Types::SemanticError.sequenceLengthOverflow => false
+    | Uorc.Core.Types::SemanticError.outputMismatch => true)
+}
+
+definition{
+  name: trialExclusion,
+  parameters: [error : Uorc.Search.ArchiveTrial::Error],
+  result: Bool,
+  body: (match error
+    | Uorc.Search.ArchiveTrial::Error.build e => false
+    | Uorc.Search.ArchiveTrial::Error.parse e => false
+    | Uorc.Search.ArchiveTrial::Error.hash e => false
+    | Uorc.Search.ArchiveTrial::Error.integrityMismatch => false
+    | Uorc.Search.ArchiveTrial::Error.queryProfile => false
+    | Uorc.Search.ArchiveTrial::Error.scopeMismatch => false
+    | Uorc.Search.ArchiveTrial::Error.selfContainedBasis => false
+    | Uorc.Search.ArchiveTrial::Error.basisIdentityMismatch => false
+    | Uorc.Search.ArchiveTrial::Error.basisHash e => false
+    | Uorc.Search.ArchiveTrial::Error.boundaries count => true
+    | Uorc.Search.ArchiveTrial::Error.static e => false
+    | Uorc.Search.ArchiveTrial::Error.table e => false
+    | Uorc.Search.ArchiveTrial::Error.admission e => false
+    | Uorc.Search.ArchiveTrial::Error.execution executionFailure u => (match executionFailure
+      | Uorc.Core.StepMachine::Failure.static s => false
+      | Uorc.Core.StepMachine::Failure.semantic s => (semanticExclusion s)
+      | Uorc.Core.StepMachine::Failure.operational op => (decodeExclusion op))
+    | Uorc.Search.ArchiveTrial::Error.credit e => false
+    | Uorc.Search.ArchiveTrial::Error.resource operationalFailure u => (decodeExclusion operationalFailure)
+    | Uorc.Search.ArchiveTrial::Error.outputType => true
+    | Uorc.Search.ArchiveTrial::Error.mismatch e => true
+    | Uorc.Search.ArchiveTrial::Error.rope e => false
+    | Uorc.Search.ArchiveTrial::Error.invalidState => false
+    | Uorc.Search.ArchiveTrial::Error.objectSplit e => false
+    | Uorc.Search.ArchiveTrial::Error.normalization e => false
+    | Uorc.Search.ArchiveTrial::Error.basisNormalization e => false)
+}
+
+definition{
+  name: dispatch,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.queryIdentity identityCursor => (match (Uorc.Search.Identity::step identityCursor)
+      | Uorc.Search.Identity::Step.pending nextIdentity => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.queryIdentity nextIdentity), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := ((project (project cursor ledger) identityEvents) + 1), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.Identity::Step.matched => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.sealIdentity (Uorc.Search.VerifyRope::start (cons (project (project cursor expected) operationalAddressing) (sealRoots (project (project cursor request) seal))) (cons (operationalAddressingIdentity) (sealRoots (project cursor expected))))), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := ((project (project cursor ledger) identityEvents) + 1), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.Identity::Step.different field => (ctor Step.incomplete (ctor Error.queryMismatch field) cursor)
+      | Uorc.Search.Identity::Step.invalidScope => (ctor Step.incomplete (ctor Error.invalidScope) cursor)
+      | Uorc.Search.Identity::Step.ropeFailure error => (ctor Step.incomplete (ctor Error.rope error) cursor))
+    | Phase.sealIdentity sealComparison => (match (Uorc.Search.VerifyRope::step sealComparison)
+      | Uorc.Search.VerifyRope::Step.pending nextSeal => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.sealIdentity nextSeal), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := ((project (project cursor ledger) identityEvents) + 1), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.VerifyRope::Step.matched bytes roots => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.winnerTrial (ctor Uorc.Search.ArchiveTrial::Step.pending (Uorc.Search.ArchiveTrial::startWire (project (project (project cursor request) seal) query) (Uorc.Core.Resources::zeroUsage) (project (project cursor request) winnerWire)))), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := ((project (project cursor ledger) identityEvents) + 1), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor Step.incomplete (ctor Error.sealMismatch mismatch) cursor)
+      | Uorc.Search.VerifyRope::Step.ropeFailure error => (ctor Step.incomplete (ctor Error.rope error) cursor))
+    | Phase.winnerTrial trialState => (match trialState
+      | Uorc.Search.ArchiveTrial::Step.pending trialCursor => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.winnerTrial (Uorc.Search.ArchiveTrial::step trialCursor)), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.ArchiveTrial::Step.complete eligible => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.winnerPreparation (Uorc.Wire.Frame::startPreparation (project eligible frame))), winner := (ctor Option.some [Uorc.Search.ArchiveTrial::EligibleArchive] eligible), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (record Uorc.Search.ArchiveTrial::Ledger {production := ((project (project (project cursor ledger) archiveTrials) production) + (project (project eligible ledger) production)), canonicalNormalization := ((project (project (project cursor ledger) archiveTrials) canonicalNormalization) + (project (project eligible ledger) canonicalNormalization)), physicalNormalization := ((project (project (project cursor ledger) archiveTrials) physicalNormalization) + (project (project eligible ledger) physicalNormalization)), parse := ((project (project (project cursor ledger) archiveTrials) parse) + (project (project eligible ledger) parse)), integrity := ((project (project (project cursor ledger) archiveTrials) integrity) + (project (project eligible ledger) integrity)), basisDerivation := ((project (project (project cursor ledger) archiveTrials) basisDerivation) + (project (project eligible ledger) basisDerivation)), validation := ((project (project (project cursor ledger) archiveTrials) validation) + (project (project eligible ledger) validation)), basisAdmission := ((project (project (project cursor ledger) archiveTrials) basisAdmission) + (project (project eligible ledger) basisAdmission)), execution := ((project (project (project cursor ledger) archiveTrials) execution) + (project (project eligible ledger) execution)), boundary := ((project (project (project cursor ledger) archiveTrials) boundary) + (project (project eligible ledger) boundary)), originalComparison := ((project (project (project cursor ledger) archiveTrials) originalComparison) + (project (project eligible ledger) originalComparison)), rawOutput := ((project (project (project cursor ledger) archiveTrials) rawOutput) + (project (project eligible ledger) rawOutput)), normalizationCredits := ((project (project (project cursor ledger) archiveTrials) normalizationCredits) + (project (project eligible ledger) normalizationCredits)), basisNormalizationCredits := ((project (project (project cursor ledger) archiveTrials) basisNormalizationCredits) + (project (project eligible ledger) basisNormalizationCredits)), basisCanonicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisCanonicalNormalization) + (project (project eligible ledger) basisCanonicalNormalization)), basisPhysicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisPhysicalNormalization) + (project (project eligible ledger) basisPhysicalNormalization)), executionCredit := (project (project (project cursor ledger) archiveTrials) executionCredit)})}), failures := (project cursor failures)}))
+      | Uorc.Search.ArchiveTrial::Step.rejected failure usage trialLedger events => (ctor Step.incomplete (ctor Error.winnerRejected failure usage trialLedger events) (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (project cursor phase), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := ((project (project cursor ledger) trialRejected) + 1), archiveTrials := (record Uorc.Search.ArchiveTrial::Ledger {production := ((project (project (project cursor ledger) archiveTrials) production) + (project trialLedger production)), canonicalNormalization := ((project (project (project cursor ledger) archiveTrials) canonicalNormalization) + (project trialLedger canonicalNormalization)), physicalNormalization := ((project (project (project cursor ledger) archiveTrials) physicalNormalization) + (project trialLedger physicalNormalization)), parse := ((project (project (project cursor ledger) archiveTrials) parse) + (project trialLedger parse)), integrity := ((project (project (project cursor ledger) archiveTrials) integrity) + (project trialLedger integrity)), basisDerivation := ((project (project (project cursor ledger) archiveTrials) basisDerivation) + (project trialLedger basisDerivation)), validation := ((project (project (project cursor ledger) archiveTrials) validation) + (project trialLedger validation)), basisAdmission := ((project (project (project cursor ledger) archiveTrials) basisAdmission) + (project trialLedger basisAdmission)), execution := ((project (project (project cursor ledger) archiveTrials) execution) + (project trialLedger execution)), boundary := ((project (project (project cursor ledger) archiveTrials) boundary) + (project trialLedger boundary)), originalComparison := ((project (project (project cursor ledger) archiveTrials) originalComparison) + (project trialLedger originalComparison)), rawOutput := ((project (project (project cursor ledger) archiveTrials) rawOutput) + (project trialLedger rawOutput)), normalizationCredits := ((project (project (project cursor ledger) archiveTrials) normalizationCredits) + (project trialLedger normalizationCredits)), basisNormalizationCredits := ((project (project (project cursor ledger) archiveTrials) basisNormalizationCredits) + (project trialLedger basisNormalizationCredits)), basisCanonicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisCanonicalNormalization) + (project trialLedger basisCanonicalNormalization)), basisPhysicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisPhysicalNormalization) + (project trialLedger basisPhysicalNormalization)), executionCredit := (project (project (project cursor ledger) archiveTrials) executionCredit)})}), failures := (cons (record TrialFailure {role := (ctor Role.claimedWinner), bodyOrdinal := 0, failure := failure, usage := usage, ledger := trialLedger, completedEvents := events}) (project cursor failures))})))
+    | Phase.winnerPreparation preparation => (match (Uorc.Wire.Frame::prepareStep preparation)
+      | Uorc.Wire.Frame::PrepareEvent.advanced nextPreparation => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.winnerPreparation nextPreparation), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := ((project (project cursor ledger) measurementEvents) + 1), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Wire.Frame::PrepareEvent.complete prepared => (match (Uorc.Search.Effort::checkedU64 (project prepared bodyLength))
+        | Result.error conversionFailure => (ctor Step.incomplete (ctor Error.addressSpaceExhausted) cursor)
+        | Result.ok addressLength => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.rawTrial (Uorc.Search.ArchiveTrial::startFrame (project (project (project cursor request) seal) query) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (project (project (project (project cursor request) seal) query) objectLengths), scope := (project (project (project (project cursor request) seal) query) scope), body := (ctor Uorc.Wire.Frame::Body.raw (project (project (project (project cursor request) seal) query) target))}))), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project prepared bodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)})))
+      | Uorc.Wire.Frame::PrepareEvent.failed error => (ctor Step.incomplete (ctor Error.winnerPreparation error) cursor))
+    | Phase.rawTrial trialState => (match trialState
+      | Uorc.Search.ArchiveTrial::Step.pending trialCursor => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.rawTrial (Uorc.Search.ArchiveTrial::step trialCursor)), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.ArchiveTrial::Step.complete eligible => (match (project cursor winner)
+        | Option.none => (ctor Step.incomplete (ctor Error.invalidState) cursor)
+        | Option.some winnerArchive => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.ordering (ctor Role.canonicalRaw) eligible (Uorc.Search.OrderRope::beginDecision (project winnerArchive checked) (project eligible checked)) (Uorc.Search.RopeWords::start (project cursor maximumBodyLength))), winner := (project cursor winner), raw := (ctor Option.some [Uorc.Search.ArchiveTrial::EligibleArchive] eligible), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (record Uorc.Search.ArchiveTrial::Ledger {production := ((project (project (project cursor ledger) archiveTrials) production) + (project (project eligible ledger) production)), canonicalNormalization := ((project (project (project cursor ledger) archiveTrials) canonicalNormalization) + (project (project eligible ledger) canonicalNormalization)), physicalNormalization := ((project (project (project cursor ledger) archiveTrials) physicalNormalization) + (project (project eligible ledger) physicalNormalization)), parse := ((project (project (project cursor ledger) archiveTrials) parse) + (project (project eligible ledger) parse)), integrity := ((project (project (project cursor ledger) archiveTrials) integrity) + (project (project eligible ledger) integrity)), basisDerivation := ((project (project (project cursor ledger) archiveTrials) basisDerivation) + (project (project eligible ledger) basisDerivation)), validation := ((project (project (project cursor ledger) archiveTrials) validation) + (project (project eligible ledger) validation)), basisAdmission := ((project (project (project cursor ledger) archiveTrials) basisAdmission) + (project (project eligible ledger) basisAdmission)), execution := ((project (project (project cursor ledger) archiveTrials) execution) + (project (project eligible ledger) execution)), boundary := ((project (project (project cursor ledger) archiveTrials) boundary) + (project (project eligible ledger) boundary)), originalComparison := ((project (project (project cursor ledger) archiveTrials) originalComparison) + (project (project eligible ledger) originalComparison)), rawOutput := ((project (project (project cursor ledger) archiveTrials) rawOutput) + (project (project eligible ledger) rawOutput)), normalizationCredits := ((project (project (project cursor ledger) archiveTrials) normalizationCredits) + (project (project eligible ledger) normalizationCredits)), basisNormalizationCredits := ((project (project (project cursor ledger) archiveTrials) basisNormalizationCredits) + (project (project eligible ledger) basisNormalizationCredits)), basisCanonicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisCanonicalNormalization) + (project (project eligible ledger) basisCanonicalNormalization)), basisPhysicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisPhysicalNormalization) + (project (project eligible ledger) basisPhysicalNormalization)), executionCredit := (project (project (project cursor ledger) archiveTrials) executionCredit)})}), failures := (project cursor failures)})))
+      | Uorc.Search.ArchiveTrial::Step.rejected failure usage trialLedger events => (ctor Step.incomplete (ctor Error.rawRejected failure usage trialLedger events) (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (project cursor phase), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := ((project (project cursor ledger) trialRejected) + 1), archiveTrials := (record Uorc.Search.ArchiveTrial::Ledger {production := ((project (project (project cursor ledger) archiveTrials) production) + (project trialLedger production)), canonicalNormalization := ((project (project (project cursor ledger) archiveTrials) canonicalNormalization) + (project trialLedger canonicalNormalization)), physicalNormalization := ((project (project (project cursor ledger) archiveTrials) physicalNormalization) + (project trialLedger physicalNormalization)), parse := ((project (project (project cursor ledger) archiveTrials) parse) + (project trialLedger parse)), integrity := ((project (project (project cursor ledger) archiveTrials) integrity) + (project trialLedger integrity)), basisDerivation := ((project (project (project cursor ledger) archiveTrials) basisDerivation) + (project trialLedger basisDerivation)), validation := ((project (project (project cursor ledger) archiveTrials) validation) + (project trialLedger validation)), basisAdmission := ((project (project (project cursor ledger) archiveTrials) basisAdmission) + (project trialLedger basisAdmission)), execution := ((project (project (project cursor ledger) archiveTrials) execution) + (project trialLedger execution)), boundary := ((project (project (project cursor ledger) archiveTrials) boundary) + (project trialLedger boundary)), originalComparison := ((project (project (project cursor ledger) archiveTrials) originalComparison) + (project trialLedger originalComparison)), rawOutput := ((project (project (project cursor ledger) archiveTrials) rawOutput) + (project trialLedger rawOutput)), normalizationCredits := ((project (project (project cursor ledger) archiveTrials) normalizationCredits) + (project trialLedger normalizationCredits)), basisNormalizationCredits := ((project (project (project cursor ledger) archiveTrials) basisNormalizationCredits) + (project trialLedger basisNormalizationCredits)), basisCanonicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisCanonicalNormalization) + (project trialLedger basisCanonicalNormalization)), basisPhysicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisPhysicalNormalization) + (project trialLedger basisPhysicalNormalization)), executionCredit := (project (project (project cursor ledger) archiveTrials) executionCredit)})}), failures := (cons (record TrialFailure {role := (ctor Role.canonicalRaw), bodyOrdinal := 0, failure := failure, usage := usage, ledger := trialLedger, completedEvents := events}) (project cursor failures))})))
+    | Phase.ordering role challenger orderState nextWords => (match orderState
+      | Uorc.Search.OrderRope::DecisionStep.pending orderCursor => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.ordering role challenger (Uorc.Search.OrderRope::decisionStep orderCursor) nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := ((project (project cursor ledger) orderingEvents) + 1), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.OrderRope::DecisionStep.selected decision => (match decision
+        | Uorc.Search.OrderRope::Decision.keepIncumbent => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.words nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := ((project (project cursor ledger) orderingEvents) + 1), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := ((project (project cursor ledger) notBetter) + 1), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+        | Uorc.Search.OrderRope::Decision.replaceIncumbent => (match (project cursor winner)
+          | Option.none => (ctor Step.incomplete (ctor Error.invalidState) cursor)
+          | Option.some winnerArchive => (ctor Step.counterexample (record Counterexample {seal := (project cursor expected), claimedWinner := winnerArchive, betterArchive := challenger, role := role, ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := ((project (project cursor ledger) orderingEvents) + 1), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))))
+      | Uorc.Search.OrderRope::DecisionStep.invalidCursor => (ctor Step.incomplete (ctor Error.orderingProtocol) cursor)
+      | Uorc.Search.OrderRope::DecisionStep.ropeFailure error => (ctor Step.incomplete (ctor Error.rope error) cursor))
+    | Phase.words wordsCursor => (match (Uorc.Search.RopeWords::step wordsCursor)
+      | Uorc.Search.RopeWords::Step.pending nextWords => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.words nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := ((project (project cursor ledger) enumerationEvents) + 1), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.RopeWords::Step.word body nextWords => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.parsing body (ctor Uorc.Wire.GraphParse::Event.advanced (Uorc.Wire.GraphParse::start)) (Uorc.Core.Bytes::cursor body) false nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := ((project (project cursor ledger) enumerationEvents) + 1), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := ((project (project cursor ledger) bodyWords) + 1), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.RopeWords::Step.finished => (match (project cursor winner)
+        | Option.none => (ctor Step.incomplete (ctor Error.invalidState) cursor)
+        | Option.some winnerArchive => (match (project cursor raw)
+          | Option.none => (ctor Step.incomplete (ctor Error.invalidState) cursor)
+          | Option.some rawArchive => (ctor Step.completeBodyReplay (record CompleteBodyReplay {seal := (project cursor expected), winner := winnerArchive, canonicalRaw := rawArchive, maximumBodyLength := (project cursor maximumBodyLength), ledger := (project cursor ledger), failures := (project cursor failures), outstanding := (outstandingObligations)}))))
+      | Uorc.Search.RopeWords::Step.failed error => (ctor Step.incomplete (ctor Error.enumeration error) cursor))
+    | Phase.parsing body parserEvent reader ended nextWords => (match parserEvent
+      | Uorc.Wire.GraphParse::Event.advanced parser => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.parsing body (Uorc.Wire.GraphParse::step parser 1) reader ended nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := ((project (project cursor ledger) parseEvents) + 1), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Wire.GraphParse::Event.needInput parser => (if ended then (ctor Step.incomplete (ctor Error.parserProtocol) cursor) else (match (Uorc.Core.Bytes::nextChunk reader 1)
+        | Result.error ropeError => (ctor Step.incomplete (ctor Error.rope ropeError) cursor)
+        | Result.ok readResult => (match readResult
+          | Uorc.Core.Bytes::CursorEvent.advanced nextReader => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.parsing body parserEvent nextReader ended nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := ((project (project cursor ledger) parseEvents) + 1), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+          | Uorc.Core.Bytes::CursorEvent.produced chunk nextReader => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.parsing body (Uorc.Wire.GraphParse::feed parser chunk) nextReader ended nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := ((project (project cursor ledger) parseEvents) + 1), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+          | Uorc.Core.Bytes::CursorEvent.done => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.parsing body (Uorc.Wire.GraphParse::finishInput parser) reader true nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := ((project (project cursor ledger) parseEvents) + 1), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)})))))
+      | Uorc.Wire.GraphParse::Event.complete graph position parseWork => (if ended then (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.validating body (Uorc.Core.Validation::start graph) nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := ((project (project cursor ledger) parseEvents) + 1), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)})) else (ctor Step.incomplete (ctor Error.parserProtocol) cursor))
+      | Uorc.Wire.GraphParse::Event.failed parseError position parseWork => (if (syntaxFailure parseError) then (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.words nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := ((project (project cursor ledger) parseEvents) + 1), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := ((project (project cursor ledger) syntaxRejected) + 1), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)})) else (ctor Step.incomplete (ctor Error.parserOperational parseError) cursor)))
+    | Phase.validating body validationCursor nextWords => (match (Uorc.Core.Validation::tick validationCursor)
+      | Uorc.Core.Validation::Step.pending nextValidation => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.validating body nextValidation nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := ((project (project cursor ledger) validationEvents) + 1), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Core.Validation::Step.validated checkedGraph => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.measuring checkedGraph (Uorc.Search.FrameMeasure::startProgram checkedGraph (project (project (project (project cursor request) seal) query) objectLengths) (project (project (project (project cursor request) seal) query) scope)) nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := ((project (project cursor ledger) validationEvents) + 1), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Core.Validation::Step.rejected staticError events visits => (if (staticExclusion staticError) then (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.words nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := ((project (project cursor ledger) validationEvents) + 1), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := ((project (project cursor ledger) staticRejected) + 1), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)})) else (ctor Step.incomplete (ctor Error.staticOperational staticError) cursor))
+      | Uorc.Core.Validation::Step.tableFailure tableError events visits => (ctor Step.incomplete (ctor Error.table tableError) cursor))
+    | Phase.measuring checkedGraph measureCursor nextWords => (match (Uorc.Search.FrameMeasure::step measureCursor)
+      | Uorc.Search.FrameMeasure::Step.pending nextMeasure => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.measuring checkedGraph nextMeasure nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := ((project (project cursor ledger) measurementEvents) + 1), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.FrameMeasure::Step.complete measurement => (match (project cursor winner)
+        | Option.none => (ctor Step.incomplete (ctor Error.invalidState) cursor)
+        | Option.some winnerArchive => (if ((Uorc.Core.Bytes::length (project (project winnerArchive checked) wire)) <? (project measurement archiveLength)) then (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.words nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := ((project (project cursor ledger) measurementEvents) + 1), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := ((project (project cursor ledger) sizePruned) + 1), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)})) else (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.predecessorTrial (Uorc.Search.ArchiveTrial::startFrame (project (project (project cursor request) seal) query) (Uorc.Core.Resources::zeroUsage) (record Uorc.Wire.Frame::Frame {objectLengths := (project (project (project (project cursor request) seal) query) objectLengths), scope := (project (project (project (project cursor request) seal) query) scope), body := (ctor Uorc.Wire.Frame::Body.program (project checkedGraph graph))})) nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := ((project (project cursor ledger) measurementEvents) + 1), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))))
+      | Uorc.Search.FrameMeasure::Step.failed error => (ctor Step.incomplete (ctor Error.measurement error) cursor))
+    | Phase.predecessorTrial trialState nextWords => (match trialState
+      | Uorc.Search.ArchiveTrial::Step.pending trialCursor => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.predecessorTrial (Uorc.Search.ArchiveTrial::step trialCursor) nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+      | Uorc.Search.ArchiveTrial::Step.complete eligible => (match (project cursor winner)
+        | Option.none => (ctor Step.incomplete (ctor Error.invalidState) cursor)
+        | Option.some winnerArchive => (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.ordering (ctor Role.programBody) eligible (Uorc.Search.OrderRope::beginDecision (project winnerArchive checked) (project eligible checked)) nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := ((project (project cursor ledger) eligiblePredecessors) + 1), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (record Uorc.Search.ArchiveTrial::Ledger {production := ((project (project (project cursor ledger) archiveTrials) production) + (project (project eligible ledger) production)), canonicalNormalization := ((project (project (project cursor ledger) archiveTrials) canonicalNormalization) + (project (project eligible ledger) canonicalNormalization)), physicalNormalization := ((project (project (project cursor ledger) archiveTrials) physicalNormalization) + (project (project eligible ledger) physicalNormalization)), parse := ((project (project (project cursor ledger) archiveTrials) parse) + (project (project eligible ledger) parse)), integrity := ((project (project (project cursor ledger) archiveTrials) integrity) + (project (project eligible ledger) integrity)), basisDerivation := ((project (project (project cursor ledger) archiveTrials) basisDerivation) + (project (project eligible ledger) basisDerivation)), validation := ((project (project (project cursor ledger) archiveTrials) validation) + (project (project eligible ledger) validation)), basisAdmission := ((project (project (project cursor ledger) archiveTrials) basisAdmission) + (project (project eligible ledger) basisAdmission)), execution := ((project (project (project cursor ledger) archiveTrials) execution) + (project (project eligible ledger) execution)), boundary := ((project (project (project cursor ledger) archiveTrials) boundary) + (project (project eligible ledger) boundary)), originalComparison := ((project (project (project cursor ledger) archiveTrials) originalComparison) + (project (project eligible ledger) originalComparison)), rawOutput := ((project (project (project cursor ledger) archiveTrials) rawOutput) + (project (project eligible ledger) rawOutput)), normalizationCredits := ((project (project (project cursor ledger) archiveTrials) normalizationCredits) + (project (project eligible ledger) normalizationCredits)), basisNormalizationCredits := ((project (project (project cursor ledger) archiveTrials) basisNormalizationCredits) + (project (project eligible ledger) basisNormalizationCredits)), basisCanonicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisCanonicalNormalization) + (project (project eligible ledger) basisCanonicalNormalization)), basisPhysicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisPhysicalNormalization) + (project (project eligible ledger) basisPhysicalNormalization)), executionCredit := (project (project (project cursor ledger) archiveTrials) executionCredit)})}), failures := (project cursor failures)})))
+      | Uorc.Search.ArchiveTrial::Step.rejected failure usage trialLedger events => (if (trialExclusion failure) then (ctor Step.pending (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.words nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := ((project (project cursor ledger) trialRejected) + 1), archiveTrials := (record Uorc.Search.ArchiveTrial::Ledger {production := ((project (project (project cursor ledger) archiveTrials) production) + (project trialLedger production)), canonicalNormalization := ((project (project (project cursor ledger) archiveTrials) canonicalNormalization) + (project trialLedger canonicalNormalization)), physicalNormalization := ((project (project (project cursor ledger) archiveTrials) physicalNormalization) + (project trialLedger physicalNormalization)), parse := ((project (project (project cursor ledger) archiveTrials) parse) + (project trialLedger parse)), integrity := ((project (project (project cursor ledger) archiveTrials) integrity) + (project trialLedger integrity)), basisDerivation := ((project (project (project cursor ledger) archiveTrials) basisDerivation) + (project trialLedger basisDerivation)), validation := ((project (project (project cursor ledger) archiveTrials) validation) + (project trialLedger validation)), basisAdmission := ((project (project (project cursor ledger) archiveTrials) basisAdmission) + (project trialLedger basisAdmission)), execution := ((project (project (project cursor ledger) archiveTrials) execution) + (project trialLedger execution)), boundary := ((project (project (project cursor ledger) archiveTrials) boundary) + (project trialLedger boundary)), originalComparison := ((project (project (project cursor ledger) archiveTrials) originalComparison) + (project trialLedger originalComparison)), rawOutput := ((project (project (project cursor ledger) archiveTrials) rawOutput) + (project trialLedger rawOutput)), normalizationCredits := ((project (project (project cursor ledger) archiveTrials) normalizationCredits) + (project trialLedger normalizationCredits)), basisNormalizationCredits := ((project (project (project cursor ledger) archiveTrials) basisNormalizationCredits) + (project trialLedger basisNormalizationCredits)), basisCanonicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisCanonicalNormalization) + (project trialLedger basisCanonicalNormalization)), basisPhysicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisPhysicalNormalization) + (project trialLedger basisPhysicalNormalization)), executionCredit := (project (project (project cursor ledger) archiveTrials) executionCredit)})}), failures := (cons (record TrialFailure {role := (ctor Role.programBody), bodyOrdinal := (project (project cursor ledger) bodyWords), failure := failure, usage := usage, ledger := trialLedger, completedEvents := events}) (project cursor failures))})) else (ctor Step.incomplete (ctor Error.trialInternal failure usage trialLedger events) (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Phase.unresolvedTrial trialState nextWords), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := (project (project cursor ledger) checkerEvents), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := ((project (project cursor ledger) trialRejected) + 1), archiveTrials := (record Uorc.Search.ArchiveTrial::Ledger {production := ((project (project (project cursor ledger) archiveTrials) production) + (project trialLedger production)), canonicalNormalization := ((project (project (project cursor ledger) archiveTrials) canonicalNormalization) + (project trialLedger canonicalNormalization)), physicalNormalization := ((project (project (project cursor ledger) archiveTrials) physicalNormalization) + (project trialLedger physicalNormalization)), parse := ((project (project (project cursor ledger) archiveTrials) parse) + (project trialLedger parse)), integrity := ((project (project (project cursor ledger) archiveTrials) integrity) + (project trialLedger integrity)), basisDerivation := ((project (project (project cursor ledger) archiveTrials) basisDerivation) + (project trialLedger basisDerivation)), validation := ((project (project (project cursor ledger) archiveTrials) validation) + (project trialLedger validation)), basisAdmission := ((project (project (project cursor ledger) archiveTrials) basisAdmission) + (project trialLedger basisAdmission)), execution := ((project (project (project cursor ledger) archiveTrials) execution) + (project trialLedger execution)), boundary := ((project (project (project cursor ledger) archiveTrials) boundary) + (project trialLedger boundary)), originalComparison := ((project (project (project cursor ledger) archiveTrials) originalComparison) + (project trialLedger originalComparison)), rawOutput := ((project (project (project cursor ledger) archiveTrials) rawOutput) + (project trialLedger rawOutput)), normalizationCredits := ((project (project (project cursor ledger) archiveTrials) normalizationCredits) + (project trialLedger normalizationCredits)), basisNormalizationCredits := ((project (project (project cursor ledger) archiveTrials) basisNormalizationCredits) + (project trialLedger basisNormalizationCredits)), basisCanonicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisCanonicalNormalization) + (project trialLedger basisCanonicalNormalization)), basisPhysicalNormalization := ((project (project (project cursor ledger) archiveTrials) basisPhysicalNormalization) + (project trialLedger basisPhysicalNormalization)), executionCredit := (project (project (project cursor ledger) archiveTrials) executionCredit)})}), failures := (cons (record TrialFailure {role := (ctor Role.programBody), bodyOrdinal := (project (project cursor ledger) bodyWords), failure := failure, usage := usage, ledger := trialLedger, completedEvents := events}) (project cursor failures))}))))
+    | Phase.unresolvedTrial retainedTrial retainedWords => (match retainedTrial
+      | Uorc.Search.ArchiveTrial::Step.pending retainedCursor => (ctor Step.incomplete (ctor Error.invalidState) cursor)
+      | Uorc.Search.ArchiveTrial::Step.complete retainedArchive => (ctor Step.incomplete (ctor Error.invalidState) cursor)
+      | Uorc.Search.ArchiveTrial::Step.rejected retainedFailure retainedUsage retainedLedger retainedEvents => (ctor Step.incomplete (ctor Error.trialInternal retainedFailure retainedUsage retainedLedger retainedEvents) cursor)))
+}
+
+definition{
+  name: advanceCheckerEvent,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (dispatch (record Cursor {request := (project cursor request), expected := (project cursor expected), phase := (project cursor phase), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (record Ledger {checkerEvents := ((project (project cursor ledger) checkerEvents) + 1), identityEvents := (project (project cursor ledger) identityEvents), enumerationEvents := (project (project cursor ledger) enumerationEvents), parseEvents := (project (project cursor ledger) parseEvents), validationEvents := (project (project cursor ledger) validationEvents), measurementEvents := (project (project cursor ledger) measurementEvents), orderingEvents := (project (project cursor ledger) orderingEvents), bodyWords := (project (project cursor ledger) bodyWords), syntaxRejected := (project (project cursor ledger) syntaxRejected), staticRejected := (project (project cursor ledger) staticRejected), sizePruned := (project (project cursor ledger) sizePruned), eligiblePredecessors := (project (project cursor ledger) eligiblePredecessors), notBetter := (project (project cursor ledger) notBetter), trialRejected := (project (project cursor ledger) trialRejected), archiveTrials := (project (project cursor ledger) archiveTrials)}), failures := (project cursor failures)}))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.unresolvedTrial retainedTrial retainedWords => (dispatch cursor)
+    | Phase.queryIdentity ignored0 => (advanceCheckerEvent cursor)
+    | Phase.sealIdentity ignored0 => (advanceCheckerEvent cursor)
+    | Phase.winnerTrial ignored0 => (advanceCheckerEvent cursor)
+    | Phase.winnerPreparation ignored0 => (advanceCheckerEvent cursor)
+    | Phase.rawTrial ignored0 => (advanceCheckerEvent cursor)
+    | Phase.ordering ignored0 ignored1 ignored2 ignored3 => (advanceCheckerEvent cursor)
+    | Phase.words ignored0 => (advanceCheckerEvent cursor)
+    | Phase.parsing ignored0 ignored1 ignored2 ignored3 ignored4 => (advanceCheckerEvent cursor)
+    | Phase.validating ignored0 ignored1 ignored2 => (advanceCheckerEvent cursor)
+    | Phase.measuring ignored0 ignored1 ignored2 => (advanceCheckerEvent cursor)
+    | Phase.predecessorTrial ignored0 ignored1 => (advanceCheckerEvent cursor))
+}
+
+definition{
+  name: run,
+  parameters: [work : Nat, state : Step],
+  result: Step,
+  body: (match work
+    | Nat.zero => state
+    | Nat.succ rest => (match state
+      | Step.pending nextCursor => (run rest (step nextCursor))
+      | Step.counterexample found => (ctor Step.counterexample found)
+      | Step.completeBodyReplay coverage => (ctor Step.completeBodyReplay coverage)
+      | Step.incomplete error prefix => (ctor Step.incomplete error prefix))),
+  recursive_argument: work
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: counterexample, fields: []},
+    {name: completeBodyReplay, fields: []},
+    {name: incomplete, fields: []}
+  ]
+}
+
+definition{
+  name: outcome,
+  parameters: [state : Step],
+  result: Outcome,
+  body: (match state
+    | Step.pending c => (ctor Outcome.pending)
+    | Step.counterexample c => (ctor Outcome.counterexample)
+    | Step.completeBodyReplay c => (ctor Outcome.completeBodyReplay)
+    | Step.incomplete e c => (ctor Outcome.incomplete))
+}
+
+structure{
+  name: Checkpoint,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: request, type: Request},
+    {name: observedBodyWords, type: Nat},
+    {name: observedCheckerEvents, type: Nat}
+  ]
+}
+
+definition{
+  name: checkpoint,
+  parameters: [cursor : Cursor],
+  result: Checkpoint,
+  body: (record Checkpoint {request := (project cursor request), observedBodyWords := (project (project cursor ledger) bodyWords), observedCheckerEvents := (project (project cursor ledger) checkerEvents)})
+}
+
+definition{
+  name: restart,
+  parameters: [record : Checkpoint, expected : Seal],
+  result: Cursor,
+  body: (start (project var{name: record} request) expected)
+}
+
+structure{
+  name: Cancellation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: ledger, type: Ledger},
+    {name: activeTrial, type: (Option Uorc.Search.ArchiveTrial::Cancellation)},
+    {name: activeTrialState, type: (Option Uorc.Search.ArchiveTrial::Step)},
+    {name: failures, type: (List TrialFailure)}
+  ]
+}
+
+definition{
+  name: pendingTrial,
+  parameters: [cursor : Cursor],
+  result: (Option Uorc.Search.ArchiveTrial::Cancellation),
+  body: (match (project cursor phase)
+    | Phase.winnerTrial activeState => (match activeState
+      | Uorc.Search.ArchiveTrial::Step.pending activeCursor => (ctor Option.some [Uorc.Search.ArchiveTrial::Cancellation] (Uorc.Search.ArchiveTrial::cancel activeCursor))
+      | Uorc.Search.ArchiveTrial::Step.complete a => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+      | Uorc.Search.ArchiveTrial::Step.rejected e u l n => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation]))
+    | Phase.rawTrial activeState => (match activeState
+      | Uorc.Search.ArchiveTrial::Step.pending activeCursor => (ctor Option.some [Uorc.Search.ArchiveTrial::Cancellation] (Uorc.Search.ArchiveTrial::cancel activeCursor))
+      | Uorc.Search.ArchiveTrial::Step.complete a => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+      | Uorc.Search.ArchiveTrial::Step.rejected e u l n => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation]))
+    | Phase.predecessorTrial activeState words => (match activeState
+      | Uorc.Search.ArchiveTrial::Step.pending activeCursor => (ctor Option.some [Uorc.Search.ArchiveTrial::Cancellation] (Uorc.Search.ArchiveTrial::cancel activeCursor))
+      | Uorc.Search.ArchiveTrial::Step.complete a => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+      | Uorc.Search.ArchiveTrial::Step.rejected e u l n => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation]))
+    | Phase.queryIdentity c => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+    | Phase.sealIdentity c => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+    | Phase.winnerPreparation c => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+    | Phase.ordering r e o w => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+    | Phase.words w => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+    | Phase.parsing b e r f w => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+    | Phase.validating b c w => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+    | Phase.measuring g c w => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+    | Phase.unresolvedTrial activeState words => (match activeState
+      | Uorc.Search.ArchiveTrial::Step.pending activeCursor => (ctor Option.some [Uorc.Search.ArchiveTrial::Cancellation] (Uorc.Search.ArchiveTrial::cancel activeCursor))
+      | Uorc.Search.ArchiveTrial::Step.complete a => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])
+      | Uorc.Search.ArchiveTrial::Step.rejected e u l n => (ctor Option.none [Uorc.Search.ArchiveTrial::Cancellation])))
+}
+
+definition{
+  name: activeTrialState,
+  parameters: [cursor : Cursor],
+  result: (Option Uorc.Search.ArchiveTrial::Step),
+  body: (match (project cursor phase)
+    | Phase.winnerTrial state => (ctor Option.some [Uorc.Search.ArchiveTrial::Step] state)
+    | Phase.rawTrial state => (ctor Option.some [Uorc.Search.ArchiveTrial::Step] state)
+    | Phase.predecessorTrial state words => (ctor Option.some [Uorc.Search.ArchiveTrial::Step] state)
+    | Phase.queryIdentity c => (ctor Option.none [Uorc.Search.ArchiveTrial::Step])
+    | Phase.sealIdentity c => (ctor Option.none [Uorc.Search.ArchiveTrial::Step])
+    | Phase.winnerPreparation c => (ctor Option.none [Uorc.Search.ArchiveTrial::Step])
+    | Phase.ordering r e o w => (ctor Option.none [Uorc.Search.ArchiveTrial::Step])
+    | Phase.words w => (ctor Option.none [Uorc.Search.ArchiveTrial::Step])
+    | Phase.parsing b e r f w => (ctor Option.none [Uorc.Search.ArchiveTrial::Step])
+    | Phase.validating b c w => (ctor Option.none [Uorc.Search.ArchiveTrial::Step])
+    | Phase.measuring g c w => (ctor Option.none [Uorc.Search.ArchiveTrial::Step])
+    | Phase.unresolvedTrial state words => (ctor Option.some [Uorc.Search.ArchiveTrial::Step] state))
+}
+
+definition{
+  name: cancel,
+  parameters: [cursor : Cursor],
+  result: Cancellation,
+  body: (record Cancellation {ledger := (project cursor ledger), activeTrial := (pendingTrial cursor), activeTrialState := (activeTrialState cursor), failures := (project cursor failures)})
+}
+
+definition{
+  name: qualificationBoundary,
+  parameters: [],
+  result: String,
+  body: "CompleteBodyReplay records exhaustion of every unsigned finite body through the freshly checked winner body length, exact full-frame checks and raw fallback. Its named OPEN framing reduction, ULEB/emitter/order, profile/source seal, handle-only runtime and general simulation obligations must be discharged before a released minimum claim. Pending, stopped, metadata, visited sets, digests and elapsed effort never establish minimum; no unrestricted shortest-program claim is made. External checkpoints restart fresh and do not authorize cursor or coverage reuse. Native addressing is checked U64, not a semantic input-size restriction. Canonical semantic-cost sealing, partition independence and independent-reference/owned-runtime refinement remain full v0.1 obligations. Operational parser/normalization/transport/storage/work limits are not semantic membership; any such failure leaves predecessor coverage incomplete."
+}
+
+theorem{
+  name: every_operational_limit_leaves_semantic_coverage_incomplete,
+  parameters: [operationalError : Uorc.Core.Resources::OperationalError],
+  statement: ((decodeExclusion operationalError) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: unresolved_predecessor_reentry_preserves_the_exact_prefix,
+  parameters: [
+    request : Request,
+    expected : Seal,
+    winner : (Option Uorc.Search.ArchiveTrial::EligibleArchive),
+    raw : (Option Uorc.Search.ArchiveTrial::EligibleArchive),
+    maximumBodyLength : Nat,
+    ledger : Ledger,
+    failures : (List TrialFailure),
+    failure : Uorc.Search.ArchiveTrial::Error,
+    failedUsage : Uorc.Core.Resources::Usage,
+    failedLedger : Uorc.Search.ArchiveTrial::Ledger,
+    failedEvents : Nat,
+    nextWords : Uorc.Search.RopeWords::Cursor
+  ],
+  statement: ((step (record Cursor {request := request, expected := expected, phase := (ctor Phase.unresolvedTrial (ctor Uorc.Search.ArchiveTrial::Step.rejected failure failedUsage failedLedger failedEvents) nextWords), winner := winner, raw := raw, maximumBodyLength := maximumBodyLength, ledger := ledger, failures := failures})) = (ctor Step.incomplete (ctor Error.trialInternal failure failedUsage failedLedger failedEvents) (record Cursor {request := request, expected := expected, phase := (ctor Phase.unresolvedTrial (ctor Uorc.Search.ArchiveTrial::Step.rejected failure failedUsage failedLedger failedEvents) nextWords), winner := winner, raw := raw, maximumBodyLength := maximumBodyLength, ledger := ledger, failures := failures}))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

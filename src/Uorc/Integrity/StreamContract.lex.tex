@@ -1,0 +1,2072 @@
+\begin{lexlean}{Uorc.Integrity.StreamContract}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: StreamContract,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: identity, type: String},
+    {name: domain, type: String},
+    {name: limits, type: String},
+    {name: framing, type: String},
+    {name: termination, type: String},
+    {name: stateBound, type: String},
+    {name: collisionAssumption, type: String},
+    {name: collisionReduction, type: String},
+    {name: proofScope, type: String},
+    {name: cancellation, type: String},
+    {name: diagnostic, type: String},
+    {name: failureOwners, type: String}
+  ]
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: StreamContract,
+  body: (record StreamContract {id := "UC-SHA-02", identity := "UORC-SHA256-STREAM-MAX-v1", domain := "D=ASCII(identity)||00, exactly 26 bytes; first prefix D||00 is 27 bytes; continuation prefix D||01||previousDigest32 is 59 bytes.", limits := "M=2^61-1=2305843009213693951 standard SHA-256 message bytes. End payload when SHA count reaches M-9=2305843009213693942. First payload capacity M-36=2305843009213693915; continuation capacity M-68=2305843009213693883. Each full frame is exactly M bytes including its 9-byte suffix.", framing := "Full suffix=00||BE64(payloadByteLength); terminal suffix=01||BE64(payloadByteLength). Length is payload bytes, not SHA bit length. Prefix and suffix roles are fixed octets, and no separate seed hash is used.", termination := "A full frame always precedes a continuation. EOF always emits a terminal frame, including an empty terminal continuation after an exactly aligned full frame. Empty input has a first-prefix terminal with zero payload.", stateBound := "One Stage variant carries one standard SHA-256 state or its Update, or a 32-byte finished digest. SHA retains at most 63 uncompressed bytes, 16 UInt32 schedule words and bounded compression progress. Prefix and suffix jobs retain at most 59 and 9 bytes. Caller update chunks are retained by the outer job. No entire segment, accumulated stream-length or segment-count integer is retained. UInt64 counters reset per SHA frame; outer Nat offsets are bounded by the supplied chunk length.", collisionAssumption := "Computational SHA-256 collision resistance on standard-domain framed messages; not global injectivity, mathematical collision freedom, authenticity, NIST certification, or a replacement for exact reconstruction comparison.", collisionReduction := "Constructive backward argument over two finite execution traces: compare terminal SHA messages. Equal output with unequal preimages gives a SHA collision witness. Equal terminal preimages force the same prefix role, canonical payload count and tail; a continuation prefix also identifies the same previous digest. Repeat at the predecessor full frame. At the first different preimage there is a SHA collision witness. Reaching a first/continuation mismatch also gives distinct preimages because D||00 and D||01 are disjoint. If every preimage agrees through the first frame, all segments and the reconstructed streams agree. This is a stated finite-chain reduction argument, not a kernel-checked universal reduction theorem or an injectivity axiom.", proofScope := "Source kernel observations establish exact domain/prefix sizes, production limit, derived full-frame bounds, general framing-size identities, general ready/finalizing count-guard reflection, and general cancellation erasure/idempotence. Runtime fixtures establish finite boundary/partition/count controls: 92 cases through 4096 bytes run in generated Lean; the certified Rust package runs all 94 through 1 MiB. This is diagnostic-backend workload selection, not a production input or frame cap. They do not constitute a universal SHA correctness, general state-transition preservation, or collision-reduction proof.", cancellation := "cancel and cancelUpdate return a canonical canceled state retaining no SHA state, pending job or input chunk. Subsequent update, finalize, step and digest return the typed canceled error. Cancellation is idempotent. Pure persistent source semantics do not promise erasure of separately retained prior snapshots.", diagnostic := "StreamDiagnostic is a distinct type with an explicit frameLimit parameter, using the same source engine. Limits 60 through M-9 are permitted there. Production StreamMax has no capacity parameter and always supplies M-9; diagnostic identities/outputs are never the production profile.", failureOwners := "sha256: nested standard SHA error; invalidState: malformed phase/count/buffer/job; invalidFrameLimit: diagnostic limit below 60 or above M-9; invalidOffset: offset exceeds retained chunk; workPending: pending full-frame work must complete; updateAfterFinalize: late update; notFinalized: unavailable digest/unstarted driver; fuelExhausted: convenience allowance exhausted; canceled: operation on canceled state. Source-generated negative controls exercise every error family and cancellation at every reachable stage."})
+}
+
+structure{
+  name: StreamFixture,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frameLimit, type: String},
+    {name: inputBytes, type: Nat},
+    {name: expectedHex, type: String},
+    {name: compressionCalls, type: Nat},
+    {name: frames, type: Nat},
+    {name: leanRuntime, type: Bool},
+    {name: role, type: String}
+  ]
+}
+
+definition{
+  name: fixture_000,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 0, expectedHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_001,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 1, expectedHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_002,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 19, expectedHex := "aea244947abbfba039f8f2ce9adfa944d569b6e996dc7b732bf4a700a9b88fc1", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_003,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 20, expectedHex := "6ce3a15e1c056c83f358571d6d8ffc8fcb4bcb66e5eefddc6e5f02412fd4fb43", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_004,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 21, expectedHex := "d7c4fe739d5625120b14861b2959fc7750d8ecee3c2846a81939d92aa1da43a7", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_005,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 27, expectedHex := "63d501c01b8a4dd255981bfc65e024b7206d4875add6227e71bac65b5450fe8d", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_006,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 28, expectedHex := "ca4534a7e8d0f42bb54ac98a91730b4bfb330645dac1c11c0d0d1e431ed4d143", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_007,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 29, expectedHex := "66e4e4167eeac32755c9597ed40c57a5b5872f320af4d397a3297a91228e1bf8", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_008,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 31, expectedHex := "13ed2923b63dc87546bc40394075a0c5a3ebe116e3cb9fbbddb4037d77d552fe", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_009,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 32, expectedHex := "e939a1f9944e8ee91c7be9725d5585faf0bb8fa78c490ee1ecd2dd979bd65e5e", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_010,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 33, expectedHex := "0bd93dd6399b2ecbc15d21f8c30ff42603268f732d35fe2695f5fa700fdee227", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_011,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 55, expectedHex := "79cb1bd17379bf1abd461e14210e19ee0b92d9811e85aac5afa2a57475959d10", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_012,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 56, expectedHex := "0916fbcc616bcff3b8ce548069962ea0b84b00334f4c43d6068904e75d18be65", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_013,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 57, expectedHex := "960af495f59abf708bc0b721de4e5daf45388c782b5fd24dd7a50d85a8f0da9f", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_014,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 63, expectedHex := "e9fc9df53f2150787e434df80c6fe369c3e409bfa2d346a3fa5bfaa34ad70049", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_015,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 64, expectedHex := "603f59ae5dc0f05e3bc73499d97abb6ffc1580c3d743f4fc55e10f6789a94d9f", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_016,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 65, expectedHex := "010288202e3a9a21ac21947e09d088218d60d341882a4a8d09976222e776ec81", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_017,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 119, expectedHex := "834569f1c890df91d57e20abf12667f4ca8b6f980cc3504b445023bf5946a99f", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_018,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 120, expectedHex := "3c2db83226622eb66a6f47b6b52fd735846ef25a7324ca2423ea8110831b239c", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_019,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 121, expectedHex := "cd46440f3e5588006bd37e452189d826088562e779ad5798572d50dd9184fc2d", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_020,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 127, expectedHex := "9194fb2a7cd00f4d8a0bf509a166cbf4f4c2118dc5620cbc299f3c8776862392", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_021,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 128, expectedHex := "f4d31961cf348c60c4c777c45b9eac5bedf100872b9bdbe526db590cb0771d1e", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_022,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 129, expectedHex := "d489d8fa9dc6102febdc3b8cd6935568983b36e5c5ab165c9cd29dae27d0c8ff", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_023,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 257, expectedHex := "5bf23107bbff161dde42c6b4175c9ede0762429d12d686626ba5914fd1653166", compressionCalls := 5, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_024,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 4096, expectedHex := "47b4579a810a24037b524b08966cd212b8b3b23d594107aaca9da88c73bd5ba6", compressionCalls := 65, frames := 1, leanRuntime := true, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_025,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 65536, expectedHex := "c9a4a7cd128f684c746a1c1ebdded13156da3556c89691571b49ad132dc9c6a5", compressionCalls := 1025, frames := 1, leanRuntime := false, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_026,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "2305843009213693942", inputBytes := 1048576, expectedHex := "3a200fd6f923d415bb39bb1e74d9bc387efa5b765102181511bf171cbaf7a364", compressionCalls := 16385, frames := 1, leanRuntime := false, role := "Production profile; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_027,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "60", inputBytes := 0, expectedHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_028,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "60", inputBytes := 1, expectedHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_029,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "60", inputBytes := 32, expectedHex := "e939a1f9944e8ee91c7be9725d5585faf0bb8fa78c490ee1ecd2dd979bd65e5e", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_030,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "60", inputBytes := 33, expectedHex := "c47c5449a3820e0c4d3f8f63f0add4dd35e2f7b198d9830c17fce440317606a5", compressionCalls := 4, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_031,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "60", inputBytes := 34, expectedHex := "a6d026b816a9c22b43cc47ca4cd20ff783fb635b364eeabc14fc0cff97430834", compressionCalls := 6, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_032,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "60", inputBytes := 35, expectedHex := "953cb1e38f4c51634643ee3c282401a8e3a0b67f5c87470c3ec5e87e2019fac5", compressionCalls := 8, frames := 4, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_033,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "60", inputBytes := 37, expectedHex := "23fdc179651b5d45fb1485ce8a808927e983f81eeb72b8fda23e4e216cfe46fe", compressionCalls := 12, frames := 6, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_034,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 0, expectedHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_035,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 1, expectedHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_036,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 36, expectedHex := "7783fa1892162920c99497d497c589470ab1d1cd8e514b94a72fa597b95fd3da", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_037,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 37, expectedHex := "1f5528a7c0a429fca57345e1fa76f2824f600fb888e6a705ca785c1812a18217", compressionCalls := 4, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_038,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 38, expectedHex := "edcd8789ece0e064bb07d220051db94626b0fee10d2d25a6a6c1c717be18058c", compressionCalls := 4, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_039,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 41, expectedHex := "ebb44849ac5627f1ea08251fad51804cada610715bc70acec26b5588528266f3", compressionCalls := 4, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_040,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 42, expectedHex := "3f1807f4a46d139baff23c3c3e7654b4674d178dd35dcdc209e7254c33f1efea", compressionCalls := 6, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_041,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 43, expectedHex := "df839cc620f48c2c5f92ca6a05d4e387e98aae344249ffbb428b611bce608d6a", compressionCalls := 6, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_042,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 47, expectedHex := "3fd860657efbc5056e6c6f5ac225e169cdc8e7bde21da0d9811b479c91e7ace8", compressionCalls := 8, frames := 4, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_043,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "64", inputBytes := 53, expectedHex := "11ac10db27836f915c80bb8b9c85e600d7ecd366ee1b41b297123bce0f135ac4", compressionCalls := 10, frames := 5, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_044,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 0, expectedHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_045,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 1, expectedHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_046,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 68, expectedHex := "f5b898fc332f71eeb82b459adf6440c2976c8de25d8360ff333724302848ec37", compressionCalls := 2, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_047,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 69, expectedHex := "77c3e6a53c6507634abc7883819be2dcd690867d718e79512144b9c6f5b1d8e8", compressionCalls := 4, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_048,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 70, expectedHex := "4fa2b71f4ad0258d8b7ed5287d37039dd02725621cbc467c5dc4b9f33428fedc", compressionCalls := 4, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_049,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 105, expectedHex := "100c068ec31bf7055a45732d6415c5a622b0c56deb465d161dec0cad35ed5007", compressionCalls := 4, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_050,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 106, expectedHex := "f5eb3abd37f789f85f1b95dd3a5c83f99261a4eec2210db4707a6c95bda51a79", compressionCalls := 6, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_051,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 107, expectedHex := "2188a2e444cfbe33285c36a6f31d1ef5200cd9a152c238803b768844436ea953", compressionCalls := 6, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_052,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 143, expectedHex := "af9db05ddcdc563c7478b6b42b747456d77fdcff1535091b67fad605b80d5ed9", compressionCalls := 8, frames := 4, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_053,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "96", inputBytes := 181, expectedHex := "bf28ef31a19d8149695fd677b9206a633a799a2cf921e3acccb7c43de43cc388", compressionCalls := 10, frames := 5, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_054,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 0, expectedHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_055,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 1, expectedHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_056,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 91, expectedHex := "93f55e33ad9c596935f471542e69fad484b0976c8349924a30be53f6a4257857", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_057,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 92, expectedHex := "c37ef8ddf58f995ee43c97794d13f745e6d00532d480b6f3949782ab70cf6391", compressionCalls := 5, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_058,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 93, expectedHex := "f52e76e9456eb8f47b607be3e015fc42d4962c6c713207a1b4c441594ea72ebd", compressionCalls := 5, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_059,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 151, expectedHex := "a67d1c71654e4c49a2fed08184ef7f013e736a6d1b31db55bf684a89360823b6", compressionCalls := 6, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_060,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 152, expectedHex := "08bfa44d29954b64c3d9d1c74900bd05842af8d47527d67b0e8c618d49d6a5e5", compressionCalls := 8, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_061,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 153, expectedHex := "6914d27fe9afe24f33acd6c0050473ee02dca32f5cb430642aea451552cfb605", compressionCalls := 8, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_062,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 212, expectedHex := "38e9692ba0ae726b367bb8ca36be891e83dc4aabdbfc0c8f468024a70432395f", compressionCalls := 11, frames := 4, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_063,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "119", inputBytes := 273, expectedHex := "81228a8cc1e1e17fe6f7465a6cec28fd15aefcec7f21725a6b0161d6d86a2255", compressionCalls := 14, frames := 5, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_064,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 0, expectedHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_065,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 1, expectedHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_066,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 92, expectedHex := "cea2d7a31b1e186b921ba1b8b11a1250f6ea3ab1e5d5c81454cdfb7a2c9f7301", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_067,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 93, expectedHex := "613acb367cddbf75cea78970acfaf9d5a45e81beb17796a28c1bcd64ec415766", compressionCalls := 5, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_068,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 94, expectedHex := "c6a8725b018cf9843538913965e1c08b46ad2711d47293d21695f05d0eeeb18d", compressionCalls := 5, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_069,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 153, expectedHex := "f6c4df5243680329a85c8f11df6c1afe147c2a9a729b3f2eb17b5635612ea05c", compressionCalls := 6, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_070,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 154, expectedHex := "a27ca136a75964e25a178918d01de422ef614466f597883be721747906a5589c", compressionCalls := 8, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_071,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 155, expectedHex := "0dc5aec686f6a21548fceb10d24ab9b5ead57957032c66d94fdeef2be0aa8e79", compressionCalls := 8, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_072,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 215, expectedHex := "4efe9b501127d715859cced484645b027ddb6d971500756a77d0dc24615956c1", compressionCalls := 11, frames := 4, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_073,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "120", inputBytes := 277, expectedHex := "47cf5eb9f722f79cd17e03f5c50db03cae7fb58eb8ad98d800cf73dbab9dcf85", compressionCalls := 14, frames := 5, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_074,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 0, expectedHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_075,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 1, expectedHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_076,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 99, expectedHex := "ddf0c1c6f800fab999800ace8cd179f48b20baa7d32644f477b8dbd697eb29c9", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_077,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 100, expectedHex := "8cd1471875d1a8b1f89eea2382c4c8600d00da7b6f830824e30e228670fedf93", compressionCalls := 5, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_078,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 101, expectedHex := "3fb77867eea8e33c7f7fd2c3dec4e1a6fb184e616d9829b29c963d75166a922d", compressionCalls := 5, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_079,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 167, expectedHex := "c8e2b10ede68a447c8823933fe302019945a31c606c4e139a63384c5cfdffd02", compressionCalls := 6, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_080,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 168, expectedHex := "201805a5b171bb216351afeaccf8034d8a1e5b6edbfdb7246993edf313f8d14f", compressionCalls := 8, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_081,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 169, expectedHex := "ff659626c006f9317ef15d9665453f65163e5e40813e81b80ae675358e2d71d3", compressionCalls := 8, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_082,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 236, expectedHex := "c1cb77e23aeb0f0c9fe4db7baaadf5346d4df025bc5210a9438f86f835c701d3", compressionCalls := 11, frames := 4, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_083,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "127", inputBytes := 305, expectedHex := "5c905c4ec61a6c4fdc1a3175bb9cffc38b4b3a327322841a5e25b8a49e3dfbd8", compressionCalls := 14, frames := 5, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_084,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 0, expectedHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_085,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 1, expectedHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_086,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 100, expectedHex := "ee0c7a3d3a40dc01113558bb1d6549b508f285d71c46281c0a01575d9874b170", compressionCalls := 3, frames := 1, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_087,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 101, expectedHex := "e7ed00a9e301f6bf78a9bc06da887e3949f1367df8ee36fcea225a0aaead78a1", compressionCalls := 5, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_088,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 102, expectedHex := "f6e9b9b7dcbbb610c0ee7fa678a47e23e37b6a8ee178304873f68ef16efd827c", compressionCalls := 5, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_089,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 169, expectedHex := "0e5bd69e7060fa6a0bb2652e331f28a2ce030a66034cf2eece59eb711b2d42d5", compressionCalls := 6, frames := 2, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_090,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 170, expectedHex := "2d472b96fcb21344129ee0918a58f97ac540bb5ca037ea28146aa00c40ca7abc", compressionCalls := 8, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_091,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 171, expectedHex := "d8c3a12a5ba88ff95f5e1cd5cbd9e84f21b314232c4b396d49506f114b960f90", compressionCalls := 8, frames := 3, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_092,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 239, expectedHex := "23a127a4e2eeaf70d960c32696a49dc72bfc2ca2d07b302026f809ff2fa539d8", compressionCalls := 11, frames := 4, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+definition{
+  name: fixture_093,
+  parameters: [],
+  result: StreamFixture,
+  body: (record StreamFixture {frameLimit := "128", inputBytes := 309, expectedHex := "61dda51f4b407f2b15cf2e4a2ab871095ad4eee49a65cf9374629880c33bbb00", compressionCalls := 14, frames := 5, leanRuntime := true, role := "Diagnostic reduced frame limit only; no production profile identity; independent hashlib/OpenSSL expected output; not source-runtime or universal proof."})
+}
+
+structure{
+  name: FrameFixture,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frameLimit, type: String},
+    {name: inputBytes, type: Nat},
+    {name: frameIndex, type: Nat},
+    {name: prefixBytes, type: Nat},
+    {name: payloadBytes, type: Nat},
+    {name: suffixHex, type: String},
+    {name: messageBytes, type: Nat},
+    {name: messageHex, type: String},
+    {name: digestHex, type: String},
+    {name: compressionCalls, type: Nat}
+  ]
+}
+
+definition{
+  name: frame_000_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 0, frameIndex := 0, prefixBytes := 27, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 36, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000010000000000000000", digestHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1})
+}
+
+definition{
+  name: frame_001_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 1, frameIndex := 0, prefixBytes := 27, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 37, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000000010000000000000001", digestHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1})
+}
+
+definition{
+  name: frame_002_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 19, frameIndex := 0, prefixBytes := 27, payloadBytes := 19, suffixHex := "010000000000000013", messageBytes := 55, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112010000000000000013", digestHex := "aea244947abbfba039f8f2ce9adfa944d569b6e996dc7b732bf4a700a9b88fc1", compressionCalls := 1})
+}
+
+definition{
+  name: frame_003_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 20, frameIndex := 0, prefixBytes := 27, payloadBytes := 20, suffixHex := "010000000000000014", messageBytes := 56, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f10111213010000000000000014", digestHex := "6ce3a15e1c056c83f358571d6d8ffc8fcb4bcb66e5eefddc6e5f02412fd4fb43", compressionCalls := 2})
+}
+
+definition{
+  name: frame_004_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 21, frameIndex := 0, prefixBytes := 27, payloadBytes := 21, suffixHex := "010000000000000015", messageBytes := 57, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f1011121314010000000000000015", digestHex := "d7c4fe739d5625120b14861b2959fc7750d8ecee3c2846a81939d92aa1da43a7", compressionCalls := 2})
+}
+
+definition{
+  name: frame_005_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 27, frameIndex := 0, prefixBytes := 27, payloadBytes := 27, suffixHex := "01000000000000001b", messageBytes := 63, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a01000000000000001b", digestHex := "63d501c01b8a4dd255981bfc65e024b7206d4875add6227e71bac65b5450fe8d", compressionCalls := 2})
+}
+
+definition{
+  name: frame_006_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 28, frameIndex := 0, prefixBytes := 27, payloadBytes := 28, suffixHex := "01000000000000001c", messageBytes := 64, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b01000000000000001c", digestHex := "ca4534a7e8d0f42bb54ac98a91730b4bfb330645dac1c11c0d0d1e431ed4d143", compressionCalls := 2})
+}
+
+definition{
+  name: frame_007_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 29, frameIndex := 0, prefixBytes := 27, payloadBytes := 29, suffixHex := "01000000000000001d", messageBytes := 65, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c01000000000000001d", digestHex := "66e4e4167eeac32755c9597ed40c57a5b5872f320af4d397a3297a91228e1bf8", compressionCalls := 2})
+}
+
+definition{
+  name: frame_008_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 31, frameIndex := 0, prefixBytes := 27, payloadBytes := 31, suffixHex := "01000000000000001f", messageBytes := 67, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e01000000000000001f", digestHex := "13ed2923b63dc87546bc40394075a0c5a3ebe116e3cb9fbbddb4037d77d552fe", compressionCalls := 2})
+}
+
+definition{
+  name: frame_009_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 32, frameIndex := 0, prefixBytes := 27, payloadBytes := 32, suffixHex := "010000000000000020", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f010000000000000020", digestHex := "e939a1f9944e8ee91c7be9725d5585faf0bb8fa78c490ee1ecd2dd979bd65e5e", compressionCalls := 2})
+}
+
+definition{
+  name: frame_010_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 33, frameIndex := 0, prefixBytes := 27, payloadBytes := 33, suffixHex := "010000000000000021", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20010000000000000021", digestHex := "0bd93dd6399b2ecbc15d21f8c30ff42603268f732d35fe2695f5fa700fdee227", compressionCalls := 2})
+}
+
+definition{
+  name: frame_011_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 55, frameIndex := 0, prefixBytes := 27, payloadBytes := 55, suffixHex := "010000000000000037", messageBytes := 91, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233343536010000000000000037", digestHex := "79cb1bd17379bf1abd461e14210e19ee0b92d9811e85aac5afa2a57475959d10", compressionCalls := 2})
+}
+
+definition{
+  name: frame_012_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 56, frameIndex := 0, prefixBytes := 27, payloadBytes := 56, suffixHex := "010000000000000038", messageBytes := 92, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334353637010000000000000038", digestHex := "0916fbcc616bcff3b8ce548069962ea0b84b00334f4c43d6068904e75d18be65", compressionCalls := 2})
+}
+
+definition{
+  name: frame_013_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 57, frameIndex := 0, prefixBytes := 27, payloadBytes := 57, suffixHex := "010000000000000039", messageBytes := 93, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738010000000000000039", digestHex := "960af495f59abf708bc0b721de4e5daf45388c782b5fd24dd7a50d85a8f0da9f", compressionCalls := 2})
+}
+
+definition{
+  name: frame_014_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 63, frameIndex := 0, prefixBytes := 27, payloadBytes := 63, suffixHex := "01000000000000003f", messageBytes := 99, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e01000000000000003f", digestHex := "e9fc9df53f2150787e434df80c6fe369c3e409bfa2d346a3fa5bfaa34ad70049", compressionCalls := 2})
+}
+
+definition{
+  name: frame_015_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 64, frameIndex := 0, prefixBytes := 27, payloadBytes := 64, suffixHex := "010000000000000040", messageBytes := 100, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f010000000000000040", digestHex := "603f59ae5dc0f05e3bc73499d97abb6ffc1580c3d743f4fc55e10f6789a94d9f", compressionCalls := 2})
+}
+
+definition{
+  name: frame_016_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 65, frameIndex := 0, prefixBytes := 27, payloadBytes := 65, suffixHex := "010000000000000041", messageBytes := 101, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40010000000000000041", digestHex := "010288202e3a9a21ac21947e09d088218d60d341882a4a8d09976222e776ec81", compressionCalls := 2})
+}
+
+definition{
+  name: frame_017_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 119, frameIndex := 0, prefixBytes := 27, payloadBytes := 119, suffixHex := "010000000000000077", messageBytes := 155, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f70717273747576010000000000000077", digestHex := "834569f1c890df91d57e20abf12667f4ca8b6f980cc3504b445023bf5946a99f", compressionCalls := 3})
+}
+
+definition{
+  name: frame_018_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 120, frameIndex := 0, prefixBytes := 27, payloadBytes := 120, suffixHex := "010000000000000078", messageBytes := 156, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f7071727374757677010000000000000078", digestHex := "3c2db83226622eb66a6f47b6b52fd735846ef25a7324ca2423ea8110831b239c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_019_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 121, frameIndex := 0, prefixBytes := 27, payloadBytes := 121, suffixHex := "010000000000000079", messageBytes := 157, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778010000000000000079", digestHex := "cd46440f3e5588006bd37e452189d826088562e779ad5798572d50dd9184fc2d", compressionCalls := 3})
+}
+
+definition{
+  name: frame_020_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 127, frameIndex := 0, prefixBytes := 27, payloadBytes := 127, suffixHex := "01000000000000007f", messageBytes := 163, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e01000000000000007f", digestHex := "9194fb2a7cd00f4d8a0bf509a166cbf4f4c2118dc5620cbc299f3c8776862392", compressionCalls := 3})
+}
+
+definition{
+  name: frame_021_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 128, frameIndex := 0, prefixBytes := 27, payloadBytes := 128, suffixHex := "010000000000000080", messageBytes := 164, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f010000000000000080", digestHex := "f4d31961cf348c60c4c777c45b9eac5bedf100872b9bdbe526db590cb0771d1e", compressionCalls := 3})
+}
+
+definition{
+  name: frame_022_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 129, frameIndex := 0, prefixBytes := 27, payloadBytes := 129, suffixHex := "010000000000000081", messageBytes := 165, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f80010000000000000081", digestHex := "d489d8fa9dc6102febdc3b8cd6935568983b36e5c5ab165c9cd29dae27d0c8ff", compressionCalls := 3})
+}
+
+definition{
+  name: frame_023_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 257, frameIndex := 0, prefixBytes := 27, payloadBytes := 257, suffixHex := "010000000000000101", messageBytes := 293, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff00010000000000000101", digestHex := "5bf23107bbff161dde42c6b4175c9ede0762429d12d686626ba5914fd1653166", compressionCalls := 5})
+}
+
+definition{
+  name: frame_024_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 4096, frameIndex := 0, prefixBytes := 27, payloadBytes := 4096, suffixHex := "010000000000001000", messageBytes := 4132, messageHex := "", digestHex := "47b4579a810a24037b524b08966cd212b8b3b23d594107aaca9da88c73bd5ba6", compressionCalls := 65})
+}
+
+definition{
+  name: frame_025_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 65536, frameIndex := 0, prefixBytes := 27, payloadBytes := 65536, suffixHex := "010000000000010000", messageBytes := 65572, messageHex := "", digestHex := "c9a4a7cd128f684c746a1c1ebdded13156da3556c89691571b49ad132dc9c6a5", compressionCalls := 1025})
+}
+
+definition{
+  name: frame_026_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "2305843009213693942", inputBytes := 1048576, frameIndex := 0, prefixBytes := 27, payloadBytes := 1048576, suffixHex := "010000000000100000", messageBytes := 1048612, messageHex := "", digestHex := "3a200fd6f923d415bb39bb1e74d9bc387efa5b765102181511bf171cbaf7a364", compressionCalls := 16385})
+}
+
+definition{
+  name: frame_027_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 0, frameIndex := 0, prefixBytes := 27, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 36, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000010000000000000000", digestHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1})
+}
+
+definition{
+  name: frame_028_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 1, frameIndex := 0, prefixBytes := 27, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 37, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000000010000000000000001", digestHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1})
+}
+
+definition{
+  name: frame_029_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 32, frameIndex := 0, prefixBytes := 27, payloadBytes := 32, suffixHex := "010000000000000020", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f010000000000000020", digestHex := "e939a1f9944e8ee91c7be9725d5585faf0bb8fa78c490ee1ecd2dd979bd65e5e", compressionCalls := 2})
+}
+
+definition{
+  name: frame_030_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 33, frameIndex := 0, prefixBytes := 27, payloadBytes := 33, suffixHex := "000000000000000021", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20000000000000000021", digestHex := "e2f7e0c2e7544aff6d3d00b50053cf5d5581841abedfe62e3c6ef3dc0d2e2d56", compressionCalls := 2})
+}
+
+definition{
+  name: frame_030_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 33, frameIndex := 1, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e2f7e0c2e7544aff6d3d00b50053cf5d5581841abedfe62e3c6ef3dc0d2e2d56010000000000000000", digestHex := "c47c5449a3820e0c4d3f8f63f0add4dd35e2f7b198d9830c17fce440317606a5", compressionCalls := 2})
+}
+
+definition{
+  name: frame_031_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 34, frameIndex := 0, prefixBytes := 27, payloadBytes := 33, suffixHex := "000000000000000021", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20000000000000000021", digestHex := "e2f7e0c2e7544aff6d3d00b50053cf5d5581841abedfe62e3c6ef3dc0d2e2d56", compressionCalls := 2})
+}
+
+definition{
+  name: frame_031_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 34, frameIndex := 1, prefixBytes := 59, payloadBytes := 1, suffixHex := "000000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e2f7e0c2e7544aff6d3d00b50053cf5d5581841abedfe62e3c6ef3dc0d2e2d5621000000000000000001", digestHex := "4b7c1e14c909f63f820b1b331481f4b95a2397023b5fc45be2f1f80794054be4", compressionCalls := 2})
+}
+
+definition{
+  name: frame_031_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 34, frameIndex := 2, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100014b7c1e14c909f63f820b1b331481f4b95a2397023b5fc45be2f1f80794054be4010000000000000000", digestHex := "a6d026b816a9c22b43cc47ca4cd20ff783fb635b364eeabc14fc0cff97430834", compressionCalls := 2})
+}
+
+definition{
+  name: frame_032_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 35, frameIndex := 0, prefixBytes := 27, payloadBytes := 33, suffixHex := "000000000000000021", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20000000000000000021", digestHex := "e2f7e0c2e7544aff6d3d00b50053cf5d5581841abedfe62e3c6ef3dc0d2e2d56", compressionCalls := 2})
+}
+
+definition{
+  name: frame_032_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 35, frameIndex := 1, prefixBytes := 59, payloadBytes := 1, suffixHex := "000000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e2f7e0c2e7544aff6d3d00b50053cf5d5581841abedfe62e3c6ef3dc0d2e2d5621000000000000000001", digestHex := "4b7c1e14c909f63f820b1b331481f4b95a2397023b5fc45be2f1f80794054be4", compressionCalls := 2})
+}
+
+definition{
+  name: frame_032_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 35, frameIndex := 2, prefixBytes := 59, payloadBytes := 1, suffixHex := "000000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100014b7c1e14c909f63f820b1b331481f4b95a2397023b5fc45be2f1f80794054be422000000000000000001", digestHex := "3c86e39b6b18c61c2673465c07383693dd6f827937a5b0ec6be345ef0a5b454b", compressionCalls := 2})
+}
+
+definition{
+  name: frame_032_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 35, frameIndex := 3, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100013c86e39b6b18c61c2673465c07383693dd6f827937a5b0ec6be345ef0a5b454b010000000000000000", digestHex := "953cb1e38f4c51634643ee3c282401a8e3a0b67f5c87470c3ec5e87e2019fac5", compressionCalls := 2})
+}
+
+definition{
+  name: frame_033_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 37, frameIndex := 0, prefixBytes := 27, payloadBytes := 33, suffixHex := "000000000000000021", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20000000000000000021", digestHex := "e2f7e0c2e7544aff6d3d00b50053cf5d5581841abedfe62e3c6ef3dc0d2e2d56", compressionCalls := 2})
+}
+
+definition{
+  name: frame_033_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 37, frameIndex := 1, prefixBytes := 59, payloadBytes := 1, suffixHex := "000000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e2f7e0c2e7544aff6d3d00b50053cf5d5581841abedfe62e3c6ef3dc0d2e2d5621000000000000000001", digestHex := "4b7c1e14c909f63f820b1b331481f4b95a2397023b5fc45be2f1f80794054be4", compressionCalls := 2})
+}
+
+definition{
+  name: frame_033_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 37, frameIndex := 2, prefixBytes := 59, payloadBytes := 1, suffixHex := "000000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100014b7c1e14c909f63f820b1b331481f4b95a2397023b5fc45be2f1f80794054be422000000000000000001", digestHex := "3c86e39b6b18c61c2673465c07383693dd6f827937a5b0ec6be345ef0a5b454b", compressionCalls := 2})
+}
+
+definition{
+  name: frame_033_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 37, frameIndex := 3, prefixBytes := 59, payloadBytes := 1, suffixHex := "000000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100013c86e39b6b18c61c2673465c07383693dd6f827937a5b0ec6be345ef0a5b454b23000000000000000001", digestHex := "c3c233838219d2613ad8d30aac4a9cea0e8443bfd1040a61d3ea200c5cab13fd", compressionCalls := 2})
+}
+
+definition{
+  name: frame_033_04,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 37, frameIndex := 4, prefixBytes := 59, payloadBytes := 1, suffixHex := "000000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001c3c233838219d2613ad8d30aac4a9cea0e8443bfd1040a61d3ea200c5cab13fd24000000000000000001", digestHex := "c6e1b1986d2cce23404695ec1f8cb3bb32899bf3e42aae952387ea927affa890", compressionCalls := 2})
+}
+
+definition{
+  name: frame_033_05,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "60", inputBytes := 37, frameIndex := 5, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001c6e1b1986d2cce23404695ec1f8cb3bb32899bf3e42aae952387ea927affa890010000000000000000", digestHex := "23fdc179651b5d45fb1485ce8a808927e983f81eeb72b8fda23e4e216cfe46fe", compressionCalls := 2})
+}
+
+definition{
+  name: frame_034_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 0, frameIndex := 0, prefixBytes := 27, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 36, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000010000000000000000", digestHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1})
+}
+
+definition{
+  name: frame_035_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 1, frameIndex := 0, prefixBytes := 27, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 37, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000000010000000000000001", digestHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1})
+}
+
+definition{
+  name: frame_036_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 36, frameIndex := 0, prefixBytes := 27, payloadBytes := 36, suffixHex := "010000000000000024", messageBytes := 72, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223010000000000000024", digestHex := "7783fa1892162920c99497d497c589470ab1d1cd8e514b94a72fa597b95fd3da", compressionCalls := 2})
+}
+
+definition{
+  name: frame_037_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 37, frameIndex := 0, prefixBytes := 27, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324000000000000000025", digestHex := "ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c0628", compressionCalls := 2})
+}
+
+definition{
+  name: frame_037_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 37, frameIndex := 1, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c0628010000000000000000", digestHex := "1f5528a7c0a429fca57345e1fa76f2824f600fb888e6a705ca785c1812a18217", compressionCalls := 2})
+}
+
+definition{
+  name: frame_038_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 38, frameIndex := 0, prefixBytes := 27, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324000000000000000025", digestHex := "ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c0628", compressionCalls := 2})
+}
+
+definition{
+  name: frame_038_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 38, frameIndex := 1, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c062825010000000000000001", digestHex := "edcd8789ece0e064bb07d220051db94626b0fee10d2d25a6a6c1c717be18058c", compressionCalls := 2})
+}
+
+definition{
+  name: frame_039_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 41, frameIndex := 0, prefixBytes := 27, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324000000000000000025", digestHex := "ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c0628", compressionCalls := 2})
+}
+
+definition{
+  name: frame_039_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 41, frameIndex := 1, prefixBytes := 59, payloadBytes := 4, suffixHex := "010000000000000004", messageBytes := 72, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c062825262728010000000000000004", digestHex := "ebb44849ac5627f1ea08251fad51804cada610715bc70acec26b5588528266f3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_040_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 42, frameIndex := 0, prefixBytes := 27, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324000000000000000025", digestHex := "ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c0628", compressionCalls := 2})
+}
+
+definition{
+  name: frame_040_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 42, frameIndex := 1, prefixBytes := 59, payloadBytes := 5, suffixHex := "000000000000000005", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c06282526272829000000000000000005", digestHex := "602d24c193ad0ebd6fc203cd6ca0f400cbd13a72fc1ed58ff9f861c4c101854f", compressionCalls := 2})
+}
+
+definition{
+  name: frame_040_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 42, frameIndex := 2, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001602d24c193ad0ebd6fc203cd6ca0f400cbd13a72fc1ed58ff9f861c4c101854f010000000000000000", digestHex := "3f1807f4a46d139baff23c3c3e7654b4674d178dd35dcdc209e7254c33f1efea", compressionCalls := 2})
+}
+
+definition{
+  name: frame_041_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 43, frameIndex := 0, prefixBytes := 27, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324000000000000000025", digestHex := "ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c0628", compressionCalls := 2})
+}
+
+definition{
+  name: frame_041_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 43, frameIndex := 1, prefixBytes := 59, payloadBytes := 5, suffixHex := "000000000000000005", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c06282526272829000000000000000005", digestHex := "602d24c193ad0ebd6fc203cd6ca0f400cbd13a72fc1ed58ff9f861c4c101854f", compressionCalls := 2})
+}
+
+definition{
+  name: frame_041_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 43, frameIndex := 2, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001602d24c193ad0ebd6fc203cd6ca0f400cbd13a72fc1ed58ff9f861c4c101854f2a010000000000000001", digestHex := "df839cc620f48c2c5f92ca6a05d4e387e98aae344249ffbb428b611bce608d6a", compressionCalls := 2})
+}
+
+definition{
+  name: frame_042_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 47, frameIndex := 0, prefixBytes := 27, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324000000000000000025", digestHex := "ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c0628", compressionCalls := 2})
+}
+
+definition{
+  name: frame_042_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 47, frameIndex := 1, prefixBytes := 59, payloadBytes := 5, suffixHex := "000000000000000005", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c06282526272829000000000000000005", digestHex := "602d24c193ad0ebd6fc203cd6ca0f400cbd13a72fc1ed58ff9f861c4c101854f", compressionCalls := 2})
+}
+
+definition{
+  name: frame_042_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 47, frameIndex := 2, prefixBytes := 59, payloadBytes := 5, suffixHex := "000000000000000005", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001602d24c193ad0ebd6fc203cd6ca0f400cbd13a72fc1ed58ff9f861c4c101854f2a2b2c2d2e000000000000000005", digestHex := "9c7d8b9c769321a5089101c8d6d8be977c340a92243b762e0da2e7b1b4539b98", compressionCalls := 2})
+}
+
+definition{
+  name: frame_042_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 47, frameIndex := 3, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100019c7d8b9c769321a5089101c8d6d8be977c340a92243b762e0da2e7b1b4539b98010000000000000000", digestHex := "3fd860657efbc5056e6c6f5ac225e169cdc8e7bde21da0d9811b479c91e7ace8", compressionCalls := 2})
+}
+
+definition{
+  name: frame_043_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 53, frameIndex := 0, prefixBytes := 27, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324000000000000000025", digestHex := "ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c0628", compressionCalls := 2})
+}
+
+definition{
+  name: frame_043_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 53, frameIndex := 1, prefixBytes := 59, payloadBytes := 5, suffixHex := "000000000000000005", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ad426b84253dcb242d32df370c6c7a3f3b8a2103791074b7e486b2d0c59c06282526272829000000000000000005", digestHex := "602d24c193ad0ebd6fc203cd6ca0f400cbd13a72fc1ed58ff9f861c4c101854f", compressionCalls := 2})
+}
+
+definition{
+  name: frame_043_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 53, frameIndex := 2, prefixBytes := 59, payloadBytes := 5, suffixHex := "000000000000000005", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001602d24c193ad0ebd6fc203cd6ca0f400cbd13a72fc1ed58ff9f861c4c101854f2a2b2c2d2e000000000000000005", digestHex := "9c7d8b9c769321a5089101c8d6d8be977c340a92243b762e0da2e7b1b4539b98", compressionCalls := 2})
+}
+
+definition{
+  name: frame_043_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 53, frameIndex := 3, prefixBytes := 59, payloadBytes := 5, suffixHex := "000000000000000005", messageBytes := 73, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100019c7d8b9c769321a5089101c8d6d8be977c340a92243b762e0da2e7b1b4539b982f30313233000000000000000005", digestHex := "33347b87040c72211951106599fc14d1f28a9553637f42d3a9cf6e25affb3df1", compressionCalls := 2})
+}
+
+definition{
+  name: frame_043_04,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "64", inputBytes := 53, frameIndex := 4, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000133347b87040c72211951106599fc14d1f28a9553637f42d3a9cf6e25affb3df134010000000000000001", digestHex := "11ac10db27836f915c80bb8b9c85e600d7ecd366ee1b41b297123bce0f135ac4", compressionCalls := 2})
+}
+
+definition{
+  name: frame_044_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 0, frameIndex := 0, prefixBytes := 27, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 36, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000010000000000000000", digestHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1})
+}
+
+definition{
+  name: frame_045_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 1, frameIndex := 0, prefixBytes := 27, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 37, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000000010000000000000001", digestHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1})
+}
+
+definition{
+  name: frame_046_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 68, frameIndex := 0, prefixBytes := 27, payloadBytes := 68, suffixHex := "010000000000000044", messageBytes := 104, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40414243010000000000000044", digestHex := "f5b898fc332f71eeb82b459adf6440c2976c8de25d8360ff333724302848ec37", compressionCalls := 2})
+}
+
+definition{
+  name: frame_047_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 69, frameIndex := 0, prefixBytes := 27, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344000000000000000045", digestHex := "ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_047_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 69, frameIndex := 1, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d3010000000000000000", digestHex := "77c3e6a53c6507634abc7883819be2dcd690867d718e79512144b9c6f5b1d8e8", compressionCalls := 2})
+}
+
+definition{
+  name: frame_048_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 70, frameIndex := 0, prefixBytes := 27, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344000000000000000045", digestHex := "ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_048_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 70, frameIndex := 1, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d345010000000000000001", digestHex := "4fa2b71f4ad0258d8b7ed5287d37039dd02725621cbc467c5dc4b9f33428fedc", compressionCalls := 2})
+}
+
+definition{
+  name: frame_049_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 105, frameIndex := 0, prefixBytes := 27, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344000000000000000045", digestHex := "ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_049_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 105, frameIndex := 1, prefixBytes := 59, payloadBytes := 36, suffixHex := "010000000000000024", messageBytes := 104, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d345464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768010000000000000024", digestHex := "100c068ec31bf7055a45732d6415c5a622b0c56deb465d161dec0cad35ed5007", compressionCalls := 2})
+}
+
+definition{
+  name: frame_050_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 106, frameIndex := 0, prefixBytes := 27, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344000000000000000045", digestHex := "ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_050_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 106, frameIndex := 1, prefixBytes := 59, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d345464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263646566676869000000000000000025", digestHex := "0b1116a2a5bb647c8bb10aa039ac3d08e3bb8e0b828467eb98d67671a8e9bcee", compressionCalls := 2})
+}
+
+definition{
+  name: frame_050_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 106, frameIndex := 2, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100010b1116a2a5bb647c8bb10aa039ac3d08e3bb8e0b828467eb98d67671a8e9bcee010000000000000000", digestHex := "f5eb3abd37f789f85f1b95dd3a5c83f99261a4eec2210db4707a6c95bda51a79", compressionCalls := 2})
+}
+
+definition{
+  name: frame_051_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 107, frameIndex := 0, prefixBytes := 27, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344000000000000000045", digestHex := "ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_051_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 107, frameIndex := 1, prefixBytes := 59, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d345464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263646566676869000000000000000025", digestHex := "0b1116a2a5bb647c8bb10aa039ac3d08e3bb8e0b828467eb98d67671a8e9bcee", compressionCalls := 2})
+}
+
+definition{
+  name: frame_051_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 107, frameIndex := 2, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100010b1116a2a5bb647c8bb10aa039ac3d08e3bb8e0b828467eb98d67671a8e9bcee6a010000000000000001", digestHex := "2188a2e444cfbe33285c36a6f31d1ef5200cd9a152c238803b768844436ea953", compressionCalls := 2})
+}
+
+definition{
+  name: frame_052_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 143, frameIndex := 0, prefixBytes := 27, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344000000000000000045", digestHex := "ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_052_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 143, frameIndex := 1, prefixBytes := 59, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d345464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263646566676869000000000000000025", digestHex := "0b1116a2a5bb647c8bb10aa039ac3d08e3bb8e0b828467eb98d67671a8e9bcee", compressionCalls := 2})
+}
+
+definition{
+  name: frame_052_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 143, frameIndex := 2, prefixBytes := 59, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100010b1116a2a5bb647c8bb10aa039ac3d08e3bb8e0b828467eb98d67671a8e9bcee6a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e000000000000000025", digestHex := "3259be83c80181792073c382932d19a2f188808e42e9206bf9a4c1bb61706f2a", compressionCalls := 2})
+}
+
+definition{
+  name: frame_052_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 143, frameIndex := 3, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100013259be83c80181792073c382932d19a2f188808e42e9206bf9a4c1bb61706f2a010000000000000000", digestHex := "af9db05ddcdc563c7478b6b42b747456d77fdcff1535091b67fad605b80d5ed9", compressionCalls := 2})
+}
+
+definition{
+  name: frame_053_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 181, frameIndex := 0, prefixBytes := 27, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344000000000000000045", digestHex := "ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_053_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 181, frameIndex := 1, prefixBytes := 59, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001ea066f70e15ee5c53fd29245c8510e506d484d8697264facbafa93b82df020d345464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263646566676869000000000000000025", digestHex := "0b1116a2a5bb647c8bb10aa039ac3d08e3bb8e0b828467eb98d67671a8e9bcee", compressionCalls := 2})
+}
+
+definition{
+  name: frame_053_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 181, frameIndex := 2, prefixBytes := 59, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100010b1116a2a5bb647c8bb10aa039ac3d08e3bb8e0b828467eb98d67671a8e9bcee6a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e000000000000000025", digestHex := "3259be83c80181792073c382932d19a2f188808e42e9206bf9a4c1bb61706f2a", compressionCalls := 2})
+}
+
+definition{
+  name: frame_053_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 181, frameIndex := 3, prefixBytes := 59, payloadBytes := 37, suffixHex := "000000000000000025", messageBytes := 105, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100013259be83c80181792073c382932d19a2f188808e42e9206bf9a4c1bb61706f2a8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3000000000000000025", digestHex := "e6b64b153c0072539457c1051e0a44123a1a707945b72b2eb74f960e67aded63", compressionCalls := 2})
+}
+
+definition{
+  name: frame_053_04,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "96", inputBytes := 181, frameIndex := 4, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e6b64b153c0072539457c1051e0a44123a1a707945b72b2eb74f960e67aded63b4010000000000000001", digestHex := "bf28ef31a19d8149695fd677b9206a633a799a2cf921e3acccb7c43de43cc388", compressionCalls := 2})
+}
+
+definition{
+  name: frame_054_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 0, frameIndex := 0, prefixBytes := 27, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 36, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000010000000000000000", digestHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1})
+}
+
+definition{
+  name: frame_055_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 1, frameIndex := 0, prefixBytes := 27, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 37, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000000010000000000000001", digestHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1})
+}
+
+definition{
+  name: frame_056_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 91, frameIndex := 0, prefixBytes := 27, payloadBytes := 91, suffixHex := "01000000000000005b", messageBytes := 127, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a01000000000000005b", digestHex := "93f55e33ad9c596935f471542e69fad484b0976c8349924a30be53f6a4257857", compressionCalls := 3})
+}
+
+definition{
+  name: frame_057_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 92, frameIndex := 0, prefixBytes := 27, payloadBytes := 92, suffixHex := "00000000000000005c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b00000000000000005c", digestHex := "e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf7", compressionCalls := 3})
+}
+
+definition{
+  name: frame_057_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 92, frameIndex := 1, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf7010000000000000000", digestHex := "c37ef8ddf58f995ee43c97794d13f745e6d00532d480b6f3949782ab70cf6391", compressionCalls := 2})
+}
+
+definition{
+  name: frame_058_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 93, frameIndex := 0, prefixBytes := 27, payloadBytes := 92, suffixHex := "00000000000000005c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b00000000000000005c", digestHex := "e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf7", compressionCalls := 3})
+}
+
+definition{
+  name: frame_058_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 93, frameIndex := 1, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf75c010000000000000001", digestHex := "f52e76e9456eb8f47b607be3e015fc42d4962c6c713207a1b4c441594ea72ebd", compressionCalls := 2})
+}
+
+definition{
+  name: frame_059_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 151, frameIndex := 0, prefixBytes := 27, payloadBytes := 92, suffixHex := "00000000000000005c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b00000000000000005c", digestHex := "e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf7", compressionCalls := 3})
+}
+
+definition{
+  name: frame_059_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 151, frameIndex := 1, prefixBytes := 59, payloadBytes := 59, suffixHex := "01000000000000003b", messageBytes := 127, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf75c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f9091929394959601000000000000003b", digestHex := "a67d1c71654e4c49a2fed08184ef7f013e736a6d1b31db55bf684a89360823b6", compressionCalls := 3})
+}
+
+definition{
+  name: frame_060_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 152, frameIndex := 0, prefixBytes := 27, payloadBytes := 92, suffixHex := "00000000000000005c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b00000000000000005c", digestHex := "e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf7", compressionCalls := 3})
+}
+
+definition{
+  name: frame_060_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 152, frameIndex := 1, prefixBytes := 59, payloadBytes := 60, suffixHex := "00000000000000003c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf75c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969700000000000000003c", digestHex := "3605db36510e452b406d002e2c3ecb842247731cc47f79a07c73a787291a8005", compressionCalls := 3})
+}
+
+definition{
+  name: frame_060_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 152, frameIndex := 2, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100013605db36510e452b406d002e2c3ecb842247731cc47f79a07c73a787291a8005010000000000000000", digestHex := "08bfa44d29954b64c3d9d1c74900bd05842af8d47527d67b0e8c618d49d6a5e5", compressionCalls := 2})
+}
+
+definition{
+  name: frame_061_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 153, frameIndex := 0, prefixBytes := 27, payloadBytes := 92, suffixHex := "00000000000000005c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b00000000000000005c", digestHex := "e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf7", compressionCalls := 3})
+}
+
+definition{
+  name: frame_061_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 153, frameIndex := 1, prefixBytes := 59, payloadBytes := 60, suffixHex := "00000000000000003c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf75c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969700000000000000003c", digestHex := "3605db36510e452b406d002e2c3ecb842247731cc47f79a07c73a787291a8005", compressionCalls := 3})
+}
+
+definition{
+  name: frame_061_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 153, frameIndex := 2, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100013605db36510e452b406d002e2c3ecb842247731cc47f79a07c73a787291a800598010000000000000001", digestHex := "6914d27fe9afe24f33acd6c0050473ee02dca32f5cb430642aea451552cfb605", compressionCalls := 2})
+}
+
+definition{
+  name: frame_062_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 212, frameIndex := 0, prefixBytes := 27, payloadBytes := 92, suffixHex := "00000000000000005c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b00000000000000005c", digestHex := "e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf7", compressionCalls := 3})
+}
+
+definition{
+  name: frame_062_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 212, frameIndex := 1, prefixBytes := 59, payloadBytes := 60, suffixHex := "00000000000000003c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf75c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969700000000000000003c", digestHex := "3605db36510e452b406d002e2c3ecb842247731cc47f79a07c73a787291a8005", compressionCalls := 3})
+}
+
+definition{
+  name: frame_062_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 212, frameIndex := 2, prefixBytes := 59, payloadBytes := 60, suffixHex := "00000000000000003c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100013605db36510e452b406d002e2c3ecb842247731cc47f79a07c73a787291a800598999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d300000000000000003c", digestHex := "5989230caeb5b852912938038e599c2b379f05b2bf119f40e0bd60c577a922ea", compressionCalls := 3})
+}
+
+definition{
+  name: frame_062_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 212, frameIndex := 3, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100015989230caeb5b852912938038e599c2b379f05b2bf119f40e0bd60c577a922ea010000000000000000", digestHex := "38e9692ba0ae726b367bb8ca36be891e83dc4aabdbfc0c8f468024a70432395f", compressionCalls := 2})
+}
+
+definition{
+  name: frame_063_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 273, frameIndex := 0, prefixBytes := 27, payloadBytes := 92, suffixHex := "00000000000000005c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b00000000000000005c", digestHex := "e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf7", compressionCalls := 3})
+}
+
+definition{
+  name: frame_063_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 273, frameIndex := 1, prefixBytes := 59, payloadBytes := 60, suffixHex := "00000000000000003c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001e9699d2cab3427369ffc886ad40edd3d473cc8bdcf7dec5cb1a8d8373ff13bf75c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969700000000000000003c", digestHex := "3605db36510e452b406d002e2c3ecb842247731cc47f79a07c73a787291a8005", compressionCalls := 3})
+}
+
+definition{
+  name: frame_063_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 273, frameIndex := 2, prefixBytes := 59, payloadBytes := 60, suffixHex := "00000000000000003c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100013605db36510e452b406d002e2c3ecb842247731cc47f79a07c73a787291a800598999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d300000000000000003c", digestHex := "5989230caeb5b852912938038e599c2b379f05b2bf119f40e0bd60c577a922ea", compressionCalls := 3})
+}
+
+definition{
+  name: frame_063_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 273, frameIndex := 3, prefixBytes := 59, payloadBytes := 60, suffixHex := "00000000000000003c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100015989230caeb5b852912938038e599c2b379f05b2bf119f40e0bd60c577a922ead4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f00000000000000003c", digestHex := "5eb0555fae8e005dfbc3439a8905735996d33606ec90abb5c2f57a62773a7ab7", compressionCalls := 3})
+}
+
+definition{
+  name: frame_063_04,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "119", inputBytes := 273, frameIndex := 4, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100015eb0555fae8e005dfbc3439a8905735996d33606ec90abb5c2f57a62773a7ab710010000000000000001", digestHex := "81228a8cc1e1e17fe6f7465a6cec28fd15aefcec7f21725a6b0161d6d86a2255", compressionCalls := 2})
+}
+
+definition{
+  name: frame_064_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 0, frameIndex := 0, prefixBytes := 27, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 36, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000010000000000000000", digestHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1})
+}
+
+definition{
+  name: frame_065_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 1, frameIndex := 0, prefixBytes := 27, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 37, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000000010000000000000001", digestHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1})
+}
+
+definition{
+  name: frame_066_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 92, frameIndex := 0, prefixBytes := 27, payloadBytes := 92, suffixHex := "01000000000000005c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b01000000000000005c", digestHex := "cea2d7a31b1e186b921ba1b8b11a1250f6ea3ab1e5d5c81454cdfb7a2c9f7301", compressionCalls := 3})
+}
+
+definition{
+  name: frame_067_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 93, frameIndex := 0, prefixBytes := 27, payloadBytes := 93, suffixHex := "00000000000000005d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c00000000000000005d", digestHex := "38221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_067_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 93, frameIndex := 1, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000138221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c010000000000000000", digestHex := "613acb367cddbf75cea78970acfaf9d5a45e81beb17796a28c1bcd64ec415766", compressionCalls := 2})
+}
+
+definition{
+  name: frame_068_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 94, frameIndex := 0, prefixBytes := 27, payloadBytes := 93, suffixHex := "00000000000000005d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c00000000000000005d", digestHex := "38221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_068_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 94, frameIndex := 1, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000138221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c5d010000000000000001", digestHex := "c6a8725b018cf9843538913965e1c08b46ad2711d47293d21695f05d0eeeb18d", compressionCalls := 2})
+}
+
+definition{
+  name: frame_069_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 153, frameIndex := 0, prefixBytes := 27, payloadBytes := 93, suffixHex := "00000000000000005d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c00000000000000005d", digestHex := "38221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_069_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 153, frameIndex := 1, prefixBytes := 59, payloadBytes := 60, suffixHex := "01000000000000003c", messageBytes := 128, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000138221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f90919293949596979801000000000000003c", digestHex := "f6c4df5243680329a85c8f11df6c1afe147c2a9a729b3f2eb17b5635612ea05c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_070_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 154, frameIndex := 0, prefixBytes := 27, payloadBytes := 93, suffixHex := "00000000000000005d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c00000000000000005d", digestHex := "38221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_070_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 154, frameIndex := 1, prefixBytes := 59, payloadBytes := 61, suffixHex := "00000000000000003d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000138221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f9091929394959697989900000000000000003d", digestHex := "cb4213607066f158dee0b19baaf0acd915b4908875658b1716ed10886bbaee2f", compressionCalls := 3})
+}
+
+definition{
+  name: frame_070_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 154, frameIndex := 2, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001cb4213607066f158dee0b19baaf0acd915b4908875658b1716ed10886bbaee2f010000000000000000", digestHex := "a27ca136a75964e25a178918d01de422ef614466f597883be721747906a5589c", compressionCalls := 2})
+}
+
+definition{
+  name: frame_071_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 155, frameIndex := 0, prefixBytes := 27, payloadBytes := 93, suffixHex := "00000000000000005d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c00000000000000005d", digestHex := "38221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_071_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 155, frameIndex := 1, prefixBytes := 59, payloadBytes := 61, suffixHex := "00000000000000003d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000138221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f9091929394959697989900000000000000003d", digestHex := "cb4213607066f158dee0b19baaf0acd915b4908875658b1716ed10886bbaee2f", compressionCalls := 3})
+}
+
+definition{
+  name: frame_071_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 155, frameIndex := 2, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001cb4213607066f158dee0b19baaf0acd915b4908875658b1716ed10886bbaee2f9a010000000000000001", digestHex := "0dc5aec686f6a21548fceb10d24ab9b5ead57957032c66d94fdeef2be0aa8e79", compressionCalls := 2})
+}
+
+definition{
+  name: frame_072_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 215, frameIndex := 0, prefixBytes := 27, payloadBytes := 93, suffixHex := "00000000000000005d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c00000000000000005d", digestHex := "38221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_072_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 215, frameIndex := 1, prefixBytes := 59, payloadBytes := 61, suffixHex := "00000000000000003d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000138221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f9091929394959697989900000000000000003d", digestHex := "cb4213607066f158dee0b19baaf0acd915b4908875658b1716ed10886bbaee2f", compressionCalls := 3})
+}
+
+definition{
+  name: frame_072_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 215, frameIndex := 2, prefixBytes := 59, payloadBytes := 61, suffixHex := "00000000000000003d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001cb4213607066f158dee0b19baaf0acd915b4908875658b1716ed10886bbaee2f9a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d600000000000000003d", digestHex := "222704328b17ef29e49f12622126d550fd5b40bfa78366692b847ad12d0e509a", compressionCalls := 3})
+}
+
+definition{
+  name: frame_072_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 215, frameIndex := 3, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001222704328b17ef29e49f12622126d550fd5b40bfa78366692b847ad12d0e509a010000000000000000", digestHex := "4efe9b501127d715859cced484645b027ddb6d971500756a77d0dc24615956c1", compressionCalls := 2})
+}
+
+definition{
+  name: frame_073_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 277, frameIndex := 0, prefixBytes := 27, payloadBytes := 93, suffixHex := "00000000000000005d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c00000000000000005d", digestHex := "38221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_073_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 277, frameIndex := 1, prefixBytes := 59, payloadBytes := 61, suffixHex := "00000000000000003d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000138221ce65b8660a40362d990e4e4c080d842ed5031b23f964b10c00ad0b0952c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f9091929394959697989900000000000000003d", digestHex := "cb4213607066f158dee0b19baaf0acd915b4908875658b1716ed10886bbaee2f", compressionCalls := 3})
+}
+
+definition{
+  name: frame_073_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 277, frameIndex := 2, prefixBytes := 59, payloadBytes := 61, suffixHex := "00000000000000003d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001cb4213607066f158dee0b19baaf0acd915b4908875658b1716ed10886bbaee2f9a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d600000000000000003d", digestHex := "222704328b17ef29e49f12622126d550fd5b40bfa78366692b847ad12d0e509a", compressionCalls := 3})
+}
+
+definition{
+  name: frame_073_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 277, frameIndex := 3, prefixBytes := 59, payloadBytes := 61, suffixHex := "00000000000000003d", messageBytes := 129, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001222704328b17ef29e49f12622126d550fd5b40bfa78366692b847ad12d0e509ad7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f1011121300000000000000003d", digestHex := "f9ecd52cd6eb5462d6f12ac2cc7a289e2007e4319f04a644f80dd95624c529e6", compressionCalls := 3})
+}
+
+definition{
+  name: frame_073_04,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "120", inputBytes := 277, frameIndex := 4, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001f9ecd52cd6eb5462d6f12ac2cc7a289e2007e4319f04a644f80dd95624c529e614010000000000000001", digestHex := "47cf5eb9f722f79cd17e03f5c50db03cae7fb58eb8ad98d800cf73dbab9dcf85", compressionCalls := 2})
+}
+
+definition{
+  name: frame_074_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 0, frameIndex := 0, prefixBytes := 27, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 36, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000010000000000000000", digestHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1})
+}
+
+definition{
+  name: frame_075_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 1, frameIndex := 0, prefixBytes := 27, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 37, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000000010000000000000001", digestHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1})
+}
+
+definition{
+  name: frame_076_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 99, frameIndex := 0, prefixBytes := 27, payloadBytes := 99, suffixHex := "010000000000000063", messageBytes := 135, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162010000000000000063", digestHex := "ddf0c1c6f800fab999800ace8cd179f48b20baa7d32644f477b8dbd697eb29c9", compressionCalls := 3})
+}
+
+definition{
+  name: frame_077_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 100, frameIndex := 0, prefixBytes := 27, payloadBytes := 100, suffixHex := "000000000000000064", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263000000000000000064", digestHex := "d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec859", compressionCalls := 3})
+}
+
+definition{
+  name: frame_077_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 100, frameIndex := 1, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec859010000000000000000", digestHex := "8cd1471875d1a8b1f89eea2382c4c8600d00da7b6f830824e30e228670fedf93", compressionCalls := 2})
+}
+
+definition{
+  name: frame_078_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 101, frameIndex := 0, prefixBytes := 27, payloadBytes := 100, suffixHex := "000000000000000064", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263000000000000000064", digestHex := "d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec859", compressionCalls := 3})
+}
+
+definition{
+  name: frame_078_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 101, frameIndex := 1, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec85964010000000000000001", digestHex := "3fb77867eea8e33c7f7fd2c3dec4e1a6fb184e616d9829b29c963d75166a922d", compressionCalls := 2})
+}
+
+definition{
+  name: frame_079_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 167, frameIndex := 0, prefixBytes := 27, payloadBytes := 100, suffixHex := "000000000000000064", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263000000000000000064", digestHex := "d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec859", compressionCalls := 3})
+}
+
+definition{
+  name: frame_079_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 167, frameIndex := 1, prefixBytes := 59, payloadBytes := 67, suffixHex := "010000000000000043", messageBytes := 135, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec8596465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6010000000000000043", digestHex := "c8e2b10ede68a447c8823933fe302019945a31c606c4e139a63384c5cfdffd02", compressionCalls := 3})
+}
+
+definition{
+  name: frame_080_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 168, frameIndex := 0, prefixBytes := 27, payloadBytes := 100, suffixHex := "000000000000000064", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263000000000000000064", digestHex := "d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec859", compressionCalls := 3})
+}
+
+definition{
+  name: frame_080_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 168, frameIndex := 1, prefixBytes := 59, payloadBytes := 68, suffixHex := "000000000000000044", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec8596465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7000000000000000044", digestHex := "527e9bb58c809625369f01f703ee4e66c7107c9188d7b667a7e4982d0924f34e", compressionCalls := 3})
+}
+
+definition{
+  name: frame_080_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 168, frameIndex := 2, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001527e9bb58c809625369f01f703ee4e66c7107c9188d7b667a7e4982d0924f34e010000000000000000", digestHex := "201805a5b171bb216351afeaccf8034d8a1e5b6edbfdb7246993edf313f8d14f", compressionCalls := 2})
+}
+
+definition{
+  name: frame_081_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 169, frameIndex := 0, prefixBytes := 27, payloadBytes := 100, suffixHex := "000000000000000064", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263000000000000000064", digestHex := "d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec859", compressionCalls := 3})
+}
+
+definition{
+  name: frame_081_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 169, frameIndex := 1, prefixBytes := 59, payloadBytes := 68, suffixHex := "000000000000000044", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec8596465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7000000000000000044", digestHex := "527e9bb58c809625369f01f703ee4e66c7107c9188d7b667a7e4982d0924f34e", compressionCalls := 3})
+}
+
+definition{
+  name: frame_081_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 169, frameIndex := 2, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001527e9bb58c809625369f01f703ee4e66c7107c9188d7b667a7e4982d0924f34ea8010000000000000001", digestHex := "ff659626c006f9317ef15d9665453f65163e5e40813e81b80ae675358e2d71d3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_082_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 236, frameIndex := 0, prefixBytes := 27, payloadBytes := 100, suffixHex := "000000000000000064", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263000000000000000064", digestHex := "d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec859", compressionCalls := 3})
+}
+
+definition{
+  name: frame_082_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 236, frameIndex := 1, prefixBytes := 59, payloadBytes := 68, suffixHex := "000000000000000044", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec8596465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7000000000000000044", digestHex := "527e9bb58c809625369f01f703ee4e66c7107c9188d7b667a7e4982d0924f34e", compressionCalls := 3})
+}
+
+definition{
+  name: frame_082_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 236, frameIndex := 2, prefixBytes := 59, payloadBytes := 68, suffixHex := "000000000000000044", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001527e9bb58c809625369f01f703ee4e66c7107c9188d7b667a7e4982d0924f34ea8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaeb000000000000000044", digestHex := "6a39f437a1f501c8c6843c4ef2591f58482c3fff61025f4633308e5d7230dfa4", compressionCalls := 3})
+}
+
+definition{
+  name: frame_082_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 236, frameIndex := 3, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100016a39f437a1f501c8c6843c4ef2591f58482c3fff61025f4633308e5d7230dfa4010000000000000000", digestHex := "c1cb77e23aeb0f0c9fe4db7baaadf5346d4df025bc5210a9438f86f835c701d3", compressionCalls := 2})
+}
+
+definition{
+  name: frame_083_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 305, frameIndex := 0, prefixBytes := 27, payloadBytes := 100, suffixHex := "000000000000000064", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263000000000000000064", digestHex := "d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec859", compressionCalls := 3})
+}
+
+definition{
+  name: frame_083_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 305, frameIndex := 1, prefixBytes := 59, payloadBytes := 68, suffixHex := "000000000000000044", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001d73e9af090b4600db291a6f2d714cb9015a2eaea833826a3874cc0df2f1ec8596465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7000000000000000044", digestHex := "527e9bb58c809625369f01f703ee4e66c7107c9188d7b667a7e4982d0924f34e", compressionCalls := 3})
+}
+
+definition{
+  name: frame_083_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 305, frameIndex := 2, prefixBytes := 59, payloadBytes := 68, suffixHex := "000000000000000044", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001527e9bb58c809625369f01f703ee4e66c7107c9188d7b667a7e4982d0924f34ea8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaeb000000000000000044", digestHex := "6a39f437a1f501c8c6843c4ef2591f58482c3fff61025f4633308e5d7230dfa4", compressionCalls := 3})
+}
+
+definition{
+  name: frame_083_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 305, frameIndex := 3, prefixBytes := 59, payloadBytes := 68, suffixHex := "000000000000000044", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100016a39f437a1f501c8c6843c4ef2591f58482c3fff61025f4633308e5d7230dfa4ecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f000000000000000044", digestHex := "5ea91d076593a265f94f55c4c487fc4414cff15be7379b5a8897c9d5982a83d7", compressionCalls := 3})
+}
+
+definition{
+  name: frame_083_04,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "127", inputBytes := 305, frameIndex := 4, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100015ea91d076593a265f94f55c4c487fc4414cff15be7379b5a8897c9d5982a83d730010000000000000001", digestHex := "5c905c4ec61a6c4fdc1a3175bb9cffc38b4b3a327322841a5e25b8a49e3dfbd8", compressionCalls := 2})
+}
+
+definition{
+  name: frame_084_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 0, frameIndex := 0, prefixBytes := 27, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 36, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000010000000000000000", digestHex := "72871b472ae0469f76ceac9520134c3f6c89ba141ebddf35049dfd38d869678a", compressionCalls := 1})
+}
+
+definition{
+  name: frame_085_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 1, frameIndex := 0, prefixBytes := 27, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 37, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d7631000000010000000000000001", digestHex := "b56a10103ccbdc18d0b65805079e7e47235cbae7d401d4932579c6e5e8e2edde", compressionCalls := 1})
+}
+
+definition{
+  name: frame_086_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 100, frameIndex := 0, prefixBytes := 27, payloadBytes := 100, suffixHex := "010000000000000064", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f60616263010000000000000064", digestHex := "ee0c7a3d3a40dc01113558bb1d6549b508f285d71c46281c0a01575d9874b170", compressionCalls := 3})
+}
+
+definition{
+  name: frame_087_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 101, frameIndex := 0, prefixBytes := 27, payloadBytes := 101, suffixHex := "000000000000000065", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364000000000000000065", digestHex := "6b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc7312", compressionCalls := 3})
+}
+
+definition{
+  name: frame_087_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 101, frameIndex := 1, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100016b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc7312010000000000000000", digestHex := "e7ed00a9e301f6bf78a9bc06da887e3949f1367df8ee36fcea225a0aaead78a1", compressionCalls := 2})
+}
+
+definition{
+  name: frame_088_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 102, frameIndex := 0, prefixBytes := 27, payloadBytes := 101, suffixHex := "000000000000000065", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364000000000000000065", digestHex := "6b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc7312", compressionCalls := 3})
+}
+
+definition{
+  name: frame_088_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 102, frameIndex := 1, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100016b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc731265010000000000000001", digestHex := "f6e9b9b7dcbbb610c0ee7fa678a47e23e37b6a8ee178304873f68ef16efd827c", compressionCalls := 2})
+}
+
+definition{
+  name: frame_089_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 169, frameIndex := 0, prefixBytes := 27, payloadBytes := 101, suffixHex := "000000000000000065", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364000000000000000065", digestHex := "6b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc7312", compressionCalls := 3})
+}
+
+definition{
+  name: frame_089_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 169, frameIndex := 1, prefixBytes := 59, payloadBytes := 68, suffixHex := "010000000000000044", messageBytes := 136, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100016b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc731265666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8010000000000000044", digestHex := "0e5bd69e7060fa6a0bb2652e331f28a2ce030a66034cf2eece59eb711b2d42d5", compressionCalls := 3})
+}
+
+definition{
+  name: frame_090_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 170, frameIndex := 0, prefixBytes := 27, payloadBytes := 101, suffixHex := "000000000000000065", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364000000000000000065", digestHex := "6b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc7312", compressionCalls := 3})
+}
+
+definition{
+  name: frame_090_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 170, frameIndex := 1, prefixBytes := 59, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100016b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc731265666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9000000000000000045", digestHex := "eb2852b0e0c10c58acce2171b2a18b271903771620f4549b9588c3ba6cf7bc4c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_090_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 170, frameIndex := 2, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001eb2852b0e0c10c58acce2171b2a18b271903771620f4549b9588c3ba6cf7bc4c010000000000000000", digestHex := "2d472b96fcb21344129ee0918a58f97ac540bb5ca037ea28146aa00c40ca7abc", compressionCalls := 2})
+}
+
+definition{
+  name: frame_091_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 171, frameIndex := 0, prefixBytes := 27, payloadBytes := 101, suffixHex := "000000000000000065", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364000000000000000065", digestHex := "6b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc7312", compressionCalls := 3})
+}
+
+definition{
+  name: frame_091_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 171, frameIndex := 1, prefixBytes := 59, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100016b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc731265666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9000000000000000045", digestHex := "eb2852b0e0c10c58acce2171b2a18b271903771620f4549b9588c3ba6cf7bc4c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_091_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 171, frameIndex := 2, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001eb2852b0e0c10c58acce2171b2a18b271903771620f4549b9588c3ba6cf7bc4caa010000000000000001", digestHex := "d8c3a12a5ba88ff95f5e1cd5cbd9e84f21b314232c4b396d49506f114b960f90", compressionCalls := 2})
+}
+
+definition{
+  name: frame_092_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 239, frameIndex := 0, prefixBytes := 27, payloadBytes := 101, suffixHex := "000000000000000065", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364000000000000000065", digestHex := "6b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc7312", compressionCalls := 3})
+}
+
+definition{
+  name: frame_092_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 239, frameIndex := 1, prefixBytes := 59, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100016b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc731265666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9000000000000000045", digestHex := "eb2852b0e0c10c58acce2171b2a18b271903771620f4549b9588c3ba6cf7bc4c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_092_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 239, frameIndex := 2, prefixBytes := 59, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001eb2852b0e0c10c58acce2171b2a18b271903771620f4549b9588c3ba6cf7bc4caaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedee000000000000000045", digestHex := "c30f589e156f1a6462273587d2f8046756a1a28c1c882b08942cd9307e309f4d", compressionCalls := 3})
+}
+
+definition{
+  name: frame_092_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 239, frameIndex := 3, prefixBytes := 59, payloadBytes := 0, suffixHex := "010000000000000000", messageBytes := 68, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001c30f589e156f1a6462273587d2f8046756a1a28c1c882b08942cd9307e309f4d010000000000000000", digestHex := "23a127a4e2eeaf70d960c32696a49dc72bfc2ca2d07b302026f809ff2fa539d8", compressionCalls := 2})
+}
+
+definition{
+  name: frame_093_00,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 309, frameIndex := 0, prefixBytes := 27, payloadBytes := 101, suffixHex := "000000000000000065", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364000000000000000065", digestHex := "6b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc7312", compressionCalls := 3})
+}
+
+definition{
+  name: frame_093_01,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 309, frameIndex := 1, prefixBytes := 59, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d763100016b52e0c921587491786a359565d626d26a4929bd067834d8b21a80c400fc731265666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9000000000000000045", digestHex := "eb2852b0e0c10c58acce2171b2a18b271903771620f4549b9588c3ba6cf7bc4c", compressionCalls := 3})
+}
+
+definition{
+  name: frame_093_02,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 309, frameIndex := 2, prefixBytes := 59, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001eb2852b0e0c10c58acce2171b2a18b271903771620f4549b9588c3ba6cf7bc4caaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedee000000000000000045", digestHex := "c30f589e156f1a6462273587d2f8046756a1a28c1c882b08942cd9307e309f4d", compressionCalls := 3})
+}
+
+definition{
+  name: frame_093_03,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 309, frameIndex := 3, prefixBytes := 59, payloadBytes := 69, suffixHex := "000000000000000045", messageBytes := 137, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001c30f589e156f1a6462273587d2f8046756a1a28c1c882b08942cd9307e309f4deff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233000000000000000045", digestHex := "aa8da8a8694780b555ccb5b0977b97553b6489fab3263f48ef373b2f4a772152", compressionCalls := 3})
+}
+
+definition{
+  name: frame_093_04,
+  parameters: [],
+  result: FrameFixture,
+  body: (record FrameFixture {frameLimit := "128", inputBytes := 309, frameIndex := 4, prefixBytes := 59, payloadBytes := 1, suffixHex := "010000000000000001", messageBytes := 69, messageHex := "554f52432d5348413235362d53545245414d2d4d41582d76310001aa8da8a8694780b555ccb5b0977b97553b6489fab3263f48ef373b2f4a77215234010000000000000001", digestHex := "61dda51f4b407f2b15cf2e4a2ab871095ad4eee49a65cf9374629880c33bbb00", compressionCalls := 2})
+}
+
+structure{
+  name: StreamMutation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: definition, type: String},
+    {name: owner, type: String},
+    {name: action, type: String}
+  ]
+}
+
+definition{
+  name: mutation_terminal_role,
+  parameters: [],
+  result: StreamMutation,
+  body: (record StreamMutation {id := "terminal_role", definition := "footer", owner := "frame_000_00", action := "terminal byte 01 becomes 00; independent empty-stream fixture must reject it"})
+}
+
+definition{
+  name: mutation_production_limit,
+  parameters: [],
+  result: StreamMutation,
+  body: (record StreamMutation {id := "production_limit", definition := "productionLimit", owner := "production_limit_exact", action := "M-9 becomes M-10; exact production-profile kernel observation must reject it"})
+}
+\end{semanticmodule}
+\end{lexlean}

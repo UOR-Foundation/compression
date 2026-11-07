@@ -1,0 +1,639 @@
+\begin{lexlean}{Uorc.Integrity.StreamEngine}
+\importmodule{Uorc.Integrity.Sha256}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: sha256, fields: [Uorc.Integrity.Sha256::Error]},
+    {name: invalidState, fields: []},
+    {name: invalidFrameLimit, fields: []},
+    {name: invalidOffset, fields: []},
+    {name: workPending, fields: []},
+    {name: updateAfterFinalize, fields: []},
+    {name: notFinalized, fields: []},
+    {name: fuelExhausted, fields: []},
+    {name: canceled, fields: []}
+  ]
+}
+
+inductive{
+  name: Stage,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: initializing, fields: [Uorc.Integrity.Sha256::Update]},
+    {name: ready, fields: [Uorc.Integrity.Sha256::State]},
+    {name: suffix, fields: [Uorc.Integrity.Sha256::Update, Bool]},
+    {name: finalizing, fields: [Uorc.Integrity.Sha256::State, Bool]},
+    {name: finished, fields: [Bytes]},
+    {name: canceled, fields: []}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: first, type: Bool}, {name: stage, type: Stage}, {name: closing, type: Bool}]
+}
+
+structure{
+  name: Update,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: state, type: State}, {name: input, type: Bytes}, {name: offset, type: Nat}]
+}
+
+inductive{
+  name: UpdateEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: advanced, fields: [Update]}, {name: done, fields: [State]}]
+}
+
+definition{
+  name: domain,
+  parameters: [],
+  result: Bytes,
+  body: 0x554f52432d5348413235362d53545245414d2d4d41582d763100,
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: productionLimit,
+  parameters: [],
+  result: UInt64,
+  body: (2305843009213693942 : UInt64),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: prefixSize,
+  parameters: [first : Bool],
+  result: UInt64,
+  body: (if var{name: first} then (27 : UInt64) else (59 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: limitValid,
+  parameters: [limit : UInt64],
+  result: Bool,
+  body: ((match (prim checked_subtract limit (60 : UInt64) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) && ((match (prim checked_subtract (productionLimit) limit : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) && true)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: prefix,
+  parameters: [first : Bool, previous : Bytes],
+  result: Bytes,
+  body: (if var{
+    name: first
+  } then (prim append (domain) 0x00 : Bytes) else (prim append (prim append (domain) 0x01 : Bytes) previous : Bytes)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: byteLengthBytes,
+  parameters: [count : UInt64],
+  result: Bytes,
+  body: (prim append (prim append (prim append (prim append (prim append (prim append (prim append (prim append 0x (Uorc.Integrity.Sha256::byteBytes (Uorc.Integrity.Sha256::asByte64 (match (prim shift_right count (56 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (Uorc.Integrity.Sha256::byteBytes (Uorc.Integrity.Sha256::asByte64 (match (prim shift_right count (48 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (Uorc.Integrity.Sha256::byteBytes (Uorc.Integrity.Sha256::asByte64 (match (prim shift_right count (40 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (Uorc.Integrity.Sha256::byteBytes (Uorc.Integrity.Sha256::asByte64 (match (prim shift_right count (32 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (Uorc.Integrity.Sha256::byteBytes (Uorc.Integrity.Sha256::asByte64 (match (prim shift_right count (24 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (Uorc.Integrity.Sha256::byteBytes (Uorc.Integrity.Sha256::asByte64 (match (prim shift_right count (16 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (Uorc.Integrity.Sha256::byteBytes (Uorc.Integrity.Sha256::asByte64 (match (prim shift_right count (8 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (Uorc.Integrity.Sha256::byteBytes (Uorc.Integrity.Sha256::asByte64 (match (prim shift_right count (0 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: footer,
+  parameters: [first : Bool, count : UInt64, terminal : Bool],
+  result: Bytes,
+  body: (prim append (if terminal then 0x01 else 0x00) (byteLengthBytes (Uorc.Integrity.Sha256::u64Sub count (prefixSize var{
+    name: first
+  }))) : Bytes),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: readyValid,
+  parameters: [limit : UInt64, first : Bool, hashState : Uorc.Integrity.Sha256::State],
+  result: Bool,
+  body: ((Uorc.Integrity.Sha256::valid hashState) && ((Uorc.Integrity.Sha256::isAbsorbing hashState) && ((match (prim checked_subtract (project hashState count) (prefixSize var{
+      name: first
+    }) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) && ((match (prim checked_subtract limit (project hashState count) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) && true)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: prefixValid,
+  parameters: [first : Bool, job : Uorc.Integrity.Sha256::Update],
+  result: Bool,
+  body: ((Uorc.Integrity.Sha256::valid (project job state)) && ((Uorc.Integrity.Sha256::isAbsorbing (project job state)) && (((prim length (project job input) : Nat) =? (if var{
+    name: first
+  } then 27 else 59)) && (((project job offset) <=? (prim length (project job input) : Nat)) && ((match (prim checked_subtract (prefixSize var{
+      name: first
+    }) (project (project job state) count) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) && (((Uorc.Integrity.Sha256::countRemainder (project (project job state) count)) =? (project job offset)) && true)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: suffixValid,
+  parameters: [
+    limit : UInt64,
+    first : Bool,
+    job : Uorc.Integrity.Sha256::Update,
+    terminal : Bool,
+    closing : Bool
+  ],
+  result: Bool,
+  body: ((Uorc.Integrity.Sha256::valid (project job state)) && ((Uorc.Integrity.Sha256::isAbsorbing (project job state)) && (((prim length (project job input) : Nat) =? 9) && (((project job offset) <=? 9) && ((match (prim checked_subtract (project (project job state) count) (prefixSize var{
+      name: first
+    }) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) && ((match (prim checked_subtract (Uorc.Integrity.Sha256::u64Add limit (9 : UInt64)) (project (project job state) count) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) && ((if terminal then closing else true) && true))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalizingValid,
+  parameters: [
+    limit : UInt64,
+    first : Bool,
+    hashState : Uorc.Integrity.Sha256::State,
+    terminal : Bool,
+    closing : Bool
+  ],
+  result: Bool,
+  body: ((Uorc.Integrity.Sha256::valid hashState) && ((match (prim checked_subtract (project hashState count) (Uorc.Integrity.Sha256::u64Add (prefixSize var{
+      name: first
+    }) (9 : UInt64)) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) && ((match (prim checked_subtract (Uorc.Integrity.Sha256::u64Add limit (9 : UInt64)) (project hashState count) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) && ((if terminal then closing else (prim equal (project hashState count) (Uorc.Integrity.Sha256::u64Add limit (9 : UInt64)) : Bool)) && ((if (Uorc.Integrity.Sha256::isAbsorbing hashState) then false else true) && true))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: validAt,
+  parameters: [limit : UInt64, state : State],
+  result: Bool,
+  body: ((limitValid limit) && (match (project state stage)
+    | Stage.initializing job => (prefixValid (project state first) job)
+    | Stage.ready hashState => (readyValid limit (project state first) hashState)
+    | Stage.suffix job terminal => (suffixValid limit (project state first) job terminal (project state closing))
+    | Stage.finalizing hashState terminal => (finalizingValid limit (project state first) hashState terminal (project state closing))
+    | Stage.finished output => ((project state closing) && ((prim length output : Nat) =? 32))
+    | Stage.canceled => (if (project state closing) then false else true))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: startPrefix,
+  parameters: [first : Bool, previous : Bytes, closing : Bool],
+  result: (Result State Error),
+  body: (if (if var{
+    name: first
+  } then true else ((prim length previous : Nat) =? 32)) then (match (Uorc.Integrity.Sha256::beginUpdate (Uorc.Integrity.Sha256::init) (prefix var{
+      name: first
+    } previous))
+    | Result.error shaCause => (ctor Result.error [State, Error] (ctor Error.sha256 shaCause))
+    | Result.ok prefixJob => (ctor Result.ok [State, Error] (record State {first := var{
+      name: first
+    }, stage := (ctor Stage.initializing prefixJob), closing := closing}))) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: initAt,
+  parameters: [limit : UInt64],
+  result: (Result State Error),
+  body: (if (limitValid limit) then (startPrefix true 0x false) else (ctor Result.error [State, Error] (ctor Error.invalidFrameLimit))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: startSuffix,
+  parameters: [state : State, hashState : Uorc.Integrity.Sha256::State, terminal : Bool],
+  result: (Result State Error),
+  body: (match (Uorc.Integrity.Sha256::beginUpdate hashState (footer (project state first) (project hashState count) terminal))
+    | Result.error shaCause => (ctor Result.error [State, Error] (ctor Error.sha256 shaCause))
+    | Result.ok suffixJob => (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (ctor Stage.suffix suffixJob terminal), closing := (project state closing)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: stepAt,
+  parameters: [limit : UInt64, state : State],
+  result: (Result State Error),
+  body: (if (validAt limit state) then (match (project state stage)
+    | Stage.initializing job => (match (Uorc.Integrity.Sha256::updateStep job)
+      | Result.error shaCause => (ctor Result.error [State, Error] (ctor Error.sha256 shaCause))
+      | Result.ok prefixEvent => (match prefixEvent
+        | Uorc.Integrity.Sha256::UpdateEvent.advanced nextJob => (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (ctor Stage.initializing nextJob), closing := (project state closing)}))
+        | Uorc.Integrity.Sha256::UpdateEvent.done hashState => (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (ctor Stage.ready hashState), closing := (project state closing)}))))
+    | Stage.ready hashState => (if (Uorc.Integrity.Sha256::hasWork hashState) then (match (Uorc.Integrity.Sha256::advanceWork hashState)
+      | Result.error shaCause => (ctor Result.error [State, Error] (ctor Error.sha256 shaCause))
+      | Result.ok nextHash => (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (ctor Stage.ready nextHash), closing := (project state closing)}))) else (if (prim equal (project hashState count) limit : Bool) then (startSuffix state hashState false) else (if (project state closing) then (startSuffix state hashState true) else (ctor Result.error [State, Error] (ctor Error.workPending)))))
+    | Stage.suffix job terminal => (match (Uorc.Integrity.Sha256::updateStep job)
+      | Result.error shaCause => (ctor Result.error [State, Error] (ctor Error.sha256 shaCause))
+      | Result.ok suffixEvent => (match suffixEvent
+        | Uorc.Integrity.Sha256::UpdateEvent.advanced nextJob => (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (ctor Stage.suffix nextJob terminal), closing := (project state closing)}))
+        | Uorc.Integrity.Sha256::UpdateEvent.done hashState => (match (Uorc.Integrity.Sha256::finalize hashState)
+          | Result.error shaCause => (ctor Result.error [State, Error] (ctor Error.sha256 shaCause))
+          | Result.ok closingHash => (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (ctor Stage.finalizing closingHash terminal), closing := (project state closing)})))))
+    | Stage.finalizing hashState terminal => (match (project hashState phase)
+      | Uorc.Integrity.Sha256::Phase.absorbing => (ctor Result.error [State, Error] (ctor Error.invalidState))
+      | Uorc.Integrity.Sha256::Phase.finishing remainingPadding => (match (Uorc.Integrity.Sha256::finalizeStep hashState)
+        | Result.error shaCause => (ctor Result.error [State, Error] (ctor Error.sha256 shaCause))
+        | Result.ok nextHash => (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (ctor Stage.finalizing nextHash terminal), closing := (project state closing)})))
+      | Uorc.Integrity.Sha256::Phase.finished => (match (Uorc.Integrity.Sha256::digest hashState)
+        | Result.error shaCause => (ctor Result.error [State, Error] (ctor Error.sha256 shaCause))
+        | Result.ok output => (if terminal then (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (ctor Stage.finished output), closing := (project state closing)})) else (startPrefix false output (project state closing)))))
+    | Stage.finished output => (ctor Result.ok [State, Error] state)
+    | Stage.canceled => (ctor Result.error [State, Error] (ctor Error.canceled))) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalizeAt,
+  parameters: [limit : UInt64, state : State],
+  result: (Result State Error),
+  body: (if (validAt limit state) then (match (project state stage)
+    | Stage.canceled => (ctor Result.error [State, Error] (ctor Error.canceled))
+    | Stage.finished output => (ctor Result.ok [State, Error] state)
+    | Stage.initializing job => (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (project state stage), closing := true}))
+    | Stage.ready hashState => (ctor Result.ok [State, Error] (record State {first := (project state first), stage := (project state stage), closing := true}))
+    | Stage.suffix job terminal => (if (project state closing) then (ctor Result.ok [State, Error] state) else (ctor Result.error [State, Error] (ctor Error.workPending)))
+    | Stage.finalizing hashState terminal => (if (project state closing) then (ctor Result.ok [State, Error] state) else (ctor Result.error [State, Error] (ctor Error.workPending)))) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: digestAt,
+  parameters: [limit : UInt64, state : State],
+  result: (Result Bytes Error),
+  body: (if (validAt limit state) then (match (project state stage)
+    | Stage.finished output => (ctor Result.ok [Bytes, Error] output)
+    | Stage.canceled => (ctor Result.error [Bytes, Error] (ctor Error.canceled))
+    | Stage.initializing job => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Stage.ready hashState => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Stage.suffix job terminal => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Stage.finalizing hashState terminal => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))) else (ctor Result.error [Bytes, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancel,
+  parameters: [state : State],
+  result: State,
+  body: (record State {first := true, stage := (ctor Stage.canceled), closing := false}),
+  axioms: []
+}
+
+definition{
+  name: beginUpdateAt,
+  parameters: [limit : UInt64, state : State, input : Bytes],
+  result: (Result Update Error),
+  body: (if (validAt limit state) then (match (project state stage)
+    | Stage.canceled => (ctor Result.error [Update, Error] (ctor Error.canceled))
+    | Stage.finished output => (ctor Result.error [Update, Error] (ctor Error.updateAfterFinalize))
+    | Stage.initializing job => (if (project state closing) then (ctor Result.error [Update, Error] (ctor Error.updateAfterFinalize)) else (ctor Result.ok [Update, Error] (record Update {state := state, input := input, offset := 0})))
+    | Stage.ready hashState => (if (project state closing) then (ctor Result.error [Update, Error] (ctor Error.updateAfterFinalize)) else (ctor Result.ok [Update, Error] (record Update {state := state, input := input, offset := 0})))
+    | Stage.suffix job terminal => (ctor Result.error [Update, Error] (ctor Error.workPending))
+    | Stage.finalizing hashState terminal => (ctor Result.error [Update, Error] (ctor Error.workPending))) else (ctor Result.error [Update, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: updateStepAt,
+  parameters: [limit : UInt64, job : Update],
+  result: (Result UpdateEvent Error),
+  body: (if (validAt limit (project job state)) then (if ((project job offset) <=? (prim length (project job input) : Nat)) then (match (project (project job state) stage)
+    | Stage.canceled => (ctor Result.error [UpdateEvent, Error] (ctor Error.canceled))
+    | Stage.finished output => (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize))
+    | Stage.initializing prefixJob => (if (project (project job state) closing) then (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize)) else (match (stepAt limit (project job state))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project job input), offset := (project job offset)})))))
+    | Stage.ready hashState => (if (project (project job state) closing) then (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize)) else (if (Uorc.Integrity.Sha256::hasWork hashState) then (match (stepAt limit (project job state))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project job input), offset := (project job offset)})))) else (if (prim equal (project hashState count) limit : Bool) then (match (stepAt limit (project job state))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project job input), offset := (project job offset)})))) else (if ((project job offset) =? (prim length (project job input) : Nat)) then (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.done (project job state))) else (match (Uorc.Integrity.Sha256::absorbByte hashState (match (prim index (project job input) (project job offset) : (Option UInt8))
+        | Option.none => (0 : UInt8)
+        | Option.some unwrapped => unwrapped))
+      | Result.error shaCause => (ctor Result.error [UpdateEvent, Error] (ctor Error.sha256 shaCause))
+      | Result.ok nextHash => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := (record State {first := (project (project job state) first), stage := (ctor Stage.ready nextHash), closing := (project (project job state) closing)}), input := (project job input), offset := ((project job offset) + 1)}))))))))
+    | Stage.suffix suffixJob terminal => (if (project (project job state) closing) then (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize)) else (match (stepAt limit (project job state))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project job input), offset := (project job offset)})))))
+    | Stage.finalizing hashState terminal => (if (project (project job state) closing) then (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize)) else (match (stepAt limit (project job state))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project job input), offset := (project job offset)})))))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidOffset))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: runUpdateAt,
+  parameters: [fuel : Nat, limit : UInt64, job : Update],
+  result: (Result State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [State, Error] (ctor Error.fuelExhausted))
+    | Nat.succ rest => (match (updateStepAt limit job)
+      | Result.error failure => (ctor Result.error [State, Error] failure)
+      | Result.ok updateEvent => (match updateEvent
+        | UpdateEvent.advanced nextJob => (runUpdateAt rest limit nextJob)
+        | UpdateEvent.done completed => (ctor Result.ok [State, Error] completed)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: updateAt,
+  parameters: [limit : UInt64, state : State, input : Bytes],
+  result: (Result State Error),
+  body: (match (beginUpdateAt limit state input)
+    | Result.error failure => (ctor Result.error [State, Error] failure)
+    | Result.ok updateJob => (runUpdateAt ((prim multiply 600 (prim length input : Nat) : Nat) + 600) limit updateJob)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runFinalizeAt,
+  parameters: [fuel : Nat, limit : UInt64, state : State],
+  result: (Result Bytes Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Bytes, Error] (ctor Error.fuelExhausted))
+    | Nat.succ rest => (match (project state stage)
+      | Stage.finished output => (if (validAt limit state) then (ctor Result.ok [Bytes, Error] output) else (ctor Result.error [Bytes, Error] (ctor Error.invalidState)))
+      | Stage.canceled => (ctor Result.error [Bytes, Error] (ctor Error.canceled))
+      | Stage.initializing prefixJob => (match (stepAt limit state)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok nextState => (runFinalizeAt rest limit nextState))
+      | Stage.ready hashState => (if (project state closing) then (match (stepAt limit state)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok nextState => (runFinalizeAt rest limit nextState)) else (ctor Result.error [Bytes, Error] (ctor Error.notFinalized)))
+      | Stage.suffix suffixJob terminal => (match (stepAt limit state)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok nextState => (runFinalizeAt rest limit nextState))
+      | Stage.finalizing hashState terminal => (match (stepAt limit state)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok nextState => (runFinalizeAt rest limit nextState)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: hashAt,
+  parameters: [limit : UInt64, input : Bytes],
+  result: (Result Bytes Error),
+  body: (match (initAt limit)
+    | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+    | Result.ok initial => (match (updateAt limit initial input)
+      | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+      | Result.ok updated => (match (finalizeAt limit updated)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok closingState => (runFinalizeAt 1200 limit closingState)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: feedForwardPending,
+  parameters: [hashState : Uorc.Integrity.Sha256::State],
+  result: Bool,
+  body: (match (project hashState work)
+    | Option.none => false
+    | Option.some compression => ((project compression round) =? 64)),
+  axioms: []
+}
+
+definition{
+  name: compressionPending,
+  parameters: [state : State],
+  result: Bool,
+  body: (match (project state stage)
+    | Stage.initializing job => (feedForwardPending (project job state))
+    | Stage.ready hashState => (feedForwardPending hashState)
+    | Stage.suffix job terminal => (feedForwardPending (project job state))
+    | Stage.finalizing hashState terminal => (feedForwardPending hashState)
+    | Stage.finished output => false
+    | Stage.canceled => false),
+  axioms: []
+}
+
+theorem{
+  name: production_limit_exact,
+  parameters: [],
+  statement: ((productionLimit) = (2305843009213693942 : UInt64)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: domain_26_bytes,
+  parameters: [],
+  statement: ((prim length (domain) : Nat) = 26),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: first_prefix_27_bytes,
+  parameters: [],
+  statement: ((prim length (prefix true 0x) : Nat) = 27),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: continuation_prefix_59_bytes,
+  parameters: [],
+  statement: ((prim length (prefix false 0x0000000000000000000000000000000000000000000000000000000000000000) : Nat) = 59),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: cancellation_is_idempotent,
+  parameters: [arbitraryState : State],
+  statement: ((cancel (cancel arbitraryState)) = (cancel arbitraryState)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: cancellation_has_no_retained_work,
+  parameters: [arbitraryState : State],
+  statement: ((project (cancel arbitraryState) stage) = (ctor Stage.canceled)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: standardDomainBytes,
+  parameters: [],
+  result: Nat,
+  body: 2305843009213693951,
+  axioms: []
+}
+
+definition{
+  name: firstCapacityBytes,
+  parameters: [],
+  result: Nat,
+  body: 2305843009213693915,
+  axioms: []
+}
+
+definition{
+  name: continuationCapacityBytes,
+  parameters: [],
+  result: Nat,
+  body: 2305843009213693883,
+  axioms: []
+}
+
+theorem{
+  name: first_full_frame_standard_bound,
+  parameters: [],
+  statement: (((firstCapacityBytes) + 36) = (standardDomainBytes)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: continuation_full_frame_standard_bound,
+  parameters: [],
+  statement: (((continuationCapacityBytes) + 68) = (standardDomainBytes)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: framedSize,
+  parameters: [payloadBytes : Nat, prefixBytes : Nat],
+  result: Nat,
+  body: ((payloadBytes + prefixBytes) + 9),
+  axioms: []
+}
+
+theorem{
+  name: first_frame_size_for_every_payload,
+  parameters: [payloadBytes : Nat],
+  statement: ((framedSize payloadBytes 27) = (payloadBytes + 36)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: continuation_frame_size_for_every_payload,
+  parameters: [payloadBytes : Nat],
+  statement: ((framedSize payloadBytes 59) = (payloadBytes + 68)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: ready_count_reflection,
+  parameters: [],
+  statement: (forall (p : Bool), (forall (q : Bool), (forall (r : Bool), (forall (s : Bool), (forall (t : Bool), ((((p && (q && (r && (s && (t && true))))) = true) /\ (t = true)) <-> ((p && (q && (r && (s && (t && true))))) = true))))))),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: finalizing_count_reflection,
+  parameters: [],
+  statement: (forall (p : Bool), (forall (q : Bool), (forall (r : Bool), (forall (s : Bool), (forall (t : Bool), (forall (u : Bool), ((((p && (q && (r && (s && (t && (u && true)))))) = true) /\ (s = true)) <-> ((p && (q && (r && (s && (t && (u && true)))))) = true)))))))),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: ready_validation_contains_count_bound,
+  parameters: [
+    limit : UInt64,
+    first : Bool,
+    hashState : Uorc.Integrity.Sha256::State,
+    closing : Bool
+  ],
+  statement: ((((validAt limit (record State {first := var{
+    name: first
+  }, stage := (ctor Stage.ready hashState), closing := closing})) = true) /\ ((match (prim checked_subtract limit (project hashState count) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) = true)) <-> ((validAt limit (record State {first := var{
+    name: first
+  }, stage := (ctor Stage.ready hashState), closing := closing})) = true)),
+  proof: simplify{definitions: [readyValid, ready_count_reflection, validAt]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: finalizing_validation_contains_count_bound,
+  parameters: [
+    limit : UInt64,
+    first : Bool,
+    hashState : Uorc.Integrity.Sha256::State,
+    closing : Bool,
+    terminal : Bool
+  ],
+  statement: ((((validAt limit (record State {first := var{
+    name: first
+  }, stage := (ctor Stage.finalizing hashState terminal), closing := closing})) = true) /\ ((match (prim checked_subtract (Uorc.Integrity.Sha256::u64Add limit (9 : UInt64)) (project hashState count) : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true) = true)) <-> ((validAt limit (record State {first := var{
+    name: first
+  }, stage := (ctor Stage.finalizing hashState terminal), closing := closing})) = true)),
+  proof: simplify{definitions: [finalizingValid, finalizing_count_reflection, validAt]},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

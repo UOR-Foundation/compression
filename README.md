@@ -7,7 +7,7 @@ A lossless compression system whose compressed object is an exact executable Uni
 
 ## Current status
 
-This repository currently establishes only the charter and source-authority slice represented by its registered conformance rows. Compression behavior, losslessness, optimality certificates, benchmark superiority, and record status are not established by this charter slice.
+The first product generation is v0.1 and includes the complete compression product. Current development source composes framing, reference and runtime semantics, deterministic synthesis, accounting, evidence, and user operations. Release acceptance requires the complete current graph and generated products to pass their declared checks. Source presence or a partial diagnostic pass is not completed product evidence.
 
 ## Authority
 
@@ -19,11 +19,11 @@ Product semantics, claim distinctions, test and report intent, and generated pro
 
 ## Scope
 
-Lossless byte-object compression, exact reconstruction, typed reference synthesis, explicit accounting, scoped certification, and reproducible validation.
+Lossless arbitrary byte objects and ordered object collections; exact executable model plus parameters and residuals; explicit self-contained or conditional-basis accounting; deterministic compositional synthesis and resumable search; independent reconstruction, scoped certification, measured frontiers and comparisons; native, library, Wasm, and accessible file-oriented user interfaces. Product generation0.1 does not defer compression capabilities to later generations.
 
 ### Non-scope
 
-Version 1 does not assert a world record, an unrestricted Kolmogorov minimum, universal runtime optimality, learned neural weights, online object lookup, encryption, or a compiler theorem not supplied by the locked upstream toolchain.
+UORC does not assert an unrestricted Kolmogorov minimum, universal runtime or compression-ratio superiority, external record acceptance, transparent uncharged network lookup, encryption, or a compiler theorem not supplied by its locked toolchain. Learned parameters and other models are eligible when their exact decoding semantics, bytes, parameters, residuals, basis dependencies, and work are fully represented and charged.
 
 ## Claim boundaries
 
@@ -34,6 +34,31 @@ Version 1 does not assert a world record, an unrestricted Kolmogorov minimum, un
 | Scoped minimum certification | A checked certificate establishes minimum size only over its exact sealed admissible universe and objective. It is not an unrestricted shortest-program claim. |
 | Benchmark improvement | Measured compression improvement is a result of an exact sealed benchmark plan and accounting scope. It is not implied by implementation acceptance or proof completion. |
 | External record acceptance | Record status exists only when the identified external authority accepts the measured result under that authority's rules. |
+
+## Evidence classification
+
+This table classifies evidence within its verified scope. It does not validate an evidence artifact or set whole-release acceptance. Registered ledger entries are obligations, not current-build execution receipts.
+
+| Evidence | Supported claim | Level | Research disposition | Implementation evidence eligible |
+| --- | --- | --- | --- | --- |
+| `none` | `open_claim` | `open` | `not_measured` | false |
+| `imported_fact` | `imported_fact` | `some-true` | `not_measured` | true |
+| `build_evidence` | `build_evidence` | `build` | `not_measured` | true |
+| `kernel_theorem` | `kernel_theorem` | `build` | `not_measured` | true |
+| `fixture_result` | `reconstruction_checked` | `build` | `not_measured` | true |
+| `scoped_minimum_certificate` | `minimum_certified` | `build` | `not_measured` | true |
+| `benchmark_target_unmet` | `benchmark_result` | `open` | `measured_target_unmet` | false |
+| `benchmark_target_met` | `benchmark_result` | `open` | `measured_target_met` | false |
+| `external_record_acceptance` | `record_validated` | `open` | `externally_accepted_record` | false |
+| `version_metadata` | `open_claim` | `open` | `not_measured` | false |
+
+## Current research dispositions
+
+- `UC-PERF-01`: `not_measured`; evidence `none`; honesty level `open`.
+- `UC-REC-01`: `not_measured`; evidence `none`; honesty level `open`.
+
+The source-owned bounded ULEB128 codec, errors, and proof inventory are projected in [UORC-VARINT.md](UORC-VARINT.md).
+
 
 ## Evidence and dependency boundaries
 

@@ -1,0 +1,171 @@
+\begin{lexlean}{Uorc.Core.RuntimeOrderTests}
+\importmodule{Uorc.Core.RuntimeAdmissionOrder}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: failed, fields: []}]
+}
+
+definition{
+  name: trace,
+  parameters: [
+    events : (List Uorc.Core.RuntimeProgram::Event),
+    state : Uorc.Core.RuntimeAdmissionOrder::State
+  ],
+  result: (Result Uorc.Core.RuntimeAdmissionOrder::State Uorc.Core.RuntimeAdmissionOrder::Error),
+  body: (match events
+    | List.nil => (ctor Result.ok [Uorc.Core.RuntimeAdmissionOrder::State, Uorc.Core.RuntimeAdmissionOrder::Error] state)
+    | List.cons event rest => (match (Uorc.Core.RuntimeAdmissionOrder::advance state event)
+      | Result.error error => (ctor Result.error [Uorc.Core.RuntimeAdmissionOrder::State, Uorc.Core.RuntimeAdmissionOrder::Error] error)
+      | Result.ok next => (trace rest next))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: events
+}
+
+definition{
+  name: literalPartitionOrder,
+  parameters: [],
+  result: Bool,
+  body: (match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginLiteral (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (Uorc.Core.RuntimeValue::nullHandle) (1 : UInt64) (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (Uorc.Core.RuntimeValue::nullHandle) (1 : UInt64) (2 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.seal (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))))))))))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => false
+    | Result.ok value => (prim equal (Uorc.Core.RuntimeAdmissionOrder::modeCode (project value mode)) (Uorc.Core.RuntimeAdmissionOrder::modeCode (ctor Uorc.Core.RuntimeAdmissionOrder::Mode.finished)) : Bool)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: scanCaptureOrdering,
+  parameters: [],
+  result: Bool,
+  body: ((match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.scan)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.second) (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.seal (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))))))))))))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => false
+    | Result.ok value => (prim equal (Uorc.Core.RuntimeAdmissionOrder::modeCode (project value mode)) (Uorc.Core.RuntimeAdmissionOrder::modeCode (ctor Uorc.Core.RuntimeAdmissionOrder::Mode.finished)) : Bool)) && ((match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.scan)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event)))))))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeAdmissionOrder::Error.unexpectedEvent => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteParameters => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstructions => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstruction => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.captureOrder => true
+      | Uorc.Core.RuntimeAdmissionOrder::Error.literalLengthMismatch => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.emptyProgram => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.invalidEntry => false)
+    | Result.ok value => false) && ((match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.scan)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))))))))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeAdmissionOrder::Error.unexpectedEvent => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteParameters => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstructions => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstruction => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.captureOrder => true
+      | Uorc.Core.RuntimeAdmissionOrder::Error.literalLengthMismatch => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.emptyProgram => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.invalidEntry => false)
+    | Result.ok value => false) && (match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.scan)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))))))))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeAdmissionOrder::Error.unexpectedEvent => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteParameters => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstructions => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstruction => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.captureOrder => true
+      | Uorc.Core.RuntimeAdmissionOrder::Error.literalLengthMismatch => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.emptyProgram => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.invalidEntry => false)
+    | Result.ok value => false)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: rejectsMalformedEventShapes,
+  parameters: [],
+  result: Bool,
+  body: ((match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeAdmissionOrder::Error.unexpectedEvent => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteParameters => true
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstructions => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstruction => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.captureOrder => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.literalLengthMismatch => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.emptyProgram => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.invalidEntry => false)
+    | Result.ok value => false) && ((match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalAdd)) (cons (ctor Uorc.Core.RuntimeProgram::Event.scalar (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (nil Uorc.Core.RuntimeProgram::Event)))))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeAdmissionOrder::Error.unexpectedEvent => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteParameters => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstructions => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstruction => true
+      | Uorc.Core.RuntimeAdmissionOrder::Error.captureOrder => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.literalLengthMismatch => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.emptyProgram => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.invalidEntry => false)
+    | Result.ok value => false) && ((match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginLiteral (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (18446744073709551615 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))))))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeAdmissionOrder::Error.unexpectedEvent => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteParameters => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstructions => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstruction => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.captureOrder => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.literalLengthMismatch => true
+      | Uorc.Core.RuntimeAdmissionOrder::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.emptyProgram => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.invalidEntry => false)
+    | Result.ok value => false) && ((match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.seal (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event)) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeAdmissionOrder::Error.unexpectedEvent => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteParameters => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstructions => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstruction => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.captureOrder => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.literalLengthMismatch => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.emptyProgram => true
+      | Uorc.Core.RuntimeAdmissionOrder::Error.invalidEntry => false)
+    | Result.ok value => false) && ((match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginInstruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginLiteral (3 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (1 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (Uorc.Core.RuntimeValue::nullHandle) (1 : UInt64) (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.literalSpan (Uorc.Core.RuntimeValue::nullHandle) (1 : UInt64) (2 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.endInstruction) (cons (ctor Uorc.Core.RuntimeProgram::Event.endBlock (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.seal (0 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (0 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event)))))))))))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeAdmissionOrder::Error.unexpectedEvent => true
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteParameters => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstructions => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstruction => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.captureOrder => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.literalLengthMismatch => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.emptyProgram => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.invalidEntry => false)
+    | Result.ok value => false) && (match (trace (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBlock (18446744073709551615 : UInt64)) (cons (ctor Uorc.Core.RuntimeProgram::Event.beginBody (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (1 : UInt64)) (nil Uorc.Core.RuntimeProgram::Event))) (Uorc.Core.RuntimeAdmissionOrder::start))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeAdmissionOrder::Error.unexpectedEvent => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteParameters => true
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstructions => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.incompleteInstruction => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.captureOrder => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.literalLengthMismatch => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.emptyProgram => false
+      | Uorc.Core.RuntimeAdmissionOrder::Error.invalidEntry => false)
+    | Result.ok value => false)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if ((literalPartitionOrder) && ((scanCaptureOrdering) && (rejectsMalformedEventShapes))) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -1,0 +1,612 @@
+\begin{lexlean}{Uorc.Product.Api}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Product.Evidence}
+\importmodule{Uorc.Product.Storage}
+\importmodule{Uorc.Product.StreamProtocol}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: ResourceRef,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: instance, type: Nat}, {name: slot, type: Nat}, {name: generation, type: Nat}]
+}
+
+structure{
+  name: Span,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: resource, type: ResourceRef},
+    {name: offset, type: Nat},
+    {name: length, type: Nat}
+  ]
+}
+
+structure{
+  name: Limits,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: decodeWork, type: Nat},
+    {name: checkerWork, type: Nat},
+    {name: replayWork, type: Nat},
+    {name: searchWork, type: Nat},
+    {name: outputBytes, type: (Option Nat)},
+    {name: ownedBytes, type: Nat},
+    {name: storage, type: Uorc.Product.Storage::Limits}
+  ]
+}
+
+structure{
+  name: Scope,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: identity, type: Bytes},
+    {name: domain, type: ResourceRef},
+    {name: basis, type: (Option ResourceRef)},
+    {name: limits, type: Limits}
+  ]
+}
+
+inductive{
+  name: Certificate,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: absent, fields: []},
+    {name: open, fields: [Scope]},
+    {name: failed, fields: [Scope]},
+    {name: incomplete, fields: [Scope]},
+    {name: checked, fields: [Scope]}
+  ]
+}
+
+inductive{
+  name: SearchStatus,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: notRequested, fields: []},
+    {name: running, fields: []},
+    {name: effortEnded, fields: []},
+    {name: exhausted, fields: []},
+    {name: incomplete, fields: []}
+  ]
+}
+
+inductive{
+  name: ControlError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: busy, fields: []},
+    {name: closed, fields: []},
+    {name: detached, fields: []},
+    {name: noRequest, fields: []},
+    {name: noCheckpoint, fields: []},
+    {name: noOutput, fields: []},
+    {name: publicationPending, fields: []},
+    {name: publicationUnknown, fields: []},
+    {name: inputOrder, fields: []},
+    {name: inputAfterEnd, fields: []},
+    {name: noDemand, fields: []},
+    {name: wrongInstance, fields: []},
+    {name: invalidEffort, fields: []},
+    {name: noPublicationPending, fields: []},
+    {name: missingInput, fields: []},
+    {name: missingArchive, fields: []},
+    {name: missingComparison, fields: []},
+    {name: invalidLimit, fields: []}
+  ]
+}
+
+inductive{
+  name: ResourceKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: memory, fields: []},
+    {name: work, fields: []},
+    {name: output, fields: []},
+    {name: handle, fields: []},
+    {name: chunk, fields: []}
+  ]
+}
+
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: malformedArchive, fields: [Nat, String]},
+    {name: semanticDecode, fields: [Nat, String]},
+    {name: missingBasis, fields: [Bytes]},
+    {name: wrongBasis, fields: [Bytes]},
+    {name: incompleteSearch, fields: []},
+    {name: incompleteProof, fields: []},
+    {name: resourceRefusal, fields: [ResourceKind, Nat]},
+    {name: cancelled, fields: []},
+    {name: inputIo, fields: [String]},
+    {name: publicationIo, fields: [Uorc.Product.StreamProtocol::Publication, String]},
+    {name: control, fields: [ControlError]},
+    {name: protocol, fields: [Uorc.Product.StreamProtocol::ProtocolError]},
+    {name: byteMismatch, fields: []},
+    {name: verificationIncomplete, fields: []},
+    {name: invalidCheckpoint, fields: [String]},
+    {name: invalidReport, fields: [String]},
+    {name: storage, fields: [Uorc.Product.Storage::Error]}
+  ]
+}
+
+inductive{
+  name: HostFailure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: computeError, fields: []},
+    {name: fatal, fields: []},
+    {name: unknown, fields: []}
+  ]
+}
+
+structure{
+  name: Common,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: limits, type: Limits}, {name: basis, type: (Option ResourceRef)}]
+}
+
+structure{
+  name: CompressRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: input, type: ResourceRef}, {name: options, type: Common}]
+}
+
+structure{
+  name: ArchiveRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: archive, type: ResourceRef}, {name: options, type: Common}]
+}
+
+structure{
+  name: VerifyRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: archive, type: ResourceRef},
+    {name: originals, type: (Option ResourceRef)},
+    {name: certificate, type: (Option ResourceRef)},
+    {name: options, type: Common}
+  ]
+}
+
+structure{
+  name: ResumeRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: input, type: ResourceRef},
+    {name: checkpoint, type: ResourceRef},
+    {name: options, type: Common}
+  ]
+}
+
+structure{
+  name: BasisRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: input, type: ResourceRef}, {name: options, type: Common}]
+}
+
+structure{
+  name: FrontierRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: input, type: ResourceRef},
+    {name: incumbent, type: (Option ResourceRef)},
+    {name: options, type: Common}
+  ]
+}
+
+structure{
+  name: CompareRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: left, type: ResourceRef},
+    {name: right, type: ResourceRef},
+    {name: originals, type: (Option ResourceRef)},
+    {name: options, type: Common}
+  ]
+}
+
+structure{
+  name: ToolRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: input, type: ResourceRef}, {name: options, type: Common}]
+}
+
+inductive{
+  name: Request,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: compress, fields: [CompressRequest]},
+    {name: decompress, fields: [ArchiveRequest]},
+    {name: inspect, fields: [ArchiveRequest]},
+    {name: verify, fields: [VerifyRequest]},
+    {name: resume, fields: [ResumeRequest]},
+    {name: buildBasis, fields: [BasisRequest]},
+    {name: analyzeFrontier, fields: [FrontierRequest]},
+    {name: compare, fields: [CompareRequest]},
+    {name: runAcceptance, fields: [ToolRequest]},
+    {name: runCoreRequest, fields: [ToolRequest]}
+  ]
+}
+
+structure{
+  name: Progress,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: inputBytes, type: Nat},
+    {name: objects, type: Nat},
+    {name: candidates, type: Nat},
+    {name: checkedCandidates, type: Nat},
+    {name: work, type: Nat},
+    {name: stage, type: String}
+  ]
+}
+
+structure{
+  name: Run,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: instance, type: Nat}, {name: serial, type: Nat}, {name: revision, type: Nat}]
+}
+
+definition{
+  name: operation,
+  parameters: [request : Request],
+  result: Uorc.Product.Evidence::Operation,
+  body: (match request
+    | Request.compress r => (ctor Uorc.Product.Evidence::Operation.compress)
+    | Request.decompress r => (ctor Uorc.Product.Evidence::Operation.decompress)
+    | Request.inspect r => (ctor Uorc.Product.Evidence::Operation.inspect)
+    | Request.verify r => (ctor Uorc.Product.Evidence::Operation.verify)
+    | Request.resume r => (ctor Uorc.Product.Evidence::Operation.resume)
+    | Request.buildBasis r => (ctor Uorc.Product.Evidence::Operation.buildBasis)
+    | Request.analyzeFrontier r => (ctor Uorc.Product.Evidence::Operation.analyzeFrontier)
+    | Request.compare r => (ctor Uorc.Product.Evidence::Operation.compare)
+    | Request.runAcceptance r => (ctor Uorc.Product.Evidence::Operation.runAcceptance)
+    | Request.runCoreRequest r => (ctor Uorc.Product.Evidence::Operation.runCoreRequest))
+}
+
+definition{
+  name: options,
+  parameters: [request : Request],
+  result: Common,
+  body: (match request
+    | Request.compress r => (project r options)
+    | Request.decompress r => (project r options)
+    | Request.inspect r => (project r options)
+    | Request.verify r => (project r options)
+    | Request.resume r => (project r options)
+    | Request.buildBasis r => (project r options)
+    | Request.analyzeFrontier r => (project r options)
+    | Request.compare r => (project r options)
+    | Request.runAcceptance r => (project r options)
+    | Request.runCoreRequest r => (project r options))
+}
+
+definition{
+  name: certificateCheck,
+  parameters: [certificate : Certificate],
+  result: Uorc.Product.Evidence::CertificateCheck,
+  body: (match certificate
+    | Certificate.absent => (ctor Uorc.Product.Evidence::CertificateCheck.absent)
+    | Certificate.open scope => (ctor Uorc.Product.Evidence::CertificateCheck.incomplete)
+    | Certificate.failed scope => (ctor Uorc.Product.Evidence::CertificateCheck.invalid)
+    | Certificate.incomplete scope => (ctor Uorc.Product.Evidence::CertificateCheck.incomplete)
+    | Certificate.checked scope => (ctor Uorc.Product.Evidence::CertificateCheck.valid))
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "ResourceRef is an adapter lease identified by instance, slot and generation. It carries actual charged bytes or a source-owned job, never a basis-name substitution. The host validates ownership and span extent before borrowing and accounts transferred roots. These pure request/admission roots do not execute an archive or establish observations. Native Library/V1 may return modeled Result inside the generated outer ComputeError; SDK errors are not UORC semantic decode failures. The persistent adapter remains a separate versioned contract."
+}
+
+definition{
+  name: sameResource,
+  parameters: [left : ResourceRef, right : ResourceRef],
+  result: Bool,
+  body: (((project left instance) =? (project right instance)) && (((project left slot) =? (project right slot)) && (((project left generation) =? (project right generation)) && true)))
+}
+
+definition{
+  name: originalsAvailable,
+  parameters: [request : Request],
+  result: Bool,
+  body: (match request
+    | Request.compress r => true
+    | Request.decompress r => false
+    | Request.inspect r => false
+    | Request.verify r => (match (project r originals)
+      | Option.none => false
+      | Option.some originals => true)
+    | Request.resume r => true
+    | Request.buildBasis r => false
+    | Request.analyzeFrontier r => false
+    | Request.compare r => (match (project r originals)
+      | Option.none => false
+      | Option.some originals => true)
+    | Request.runAcceptance r => false
+    | Request.runCoreRequest r => false)
+}
+
+structure{
+  name: ArchiveSummary,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: formatIdentity, type: Bytes},
+    {name: profileIdentity, type: Bytes},
+    {name: integrityIdentity, type: Bytes},
+    {name: objects, type: Nat},
+    {name: exactArchiveBytes, type: Nat},
+    {name: externalBasisRequired, type: Bool}
+  ]
+}
+
+structure{
+  name: BasisManifest,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: identity, type: Bytes}, {name: objects, type: Nat}, {name: bytes, type: Nat}]
+}
+
+structure{
+  name: FrontierReport,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: points, type: ResourceRef},
+    {name: pointCount, type: Nat},
+    {name: checkedPoints, type: Nat},
+    {name: incompletePoints, type: Nat}
+  ]
+}
+
+inductive{
+  name: SizeRelation,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: leftSmaller, fields: []},
+    {name: equal, fields: []},
+    {name: rightSmaller, fields: []}
+  ]
+}
+
+structure{
+  name: DeveloperReport,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: sourceIdentity, type: Bytes},
+    {name: compilerIdentity, type: Bytes},
+    {name: sdkIdentity, type: Bytes},
+    {name: checks, type: Nat},
+    {name: failures, type: Nat},
+    {name: executed, type: Bool}
+  ]
+}
+
+inductive{
+  name: PhysicalScope,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: process, fields: []},
+    {name: instance, fields: []},
+    {name: host, fields: []}
+  ]
+}
+
+structure{
+  name: PhysicalObservation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: rssBytes, type: (Option Nat)},
+    {name: allocatedStorageBytes, type: (Option Nat)},
+    {name: scope, type: PhysicalScope},
+    {name: sequence, type: Nat}
+  ]
+}
+
+structure{
+  name: Accounting,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: inputBytes, type: Nat},
+    {name: exactArchiveBytes, type: Nat},
+    {name: transportBytes, type: Nat},
+    {name: externalBasisBytes, type: Nat},
+    {name: basisTransferBytes, type: Nat},
+    {name: decodeWork, type: Nat},
+    {name: checkerWork, type: Nat},
+    {name: replayWork, type: Nat},
+    {name: searchWork, type: Nat},
+    {name: peakOwnedBytes, type: Nat},
+    {name: objects, type: Nat},
+    {name: outputBytes, type: Nat},
+    {name: storage, type: Uorc.Product.Storage::Usage},
+    {name: physical, type: (Option PhysicalObservation)}
+  ]
+}
+
+structure{
+  name: ComparedArchive,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: accounting, type: Accounting},
+    {name: facts, type: Uorc.Product.Evidence::EvidenceFacts},
+    {name: originalsAvailable, type: Bool},
+    {name: certificate, type: Certificate}
+  ]
+}
+
+structure{
+  name: ComparisonReport,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: left, type: ComparedArchive},
+    {name: right, type: ComparedArchive},
+    {name: originalsComparedEqual, type: Bool}
+  ]
+}
+
+inductive{
+  name: Details,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: archive, fields: [ArchiveSummary]},
+    {name: reconstruction, fields: [ArchiveSummary]},
+    {name: inspection, fields: [ArchiveSummary]},
+    {name: verification, fields: [Nat]},
+    {name: basis, fields: [BasisManifest]},
+    {name: frontier, fields: [FrontierReport]},
+    {name: comparison, fields: [ComparisonReport]},
+    {name: developer, fields: [DeveloperReport]}
+  ]
+}
+
+structure{
+  name: Report,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: accounting, type: Accounting},
+    {name: facts, type: Uorc.Product.Evidence::EvidenceFacts},
+    {name: boundariesComplete, type: Bool},
+    {name: originalsAvailable, type: Bool},
+    {name: finalCheck, type: Uorc.Product.Evidence::FinalCheck},
+    {name: certificate, type: Certificate},
+    {name: search, type: SearchStatus},
+    {name: artifactChecked, type: Bool},
+    {name: output, type: (Option ResourceRef)},
+    {name: details, type: (Option Details)}
+  ]
+}
+
+definition{
+  name: admission,
+  parameters: [argOperation : Uorc.Product.Evidence::Operation, report : Report],
+  result: Uorc.Product.Evidence::PublicationDecision,
+  body: (match argOperation
+    | Uorc.Product.Evidence::Operation.compress => (if ((project (project report facts) parsed) && ((project (project report facts) integrityChecked) && ((project (project report facts) executed) && ((project report boundariesComplete) && ((project report originalsAvailable) && ((project (project report facts) originalCompared) && true)))))) then (Uorc.Product.Evidence::publicationDecision (project report finalCheck) false (certificateCheck (project report certificate))) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete))
+    | Uorc.Product.Evidence::Operation.decompress => (Uorc.Product.Evidence::decompressionPublicationDecision (project (project report facts) parsed) (project (project report facts) integrityChecked) (project (project report facts) executed) (project report boundariesComplete) false)
+    | Uorc.Product.Evidence::Operation.inspect => (if (project (project report facts) parsed) then (ctor Uorc.Product.Evidence::PublicationDecision.publish) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete))
+    | Uorc.Product.Evidence::Operation.verify => (if (project report originalsAvailable) then (if ((project (project report facts) parsed) && ((project (project report facts) integrityChecked) && ((project (project report facts) executed) && ((project (project report facts) originalCompared) && ((project report boundariesComplete) && true))))) then (Uorc.Product.Evidence::publicationDecision (project report finalCheck) false (certificateCheck (project report certificate))) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete)) else (Uorc.Product.Evidence::decompressionPublicationDecision (project (project report facts) parsed) (project (project report facts) integrityChecked) (project (project report facts) executed) (project report boundariesComplete) false))
+    | Uorc.Product.Evidence::Operation.resume => (if ((project (project report facts) parsed) && ((project (project report facts) integrityChecked) && ((project (project report facts) executed) && ((project report boundariesComplete) && ((project report originalsAvailable) && ((project (project report facts) originalCompared) && true)))))) then (Uorc.Product.Evidence::publicationDecision (project report finalCheck) false (certificateCheck (project report certificate))) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete))
+    | Uorc.Product.Evidence::Operation.buildBasis => (if (project report artifactChecked) then (ctor Uorc.Product.Evidence::PublicationDecision.publish) else (ctor Uorc.Product.Evidence::PublicationDecision.verificationIncomplete))
+    | Uorc.Product.Evidence::Operation.analyzeFrontier => (ctor Uorc.Product.Evidence::PublicationDecision.publish)
+    | Uorc.Product.Evidence::Operation.compare => (ctor Uorc.Product.Evidence::PublicationDecision.publish)
+    | Uorc.Product.Evidence::Operation.runAcceptance => (ctor Uorc.Product.Evidence::PublicationDecision.publish)
+    | Uorc.Product.Evidence::Operation.runCoreRequest => (ctor Uorc.Product.Evidence::PublicationDecision.publish))
+}
+
+definition{
+  name: evidenceView,
+  parameters: [argOperation : Uorc.Product.Evidence::Operation, report : Report],
+  result: Uorc.Product.Evidence::EvidenceView,
+  body: (Uorc.Product.Evidence::presentEvidence argOperation (project report originalsAvailable) (record Uorc.Product.Evidence::EvidenceFacts {parsed := (project (project report facts) parsed), integrityChecked := (project (project report facts) integrityChecked), executed := ((project (project report facts) executed) && ((project report boundariesComplete) && true)), originalCompared := ((project (project report facts) originalCompared) && ((match (project report finalCheck)
+    | Uorc.Product.Evidence::FinalCheck.equal => true
+    | Uorc.Product.Evidence::FinalCheck.different => false
+    | Uorc.Product.Evidence::FinalCheck.incomplete => false
+    | Uorc.Product.Evidence::FinalCheck.cancelled => false) && true)), certificateChecked := ((project (project report facts) certificateChecked) && ((match (certificateCheck (project report certificate))
+    | Uorc.Product.Evidence::CertificateCheck.absent => false
+    | Uorc.Product.Evidence::CertificateCheck.valid => true
+    | Uorc.Product.Evidence::CertificateCheck.invalid => false
+    | Uorc.Product.Evidence::CertificateCheck.incomplete => false) && true))}))
+}
+
+definition{
+  name: bindReport,
+  parameters: [request : Request, report : Report],
+  result: Report,
+  body: (record Report {accounting := (project report accounting), facts := (project report facts), boundariesComplete := (project report boundariesComplete), originalsAvailable := (originalsAvailable request), finalCheck := (project report finalCheck), certificate := (project report certificate), search := (project report search), artifactChecked := (project report artifactChecked), output := (project report output), details := (project report details)})
+}
+
+definition{
+  name: compareExactArchiveBytes,
+  parameters: [left : Accounting, right : Accounting],
+  result: SizeRelation,
+  body: (if ((project left exactArchiveBytes) <? (project right exactArchiveBytes)) then (ctor SizeRelation.leftSmaller) else (if ((project left exactArchiveBytes) =? (project right exactArchiveBytes)) then (ctor SizeRelation.equal) else (ctor SizeRelation.rightSmaller)))
+}
+
+definition{
+  name: archivePlusBasisTransfer,
+  parameters: [accounting : Accounting],
+  result: Nat,
+  body: ((project accounting exactArchiveBytes) + (project accounting basisTransferBytes))
+}
+
+theorem{
+  name: archive_basis_transfer_is_explicit,
+  parameters: [accounting : Accounting],
+  statement: ((archivePlusBasisTransfer accounting) = ((project accounting exactArchiveBytes) + (project accounting basisTransferBytes))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+structure{
+  name: FailureReport,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: failure, type: Failure},
+    {name: achieved, type: Accounting},
+    {name: publication, type: Uorc.Product.StreamProtocol::Publication}
+  ]
+}
+
+inductive{
+  name: CustodyReason,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: open, fields: []},
+    {name: pendingIo, fields: []},
+    {name: imageTicket, fields: []},
+    {name: storage, fields: []},
+    {name: resourceLease, fields: []},
+    {name: job, fields: []},
+    {name: arena, fields: []},
+    {name: receipt, fields: []},
+    {name: effect, fields: []},
+    {name: quarantine, fields: []}
+  ]
+}
+
+inductive{
+  name: ReleaseDisposition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: retain, fields: [CustodyReason]}, {name: releasable, fields: []}]
+}
+\end{semanticmodule}
+\end{lexlean}

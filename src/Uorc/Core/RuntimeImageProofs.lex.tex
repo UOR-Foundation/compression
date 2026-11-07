@@ -1,0 +1,340 @@
+\begin{lexlean}{Uorc.Core.RuntimeImageProofs}
+
+\importmodule{Uorc.Core.RuntimeValue}
+
+\importmodule{Uorc.Core.Heap}
+
+\importmodule{Uorc.Core.RuntimeImage}
+
+\title{Parameters}
+
+\begin{semanticmodule}
+definition{
+  name: indexArena,
+  parameters: [index : Uorc.Core.Heap::Index],
+  result: Uorc.Core.Heap::Arena,
+  body: (record Uorc.Core.Heap::Arena {index := index, nextHandle := (0 : UInt64), exhausted := false, ownedBytes := (0 : UInt64), liveEntries := (0 : UInt64), maxOwnedBytes := (0 : UInt64), cursor := (Uorc.Core.Heap::emptyCursor)}),
+  axioms: [],
+  executable: false
+}
+
+theorem{
+  name: readByte_frame,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    absoluteOffset : UInt64
+  ],
+  statement: ((Uorc.Core.RuntimeImage::readByte arena image absoluteOffset) = (Uorc.Core.RuntimeImage::readByte (indexArena (project arena index)) image absoluteOffset)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: imageLength_frame,
+  parameters: [arena : Uorc.Core.Heap::Arena, image : Uorc.Core.RuntimeValue::Handle],
+  statement: ((Uorc.Core.RuntimeImage::imageLength arena image) = (Uorc.Core.RuntimeImage::imageLength (indexArena (project arena index)) image)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: validateSpan_frame,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    length : UInt64
+  ],
+  statement: ((Uorc.Core.RuntimeImage::validateSpan arena image offset length) = (Uorc.Core.RuntimeImage::validateSpan (indexArena (project arena index)) image offset length)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: readSpanByte_frame,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    span : Uorc.Core.RuntimeImage::BorrowedSpan,
+    relativeIndex : UInt64
+  ],
+  statement: ((Uorc.Core.RuntimeImage::readSpanByte arena span relativeIndex) = (Uorc.Core.RuntimeImage::readSpanByte (indexArena (project arena index)) span relativeIndex)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: readByteCost_pre_call,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    absoluteOffset : UInt64
+  ],
+  statement: ((Uorc.Core.RuntimeImage::readByteCost arena image absoluteOffset) = (1 : UInt64)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: imageLengthCost_pre_call,
+  parameters: [arena : Uorc.Core.Heap::Arena, image : Uorc.Core.RuntimeValue::Handle],
+  statement: ((Uorc.Core.RuntimeImage::imageLengthCost arena image) = (1 : UInt64)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: validateSpanCost_pre_call,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    length : UInt64
+  ],
+  statement: ((Uorc.Core.RuntimeImage::validateSpanCost arena image offset length) = (1 : UInt64)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: readSpanByteCost_pre_call,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    span : Uorc.Core.RuntimeImage::BorrowedSpan,
+    relativeIndex : UInt64
+  ],
+  statement: ((Uorc.Core.RuntimeImage::readSpanByteCost arena span relativeIndex) = (1 : UInt64)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: nodeByte_input_index,
+  parameters: [bytes : Bytes, absoluteOffset : UInt64],
+  statement: ((Uorc.Core.RuntimeImage::nodeByte (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.input) bytes) absoluteOffset) = (match (prim index bytes (Uorc.Core.RuntimeImage::wordToNatAux 64 absoluteOffset) : (Option UInt8))
+    | Option.none => (ctor Result.error [UInt8, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range))
+    | Option.some value => (ctor Result.ok [UInt8, Uorc.Core.RuntimeImage::ImageFailure] value))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nodeByte_rejects_control,
+  parameters: [bytes : Bytes, absoluteOffset : UInt64],
+  statement: ((Uorc.Core.RuntimeImage::nodeByte (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.control) bytes) absoluteOffset) = (ctor Result.error [UInt8, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.invalidShape))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nodeLength_rejects_control,
+  parameters: [bytes : Bytes],
+  statement: ((Uorc.Core.RuntimeImage::nodeLength (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.control) bytes)) = (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.invalidShape))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_less_self_false,
+  parameters: [value : UInt64],
+  statement: ((prim less_than value value : Bool) = false),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_less_false_when_ge,
+  parameters: [left : UInt64, right : UInt64],
+  statement: ((right <= left) -> ((prim less_than left right : Bool) = false)),
+  proof: linear_arithmetic{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: false_offset_branch,
+  parameters: [attempt : (Result UInt64 Uorc.Core.RuntimeImage::ImageFailure)],
+  statement: ((if false then attempt else (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range))) = (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: false_guard_choice,
+  parameters: [guard : Bool, attempt : (Result UInt64 Uorc.Core.RuntimeImage::ImageFailure)],
+  statement: (if guard then (0 = 0) else ((if guard then attempt else (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range))) = (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range)))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: guard
+  },
+  axioms: []
+}
+
+theorem{
+  name: spanOffset_false_case,
+  parameters: [span : Uorc.Core.RuntimeImage::BorrowedSpan, relativeIndex : UInt64],
+  statement: (if (prim less_than relativeIndex (project span length) : Bool) then (0 = 0) else ((Uorc.Core.RuntimeImage::spanOffset span relativeIndex) = (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range)))),
+  proof: apply{
+    arguments: [
+      (prim less_than relativeIndex (project span length) : Bool),
+      (match (prim checked_add (project span offset) relativeIndex : (Option UInt64))
+        | Option.none => (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow))
+        | Option.some absoluteOffset => (ctor Result.ok [UInt64, Uorc.Core.RuntimeImage::ImageFailure] absoluteOffset))
+    ],
+    theorem: false_guard_choice
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: spanOffset_rejects_end,
+  parameters: [span : Uorc.Core.RuntimeImage::BorrowedSpan],
+  statement: ((Uorc.Core.RuntimeImage::spanOffset span (project span length)) = (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range))),
+  proof: simplify{
+    definitions: [false_offset_branch, word_less_self_false, Uorc.Core.RuntimeImage::spanOffset]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: readSpanByte_rejects_end,
+  parameters: [arena : Uorc.Core.Heap::Arena, span : Uorc.Core.RuntimeImage::BorrowedSpan],
+  statement: ((Uorc.Core.RuntimeImage::readSpanByte arena span (project span length)) = (ctor Result.error [UInt8, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range))),
+  proof: simplify{definitions: [spanOffset_rejects_end, Uorc.Core.RuntimeImage::readSpanByte]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: validateRange_zero_identity,
+  parameters: [image : Uorc.Core.RuntimeValue::Handle],
+  statement: ((Uorc.Core.RuntimeImage::validateRange image (0 : UInt64) (0 : UInt64) (0 : UInt64)) = (ctor Result.ok [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (record Uorc.Core.RuntimeImage::BorrowedSpan {image := image, offset := (0 : UInt64), length := (0 : UInt64)}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: validateRange_end_four_identity,
+  parameters: [image : Uorc.Core.RuntimeValue::Handle],
+  statement: ((Uorc.Core.RuntimeImage::validateRange image (4 : UInt64) (0 : UInt64) (4 : UInt64)) = (ctor Result.ok [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (record Uorc.Core.RuntimeImage::BorrowedSpan {image := image, offset := (4 : UInt64), length := (0 : UInt64)}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: validateRange_rejects_wrap,
+  parameters: [image : Uorc.Core.RuntimeValue::Handle, size : UInt64],
+  statement: ((Uorc.Core.RuntimeImage::validateRange image (18446744073709551615 : UInt64) (1 : UInt64) size) = (ctor Result.error [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: readByte_null_precedence,
+  parameters: [arena : Uorc.Core.Heap::Arena, absoluteOffset : UInt64],
+  statement: ((Uorc.Core.RuntimeImage::readByte arena (Uorc.Core.RuntimeValue::nullHandle) absoluteOffset) = (ctor Result.error [UInt8, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.heap (ctor Uorc.Core.Heap::HeapError.malformedHandle)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: imageLength_null_precedence,
+  parameters: [arena : Uorc.Core.Heap::Arena],
+  statement: ((Uorc.Core.RuntimeImage::imageLength arena (Uorc.Core.RuntimeValue::nullHandle)) = (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.heap (ctor Uorc.Core.Heap::HeapError.malformedHandle)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: validateSpan_null_precedence,
+  parameters: [arena : Uorc.Core.Heap::Arena, offset : UInt64, length : UInt64],
+  statement: ((Uorc.Core.RuntimeImage::validateSpan arena (Uorc.Core.RuntimeValue::nullHandle) offset length) = (ctor Result.error [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.heap (ctor Uorc.Core.Heap::HeapError.malformedHandle)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: two_byte_span_first,
+  parameters: [arena : Uorc.Core.Heap::Arena, image : Uorc.Core.RuntimeValue::Handle],
+  statement: ((Uorc.Core.RuntimeImage::readSpanByte arena (record Uorc.Core.RuntimeImage::BorrowedSpan {image := image, offset := (1 : UInt64), length := (2 : UInt64)}) (0 : UInt64)) = (Uorc.Core.RuntimeImage::readByte arena image (1 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: two_byte_span_last,
+  parameters: [arena : Uorc.Core.Heap::Arena, image : Uorc.Core.RuntimeValue::Handle],
+  statement: ((Uorc.Core.RuntimeImage::readSpanByte arena (record Uorc.Core.RuntimeImage::BorrowedSpan {image := image, offset := (1 : UInt64), length := (2 : UInt64)}) (1 : UInt64)) = (Uorc.Core.RuntimeImage::readByte arena image (2 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: readSpanByte_resolution,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    span : Uorc.Core.RuntimeImage::BorrowedSpan,
+    relativeIndex : UInt64
+  ],
+  statement: ((Uorc.Core.RuntimeImage::readSpanByte arena span relativeIndex) = (match (Uorc.Core.RuntimeImage::spanOffset span relativeIndex)
+    | Result.error failure => (ctor Result.error [UInt8, Uorc.Core.RuntimeImage::ImageFailure] failure)
+    | Result.ok absoluteOffset => (Uorc.Core.RuntimeImage::readByte arena (project span image) absoluteOffset))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nodeByte_image_semantics,
+  parameters: [kind : Uorc.Core.Heap::ImageKind, bytes : Bytes, absoluteOffset : UInt64],
+  statement: ((Uorc.Core.RuntimeImage::nodeByte (ctor Uorc.Core.Heap::Node.image kind bytes) absoluteOffset) = (if (Uorc.Core.Heap::isControlKind kind) then (ctor Result.error [UInt8, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.invalidShape)) else (match (prim index bytes (Uorc.Core.RuntimeImage::wordToNatAux 64 absoluteOffset) : (Option UInt8))
+    | Option.none => (ctor Result.error [UInt8, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range))
+    | Option.some value => (ctor Result.ok [UInt8, Uorc.Core.RuntimeImage::ImageFailure] value)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nodeLength_image_semantics,
+  parameters: [kind : Uorc.Core.Heap::ImageKind, bytes : Bytes],
+  statement: ((Uorc.Core.RuntimeImage::nodeLength (ctor Uorc.Core.Heap::Node.image kind bytes)) = (if (Uorc.Core.Heap::isControlKind kind) then (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.invalidShape)) else (match (Uorc.Core.Heap::wordOfNat (prim length bytes : Nat))
+    | Option.none => (ctor Result.error [UInt64, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow))
+    | Option.some size => (ctor Result.ok [UInt64, Uorc.Core.RuntimeImage::ImageFailure] size)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: validateRange_resolution,
+  parameters: [
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    length : UInt64,
+    size : UInt64
+  ],
+  statement: ((Uorc.Core.RuntimeImage::validateRange image offset length size) = (match (prim checked_add offset length : (Option UInt64))
+    | Option.none => (ctor Result.error [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow))
+    | Option.some endOffset => (if (prim less_than size endOffset : Bool) then (ctor Result.error [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range)) else (ctor Result.ok [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (record Uorc.Core.RuntimeImage::BorrowedSpan {image := image, offset := offset, length := length}))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: validateSpan_resolution,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    length : UInt64
+  ],
+  statement: ((Uorc.Core.RuntimeImage::validateSpan arena image offset length) = (match (Uorc.Core.RuntimeImage::imageLength arena image)
+    | Result.error failure => (ctor Result.error [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] failure)
+    | Result.ok size => (match (prim checked_add offset length : (Option UInt64))
+      | Option.none => (ctor Result.error [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.lengthOverflow))
+      | Option.some endOffset => (if (prim less_than size endOffset : Bool) then (ctor Result.error [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (ctor Uorc.Core.RuntimeImage::ImageFailure.range)) else (ctor Result.ok [Uorc.Core.RuntimeImage::BorrowedSpan, Uorc.Core.RuntimeImage::ImageFailure] (record Uorc.Core.RuntimeImage::BorrowedSpan {image := image, offset := offset, length := length})))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+
+\end{lexlean}

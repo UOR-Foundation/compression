@@ -1,0 +1,265 @@
+<!-- uorc:non-authoritative -->
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.roots_withPhase (c : Uorc.Uorc.Integrity.OwnedHash.Cursor)
+  (p : Uorc.Uorc.Integrity.OwnedHash.Phase) :
+  Uorc.Uorc.Integrity.OwnedHash.ownedRoots (Uorc.Uorc.Integrity.OwnedHash.withPhase c p) =
+    Uorc.Uorc.Integrity.OwnedHash.ownedRoots c
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.roots_withPositionCheckedPrefixPhase (c : Uorc.Uorc.Integrity.OwnedHash.Cursor)
+  (position checkedPrefix : UInt64) (p : Uorc.Uorc.Integrity.OwnedHash.Phase) :
+  Uorc.Uorc.Integrity.OwnedHash.ownedRoots
+      (Uorc.Uorc.Integrity.OwnedHash.withPositionCheckedPrefixPhase c position checkedPrefix p) =
+    Uorc.Uorc.Integrity.OwnedHash.ownedRoots c
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.input_ticket_decomposition (c : Uorc.Uorc.Integrity.OwnedHash.Cursor)
+  (span : Uorc.Uorc.Core.RuntimeSequence.Span) (input : c.input = some span)
+  (nonempty : LexLeanRuntime.equal span.length 0 = false) :
+  Uorc.Uorc.Integrity.OwnedHash.ownedRoots c =
+    (if Uorc.Uorc.Core.RuntimeValue.isNull c.control = true then [] else [c.control]) ++ [span.image] ++
+      if Uorc.Uorc.Core.RuntimeValue.isNull c.output = true then [] else [c.output]
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.input_ticket_held (c : Uorc.Uorc.Integrity.OwnedHash.Cursor)
+  (span : Uorc.Uorc.Core.RuntimeSequence.Span) (input : c.input = some span)
+  (nonempty : LexLeanRuntime.equal span.length 0 = false) : span.image ∈ Uorc.Uorc.Integrity.OwnedHash.ownedRoots c
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.updateInput : Uorc.Uorc.Integrity.Profile.Update → ByteArray
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.chain_begin_input (state : Uorc.Uorc.Integrity.BoundedChain.State)
+  (bytes : ByteArray) (job : Uorc.Uorc.Integrity.BoundedChain.Update)
+  (success : Uorc.Uorc.Integrity.BoundedChain.beginUpdate state bytes = Except.ok job) : job.input = bytes
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.stream_engine_begin_input (limit : UInt64)
+  (state : Uorc.Uorc.Integrity.StreamEngine.State) (bytes : ByteArray) (job : Uorc.Uorc.Integrity.StreamEngine.Update)
+  (success : Uorc.Uorc.Integrity.StreamEngine.beginUpdateAt limit state bytes = Except.ok job) : job.input = bytes
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.stream_begin_input (state : Uorc.Uorc.Integrity.StreamMax.State)
+  (bytes : ByteArray) (job : Uorc.Uorc.Integrity.StreamMax.Update)
+  (success : Uorc.Uorc.Integrity.StreamMax.beginUpdate state bytes = Except.ok job) : job.engine.input = bytes
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.beginUpdate_input_kind (state : Uorc.Uorc.Integrity.Profile.State)
+  (bytes : ByteArray) (job : Uorc.Uorc.Integrity.Profile.Update)
+  (success : Uorc.Uorc.Integrity.Profile.beginUpdate state bytes = Except.ok job) :
+  Uorc.Uorc.Integrity.OwnedLifecycleLaws.updateInput job = bytes ∧
+    Uorc.Uorc.Integrity.Profile.updateKind job = Uorc.Uorc.Integrity.Profile.stateKind state
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.acceptedByte_unfold (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (state : Uorc.Uorc.Integrity.Profile.State) (byte : UInt8) :
+  Uorc.Uorc.Integrity.OwnedHash.acceptedByte arena cursor state byte =
+    Uorc.Uorc.Integrity.OwnedLifecycleLaws.acceptedByte_unfold.match_1
+      (fun x => Except Uorc.Uorc.Integrity.OwnedHash.Error Uorc.Uorc.Integrity.OwnedHash.Transition)
+      (Uorc.Uorc.Integrity.Profile.beginUpdate state (Uorc.Uorc.Integrity.Sha256.byteBytes byte))
+      (fun cause => Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.integrity cause)) fun child =>
+      Uorc.Uorc.Integrity.OwnedHash.report arena
+        (Uorc.Uorc.Integrity.OwnedHash.withPositionCheckedPrefixPhase cursor
+          (Uorc.Uorc.Core.Heap.wordAdd cursor.position 1)
+          (if Uorc.Uorc.Integrity.Profile.requiresArchivePrefix cursor.purpose = true then
+            if Uorc.Uorc.Core.Heap.less cursor.checkedPrefix 6 = true then
+              Uorc.Uorc.Core.Heap.wordAdd cursor.checkedPrefix 1
+            else cursor.checkedPrefix
+          else cursor.checkedPrefix)
+          (Uorc.Uorc.Integrity.OwnedHash.Phase.updating child))
+        Uorc.Uorc.Integrity.OwnedHash.zeroDelta 2 1 1 0 Uorc.Uorc.Integrity.OwnedHash.Outcome.pending
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.acceptedByte_source_bridge (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (state : Uorc.Uorc.Integrity.Profile.State) (byte : UInt8)
+  (next : Uorc.Uorc.Integrity.OwnedHash.Transition)
+  (coherent : cursor.profile = Uorc.Uorc.Integrity.Profile.stateKind state)
+  (admitted : Uorc.Uorc.Integrity.OwnedHash.acceptedByte arena cursor state byte = Except.ok next) :
+  ∃ child,
+    Uorc.Uorc.Integrity.Profile.beginUpdate state (Uorc.Uorc.Integrity.Sha256.byteBytes byte) = Except.ok child ∧
+      next.cursor.phase = Uorc.Uorc.Integrity.OwnedHash.Phase.updating child ∧
+        Uorc.Uorc.Integrity.OwnedLifecycleLaws.updateInput child = Uorc.Uorc.Integrity.Sha256.byteBytes byte ∧
+          (Uorc.Uorc.Integrity.OwnedLifecycleLaws.updateInput child).size = 1 ∧
+            Uorc.Uorc.Integrity.Profile.updateKind child = cursor.profile ∧
+              next.cursor.profile = cursor.profile ∧
+                next.cursor.input = cursor.input ∧
+                  Uorc.Uorc.Integrity.OwnedHash.ownedRoots next.cursor =
+                      Uorc.Uorc.Integrity.OwnedHash.ownedRoots cursor ∧
+                    next.arena = arena ∧
+                      next.admittedInputBytes = 1 ∧
+                        next.inputMaterializationBytes = 1 ∧
+                          next.digestMaterializationBytes = 0 ∧
+                            next.outcome = Uorc.Uorc.Integrity.OwnedHash.Outcome.pending
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.ready_step_admits_actual_read_byte (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (state : Uorc.Uorc.Integrity.Profile.State)
+  (span : Uorc.Uorc.Core.RuntimeSequence.Span) (absolute : UInt64) (byte : UInt8)
+  (next : Uorc.Uorc.Integrity.OwnedHash.Transition) (input : cursor.input = some span)
+  (hasByte : Uorc.Uorc.Core.Heap.less cursor.position span.length = true)
+  (offset : LexLeanRuntime.checkedAdd span.offset cursor.position = some absolute)
+  (read : Uorc.Uorc.Core.RuntimeSequence.readByte arena span.image absolute = Except.ok byte)
+  (success :
+    Uorc.Uorc.Integrity.OwnedHash.step arena
+        { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+          position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+          phase := Uorc.Uorc.Integrity.OwnedHash.Phase.ready state } =
+      Except.ok next) :
+  Uorc.Uorc.Integrity.OwnedHash.acceptedByte arena
+      { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+        position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+        phase := Uorc.Uorc.Integrity.OwnedHash.Phase.ready state }
+      state byte =
+    Except.ok next
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.ready_step_one_byte (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (state : Uorc.Uorc.Integrity.Profile.State)
+  (span : Uorc.Uorc.Core.RuntimeSequence.Span) (absolute : UInt64) (byte : UInt8)
+  (next : Uorc.Uorc.Integrity.OwnedHash.Transition)
+  (coherent : cursor.profile = Uorc.Uorc.Integrity.Profile.stateKind state) (input : cursor.input = some span)
+  (hasByte : Uorc.Uorc.Core.Heap.less cursor.position span.length = true)
+  (offset : LexLeanRuntime.checkedAdd span.offset cursor.position = some absolute)
+  (read : Uorc.Uorc.Core.RuntimeSequence.readByte arena span.image absolute = Except.ok byte)
+  (success :
+    Uorc.Uorc.Integrity.OwnedHash.step arena
+        { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+          position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+          phase := Uorc.Uorc.Integrity.OwnedHash.Phase.ready state } =
+      Except.ok next) :
+  ∃ child,
+    Uorc.Uorc.Integrity.Profile.beginUpdate state (Uorc.Uorc.Integrity.Sha256.byteBytes byte) = Except.ok child ∧
+      next.cursor.phase = Uorc.Uorc.Integrity.OwnedHash.Phase.updating child ∧
+        Uorc.Uorc.Integrity.OwnedLifecycleLaws.updateInput child = Uorc.Uorc.Integrity.Sha256.byteBytes byte ∧
+          (Uorc.Uorc.Integrity.OwnedLifecycleLaws.updateInput child).size = 1 ∧
+            Uorc.Uorc.Integrity.Profile.updateKind child = cursor.profile ∧
+              next.cursor.profile = cursor.profile ∧
+                next.cursor.input = cursor.input ∧
+                  Uorc.Uorc.Integrity.OwnedHash.ownedRoots next.cursor =
+                      Uorc.Uorc.Integrity.OwnedHash.ownedRoots cursor ∧
+                    next.arena = arena ∧
+                      next.admittedInputBytes = 1 ∧
+                        next.inputMaterializationBytes = 1 ∧
+                          next.digestMaterializationBytes = 0 ∧
+                            next.outcome = Uorc.Uorc.Integrity.OwnedHash.Outcome.pending
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.step_updating_unfold (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (job : Uorc.Uorc.Integrity.Profile.Update) :
+  Uorc.Uorc.Integrity.OwnedHash.step arena
+      { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+        position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+        phase := Uorc.Uorc.Integrity.OwnedHash.Phase.updating job } =
+    Uorc.Uorc.Integrity.OwnedLifecycleLaws.step_updating_unfold.match_3
+      (fun x => Except Uorc.Uorc.Integrity.OwnedHash.Error Uorc.Uorc.Integrity.OwnedHash.Transition)
+      (Uorc.Uorc.Integrity.Profile.updateStep job)
+      (fun cause => Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.integrity cause)) fun event =>
+      Uorc.Uorc.Integrity.OwnedLifecycleLaws.step_updating_unfold.match_1
+        (fun hashEvent => Except Uorc.Uorc.Integrity.OwnedHash.Error Uorc.Uorc.Integrity.OwnedHash.Transition) event
+        (fun child =>
+          Uorc.Uorc.Integrity.OwnedHash.report arena
+            (Uorc.Uorc.Integrity.OwnedHash.withPhase
+              { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+                position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+                phase := Uorc.Uorc.Integrity.OwnedHash.Phase.updating job }
+              (Uorc.Uorc.Integrity.OwnedHash.Phase.updating child))
+            Uorc.Uorc.Integrity.OwnedHash.zeroDelta 1 0 0 0 Uorc.Uorc.Integrity.OwnedHash.Outcome.pending)
+        fun state =>
+        Uorc.Uorc.Integrity.OwnedHash.report arena
+          (Uorc.Uorc.Integrity.OwnedHash.withPhase
+            { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+              position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+              phase := Uorc.Uorc.Integrity.OwnedHash.Phase.updating job }
+            (Uorc.Uorc.Integrity.OwnedHash.Phase.ready state))
+          Uorc.Uorc.Integrity.OwnedHash.zeroDelta 1 0 0 0 Uorc.Uorc.Integrity.OwnedHash.Outcome.pending
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.updating_step_preserves_ticket (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (job : Uorc.Uorc.Integrity.Profile.Update)
+  (next : Uorc.Uorc.Integrity.OwnedHash.Transition)
+  (success :
+    Uorc.Uorc.Integrity.OwnedHash.step arena
+        { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+          position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+          phase := Uorc.Uorc.Integrity.OwnedHash.Phase.updating job } =
+      Except.ok next) :
+  next.arena = arena ∧
+    next.cursor.input = cursor.input ∧
+      Uorc.Uorc.Integrity.OwnedHash.ownedRoots next.cursor = Uorc.Uorc.Integrity.OwnedHash.ownedRoots cursor ∧
+        next.outcome = Uorc.Uorc.Integrity.OwnedHash.Outcome.pending ∧
+          next.admittedInputBytes = 0 ∧ next.inputMaterializationBytes = 0 ∧ next.digestMaterializationBytes = 0
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.updating_step_holds_input_ticket (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (job : Uorc.Uorc.Integrity.Profile.Update)
+  (next : Uorc.Uorc.Integrity.OwnedHash.Transition) (span : Uorc.Uorc.Core.RuntimeSequence.Span)
+  (input : cursor.input = some span) (nonempty : LexLeanRuntime.equal span.length 0 = false)
+  (success :
+    Uorc.Uorc.Integrity.OwnedHash.step arena
+        { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+          position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+          phase := Uorc.Uorc.Integrity.OwnedHash.Phase.updating job } =
+      Except.ok next) :
+  span.image ∈ Uorc.Uorc.Integrity.OwnedHash.ownedRoots next.cursor
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.ready_release_acknowledged (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (state : Uorc.Uorc.Integrity.Profile.State)
+  (span : Uorc.Uorc.Core.RuntimeSequence.Span) (released : Uorc.Uorc.Core.Heap.Transition)
+  (input : cursor.input = some span) (notBefore : Uorc.Uorc.Core.Heap.less cursor.position span.length = false)
+  (atEnd : LexLeanRuntime.equal cursor.position span.length = true)
+  (release : Uorc.Uorc.Core.Heap.release arena span.image = Except.ok released) :
+  ∃ next,
+    Uorc.Uorc.Integrity.OwnedHash.step arena
+          { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+            position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+            phase := Uorc.Uorc.Integrity.OwnedHash.Phase.ready state } =
+        Except.ok next ∧
+      next.arena = released.arena ∧
+        next.cursor.input = none ∧
+          (next.outcome =
+              if released.complete = true then Uorc.Uorc.Integrity.OwnedHash.Outcome.spanComplete
+              else Uorc.Uorc.Integrity.OwnedHash.Outcome.pending) ∧
+            Uorc.Uorc.Integrity.OwnedHash.ownedRoots next.cursor =
+              Uorc.Uorc.Integrity.OwnedHash.ownedRoots
+                { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := none,
+                  position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+                  phase := cursor.phase }
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.inputDrain_step_unfold (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (state : Uorc.Uorc.Integrity.Profile.State) :
+  Uorc.Uorc.Integrity.OwnedHash.step arena
+      { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+        position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+        phase := Uorc.Uorc.Integrity.OwnedHash.Phase.inputDrain state } =
+    Uorc.Uorc.Integrity.OwnedLifecycleLaws.inputDrain_step_unfold.match_1
+      (fun x => Except Uorc.Uorc.Integrity.OwnedHash.Error Uorc.Uorc.Integrity.OwnedHash.Transition)
+      (Uorc.Uorc.Core.Heap.releaseStep arena)
+      (fun heapFailure => Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.heap heapFailure)) fun released =>
+      Uorc.Uorc.Integrity.OwnedHash.report released.arena
+        (Uorc.Uorc.Integrity.OwnedHash.withPhase
+          { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+            position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+            phase := Uorc.Uorc.Integrity.OwnedHash.Phase.inputDrain state }
+          (if released.complete = true then Uorc.Uorc.Integrity.OwnedHash.Phase.ready state
+          else Uorc.Uorc.Integrity.OwnedHash.Phase.inputDrain state))
+        released.delta 1 0 0 0
+        (if released.complete = true then Uorc.Uorc.Integrity.OwnedHash.Outcome.spanComplete
+        else Uorc.Uorc.Integrity.OwnedHash.Outcome.pending)
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.inputDrain_completion_acknowledged (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (state : Uorc.Uorc.Integrity.Profile.State)
+  (released : Uorc.Uorc.Core.Heap.Transition) (ack : Uorc.Uorc.Core.Heap.releaseStep arena = Except.ok released) :
+  ∃ next,
+    Uorc.Uorc.Integrity.OwnedHash.step arena
+          { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+            position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+            phase := Uorc.Uorc.Integrity.OwnedHash.Phase.inputDrain state } =
+        Except.ok next ∧
+      next.arena = released.arena ∧
+        (next.outcome =
+            if released.complete = true then Uorc.Uorc.Integrity.OwnedHash.Outcome.spanComplete
+            else Uorc.Uorc.Integrity.OwnedHash.Outcome.pending) ∧
+          next.cursor.input = cursor.input
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.cleared_roots (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor)
+  (control : cursor.control = Uorc.Uorc.Core.RuntimeValue.nullHandle) (input : cursor.input = none)
+  (output : cursor.output = Uorc.Uorc.Core.RuntimeValue.nullHandle) :
+  Uorc.Uorc.Integrity.OwnedHash.ownedRoots cursor = []
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.canonical_cancelled_stable (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (control : cursor.control = Uorc.Uorc.Core.RuntimeValue.nullHandle)
+  (input : cursor.input = none) (output : cursor.output = Uorc.Uorc.Core.RuntimeValue.nullHandle) :
+  ∃ next,
+    Uorc.Uorc.Integrity.OwnedHash.step arena
+          { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+            position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+            phase := Uorc.Uorc.Integrity.OwnedHash.Phase.cancelled } =
+        Except.ok next ∧
+      next.cursor =
+          { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+            position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+            phase := Uorc.Uorc.Integrity.OwnedHash.Phase.cancelled } ∧
+        next.arena = arena ∧
+          next.outcome = Uorc.Uorc.Integrity.OwnedHash.Outcome.cancelled ∧
+            Uorc.Uorc.Integrity.OwnedHash.ownedRoots next.cursor ++
+                Uorc.Uorc.Integrity.OwnedHash.outcomeRoots next.outcome =
+              []
+Uorc.Uorc.Integrity.OwnedLifecycleLaws.canonical_publication_transfer (arena : Uorc.Uorc.Core.Heap.Arena)
+  (cursor : Uorc.Uorc.Integrity.OwnedHash.Cursor) (control : cursor.control = Uorc.Uorc.Core.RuntimeValue.nullHandle)
+  (input : cursor.input = none) (output : Uorc.Uorc.Core.RuntimeValue.isNull cursor.output = false) :
+  ∃ next,
+    Uorc.Uorc.Integrity.OwnedHash.step arena
+          { profile := cursor.profile, purpose := cursor.purpose, control := cursor.control, input := cursor.input,
+            position := cursor.position, checkedPrefix := cursor.checkedPrefix, output := cursor.output,
+            phase := Uorc.Uorc.Integrity.OwnedHash.Phase.publish } =
+        Except.ok next ∧
+      Uorc.Uorc.Integrity.OwnedHash.ownedRoots cursor = [cursor.output] ∧
+        next.cursor.output = Uorc.Uorc.Core.RuntimeValue.nullHandle ∧
+          next.cursor.phase = Uorc.Uorc.Integrity.OwnedHash.Phase.done ∧
+            next.outcome = Uorc.Uorc.Integrity.OwnedHash.Outcome.digest cursor.output ∧
+              Uorc.Uorc.Integrity.OwnedHash.ownedRoots next.cursor = [] ∧
+                Uorc.Uorc.Integrity.OwnedHash.outcomeRoots next.outcome = [cursor.output]

@@ -1,0 +1,999 @@
+\begin{lexlean}{Uorc.Product.OutputDeliveryScenarios}
+\importmodule{Uorc.Product.OutputDelivery}
+\importmodule{Uorc.Product.WriteImage}
+\importmodule{Uorc.Product.WriteImageScenarios}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.ResourceIO}
+\importmodule{Uorc.Product.Storage}
+\importmodule{Uorc.Product.Control}
+\importmodule{Uorc.Product.StreamProtocol}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Product.Session}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
+definition{
+  name: request,
+  parameters: [],
+  result: Uorc.Product.Api::Request,
+  body: (ctor Uorc.Product.Api::Request.runCoreRequest (record Uorc.Product.Api::ToolRequest {input := (Uorc.Product.WriteImageScenarios::destination), options := (record Uorc.Product.Api::Common {limits := (record Uorc.Product.Api::Limits {decodeWork := 1000000, checkerWork := 1000000, replayWork := 1000000, searchWork := 1000000, outputBytes := (ctor Option.none [Nat]), ownedBytes := 1000000, storage := (Uorc.Product.WriteImageScenarios::storageLimits)}), basis := (ctor Option.none [Uorc.Product.Api::ResourceRef])})})),
+  axioms: []
+}
+
+definition{
+  name: activeControl,
+  parameters: [],
+  result: Uorc.Product.Control::State,
+  body: (project (Uorc.Product.Control::start (Uorc.Product.Control::initial 1) (request)) state),
+  axioms: []
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: Uorc.Product.Api::Run,
+  body: (Uorc.Product.Control::run (activeControl)),
+  axioms: []
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (Uorc.Product.WriteImageScenarios::budget),
+  axioms: []
+}
+
+definition{
+  name: firstWithCategory,
+  parameters: [category : Uorc.Product.Storage::Category],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match call{arguments: [], function: Uorc.Product.WriteImageScenarios::first}
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some seed => (match (Uorc.Product.WriteImage::start (Uorc.Product.ResourceIO::startWriteWithStorage (run) (Uorc.Product.WriteImageScenarios::destination) category (Uorc.Product.WriteImageScenarios::storageLimits) (project (activeControl) storage)) (project (project seed cursor) span) (ctor Uorc.Product.WriteImage::Ownership.transferred) (3 : UInt64) (11 : UInt64))
+      | Result.error reason => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+      | Result.ok cursor => (ctor Option.some [Uorc.Product.WriteImage::Transition] (record Uorc.Product.WriteImage::Transition {arena := (project seed arena), usage := (project seed usage), cursor := cursor, delta := (Uorc.Product.WriteImage::zeroDelta), outcome := (ctor Uorc.Product.WriteImage::Outcome.advanced)})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: first,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (firstWithCategory (ctor Uorc.Product.Storage::Category.stagedOutput)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: advance,
+  parameters: [t : Uorc.Product.WriteImage::Transition],
+  result: Uorc.Product.WriteImage::Transition,
+  body: (Uorc.Product.WriteImage::tick (budget) (project t arena) (project t usage) (Uorc.Product.WriteImage::acknowledgeDelta (project t cursor) (run) (project (project t cursor) receiptSerial) (project t delta))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drive,
+  parameters: [fuel : Nat, t : Uorc.Product.WriteImage::Transition],
+  result: Uorc.Product.WriteImage::Transition,
+  body: (match fuel | Nat.zero => t | Nat.succ remaining => (drive remaining (advance t))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: armed,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match call{arguments: [], function: first}
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some t => (ctor Option.some [Uorc.Product.WriteImage::Transition] (drive 5 t))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: acceptAttachment,
+  parameters: [t : Uorc.Product.WriteImage::Transition, immutable : Bool],
+  result: Uorc.Product.WriteImage::Transition,
+  body: (Uorc.Product.WriteImage::attached (budget) (project t arena) (project t usage) (project t cursor) (record Uorc.Product.WriteImage::AttachmentReply {request := (Uorc.Product.WriteImage::attachmentRequest (project t cursor)), lease := (ctor Option.some [Uorc.Product.Api::ResourceRef] (Uorc.Product.WriteImageScenarios::lease)), length := (3 : UInt64), immutable := immutable, failed := false})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: writing,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match (armed)
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some t => (ctor Option.some [Uorc.Product.WriteImage::Transition] (advance (acceptAttachment t true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ackWrite,
+  parameters: [t : Uorc.Product.WriteImage::Transition, count : Nat, failed : Bool],
+  result: Uorc.Product.WriteImage::Transition,
+  body: (Uorc.Product.WriteImage::written (budget) (project t arena) (project t usage) (project t cursor) (Uorc.Product.WriteImageScenarios::writeReply (project t cursor) count failed)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: partialFailed,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match (writing)
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some t => (ctor Option.some [Uorc.Product.WriteImage::Transition] (ackWrite t 1 true))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: settleStep,
+  parameters: [t : Uorc.Product.WriteImage::Transition],
+  result: Uorc.Product.WriteImage::Transition,
+  body: (match (project t outcome)
+    | Uorc.Product.WriteImage::Outcome.advanced => (advance t)
+    | Uorc.Product.WriteImage::Outcome.awaitAttachment => (advance t)
+    | Uorc.Product.WriteImage::Outcome.awaitWrite => (advance t)
+    | Uorc.Product.WriteImage::Outcome.awaitStopped => (advance t)
+    | Uorc.Product.WriteImage::Outcome.awaitLeaseRelease => (advance t)
+    | Uorc.Product.WriteImage::Outcome.awaitDelta => (advance t)
+    | Uorc.Product.WriteImage::Outcome.readyToTake => (Uorc.Product.WriteImage::takeWriter (project t arena) (project t usage) (project t cursor) (run))
+    | Uorc.Product.WriteImage::Outcome.notReady => (advance t)
+    | Uorc.Product.WriteImage::Outcome.attach part0 part1 => (advance t)
+    | Uorc.Product.WriteImage::Outcome.cancelAttachment part0 => (advance t)
+    | Uorc.Product.WriteImage::Outcome.write part0 => (advance t)
+    | Uorc.Product.WriteImage::Outcome.cancelWrite part0 => (advance t)
+    | Uorc.Product.WriteImage::Outcome.releaseLease part0 part1 => (Uorc.Product.WriteImage::leaseReleased (budget) (project t arena) (project t usage) (project t cursor) (record Uorc.Product.WriteImage::LeaseReleased {request := part0, lease := part1, released := true}))
+    | Uorc.Product.WriteImage::Outcome.settled part0 part1 part2 => t
+    | Uorc.Product.WriteImage::Outcome.failed part0 => (advance t)
+    | Uorc.Product.WriteImage::Outcome.refused part0 => (advance t)
+    | Uorc.Product.WriteImage::Outcome.rejected part0 part1 => (advance t)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: settle,
+  parameters: [fuel : Nat, t : Uorc.Product.WriteImage::Transition],
+  result: Uorc.Product.WriteImage::Transition,
+  body: (match fuel | Nat.zero => t | Nat.succ remaining => (settle remaining (settleStep t))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: failedSource,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match (partialFailed)
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some t => (ctor Option.some [Uorc.Product.WriteImage::Transition] (settle 32 t))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: successfulSource,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match (writing)
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some t => (ctor Option.some [Uorc.Product.WriteImage::Transition] (settle 32 (ackWrite t 3 false)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: frozenAccounting,
+  parameters: [],
+  result: Uorc.Product.Api::Accounting,
+  body: (record Uorc.Product.Api::Accounting {inputBytes := 101, exactArchiveBytes := 17, transportBytes := 23, externalBasisBytes := 31, basisTransferBytes := 37, decodeWork := 41, checkerWork := 43, replayWork := 47, searchWork := 53, peakOwnedBytes := 11, objects := 2, outputBytes := 59, storage := (project (project (activeControl) storage) usage), physical := (ctor Option.none [Uorc.Product.Api::PhysicalObservation])}),
+  axioms: []
+}
+
+definition{
+  name: context,
+  parameters: [],
+  result: Uorc.Product.OutputDelivery::ReportContext,
+  body: (record Uorc.Product.OutputDelivery::ReportContext {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), frozen := (frozenAccounting), workAtFreeze := (0 : UInt64), lane := (ctor Uorc.Product.OutputDelivery::WorkLane.checker)}),
+  axioms: []
+}
+
+definition{
+  name: observed,
+  parameters: [publicationValue : Uorc.Product.StreamProtocol::Publication],
+  result: Uorc.Product.OutputDelivery::Observations,
+  body: (record Uorc.Product.OutputDelivery::Observations {io := (ctor Option.some [Uorc.Product.OutputDelivery::IoTotals] (record Uorc.Product.OutputDelivery::IoTotals {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), transportBytes := 67, basisTransferBytes := 71, physical := (ctor Option.some [Uorc.Product.Api::PhysicalObservation] (record Uorc.Product.Api::PhysicalObservation {rssBytes := (ctor Option.some [Nat] 1234), allocatedStorageBytes := (ctor Option.some [Nat] 2345), scope := (ctor Uorc.Product.Api::PhysicalScope.process), sequence := 5}))})), publication := (ctor Option.some [Uorc.Product.OutputDelivery::PublicationObservation] (record Uorc.Product.OutputDelivery::PublicationObservation {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), publication := publicationValue}))}),
+  axioms: []
+}
+
+definition{
+  name: stagedObservations,
+  parameters: [],
+  result: Uorc.Product.OutputDelivery::Observations,
+  body: (observed (ctor Uorc.Product.StreamProtocol::Publication.staged)),
+  axioms: []
+}
+
+definition{
+  name: deliverWith,
+  parameters: [
+    t : Uorc.Product.WriteImage::Transition,
+    reportContext : Uorc.Product.OutputDelivery::ReportContext,
+    observationsValue : Uorc.Product.OutputDelivery::Observations,
+    currentControl : Uorc.Product.Control::State
+  ],
+  result: Uorc.Product.OutputDelivery::Step,
+  body: (Uorc.Product.OutputDelivery::deliver (Uorc.Product.OutputDelivery::start reportContext t) currentControl observationsValue),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: deliveredFailure,
+  parameters: [],
+  result: (Option Uorc.Product.OutputDelivery::Step),
+  body: (match (failedSource)
+    | Option.none => (ctor Option.none [Uorc.Product.OutputDelivery::Step])
+    | Option.some t => (ctor Option.some [Uorc.Product.OutputDelivery::Step] (deliverWith t (context) (stagedObservations) (activeControl)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: deliveredSuccess,
+  parameters: [],
+  result: (Option Uorc.Product.OutputDelivery::Step),
+  body: (match (successfulSource)
+    | Option.none => (ctor Option.none [Uorc.Product.OutputDelivery::Step])
+    | Option.some t => (ctor Option.some [Uorc.Product.OutputDelivery::Step] (deliverWith t (context) (stagedObservations) (activeControl)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: genuinePartialFailureControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (stagedObservations) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (((project (project failureReport achieved) exactArchiveBytes) =? 17) && (((Uorc.Product.Storage::retainedBytes (project (project failureReport achieved) storage)) =? 1) && ((Uorc.Product.OutputDelivery::publicationSame (project failureReport publication) (ctor Uorc.Product.StreamProtocol::Publication.staged)) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: liveStorageAdoptedControl,
+  parameters: [],
+  result: Bool,
+  body: (match (deliveredFailure)
+    | Option.none => false
+    | Option.some t => ((Uorc.Product.Storage::retainedBytes (project (project (project t current) storage) usage)) =? 1)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: failureDoesNotInventNotPublishedControl,
+  parameters: [],
+  result: Bool,
+  body: (match (deliveredFailure)
+    | Option.none => false
+    | Option.some t => (Uorc.Product.OutputDelivery::publicationSame (project (project (project t current) stream) publication) (ctor Uorc.Product.StreamProtocol::Publication.staged))),
+  axioms: [propext]
+}
+
+definition{
+  name: frozenMeaningsPreservedControl,
+  parameters: [],
+  result: Bool,
+  body: (match (deliveredFailure)
+    | Option.none => false
+    | Option.some t => (match (project t outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (((project (project failureReport achieved) inputBytes) =? 101) && (((project (project failureReport achieved) exactArchiveBytes) =? 17) && (((project (project failureReport achieved) externalBasisBytes) =? 31) && (((project (project failureReport achieved) objects) =? 2) && (((project (project failureReport achieved) outputBytes) =? 59) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: actualScopedIoControl,
+  parameters: [],
+  result: Bool,
+  body: (match (deliveredFailure)
+    | Option.none => false
+    | Option.some t => (match (project t outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (((project (project failureReport achieved) transportBytes) =? 67) && (((project (project failureReport achieved) basisTransferBytes) =? 71) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: workLanePreservedControl,
+  parameters: [],
+  result: Bool,
+  body: (match (deliveredFailure)
+    | Option.none => false
+    | Option.some t => (match (project t outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (((project (project failureReport achieved) decodeWork) =? 41) && (((project (project failureReport achieved) replayWork) =? 47) && (((project (project failureReport achieved) searchWork) =? 53) && ((43 <? (project (project failureReport achieved) checkerWork)) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: physicalScopeSeparateControl,
+  parameters: [],
+  result: Bool,
+  body: (match (deliveredFailure)
+    | Option.none => false
+    | Option.some t => (match (project t outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (match (project (project failureReport achieved) physical)
+        | Option.none => false
+        | Option.some measurement => (((project measurement sequence) =? 5) && (((project (project failureReport achieved) peakOwnedBytes) =? 4251) && ((match (project measurement rssBytes)
+          | Option.none => false
+          | Option.some rss => (rss =? 1234)) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: successfulSettlementIsNotArchiveProofControl,
+  parameters: [],
+  result: Bool,
+  body: (match (deliveredSuccess)
+    | Option.none => false
+    | Option.some t => ((match (project t outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => true
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false) && ((not (project (project (project t current) stream) verified)) && ((not (match (project (project t current) report)
+      | Option.none => false
+      | Option.some value => true)) && ((project (project (project t current) session) active) && true))))),
+  axioms: [propext]
+}
+
+definition{
+  name: foldOnceControl,
+  parameters: [],
+  result: Bool,
+  body: (match (deliveredSuccess)
+    | Option.none => false
+    | Option.some t => (match (project (Uorc.Product.OutputDelivery::deliver (project t state) (project t current) (stagedObservations)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => true
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: movedOutcomeRetainsArenaControl,
+  parameters: [],
+  result: Bool,
+  body: (match (deliveredSuccess)
+    | Option.none => false
+    | Option.some t => (match (Uorc.Product.OutputDelivery::outcomeDisposition (project t outcome))
+      | Uorc.Product.Api::ReleaseDisposition.retain reason => true
+      | Uorc.Product.Api::ReleaseDisposition.releasable => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: staleSettlementRetainsActualOwnerControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => ((match (project (deliverWith t (context) (stagedObservations) (project (Uorc.Product.Control::start (project (Uorc.Product.Control::cancel (activeControl)) state) (request)) state)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => true
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false) && ((match (project (project (deliverWith t (context) (stagedObservations) (project (Uorc.Product.Control::start (project (Uorc.Product.Control::cancel (activeControl)) state) (request)) state)) state) owner)
+      | Option.none => false
+      | Option.some value => true) && (((Uorc.Product.Storage::retainedBytes (project (project (project (deliverWith t (context) (stagedObservations) (project (Uorc.Product.Control::start (project (Uorc.Product.Control::cancel (activeControl)) state) (request)) state)) current) storage) usage)) =? 0) && true)))),
+  axioms: [propext]
+}
+
+definition{
+  name: wrongDestinationRetainsControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (record Uorc.Product.OutputDelivery::ReportContext {run := (run), destination := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 5}), frozen := (frozenAccounting), workAtFreeze := (0 : UInt64), lane := (ctor Uorc.Product.OutputDelivery::WorkLane.checker)}) (stagedObservations) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained reasonValue => (match reasonValue
+        | Uorc.Product.OutputDelivery::Error.wrongRun => false
+        | Uorc.Product.OutputDelivery::Error.wrongDestination => true
+        | Uorc.Product.OutputDelivery::Error.missingMeasurements => false
+        | Uorc.Product.OutputDelivery::Error.measurementScope => false
+        | Uorc.Product.OutputDelivery::Error.counterRegression => false
+        | Uorc.Product.OutputDelivery::Error.workPrefixRegression => false
+        | Uorc.Product.OutputDelivery::Error.accountingAddressSpace => false
+        | Uorc.Product.OutputDelivery::Error.incompleteCustody => false
+        | Uorc.Product.OutputDelivery::Error.publicationScope => false
+        | Uorc.Product.OutputDelivery::Error.publicationRegression => false)
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: missingIoIsNotZeroControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (record Uorc.Product.OutputDelivery::Observations {io := (ctor Option.none [Uorc.Product.OutputDelivery::IoTotals]), publication := (ctor Option.some [Uorc.Product.OutputDelivery::PublicationObservation] (record Uorc.Product.OutputDelivery::PublicationObservation {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), publication := (ctor Uorc.Product.StreamProtocol::Publication.staged)}))}) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained reasonValue => (match reasonValue
+        | Uorc.Product.OutputDelivery::Error.wrongRun => false
+        | Uorc.Product.OutputDelivery::Error.wrongDestination => false
+        | Uorc.Product.OutputDelivery::Error.missingMeasurements => true
+        | Uorc.Product.OutputDelivery::Error.measurementScope => false
+        | Uorc.Product.OutputDelivery::Error.counterRegression => false
+        | Uorc.Product.OutputDelivery::Error.workPrefixRegression => false
+        | Uorc.Product.OutputDelivery::Error.accountingAddressSpace => false
+        | Uorc.Product.OutputDelivery::Error.incompleteCustody => false
+        | Uorc.Product.OutputDelivery::Error.publicationScope => false
+        | Uorc.Product.OutputDelivery::Error.publicationRegression => false)
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: counterRegressionControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (record Uorc.Product.OutputDelivery::Observations {io := (ctor Option.some [Uorc.Product.OutputDelivery::IoTotals] (record Uorc.Product.OutputDelivery::IoTotals {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), transportBytes := 22, basisTransferBytes := 71, physical := (ctor Option.some [Uorc.Product.Api::PhysicalObservation] (record Uorc.Product.Api::PhysicalObservation {rssBytes := (ctor Option.some [Nat] 1234), allocatedStorageBytes := (ctor Option.some [Nat] 2345), scope := (ctor Uorc.Product.Api::PhysicalScope.process), sequence := 5}))})), publication := (ctor Option.some [Uorc.Product.OutputDelivery::PublicationObservation] (record Uorc.Product.OutputDelivery::PublicationObservation {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), publication := (ctor Uorc.Product.StreamProtocol::Publication.staged)}))}) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained reasonValue => (match reasonValue
+        | Uorc.Product.OutputDelivery::Error.wrongRun => false
+        | Uorc.Product.OutputDelivery::Error.wrongDestination => false
+        | Uorc.Product.OutputDelivery::Error.missingMeasurements => false
+        | Uorc.Product.OutputDelivery::Error.measurementScope => false
+        | Uorc.Product.OutputDelivery::Error.counterRegression => true
+        | Uorc.Product.OutputDelivery::Error.workPrefixRegression => false
+        | Uorc.Product.OutputDelivery::Error.accountingAddressSpace => false
+        | Uorc.Product.OutputDelivery::Error.incompleteCustody => false
+        | Uorc.Product.OutputDelivery::Error.publicationScope => false
+        | Uorc.Product.OutputDelivery::Error.publicationRegression => false)
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: foreignIoScopeControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (record Uorc.Product.OutputDelivery::Observations {io := (ctor Option.some [Uorc.Product.OutputDelivery::IoTotals] (record Uorc.Product.OutputDelivery::IoTotals {run := (run), destination := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 5}), transportBytes := 67, basisTransferBytes := 71, physical := (ctor Option.some [Uorc.Product.Api::PhysicalObservation] (record Uorc.Product.Api::PhysicalObservation {rssBytes := (ctor Option.some [Nat] 1234), allocatedStorageBytes := (ctor Option.some [Nat] 2345), scope := (ctor Uorc.Product.Api::PhysicalScope.process), sequence := 5}))})), publication := (ctor Option.some [Uorc.Product.OutputDelivery::PublicationObservation] (record Uorc.Product.OutputDelivery::PublicationObservation {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), publication := (ctor Uorc.Product.StreamProtocol::Publication.staged)}))}) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained reasonValue => (match reasonValue
+        | Uorc.Product.OutputDelivery::Error.wrongRun => false
+        | Uorc.Product.OutputDelivery::Error.wrongDestination => false
+        | Uorc.Product.OutputDelivery::Error.missingMeasurements => false
+        | Uorc.Product.OutputDelivery::Error.measurementScope => true
+        | Uorc.Product.OutputDelivery::Error.counterRegression => false
+        | Uorc.Product.OutputDelivery::Error.workPrefixRegression => false
+        | Uorc.Product.OutputDelivery::Error.accountingAddressSpace => false
+        | Uorc.Product.OutputDelivery::Error.incompleteCustody => false
+        | Uorc.Product.OutputDelivery::Error.publicationScope => false
+        | Uorc.Product.OutputDelivery::Error.publicationRegression => false)
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: workPrefixRegressionControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (record Uorc.Product.OutputDelivery::ReportContext {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), frozen := (frozenAccounting), workAtFreeze := (18446744073709551615 : UInt64), lane := (ctor Uorc.Product.OutputDelivery::WorkLane.checker)}) (stagedObservations) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained reasonValue => (match reasonValue
+        | Uorc.Product.OutputDelivery::Error.wrongRun => false
+        | Uorc.Product.OutputDelivery::Error.wrongDestination => false
+        | Uorc.Product.OutputDelivery::Error.missingMeasurements => false
+        | Uorc.Product.OutputDelivery::Error.measurementScope => false
+        | Uorc.Product.OutputDelivery::Error.counterRegression => false
+        | Uorc.Product.OutputDelivery::Error.workPrefixRegression => true
+        | Uorc.Product.OutputDelivery::Error.accountingAddressSpace => false
+        | Uorc.Product.OutputDelivery::Error.incompleteCustody => false
+        | Uorc.Product.OutputDelivery::Error.publicationScope => false
+        | Uorc.Product.OutputDelivery::Error.publicationRegression => false)
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkedWorkAdditionControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (record Uorc.Product.OutputDelivery::ReportContext {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), frozen := (record Uorc.Product.Api::Accounting {inputBytes := 101, exactArchiveBytes := 17, transportBytes := 23, externalBasisBytes := 31, basisTransferBytes := 37, decodeWork := 41, checkerWork := 18446744073709551615, replayWork := 47, searchWork := 53, peakOwnedBytes := 11, objects := 2, outputBytes := 59, storage := (project (project (activeControl) storage) usage), physical := (ctor Option.none [Uorc.Product.Api::PhysicalObservation])}), workAtFreeze := (0 : UInt64), lane := (ctor Uorc.Product.OutputDelivery::WorkLane.checker)}) (stagedObservations) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained reasonValue => (match reasonValue
+        | Uorc.Product.OutputDelivery::Error.wrongRun => false
+        | Uorc.Product.OutputDelivery::Error.wrongDestination => false
+        | Uorc.Product.OutputDelivery::Error.missingMeasurements => false
+        | Uorc.Product.OutputDelivery::Error.measurementScope => false
+        | Uorc.Product.OutputDelivery::Error.counterRegression => false
+        | Uorc.Product.OutputDelivery::Error.workPrefixRegression => false
+        | Uorc.Product.OutputDelivery::Error.accountingAddressSpace => true
+        | Uorc.Product.OutputDelivery::Error.incompleteCustody => false
+        | Uorc.Product.OutputDelivery::Error.publicationScope => false
+        | Uorc.Product.OutputDelivery::Error.publicationRegression => false)
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: arithmeticFailureKeepsWriterControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (project (deliverWith t (record Uorc.Product.OutputDelivery::ReportContext {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), frozen := (record Uorc.Product.Api::Accounting {inputBytes := 101, exactArchiveBytes := 17, transportBytes := 23, externalBasisBytes := 31, basisTransferBytes := 37, decodeWork := 41, checkerWork := 18446744073709551615, replayWork := 47, searchWork := 53, peakOwnedBytes := 11, objects := 2, outputBytes := 59, storage := (project (project (activeControl) storage) usage), physical := (ctor Option.none [Uorc.Product.Api::PhysicalObservation])}), workAtFreeze := (0 : UInt64), lane := (ctor Uorc.Product.OutputDelivery::WorkLane.checker)}) (stagedObservations) (activeControl)) state) owner)
+      | Option.none => false
+      | Option.some value => true)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: resourceSuspensionIsNotTerminalControl,
+  parameters: [],
+  result: Bool,
+  body: (match call{arguments: [], function: first}
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith (Uorc.Product.WriteImage::tick (Uorc.Product.WriteImageScenarios::budgetWith (1000000 : UInt64) (0 : UInt64)) (project t arena) (project t usage) (project t cursor)) (context) (stagedObservations) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => true
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [propext]
+}
+
+definition{
+  name: pendingDeltaRetainsControl,
+  parameters: [],
+  result: Bool,
+  body: (match call{arguments: [], function: first}
+    | Option.none => false
+    | Option.some t => ((match (project (deliverWith (advance t) (context) (stagedObservations) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => true
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false) && ((match (project (project (deliverWith (advance t) (context) (stagedObservations) (activeControl)) state) owner)
+      | Option.none => false
+      | Option.some value => true) && true))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: earlyFailureNeedsCleanupControl,
+  parameters: [],
+  result: Bool,
+  body: (match (armed)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith (acceptAttachment t false) (context) (stagedObservations) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => true
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: failedAndCancelled,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match (partialFailed)
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some t => (ctor Option.some [Uorc.Product.WriteImage::Transition] (settle 32 (record Uorc.Product.WriteImage::Transition {arena := (project t arena), usage := (project t usage), cursor := (Uorc.Product.WriteImage::cancel (project t cursor) (run)), delta := (project t delta), outcome := (project t outcome)})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancellationPreservesPriorIoFailureControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedAndCancelled)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (stagedObservations) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (match (project failureReport failure)
+        | Uorc.Product.Api::Failure.malformedArchive why0 why1 => false
+        | Uorc.Product.Api::Failure.semanticDecode why0 why1 => false
+        | Uorc.Product.Api::Failure.missingBasis why0 => false
+        | Uorc.Product.Api::Failure.wrongBasis why0 => false
+        | Uorc.Product.Api::Failure.incompleteSearch => false
+        | Uorc.Product.Api::Failure.incompleteProof => false
+        | Uorc.Product.Api::Failure.resourceRefusal why0 why1 => false
+        | Uorc.Product.Api::Failure.cancelled => false
+        | Uorc.Product.Api::Failure.inputIo why0 => false
+        | Uorc.Product.Api::Failure.publicationIo why0 why1 => true
+        | Uorc.Product.Api::Failure.control why0 => false
+        | Uorc.Product.Api::Failure.protocol why0 => false
+        | Uorc.Product.Api::Failure.byteMismatch => false
+        | Uorc.Product.Api::Failure.verificationIncomplete => false
+        | Uorc.Product.Api::Failure.invalidCheckpoint why0 => false
+        | Uorc.Product.Api::Failure.invalidReport why0 => false
+        | Uorc.Product.Api::Failure.storage why0 => false))),
+  axioms: [propext]
+}
+
+definition{
+  name: publicationCopyFailed,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match (firstWithCategory (ctor Uorc.Product.Storage::Category.publicationCopy))
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some t => (ctor Option.some [Uorc.Product.WriteImage::Transition] (settle 32 (ackWrite (advance (acceptAttachment (drive 5 t) true)) 1 true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: unknownPublicationPreservedControl,
+  parameters: [],
+  result: Bool,
+  body: (match (publicationCopyFailed)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (observed (ctor Uorc.Product.StreamProtocol::Publication.unknown)) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (Uorc.Product.OutputDelivery::publicationSame (project failureReport publication) (ctor Uorc.Product.StreamProtocol::Publication.unknown)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: publicationCopyStorageDistinctControl,
+  parameters: [],
+  result: Bool,
+  body: (match (publicationCopyFailed)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (observed (ctor Uorc.Product.StreamProtocol::Publication.unknown)) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (((project (project (project (project failureReport achieved) storage) retained) publicationCopy) =? 1) && (((project (project (project (project failureReport achieved) storage) retained) stagedOutput) =? 0) && true)))),
+  axioms: [propext]
+}
+
+definition{
+  name: unknownPreventsSafeRetryControl,
+  parameters: [],
+  result: Bool,
+  body: (match (publicationCopyFailed)
+    | Option.none => false
+    | Option.some t => (not (Uorc.Product.Control::canDownload (project (deliverWith t (context) (observed (ctor Uorc.Product.StreamProtocol::Publication.unknown)) (activeControl)) current)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: publishedReceiptCannotBecomeRollbackControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (observed (ctor Uorc.Product.StreamProtocol::Publication.published)) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (Uorc.Product.OutputDelivery::publicationSame (project failureReport publication) (ctor Uorc.Product.StreamProtocol::Publication.published)))),
+  axioms: [propext]
+}
+
+definition{
+  name: unknownControl,
+  parameters: [],
+  result: (Option Uorc.Product.Control::State),
+  body: (match (failedSource)
+    | Option.none => (ctor Option.none [Uorc.Product.Control::State])
+    | Option.some t => (ctor Option.some [Uorc.Product.Control::State] (project (deliverWith t (context) (observed (ctor Uorc.Product.StreamProtocol::Publication.unknown)) (activeControl)) current))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: unknownCannotDowngradeControl,
+  parameters: [],
+  result: Bool,
+  body: (match (unknownControl)
+    | Option.none => false
+    | Option.some known => (match (Uorc.Product.OutputDelivery::publicationError known (record Uorc.Product.OutputDelivery::PublicationObservation {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), publication := (ctor Uorc.Product.StreamProtocol::Publication.notPublished)}))
+      | Option.none => false
+      | Option.some value => true)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: absentPhysicalRemainsUnobservedControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (record Uorc.Product.OutputDelivery::Observations {io := (ctor Option.some [Uorc.Product.OutputDelivery::IoTotals] (record Uorc.Product.OutputDelivery::IoTotals {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), transportBytes := 67, basisTransferBytes := 71, physical := (ctor Option.none [Uorc.Product.Api::PhysicalObservation])})), publication := (ctor Option.some [Uorc.Product.OutputDelivery::PublicationObservation] (record Uorc.Product.OutputDelivery::PublicationObservation {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), publication := (ctor Uorc.Product.StreamProtocol::Publication.staged)}))}) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (not (match (project (project failureReport achieved) physical)
+        | Option.none => false
+        | Option.some value => true)))),
+  axioms: [propext]
+}
+
+definition{
+  name: limitedControl,
+  parameters: [],
+  result: Uorc.Product.Control::State,
+  body: (project (Uorc.Product.Control::start (Uorc.Product.Control::initial 1) (ctor Uorc.Product.Api::Request.runCoreRequest (record Uorc.Product.Api::ToolRequest {input := (Uorc.Product.WriteImageScenarios::destination), options := (record Uorc.Product.Api::Common {limits := (record Uorc.Product.Api::Limits {decodeWork := 1000000, checkerWork := 1000000, replayWork := 1000000, searchWork := 1000000, outputBytes := (ctor Option.none [Nat]), ownedBytes := 1000000, storage := (record Uorc.Product.Storage::Limits {total := (ctor Option.none [Nat]), stagedOutput := (ctor Option.some [Nat] 0), inputSpool := (ctor Option.none [Nat]), spill := (ctor Option.none [Nat]), publicationCopy := (ctor Option.none [Nat])})}), basis := (ctor Option.none [Uorc.Product.Api::ResourceRef])})}))) state),
+  axioms: []
+}
+
+definition{
+  name: limitedFirst,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match call{arguments: [], function: Uorc.Product.WriteImageScenarios::first}
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some seed => (match (Uorc.Product.WriteImage::start (Uorc.Product.ResourceIO::startWriteWithStorage (Uorc.Product.Control::run (limitedControl)) (Uorc.Product.WriteImageScenarios::destination) (ctor Uorc.Product.Storage::Category.stagedOutput) (record Uorc.Product.Storage::Limits {total := (ctor Option.none [Nat]), stagedOutput := (ctor Option.some [Nat] 0), inputSpool := (ctor Option.none [Nat]), spill := (ctor Option.none [Nat]), publicationCopy := (ctor Option.none [Nat])}) (project (limitedControl) storage)) (project (project seed cursor) span) (ctor Uorc.Product.WriteImage::Ownership.transferred) (3 : UInt64) (11 : UInt64))
+      | Result.error reason => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+      | Result.ok cursor => (ctor Option.some [Uorc.Product.WriteImage::Transition] (record Uorc.Product.WriteImage::Transition {arena := (project seed arena), usage := (project seed usage), cursor := cursor, delta := (Uorc.Product.WriteImage::zeroDelta), outcome := (ctor Uorc.Product.WriteImage::Outcome.advanced)})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: quotaFailed,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match (limitedFirst)
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some t => (ctor Option.some [Uorc.Product.WriteImage::Transition] (advance (acceptAttachment (drive 5 t) true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: quotaCancelled,
+  parameters: [],
+  result: (Option Uorc.Product.WriteImage::Transition),
+  body: (match (quotaFailed)
+    | Option.none => (ctor Option.none [Uorc.Product.WriteImage::Transition])
+    | Option.some t => (ctor Option.some [Uorc.Product.WriteImage::Transition] (settle 32 (record Uorc.Product.WriteImage::Transition {arena := (project t arena), usage := (project t usage), cursor := (Uorc.Product.WriteImage::cancel (project t cursor) (run)), delta := (project t delta), outcome := (project t outcome)})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancellationPreservesStorageFailureControl,
+  parameters: [],
+  result: Bool,
+  body: (match (quotaCancelled)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (stagedObservations) (limitedControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed receiptValue failureReport => (match (project failureReport failure)
+        | Uorc.Product.Api::Failure.malformedArchive why0 why1 => false
+        | Uorc.Product.Api::Failure.semanticDecode why0 why1 => false
+        | Uorc.Product.Api::Failure.missingBasis why0 => false
+        | Uorc.Product.Api::Failure.wrongBasis why0 => false
+        | Uorc.Product.Api::Failure.incompleteSearch => false
+        | Uorc.Product.Api::Failure.incompleteProof => false
+        | Uorc.Product.Api::Failure.resourceRefusal why0 why1 => false
+        | Uorc.Product.Api::Failure.cancelled => false
+        | Uorc.Product.Api::Failure.inputIo why0 => false
+        | Uorc.Product.Api::Failure.publicationIo why0 why1 => false
+        | Uorc.Product.Api::Failure.control why0 => false
+        | Uorc.Product.Api::Failure.protocol why0 => false
+        | Uorc.Product.Api::Failure.byteMismatch => false
+        | Uorc.Product.Api::Failure.verificationIncomplete => false
+        | Uorc.Product.Api::Failure.invalidCheckpoint why0 => false
+        | Uorc.Product.Api::Failure.invalidReport why0 => false
+        | Uorc.Product.Api::Failure.storage why0 => true))),
+  axioms: [propext]
+}
+
+definition{
+  name: missingPublicationIsNotRollbackControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (deliverWith t (context) (record Uorc.Product.OutputDelivery::Observations {io := (project (stagedObservations) io), publication := (ctor Option.none [Uorc.Product.OutputDelivery::PublicationObservation])}) (activeControl)) outcome)
+      | Uorc.Product.OutputDelivery::Outcome.waiting => false
+      | Uorc.Product.OutputDelivery::Outcome.suspended part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.needsCleanup part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.callbackRejected part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.retained reasonValue => (match reasonValue
+        | Uorc.Product.OutputDelivery::Error.wrongRun => false
+        | Uorc.Product.OutputDelivery::Error.wrongDestination => false
+        | Uorc.Product.OutputDelivery::Error.missingMeasurements => true
+        | Uorc.Product.OutputDelivery::Error.measurementScope => false
+        | Uorc.Product.OutputDelivery::Error.counterRegression => false
+        | Uorc.Product.OutputDelivery::Error.workPrefixRegression => false
+        | Uorc.Product.OutputDelivery::Error.accountingAddressSpace => false
+        | Uorc.Product.OutputDelivery::Error.incompleteCustody => false
+        | Uorc.Product.OutputDelivery::Error.publicationScope => false
+        | Uorc.Product.OutputDelivery::Error.publicationRegression => false)
+      | Uorc.Product.OutputDelivery::Outcome.stale => false
+      | Uorc.Product.OutputDelivery::Outcome.alreadyMoved => false
+      | Uorc.Product.OutputDelivery::Outcome.continued part0 => false
+      | Uorc.Product.OutputDelivery::Outcome.failed part0 part1 => false)),
+  axioms: [propext]
+}
+
+definition{
+  name: retainedOwnerMovesOnceControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => ((match (project (Uorc.Product.OutputDelivery::takeRetained (project (deliverWith t (record Uorc.Product.OutputDelivery::ReportContext {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), frozen := (record Uorc.Product.Api::Accounting {inputBytes := 101, exactArchiveBytes := 17, transportBytes := 23, externalBasisBytes := 31, basisTransferBytes := 37, decodeWork := 41, checkerWork := 18446744073709551615, replayWork := 47, searchWork := 53, peakOwnedBytes := 11, objects := 2, outputBytes := 59, storage := (project (project (activeControl) storage) usage), physical := (ctor Option.none [Uorc.Product.Api::PhysicalObservation])}), workAtFreeze := (0 : UInt64), lane := (ctor Uorc.Product.OutputDelivery::WorkLane.checker)}) (stagedObservations) (activeControl)) state)) envelope)
+      | Option.none => false
+      | Option.some value => true) && ((not (match (project (Uorc.Product.OutputDelivery::takeRetained (project (Uorc.Product.OutputDelivery::takeRetained (project (deliverWith t (record Uorc.Product.OutputDelivery::ReportContext {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), frozen := (record Uorc.Product.Api::Accounting {inputBytes := 101, exactArchiveBytes := 17, transportBytes := 23, externalBasisBytes := 31, basisTransferBytes := 37, decodeWork := 41, checkerWork := 18446744073709551615, replayWork := 47, searchWork := 53, peakOwnedBytes := 11, objects := 2, outputBytes := 59, storage := (project (project (activeControl) storage) usage), physical := (ctor Option.none [Uorc.Product.Api::PhysicalObservation])}), workAtFreeze := (0 : UInt64), lane := (ctor Uorc.Product.OutputDelivery::WorkLane.checker)}) (stagedObservations) (activeControl)) state)) state)) envelope)
+      | Option.none => false
+      | Option.some value => true)) && true))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: retainedOwnerPreservesUsageControl,
+  parameters: [],
+  result: Bool,
+  body: (match (failedSource)
+    | Option.none => false
+    | Option.some t => (match (project (Uorc.Product.OutputDelivery::takeRetained (project (deliverWith t (record Uorc.Product.OutputDelivery::ReportContext {run := (run), destination := (Uorc.Product.WriteImageScenarios::destination), frozen := (record Uorc.Product.Api::Accounting {inputBytes := 101, exactArchiveBytes := 17, transportBytes := 23, externalBasisBytes := 31, basisTransferBytes := 37, decodeWork := 41, checkerWork := 18446744073709551615, replayWork := 47, searchWork := 53, peakOwnedBytes := 11, objects := 2, outputBytes := 59, storage := (project (project (activeControl) storage) usage), physical := (ctor Option.none [Uorc.Product.Api::PhysicalObservation])}), workAtFreeze := (0 : UInt64), lane := (ctor Uorc.Product.OutputDelivery::WorkLane.checker)}) (stagedObservations) (activeControl)) state)) envelope)
+      | Option.none => false
+      | Option.some movedEnvelope => ((prim equal (project (project (project movedEnvelope output) usage) work) (project (project t usage) work) : Bool) && ((prim equal (project (project (project movedEnvelope output) arena) nextHandle) (project (project t arena) nextHandle) : Bool) && true)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "output-delivery-genuinePartialFailureControl", passed := (genuinePartialFailureControl)}) (cons (record Observation {id := "output-delivery-liveStorageAdoptedControl", passed := (liveStorageAdoptedControl)}) (cons (record Observation {id := "output-delivery-failureDoesNotInventNotPublishedControl", passed := (failureDoesNotInventNotPublishedControl)}) (cons (record Observation {id := "output-delivery-frozenMeaningsPreservedControl", passed := (frozenMeaningsPreservedControl)}) (cons (record Observation {id := "output-delivery-actualScopedIoControl", passed := (actualScopedIoControl)}) (cons (record Observation {id := "output-delivery-workLanePreservedControl", passed := (workLanePreservedControl)}) (cons (record Observation {id := "output-delivery-physicalScopeSeparateControl", passed := (physicalScopeSeparateControl)}) (cons (record Observation {id := "output-delivery-successfulSettlementIsNotArchiveProofControl", passed := (successfulSettlementIsNotArchiveProofControl)}) (cons (record Observation {id := "output-delivery-foldOnceControl", passed := (foldOnceControl)}) (cons (record Observation {id := "output-delivery-movedOutcomeRetainsArenaControl", passed := (movedOutcomeRetainsArenaControl)}) (cons (record Observation {id := "output-delivery-staleSettlementRetainsActualOwnerControl", passed := (staleSettlementRetainsActualOwnerControl)}) (cons (record Observation {id := "output-delivery-wrongDestinationRetainsControl", passed := (wrongDestinationRetainsControl)}) (cons (record Observation {id := "output-delivery-missingIoIsNotZeroControl", passed := (missingIoIsNotZeroControl)}) (cons (record Observation {id := "output-delivery-counterRegressionControl", passed := (counterRegressionControl)}) (cons (record Observation {id := "output-delivery-foreignIoScopeControl", passed := (foreignIoScopeControl)}) (cons (record Observation {id := "output-delivery-workPrefixRegressionControl", passed := (workPrefixRegressionControl)}) (cons (record Observation {id := "output-delivery-checkedWorkAdditionControl", passed := (checkedWorkAdditionControl)}) (cons (record Observation {id := "output-delivery-arithmeticFailureKeepsWriterControl", passed := (arithmeticFailureKeepsWriterControl)}) (cons (record Observation {id := "output-delivery-resourceSuspensionIsNotTerminalControl", passed := (resourceSuspensionIsNotTerminalControl)}) (cons (record Observation {id := "output-delivery-pendingDeltaRetainsControl", passed := (pendingDeltaRetainsControl)}) (cons (record Observation {id := "output-delivery-earlyFailureNeedsCleanupControl", passed := (earlyFailureNeedsCleanupControl)}) (cons (record Observation {id := "output-delivery-cancellationPreservesPriorIoFailureControl", passed := (cancellationPreservesPriorIoFailureControl)}) (cons (record Observation {id := "output-delivery-unknownPublicationPreservedControl", passed := (unknownPublicationPreservedControl)}) (cons (record Observation {id := "output-delivery-publicationCopyStorageDistinctControl", passed := (publicationCopyStorageDistinctControl)}) (cons (record Observation {id := "output-delivery-unknownPreventsSafeRetryControl", passed := (unknownPreventsSafeRetryControl)}) (cons (record Observation {id := "output-delivery-publishedReceiptCannotBecomeRollbackControl", passed := (publishedReceiptCannotBecomeRollbackControl)}) (cons (record Observation {id := "output-delivery-unknownCannotDowngradeControl", passed := (unknownCannotDowngradeControl)}) (cons (record Observation {id := "output-delivery-absentPhysicalRemainsUnobservedControl", passed := (absentPhysicalRemainsUnobservedControl)}) (cons (record Observation {id := "output-delivery-cancellationPreservesStorageFailureControl", passed := (cancellationPreservesStorageFailureControl)}) (cons (record Observation {id := "output-delivery-missingPublicationIsNotRollbackControl", passed := (missingPublicationIsNotRollbackControl)}) (cons (record Observation {id := "output-delivery-retainedOwnerMovesOnceControl", passed := (retainedOwnerMovesOnceControl)}) (cons (record Observation {id := "output-delivery-retainedOwnerPreservesUsageControl", passed := (retainedOwnerPreservesUsageControl)}) (nil Observation))))))))))))))))))))))))))))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

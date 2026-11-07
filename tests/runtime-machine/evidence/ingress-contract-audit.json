@@ -1,0 +1,329 @@
+{
+  "schema": "uorc.machine.ingress-contract-audit/1",
+  "status": "actual_existing_contract_probe_passed; disproved_overshoot_hypothesis_withdrawn; no_Engine_behavior_change",
+  "current_source": {
+    "Engine": {
+      "path": "src/Uorc/Core/RuntimeMachineEngine.lex.tex",
+      "sha256": "feadb771a6c62079103f530fafd2b54ca0b387118cd030fb9aa74c5cea0ee3d8"
+    },
+    "RuntimeResources": {
+      "path": "src/Uorc/Core/RuntimeResources.lex.tex",
+      "sha256": "ade767d9d4445177be409bb0e1d4d00823ec4894bbe6e0c9301a08a4fd8b0760"
+    },
+    "guard_function_identity": {
+      "observe": {
+        "literal_source_block_sha256": "53b4a43552fd84a3041abe12e6c3c5c396fc695fc239296867306e84b718fd64",
+        "byte_identical_current_and_qualified_6be": true
+      },
+      "startWithSemantic": {
+        "literal_source_block_sha256": "59274d710f2f2076f647df1d71f0186604bc4757ec2ee4d12b0bcb644b082402",
+        "byte_identical_current_and_qualified_6be": true
+      },
+      "allocateEngine": {
+        "literal_source_block_sha256": "f4b5bf853b61a480d9f19328d14d1b912bde3501212221d612779b36bd0865d1",
+        "byte_identical_current_and_qualified_6be": true
+      },
+      "guard": {
+        "literal_source_block_sha256": "1683ad91e492e33f3ad6eecef1d710404c7644cd98b251ce88dd424ffed7f1e1",
+        "byte_identical_current_and_qualified_6be": true
+      },
+      "initializeEngine": {
+        "literal_source_block_sha256": "24b60f0c05a719172ca2be8edd6770dd5bf1bd2953d7105c65fb5e35fc6920d1",
+        "byte_identical_current_and_qualified_6be": true
+      },
+      "extend": {
+        "literal_source_block_sha256": "2f8310a38701b056d6063e3af61139d963cd640f73aaab85bd24e0d8c131bbbe",
+        "byte_identical_current_and_qualified_6be": true
+      }
+    }
+  },
+  "contract": {
+    "ingress": "startWithSemantic calls observe immediately. RuntimeResources.observeArena first validates achieved Usage, then requires exact Arena.maxOwnedBytes == Budget.maxOwnedBytes before totalOwnedBytes and allocation. A mismatch suspends with arenaBudgetMismatch. It does not synchronize the ceiling.",
+    "preexisting_usage": "An already achieved peak above the requested maximum is ownedByteLimit at validateUsage, which precedes the equality test. No smaller invalid Arena is constructed.",
+    "extension": "Existing extend deliberately creates the proposed ceiling for validation. On success it installs that ceiling; on refusal it retains the original Arena/budget. Terminal states are exact and inert.",
+    "Product8fff": {
+      "machine_binding_sha256": "c162ddde520e47c9f8ba8ed02604c5ccc91b319c05aa76a06c97b20500a241d0",
+      "migration_doc_sha256": "31273099b62eb7924cb4190001bb85c3a098d17804ff1d79c8b6a457d4c7f1ce",
+      "finding": "MachineBinding.start forwards transfer.ready, supplied operationalBudget, transfer.semanticBudget, transfer.semanticLedger directly to Engine.startWithSemantic. It inherits the matching-ceiling requirement and does not synchronize or prove a caller budget matches."
+    }
+  },
+  "execution": {
+    "kind": "private_generated_Lean_evaluator; no_native_C_or_Rust_run_for_this_probe",
+    "source_closure_build_id": "ef188332ac01e3dbf84202bb53b99f712129dcf04c53ac1528e288517aab01b3",
+    "qualified_Engine_sha256": "6be9665124a42664aae60b821fd042fe74452007efd18c5a99dd3d703b075c1b",
+    "probe_source_filename": "PrivateIngressGuardProbe.lean",
+    "probe_source_sha256": "fa90b4c34c5661abd26838f09d01f79579db70eae4050ca90e878ae2217439c4",
+    "command": "LEAN_PATH=<qualified-build>/modules <Lean-4.32.1>/bin/lean <qualified-build>/modules/PrivateIngressGuardProbe.lean",
+    "exit_code": 0,
+    "stdout": "guard/no-allocation + explicit extend/Heap owned limit: pass [9408, 9408, 1000000000, 0, 0, 9408, 256, 223, 168]",
+    "raw_log_sha256": "4d3a1ed7374a397f879ca4f3442812c3d1736b685e840c3f68d316fea2f7e083",
+    "observations": {
+      "ready_ownedBytes": 9408,
+      "ready_peakOwnedBytes": 9408,
+      "ready_arena_maxOwnedBytes": 1000000000,
+      "requested_maxOwnedBytes": 9408,
+      "start_disposition": "suspended(arenaBudgetMismatch)",
+      "start_control": "null",
+      "start_work": 0,
+      "first_tick_work": 0,
+      "first_tick": "inert; same nextHandle/ownedBytes/liveEntries/maxOwnedBytes/exhausted and all8 semantic ledger counters",
+      "after_explicit_extend": "running; Arena.maxOwnedBytes=9408; nextHandle unchanged",
+      "after_retry_tick": "suspended(ownedByteLimit); actual Heap.allocateControl refusal; no control/handle/live/owned change",
+      "retry_work": 256,
+      "nextHandle": 223,
+      "liveEntries": 168,
+      "semantic_ledger_before_and_after": [
+        10,
+        3,
+        4,
+        2,
+        1,
+        2,
+        1,
+        1
+      ]
+    },
+    "exact_closure": {
+      "source_id": "8058ff892768715f72095c635a040a6e56c980cf3d67277de7fed53878bbf580",
+      "semantic_id": "78edea5a339dcc041e794b294515fae53db49c39a00347595ae78559b29fe571",
+      "compiler": {
+        "semantics_id": "1427f8b629013648a480454d67202788f2303f5396f1d7c70a7c350ddab6f694",
+        "version": "0.4.0"
+      },
+      "language": "1.2",
+      "lean_toolchain": "leanprover/lean4:v4.32.1",
+      "selection": [
+        "Uorc.Core.Bytes",
+        "Uorc.Core.CanonicalCost",
+        "Uorc.Core.Graph",
+        "Uorc.Core.Heap",
+        "Uorc.Core.PrefixSmoke",
+        "Uorc.Core.ReferenceSemantics",
+        "Uorc.Core.Resources",
+        "Uorc.Core.RuntimeAdmissionChecks",
+        "Uorc.Core.RuntimeByteBuilder",
+        "Uorc.Core.RuntimeMachine",
+        "Uorc.Core.RuntimeMachineEngine",
+        "Uorc.Core.RuntimeMachineFixtures",
+        "Uorc.Core.RuntimeMachineSemantic",
+        "Uorc.Core.RuntimeMachineTests",
+        "Uorc.Core.RuntimeMetadata",
+        "Uorc.Core.RuntimeOpcode",
+        "Uorc.Core.RuntimePeak",
+        "Uorc.Core.RuntimeProgram",
+        "Uorc.Core.RuntimeRecordBuilder",
+        "Uorc.Core.RuntimeResources",
+        "Uorc.Core.RuntimeSequence",
+        "Uorc.Core.RuntimeStore",
+        "Uorc.Core.RuntimeTable",
+        "Uorc.Core.RuntimeValue",
+        "Uorc.Core.RuntimeWork",
+        "Uorc.Core.Store",
+        "Uorc.Core.Types"
+      ],
+      "inputs": [
+        {
+          "byte_length": 2684,
+          "kind": "lexicon",
+          "path": "embedded",
+          "sha256": "3bc0fb09d706ffa7d5a1363302ea87c049acc7c7dcafde63c62682620c11be9b"
+        },
+        {
+          "byte_length": 36197,
+          "kind": "lexicon",
+          "path": "embedded",
+          "sha256": "827317cae68c162f3a96c8a8de4e53ab348e7d3724fd2b834fa85ecde1a1b392"
+        },
+        {
+          "byte_length": 1249,
+          "kind": "lock",
+          "path": "lexlean.lock",
+          "sha256": "8dc4bc7002db72201e842327dc42ddaf9d4be0a596d9c571ba8d874bf3654686"
+        },
+        {
+          "byte_length": 661,
+          "kind": "project-config",
+          "path": "lexlean.toml",
+          "sha256": "98634edfc8ac5caa9fa7069ecf9acc76d126345c3cb97f0179e78f546a7388cd"
+        },
+        {
+          "byte_length": 28260,
+          "kind": "source",
+          "path": "src/Uorc/Core/Bytes.lex.tex",
+          "sha256": "0460b286203408f252efa50385f768b5ef5f69e76d8b500959fb2ef0f54a3e70"
+        },
+        {
+          "byte_length": 18940,
+          "kind": "source",
+          "path": "src/Uorc/Core/CanonicalCost.lex.tex",
+          "sha256": "2a803ba1d659dfd63be0e8dc081130a92219451b939904399ebe2b75b50eda6e"
+        },
+        {
+          "byte_length": 29018,
+          "kind": "source",
+          "path": "src/Uorc/Core/Graph.lex.tex",
+          "sha256": "c0f293f884cd95773422ebe908c5dcfb93cf93dce98f3a1f43e4f778d22331f4"
+        },
+        {
+          "byte_length": 54242,
+          "kind": "source",
+          "path": "src/Uorc/Core/Heap.lex.tex",
+          "sha256": "8bb1318242ce855b266a7b0f076a0c49f28c7ddd742bd902c937534cfb32fe81"
+        },
+        {
+          "byte_length": 530,
+          "kind": "source",
+          "path": "src/Uorc/Core/PrefixSmoke.lex.tex",
+          "sha256": "d97b96a88f4cecfec358a59d6ac81fa88f19210bb4c20eefdd4bed0c4d46e679"
+        },
+        {
+          "byte_length": 48198,
+          "kind": "source",
+          "path": "src/Uorc/Core/ReferenceSemantics.lex.tex",
+          "sha256": "7a19d56445bebd50c47d1fd793c347ab31aaf6aaae84953f8b4dc64243795d54"
+        },
+        {
+          "byte_length": 6834,
+          "kind": "source",
+          "path": "src/Uorc/Core/Resources.lex.tex",
+          "sha256": "7f525275e7eb8a54463165e8feaa8f79c7f0404abb7c7584ad74452665e1e5a6"
+        },
+        {
+          "byte_length": 18501,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeAdmissionChecks.lex.tex",
+          "sha256": "78e9076ba0be82359a9ab70f06736a6bf37fea09746bba6cb012008409be2f46"
+        },
+        {
+          "byte_length": 126453,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeByteBuilder.lex.tex",
+          "sha256": "c7f67542e9f7a4f05f6161fe5fc23b26cf85769c3538d89f0e69f35990eac00d"
+        },
+        {
+          "byte_length": 49284,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeMachine.lex.tex",
+          "sha256": "7dc5661651faeac4d267157303971d77601be59d3ab2ae6ce1c6ab2f8ef20e81"
+        },
+        {
+          "byte_length": 525624,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeMachineEngine.lex.tex",
+          "sha256": "6be9665124a42664aae60b821fd042fe74452007efd18c5a99dd3d703b075c1b"
+        },
+        {
+          "byte_length": 28512,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeMachineFixtures.lex.tex",
+          "sha256": "768c3e6999b973f99a34fbe87075f3b16d3ca6a80bef267c942f8c99aaf6f9b9"
+        },
+        {
+          "byte_length": 33976,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeMachineSemantic.lex.tex",
+          "sha256": "085687a838ae82fda95f00069c526f46155993086b06a945c4cd79a052d69b33"
+        },
+        {
+          "byte_length": 51810,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeMachineTests.lex.tex",
+          "sha256": "a4949bdcf8523b49c6366641f542ef0246b4eebd40eb365defdc88f5b04c9c41"
+        },
+        {
+          "byte_length": 21267,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeMetadata.lex.tex",
+          "sha256": "f4f81435b30f87c155f15ebb92bf811a0086200f964d8eae0c5e7d1a20af7eaf"
+        },
+        {
+          "byte_length": 28984,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeOpcode.lex.tex",
+          "sha256": "ae76fa7c8e2712c7589ad2d12a69d6d06bdef9f369b6656cada6d82139fd4d58"
+        },
+        {
+          "byte_length": 1710,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimePeak.lex.tex",
+          "sha256": "79bec845c3a9dac4618ac51efccadddeb0040c35b37676058ec29904e8562448"
+        },
+        {
+          "byte_length": 111445,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeProgram.lex.tex",
+          "sha256": "d5ddad873d2107f6d402a5d89b1c0d994846108b9254301b5d5695193914d41e"
+        },
+        {
+          "byte_length": 4542,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeRecordBuilder.lex.tex",
+          "sha256": "bea9a12a09d91b54bcdc1108a2c8adc0ef42f87e787092f72947f5d120dd3281"
+        },
+        {
+          "byte_length": 7967,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeResources.lex.tex",
+          "sha256": "4018da24b0f9dc4e578ea3a161ffc88d02858650776dd723d67dc93be1387efa"
+        },
+        {
+          "byte_length": 146438,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeSequence.lex.tex",
+          "sha256": "c352ecaf1eb161df6df7c6f0fed7fc7868d00e4fc9fe3590271d40604785a29e"
+        },
+        {
+          "byte_length": 70559,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeStore.lex.tex",
+          "sha256": "833f2fb91be50ad892dbca9f60973300e9b2626dcd3e5650b6a7db8950004ee6"
+        },
+        {
+          "byte_length": 54345,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeTable.lex.tex",
+          "sha256": "38162eb828d933561668ecab43b34a512b58a23259cd588a203cc2799e4abfbc"
+        },
+        {
+          "byte_length": 3519,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeValue.lex.tex",
+          "sha256": "8b3ed5db4fbfce0f796d1164ff106733c0fa63f150b3bc162f99b505257b331f"
+        },
+        {
+          "byte_length": 4336,
+          "kind": "source",
+          "path": "src/Uorc/Core/RuntimeWork.lex.tex",
+          "sha256": "6e32429f878fb32d75c041b8a3680370aeca85f79ca2b0f2c51833763c8cff81"
+        },
+        {
+          "byte_length": 6273,
+          "kind": "source",
+          "path": "src/Uorc/Core/Store.lex.tex",
+          "sha256": "c3b0c899b57e9c80db3fb5c52e17c244d4c217b405a4f5cb1083932fe22565a0"
+        },
+        {
+          "byte_length": 27692,
+          "kind": "source",
+          "path": "src/Uorc/Core/Types.lex.tex",
+          "sha256": "789601d2a6992f8f5f9dca80df65acd0516bc1a947afa1696e44f77296a6615e"
+        }
+      ],
+      "private_selector_module": {
+        "path": "src/Uorc/Core/PrefixSmoke.lex.tex",
+        "sha256": "d97b96a88f4cecfec358a59d6ac81fa88f19210bb4c20eefdd4bed0c4d46e679",
+        "source": "\\begin{lexlean}{Uorc.Core.PrefixSmoke}\n\\importmodule{Uorc.Core.RuntimeMachineEngine}\n\\importmodule{Uorc.Core.RuntimeMachineFixtures}\n\\title{Parameters}\n\\begin{semanticmodule}\ndefinition{\n name: position,\n parameters: [state : Uorc.Core.RuntimeMachineEngine::State],\n result: (Option UInt64),\n body: (match (project state frames)\n | List.nil => (ctor Option.none [UInt64])\n | List.cons frame rest => (ctor Option.some [UInt64] (project frame semanticPosition))),\n axioms: [], executable: false\n}\n\\end{semanticmodule}\n\\end{lexlean}\n"
+      }
+    },
+    "prior_source_bound_receipt": {
+      "path": "tests/runtime-machine/evidence/semantic-prefix-smoke.json",
+      "sha256": "5956cd70a42df00091bcc1d5eb45df6fc4f928a63d6c6dfe397c0c9fcdaf6709"
+    }
+  },
+  "scope_and_limits": [
+    "This handwritten private Lean probe calls the actual generated Fixture and Engine. It is diagnostic evidence, not an additional authoritative runtime/source-owned test module.",
+    "The exact current Engine guard blocks listed above equal the already qualified 6be source. This does not qualify current Core29 composition or startTransferred, which is not executed here.",
+    "Current full-proof Core29 kernel qualification remains blocked by unchanged ReferenceSemantics.leaf_index_step_refines_independent_sequence (PF21). No proof pruning, verifier modification, SDK/compiler rebuild, aggregate replay, or Engine fix was performed.",
+    "Five uncommitted synchronization-feature scenario proposals were removed. They are not pending product work. Existing source-owned regression suites and their immutable receipts are unchanged."
+  ]
+}

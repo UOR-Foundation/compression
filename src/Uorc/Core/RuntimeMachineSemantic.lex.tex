@@ -1,0 +1,807 @@
+\begin{lexlean}{Uorc.Core.RuntimeMachineSemantic}
+
+\importmodule{Uorc.Core.CanonicalCost}
+
+\importmodule{Uorc.Core.Heap}
+
+\importmodule{Uorc.Core.RuntimeOpcode}
+
+\importmodule{Uorc.Core.Types}
+
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\importmodule{Uorc.Core.CanonicalCallComposition}
+\title{Parameters}
+
+\begin{semanticmodule}
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: instruction, fields: [Uorc.Core.RuntimeOpcode::Opcode]},
+    {name: parameterBind, fields: []},
+    {name: referenceRead, fields: []},
+    {name: blockEnter, fields: []},
+    {name: blockLeave, fields: []},
+    {name: loopObserve, fields: []},
+    {name: loopUpdate, fields: []},
+    {name: byteRead, fields: []},
+    {name: byteWrite, fields: []},
+    {name: byteComparison, fields: []},
+    {name: outputBoundary, fields: []},
+    {name: outputByte, fields: []},
+    {name: basisBoundary, fields: []},
+    {name: canonicalEof, fields: []},
+    {name: allocateValueUnits, fields: [UInt64]},
+    {name: releaseValueUnits, fields: [UInt64]}
+  ]
+}
+
+structure{
+  name: Ledger,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: profile, type: Uorc.Core.CanonicalCost::ProfileId},
+    {name: semanticWork, type: UInt64},
+    {name: semanticStorageUnits, type: UInt64},
+    {name: peakSemanticStorageUnits, type: UInt64},
+    {name: outputBytes, type: UInt64},
+    {name: activeFrames, type: UInt64},
+    {name: peakFrames, type: UInt64},
+    {name: acceptedArchives, type: UInt64},
+    {name: basisObjects, type: UInt64}
+  ]
+}
+
+inductive{
+  name: StoragePolicy,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: unconstrained, fields: []},
+    {name: payloadUnits, fields: []},
+    {name: payloadBytes, fields: []}
+  ]
+}
+
+structure{
+  name: Budget,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: profile, type: Uorc.Core.CanonicalCost::ProfileId},
+    {name: maxSemanticWork, type: UInt64},
+    {name: storage, type: StoragePolicy},
+    {name: maxStorageUnits, type: UInt64}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: wordOverflow, fields: []},
+    {name: storageUnderflow, fields: []},
+    {name: frameUnderflow, fields: []},
+    {name: workLimit, fields: []},
+    {name: storageLimit, fields: []},
+    {name: invalidUsage, fields: []},
+    {name: unsupportedProfile, fields: []},
+    {name: unsupportedStorage, fields: []}
+  ]
+}
+
+definition{
+  name: profileCompatible,
+  parameters: [profile : Uorc.Core.CanonicalCost::ProfileId],
+  result: Bool,
+  body: (Uorc.Core.CanonicalCost::profileSupported profile),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: storageSupported,
+  parameters: [storage : StoragePolicy],
+  result: Bool,
+  body: (match storage
+    | StoragePolicy.unconstrained => true
+    | StoragePolicy.payloadUnits => true
+    | StoragePolicy.payloadBytes => false),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: storageBounded,
+  parameters: [storage : StoragePolicy],
+  result: Bool,
+  body: (match storage
+    | StoragePolicy.unconstrained => false
+    | StoragePolicy.payloadUnits => true
+    | StoragePolicy.payloadBytes => true),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: zeroLedger,
+  parameters: [],
+  result: Ledger,
+  body: (record Ledger {profile := (Uorc.Core.CanonicalCost::currentProfile), semanticWork := (0 : UInt64), semanticStorageUnits := (0 : UInt64), peakSemanticStorageUnits := (0 : UInt64), outputBytes := (0 : UInt64), activeFrames := (0 : UInt64), peakFrames := (0 : UInt64), acceptedArchives := (0 : UInt64), basisObjects := (0 : UInt64)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: meaning,
+  parameters: [ledger : Ledger],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (record Uorc.Core.CanonicalCost::Usage {semanticWork := (Uorc.Core.Types::wordToNat (project ledger semanticWork)), semanticStorageUnits := (Uorc.Core.Types::wordToNat (project ledger semanticStorageUnits)), peakSemanticStorageUnits := (Uorc.Core.Types::wordToNat (project ledger peakSemanticStorageUnits)), outputBytes := (Uorc.Core.Types::wordToNat (project ledger outputBytes)), activeFrames := (Uorc.Core.Types::wordToNat (project ledger activeFrames)), peakFrames := (Uorc.Core.Types::wordToNat (project ledger peakFrames)), acceptedArchives := (Uorc.Core.Types::wordToNat (project ledger acceptedArchives)), basisObjects := (Uorc.Core.Types::wordToNat (project ledger basisObjects))}),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: eventMeaning,
+  parameters: [event : Event],
+  result: Uorc.Core.CanonicalCost::SemanticEvent,
+  body: (match event
+    | Event.instruction opcode => (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction opcode)
+    | Event.parameterBind => (ctor Uorc.Core.CanonicalCost::SemanticEvent.parameterBind)
+    | Event.referenceRead => (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead)
+    | Event.blockEnter => (ctor Uorc.Core.CanonicalCost::SemanticEvent.blockEnter)
+    | Event.blockLeave => (ctor Uorc.Core.CanonicalCost::SemanticEvent.blockLeave)
+    | Event.loopObserve => (ctor Uorc.Core.CanonicalCost::SemanticEvent.loopObserve)
+    | Event.loopUpdate => (ctor Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate)
+    | Event.byteRead => (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteRead)
+    | Event.byteWrite => (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteWrite)
+    | Event.byteComparison => (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteComparison)
+    | Event.outputBoundary => (ctor Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary)
+    | Event.outputByte => (ctor Uorc.Core.CanonicalCost::SemanticEvent.outputByte)
+    | Event.basisBoundary => (ctor Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary)
+    | Event.canonicalEof => (ctor Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof)
+    | Event.allocateValueUnits units => (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits (Uorc.Core.Types::wordToNat units))
+    | Event.releaseValueUnits units => (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits (Uorc.Core.Types::wordToNat units))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: instructionWork,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: UInt64,
+  body: (match opcode
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalConstant => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteConstant => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateConstant => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAdd => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalSubtract => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalMultiply => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalDivide => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalRemainder => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAnd => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalOr => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalXor => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalNot => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftLeft => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftRight => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalEqual => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalLess => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteEqual => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteLess => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalToByte => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteToNatural => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateNot => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateAnd => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateOr => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceLength => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceSlice => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConcat => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceEqual => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.singletonSequence => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.basisGet => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeNew => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeRead => (65 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeWrite => (65 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.choose => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.apply => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.tabulate => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.fold => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.scan => (1 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: eventWork,
+  parameters: [event : Event],
+  result: UInt64,
+  body: (match event
+    | Event.instruction opcode => (instructionWork opcode)
+    | Event.parameterBind => (1 : UInt64)
+    | Event.referenceRead => (1 : UInt64)
+    | Event.blockEnter => (1 : UInt64)
+    | Event.blockLeave => (1 : UInt64)
+    | Event.loopObserve => (1 : UInt64)
+    | Event.loopUpdate => (1 : UInt64)
+    | Event.byteRead => (1 : UInt64)
+    | Event.byteWrite => (1 : UInt64)
+    | Event.byteComparison => (1 : UInt64)
+    | Event.outputBoundary => (1 : UInt64)
+    | Event.outputByte => (1 : UInt64)
+    | Event.basisBoundary => (1 : UInt64)
+    | Event.canonicalEof => (1 : UInt64)
+    | Event.allocateValueUnits units => (1 : UInt64)
+    | Event.releaseValueUnits units => (1 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: allocatedUnits,
+  parameters: [event : Event],
+  result: UInt64,
+  body: (match event
+    | Event.instruction opcode => (0 : UInt64)
+    | Event.parameterBind => (0 : UInt64)
+    | Event.referenceRead => (0 : UInt64)
+    | Event.blockEnter => (0 : UInt64)
+    | Event.blockLeave => (0 : UInt64)
+    | Event.loopObserve => (0 : UInt64)
+    | Event.loopUpdate => (0 : UInt64)
+    | Event.byteRead => (0 : UInt64)
+    | Event.byteWrite => (0 : UInt64)
+    | Event.byteComparison => (0 : UInt64)
+    | Event.outputBoundary => (0 : UInt64)
+    | Event.outputByte => (0 : UInt64)
+    | Event.basisBoundary => (0 : UInt64)
+    | Event.canonicalEof => (0 : UInt64)
+    | Event.allocateValueUnits units => units
+    | Event.releaseValueUnits units => (0 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: releasedUnits,
+  parameters: [event : Event],
+  result: UInt64,
+  body: (match event
+    | Event.instruction opcode => (0 : UInt64)
+    | Event.parameterBind => (0 : UInt64)
+    | Event.referenceRead => (0 : UInt64)
+    | Event.blockEnter => (0 : UInt64)
+    | Event.blockLeave => (0 : UInt64)
+    | Event.loopObserve => (0 : UInt64)
+    | Event.loopUpdate => (0 : UInt64)
+    | Event.byteRead => (0 : UInt64)
+    | Event.byteWrite => (0 : UInt64)
+    | Event.byteComparison => (0 : UInt64)
+    | Event.outputBoundary => (0 : UInt64)
+    | Event.outputByte => (0 : UInt64)
+    | Event.basisBoundary => (0 : UInt64)
+    | Event.canonicalEof => (0 : UInt64)
+    | Event.allocateValueUnits units => (0 : UInt64)
+    | Event.releaseValueUnits units => units),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: outputCount,
+  parameters: [event : Event],
+  result: UInt64,
+  body: (match event
+    | Event.instruction opcode => (0 : UInt64)
+    | Event.parameterBind => (0 : UInt64)
+    | Event.referenceRead => (0 : UInt64)
+    | Event.blockEnter => (0 : UInt64)
+    | Event.blockLeave => (0 : UInt64)
+    | Event.loopObserve => (0 : UInt64)
+    | Event.loopUpdate => (0 : UInt64)
+    | Event.byteRead => (0 : UInt64)
+    | Event.byteWrite => (0 : UInt64)
+    | Event.byteComparison => (0 : UInt64)
+    | Event.outputBoundary => (0 : UInt64)
+    | Event.outputByte => (1 : UInt64)
+    | Event.basisBoundary => (0 : UInt64)
+    | Event.canonicalEof => (0 : UInt64)
+    | Event.allocateValueUnits units => (0 : UInt64)
+    | Event.releaseValueUnits units => (0 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: enteredFrames,
+  parameters: [event : Event],
+  result: UInt64,
+  body: (match event
+    | Event.instruction opcode => (0 : UInt64)
+    | Event.parameterBind => (0 : UInt64)
+    | Event.referenceRead => (0 : UInt64)
+    | Event.blockEnter => (1 : UInt64)
+    | Event.blockLeave => (0 : UInt64)
+    | Event.loopObserve => (0 : UInt64)
+    | Event.loopUpdate => (0 : UInt64)
+    | Event.byteRead => (0 : UInt64)
+    | Event.byteWrite => (0 : UInt64)
+    | Event.byteComparison => (0 : UInt64)
+    | Event.outputBoundary => (0 : UInt64)
+    | Event.outputByte => (0 : UInt64)
+    | Event.basisBoundary => (0 : UInt64)
+    | Event.canonicalEof => (0 : UInt64)
+    | Event.allocateValueUnits units => (0 : UInt64)
+    | Event.releaseValueUnits units => (0 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: leftFrames,
+  parameters: [event : Event],
+  result: UInt64,
+  body: (match event
+    | Event.instruction opcode => (0 : UInt64)
+    | Event.parameterBind => (0 : UInt64)
+    | Event.referenceRead => (0 : UInt64)
+    | Event.blockEnter => (0 : UInt64)
+    | Event.blockLeave => (1 : UInt64)
+    | Event.loopObserve => (0 : UInt64)
+    | Event.loopUpdate => (0 : UInt64)
+    | Event.byteRead => (0 : UInt64)
+    | Event.byteWrite => (0 : UInt64)
+    | Event.byteComparison => (0 : UInt64)
+    | Event.outputBoundary => (0 : UInt64)
+    | Event.outputByte => (0 : UInt64)
+    | Event.basisBoundary => (0 : UInt64)
+    | Event.canonicalEof => (0 : UInt64)
+    | Event.allocateValueUnits units => (0 : UInt64)
+    | Event.releaseValueUnits units => (0 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: eofCount,
+  parameters: [event : Event],
+  result: UInt64,
+  body: (match event
+    | Event.instruction opcode => (0 : UInt64)
+    | Event.parameterBind => (0 : UInt64)
+    | Event.referenceRead => (0 : UInt64)
+    | Event.blockEnter => (0 : UInt64)
+    | Event.blockLeave => (0 : UInt64)
+    | Event.loopObserve => (0 : UInt64)
+    | Event.loopUpdate => (0 : UInt64)
+    | Event.byteRead => (0 : UInt64)
+    | Event.byteWrite => (0 : UInt64)
+    | Event.byteComparison => (0 : UInt64)
+    | Event.outputBoundary => (0 : UInt64)
+    | Event.outputByte => (0 : UInt64)
+    | Event.basisBoundary => (0 : UInt64)
+    | Event.canonicalEof => (1 : UInt64)
+    | Event.allocateValueUnits units => (0 : UInt64)
+    | Event.releaseValueUnits units => (0 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: basisCount,
+  parameters: [event : Event],
+  result: UInt64,
+  body: (match event
+    | Event.instruction opcode => (0 : UInt64)
+    | Event.parameterBind => (0 : UInt64)
+    | Event.referenceRead => (0 : UInt64)
+    | Event.blockEnter => (0 : UInt64)
+    | Event.blockLeave => (0 : UInt64)
+    | Event.loopObserve => (0 : UInt64)
+    | Event.loopUpdate => (0 : UInt64)
+    | Event.byteRead => (0 : UInt64)
+    | Event.byteWrite => (0 : UInt64)
+    | Event.byteComparison => (0 : UInt64)
+    | Event.outputBoundary => (0 : UInt64)
+    | Event.outputByte => (0 : UInt64)
+    | Event.basisBoundary => (1 : UInt64)
+    | Event.canonicalEof => (0 : UInt64)
+    | Event.allocateValueUnits units => (0 : UInt64)
+    | Event.releaseValueUnits units => (0 : UInt64)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: maximum,
+  parameters: [lowValue : UInt64, highValue : UInt64],
+  result: UInt64,
+  body: (if (Uorc.Core.Heap::less lowValue highValue) then highValue else lowValue),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: checkedAdvance,
+  parameters: [ledger : Ledger, event : Event],
+  result: (Result Ledger Error),
+  body: (if (profileCompatible (project ledger profile)) then (match (prim checked_add (project ledger semanticWork) (eventWork event) : (Option UInt64))
+    | Option.none => (ctor Result.error [Ledger, Error] (ctor Error.wordOverflow))
+    | Option.some work => (match (prim checked_add (project ledger semanticStorageUnits) (allocatedUnits event) : (Option UInt64))
+      | Option.none => (ctor Result.error [Ledger, Error] (ctor Error.wordOverflow))
+      | Option.some allocated => (match (prim checked_subtract allocated (releasedUnits event) : (Option UInt64))
+        | Option.none => (ctor Result.error [Ledger, Error] (ctor Error.storageUnderflow))
+        | Option.some storage => (match (prim checked_add (project ledger activeFrames) (enteredFrames event) : (Option UInt64))
+          | Option.none => (ctor Result.error [Ledger, Error] (ctor Error.wordOverflow))
+          | Option.some entered => (match (prim checked_subtract entered (leftFrames event) : (Option UInt64))
+            | Option.none => (ctor Result.error [Ledger, Error] (ctor Error.frameUnderflow))
+            | Option.some frames => (match (prim checked_add (project ledger outputBytes) (outputCount event) : (Option UInt64))
+              | Option.none => (ctor Result.error [Ledger, Error] (ctor Error.wordOverflow))
+              | Option.some output => (match (prim checked_add (project ledger acceptedArchives) (eofCount event) : (Option UInt64))
+                | Option.none => (ctor Result.error [Ledger, Error] (ctor Error.wordOverflow))
+                | Option.some archives => (match (prim checked_add (project ledger basisObjects) (basisCount event) : (Option UInt64))
+                  | Option.none => (ctor Result.error [Ledger, Error] (ctor Error.wordOverflow))
+                  | Option.some basis => (ctor Result.ok [Ledger, Error] (record Ledger {profile := (project ledger profile), semanticWork := work, semanticStorageUnits := storage, peakSemanticStorageUnits := (maximum (project ledger peakSemanticStorageUnits) storage), outputBytes := output, activeFrames := frames, peakFrames := (maximum (project ledger peakFrames) frames), acceptedArchives := archives, basisObjects := basis})))))))))) else (ctor Result.error [Ledger, Error] (ctor Error.unsupportedProfile))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: validLedger,
+  parameters: [ledger : Ledger],
+  result: Bool,
+  body: (if (Uorc.Core.Heap::less (project ledger peakSemanticStorageUnits) (project ledger semanticStorageUnits)) then false else (if (Uorc.Core.Heap::less (project ledger peakFrames) (project ledger activeFrames)) then false else true)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+structure{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: ledger, type: Ledger}, {name: error, type: (Option Error)}]
+}
+
+definition{
+  name: charge,
+  parameters: [budget : Budget, ledger : Ledger, event : Event],
+  result: (Result Ledger Error),
+  body: (if (profileCompatible (project budget profile)) then (if (profileCompatible (project ledger profile)) then (if (storageSupported (project budget storage)) then (if (validLedger ledger) then (match (checkedAdvance ledger event)
+    | Result.error failure => (ctor Result.error [Ledger, Error] failure)
+    | Result.ok next => (if (Uorc.Core.Heap::less (project budget maxSemanticWork) (project next semanticWork)) then (ctor Result.error [Ledger, Error] (ctor Error.workLimit)) else (if (storageBounded (project budget storage)) then (if (Uorc.Core.Heap::less (project budget maxStorageUnits) (project next peakSemanticStorageUnits)) then (ctor Result.error [Ledger, Error] (ctor Error.storageLimit)) else (ctor Result.ok [Ledger, Error] next)) else (ctor Result.ok [Ledger, Error] next)))) else (ctor Result.error [Ledger, Error] (ctor Error.invalidUsage))) else (ctor Result.error [Ledger, Error] (ctor Error.unsupportedStorage))) else (ctor Result.error [Ledger, Error] (ctor Error.unsupportedProfile))) else (ctor Result.error [Ledger, Error] (ctor Error.unsupportedProfile))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+inductive{
+  name: Decision,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: accepted, fields: [Ledger]}, {name: rejected, fields: [Error]}]
+}
+
+definition{
+  name: chargeDecision,
+  parameters: [budget : Budget, ledger : Ledger, event : Event],
+  result: Decision,
+  body: (match (charge budget ledger event)
+    | Result.error failure => (ctor Decision.rejected failure)
+    | Result.ok next => (ctor Decision.accepted next)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: commit,
+  parameters: [budget : Budget, ledger : Ledger, event : Event],
+  result: Outcome,
+  body: (match (chargeDecision budget ledger event)
+    | Decision.rejected failure => (record Outcome {ledger := ledger, error := (ctor Option.some [Error] failure)})
+    | Decision.accepted next => (record Outcome {ledger := next, error := (ctor Option.none [Error])})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: isOperational,
+  parameters: [failure : Error],
+  result: Bool,
+  body: (match failure
+    | Error.wordOverflow => true
+    | Error.storageUnderflow => true
+    | Error.frameUnderflow => true
+    | Error.workLimit => false
+    | Error.storageLimit => false
+    | Error.invalidUsage => true
+    | Error.unsupportedProfile => true
+    | Error.unsupportedStorage => true),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: failurePreservesPrefix,
+  parameters: [previous : Ledger, outcome : Outcome],
+  result: Prop,
+  body: (match (project outcome error)
+    | Option.none => ((project (project outcome ledger) semanticWork) = (project (project outcome ledger) semanticWork))
+    | Option.some failure => ((project outcome ledger) = previous)),
+  axioms: [],
+  executable: false
+}
+
+theorem{
+  name: commit_preserves_achieved_prefix_on_every_failure,
+  parameters: [budget : Budget, ledger : Ledger, event : Event],
+  statement: (failurePreservesPrefix ledger (commit budget ledger event)),
+  proof: term_cases{
+    definitions: [commit, failurePreservesPrefix],
+    scrutinee: (chargeDecision budget ledger event)
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: instruction_work_agrees_with_canonical_schedule,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  statement: ((Uorc.Core.Types::wordToNat (instructionWork opcode)) = (Uorc.Core.CanonicalCost::instructionWork opcode)),
+  proof: term_cases{
+    definitions: [
+      Uorc.Core.CanonicalCost::instructionWork,
+      Uorc.Core.Types::wordToNat,
+      instructionWork
+    ],
+    scrutinee: opcode
+  },
+  axioms: [Quot.sound, propext]
+}
+
+inductive{
+  name: CacheError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: missing, fields: []},
+    {name: invalid, fields: []},
+    {name: wordOverflow, fields: []},
+    {name: storageUnderflow, fields: []},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]}
+  ]
+}
+
+definition{
+  name: emptyUnitsTable,
+  parameters: [],
+  result: Uorc.Core.RuntimeTable::Table,
+  body: (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: isUnitsTable,
+  parameters: [table : Uorc.Core.RuntimeTable::Table],
+  result: Bool,
+  body: (match (project table kind)
+    | Uorc.Core.RuntimeTable::TableKind.slots role => (prim equal (Uorc.Core.RuntimeValue::roleTag role) (Uorc.Core.RuntimeValue::roleTag (ctor Uorc.Core.RuntimeValue::RootRole.typeCache)) : Bool)
+    | Uorc.Core.RuntimeTable::TableKind.metadata tag => false),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: unitsAt,
+  parameters: [arena : Uorc.Core.Heap::Arena, table : Uorc.Core.RuntimeTable::Table, key : UInt64],
+  result: (Result UInt64 CacheError),
+  body: (if (isUnitsTable table) then (match (Uorc.Core.RuntimeTable::lookup arena table key)
+    | Result.error failure => (ctor Result.error [UInt64, CacheError] (ctor CacheError.heap failure))
+    | Result.ok leaf => (if (Uorc.Core.RuntimeValue::isNull leaf) then (ctor Result.error [UInt64, CacheError] (ctor CacheError.missing)) else (match (Uorc.Core.RuntimeProgram::valueAtLeaf arena leaf (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference)))
+      | Result.error failure => (ctor Result.error [UInt64, CacheError] (ctor CacheError.invalid))
+      | Result.ok value => (match value
+        | Uorc.Core.RuntimeValue::RuntimeValue.natural units => (ctor Result.ok [UInt64, CacheError] units)
+        | Uorc.Core.RuntimeValue::RuntimeValue.byte byteValue => (ctor Result.error [UInt64, CacheError] (ctor CacheError.invalid))
+        | Uorc.Core.RuntimeValue::RuntimeValue.predicate predicateValue => (ctor Result.error [UInt64, CacheError] (ctor CacheError.invalid))
+        | Uorc.Core.RuntimeValue::RuntimeValue.sequence root => (ctor Result.error [UInt64, CacheError] (ctor CacheError.invalid))
+        | Uorc.Core.RuntimeValue::RuntimeValue.store defaultByte root => (ctor Result.error [UInt64, CacheError] (ctor CacheError.invalid)))))) else (ctor Result.error [UInt64, CacheError] (ctor CacheError.invalid))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: beginBind,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    key : UInt64,
+    units : UInt64
+  ],
+  result: (Result Uorc.Core.RuntimeTable::PutTransition Uorc.Core.Heap::HeapError),
+  body: (if (isUnitsTable table) then (Uorc.Core.RuntimeTable::beginPut arena table key (ctor Uorc.Core.RuntimeTable::PutLeaf.slot (ctor Uorc.Core.RuntimeValue::RootRole.typeCache) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural units))) else (ctor Result.error [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: beginErase,
+  parameters: [arena : Uorc.Core.Heap::Arena, table : Uorc.Core.RuntimeTable::Table, key : UInt64],
+  result: (Result Uorc.Core.RuntimeTable::PutTransition Uorc.Core.Heap::HeapError),
+  body: (if (isUnitsTable table) then (Uorc.Core.RuntimeTable::beginErase arena table key) else (ctor Result.error [Uorc.Core.RuntimeTable::PutTransition, Uorc.Core.Heap::HeapError] (ctor Uorc.Core.Heap::HeapError.invalidNode))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: stepBinding,
+  parameters: [transition : Uorc.Core.RuntimeTable::PutTransition],
+  result: Uorc.Core.RuntimeTable::PutTransition,
+  body: (Uorc.Core.RuntimeTable::step transition),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelBinding,
+  parameters: [transition : Uorc.Core.RuntimeTable::PutTransition],
+  result: Uorc.Core.RuntimeTable::PutTransition,
+  body: (Uorc.Core.RuntimeTable::cancel transition),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: initialStoreUnits,
+  parameters: [],
+  result: UInt64,
+  body: (1 : UInt64),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: validStoreUnits,
+  parameters: [units : UInt64],
+  result: Bool,
+  body: (match (prim checked_subtract units (1 : UInt64) : (Option UInt64))
+    | Option.none => false
+    | Option.some payload => (match (prim checked_quotient payload (9 : UInt64) : (Option UInt64))
+      | Option.none => false
+      | Option.some count => (match (prim checked_multiply count (9 : UInt64) : (Option UInt64))
+        | Option.none => false
+        | Option.some represented => (prim equal represented payload : Bool)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: storeUnitsAfter,
+  parameters: [previousUnits : UInt64, defaultByte : UInt8, observedOld : UInt8, newByte : UInt8],
+  result: (Result UInt64 CacheError),
+  body: (if (if (prim equal observedOld defaultByte : Bool) then false else (Uorc.Core.Heap::less previousUnits (10 : UInt64))) then (ctor Result.error [UInt64, CacheError] (ctor CacheError.invalid)) else (if (validStoreUnits previousUnits) then (if (prim equal observedOld defaultByte : Bool) then (if (prim equal newByte defaultByte : Bool) then (ctor Result.ok [UInt64, CacheError] previousUnits) else (match (prim checked_add previousUnits (9 : UInt64) : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, CacheError] (ctor CacheError.wordOverflow))
+    | Option.some next => (ctor Result.ok [UInt64, CacheError] next))) else (if (prim equal newByte defaultByte : Bool) then (match (prim checked_subtract previousUnits (9 : UInt64) : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, CacheError] (ctor CacheError.storageUnderflow))
+    | Option.some next => (if (validStoreUnits next) then (ctor Result.ok [UInt64, CacheError] next) else (ctor Result.error [UInt64, CacheError] (ctor CacheError.storageUnderflow)))) else (ctor Result.ok [UInt64, CacheError] previousUnits))) else (ctor Result.error [UInt64, CacheError] (ctor CacheError.invalid)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: fixedValueUnits,
+  parameters: [valueType : Uorc.Core.RuntimeValue::RuntimeType],
+  result: (Option UInt64),
+  body: (match valueType
+    | Uorc.Core.RuntimeValue::RuntimeType.natural => (ctor Option.some [UInt64] (8 : UInt64))
+    | Uorc.Core.RuntimeValue::RuntimeType.byte => (ctor Option.some [UInt64] (1 : UInt64))
+    | Uorc.Core.RuntimeValue::RuntimeType.predicate => (ctor Option.some [UInt64] (1 : UInt64))
+    | Uorc.Core.RuntimeValue::RuntimeType.sequence => (ctor Option.none [UInt64])
+    | Uorc.Core.RuntimeValue::RuntimeType.store => (ctor Option.none [UInt64])),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: cacheWitnessMatches,
+  parameters: [units : UInt64, referenceValue : Uorc.Core.ReferenceSemantics::Value],
+  result: Prop,
+  body: ((Uorc.Core.Types::wordToNat units) = (Uorc.Core.CanonicalCost::referenceValueUnits referenceValue)),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: fixedUnitsMeaning,
+  parameters: [valueType : Uorc.Core.RuntimeValue::RuntimeType],
+  result: (Option Nat),
+  body: (match (fixedValueUnits valueType)
+    | Option.none => (ctor Option.none [Nat])
+    | Option.some units => (ctor Option.some [Nat] (Uorc.Core.Types::wordToNat units))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+theorem{
+  name: fixed_natural_units_match_core_measure,
+  parameters: [word : Nat],
+  statement: ((fixedUnitsMeaning (ctor Uorc.Core.RuntimeValue::RuntimeType.natural)) = (ctor Option.some [Nat] (Uorc.Core.CanonicalCost::referenceValueUnits (ctor Uorc.Core.ReferenceSemantics::Value.natural word)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fixed_byte_units_match_core_measure,
+  parameters: [byteValue : Nat],
+  statement: ((fixedUnitsMeaning (ctor Uorc.Core.RuntimeValue::RuntimeType.byte)) = (ctor Option.some [Nat] (Uorc.Core.CanonicalCost::referenceValueUnits (ctor Uorc.Core.ReferenceSemantics::Value.byte byteValue)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fixed_predicate_units_match_core_measure,
+  parameters: [predicateValue : Bool],
+  statement: ((fixedUnitsMeaning (ctor Uorc.Core.RuntimeValue::RuntimeType.predicate)) = (ctor Option.some [Nat] (Uorc.Core.CanonicalCost::referenceValueUnits (ctor Uorc.Core.ReferenceSemantics::Value.predicate predicateValue)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: referenceRoleEvent,
+  parameters: [role : Uorc.Core.RuntimeOpcode::OperandRole],
+  result: (Option Event),
+  body: (match role
+    | Uorc.Core.RuntimeOpcode::OperandRole.absent => (ctor Option.none [Event])
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateNatural => (ctor Option.none [Event])
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateByte => (ctor Option.none [Event])
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediatePredicate => (ctor Option.none [Event])
+    | Uorc.Core.RuntimeOpcode::OperandRole.localNatural => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localByte => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localPredicate => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localSequence => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localStore => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localAny => (ctor Option.some [Event] (ctor Event.referenceRead))
+    | Uorc.Core.RuntimeOpcode::OperandRole.blockReference => (ctor Option.some [Event] (ctor Event.referenceRead))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: prefixEvent,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode, position : UInt64],
+  result: (Result (Option Event) Error),
+  body: (if (prim equal position (0 : UInt64) : Bool) then (ctor Result.ok [(Option Event), Error] (ctor Option.some [Event] (ctor Event.instruction opcode))) else (if (Uorc.Core.Heap::less position (5 : UInt64)) then (let signature : Uorc.Core.RuntimeOpcode::Spec := (Uorc.Core.RuntimeOpcode::spec opcode); (ctor Result.ok [(Option Event), Error] (referenceRoleEvent (if (prim equal position (1 : UInt64) : Bool) then (project signature operand0) else (if (prim equal position (2 : UInt64) : Bool) then (project signature operand1) else (if (prim equal position (3 : UInt64) : Bool) then (project signature operand2) else (project signature operand3))))))) else (if (prim equal position (5 : UInt64) : Bool) then (ctor Result.ok [(Option Event), Error] (ctor Option.none [Event])) else (ctor Result.error [(Option Event), Error] (ctor Error.invalidUsage))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: completionOrigin,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: Uorc.Core.CanonicalCallComposition::CompletionOrigin,
+  body: (match (project (Uorc.Core.RuntimeOpcode::spec opcode) call)
+    | Uorc.Core.RuntimeOpcode::CallRule.none => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.fresh)
+    | Uorc.Core.RuntimeOpcode::CallRule.apply => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)
+    | Uorc.Core.RuntimeOpcode::CallRule.tabulate => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)
+    | Uorc.Core.RuntimeOpcode::CallRule.fold => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)
+    | Uorc.Core.RuntimeOpcode::CallRule.scan => (ctor Uorc.Core.CanonicalCallComposition::CompletionOrigin.transferred)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: basisAttemptEvent,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: (Option Event),
+  body: (if (prim equal (Uorc.Core.RuntimeOpcode::code opcode) (Uorc.Core.RuntimeOpcode::code (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) : Bool) then (ctor Option.some [Event] (ctor Event.referenceRead)) else (ctor Option.none [Event])),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -1,0 +1,64 @@
+\begin{lexlean}{Uorc.Search.RopeLex}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Search.Order}
+\importmodule{Uorc.Search.Verify}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ByteOrder,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: less, fields: []}, {name: equal, fields: []}, {name: greater, fields: []}]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: left, type: Uorc.Core.Bytes::Rope},
+    {name: right, type: Uorc.Core.Bytes::Rope},
+    {name: comparison, type: Uorc.Search.VerifyRope::Cursor}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: ordered, fields: [ByteOrder]},
+    {name: invalidCursor, fields: []},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [left : Uorc.Core.Bytes::Rope, right : Uorc.Core.Bytes::Rope],
+  result: Cursor,
+  body: (record Cursor {left := left, right := right, comparison := (Uorc.Search.VerifyRope::start (cons left (nil Uorc.Core.Bytes::Rope)) (cons right (nil Uorc.Core.Bytes::Rope)))})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (Uorc.Search.VerifyRope::step (project cursor comparison))
+    | Uorc.Search.VerifyRope::Step.pending next => (ctor Step.pending (record Cursor {left := (project cursor left), right := (project cursor right), comparison := next}))
+    | Uorc.Search.VerifyRope::Step.matched compared boundaries => (ctor Step.ordered (ctor ByteOrder.equal))
+    | Uorc.Search.VerifyRope::Step.mismatch mismatch => (match (project mismatch kind)
+      | Uorc.Search.Verify::MismatchKind.objectCount => (ctor Step.invalidCursor)
+      | Uorc.Search.Verify::MismatchKind.objectLength => (if ((Uorc.Core.Bytes::length (project cursor left)) <? (Uorc.Core.Bytes::length (project cursor right))) then (ctor Step.ordered (ctor ByteOrder.less)) else (if ((Uorc.Core.Bytes::length (project cursor right)) <? (Uorc.Core.Bytes::length (project cursor left))) then (ctor Step.ordered (ctor ByteOrder.greater)) else (ctor Step.invalidCursor)))
+      | Uorc.Search.Verify::MismatchKind.byteValue => (match (project (project cursor comparison) expectedByte)
+        | Option.none => (ctor Step.invalidCursor)
+        | Option.some leftByte => (match (project (project cursor comparison) actualByte)
+          | Option.none => (ctor Step.invalidCursor)
+          | Option.some rightByte => (if (Uorc.Search.Order::byteLess leftByte rightByte) then (ctor Step.ordered (ctor ByteOrder.less)) else (ctor Step.ordered (ctor ByteOrder.greater)))))
+      | Uorc.Search.Verify::MismatchKind.invalidCursor => (ctor Step.invalidCursor))
+    | Uorc.Search.VerifyRope::Step.ropeFailure error => (ctor Step.ropeFailure error))
+}
+\end{semanticmodule}
+\end{lexlean}

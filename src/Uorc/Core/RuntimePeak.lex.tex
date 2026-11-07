@@ -1,0 +1,55 @@
+\begin{lexlean}{Uorc.Core.RuntimePeak}
+\importmodule{Uorc.Core.Heap}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: chooseWord,
+  parameters: [rightLarger : Bool, left : UInt64, right : UInt64],
+  result: UInt64,
+  body: (if rightLarger then right else left),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: maxWord,
+  parameters: [left : UInt64, right : UInt64],
+  result: UInt64,
+  body: (chooseWord (prim less_than left right : Bool) left right),
+  axioms: [propext],
+  executable: true
+}
+
+definition{
+  name: beginEvent,
+  parameters: [arena : Uorc.Core.Heap::Arena],
+  result: (Result UInt64 Uorc.Core.Heap::HeapError),
+  body: (Uorc.Core.Heap::totalOwnedBytes arena),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow], targets: [rust-std]}
+}
+
+definition{
+  name: completeEvent,
+  parameters: [previousPeak : UInt64, beforeBytes : UInt64, afterArena : Uorc.Core.Heap::Arena],
+  result: (Result UInt64 Uorc.Core.Heap::HeapError),
+  body: (match (Uorc.Core.Heap::totalOwnedBytes afterArena)
+    | Result.error failure => (ctor Result.error [UInt64, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok afterBytes => (ctor Result.ok [UInt64, Uorc.Core.Heap::HeapError] (maxWord (maxWord previousPeak beforeBytes) afterBytes))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow], targets: [rust-std]}
+}
+
+definition{
+  name: failedEvent,
+  parameters: [previousPeak : UInt64, beforeBytes : UInt64],
+  result: UInt64,
+  body: (maxWord previousPeak beforeBytes),
+  axioms: [propext],
+  executable: true,
+  production: {effects: [], targets: [rust-std]}
+}
+\end{semanticmodule}
+\end{lexlean}

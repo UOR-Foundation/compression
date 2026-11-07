@@ -1,0 +1,1449 @@
+\begin{lexlean}{Uorc.Integrity.Sha256}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidState, fields: []},
+    {name: lengthDomainExceeded, fields: []},
+    {name: workPending, fields: []},
+    {name: updateAfterFinalize, fields: []},
+    {name: notFinalized, fields: []},
+    {name: fuelExhausted, fields: []},
+    {name: invalidOffset, fields: []}
+  ]
+}
+
+structure{
+  name: Words,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: a, type: UInt32},
+    {name: b, type: UInt32},
+    {name: c, type: UInt32},
+    {name: d, type: UInt32},
+    {name: e, type: UInt32},
+    {name: f, type: UInt32},
+    {name: g, type: UInt32},
+    {name: h, type: UInt32}
+  ]
+}
+
+structure{
+  name: Compression,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: base, type: Words},
+    {name: registers, type: Words},
+    {name: schedule, type: (List UInt32)},
+    {name: round, type: Nat}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: absorbing, fields: []},
+    {name: finishing, fields: [Bytes]},
+    {name: finished, fields: []}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: chain, type: Words},
+    {name: buffer, type: Bytes},
+    {name: count, type: UInt64},
+    {name: work, type: (Option Compression)},
+    {name: phase, type: Phase}
+  ]
+}
+
+structure{
+  name: Update,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: state, type: State}, {name: input, type: Bytes}, {name: offset, type: Nat}]
+}
+
+inductive{
+  name: UpdateEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: advanced, fields: [Update]}, {name: done, fields: [State]}]
+}
+
+definition{
+  name: u32Add,
+  parameters: [x : UInt32, y : UInt32],
+  result: UInt32,
+  body: (match (prim checked_add x y : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: u32Sub,
+  parameters: [x : UInt32, y : UInt32],
+  result: UInt32,
+  body: (match (prim checked_subtract x y : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: u64Add,
+  parameters: [x : UInt64, y : UInt64],
+  result: UInt64,
+  body: (match (prim checked_add x y : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: u64Sub,
+  parameters: [x : UInt64, y : UInt64],
+  result: UInt64,
+  body: (match (prim checked_subtract x y : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: wrappingAdd,
+  parameters: [x : UInt32, y : UInt32],
+  result: UInt32,
+  body: (match (prim checked_add x y : (Option UInt32))
+    | Option.none => (u32Sub (u32Sub x (prim bit_not y : UInt32)) (1 : UInt32))
+    | Option.some unwrapped => unwrapped),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: bigSigma0,
+  parameters: [x : UInt32],
+  result: UInt32,
+  body: (prim bit_xor (prim bit_xor (prim bit_or (match (prim shift_right x (2 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (30 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) (prim bit_or (match (prim shift_right x (13 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (19 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) : UInt32) (prim bit_or (match (prim shift_right x (22 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (10 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) : UInt32),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: bigSigma1,
+  parameters: [x : UInt32],
+  result: UInt32,
+  body: (prim bit_xor (prim bit_xor (prim bit_or (match (prim shift_right x (6 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (26 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) (prim bit_or (match (prim shift_right x (11 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (21 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) : UInt32) (prim bit_or (match (prim shift_right x (25 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (7 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) : UInt32),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: smallSigma0,
+  parameters: [x : UInt32],
+  result: UInt32,
+  body: (prim bit_xor (prim bit_xor (prim bit_or (match (prim shift_right x (7 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (25 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) (prim bit_or (match (prim shift_right x (18 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (14 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) : UInt32) (match (prim shift_right x (3 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: smallSigma1,
+  parameters: [x : UInt32],
+  result: UInt32,
+  body: (prim bit_xor (prim bit_xor (prim bit_or (match (prim shift_right x (17 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (15 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) (prim bit_or (match (prim shift_right x (19 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left x (13 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) : UInt32) (match (prim shift_right x (10 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: choose,
+  parameters: [x : UInt32, y : UInt32, z : UInt32],
+  result: UInt32,
+  body: (prim bit_xor (prim bit_and x y : UInt32) (prim bit_and (prim bit_not x : UInt32) z : UInt32) : UInt32),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: majority,
+  parameters: [x : UInt32, y : UInt32, z : UInt32],
+  result: UInt32,
+  body: (prim bit_xor (prim bit_xor (prim bit_and x y : UInt32) (prim bit_and x z : UInt32) : UInt32) (prim bit_and y z : UInt32) : UInt32),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: constants,
+  parameters: [],
+  result: (List UInt32),
+  body: (cons (1116352408 : UInt32) (cons (1899447441 : UInt32) (cons (3049323471 : UInt32) (cons (3921009573 : UInt32) (cons (961987163 : UInt32) (cons (1508970993 : UInt32) (cons (2453635748 : UInt32) (cons (2870763221 : UInt32) (cons (3624381080 : UInt32) (cons (310598401 : UInt32) (cons (607225278 : UInt32) (cons (1426881987 : UInt32) (cons (1925078388 : UInt32) (cons (2162078206 : UInt32) (cons (2614888103 : UInt32) (cons (3248222580 : UInt32) (cons (3835390401 : UInt32) (cons (4022224774 : UInt32) (cons (264347078 : UInt32) (cons (604807628 : UInt32) (cons (770255983 : UInt32) (cons (1249150122 : UInt32) (cons (1555081692 : UInt32) (cons (1996064986 : UInt32) (cons (2554220882 : UInt32) (cons (2821834349 : UInt32) (cons (2952996808 : UInt32) (cons (3210313671 : UInt32) (cons (3336571891 : UInt32) (cons (3584528711 : UInt32) (cons (113926993 : UInt32) (cons (338241895 : UInt32) (cons (666307205 : UInt32) (cons (773529912 : UInt32) (cons (1294757372 : UInt32) (cons (1396182291 : UInt32) (cons (1695183700 : UInt32) (cons (1986661051 : UInt32) (cons (2177026350 : UInt32) (cons (2456956037 : UInt32) (cons (2730485921 : UInt32) (cons (2820302411 : UInt32) (cons (3259730800 : UInt32) (cons (3345764771 : UInt32) (cons (3516065817 : UInt32) (cons (3600352804 : UInt32) (cons (4094571909 : UInt32) (cons (275423344 : UInt32) (cons (430227734 : UInt32) (cons (506948616 : UInt32) (cons (659060556 : UInt32) (cons (883997877 : UInt32) (cons (958139571 : UInt32) (cons (1322822218 : UInt32) (cons (1537002063 : UInt32) (cons (1747873779 : UInt32) (cons (1955562222 : UInt32) (cons (2024104815 : UInt32) (cons (2227730452 : UInt32) (cons (2361852424 : UInt32) (cons (2428436474 : UInt32) (cons (2756734187 : UInt32) (cons (3204031479 : UInt32) (cons (3329325298 : UInt32) (nil UInt32))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))),
+  axioms: []
+}
+
+definition{
+  name: roundConstant,
+  parameters: [roundNumber : Nat],
+  result: UInt32,
+  body: (if (roundNumber <? 64) then (if (roundNumber <? 32) then (if (roundNumber <? 16) then (if (roundNumber <? 8) then (if (roundNumber <? 4) then (if (roundNumber <? 2) then (if (roundNumber <? 1) then (1116352408 : UInt32) else (1899447441 : UInt32)) else (if (roundNumber <? 3) then (3049323471 : UInt32) else (3921009573 : UInt32))) else (if (roundNumber <? 6) then (if (roundNumber <? 5) then (961987163 : UInt32) else (1508970993 : UInt32)) else (if (roundNumber <? 7) then (2453635748 : UInt32) else (2870763221 : UInt32)))) else (if (roundNumber <? 12) then (if (roundNumber <? 10) then (if (roundNumber <? 9) then (3624381080 : UInt32) else (310598401 : UInt32)) else (if (roundNumber <? 11) then (607225278 : UInt32) else (1426881987 : UInt32))) else (if (roundNumber <? 14) then (if (roundNumber <? 13) then (1925078388 : UInt32) else (2162078206 : UInt32)) else (if (roundNumber <? 15) then (2614888103 : UInt32) else (3248222580 : UInt32))))) else (if (roundNumber <? 24) then (if (roundNumber <? 20) then (if (roundNumber <? 18) then (if (roundNumber <? 17) then (3835390401 : UInt32) else (4022224774 : UInt32)) else (if (roundNumber <? 19) then (264347078 : UInt32) else (604807628 : UInt32))) else (if (roundNumber <? 22) then (if (roundNumber <? 21) then (770255983 : UInt32) else (1249150122 : UInt32)) else (if (roundNumber <? 23) then (1555081692 : UInt32) else (1996064986 : UInt32)))) else (if (roundNumber <? 28) then (if (roundNumber <? 26) then (if (roundNumber <? 25) then (2554220882 : UInt32) else (2821834349 : UInt32)) else (if (roundNumber <? 27) then (2952996808 : UInt32) else (3210313671 : UInt32))) else (if (roundNumber <? 30) then (if (roundNumber <? 29) then (3336571891 : UInt32) else (3584528711 : UInt32)) else (if (roundNumber <? 31) then (113926993 : UInt32) else (338241895 : UInt32)))))) else (if (roundNumber <? 48) then (if (roundNumber <? 40) then (if (roundNumber <? 36) then (if (roundNumber <? 34) then (if (roundNumber <? 33) then (666307205 : UInt32) else (773529912 : UInt32)) else (if (roundNumber <? 35) then (1294757372 : UInt32) else (1396182291 : UInt32))) else (if (roundNumber <? 38) then (if (roundNumber <? 37) then (1695183700 : UInt32) else (1986661051 : UInt32)) else (if (roundNumber <? 39) then (2177026350 : UInt32) else (2456956037 : UInt32)))) else (if (roundNumber <? 44) then (if (roundNumber <? 42) then (if (roundNumber <? 41) then (2730485921 : UInt32) else (2820302411 : UInt32)) else (if (roundNumber <? 43) then (3259730800 : UInt32) else (3345764771 : UInt32))) else (if (roundNumber <? 46) then (if (roundNumber <? 45) then (3516065817 : UInt32) else (3600352804 : UInt32)) else (if (roundNumber <? 47) then (4094571909 : UInt32) else (275423344 : UInt32))))) else (if (roundNumber <? 56) then (if (roundNumber <? 52) then (if (roundNumber <? 50) then (if (roundNumber <? 49) then (430227734 : UInt32) else (506948616 : UInt32)) else (if (roundNumber <? 51) then (659060556 : UInt32) else (883997877 : UInt32))) else (if (roundNumber <? 54) then (if (roundNumber <? 53) then (958139571 : UInt32) else (1322822218 : UInt32)) else (if (roundNumber <? 55) then (1537002063 : UInt32) else (1747873779 : UInt32)))) else (if (roundNumber <? 60) then (if (roundNumber <? 58) then (if (roundNumber <? 57) then (1955562222 : UInt32) else (2024104815 : UInt32)) else (if (roundNumber <? 59) then (2227730452 : UInt32) else (2361852424 : UInt32))) else (if (roundNumber <? 62) then (if (roundNumber <? 61) then (2428436474 : UInt32) else (2756734187 : UInt32)) else (if (roundNumber <? 63) then (3204031479 : UInt32) else (3329325298 : UInt32))))))) else (0 : UInt32)),
+  executable: true
+}
+
+theorem{
+  name: round_constant_00,
+  parameters: [],
+  statement: ((roundConstant 0) = (match (prim index (constants) 0 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_01,
+  parameters: [],
+  statement: ((roundConstant 1) = (match (prim index (constants) 1 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_02,
+  parameters: [],
+  statement: ((roundConstant 2) = (match (prim index (constants) 2 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_03,
+  parameters: [],
+  statement: ((roundConstant 3) = (match (prim index (constants) 3 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_04,
+  parameters: [],
+  statement: ((roundConstant 4) = (match (prim index (constants) 4 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_05,
+  parameters: [],
+  statement: ((roundConstant 5) = (match (prim index (constants) 5 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_06,
+  parameters: [],
+  statement: ((roundConstant 6) = (match (prim index (constants) 6 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_07,
+  parameters: [],
+  statement: ((roundConstant 7) = (match (prim index (constants) 7 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_08,
+  parameters: [],
+  statement: ((roundConstant 8) = (match (prim index (constants) 8 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_09,
+  parameters: [],
+  statement: ((roundConstant 9) = (match (prim index (constants) 9 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_10,
+  parameters: [],
+  statement: ((roundConstant 10) = (match (prim index (constants) 10 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_11,
+  parameters: [],
+  statement: ((roundConstant 11) = (match (prim index (constants) 11 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_12,
+  parameters: [],
+  statement: ((roundConstant 12) = (match (prim index (constants) 12 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_13,
+  parameters: [],
+  statement: ((roundConstant 13) = (match (prim index (constants) 13 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_14,
+  parameters: [],
+  statement: ((roundConstant 14) = (match (prim index (constants) 14 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_15,
+  parameters: [],
+  statement: ((roundConstant 15) = (match (prim index (constants) 15 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_16,
+  parameters: [],
+  statement: ((roundConstant 16) = (match (prim index (constants) 16 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_17,
+  parameters: [],
+  statement: ((roundConstant 17) = (match (prim index (constants) 17 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_18,
+  parameters: [],
+  statement: ((roundConstant 18) = (match (prim index (constants) 18 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_19,
+  parameters: [],
+  statement: ((roundConstant 19) = (match (prim index (constants) 19 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_20,
+  parameters: [],
+  statement: ((roundConstant 20) = (match (prim index (constants) 20 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_21,
+  parameters: [],
+  statement: ((roundConstant 21) = (match (prim index (constants) 21 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_22,
+  parameters: [],
+  statement: ((roundConstant 22) = (match (prim index (constants) 22 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_23,
+  parameters: [],
+  statement: ((roundConstant 23) = (match (prim index (constants) 23 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_24,
+  parameters: [],
+  statement: ((roundConstant 24) = (match (prim index (constants) 24 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_25,
+  parameters: [],
+  statement: ((roundConstant 25) = (match (prim index (constants) 25 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_26,
+  parameters: [],
+  statement: ((roundConstant 26) = (match (prim index (constants) 26 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_27,
+  parameters: [],
+  statement: ((roundConstant 27) = (match (prim index (constants) 27 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_28,
+  parameters: [],
+  statement: ((roundConstant 28) = (match (prim index (constants) 28 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_29,
+  parameters: [],
+  statement: ((roundConstant 29) = (match (prim index (constants) 29 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_30,
+  parameters: [],
+  statement: ((roundConstant 30) = (match (prim index (constants) 30 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_31,
+  parameters: [],
+  statement: ((roundConstant 31) = (match (prim index (constants) 31 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_32,
+  parameters: [],
+  statement: ((roundConstant 32) = (match (prim index (constants) 32 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_33,
+  parameters: [],
+  statement: ((roundConstant 33) = (match (prim index (constants) 33 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_34,
+  parameters: [],
+  statement: ((roundConstant 34) = (match (prim index (constants) 34 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_35,
+  parameters: [],
+  statement: ((roundConstant 35) = (match (prim index (constants) 35 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_36,
+  parameters: [],
+  statement: ((roundConstant 36) = (match (prim index (constants) 36 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_37,
+  parameters: [],
+  statement: ((roundConstant 37) = (match (prim index (constants) 37 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_38,
+  parameters: [],
+  statement: ((roundConstant 38) = (match (prim index (constants) 38 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_39,
+  parameters: [],
+  statement: ((roundConstant 39) = (match (prim index (constants) 39 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_40,
+  parameters: [],
+  statement: ((roundConstant 40) = (match (prim index (constants) 40 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_41,
+  parameters: [],
+  statement: ((roundConstant 41) = (match (prim index (constants) 41 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_42,
+  parameters: [],
+  statement: ((roundConstant 42) = (match (prim index (constants) 42 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_43,
+  parameters: [],
+  statement: ((roundConstant 43) = (match (prim index (constants) 43 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_44,
+  parameters: [],
+  statement: ((roundConstant 44) = (match (prim index (constants) 44 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_45,
+  parameters: [],
+  statement: ((roundConstant 45) = (match (prim index (constants) 45 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_46,
+  parameters: [],
+  statement: ((roundConstant 46) = (match (prim index (constants) 46 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_47,
+  parameters: [],
+  statement: ((roundConstant 47) = (match (prim index (constants) 47 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_48,
+  parameters: [],
+  statement: ((roundConstant 48) = (match (prim index (constants) 48 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_49,
+  parameters: [],
+  statement: ((roundConstant 49) = (match (prim index (constants) 49 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_50,
+  parameters: [],
+  statement: ((roundConstant 50) = (match (prim index (constants) 50 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_51,
+  parameters: [],
+  statement: ((roundConstant 51) = (match (prim index (constants) 51 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_52,
+  parameters: [],
+  statement: ((roundConstant 52) = (match (prim index (constants) 52 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_53,
+  parameters: [],
+  statement: ((roundConstant 53) = (match (prim index (constants) 53 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_54,
+  parameters: [],
+  statement: ((roundConstant 54) = (match (prim index (constants) 54 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_55,
+  parameters: [],
+  statement: ((roundConstant 55) = (match (prim index (constants) 55 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_56,
+  parameters: [],
+  statement: ((roundConstant 56) = (match (prim index (constants) 56 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_57,
+  parameters: [],
+  statement: ((roundConstant 57) = (match (prim index (constants) 57 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_58,
+  parameters: [],
+  statement: ((roundConstant 58) = (match (prim index (constants) 58 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_59,
+  parameters: [],
+  statement: ((roundConstant 59) = (match (prim index (constants) 59 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_60,
+  parameters: [],
+  statement: ((roundConstant 60) = (match (prim index (constants) 60 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_61,
+  parameters: [],
+  statement: ((roundConstant 61) = (match (prim index (constants) 61 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_62,
+  parameters: [],
+  statement: ((roundConstant 62) = (match (prim index (constants) 62 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_63,
+  parameters: [],
+  statement: ((roundConstant 63) = (match (prim index (constants) 63 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: round_constant_64,
+  parameters: [],
+  statement: ((roundConstant 64) = (match (prim index (constants) 64 : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)),
+  proof: reflexivity{}
+}
+
+definition{
+  name: initialWords,
+  parameters: [],
+  result: Words,
+  body: (record Words {a := (1779033703 : UInt32), b := (3144134277 : UInt32), c := (1013904242 : UInt32), d := (2773480762 : UInt32), e := (1359893119 : UInt32), f := (2600822924 : UInt32), g := (528734635 : UInt32), h := (1541459225 : UInt32)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: init,
+  parameters: [],
+  result: State,
+  body: (record State {chain := (initialWords), buffer := 0x, count := (0 : UInt64), work := (ctor Option.none [Compression]), phase := (ctor Phase.absorbing)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: byteIndexAux,
+  parameters: [fuel : Nat, byte : UInt8],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => 0
+    | Nat.succ rest => ((if (prim equal (prim bit_and byte (1 : UInt8) : UInt8) (0 : UInt8) : Bool) then 0 else 1) + (prim multiply 2 (byteIndexAux rest (match (prim shift_right byte (1 : UInt32) : (Option UInt8))
+      | Option.none => (0 : UInt8)
+      | Option.some unwrapped => unwrapped)) : Nat))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: byteBytes,
+  parameters: [byte : UInt8],
+  result: Bytes,
+  body: (match (prim slice 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff (byteIndexAux 8 byte) 1 : (Option Bytes))
+    | Option.none => 0x
+    | Option.some unwrapped => unwrapped),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: asByte32,
+  parameters: [word : UInt32],
+  result: UInt8,
+  body: (match (prim checked_convert (prim bit_and word (255 : UInt32) : UInt32) : (Option UInt8))
+    | Option.none => (0 : UInt8)
+    | Option.some unwrapped => unwrapped),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: asByte64,
+  parameters: [word : UInt64],
+  result: UInt8,
+  body: (match (prim checked_convert (prim bit_and word (255 : UInt64) : UInt64) : (Option UInt8))
+    | Option.none => (0 : UInt8)
+    | Option.some unwrapped => unwrapped),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: widenByte,
+  parameters: [byte : UInt8],
+  result: UInt32,
+  body: (match (prim checked_convert byte : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: wordBytes,
+  parameters: [word : UInt32],
+  result: Bytes,
+  body: (prim append (prim append (prim append (prim append 0x (byteBytes (asByte32 (match (prim shift_right word (24 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte32 (match (prim shift_right word (16 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte32 (match (prim shift_right word (8 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte32 (match (prim shift_right word (0 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped))) : Bytes),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: bitLengthBytes,
+  parameters: [count : UInt64],
+  result: Bytes,
+  body: (prim append (prim append (prim append (prim append (prim append (prim append (prim append (prim append 0x (byteBytes (asByte64 (match (prim shift_right (match (prim shift_left count (3 : UInt32) : (Option UInt64))
+      | Option.none => (0 : UInt64)
+      | Option.some unwrapped => unwrapped) (56 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte64 (match (prim shift_right (match (prim shift_left count (3 : UInt32) : (Option UInt64))
+      | Option.none => (0 : UInt64)
+      | Option.some unwrapped => unwrapped) (48 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte64 (match (prim shift_right (match (prim shift_left count (3 : UInt32) : (Option UInt64))
+      | Option.none => (0 : UInt64)
+      | Option.some unwrapped => unwrapped) (40 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte64 (match (prim shift_right (match (prim shift_left count (3 : UInt32) : (Option UInt64))
+      | Option.none => (0 : UInt64)
+      | Option.some unwrapped => unwrapped) (32 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte64 (match (prim shift_right (match (prim shift_left count (3 : UInt32) : (Option UInt64))
+      | Option.none => (0 : UInt64)
+      | Option.some unwrapped => unwrapped) (24 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte64 (match (prim shift_right (match (prim shift_left count (3 : UInt32) : (Option UInt64))
+      | Option.none => (0 : UInt64)
+      | Option.some unwrapped => unwrapped) (16 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte64 (match (prim shift_right (match (prim shift_left count (3 : UInt32) : (Option UInt64))
+      | Option.none => (0 : UInt64)
+      | Option.some unwrapped => unwrapped) (8 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes) (byteBytes (asByte64 (match (prim shift_right (match (prim shift_left count (3 : UInt32) : (Option UInt64))
+      | Option.none => (0 : UInt64)
+      | Option.some unwrapped => unwrapped) (0 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some unwrapped => unwrapped))) : Bytes),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: wordsBytes,
+  parameters: [words : Words],
+  result: Bytes,
+  body: (prim append (prim append (prim append (prim append (prim append (prim append (prim append (prim append 0x (wordBytes (project words a)) : Bytes) (wordBytes (project words b)) : Bytes) (wordBytes (project words c)) : Bytes) (wordBytes (project words d)) : Bytes) (wordBytes (project words e)) : Bytes) (wordBytes (project words f)) : Bytes) (wordBytes (project words g)) : Bytes) (wordBytes (project words h)) : Bytes),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: loadWord,
+  parameters: [block : Bytes, offset : Nat],
+  result: UInt32,
+  body: (prim bit_or (prim bit_or (match (prim shift_left (widenByte (match (prim index block offset : (Option UInt8))
+      | Option.none => (0 : UInt8)
+      | Option.some unwrapped => unwrapped)) (24 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (match (prim shift_left (widenByte (match (prim index block (offset + 1) : (Option UInt8))
+      | Option.none => (0 : UInt8)
+      | Option.some unwrapped => unwrapped)) (16 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) : UInt32) (prim bit_or (match (prim shift_left (widenByte (match (prim index block (offset + 2) : (Option UInt8))
+      | Option.none => (0 : UInt8)
+      | Option.some unwrapped => unwrapped)) (8 : UInt32) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (widenByte (match (prim index block (offset + 3) : (Option UInt8))
+    | Option.none => (0 : UInt8)
+    | Option.some unwrapped => unwrapped)) : UInt32) : UInt32),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: startCompression,
+  parameters: [base : Words, block : Bytes],
+  result: Compression,
+  body: (record Compression {base := base, registers := base, schedule := (cons (loadWord block 0) (cons (loadWord block 4) (cons (loadWord block 8) (cons (loadWord block 12) (cons (loadWord block 16) (cons (loadWord block 20) (cons (loadWord block 24) (cons (loadWord block 28) (cons (loadWord block 32) (cons (loadWord block 36) (cons (loadWord block 40) (cons (loadWord block 44) (cons (loadWord block 48) (cons (loadWord block 52) (cons (loadWord block 56) (cons (loadWord block 60) (nil UInt32))))))))))))))))), round := 0}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: replaceWord,
+  parameters: [words : (List UInt32), index : Nat, word : UInt32],
+  result: (List UInt32),
+  body: (match words
+    | List.nil => (nil UInt32)
+    | List.cons head tail => (cons (if (index =? 0) then word else head) (if (index =? 0) then tail else (replaceWord tail (prim subtract index 1 : Nat) word)))),
+  axioms: [],
+  executable: true,
+  recursive_argument: words
+}
+
+definition{
+  name: scheduleWord,
+  parameters: [work : Compression],
+  result: UInt32,
+  body: (if ((project work round) <? 16) then (match (prim index (project work schedule) (project work round) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) else (wrappingAdd (wrappingAdd (wrappingAdd (match (prim index (project work schedule) (prim remainder (project work round) 16 0 : Nat) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped) (smallSigma0 (match (prim index (project work schedule) (prim remainder ((project work round) + 1) 16 0 : Nat) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped))) (match (prim index (project work schedule) (prim remainder ((project work round) + 9) 16 0 : Nat) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)) (smallSigma1 (match (prim index (project work schedule) (prim remainder ((project work round) + 14) 16 0 : Nat) : (Option UInt32))
+    | Option.none => (0 : UInt32)
+    | Option.some unwrapped => unwrapped)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: roundT1,
+  parameters: [r : Words, word : UInt32, constant : UInt32],
+  result: UInt32,
+  body: (wrappingAdd (wrappingAdd (wrappingAdd (wrappingAdd (project r h) (bigSigma1 (project r e))) (choose (project r e) (project r f) (project r g))) constant) word),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: roundT2,
+  parameters: [r : Words],
+  result: UInt32,
+  body: (wrappingAdd (bigSigma0 (project r a)) (majority (project r a) (project r b) (project r c))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: roundRegisters,
+  parameters: [r : Words, word : UInt32, constant : UInt32],
+  result: Words,
+  body: (record Words {a := (wrappingAdd (roundT1 r word constant) (roundT2 r)), b := (project r a), c := (project r b), d := (project r c), e := (wrappingAdd (project r d) (roundT1 r word constant)), f := (project r e), g := (project r f), h := (project r g)}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: compressionRound,
+  parameters: [work : Compression],
+  result: Compression,
+  body: (record Compression {base := (project work base), registers := (roundRegisters (project work registers) (scheduleWord work) (roundConstant (project work round))), schedule := (replaceWord (project work schedule) (prim remainder (project work round) 16 0 : Nat) (scheduleWord work)), round := ((project work round) + 1)}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: feedForward,
+  parameters: [work : Compression],
+  result: Words,
+  body: (record Words {a := (wrappingAdd (project (project work base) a) (project (project work registers) a)), b := (wrappingAdd (project (project work base) b) (project (project work registers) b)), c := (wrappingAdd (project (project work base) c) (project (project work registers) c)), d := (wrappingAdd (project (project work base) d) (project (project work registers) d)), e := (wrappingAdd (project (project work base) e) (project (project work registers) e)), f := (wrappingAdd (project (project work base) f) (project (project work registers) f)), g := (wrappingAdd (project (project work base) g) (project (project work registers) g)), h := (wrappingAdd (project (project work base) h) (project (project work registers) h))}),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: countValid,
+  parameters: [count : UInt64],
+  result: Bool,
+  body: (match (prim checked_subtract (2305843009213693951 : UInt64) count : (Option UInt64))
+    | Option.none => false
+    | Option.some difference => true),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: checkedSchedule,
+  parameters: [fuel : Nat, words : (List UInt32)],
+  result: Bool,
+  body: (match fuel
+    | Nat.zero => (match words | List.nil => true | List.cons head tail => false)
+    | Nat.succ rest => (match words
+      | List.nil => false
+      | List.cons head tail => (checkedSchedule rest tail))),
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: workValid,
+  parameters: [work : (Option Compression)],
+  result: Bool,
+  body: (match work
+    | Option.none => true
+    | Option.some compression => ((checkedSchedule 16 (project compression schedule)) && ((project compression round) <=? 64))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: hasWork,
+  parameters: [state : State],
+  result: Bool,
+  body: (match (project state work) | Option.none => false | Option.some compression => true),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: countRemainder,
+  parameters: [count : UInt64],
+  result: Nat,
+  body: (byteIndexAux 8 (asByte64 (prim bit_and count (63 : UInt64) : UInt64))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: phaseValid,
+  parameters: [state : State],
+  result: Bool,
+  body: (match (project state phase)
+    | Phase.absorbing => ((prim length (project state buffer) : Nat) =? (countRemainder (project state count)))
+    | Phase.finishing pendingPadding => (((prim length pendingPadding : Nat) <=? 72) && ((prim remainder ((prim length (project state buffer) : Nat) + (prim length pendingPadding : Nat)) 64 0 : Nat) =? 0))
+    | Phase.finished => (((prim length (project state buffer) : Nat) =? 0) && (if (hasWork state) then false else true))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: valid,
+  parameters: [state : State],
+  result: Bool,
+  body: ((countValid (project state count)) && (((prim length (project state buffer) : Nat) <=? 63) && ((workValid (project state work)) && ((if (hasWork state) then ((prim length (project state buffer) : Nat) =? 0) else true) && (phaseValid state))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: advanceWork,
+  parameters: [state : State],
+  result: (Result State Error),
+  body: (if (valid state) then (match (project state work)
+    | Option.none => (ctor Result.error [State, Error] (ctor Error.invalidState))
+    | Option.some compression => (ctor Result.ok [State, Error] (if ((project compression round) =? 64) then (record State {chain := (feedForward compression), buffer := (project state buffer), count := (project state count), work := (ctor Option.none [Compression]), phase := (project state phase)}) else (record State {chain := (project state chain), buffer := (project state buffer), count := (project state count), work := (ctor Option.some [Compression] (compressionRound compression)), phase := (project state phase)})))) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: appendRaw,
+  parameters: [state : State, byte : UInt8],
+  result: State,
+  body: (if ((prim length (project state buffer) : Nat) =? 63) then (record State {chain := (project state chain), buffer := 0x, count := (project state count), work := (ctor Option.some [Compression] (startCompression (project state chain) (prim append (project state buffer) (byteBytes byte) : Bytes))), phase := (project state phase)}) else (record State {chain := (project state chain), buffer := (prim append (project state buffer) (byteBytes byte) : Bytes), count := (project state count), work := (project state work), phase := (project state phase)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: absorbByte,
+  parameters: [state : State, byte : UInt8],
+  result: (Result State Error),
+  body: (if (valid state) then (match (project state phase)
+    | Phase.absorbing => (if (hasWork state) then (ctor Result.error [State, Error] (ctor Error.workPending)) else (if (prim equal (project state count) (2305843009213693951 : UInt64) : Bool) then (ctor Result.error [State, Error] (ctor Error.lengthDomainExceeded)) else (ctor Result.ok [State, Error] (appendRaw (record State {chain := (project state chain), buffer := (project state buffer), count := (u64Add (project state count) (1 : UInt64)), work := (project state work), phase := (project state phase)}) byte))))
+    | Phase.finishing pendingPadding => (ctor Result.error [State, Error] (ctor Error.updateAfterFinalize))
+    | Phase.finished => (ctor Result.error [State, Error] (ctor Error.updateAfterFinalize))) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: beginUpdate,
+  parameters: [state : State, input : Bytes],
+  result: (Result Update Error),
+  body: (if (valid state) then (match (project state phase)
+    | Phase.absorbing => (ctor Result.ok [Update, Error] (record Update {state := state, input := input, offset := 0}))
+    | Phase.finishing pendingPadding => (ctor Result.error [Update, Error] (ctor Error.updateAfterFinalize))
+    | Phase.finished => (ctor Result.error [Update, Error] (ctor Error.updateAfterFinalize))) else (ctor Result.error [Update, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: isAbsorbing,
+  parameters: [state : State],
+  result: Bool,
+  body: (match (project state phase)
+    | Phase.absorbing => true
+    | Phase.finishing pendingPadding => false
+    | Phase.finished => false),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: updateStep,
+  parameters: [localUpdate : Update],
+  result: (Result UpdateEvent Error),
+  body: (if (valid (project localUpdate state)) then (if (isAbsorbing (project localUpdate state)) then (if ((project localUpdate offset) <=? (prim length (project localUpdate input) : Nat)) then (if (hasWork (project localUpdate state)) then (match (advanceWork (project localUpdate state))
+    | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+    | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project localUpdate input), offset := (project localUpdate offset)})))) else (if ((project localUpdate offset) =? (prim length (project localUpdate input) : Nat)) then (if (valid (project localUpdate state)) then (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.done (project localUpdate state))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidState))) else (match (absorbByte (project localUpdate state) (match (prim index (project localUpdate input) (project localUpdate offset) : (Option UInt8))
+      | Option.none => (0 : UInt8)
+      | Option.some unwrapped => unwrapped))
+    | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+    | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project localUpdate input), offset := ((project localUpdate offset) + 1)})))))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidOffset))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: zeroBytes,
+  parameters: [count : Nat],
+  result: Bytes,
+  body: (match count
+    | Nat.zero => 0x
+    | Nat.succ rest => (prim append 0x00 (zeroBytes rest) : Bytes)),
+  axioms: [],
+  executable: true,
+  recursive_argument: count
+}
+
+definition{
+  name: padding,
+  parameters: [state : State],
+  result: Bytes,
+  body: (prim append (prim append (prim append 0x 0x80 : Bytes) (zeroBytes (prim subtract (if ((prim length (project state buffer) : Nat) <? 56) then 55 else 119) (prim length (project state buffer) : Nat) : Nat)) : Bytes) (bitLengthBytes (project state count)) : Bytes),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalize,
+  parameters: [state : State],
+  result: (Result State Error),
+  body: (if (valid state) then (match (project state phase)
+    | Phase.absorbing => (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (project state buffer), count := (project state count), work := (project state work), phase := (ctor Phase.finishing (padding state))}))
+    | Phase.finishing pendingPadding => (ctor Result.ok [State, Error] state)
+    | Phase.finished => (ctor Result.ok [State, Error] state)) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: tailBytes,
+  parameters: [input : Bytes],
+  result: Bytes,
+  body: (match (prim slice input 1 (prim subtract (prim length input : Nat) 1 : Nat) : (Option Bytes))
+    | Option.none => 0x
+    | Option.some unwrapped => unwrapped),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: finalizeStep,
+  parameters: [state : State],
+  result: (Result State Error),
+  body: (if (valid state) then (match (project state phase)
+    | Phase.absorbing => (ctor Result.error [State, Error] (ctor Error.notFinalized))
+    | Phase.finishing pendingPadding => (if (hasWork state) then (advanceWork state) else (if ((prim length pendingPadding : Nat) =? 0) then (if ((prim length (project state buffer) : Nat) =? 0) then (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (project state buffer), count := (project state count), work := (project state work), phase := (ctor Phase.finished)})) else (ctor Result.error [State, Error] (ctor Error.invalidState))) else (ctor Result.ok [State, Error] (appendRaw (record State {chain := (project state chain), buffer := (project state buffer), count := (project state count), work := (project state work), phase := (ctor Phase.finishing (tailBytes pendingPadding))}) (match (prim index pendingPadding 0 : (Option UInt8))
+      | Option.none => (0 : UInt8)
+      | Option.some unwrapped => unwrapped)))))
+    | Phase.finished => (ctor Result.ok [State, Error] state)) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: digest,
+  parameters: [state : State],
+  result: (Result Bytes Error),
+  body: (if (valid state) then (match (project state phase)
+    | Phase.absorbing => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Phase.finishing pendingPadding => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Phase.finished => (ctor Result.ok [Bytes, Error] (wordsBytes (project state chain)))) else (ctor Result.error [Bytes, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: runUpdate,
+  parameters: [fuel : Nat, localUpdate : Update],
+  result: (Result State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [State, Error] (ctor Error.fuelExhausted))
+    | Nat.succ rest => (match (updateStep localUpdate)
+      | Result.error failure => (ctor Result.error [State, Error] failure)
+      | Result.ok event => (match event
+        | UpdateEvent.advanced nextUpdate => (runUpdate rest nextUpdate)
+        | UpdateEvent.done state => (ctor Result.ok [State, Error] state)))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: runFinalize,
+  parameters: [fuel : Nat, state : State],
+  result: (Result Bytes Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Bytes, Error] (ctor Error.fuelExhausted))
+    | Nat.succ rest => (match (project state phase)
+      | Phase.absorbing => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+      | Phase.finishing pendingPadding => (match (finalizeStep state)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok nextState => (runFinalize rest nextState))
+      | Phase.finished => (if (valid state) then (ctor Result.ok [Bytes, Error] (wordsBytes (project state chain))) else (ctor Result.error [Bytes, Error] (ctor Error.invalidState))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: fuel
+}
+
+definition{
+  name: update,
+  parameters: [state : State, input : Bytes],
+  result: (Result State Error),
+  body: (match (beginUpdate state input)
+    | Result.error failure => (ctor Result.error [State, Error] failure)
+    | Result.ok job => (runUpdate ((prim multiply 3 (prim length input : Nat) : Nat) + 132) job)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: hash,
+  parameters: [input : Bytes],
+  result: (Result Bytes Error),
+  body: (match (update (init) input)
+    | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+    | Result.ok updated => (match (finalize updated)
+      | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+      | Result.ok finalizing => (runFinalize 300 finalizing))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+theorem{
+  name: wrapping_overflow,
+  parameters: [],
+  statement: ((wrappingAdd (4294967295 : UInt32) (1 : UInt32)) = (0 : UInt32)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: wrapping_double_max,
+  parameters: [],
+  statement: ((wrappingAdd (4294967295 : UInt32) (4294967295 : UInt32)) = (4294967294 : UInt32)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: length_bytes_max,
+  parameters: [],
+  statement: ((bitLengthBytes (2305843009213693951 : UInt64)) = 0xfffffffffffffff8),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: unfinished_digest,
+  parameters: [],
+  statement: ((digest (init)) = (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: finalize_step_requires_start,
+  parameters: [],
+  statement: ((finalizeStep (init)) = (ctor Result.error [State, Error] (ctor Error.notFinalized))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: zero_update_fuel,
+  parameters: [],
+  statement: ((runUpdate 0 (record Update {state := (init), input := 0x, offset := 0})) = (ctor Result.error [State, Error] (ctor Error.fuelExhausted))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: invalid_offset,
+  parameters: [],
+  statement: ((updateStep (record Update {state := (init), input := 0x, offset := 1})) = (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidOffset))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: oversized_buffer,
+  parameters: [],
+  statement: ((digest (record State {chain := (project (init) chain), buffer := 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, count := (project (init) count), work := (project (init) work), phase := (project (init) phase)})) = (ctor Result.error [Bytes, Error] (ctor Error.invalidState))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: standard_length_domain,
+  parameters: [],
+  statement: ((absorbByte (record State {chain := (project (init) chain), buffer := 0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000, count := (2305843009213693951 : UInt64), work := (project (init) work), phase := (project (init) phase)}) (0 : UInt8)) = (ctor Result.error [State, Error] (ctor Error.lengthDomainExceeded))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: invalid_length_domain,
+  parameters: [],
+  statement: ((finalize (record State {chain := (project (init) chain), buffer := (project (init) buffer), count := (2305843009213693952 : UInt64), work := (project (init) work), phase := (project (init) phase)})) = (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: completed_finalize_refines_digest,
+  parameters: [remainingFuel : Nat, stateValue : State],
+  statement: ((runFinalize (ctor Nat.succ remainingFuel) (record State {chain := (project stateValue chain), buffer := (project stateValue buffer), count := (project stateValue count), work := (project stateValue work), phase := (ctor Phase.finished)})) = (digest (record State {chain := (project stateValue chain), buffer := (project stateValue buffer), count := (project stateValue count), work := (project stateValue work), phase := (ctor Phase.finished)}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

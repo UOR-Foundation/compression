@@ -1,0 +1,271 @@
+\begin{lexlean}{Uorc.Search.FixedTemplateControls}
+\importmodule{Uorc.Search.FixedTemplates}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeSequence}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: advance,
+  parameters: [work : Nat, cursor : Uorc.Search.FixedTemplates::Cursor],
+  result: Uorc.Search.FixedTemplates::Cursor,
+  body: (match work
+    | Nat.zero => cursor
+    | Nat.succ remaining => (match (Uorc.Search.FixedTemplates::step cursor)
+      | Uorc.Search.FixedTemplates::EventStep.complete => cursor
+      | Uorc.Search.FixedTemplates::EventStep.invalidPosition => cursor
+      | Uorc.Search.FixedTemplates::EventStep.produced offered continuation => (advance remaining continuation)
+      | Uorc.Search.FixedTemplates::EventStep.literal sequenceRoot continuation => (advance remaining continuation))),
+  recursive_argument: work
+}
+
+definition{
+  name: completed,
+  parameters: [cursor : Uorc.Search.FixedTemplates::Cursor],
+  result: Bool,
+  body: (match (Uorc.Search.FixedTemplates::step cursor)
+    | Uorc.Search.FixedTemplates::EventStep.complete => true
+    | Uorc.Search.FixedTemplates::EventStep.invalidPosition => false
+    | Uorc.Search.FixedTemplates::EventStep.produced offered continuation => false
+    | Uorc.Search.FixedTemplates::EventStep.literal sequenceRoot continuation => false)
+}
+
+theorem{
+  name: affine_ends_exactly,
+  parameters: [],
+  statement: ((completed (advance 44 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.affine (64 : UInt64) (250 : UInt64) (17 : UInt64))))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: affine_not_complete_one_event_early,
+  parameters: [],
+  statement: ((completed (advance 43 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.affine (64 : UInt64) (250 : UInt64) (17 : UInt64))))) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: affine_prefix_resume,
+  parameters: [],
+  statement: ((advance 22 (advance 22 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.affine (64 : UInt64) (250 : UInt64) (17 : UInt64))))) = (advance 44 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.affine (64 : UInt64) (250 : UInt64) (17 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: state_ends_exactly,
+  parameters: [],
+  statement: ((completed (advance 52 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.state (64 : UInt64) (7 : UInt64) (3 : UInt64) (17 : UInt64))))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: state_not_complete_one_event_early,
+  parameters: [],
+  statement: ((completed (advance 51 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.state (64 : UInt64) (7 : UInt64) (3 : UInt64) (17 : UInt64))))) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: state_prefix_resume,
+  parameters: [],
+  statement: ((advance 26 (advance 26 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.state (64 : UInt64) (7 : UInt64) (3 : UInt64) (17 : UInt64))))) = (advance 52 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.state (64 : UInt64) (7 : UInt64) (3 : UInt64) (17 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: packed_ends_exactly,
+  parameters: [],
+  statement: ((completed (advance 118 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)}))))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: packed_not_complete_one_event_early,
+  parameters: [],
+  statement: ((completed (advance 117 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)}))))) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: packed_prefix_resume,
+  parameters: [],
+  statement: ((advance 59 (advance 59 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)}))))) = (advance 118 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)}))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_ends_exactly,
+  parameters: [],
+  statement: ((completed (advance 1102 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}))))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_not_complete_one_event_early,
+  parameters: [],
+  statement: ((completed (advance 1101 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}))))) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_prefix_resume,
+  parameters: [],
+  statement: ((advance 551 (advance 551 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}))))) = (advance 1102 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_ends_exactly,
+  parameters: [],
+  statement: ((completed (advance 7 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.empty)))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_not_complete_one_event_early,
+  parameters: [],
+  statement: ((completed (advance 6 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.empty)))) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_prefix_resume,
+  parameters: [],
+  statement: ((advance 3 (advance 4 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.empty)))) = (advance 7 (Uorc.Search.FixedTemplates::start (ctor Uorc.Search.FixedTemplates::Template.empty)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: offered_cursor_keeps_sequence_owners,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::ownedSequences (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)}))) = (cons (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (cons (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (cons (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)}) (nil Uorc.Core.RuntimeValue::Handle))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: metadata_only_family_has_no_sequence_owners,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::ownedSequences (ctor Uorc.Search.FixedTemplates::Template.affine (64 : UInt64) (250 : UInt64) (17 : UInt64))) = (nil Uorc.Core.RuntimeValue::Handle)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: shared_sequence_roots_remain_explicit,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::ownedSequences (ctor Uorc.Search.FixedTemplates::Template.packedSingleton (2 : UInt64) (1 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}))) = (cons (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (cons (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (nil Uorc.Core.RuntimeValue::Handle)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: invalid_position_is_typed,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::step (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.affine (64 : UInt64) (250 : UInt64) (17 : UInt64)), position := (45 : UInt64)})) = (ctor Uorc.Search.FixedTemplates::EventStep.invalidPosition)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: state_capture_lane_46,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.state (64 : UInt64) (7 : UInt64) (3 : UInt64) (17 : UInt64)), position := (46 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.event (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (0 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: state_capture_lane_48,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.state (64 : UInt64) (7 : UInt64) (3 : UInt64) (17 : UInt64)), position := (48 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.event (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.second) (0 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: packed_capture_lane_82,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)})), position := (82 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.event (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (2 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: packed_capture_lane_107,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)})), position := (107 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.event (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (0 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_capture_lane_577,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)})), position := (577 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.event (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (3 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_capture_lane_593,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)})), position := (593 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.event (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (6 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_capture_lane_655,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)})), position := (655 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.event (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (6 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_capture_lane_1086,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)})), position := (1086 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.event (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (4 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_capture_lane_1092,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)})), position := (1092 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.event (ctor Uorc.Core.RuntimeProgram::Event.beginCaptures (ctor Uorc.Core.RuntimeProgram::CaptureLane.second) (6 : UInt64))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: packed_literal_sequence_70,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)})), position := (70 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.literal (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)})))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: packed_literal_sequence_73,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)})), position := (73 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.literal (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)})))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: packed_literal_sequence_110,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.packed (8 : UInt64) (1 : UInt64) (3 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)})), position := (110 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.literal (record Uorc.Core.RuntimeValue::Handle {id := (19 : UInt64)})))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_literal_sequence_913,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)})), position := (913 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.literal (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)})))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: huffman_literal_sequence_916,
+  parameters: [],
+  statement: ((Uorc.Search.FixedTemplates::at (record Uorc.Search.FixedTemplates::Cursor {template := (ctor Uorc.Search.FixedTemplates::Template.huffman (32 : UInt64) (95 : UInt64) (255 : UInt64) (0 : UInt64) (record Uorc.Core.RuntimeValue::Handle {id := (17 : UInt64)}) (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)})), position := (916 : UInt64)})) = (ctor Option.some [Uorc.Search.FixedTemplates::Atom] (ctor Uorc.Search.FixedTemplates::Atom.literal (record Uorc.Core.RuntimeValue::Handle {id := (18 : UInt64)})))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: scope,
+  parameters: [],
+  result: String,
+  body: "Finite source controls cover template event counts, resumable prefixes, scan capture order and explicit logical sequence roots. They do not establish shared-arena ownership/admission binding or all-program simulation. The diagnostic Graph definitions used for external event equivalence are not retained by the producer."
+}
+\end{semanticmodule}
+\end{lexlean}
