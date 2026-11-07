@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Composition diagnostics
 
 parsed-modules.json contains the complete unchanged official parsed_module

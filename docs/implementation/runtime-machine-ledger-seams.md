@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Event-ledger integration audit and prefix checkpoint
 
 Audited engine: ad6a4507f5f4ac1b3637ed5b28b0003b8329295c2b14a3830bd20f83d768bf69.

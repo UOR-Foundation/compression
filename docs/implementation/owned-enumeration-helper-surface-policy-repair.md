@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Source-owned natural byte conversion
 
 This is a minimal source-surface and declaration-policy repair after the retained

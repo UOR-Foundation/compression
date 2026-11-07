@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Singleton-byte source factoring
 
 This is a retained negative optimization experiment. Matched standard

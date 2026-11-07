@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Builder certificate growth: structural diagnosis
 
 Splitting the singleton tree into 16 helpers reduced rendered Rust from 906,513 to 868,878 bytes, but increased genuine certificate B notation from 6,703,926 to 6,866,519 bytes in the same SDK 71 context containing 21 modules and 21 roots. Normalizing numeric function IDs by their official origins leaves only singletonBytes changed among 126 common functions. Sixteen functions are added and the algebraic data types are identical. Both B records use numeric function identities: singletonBytes, RuntimeByteBuilder and clearCleanupTarget do not occur in either record.

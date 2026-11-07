@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Closed archive caller custody: candidate/native controls
 
 `Uorc.Wire.ClosedArchiveCallerScenarios` is the source owner for

@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 The sixteen-helper singleton split is a retained negative experiment.
 
 Two sequential unmodified standard Product ReadImageScenarios verification calls used SDK71, identical21-source/21-root projects, exact archived configuration/lock/workspace files and the same recorded environment. Only RuntimeByteBuilder changed: fc419 versus415d8. Both rejected Builder.step rust-std certificateB source generation under the unchanged4194304-byte guard. Baseline6703926bytes; candidate6866519bytes (candidate+162593). Neither timed out. No accepted certificate or export was produced.

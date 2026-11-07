@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 Product.TargetDescriptor creates a charged immutable descriptor for an ordered byte sequence. The descriptor owns the sequence graph and the actual ordered-length table through Heap edges. Its construction cursor contains no Arena or Bytes; each transition returns the one actual achieved Arena and Usage.
 
 The [SDK declaration extraction](../../validation/product/target-descriptor-api.json) records the exact types. The consumer signatures are:

@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Accounting component qualification inputs
 
 These are the exact language-1.2 diagnostic configuration and lock used for

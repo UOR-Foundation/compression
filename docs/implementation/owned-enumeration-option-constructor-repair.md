@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Exact requiredWork Option annotations
 
 This source-only repair starts at public

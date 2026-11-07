@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Owned whole-archive dispatch
 
 The production source boundary is `Uorc.Wire.ClosedArchive`. Its input is an

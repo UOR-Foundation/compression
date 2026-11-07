@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # EnumerationStream Phase predicate repair
 
 This is a separate source repair above frozen public checkpoint

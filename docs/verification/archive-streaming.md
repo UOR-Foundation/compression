@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Owned archive parsing and object boundaries
 
 This implementation increment uses shared Core source

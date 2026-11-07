@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Canonical event composition
 
 These source functions complete composition decisions left open by the existing

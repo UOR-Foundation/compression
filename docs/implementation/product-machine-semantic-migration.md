@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 MachineBinding now consumes `RuntimeMachineEngine.ReadyTransfer`, retaining its accepted semantic budget and ledger through `startWithSemantic`, extension, cancellation, comparison and terminal movement. `Status.semanticSuspended` carries the actual semantic refusal separately from execution failure. The semantic getters return `None` after handoff.
 
 `holdTerminal`, `detachTerminal`, `reattachTerminal` and `takeTerminalSlot` move the single actual Arena through output IO. `TerminalControl` contains bounded controls and root tickets, without an Arena, CallerRoots, Bytes or Usage snapshot. `ArenaExchange` owns the Arena, CallerRoots, achieved Usage and any pending Delta. Reattachment checks run/ticket, waits for actual Delta delivery, rejects regressed Usage and returns both owners on refusal. It preserves the semantic prefix directly; native partial writes and EOF do not recharge canonical semantic events.

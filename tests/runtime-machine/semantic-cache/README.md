@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Authentic machine semantic cache
 
 The authoritative source is the exact committed `.lex.tex`, never this cache.

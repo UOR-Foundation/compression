@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Pointwise owned-weight refinement
 
 The authoritative source is `RuntimeAccountingProofs.lex.tex`, with registered

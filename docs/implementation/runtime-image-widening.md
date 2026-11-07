@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Scalar-offset widening investigation
 
 The unchanged public RuntimeImage source7a converts a UInt64 byte offset with a

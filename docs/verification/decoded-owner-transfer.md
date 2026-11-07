@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Pre-clean decoded owner transfer
 
 The closed controller now composes exact Product `MachineBinding` source at

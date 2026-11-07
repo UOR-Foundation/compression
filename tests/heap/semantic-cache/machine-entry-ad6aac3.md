@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Exact machine entry module diagnostic cache
 
 machine-entry-ad6aac3.json contains the full unchanged official parsed_module

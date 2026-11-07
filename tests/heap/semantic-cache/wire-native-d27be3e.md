@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Exact native Wire diagnostic parse
 
 wire-native-d27be3e.json contains full unchanged official parsed modules for

@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Basis attempt event agreement registration
 
 Registered source root: Uorc.Core.RuntimeMachineActionRefinement.

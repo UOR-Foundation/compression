@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Owned basis controls: candidate/native diagnostic
 
 This is a source-control/native diagnostic, not `just vv`, SDK acceptance,

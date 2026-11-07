@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Native prefix agreement proof registration
 
 Registered source root: Uorc.Core.RuntimeMachineSemanticPrefixRefinement.

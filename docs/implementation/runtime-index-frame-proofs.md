@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Conditional other-path read preservation
 
 RuntimeIndexFrameProofs is additive proof-only LexLean1.2. Its single non-executable definition routesDiffer recurses over arbitrary Nat depth using actual Heap.highBit and Heap.advanceKey: divergence at the current MSB yields true; agreement continues on advanced keys; zero depth yields false.

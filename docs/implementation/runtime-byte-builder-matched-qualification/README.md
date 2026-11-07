@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 Two separate source-bound scopes are staged here.
 
 reverted-singleton-qualification: restoredfc419 production Builder plus unchanged0539Reference/4104Tests, exactb342/ce9/8b3 dependencies. Source checks, fresh3kernel checks, sourceVM256 and all298actual axiom policies pass. No standardverify/native35/C rerun accompanies the reversion.

@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Exact Stream Result constructor annotations
 
 This separate annotation-only follow-up starts at the published producer repair

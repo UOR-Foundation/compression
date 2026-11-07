@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Table final-drain cancellation control
 
 The source-owned `Uorc.Wire.TableCancelRepro` uses actual shared Core source at

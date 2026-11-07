@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Exact enumeration source-format repairs: unqualified
 
 This checkpoint responds only to actual source-format feedback on the frozen

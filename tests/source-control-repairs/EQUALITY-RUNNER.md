@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Equality regression replay
 
 `EqualityClassScenarios.lex.tex` contains all 17 source-owned cases: deep

@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # ByteBuilder source factoring
 
 The builder shares fixed-record updates and its phase dispatcher through six

@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Logical-event ledger and charged cache components
 
 `RuntimeMachineSemantic` is bound to the distinct

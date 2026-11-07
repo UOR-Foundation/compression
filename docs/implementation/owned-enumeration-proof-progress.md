@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Owned enumeration proof-source progress: unqualified
 
 This checkpoint adds source-authored proof programs, not accepted general

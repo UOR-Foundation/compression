@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Exact diagnostic project configurations
 
 These are unchanged configuration, lock and Lean-workspace snapshots from the

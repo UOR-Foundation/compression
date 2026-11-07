@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Semantic refinement proof increment
 
 Registered source root: `Uorc.Core.RuntimeMachineSemanticRefinement`.

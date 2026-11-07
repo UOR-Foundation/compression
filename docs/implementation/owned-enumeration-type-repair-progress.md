@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Source type repairs and minimal conversion-check request
 
 This is unqualified source progress after the retained compiler's actual

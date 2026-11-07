@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Exact unsigned-byte step proof input
 
 `Uorc.Search.UnsignedByteConversionLaws` is a one-theorem, two-module proof input

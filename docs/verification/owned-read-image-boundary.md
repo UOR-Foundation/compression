@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # OwnedRead ordinary-image boundary
 
 `OwnedReadImageScenarios.run` owns UC-WIRE-OWNED-READ-IMAGE-01 through -04.

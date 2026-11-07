@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Builder certificate diagnostic
 
 This diagnostic investigates a failed source refinement. It is not a smaller

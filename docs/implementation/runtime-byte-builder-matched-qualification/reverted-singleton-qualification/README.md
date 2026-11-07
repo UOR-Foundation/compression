@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 Reverted production Builder with retained singleton controls
 
 Exactsourcefc419 Builder is qualified here with retained SingletonReference0539 and SingletonTests4104 against Heapb342, Sequencece9 and Value8b3. Official source lock/fmt/check/build pass. Fresh generated dependencyLean compared byte-for-byte with qualified dependencyLean before reusing their oleans; only Builder, Reference and Tests were freshly kernel-compiled. All256 independent raw-byte literal controls and the full source suite pass in LeanVM. All298 actual axiom sets match source policies exactly:38Builder+2Reference+258Tests.

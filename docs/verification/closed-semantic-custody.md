@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Closed archive semantic custody diagnostic
 
 `Uorc.Wire.ClosedSemanticScenarios.run` owns

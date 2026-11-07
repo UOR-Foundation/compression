@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # EnumerationStream custody adapter: implementation progress
 
 `Uorc.Search.EnumerationStream` adds the Search-owned correlation, prepayment

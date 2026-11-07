@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Exact producer Result constructor annotations
 
 This is source-only progress against public checkpoint

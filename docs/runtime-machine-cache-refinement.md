@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Cache reader and unchanged-write proof registration
 
 Registered source root: Uorc.Core.RuntimeMachineCacheRefinement.

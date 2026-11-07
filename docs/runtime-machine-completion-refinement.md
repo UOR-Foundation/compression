@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Completion origin agreement registration
 
 Registered source root: Uorc.Core.RuntimeMachineCompletionRefinement.

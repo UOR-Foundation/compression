@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # RuntimeTable final-control cancellation fix
 
 An independent Core counterexample confirmed a real cancellation defect. In the

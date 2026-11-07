@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Heap release-step factoring
 
 Heap.releaseStep keeps its original pending-list, count, lookup and reference

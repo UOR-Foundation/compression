@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Charged immutable archive verification stages
 
 `Wire.ArchiveSnapshot` drives the actual `ArchiveParse`, reserved `LengthStore`

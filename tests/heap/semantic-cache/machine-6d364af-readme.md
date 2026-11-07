@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # Exact machine semantic-adapter parsed-source transfer
 
 machine-6d364af.json is unchanged official reader output for these three actual
