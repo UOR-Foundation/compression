@@ -25,7 +25,6 @@ definition{
       | Option.none => 0x
       | Option.some chunk => chunk)),
   axioms: [],
-  executable: true,
   recursive_argument: rope
 }
 
@@ -34,8 +33,7 @@ definition{
   parameters: [input : Bytes],
   result: Uorc.Search.Identity::Snapshot,
   body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons (prim length input : Nat) (nil Nat)), target := (Uorc.Core.Bytes::fromBytes input), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1099511627776, maxLiveCells := 1099511627776, maxOutputBytes := 1099511627776, maxFrames := 1048576}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
-  axioms: [],
-  executable: true
+  axioms: []
 }
 
 definition{
@@ -43,8 +41,7 @@ definition{
   parameters: [],
   result: Uorc.Search.Schedule::Policy,
   body: (record Uorc.Search.Schedule::Policy {quantum := 64, sourceBinding := 0x01, seedInventoryBinding := 0x02}),
-  axioms: [],
-  executable: true
+  axioms: []
 }
 
 definition{
@@ -52,8 +49,7 @@ definition{
   parameters: [steps : Nat],
   result: Uorc.Search.Effort::Allowances,
   body: (record Uorc.Search.Effort::Allowances {search := steps, rawReserve := 1099511627776, finalReserve := 1099511627776, replay := 1099511627776, certificateProduction := 0, checker := 1099511627776}),
-  axioms: [],
-  executable: true
+  axioms: []
 }
 
 definition{
@@ -61,8 +57,7 @@ definition{
   parameters: [eligible : Uorc.Search.ArchiveTrial::EligibleArchive],
   result: Bytes,
   body: (flatten (project (project eligible checked) wire)),
-  axioms: [],
-  executable: true
+  axioms: []
 }
 
 definition{
@@ -77,7 +72,6 @@ definition{
       | Uorc.Search.Engine::Step.completed outcome => (ctor Option.some [Bytes] (archiveBytes (project outcome best)))
       | Uorc.Search.Engine::Step.blocked failure cursor => best)),
   axioms: [Quot.sound, propext],
-  executable: true,
   recursive_argument: work
 }
 
@@ -86,17 +80,15 @@ definition{
   parameters: [input : Bytes, steps : Nat],
   result: (Option Bytes),
   body: (drive steps (ctor Uorc.Search.Engine::Step.advanced (Uorc.Search.Engine::start (query input) (policy) (allowances steps) (Uorc.Search.Synthesis::emptyInventory) (nil Uorc.Search.SharingJob::Spec))) (ctor Option.none [Bytes])),
-  axioms: [Quot.sound, propext],
-  executable: true,
-  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+  axioms: [Quot.sound, propext]
 }
+
 definition{
   name: decodeQuery,
   parameters: [lengths : (List Nat)],
   result: Uorc.Search.Identity::Snapshot,
   body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := lengths, target := (ctor Uorc.Core.Bytes::Rope.empty), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1099511627776, maxLiveCells := 1099511627776, maxOutputBytes := 1099511627776, maxFrames := 1048576}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
-  axioms: [],
-  executable: true
+  axioms: []
 }
 
 definition{
@@ -104,8 +96,7 @@ definition{
   parameters: [archive : Bytes, lengths : (List Nat)],
   result: Uorc.Search.ArchiveTrial::Step,
   body: (ctor Uorc.Search.ArchiveTrial::Step.pending (Uorc.Search.ArchiveTrial::startWire (decodeQuery lengths) (Uorc.Core.Resources::zeroUsage) (Uorc.Core.Bytes::fromBytes archive))),
-  axioms: [],
-  executable: true
+  axioms: []
 }
 
 definition{
@@ -121,7 +112,6 @@ definition{
       | Uorc.Search.ArchiveTrial::Step.complete eligible => (ctor Option.none [(List Nat)])
       | Uorc.Search.ArchiveTrial::Step.rejected failure usage ledger events => (ctor Option.none [(List Nat)]))),
   axioms: [Quot.sound, propext],
-  executable: true,
   recursive_argument: work
 }
 
@@ -150,7 +140,6 @@ definition{
       | Uorc.Search.ArchiveTrial::Step.complete eligible => (ctor Option.none [Bytes])
       | Uorc.Search.ArchiveTrial::Step.rejected failure usage ledger events => (ctor Option.none [Bytes]))),
   axioms: [Quot.sound, propext],
-  executable: true,
   recursive_argument: work
 }
 
@@ -161,9 +150,7 @@ definition{
   body: (match (parsedLengths work (decodeStart archive (nil Nat)))
     | Option.none => (ctor Option.none [Bytes])
     | Option.some lengths => (decodedOutput work (decodeStart archive lengths))),
-  axioms: [Quot.sound, propext],
-  executable: true,
-  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+  axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
 \end{lexlean}
