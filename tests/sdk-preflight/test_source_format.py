@@ -207,11 +207,13 @@ class SourceFormatTests(unittest.TestCase):
 
     def audit_workflow(self, workflow):
         guard = 'python3 -B scripts/sdk-source-format-preflight.py'
-        self.assertEqual(workflow.count(guard), 2)
-        self.assertEqual(workflow.count('python3 -B tests/sdk-preflight/run.py'), 2)
+        self.assertEqual(workflow.count(guard), 3)
+        self.assertEqual(workflow.count('python3 -B tests/sdk-preflight/run.py'), 3)
         blocks = re.findall(r'^      - name: Reject known source-format incompatibility\n(?:(?!      - ).*\n)*', workflow, re.MULTILINE)
-        self.assertEqual(blocks, [GUARD, GUARD])
-        for job in [workflow.split('  regenerate:\n')[1].split('  offline:\n')[0], workflow.split('  offline:\n')[1]]:
+        self.assertEqual(blocks, [GUARD, GUARD, GUARD])
+        regenerate, rest = workflow.split('  regenerate:\n')[1].split('  offline-setup:\n')
+        setup, offline = rest.split('  offline:\n')
+        for job in [regenerate, setup, offline]:
             self.assertLess(job.index('persist-credentials: false'), job.index(guard))
             self.assertLess(job.index('python3 -B tests/sdk-preflight/run.py'), job.index(guard))
             self.assertLess(job.index(guard), job.index('docker pull "$image"'))
@@ -221,14 +223,16 @@ class SourceFormatTests(unittest.TestCase):
             self.assertNotIn('continue-on-error', job)
             self.assertNotIn('|| true', job)
         self.assertIn('lexlean fmt --check --all; just model-write; node scripts/offline-validation.mjs export-projections', workflow)
-        self.assertIn('"$image" node scripts/offline-validation.mjs isolated', workflow)
+        self.assertIn('"$image" node scripts/offline-validation.mjs acquire .tmp/offline-acquisition', setup)
+        self.assertIn('"$image" node scripts/offline-validation.mjs isolated "${{ matrix.root }}" .tmp/offline-acquisition', offline)
+        self.assertIn('needs: offline-setup', offline)
         runner = (REPO / 'scripts/offline-validation.mjs').read_text()
         self.assertIn("OFFLINE_RECIPES = ['lexlean-authority', 'model']", runner)
         self.assertIn("root: [first, second-distinct-root]", workflow)
         self.assertIn('name: offline formal construction / ${{ matrix.root }}', workflow)
         self.assertIn('node scripts/offline-validation.mjs compare-offline .prism/offline/first .prism/offline/second-distinct-root', workflow)
         self.assertIn('name: review-only generated projections', workflow)
-        self.assertEqual([line.strip() for line in workflow.splitlines() if 'if:' in line], ['if: always()'])
+        self.assertEqual([line.strip() for line in workflow.splitlines() if 'if:' in line], ['if: always()', 'if: always()'])
 
 
     def test_acceptance_legs_run_every_vv_recipe_exactly_once(self):

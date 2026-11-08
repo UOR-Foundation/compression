@@ -54,10 +54,11 @@ export const components = {
   },
   trace: {
     law: 'ArchiveIntegrityTraceLaws', rows: 20,
-    scope: 'Actual ArchiveIntegrity path failure persistence, snapshot and pre-trailer compared preservation, via scoped lexlean verify (kernel compile, leanchecker, exact axiom audit from the attestation) and a planted ArchiveIntegrity.adoptHash defect. No full consumer/canonical acceptance claim.',
+    scope: 'Actual ArchiveIntegrity path failure persistence, snapshot and pre-trailer compared preservation, via scoped lexlean verify (kernel compile, leanchecker, exact axiom audit from the attestation) and a planted ArchiveIntegrity.adoptHash defect rejected inside the trace closure by the imported ClosedArchiveCallLaws, which unfolds every ArchiveIntegrity transition body; the trace law cannot elaborate over the defect. No full consumer/canonical acceptance claim.',
     mutation: {
       source: 'src/Uorc/Wire/ArchiveIntegrity.lex.tex', definition: 'adoptHash',
-      fault: 'Actual ArchiveIntegrity.adoptHash pending branch increments compared by one; unchanged compared preservation law must reject.',
+      fault: 'Actual ArchiveIntegrity.adoptHash pending branch increments compared by one; the unchanged trace closure must reject it, first at its imported ClosedArchiveCallLaws.',
+      rejectedBy: 'Uorc.Uorc.Integrity.ClosedArchiveCallLaws',
       apply(body) {
         let n = 0;
         for (const branch of body.kind === 'let' && body.value?.kind === 'match' ? body.value.branches : []) {
@@ -159,7 +160,7 @@ export function unchangedInRepository(sources) {
   requireFact(changed.length === 0, `repository sources changed during the run: ${changed.join(', ')}`);
 }
 // Stock-lean kernel compile of a generated closure over the staged LexLean runtime.
-function compileGenerated(s, artifact, root, label) {
+function compileGenerated(s, artifact, root, label, rejectedBy) {
   const modules = path.join(artifact, 'modules'), stage = path.join(s.dir, label + '-model');
   const list = d => fs.readdirSync(d, {withFileTypes: true}).flatMap(e => e.isDirectory() ? list(path.join(d, e.name)) : e.name.endsWith('.lean') ? [path.join(d, e.name)] : []);
   const files = new Map(list(modules).map(p => [path.relative(modules, p).slice(0, -5).split(path.sep).join('.'), p]));
@@ -172,6 +173,7 @@ function compileGenerated(s, artifact, root, label) {
     const text = fs.readFileSync(files.get(name), 'utf8');
     for (const dep of [...text.matchAll(/^(?:public )?import (\S+)/gm)].map(m => m[1]).filter(d => files.has(d))) {
       const r = compile(dep);
+      if (rejectedBy && dep === rejectedBy && r && r.status !== 0) { done.set(name, r); return r; }
       requireFact(r && r.status === 0, `${label}: dependency ${dep} of ${name} was not accepted; failure not attributable to ${root}`);
     }
     const target = path.join(stage, path.relative(modules, files.get(name)));
@@ -205,7 +207,8 @@ export function regenerate(name) {
     requireFact(built.status === 0, `mutant lexlean build exited ${built.status}: ${built.stdout}${built.stderr}`);
     const mutantBuild = JSON.parse(built.stdout);
     requireFact(mutantBuild.success === true && mutantBuild.artifacts?.length === 1, 'one mutant build artifact required');
-    const compiled = compileGenerated(s, path.resolve(s.project, mutantBuild.artifacts[0]), lawModule, 'mutant');
+    const compiled = compileGenerated(s, path.resolve(s.project, mutantBuild.artifacts[0]), lawModule, 'mutant', c.mutation.rejectedBy);
+    requireFact(!c.mutation.rejectedBy || compiled.exits.some(e => e.module === c.mutation.rejectedBy && e.exit_code === 1), `${name}: ${c.mutation.rejectedBy} did not reject the mutant`);
     const reader = leanModule(c.mutation.source), readerRun = compiled.exits.find(e => e.module === reader);
     requireFact(readerRun, `mutated module ${reader} not compiled`);
     const proofLog = compiled.result.stdout + compiled.result.stderr;
@@ -223,6 +226,7 @@ export function regenerate(name) {
       originalSourceSha256: sha(original), mutantSourceSha256: sha(mutant),
       mutantBuildId: mutantBuild.build_id, mutantReaderModule: reader,
       mutantReaderKernelExit: readerRun.exit_code, unchangedProofKernelExit: compiled.result.status, rejectedDeclarations: rejected,
+      rejectingModule: c.mutation.rejectedBy ?? lawModule,
       baseBuildId: base.attestation.build_id, restoredBuildId: restored.attestation.build_id,
       restoredBuildIdentical: restored.attestation.build_id === base.attestation.build_id,
       restoredSourceId: restored.attestation.source_id,

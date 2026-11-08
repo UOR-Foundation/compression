@@ -293,28 +293,34 @@ function docker(root, image, args, command) {
     '--cap-drop=ALL', '--security-opt=no-new-privileges', '--tmpfs', '/tmp:rw,exec,nosuid,size=4g', '--entrypoint', '/usr/local/bin/node',
     ...args, image, ...command]);
 }
+// Dependency setup runs once (its own CI job) and seals one acquisition
+// that both roots consume: `cargo deny fetch` follows the live advisory
+// database, so two separate setups need not be byte-identical.
 // One no-network formal construction per CI job: the two distinct roots run as
 // parallel jobs (each holds a full verify of over an hour)
 // and `compare-offline` checks their inventories byte for byte.
 export const OFFLINE_ROOTS = ['first', 'second-distinct-root'];
-function isolated(root, label) {
-  if (!OFFLINE_ROOTS.includes(label)) fail('URX002', `offline root must be one of ${OFFLINE_ROOTS.join(', ')}`);
-  const lock = sdk(root);
+function workspace(root, prefix) {
   // This directory is source-excluded and is on the same host-preserved bind mount.
   // Docker's daemon cannot see a temporary directory in the orchestration container.
   fs.mkdirSync(path.join(root, '.tmp'), { recursive: true });
-  const workOutside = fs.mkdtempSync(path.join(root, '.tmp', 'uorc-isolated-'));
-  const evidence = path.join(root, '.prism/uorc', label);
+  return fs.mkdtempSync(path.join(root, '.tmp', prefix));
+}
+function acquire(root, acquisition) {
+  const lock = sdk(root);
+  if (path.relative(root, acquisition).startsWith('..')) fail('URX002', 'acquisition must be inside the checkout bind mount');
+  if (fs.existsSync(acquisition)) fail('URD002', 'acquisition destination already exists');
+  const workOutside = workspace(root, 'uorc-acquire-'), evidence = path.join(root, '.prism/uorc/setup');
   try {
-    const source = path.join(workOutside, 'setup-source'), acquisition = path.join(workOutside, 'acquisition');
-    copySource(root, source); cleanOutputs(source); fs.mkdirSync(acquisition);
+    const source = path.join(workOutside, 'setup-source');
+    copySource(root, source); cleanOutputs(source); fs.mkdirSync(acquisition, { recursive: true });
     const script = path.join(source, 'scripts/offline-validation.mjs');
     try {
       docker(root, lock.sdk_image, ['--volume', `${source}:${source}`, '--volume', `${acquisition}:${acquisition}`, '--workdir', source], [script, 'setup', acquisition]);
     } finally {
-      fs.mkdirSync(path.join(evidence, 'setup'), { recursive: true });
+      fs.mkdirSync(evidence, { recursive: true });
       for (const name of ['fetch.log', 'deny-fetch.log', 'setup.json']) {
-        if (fs.existsSync(path.join(acquisition, name))) fs.copyFileSync(path.join(acquisition, name), path.join(evidence, 'setup', name));
+        if (fs.existsSync(path.join(acquisition, name))) fs.copyFileSync(path.join(acquisition, name), path.join(evidence, name));
       }
     }
     // Setup failures are executed inside the same offline SDK, before any build.
@@ -331,7 +337,18 @@ function isolated(root, label) {
       writeJson(path.join(evidence, `negative-setup-${defect}.json`), { defect, code: expected, exit_code: result.status, stderr: result.stderr });
     }
     checkSetup(source, acquisition);
+    console.log('Dependency setup sealed one acquisition and rejected setup negatives.');
+  } finally { fs.rmSync(workOutside, { recursive: true, force: true }); }
+}
+function isolated(root, label, acquisition) {
+  if (!OFFLINE_ROOTS.includes(label)) fail('URX002', `offline root must be one of ${OFFLINE_ROOTS.join(', ')}`);
+  if (path.relative(root, acquisition).startsWith('..')) fail('URX002', 'acquisition must be inside the checkout bind mount');
+  const lock = sdk(root);
+  const workOutside = workspace(root, 'uorc-isolated-');
+  const evidence = path.join(root, '.prism/uorc', label);
+  try {
     const buildRoot = path.join(workOutside, label); copySource(root, buildRoot);
+    checkSetup(buildRoot, acquisition);
     try {
       docker(root, lock.sdk_image, ['--network=none', '--volume', `${buildRoot}:${buildRoot}`, '--volume', `${acquisition}:${acquisition}:ro`, '--workdir', buildRoot],
         [path.join(buildRoot, 'scripts/offline-validation.mjs'), 'offline', acquisition]);
@@ -339,20 +356,28 @@ function isolated(root, label) {
       if (fs.existsSync(path.join(buildRoot, '.prism/uorc'))) fs.cpSync(path.join(buildRoot, '.prism/uorc'), evidence, { recursive: true });
     }
     readJson(path.join(evidence, 'offline-artifacts.json')); readJson(path.join(evidence, 'offline-execution.json'));
-    console.log(`Offline formal construction ${label} passed and rejected setup negatives.`);
+    console.log(`Offline formal construction ${label} passed.`);
   } finally { fs.rmSync(workOutside, { recursive: true, force: true }); }
 }
 // Both roots' evidence directories, as the parallel jobs uploaded them.
 function compareOffline(root, left, right) {
   const result = directory => ({ artifacts: readJson(path.join(directory, 'offline-artifacts.json')), execution: readJson(path.join(directory, 'offline-execution.json')) });
   const results = [result(left), result(right)];
+  if (canonical(results[0]) !== canonical(results[1])) {
+    // Name what differs, so a mismatch is diagnosable from the job log alone.
+    const [a, b] = results, rows = r => new Map(r.artifacts.files.map(f => [f.path, canonical(f)]));
+    const keys = Object.keys({ ...a.execution, ...b.execution }).filter(k => canonical(a.execution[k]) !== canonical(b.execution[k]));
+    const [ra, rb] = [rows(a), rows(b)], paths = [...new Set([...ra.keys(), ...rb.keys()])].filter(p => ra.get(p) !== rb.get(p));
+    const other = Object.keys({ ...a.artifacts, ...b.artifacts }).filter(k => k !== 'files' && canonical(a.artifacts[k]) !== canonical(b.artifacts[k]));
+    console.error(`execution fields differ: ${keys.join(', ') || 'none'}\ninventory fields differ: ${other.join(', ') || 'none'}\nfiles differ (${paths.length}): ${paths.slice(0, 40).join(', ')}`);
+  }
   compare(results[0], results[1]);
   writeJson(path.join(root, '.prism/uorc/offline-comparison.json'), { schema: 'uorc/offline-comparison/1', status: 'passed',
     distinct_roots: true, shared_build_outputs: false, normalization: [], artifacts: results[0].artifacts, execution: results[0].execution });
   console.log('Two offline formal constructions passed with byte-identical artifacts.');
 }
 export function main(args) {
-  const arity = { reproduce: 1, isolated: 2, 'compare-offline': 3, deny: 1, setup: 2, offline: 2, 'check-setup': 2, 'export-projections': 2 };
+  const arity = { reproduce: 1, acquire: 2, isolated: 3, 'compare-offline': 3, deny: 1, setup: 2, offline: 2, 'check-setup': 2, 'export-projections': 2 };
   if (!Object.hasOwn(arity, args[0]) || args.length !== arity[args[0]]) fail('URX002', 'invalid operation or argument count');
   const root = fs.realpathSync(process.cwd());
   switch (args[0]) {
@@ -360,7 +385,8 @@ export function main(args) {
     case 'deny':
       sdk(root);
       return run(root, 'cargo', ['deny', process.env.CARGO_NET_OFFLINE === 'true' ? '--frozen' : '--locked', '--all-features', 'check']);
-    case 'isolated': return isolated(root, args[1]);
+    case 'acquire': return acquire(root, path.resolve(args[1]));
+    case 'isolated': return isolated(root, args[1], path.resolve(args[2]));
     case 'compare-offline': return compareOffline(root, path.resolve(args[1]), path.resolve(args[2]));
     case 'setup': return setup(root, path.resolve(args[1]));
     case 'offline': return offline(root, path.resolve(args[1]));
@@ -372,7 +398,7 @@ export function main(args) {
         fs.copyFileSync(path.join(root, relative), destination);
       }
       return;
-    default: fail('URX002', 'expected reproduce, isolated, compare-offline, setup, offline, or check-setup');
+    default: fail('URX002', 'expected reproduce, acquire, isolated, compare-offline, setup, offline, or check-setup');
   }
 }
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === SCRIPT) {
