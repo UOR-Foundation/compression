@@ -29,7 +29,9 @@ jobs:
           - { leg: reproducibility, runner: ubuntu-24.04, recipes: "reproducibility" }
           - { leg: integrity, runner: ubuntu-24.04, recipes: "integrity" }
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    # The full verify's certificate stage runs one Lean process per production
+    # root, serially (LexLean 0.4), which alone takes about half an hour.
+    timeout-minutes: ${{ matrix.leg == 'artifacts' && 120 || 60 }}
     steps:
       - name: Check out the exact event revision
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

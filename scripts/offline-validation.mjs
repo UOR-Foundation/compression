@@ -54,7 +54,7 @@ export function compare(left, right) {
 }
 function run(root, command, args, options = {}) {
   const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
-    env: { ...process.env, ...options.env }, timeout: 55 * 60 * 1000 });
+    env: { ...process.env, ...options.env }, timeout: 110 * 60 * 1000 });
   if (options.log) {
     fs.mkdirSync(path.dirname(options.log), { recursive: true });
     fs.writeFileSync(options.log, `$ ${command} ${args.join(' ')}\n${result.stdout ?? ''}${result.stderr ?? ''}`);
@@ -150,7 +150,7 @@ function build(root, projectionList) {
   run(root, 'lexlean', ['check', '--all']);
   // Generation is compared across the two roots here; the certificate-bearing
   // verify runs in the artifacts leg, and its two-root identity in the two
-  // parallel offline constructions (one full verify each fits a job; two do not).
+  // parallel offline constructions (one full verify each).
   return artifactInventory(root, projectionList, lexlean(root, 'build'));
   } finally {
     if (previousTarget === undefined) delete process.env.CARGO_TARGET_DIR;
@@ -294,7 +294,7 @@ function docker(root, image, args, command) {
     ...args, image, ...command]);
 }
 // One no-network formal construction per CI job: the two distinct roots run as
-// parallel jobs (each holds a full verify, which does not fit twice in one job)
+// parallel jobs (each holds a full verify of over an hour)
 // and `compare-offline` checks their inventories byte for byte.
 export const OFFLINE_ROOTS = ['first', 'second-distinct-root'];
 function isolated(root, label) {
