@@ -5,7 +5,8 @@
 // export runs on a staged copy where two mechanical, meaning-preserving
 // projections are applied to the client's import closure:
 //   1. every definition is marked `executable: true` (the Rust lowering needs the
-//      whole call closure executable);
+//      whole call closure executable), and Client's compress and decompress
+//      gain their rust-std production annotation;
 //   2. a match arm that returns a boxed-field binder directly (a field whose
 //      type is a datatype with a field-carrying constructor, which rust-std
 //      stores behind a shared box) is rewritten to `let x : T := binder; x`.
@@ -69,6 +70,19 @@ function markExecutable(file) {
   fs.writeFileSync(file, result.join('\n'));
 }
 
+// The client's two roots become production roots only in the staged export:
+// the authority graph keeps the closure non-executable, so it cannot carry them.
+function markRoots(file, names) {
+  const lines = fs.readFileSync(file, 'utf8').split('\n');
+  for (const name of names) {
+    const at = lines.indexOf(`  name: ${name},`); if (at < 0) fail(`root ${name} missing`);
+    let end = at; while (lines[end] !== '}') end++;
+    lines[end - 1] += ',';
+    lines.splice(end, 0, '  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}');
+  }
+  fs.writeFileSync(file, lines.join('\n'));
+}
+
 function wrapBoxedReturns(dir, modules) {
   const marker = /\\semanticdata\{(.*)\}/;
   const data = new Map(modules.map(m => [m, JSON.parse(marker.exec(dataForm(fs.readFileSync(moduleFile(dir, m), 'utf8')))[1])]));
@@ -119,6 +133,7 @@ try {
   fs.writeFileSync(config, fs.readFileSync(config, 'utf8').replace(/^entrypoints = .*$/m, `entrypoints = ["${entry}"]`));
   const modules = closure(stage);
   for (const m of modules) markExecutable(moduleFile(stage, m));
+  markRoots(moduleFile(stage, 'Uorc.Client'), ['compress', 'decompress']);
   wrapBoxedReturns(stage, modules);
   run(lexlean, ['lock'], stage);
   run(lexlean, ['check'], stage);
