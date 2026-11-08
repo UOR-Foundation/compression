@@ -1,3 +1,9 @@
 [alias]
 xtask = "run --package xtask --"
 vv = "run --package xtask -- validate"
+
+# The exported uorc code recurses structurally over archives and byte ropes;
+# the default 1 MiB WebAssembly stack is too small for it. 2 KiB inputs run in
+# 16 MiB, and 64 MiB leaves room for deeper inputs.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "link-arg=-zstack-size=67108864"]

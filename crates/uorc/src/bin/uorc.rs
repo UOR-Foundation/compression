@@ -27,7 +27,11 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
         match arg.as_str() {
             "--steps" | "--work" => {
                 let value = args.next().ok_or_else(|| format!("{arg} needs a number"))?;
-                budget = Some(value.parse::<u64>().map_err(|_| format!("{arg}: not a number: {value}"))?);
+                budget = Some(
+                    value
+                        .parse::<u64>()
+                        .map_err(|_| format!("{arg}: not a number: {value}"))?,
+                );
             }
             "--stats" => stats = true,
             "-o" => output = Some(args.next().ok_or("-o needs a path")?),
@@ -35,7 +39,13 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
             _ => return Err(format!("unexpected argument: {arg}")),
         }
     }
-    Ok(Options { command, budget, stats, input: input.ok_or("missing input")?, output })
+    Ok(Options {
+        command,
+        budget,
+        stats,
+        input: input.ok_or("missing input")?,
+        output,
+    })
 }
 
 fn read(path: &str) -> std::io::Result<Vec<u8>> {
