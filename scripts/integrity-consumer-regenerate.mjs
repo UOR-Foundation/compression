@@ -213,7 +213,7 @@ export function regenerate(name) {
     requireFact(readerRun, `mutated module ${reader} not compiled`);
     const proofLog = compiled.result.stdout + compiled.result.stderr;
     const rejected = [...new Set([...proofLog.matchAll(/native core declaration '([^']+)'/g)].map(m => m[1]))];
-    keep('mutant-source.txt', mutant); keep('mutant-build.json', built.stdout);
+    keep('mutant-source.json', JSON.stringify({source_path: c.mutation.source, notation: mutant}, null, 1) + '\n'); keep('mutant-build.json', built.stdout);
     keep('mutant-compile.json', JSON.stringify(compiled.exits, null, 1) + '\n'); keep('mutant-proof.log', proofLog);
     // 3. Restored: original bytes, fresh build root, verify again.
     fs.writeFileSync(sourceFile, original);
