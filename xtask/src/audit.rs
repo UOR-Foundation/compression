@@ -150,7 +150,10 @@ fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Res
 
         if let Some(expected) = graph.imported_validation_artifacts.get(&rel) {
             let bytes = std::fs::read(&path)?;
-            let digest = format!("{:x}", Sha256::digest(&bytes));
+            let digest: String = Sha256::digest(&bytes)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
             if &digest != expected {
                 violations.push(format!("{rel}: imported validation artifact differs from its source-owned exact digest"));
             }
