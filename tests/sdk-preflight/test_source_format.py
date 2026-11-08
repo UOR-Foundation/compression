@@ -224,8 +224,9 @@ class SourceFormatTests(unittest.TestCase):
         self.assertIn('"$image" node scripts/offline-validation.mjs isolated', workflow)
         runner = (REPO / 'scripts/offline-validation.mjs').read_text()
         self.assertIn("OFFLINE_RECIPES = ['lexlean-authority', 'model']", runner)
-        self.assertIn("runner: [ubuntu-24.04]", workflow)
-        self.assertIn('name: offline formal construction / ${{ matrix.runner }}', workflow)
+        self.assertIn("root: [first, second-distinct-root]", workflow)
+        self.assertIn('name: offline formal construction / ${{ matrix.root }}', workflow)
+        self.assertIn('node scripts/offline-validation.mjs compare-offline .prism/offline/first .prism/offline/second-distinct-root', workflow)
         self.assertIn('name: review-only generated projections', workflow)
         self.assertEqual([line.strip() for line in workflow.splitlines() if 'if:' in line], ['if: always()'])
 

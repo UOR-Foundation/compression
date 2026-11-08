@@ -44,12 +44,14 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
   offline:
-    name: offline formal construction / ${{ matrix.runner }}
+    name: offline formal construction / ${{ matrix.root }}
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04]
-    runs-on: ${{ matrix.runner }}
+        # Two distinct roots, each a full no-network build and verify, in
+        # parallel: one verify fills most of a job's hour.
+        root: [first, second-distinct-root]
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -62,7 +64,7 @@ jobs:
           set -euo pipefail
           python3 -B tests/sdk-preflight/run.py
           python3 -B scripts/sdk-source-format-preflight.py
-      - name: Setup then run two independent no-network SDK formal constructions
+      - name: Setup then run one no-network SDK formal construction
         shell: bash
         run: |
           set -euo pipefail
@@ -77,12 +79,29 @@ jobs:
             --volume /var/run/docker.sock:/var/run/docker.sock \
             --env PRISMPM_EPHEMERAL_HOME=1 \
             --tmpfs /tmp:rw,exec,nosuid,size=4g \
-            "$image" node scripts/offline-validation.mjs isolated
+            "$image" node scripts/offline-validation.mjs isolated "${{ matrix.root }}"
       - name: Preserve actual logs and evidence, including partial failures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: offline-evidence-${{ matrix.runner }}
+          name: offline-evidence-${{ matrix.root }}
           path: .prism/uorc
           if-no-files-found: warn
           include-hidden-files: true
+  offline-compare:
+    name: offline formal construction / two-root comparison
+    needs: offline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: offline-evidence-*
+          path: .prism/offline
+          merge-multiple: true
+      - name: Compare the two roots byte for byte
+        shell: bash
+        run: node scripts/offline-validation.mjs compare-offline .prism/offline/first .prism/offline/second-distinct-root
