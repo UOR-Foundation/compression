@@ -1,0 +1,163 @@
+# Builds the uorc client from the committed LexLean-exported Rust (generated/rust)
+# and publishes it: native binaries, the library source bundle, the WebAssembly
+# module, a benchmark run, and the GitHub Pages site that runs the client.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)publish, e.g. v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  CARGO_TERM_COLOR: never
+
+jobs:
+  native:
+    name: native / ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
+          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - name: Build and test the client
+        run: |
+          set -euo pipefail
+          rustup show active-toolchain
+          cargo test --locked --release -p uorc
+          cargo build --locked --release -p uorc --target ${{ matrix.target }}
+      - name: Package
+        run: |
+          set -euo pipefail
+          name="uorc-${TAG}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "target/${{ matrix.target }}/release/uorc" LICENSE-APACHE LICENSE-MIT "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-${{ matrix.target }}
+          path: dist/*.tar.gz*
+          if-no-files-found: error
+      - name: Fetch the Canterbury corpus
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq zstd brotli >/dev/null
+          mkdir -p corpus/canterbury
+          curl -fsSL https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz | tar -xz -C corpus/canterbury
+      - name: Benchmark the release binary
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: node scripts/bench.mjs --uorc "target/${{ matrix.target }}/release/uorc" --corpus corpus/canterbury --steps 10000000 --out bench
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        with:
+          name: bench
+          path: bench/
+          if-no-files-found: error
+
+  wasm:
+    name: wasm and site
+    needs: native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - name: Build the WebAssembly client
+        run: cargo build --locked --release -p uorc-wasm --target wasm32-unknown-unknown
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: bench
+          path: bench
+      - name: Assemble the site and the wasm bundle
+        run: |
+          set -euo pipefail
+          mkdir -p site dist
+          cp web/* site/
+          cp target/wasm32-unknown-unknown/release/uorc_wasm.wasm site/uorc.wasm
+          cp bench/bench.html bench/bench.json bench/bench.md site/
+          printf '%s\n' "$TAG" > site/version.txt
+          name="uorc-${TAG}-wasm"
+          mkdir -p "dist/$name"
+          cp site/uorc.wasm site/uorc.js LICENSE-APACHE LICENSE-MIT "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          git archive --format=tar.gz --prefix="uorc-${TAG}-src/" -o "dist/uorc-${TAG}-src.tar.gz" HEAD \
+            Cargo.toml Cargo.lock rust-toolchain.toml crates/uorc crates/uorc-wasm generated/rust LICENSE-APACHE LICENSE-MIT
+          cp bench/bench.json "dist/uorc-${TAG}-bench.json"
+          (cd dist && sha256sum *.tar.gz *.json > SHA256SUMS-wasm-src)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wasm-src
+          path: dist/*
+          if-no-files-found: error
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
+        with:
+          path: site
+
+  publish:
+    name: publish release
+    needs: [native, wasm]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls -la assets
+          { printf 'uorc %s\n\n' "$TAG"; printf 'Client: https://%s.github.io/%s/\n\n' "${GITHUB_REPOSITORY_OWNER,,}" "${GITHUB_REPOSITORY#*/}"; cat assets/bench.md; } > notes.md
+          files=$(find assets -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.sha256' -o -name 'SHA256SUMS*' -o -name '*-bench.json' \))
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" $files --clobber
+          else
+            gh release create "$TAG" --verify-tag --title "uorc $TAG" --notes-file notes.md $files
+          fi
+
+  pages:
+    name: deploy pages
+    needs: wasm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e

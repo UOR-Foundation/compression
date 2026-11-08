@@ -1,0 +1,169 @@
+\begin{lexlean}{Uorc.Client}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Search.Identity}
+\importmodule{Uorc.Search.Schedule}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Search.Synthesis}
+\importmodule{Uorc.Search.ArchiveTrial}
+\importmodule{Uorc.Search.Engine}
+\importmodule{Uorc.Search.SharingJob}
+\importmodule{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Wire.FrameParse}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: flatten,
+  parameters: [rope : Uorc.Core.Bytes::Rope],
+  result: Bytes,
+  body: (match rope
+    | Uorc.Core.Bytes::Rope.empty => 0x
+    | Uorc.Core.Bytes::Rope.leaf chunk => chunk
+    | Uorc.Core.Bytes::Rope.branch size depth leftTree rightTree => (prim append (flatten leftTree) (flatten rightTree) : Bytes)
+    | Uorc.Core.Bytes::Rope.view backing offset count => (match (prim slice backing offset count : (Option Bytes))
+      | Option.none => 0x
+      | Option.some chunk => chunk)),
+  axioms: [],
+  executable: true,
+  recursive_argument: rope
+}
+
+definition{
+  name: query,
+  parameters: [input : Bytes],
+  result: Uorc.Search.Identity::Snapshot,
+  body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons (prim length input : Nat) (nil Nat)), target := (Uorc.Core.Bytes::fromBytes input), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1099511627776, maxLiveCells := 1099511627776, maxOutputBytes := 1099511627776, maxFrames := 1048576}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: policy,
+  parameters: [],
+  result: Uorc.Search.Schedule::Policy,
+  body: (record Uorc.Search.Schedule::Policy {quantum := 64, sourceBinding := 0x01, seedInventoryBinding := 0x02}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: allowances,
+  parameters: [steps : Nat],
+  result: Uorc.Search.Effort::Allowances,
+  body: (record Uorc.Search.Effort::Allowances {search := steps, rawReserve := 1099511627776, finalReserve := 1099511627776, replay := 1099511627776, certificateProduction := 0, checker := 1099511627776}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: archiveBytes,
+  parameters: [eligible : Uorc.Search.ArchiveTrial::EligibleArchive],
+  result: Bytes,
+  body: (flatten (project (project eligible checked) wire)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: drive,
+  parameters: [work : Nat, state : Uorc.Search.Engine::Step, best : (Option Bytes)],
+  result: (Option Bytes),
+  body: (match work
+    | Nat.zero => best
+    | Nat.succ remaining => (match state
+      | Uorc.Search.Engine::Step.advanced cursor => (drive remaining (Uorc.Search.Engine::step cursor) best)
+      | Uorc.Search.Engine::Step.improved eligible cursor => (drive remaining (Uorc.Search.Engine::step cursor) (ctor Option.some [Bytes] (archiveBytes eligible)))
+      | Uorc.Search.Engine::Step.completed outcome => (ctor Option.some [Bytes] (archiveBytes (project outcome best)))
+      | Uorc.Search.Engine::Step.blocked failure cursor => best)),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: work
+}
+
+definition{
+  name: compress,
+  parameters: [input : Bytes, steps : Nat],
+  result: (Option Bytes),
+  body: (drive steps (ctor Uorc.Search.Engine::Step.advanced (Uorc.Search.Engine::start (query input) (policy) (allowances steps) (Uorc.Search.Synthesis::emptyInventory) (nil Uorc.Search.SharingJob::Spec))) (ctor Option.none [Bytes])),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+definition{
+  name: decodeQuery,
+  parameters: [lengths : (List Nat)],
+  result: Uorc.Search.Identity::Snapshot,
+  body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := lengths, target := (ctor Uorc.Core.Bytes::Rope.empty), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1099511627776, maxLiveCells := 1099511627776, maxOutputBytes := 1099511627776, maxFrames := 1048576}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: decodeStart,
+  parameters: [archive : Bytes, lengths : (List Nat)],
+  result: Uorc.Search.ArchiveTrial::Step,
+  body: (ctor Uorc.Search.ArchiveTrial::Step.pending (Uorc.Search.ArchiveTrial::startWire (decodeQuery lengths) (Uorc.Core.Resources::zeroUsage) (Uorc.Core.Bytes::fromBytes archive))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: parsedLengths,
+  parameters: [work : Nat, state : Uorc.Search.ArchiveTrial::Step],
+  result: (Option (List Nat)),
+  body: (match work
+    | Nat.zero => (ctor Option.none [(List Nat)])
+    | Nat.succ remaining => (match state
+      | Uorc.Search.ArchiveTrial::Step.pending cursor => (match (project cursor parsed)
+        | Option.some parsedArchive => (ctor Option.some [(List Nat)] (project (project parsedArchive frame) objectLengths))
+        | Option.none => (parsedLengths remaining (Uorc.Search.ArchiveTrial::step cursor)))
+      | Uorc.Search.ArchiveTrial::Step.complete eligible => (ctor Option.none [(List Nat)])
+      | Uorc.Search.ArchiveTrial::Step.rejected failure usage ledger events => (ctor Option.none [(List Nat)]))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: work
+}
+
+definition{
+  name: decodedOutput,
+  parameters: [work : Nat, state : Uorc.Search.ArchiveTrial::Step],
+  result: (Option Bytes),
+  body: (match work
+    | Nat.zero => (ctor Option.none [Bytes])
+    | Nat.succ remaining => (match state
+      | Uorc.Search.ArchiveTrial::Step.pending cursor => (match (project cursor phase)
+        | Uorc.Search.ArchiveTrial::Phase.splitting event reader ended output => (ctor Option.some [Bytes] (flatten output))
+        | Uorc.Search.ArchiveTrial::Phase.checking verifier => (ctor Option.none [Bytes])
+        | Uorc.Search.ArchiveTrial::Phase.normalizing inner => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.building inner => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.parsing event reader ended => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.hashing inner => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.boundaries inner => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.validating inner => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.admitting graph basis => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.basisIdentity graph table identity => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.executing graph table credit => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.rawDebt raw debt => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.boundaryDebt raw objects => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor))
+        | Uorc.Search.ArchiveTrial::Phase.basisNormalizing inner raw => (decodedOutput remaining (Uorc.Search.ArchiveTrial::step cursor)))
+      | Uorc.Search.ArchiveTrial::Step.complete eligible => (ctor Option.none [Bytes])
+      | Uorc.Search.ArchiveTrial::Step.rejected failure usage ledger events => (ctor Option.none [Bytes]))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: work
+}
+
+definition{
+  name: decompress,
+  parameters: [archive : Bytes, work : Nat],
+  result: (Option Bytes),
+  body: (match (parsedLengths work (decodeStart archive (nil Nat)))
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some lengths => (decodedOutput work (decodeStart archive lengths))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+\end{semanticmodule}
+\end{lexlean}
