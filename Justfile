@@ -41,11 +41,13 @@ model-write:
 source-authority:
     cargo run --locked -q -p xtask -- audit-source-authority
 
+# Without --all: that also walks path dependencies, and the exported client
+# crates under generated/rust keep LexLean's layout, bound by their provenance.
 fmt:
-    cargo fmt --all
+    cargo fmt
 
 fmt-check:
-    cargo fmt --all -- --check
+    cargo fmt -- --check
 
 lint:
     cargo clippy --locked --workspace --all-targets -- -D warnings
