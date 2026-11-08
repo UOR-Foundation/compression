@@ -76,7 +76,7 @@ export function mutationSpecimens(){
    ['byte-equality-forged','OwnedCompare','byteMismatchControl',ds=>{
     let count=0;const walk=x=>{if(!x||typeof x!=='object')return;if(x.kind==='if'&&x.condition.kind==='primitive'&&x.condition.operation==='equal'){x.condition={kind:'bool',value:true};count++;}for(const v of Object.values(x))Array.isArray(v)?v.forEach(walk):walk(v);};walk(ds.find(d=>d.name==='completeByte').body);requireFact(count===1,'one actual byte comparison mutation');
    }],
-   ['returned-output-ticket-omitted','MachineBinding','outputCustodyControl',ds=>{const d=ds.find(d=>d.name==='addOutputRoot');d.body={kind:'var',name:'roots'};}],
+   ['returned-output-ticket-omitted','MachineBinding','outputCustodyControl',ds=>{const d=ds.find(d=>d.name==='addOutputRoot');d.body={kind:'var',name:d.parameters[1].name};}],
    ['comparison-initialization-unpaid','ComparisonOwner','comparisonMismatchPaidInitialization',ds=>{ds.find(d=>d.name==='beginWork').body={kind:'integer',representation:'uint64',value:'0'};}],
    ['left-getter-prepayment-bypassed','OwnedCompare','getterRefusalResumeControl',ds=>{
     const body=ds.find(d=>d.name==='paidReadLeft').body;
