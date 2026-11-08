@@ -76,7 +76,7 @@ function runtime(s) {
   return {exit_code: r.status, driver_sha256: receipt.driver_sha256, stdout_sha256: receipt.stdout_sha256, ...driverCounts(driver, stdout),
     files: {'runtime.stdout': stdout, 'runtime.stderr': file('runtime.stderr'), 'runtime-receipt.json': file('receipt.json'), 'runtime-node.stdout': r.stdout, 'runtime-node.stderr': r.stderr}};
 }
-const exact = row => row.policy.kind === 'exact' && JSON.stringify([...row.observed].sort()) === JSON.stringify([...row.policy.axioms].sort());
+const exact = row => (row.policy.kind === 'exact' || (row.policy.kind === 'none' && row.policy.axioms.length === 0)) && JSON.stringify([...row.observed].sort()) === JSON.stringify([...row.policy.axioms].sort());
 export function regenerate() {
   const compiler = lexleanBinary();
   requireFact(compiler.sha256 === requiredCompiler, `lexlean on PATH (${compiler.file}) is ${compiler.sha256}; the checker requires compiler ${requiredCompiler}`);

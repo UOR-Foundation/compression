@@ -29,7 +29,8 @@ export function validateProofReplay(root, proof) {
   requireEvidence(proof.audit.length === names.length && new Set(proof.audit.map(row => row.name)).size === names.length, `complete current axiom audit ${proof.file}`);
   for (const name of names) {
     const row = proof.audit.find(row => row.name === name);
-    requireEvidence(row && row.policy.kind === 'exact', `current exact policy ${name}`);
+    // `none` (a declaration that may use no axiom) is the exact empty policy.
+    requireEvidence(row && (row.policy.kind === 'exact' || (row.policy.kind === 'none' && row.policy.axioms.length === 0)), `current exact policy ${name}`);
     const observed = [...row.observed].sort(), declared = [...row.policy.axioms].sort();
     requireEvidence(JSON.stringify(observed) === JSON.stringify(declared), `current axiom mismatch ${name}`);
     requireEvidence(observed.every(axiom => ['Quot.sound', 'propext'].includes(axiom)), `unapproved current axiom ${name}`);
