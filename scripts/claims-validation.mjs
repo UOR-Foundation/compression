@@ -99,6 +99,7 @@ export function run(root) {
       const verified=JSON.parse(restored.stdout);
       requireFact(verified.success===true && verified.exit_code===0 && verified.modules.includes('Uorc.Claims'),'restored run omitted the claim module');
       receipts.push({...mutation,source_sha256:sha(source),mutant_sha256:sha(mutant),generated_sha256:sha(generated),mutant_build_id:build.build_id,exit_code:result.status,diagnostic:'LLV7002',restored_exit_code:restored.status,restored_build_id:verified.build_id,restored_attestation_id:verified.attestation_id,stdout_sha256:sha(result.stdout),restored_stdout_sha256:sha(restored.stdout)});
+      fs.rmSync(project,{recursive:true,force:true});
     }
     requireFact(receipts.length===cases.length,'mutation execution omitted a source case');
     fs.writeFileSync(path.join(output,'mutations.json'),canonical({schema:'uorc/claim-mutations/1',command:['lexlean','verify',sourcePath],cases:receipts})+'\n');

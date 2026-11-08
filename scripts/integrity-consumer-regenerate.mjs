@@ -197,7 +197,6 @@ export function regenerate(name) {
     requireFact(base.attestation.lexlean.executable_sha256 === compiler.sha256, 'attestation names a different lexlean binary');
     const proof = proofReplay(base, lawFile, fs.readFileSync(path.join(s.project, lawFile), 'utf8'));
     keep('verify.json', base.stdout); keep('verify.stderr', base.stderr);
-    keep('attestation.json', fs.readFileSync(path.join(base.artifact, 'attestation.json'), 'utf8'));
     keep('build-manifest.json', fs.readFileSync(path.join(base.artifact, 'build-manifest.json'), 'utf8'));
     // 2. Mutant: planted source, lexlean build, stock-lean kernel compile of the unchanged proof.
     const sourceFile = path.join(s.project, c.mutation.source), original = fs.readFileSync(sourceFile);
@@ -241,6 +240,8 @@ export function regenerate(name) {
       compiler: {lexlean_sha256: base.attestation.lexlean.executable_sha256, lexlean_version: base.attestation.lexlean.version, toolchain: base.attestation.toolchain},
       source_sha256: sources,
       evidence_sha256: Object.fromEntries(Object.entries(files).map(([f, t]) => [`${dir}/${f}`, sha(Buffer.from(t))])),
+      // The full attestation (~27 MB) stays out of the repository; its digest binds the audit rows above.
+      attestation_sha256: sha(fs.readFileSync(path.join(base.artifact, 'attestation.json'))),
       proof, mutation, original_pinned_sdk_acceptance: false, full_product_acceptance: false,
     };
     // The checker's assertions, before anything in the repository is replaced.
