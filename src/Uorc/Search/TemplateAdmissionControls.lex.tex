@@ -1,0 +1,171 @@
+\begin{lexlean}{Uorc.Search.TemplateAdmissionControls}
+\importmodule{Uorc.Search.TemplateAdmission}
+\importmodule{Uorc.Search.TemplateOwner}
+\importmodule{Uorc.Search.TemplateFunding}
+\importmodule{Uorc.Search.TemplateStream}
+\importmodule{Uorc.Search.FixedTemplates}
+\importmodule{Uorc.Search.TemplateStreamControls}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.HeapAudit}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Trial,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Uorc.Search.TemplateAdmission::Cursor},
+    {name: externalRoots, type: (List Uorc.Core.RuntimeValue::Handle)},
+    {name: sawJoined, type: Bool},
+    {name: sawSplit, type: Bool},
+    {name: sawAcknowledgment, type: Bool},
+    {name: audited, type: Bool},
+    {name: done, type: Bool},
+    {name: failed, type: Bool}
+  ]
+}
+
+definition{
+  name: prepare,
+  parameters: [work : Nat, cursor : Uorc.Search.TemplateOwner::Cursor],
+  result: (Option Uorc.Search.TemplateOwner::Cursor),
+  body: (match work
+    | Nat.zero => (ctor Option.none [Uorc.Search.TemplateOwner::Cursor])
+    | Nat.succ remaining => (let change : Uorc.Search.TemplateOwner::Transition := (Uorc.Search.TemplateOwner::step (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) cursor (1000000 : UInt64)); (match (project change outcome)
+      | Uorc.Search.TemplateOwner::Outcome.pending => (prepare remaining (project change cursor))
+      | Uorc.Search.TemplateOwner::Outcome.ready => (ctor Option.some [Uorc.Search.TemplateOwner::Cursor] (project change cursor))
+      | Uorc.Search.TemplateOwner::Outcome.failed preparationFailure => (ctor Option.none [Uorc.Search.TemplateOwner::Cursor])))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+definition{
+  name: startTrial,
+  parameters: [fixture : Uorc.Search.TemplateStreamControls::Fixture],
+  result: (Option Trial),
+  body: (match (prepare 20 (Uorc.Search.TemplateOwner::start (project fixture arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) (record Uorc.Core.RuntimeResources::Usage {work := (0 : UInt64), ownedBytes := (project (project fixture arena) ownedBytes), peakOwnedBytes := (project (project fixture arena) ownedBytes), outputBytes := (0 : UInt64), frames := (0 : UInt64)}) (ctor Uorc.Search.FixedTemplates::Template.literalSequence (project fixture root))))
+    | Option.none => (ctor Option.none [Trial])
+    | Option.some prepared => (match (Uorc.Search.TemplateAdmission::start (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) prepared)
+      | Result.error startFailure => (ctor Option.none [Trial])
+      | Result.ok started => (ctor Option.some [Trial] (record Trial {cursor := started, externalRoots := (project fixture roots), sawJoined := false, sawSplit := false, sawAcknowledgment := false, audited := true, done := false, failed := false})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: isSplit,
+  parameters: [cursor : Uorc.Search.TemplateAdmission::Cursor],
+  result: Bool,
+  body: (match (project cursor phase)
+    | Uorc.Search.TemplateAdmission::Phase.splitting splitCursor header => true
+    | Uorc.Search.TemplateAdmission::Phase.admission admission => false
+    | Uorc.Search.TemplateAdmission::Phase.take admission => false
+    | Uorc.Search.TemplateAdmission::Phase.detached taken stage => false
+    | Uorc.Search.TemplateAdmission::Phase.returning returning => false
+    | Uorc.Search.TemplateAdmission::Phase.ready ready stage => false
+    | Uorc.Search.TemplateAdmission::Phase.admissionFailure failedAdmission => false)
+}
+
+definition{
+  name: isAdmission,
+  parameters: [cursor : Uorc.Search.TemplateAdmission::Cursor],
+  result: Bool,
+  body: (match (project cursor phase)
+    | Uorc.Search.TemplateAdmission::Phase.admission admission => true
+    | Uorc.Search.TemplateAdmission::Phase.splitting splitCursor header => false
+    | Uorc.Search.TemplateAdmission::Phase.take admission => false
+    | Uorc.Search.TemplateAdmission::Phase.detached taken stage => false
+    | Uorc.Search.TemplateAdmission::Phase.returning returning => false
+    | Uorc.Search.TemplateAdmission::Phase.ready ready stage => false
+    | Uorc.Search.TemplateAdmission::Phase.admissionFailure failedAdmission => false)
+}
+
+definition{
+  name: hasAcknowledgedSpan,
+  parameters: [cursor : Uorc.Search.TemplateAdmission::Cursor],
+  result: Bool,
+  body: (match (project (project (project (project cursor meta) source) source) phase)
+    | Uorc.Search.TemplateStream::Phase.spanRelease => true
+    | Uorc.Search.TemplateStream::Phase.syntax => false
+    | Uorc.Search.TemplateStream::Phase.literalLength => false
+    | Uorc.Search.TemplateStream::Phase.spanBegin => false
+    | Uorc.Search.TemplateStream::Phase.spanWalking => false
+    | Uorc.Search.TemplateStream::Phase.spanDrain => false
+    | Uorc.Search.TemplateStream::Phase.waiting => false
+    | Uorc.Search.TemplateStream::Phase.complete => false
+    | Uorc.Search.TemplateStream::Phase.cancelling => false
+    | Uorc.Search.TemplateStream::Phase.cancelDrain => false
+    | Uorc.Search.TemplateStream::Phase.cancelled => false)
+}
+
+definition{
+  name: advance,
+  parameters: [trial : Trial],
+  result: Trial,
+  body: (let change : Uorc.Search.TemplateAdmission::Transition := (Uorc.Search.TemplateAdmission::step (project trial cursor) (1000000 : UInt64)); (record Trial {cursor := (project change cursor), externalRoots := (project trial externalRoots), sawJoined := ((project trial sawJoined) || (project (project (project change cursor) meta) spanJoined)), sawSplit := ((project trial sawSplit) || (isSplit (project change cursor))), sawAcknowledgment := ((project trial sawAcknowledgment) || (hasAcknowledgedSpan (project change cursor))), audited := (if ((isAdmission (project trial cursor)) && (isAdmission (project change cursor))) then (project trial audited) else ((project trial audited) && (Uorc.Core.HeapAudit::auditRoots (Uorc.Search.TemplateAdmission::arena (project change cursor)) (Uorc.Search.TemplateAdmission::joinRoots (project trial externalRoots) (Uorc.Search.TemplateAdmission::rootInventory (project change cursor)))))), done := (((project trial sawJoined) || (project (project (project change cursor) meta) spanJoined)) && (((project trial sawSplit) || (isSplit (project change cursor))) && ((project trial sawAcknowledgment) || (hasAcknowledgedSpan (project change cursor))))), failed := (match (project change outcome)
+    | Uorc.Search.TemplateAdmission::Outcome.failed failure => true
+    | Uorc.Search.TemplateAdmission::Outcome.pending => false
+    | Uorc.Search.TemplateAdmission::Outcome.admitted => false)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [work : Nat, trial : Trial],
+  result: Trial,
+  body: (match work
+    | Nat.zero => trial
+    | Nat.succ remaining => (if ((project trial done) || (project trial failed)) then trial else (run remaining (advance trial)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+definition{
+  name: oneImageActualSpanCycle,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Search.TemplateStreamControls::oneImage)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (match (startTrial fixture)
+      | Option.none => false
+      | Option.some trial => (let reached : Trial := (run 10000 trial); ((project reached done) && ((not (project reached failed)) && (project reached audited)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: twoImagesActualSpanCycle,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Search.TemplateStreamControls::twoImages)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (match (startTrial fixture)
+      | Option.none => false
+      | Option.some trial => (let reached : Trial := (run 10000 trial); ((project reached done) && ((not (project reached failed)) && (project reached audited)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: unprepared,
+  parameters: [fixture : Uorc.Search.TemplateStreamControls::Fixture],
+  result: Uorc.Search.TemplateOwner::Cursor,
+  body: (Uorc.Search.TemplateOwner::start (project fixture arena) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis))) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (Uorc.Core.RuntimeValue::nullHandle)}) (record Uorc.Core.RuntimeResources::Usage {work := (0 : UInt64), ownedBytes := (project (project fixture arena) ownedBytes), peakOwnedBytes := (project (project fixture arena) ownedBytes), outputBytes := (0 : UInt64), frames := (0 : UInt64)}) (ctor Uorc.Search.FixedTemplates::Template.literalSequence (project fixture root)))
+}
+
+theorem{
+  name: unprepared_arena_is_never_accepted_as_producer_token,
+  parameters: [fixture : Uorc.Search.TemplateStreamControls::Fixture],
+  statement: ((Uorc.Search.TemplateAdmission::start (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (unprepared fixture)) = (ctor Result.error [Uorc.Search.TemplateAdmission::Cursor, Uorc.Search.TemplateAdmission::Error] (ctor Uorc.Search.TemplateAdmission::Error.ownerNotReady))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: qualification,
+  parameters: [],
+  result: String,
+  body: "The executable one/two-image span-cycle probes traverse the actual owned producer, credit admission, boundary lease, span join/split and full acknowledgment path, with wrapper/boundary ownership inventories audited. They stop only after a real span acknowledgment, before later program execution/archive eligibility. Probe guards are diagnostic work bounds, not product input restrictions. Full successful admission, source/native semantic conformance, cleanup/cancellation, exact wire reconstruction, semantic-cost refinement and generated-native qualification remain required. No giant closed trace is declared a universal ownership proof."
+}
+\end{semanticmodule}
+\end{lexlean}

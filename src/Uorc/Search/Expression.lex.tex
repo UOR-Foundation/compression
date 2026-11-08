@@ -1,0 +1,192 @@
+\begin{lexlean}{Uorc.Search.Expression}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.VerifyRope}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Literal,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: natural, fields: [UInt64]},
+    {name: byte, fields: [UInt8]},
+    {name: predicate, fields: [Bool]},
+    {name: sequence, fields: [Uorc.Core.Bytes::Rope]}
+  ]
+}
+
+inductive{
+  name: Expression,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: literal, fields: [Literal]},
+    {name: parameter, fields: [Nat, Uorc.Core.Types::ValueType]},
+    {name: call, fields: [Nat, Uorc.Core.Types::ValueType, (List Expression)]}
+  ]
+}
+
+definition{
+  name: literalType,
+  parameters: [literal : Literal],
+  result: Uorc.Core.Types::ValueType,
+  body: (match literal
+    | Literal.natural payload => (ctor Uorc.Core.Types::ValueType.natural)
+    | Literal.byte payload => (ctor Uorc.Core.Types::ValueType.byte)
+    | Literal.predicate payload => (ctor Uorc.Core.Types::ValueType.predicate)
+    | Literal.sequence payload => (ctor Uorc.Core.Types::ValueType.sequence))
+}
+
+definition{
+  name: resultType,
+  parameters: [expression : Expression],
+  result: Uorc.Core.Types::ValueType,
+  body: (match expression
+    | Expression.literal literal => (literalType literal)
+    | Expression.parameter index type => type
+    | Expression.call functionIndex type arguments => type)
+}
+
+inductive{
+  name: EqualityTask,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: compare, fields: [Expression, Expression]},
+    {name: arguments, fields: [(List Expression), (List Expression)]},
+    {name: sequence, fields: [Uorc.Search.VerifyRope::Cursor]}
+  ]
+}
+
+structure{
+  name: EqualityCursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: tasks, type: (List EqualityTask)}, {name: completedEvents, type: Nat}]
+}
+
+inductive{
+  name: EqualityStep,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [EqualityCursor]},
+    {name: equal, fields: [Bool, Nat]},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError, Nat]}
+  ]
+}
+
+definition{
+  name: startEquality,
+  parameters: [leftExpression : Expression, rightExpression : Expression],
+  result: EqualityCursor,
+  body: (record EqualityCursor {tasks := (cons (ctor EqualityTask.compare leftExpression rightExpression) (nil EqualityTask)), completedEvents := 0})
+}
+
+definition{
+  name: equalityStep,
+  parameters: [cursor : EqualityCursor],
+  result: EqualityStep,
+  body: (match (project cursor tasks)
+    | List.nil => (ctor EqualityStep.equal true ((project cursor completedEvents) + 1))
+    | List.cons task restTasks => (match task
+      | EqualityTask.compare leftExpression rightExpression => (match leftExpression
+        | Expression.literal leftLiteral => (match rightExpression
+          | Expression.literal rightLiteral => (match leftLiteral
+            | Literal.natural leftPayload => (match rightLiteral
+              | Literal.natural rightPayload => (if (prim equal leftPayload rightPayload : Bool) then (ctor EqualityStep.pending (record EqualityCursor {tasks := restTasks, completedEvents := ((project cursor completedEvents) + 1)})) else (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+              | Literal.byte rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+              | Literal.predicate rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+              | Literal.sequence rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+            | Literal.byte leftPayload => (match rightLiteral
+              | Literal.natural rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+              | Literal.byte rightPayload => (if (prim equal leftPayload rightPayload : Bool) then (ctor EqualityStep.pending (record EqualityCursor {tasks := restTasks, completedEvents := ((project cursor completedEvents) + 1)})) else (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+              | Literal.predicate rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+              | Literal.sequence rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+            | Literal.predicate leftPayload => (match rightLiteral
+              | Literal.natural rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+              | Literal.byte rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+              | Literal.predicate rightPayload => (if (prim equal leftPayload rightPayload : Bool) then (ctor EqualityStep.pending (record EqualityCursor {tasks := restTasks, completedEvents := ((project cursor completedEvents) + 1)})) else (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+              | Literal.sequence rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+            | Literal.sequence leftPayload => (match rightLiteral
+              | Literal.natural rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+              | Literal.byte rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+              | Literal.predicate rightPayload => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+              | Literal.sequence rightPayload => (ctor EqualityStep.pending (record EqualityCursor {tasks := (cons (ctor EqualityTask.sequence (Uorc.Search.VerifyRope::start (cons leftPayload (nil Uorc.Core.Bytes::Rope)) (cons rightPayload (nil Uorc.Core.Bytes::Rope)))) restTasks), completedEvents := ((project cursor completedEvents) + 1)}))))
+          | Expression.parameter rightIndex rightType => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+          | Expression.call rightFunction rightType rightArguments => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+        | Expression.parameter leftIndex leftType => (match rightExpression
+          | Expression.literal rightLiteral => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+          | Expression.parameter rightIndex rightType => (if ((leftIndex =? rightIndex) && (Uorc.Core.Types::sameType leftType rightType)) then (ctor EqualityStep.pending (record EqualityCursor {tasks := restTasks, completedEvents := ((project cursor completedEvents) + 1)})) else (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+          | Expression.call rightFunction rightType rightArguments => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+        | Expression.call leftFunction leftType leftArguments => (match rightExpression
+          | Expression.literal rightLiteral => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+          | Expression.parameter rightIndex rightType => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+          | Expression.call rightFunction rightType rightArguments => (if ((leftFunction =? rightFunction) && (Uorc.Core.Types::sameType leftType rightType)) then (ctor EqualityStep.pending (record EqualityCursor {tasks := (cons (ctor EqualityTask.arguments leftArguments rightArguments) restTasks), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))))
+      | EqualityTask.arguments leftArguments rightArguments => (match leftArguments
+        | List.nil => (match rightArguments
+          | List.nil => (ctor EqualityStep.pending (record EqualityCursor {tasks := restTasks, completedEvents := ((project cursor completedEvents) + 1)}))
+          | List.cons rightHead rightTail => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1)))
+        | List.cons leftHead leftTail => (match rightArguments
+          | List.nil => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+          | List.cons rightHead rightTail => (ctor EqualityStep.pending (record EqualityCursor {tasks := (cons (ctor EqualityTask.compare leftHead rightHead) (cons (ctor EqualityTask.arguments leftTail rightTail) restTasks)), completedEvents := ((project cursor completedEvents) + 1)}))))
+      | EqualityTask.sequence comparison => (match (Uorc.Search.VerifyRope::step comparison)
+        | Uorc.Search.VerifyRope::Step.pending next => (ctor EqualityStep.pending (record EqualityCursor {tasks := (cons (ctor EqualityTask.sequence next) restTasks), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Search.VerifyRope::Step.matched compared boundaries => (ctor EqualityStep.pending (record EqualityCursor {tasks := restTasks, completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor EqualityStep.equal false ((project cursor completedEvents) + 1))
+        | Uorc.Search.VerifyRope::Step.ropeFailure ropeError => (ctor EqualityStep.ropeFailure ropeError ((project cursor completedEvents) + 1)))))
+}
+
+definition{
+  name: runEquality,
+  parameters: [fuel : Nat, state : EqualityStep],
+  result: EqualityStep,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ remainingFuel => (match state
+      | EqualityStep.pending cursor => (runEquality remainingFuel (equalityStep cursor))
+      | EqualityStep.equal same events => (ctor EqualityStep.equal same events)
+      | EqualityStep.ropeFailure ropeError events => (ctor EqualityStep.ropeFailure ropeError events))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: equalResult,
+  parameters: [state : EqualityStep],
+  result: (Option Bool),
+  body: (match state
+    | EqualityStep.pending cursor => (ctor Option.none [Bool])
+    | EqualityStep.equal same events => (ctor Option.some [Bool] same)
+    | EqualityStep.ropeFailure ropeError events => (ctor Option.none [Bool]))
+}
+
+theorem{
+  name: nested_expression_equality_is_exact,
+  parameters: [],
+  statement: ((equalResult (runEquality 150 (ctor EqualityStep.pending (startEquality (ctor Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (3 : UInt64))) (cons (ctor Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (7 : UInt64))) (nil Expression))) (nil Expression)))) (ctor Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (3 : UInt64))) (cons (ctor Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (7 : UInt64))) (nil Expression))) (nil Expression)))))))) = (ctor Option.some [Bool] true)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: nested_mismatch_not_hidden_by_shape,
+  parameters: [],
+  statement: ((equalResult (runEquality 150 (ctor EqualityStep.pending (startEquality (ctor Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (3 : UInt64))) (cons (ctor Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (7 : UInt64))) (nil Expression))) (nil Expression)))) (ctor Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (3 : UInt64))) (cons (ctor Expression.call 8 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (9 : UInt64))) (nil Expression))) (nil Expression)))))))) = (ctor Option.some [Bool] false)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: application_arity_mismatch,
+  parameters: [],
+  statement: ((equalResult (runEquality 150 (ctor EqualityStep.pending (startEquality (ctor Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (1 : UInt64))) (nil Expression))) (ctor Expression.call 4 (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Expression.literal (ctor Literal.natural (1 : UInt64))) (cons (ctor Expression.literal (ctor Literal.natural (2 : UInt64))) (nil Expression)))))))) = (ctor Option.some [Bool] false)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: same_index_different_types_not_equal,
+  parameters: [],
+  statement: ((equalResult (runEquality 150 (ctor EqualityStep.pending (startEquality (ctor Expression.parameter 0 (ctor Uorc.Core.Types::ValueType.natural)) (ctor Expression.parameter 0 (ctor Uorc.Core.Types::ValueType.byte)))))) = (ctor Option.some [Bool] false)),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

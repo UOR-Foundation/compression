@@ -1,0 +1,583 @@
+\begin{lexlean}{Uorc.Wire.FrameEmit}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Wire.Output}
+\importmodule{Uorc.Wire.ProgramEmit}
+\importmodule{Uorc.Wire.OwnedRead}
+\importmodule{Uorc.Wire.FrameEventContract}
+\importmodule{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Wire.EmitContract}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Binding,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: magic0, type: UInt8},
+    {name: magic1, type: UInt8},
+    {name: magic2, type: UInt8},
+    {name: magic3, type: UInt8},
+    {name: format, type: UInt8},
+    {name: profile, type: UInt8},
+    {name: basisBytes, type: UInt64}
+  ]
+}
+
+structure{
+  name: Span,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: image, type: Uorc.Core.RuntimeValue::Handle},
+    {name: offset, type: UInt64},
+    {name: length, type: UInt64}
+  ]
+}
+
+inductive{
+  name: Scope,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: selfContained, fields: []}, {name: conditional, fields: [Span]}]
+}
+
+inductive{
+  name: Body,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: raw, fields: [Uorc.Core.RuntimeValue::Handle]},
+    {name: program, fields: [Uorc.Core.RuntimeProgram::Program]}
+  ]
+}
+
+structure{
+  name: Request,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: record, type: Uorc.Core.RuntimeValue::Handle},
+    {name: binding, type: Binding},
+    {name: lengths, type: Uorc.Wire.FrameEventContract::OwnedLengths},
+    {name: scope, type: Scope},
+    {name: body, type: Body}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: attach, fields: []},
+    {name: measureProgram, fields: []},
+    {name: attachLengths, fields: []},
+    {name: validateBody, fields: []},
+    {name: attachBasis, fields: []},
+    {name: rewind, fields: []},
+    {name: magic0, fields: []},
+    {name: magic1, fields: []},
+    {name: magic2, fields: []},
+    {name: magic3, fields: []},
+    {name: format, fields: []},
+    {name: profile, fields: []},
+    {name: scope, fields: []},
+    {name: representation, fields: []},
+    {name: objectCount, fields: []},
+    {name: objectLength, fields: []},
+    {name: bodyLength, fields: []},
+    {name: basis, fields: []},
+    {name: body, fields: []},
+    {name: number, fields: []},
+    {name: end, fields: []},
+    {name: done, fields: []}
+  ]
+}
+
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: protocol, fields: []},
+    {name: cancelled, fields: []},
+    {name: addressSpaceExhausted, fields: []},
+    {name: lengthMismatch, fields: []},
+    {name: basisLengthMismatch, fields: []},
+    {name: invalidSpan, fields: []},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: metadata, fields: [Uorc.Core.RuntimeMetadata::Error]},
+    {name: program, fields: [Uorc.Core.RuntimeProgram::Failure]},
+    {name: emission, fields: [Uorc.Wire.ProgramEmit::Failure]},
+    {name: spanRead, fields: [Uorc.Wire.OwnedRead::Failure]},
+    {name: resource, fields: [Uorc.Core.RuntimeResources::Error]}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: phase, type: Phase},
+    {name: afterNumber, type: Phase},
+    {name: request, type: Request},
+    {name: program, type: (Option Uorc.Wire.ProgramEmit::State)},
+    {name: raw, type: (Option Uorc.Wire.OwnedRead::Cursor)},
+    {name: wireRoot, type: Uorc.Core.RuntimeValue::Handle},
+    {name: index, type: UInt64},
+    {name: sum, type: UInt64},
+    {name: bodyLength, type: UInt64},
+    {name: number, type: UInt64},
+    {name: wireBytes, type: UInt64},
+    {name: pending, type: (Option Uorc.Wire.Output::Event)},
+    {name: mode, type: Uorc.Wire.Output::Mode},
+    {name: failure, type: (Option Failure)}
+  ]
+}
+
+structure{
+  name: Session,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: state, type: State},
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage}
+  ]
+}
+
+inductive{
+  name: Signal,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: []},
+    {name: pending, fields: []},
+    {name: complete, fields: []},
+    {name: failed, fields: []},
+    {name: clean, fields: []},
+    {name: paused, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: transferred, fields: [Uorc.Core.RuntimeValue::Handle]}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: session, type: Session}, {name: signal, type: Signal}]
+}
+
+definition{
+  name: frameMetadataKind,
+  parameters: [],
+  result: UInt64,
+  body: (1464422982 : UInt64),
+  executable: true
+}
+
+definition{
+  name: phaseCode,
+  parameters: [p : Phase],
+  result: UInt64,
+  body: (match p
+    | Phase.attach => (0 : UInt64)
+    | Phase.measureProgram => (1 : UInt64)
+    | Phase.attachLengths => (2 : UInt64)
+    | Phase.validateBody => (3 : UInt64)
+    | Phase.attachBasis => (4 : UInt64)
+    | Phase.rewind => (5 : UInt64)
+    | Phase.magic0 => (6 : UInt64)
+    | Phase.magic1 => (7 : UInt64)
+    | Phase.magic2 => (8 : UInt64)
+    | Phase.magic3 => (9 : UInt64)
+    | Phase.format => (10 : UInt64)
+    | Phase.profile => (11 : UInt64)
+    | Phase.scope => (12 : UInt64)
+    | Phase.representation => (13 : UInt64)
+    | Phase.objectCount => (14 : UInt64)
+    | Phase.objectLength => (15 : UInt64)
+    | Phase.bodyLength => (16 : UInt64)
+    | Phase.basis => (17 : UInt64)
+    | Phase.body => (18 : UInt64)
+    | Phase.number => (19 : UInt64)
+    | Phase.end => (20 : UInt64)
+    | Phase.done => (21 : UInt64)),
+  executable: true
+}
+
+definition{
+  name: initialState,
+  parameters: [request : Request, mode : Uorc.Wire.Output::Mode],
+  result: State,
+  body: (record State {phase := (ctor Phase.attach), afterNumber := (ctor Phase.done), request := request, program := (ctor Option.none [Uorc.Wire.ProgramEmit::State]), raw := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), wireRoot := (Uorc.Core.RuntimeValue::nullHandle), index := (0 : UInt64), sum := (0 : UInt64), bodyLength := (0 : UInt64), number := (0 : UInt64), wireBytes := (0 : UInt64), pending := (ctor Option.none [Uorc.Wire.Output::Event]), mode := mode, failure := (ctor Option.none [Failure])}),
+  executable: true
+}
+
+definition{
+  name: begin,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    request : Request,
+    mode : Uorc.Wire.Output::Mode
+  ],
+  result: Session,
+  body: (record Session {state := (initialState request mode), arena := arena, usage := usage}),
+  executable: true
+}
+
+definition{
+  name: root,
+  parameters: [st : State],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (if (Uorc.Core.RuntimeValue::isNull (project st wireRoot)) then (match (project st program)
+    | Option.none => (Uorc.Core.RuntimeValue::nullHandle)
+    | Option.some childLocal1 => (project childLocal1 wireRoot)) else (project st wireRoot)),
+  executable: true
+}
+
+definition{
+  name: pendingEvent,
+  parameters: [st : State],
+  result: (Option Uorc.Wire.Output::Event),
+  body: (match (project st pending)
+    | Option.some eventLocal2 => (ctor Option.some [Uorc.Wire.Output::Event] eventLocal2)
+    | Option.none => (if (prim equal (phaseCode (project st phase)) (phaseCode (ctor Phase.body)) : Bool) then (match (project st program)
+      | Option.none => (ctor Option.none [Uorc.Wire.Output::Event])
+      | Option.some childLocal3 => (project childLocal3 pending)) else (ctor Option.none [Uorc.Wire.Output::Event]))),
+  executable: true
+}
+
+definition{
+  name: validSpan,
+  parameters: [arena : Uorc.Core.Heap::Arena, span : Span],
+  result: Bool,
+  body: (match (prim checked_add (project span offset) (project span length) : (Option UInt64))
+    | Option.none => false
+    | Option.some endLocal4 => (match (Uorc.Core.Heap::lookup arena (project span image))
+      | Result.error eLocal5 => false
+      | Result.ok entryLocal6 => (match (project entryLocal6 node)
+        | Uorc.Core.Heap::Node.image kindLocal7 bytesLocal8 => (match (Uorc.Core.Heap::wordOfNat (prim length bytesLocal8 : Nat))
+          | Option.none => false
+          | Option.some sizeLocal9 => (not (Uorc.Core.Heap::less sizeLocal9 endLocal4)))
+        | Uorc.Core.Heap::Node.sequenceLeaf a0Local10 a1Local11 a2Local12 => false
+        | Uorc.Core.Heap::Node.sequenceBranch a0Local13 a1Local14 a2Local15 a3Local16 => false
+        | Uorc.Core.Heap::Node.storeLeaf a0Local17 => false
+        | Uorc.Core.Heap::Node.storeBranch a0Local18 a1Local19 => false
+        | Uorc.Core.Heap::Node.slot a0Local20 a1Local21 => false
+        | Uorc.Core.Heap::Node.rootBranch a0Local22 a1Local23 a2Local24 => false
+        | Uorc.Core.Heap::Node.metadataWord a0Local25 a1Local26 a2Local27 => false
+        | Uorc.Core.Heap::Node.metadataLink a0Local28 a1Local29 a2Local30 => false
+        | Uorc.Core.Heap::Node.metadataBranch a0Local31 a1Local32 a2Local33 => false
+        | Uorc.Core.Heap::Node.ownerRoot a0Local34 a1Local35 => false
+        | Uorc.Core.Heap::Node.imageReservation a0Local36 a1Local37 => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: childSession,
+  parameters: [x : Session, child : Uorc.Wire.ProgramEmit::State],
+  result: Uorc.Wire.ProgramEmit::Session,
+  body: (record Uorc.Wire.ProgramEmit::Session {state := child, arena := (project x arena), usage := (project x usage)}),
+  executable: true
+}
+
+definition{
+  name: startNumber,
+  parameters: [x : Session, number : UInt64, after : Phase],
+  result: Transition,
+  body: (let stLocal38 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.number), afterNumber := after, request := (project stLocal38 request), program := (project stLocal38 program), raw := (project stLocal38 raw), wireRoot := (project stLocal38 wireRoot), index := (project stLocal38 index), sum := (project stLocal38 sum), bodyLength := (project stLocal38 bodyLength), number := number, wireBytes := (project stLocal38 wireBytes), pending := (project stLocal38 pending), mode := (project stLocal38 mode), failure := (project stLocal38 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})),
+  executable: true
+}
+
+definition{
+  name: offer,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    x : Session,
+    event : Uorc.Wire.Output::Event,
+    next : State
+  ],
+  result: Transition,
+  body: (let stLocal39 : State := (project x state); (match (prim checked_add (project stLocal39 wireBytes) (Uorc.Wire.Output::length event) : (Option UInt64))
+    | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal39 phase), afterNumber := (project stLocal39 afterNumber), request := (project stLocal39 request), program := (project stLocal39 program), raw := (project stLocal39 raw), wireRoot := (project stLocal39 wireRoot), index := (project stLocal39 index), sum := (project stLocal39 sum), bodyLength := (project stLocal39 bodyLength), number := (project stLocal39 number), wireBytes := (project stLocal39 wireBytes), pending := (project stLocal39 pending), mode := (project stLocal39 mode), failure := (ctor Option.some [Failure] (ctor Failure.addressSpaceExhausted))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+    | Option.some wireBytesLocal40 => (let chargeLocal41 : UInt64 := (if (Uorc.Wire.ProgramEmit::streaming (project stLocal39 mode)) then (Uorc.Wire.Output::length event) else (0 : UInt64)); (match (prim checked_add (project (project x usage) outputBytes) chargeLocal41 : (Option UInt64))
+      | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal39 phase), afterNumber := (project stLocal39 afterNumber), request := (project stLocal39 request), program := (project stLocal39 program), raw := (project stLocal39 raw), wireRoot := (project stLocal39 wireRoot), index := (project stLocal39 index), sum := (project stLocal39 sum), bodyLength := (project stLocal39 bodyLength), number := (project stLocal39 number), wireBytes := (project stLocal39 wireBytes), pending := (project stLocal39 pending), mode := (project stLocal39 mode), failure := (ctor Option.some [Failure] (ctor Failure.addressSpaceExhausted))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+      | Option.some checkedLocal42 => (match (Uorc.Core.RuntimeResources::charge budget (project x usage) (record Uorc.Core.RuntimeResources::Event {work := (0 : UInt64), emittedBytes := chargeLocal41, enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error eLocal43 => (record Transition {session := x, signal := (ctor Signal.paused eLocal43)})
+        | Result.ok uLocal44 => (record Transition {session := (record Session {state := (record State {phase := (project next phase), afterNumber := (project next afterNumber), request := (project next request), program := (project next program), raw := (project next raw), wireRoot := (project next wireRoot), index := (project next index), sum := (project next sum), bodyLength := (project next bodyLength), number := (project next number), wireBytes := wireBytesLocal40, pending := (if (Uorc.Wire.ProgramEmit::streaming (project stLocal39 mode)) then (ctor Option.some [Uorc.Wire.Output::Event] event) else (ctor Option.none [Uorc.Wire.Output::Event])), mode := (project next mode), failure := (project next failure)}), arena := (project x arena), usage := uLocal44}), signal := (if (Uorc.Wire.ProgramEmit::streaming (project stLocal39 mode)) then (ctor Signal.pending) else (ctor Signal.advanced))})))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: childResult,
+  parameters: [
+    x : Session,
+    child : Uorc.Wire.ProgramEmit::State,
+    t : Uorc.Wire.ProgramEmit::Transition,
+    measuring : Bool
+  ],
+  result: Transition,
+  body: (let stLocal45 : State := (project x state); (let nextLocal46 : Uorc.Wire.ProgramEmit::State := (project (project t session) state); (let movedLocal47 : Session := (record Session {state := (record State {phase := (project stLocal45 phase), afterNumber := (project stLocal45 afterNumber), request := (project stLocal45 request), program := (ctor Option.some [Uorc.Wire.ProgramEmit::State] nextLocal46), raw := (project stLocal45 raw), wireRoot := (project stLocal45 wireRoot), index := (project stLocal45 index), sum := (project stLocal45 sum), bodyLength := (project stLocal45 bodyLength), number := (project stLocal45 number), wireBytes := (project stLocal45 wireBytes), pending := (project stLocal45 pending), mode := (project stLocal45 mode), failure := (project stLocal45 failure)}), arena := (project (project t session) arena), usage := (project (project t session) usage)}); (let xLocal48 : Session := movedLocal47; (let stLocal49 : State := (project xLocal48 state); (match (prim checked_subtract (project nextLocal46 wireBytes) (project child wireBytes) : (Option UInt64))
+    | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal49 phase), afterNumber := (project stLocal49 afterNumber), request := (project stLocal49 request), program := (project stLocal49 program), raw := (project stLocal49 raw), wireRoot := (project stLocal49 wireRoot), index := (project stLocal49 index), sum := (project stLocal49 sum), bodyLength := (project stLocal49 bodyLength), number := (project stLocal49 number), wireBytes := (project stLocal49 wireBytes), pending := (project stLocal49 pending), mode := (project stLocal49 mode), failure := (ctor Option.some [Failure] (ctor Failure.addressSpaceExhausted))}), arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.failed)})
+    | Option.some deltaLocal50 => (match (prim checked_add (project stLocal49 wireBytes) (if measuring then (0 : UInt64) else deltaLocal50) : (Option UInt64))
+      | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal49 phase), afterNumber := (project stLocal49 afterNumber), request := (project stLocal49 request), program := (project stLocal49 program), raw := (project stLocal49 raw), wireRoot := (project stLocal49 wireRoot), index := (project stLocal49 index), sum := (project stLocal49 sum), bodyLength := (project stLocal49 bodyLength), number := (project stLocal49 number), wireBytes := (project stLocal49 wireBytes), pending := (project stLocal49 pending), mode := (project stLocal49 mode), failure := (ctor Option.some [Failure] (ctor Failure.addressSpaceExhausted))}), arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.failed)})
+      | Option.some wireBytesLocal51 => (let stLocal52 : State := (record State {phase := (project stLocal49 phase), afterNumber := (project stLocal49 afterNumber), request := (project stLocal49 request), program := (project stLocal49 program), raw := (project stLocal49 raw), wireRoot := (project stLocal49 wireRoot), index := (project stLocal49 index), sum := (project stLocal49 sum), bodyLength := (project stLocal49 bodyLength), number := (project stLocal49 number), wireBytes := wireBytesLocal51, pending := (project stLocal49 pending), mode := (project stLocal49 mode), failure := (project stLocal49 failure)}); (match (project t signal)
+        | Uorc.Wire.ProgramEmit::Signal.advanced => (record Transition {session := (record Session {state := stLocal52, arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.advanced)})
+        | Uorc.Wire.ProgramEmit::Signal.pending => (record Transition {session := (record Session {state := stLocal52, arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.pending)})
+        | Uorc.Wire.ProgramEmit::Signal.complete => (if measuring then (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.attachBasis), afterNumber := (project stLocal52 afterNumber), request := (project stLocal52 request), program := (project stLocal52 program), raw := (project stLocal52 raw), wireRoot := (project nextLocal46 wireRoot), index := (project stLocal52 index), sum := (project stLocal52 sum), bodyLength := (project nextLocal46 wireBytes), number := (project stLocal52 number), wireBytes := (project stLocal52 wireBytes), pending := (project stLocal52 pending), mode := (project stLocal52 mode), failure := (project stLocal52 failure)}), arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.advanced)}) else (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.end), afterNumber := (project stLocal52 afterNumber), request := (project stLocal52 request), program := (project stLocal52 program), raw := (project stLocal52 raw), wireRoot := (project stLocal52 wireRoot), index := (project stLocal52 index), sum := (project stLocal52 sum), bodyLength := (project stLocal52 bodyLength), number := (project stLocal52 number), wireBytes := (project stLocal52 wireBytes), pending := (project stLocal52 pending), mode := (project stLocal52 mode), failure := (project stLocal52 failure)}), arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.advanced)}))
+        | Uorc.Wire.ProgramEmit::Signal.failed => (match (project nextLocal46 failure)
+          | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal52 phase), afterNumber := (project stLocal52 afterNumber), request := (project stLocal52 request), program := (project stLocal52 program), raw := (project stLocal52 raw), wireRoot := (project stLocal52 wireRoot), index := (project stLocal52 index), sum := (project stLocal52 sum), bodyLength := (project stLocal52 bodyLength), number := (project stLocal52 number), wireBytes := (project stLocal52 wireBytes), pending := (project stLocal52 pending), mode := (project stLocal52 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.failed)})
+          | Option.some reasonLocal53 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal52 phase), afterNumber := (project stLocal52 afterNumber), request := (project stLocal52 request), program := (project stLocal52 program), raw := (project stLocal52 raw), wireRoot := (project stLocal52 wireRoot), index := (project stLocal52 index), sum := (project stLocal52 sum), bodyLength := (project stLocal52 bodyLength), number := (project stLocal52 number), wireBytes := (project stLocal52 wireBytes), pending := (project stLocal52 pending), mode := (project stLocal52 mode), failure := (ctor Option.some [Failure] (ctor Failure.emission reasonLocal53))}), arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.failed)}))
+        | Uorc.Wire.ProgramEmit::Signal.clean => (record Transition {session := (record Session {state := (record State {phase := (project stLocal52 phase), afterNumber := (project stLocal52 afterNumber), request := (project stLocal52 request), program := (project stLocal52 program), raw := (project stLocal52 raw), wireRoot := (project stLocal52 wireRoot), index := (project stLocal52 index), sum := (project stLocal52 sum), bodyLength := (project stLocal52 bodyLength), number := (project stLocal52 number), wireBytes := (project stLocal52 wireBytes), pending := (project stLocal52 pending), mode := (project stLocal52 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.failed)})
+        | Uorc.Wire.ProgramEmit::Signal.paused reasonLocal54 => (record Transition {session := (record Session {state := stLocal52, arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.paused reasonLocal54)})
+        | Uorc.Wire.ProgramEmit::Signal.transferred ticketLocal55 => (record Transition {session := (record Session {state := stLocal52, arena := (project xLocal48 arena), usage := (project xLocal48 usage)}), signal := (ctor Signal.transferred ticketLocal55)})))))))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: advancePaid,
+  parameters: [budget : Uorc.Core.RuntimeResources::Budget, x : Session],
+  result: Transition,
+  body: (let stLocal56 : State := (project x state); (match (project stLocal56 failure)
+    | Option.some eLocal57 => (record Transition {session := (record Session {state := (project x state), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+    | Option.none => (match (pendingEvent stLocal56)
+      | Option.some eLocal58 => (record Transition {session := (record Session {state := (project x state), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.pending)})
+      | Option.none => (match (project stLocal56 phase)
+        | Phase.attach => (match (Uorc.Core.Heap::allocate (project x arena) (ctor Uorc.Core.Heap::Node.ownerRoot (ctor Uorc.Core.RuntimeValue::RootRole.wire) (project (project stLocal56 request) record)))
+          | Result.error eLocal59 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.heap eLocal59))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+          | Result.ok valueLocal60 => (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.attachLengths), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project valueLocal60 handle), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project valueLocal60 arena), usage := (project x usage)}), signal := (ctor Signal.advanced)}))
+        | Phase.measureProgram => (match (project stLocal56 program)
+          | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+          | Option.some childLocal61 => (childResult x childLocal61 (Uorc.Wire.ProgramEmit::advance budget (childSession x childLocal61)) true))
+        | Phase.attachLengths => (match (Uorc.Core.RuntimeMetadata::linkAt (project x arena) (project (project stLocal56 request) record) (frameMetadataKind) (0 : UInt64))
+          | Result.error eLocal62 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.metadata eLocal62))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+          | Result.ok valueLocal63 => (if (Uorc.Core.RuntimeValue::sameHandle valueLocal63 (project (project (project (project stLocal56 request) lengths) table) root)) then (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.validateBody), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)}) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})))
+        | Phase.validateBody => (match (Uorc.Core.RuntimeMetadata::linkAt (project x arena) (project (project stLocal56 request) record) (frameMetadataKind) (1 : UInt64))
+          | Result.error eLocal64 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.metadata eLocal64))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+          | Result.ok valueLocal65 => (match (project (project stLocal56 request) body)
+            | Body.raw rootLocal66 => (if (Uorc.Core.RuntimeValue::sameHandle valueLocal65 rootLocal66) then (match (Uorc.Wire.OwnedRead::begin (project x arena) rootLocal66)
+              | Result.error eLocal67 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.spanRead eLocal67))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+              | Result.ok valueLocal68 => (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.attachBasis), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (ctor Option.some [Uorc.Wire.OwnedRead::Cursor] valueLocal68), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project valueLocal68 length), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+            | Body.program programLocal69 => (if (Uorc.Core.RuntimeValue::sameHandle valueLocal65 (project (project programLocal69 blocks) root)) then (let initialLocal70 : Uorc.Wire.ProgramEmit::State := (Uorc.Wire.ProgramEmit::initialState programLocal69 (ctor Uorc.Wire.Output::Mode.measure) true); (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.measureProgram), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (ctor Option.some [Uorc.Wire.ProgramEmit::State] (record Uorc.Wire.ProgramEmit::State {phase := (ctor Uorc.Wire.ProgramEmit::Phase.blockCount), afterNumber := (project initialLocal70 afterNumber), program := (project initialLocal70 program), block := (project initialLocal70 block), instruction := (project initialLocal70 instruction), blockIndex := (project initialLocal70 blockIndex), parameterIndex := (project initialLocal70 parameterIndex), instructionIndex := (project initialLocal70 instructionIndex), scalarIndex := (project initialLocal70 scalarIndex), captureIndex := (project initialLocal70 captureIndex), secondLane := (project initialLocal70 secondLane), span := (project initialLocal70 span), number := (project initialLocal70 number), wireBytes := (project initialLocal70 wireBytes), wireRoot := (project stLocal56 wireRoot), pending := (project initialLocal70 pending), mode := (project initialLocal70 mode), embedded := (project initialLocal70 embedded), failure := (project initialLocal70 failure)})), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))))
+        | Phase.attachBasis => (match (Uorc.Core.RuntimeMetadata::linkAt (project x arena) (project (project stLocal56 request) record) (frameMetadataKind) (2 : UInt64))
+          | Result.error eLocal71 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.metadata eLocal71))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+          | Result.ok valueLocal72 => (match (project (project stLocal56 request) scope)
+            | Scope.selfContained => (if (Uorc.Core.RuntimeValue::isNull valueLocal72) then (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.rewind), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)}) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+            | Scope.conditional spanLocal73 => (if (Uorc.Core.RuntimeValue::sameHandle valueLocal72 (project spanLocal73 image)) then (if (prim equal (project spanLocal73 length) (project (project (project stLocal56 request) binding) basisBytes) : Bool) then (if (validSpan (project x arena) spanLocal73) then (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.rewind), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)}) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.invalidSpan))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.basisLengthMismatch))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))))
+        | Phase.rewind => (match (project (project stLocal56 request) body)
+          | Body.raw rootLocal74 => (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.magic0), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})
+          | Body.program programLocal75 => (let initialLocal76 : Uorc.Wire.ProgramEmit::State := (Uorc.Wire.ProgramEmit::initialState programLocal75 (project stLocal56 mode) true); (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.magic0), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (ctor Option.some [Uorc.Wire.ProgramEmit::State] (record Uorc.Wire.ProgramEmit::State {phase := (ctor Uorc.Wire.ProgramEmit::Phase.blockCount), afterNumber := (project initialLocal76 afterNumber), program := (project initialLocal76 program), block := (project initialLocal76 block), instruction := (project initialLocal76 instruction), blockIndex := (project initialLocal76 blockIndex), parameterIndex := (project initialLocal76 parameterIndex), instructionIndex := (project initialLocal76 instructionIndex), scalarIndex := (project initialLocal76 scalarIndex), captureIndex := (project initialLocal76 captureIndex), secondLane := (project initialLocal76 secondLane), span := (project initialLocal76 span), number := (project initialLocal76 number), wireBytes := (project initialLocal76 wireBytes), wireRoot := (project stLocal56 wireRoot), pending := (project initialLocal76 pending), mode := (project initialLocal76 mode), embedded := (project initialLocal76 embedded), failure := (project initialLocal76 failure)})), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})))
+        | Phase.magic0 => (offer budget x (ctor Uorc.Wire.Output::Event.byte (project (project (project stLocal56 request) binding) magic0)) (record State {phase := (ctor Phase.magic1), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+        | Phase.magic1 => (offer budget x (ctor Uorc.Wire.Output::Event.byte (project (project (project stLocal56 request) binding) magic1)) (record State {phase := (ctor Phase.magic2), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+        | Phase.magic2 => (offer budget x (ctor Uorc.Wire.Output::Event.byte (project (project (project stLocal56 request) binding) magic2)) (record State {phase := (ctor Phase.magic3), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+        | Phase.magic3 => (offer budget x (ctor Uorc.Wire.Output::Event.byte (project (project (project stLocal56 request) binding) magic3)) (record State {phase := (ctor Phase.format), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+        | Phase.format => (offer budget x (ctor Uorc.Wire.Output::Event.byte (project (project (project stLocal56 request) binding) format)) (record State {phase := (ctor Phase.profile), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+        | Phase.profile => (offer budget x (ctor Uorc.Wire.Output::Event.byte (project (project (project stLocal56 request) binding) profile)) (record State {phase := (ctor Phase.scope), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+        | Phase.scope => (offer budget x (ctor Uorc.Wire.Output::Event.byte (match (project (project stLocal56 request) scope)
+          | Scope.selfContained => (0 : UInt8)
+          | Scope.conditional spanLocal77 => (1 : UInt8))) (record State {phase := (ctor Phase.representation), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+        | Phase.representation => (offer budget x (ctor Uorc.Wire.Output::Event.byte (match (project (project stLocal56 request) body)
+          | Body.raw rootLocal78 => (0 : UInt8)
+          | Body.program programLocal79 => (1 : UInt8))) (record State {phase := (ctor Phase.objectCount), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+        | Phase.objectCount => (startNumber x (project (project (project stLocal56 request) lengths) count) (ctor Phase.objectLength))
+        | Phase.objectLength => (if (prim equal (project stLocal56 index) (project (project (project stLocal56 request) lengths) count) : Bool) then (if (prim equal (project stLocal56 sum) (project (project (project stLocal56 request) lengths) totalOutputBytes) : Bool) then (match (project (project stLocal56 request) body)
+          | Body.raw rootLocal80 => (if (prim equal (project stLocal56 bodyLength) (project stLocal56 sum) : Bool) then (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.bodyLength), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)}) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.lengthMismatch))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+          | Body.program programLocal81 => (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.bodyLength), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.lengthMismatch))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})) else (match (Uorc.Wire.FrameEventContract::lengthAt (project x arena) (project (project (project stLocal56 request) lengths) table) (project stLocal56 index))
+          | Result.error eLocal82 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.program eLocal82))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+          | Result.ok valueLocal83 => (match (prim checked_add (project stLocal56 sum) valueLocal83 : (Option UInt64))
+            | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.addressSpaceExhausted))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+            | Option.some sumLocal84 => (startNumber (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (Uorc.Core.Heap::wordAdd (project stLocal56 index) (1 : UInt64)), sum := sumLocal84, bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}) valueLocal83 (ctor Phase.objectLength)))))
+        | Phase.bodyLength => (startNumber x (project stLocal56 bodyLength) (ctor Phase.basis))
+        | Phase.basis => (match (project (project stLocal56 request) scope)
+          | Scope.selfContained => (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.body), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})
+          | Scope.conditional spanLocal85 => (if (prim equal (project spanLocal85 length) (0 : UInt64) : Bool) then (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.body), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)}) else (offer budget x (ctor Uorc.Wire.Output::Event.borrowedSpan (project spanLocal85 image) (project spanLocal85 offset) (project spanLocal85 length)) (record State {phase := (ctor Phase.body), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))))
+        | Phase.body => (match (project (project stLocal56 request) body)
+          | Body.raw rootLocal86 => (match (project stLocal56 raw)
+            | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+            | Option.some cursorLocal87 => (match (Uorc.Wire.OwnedRead::step (project x arena) cursorLocal87)
+              | Uorc.Wire.OwnedRead::Step.advanced nextLocal88 => (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.body), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (ctor Option.some [Uorc.Wire.OwnedRead::Cursor] nextLocal88), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})
+              | Uorc.Wire.OwnedRead::Step.borrowedSpan imageLocal89 offsetLocal90 lengthLocal91 nextLocal92 => (offer budget x (ctor Uorc.Wire.Output::Event.borrowedSpan imageLocal89 offsetLocal90 lengthLocal91) (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (ctor Option.some [Uorc.Wire.OwnedRead::Cursor] nextLocal92), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+              | Uorc.Wire.OwnedRead::Step.complete => (record Transition {session := (record Session {state := (record State {phase := (ctor Phase.end), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})
+              | Uorc.Wire.OwnedRead::Step.failed reasonLocal93 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.spanRead reasonLocal93))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})))
+          | Body.program programLocal94 => (match (project stLocal56 program)
+            | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal56 phase), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+            | Option.some childLocal95 => (childResult x childLocal95 (Uorc.Wire.ProgramEmit::advance budget (childSession x childLocal95)) false)))
+        | Phase.number => (let digitLocal96 : Uorc.Wire.Output::Digit := (Uorc.Wire.Output::digit (project stLocal56 number)); (offer budget x (ctor Uorc.Wire.Output::Event.byte (project digitLocal96 byte)) (record State {phase := (if (project digitLocal96 finished) then (project stLocal56 afterNumber) else (ctor Phase.number)), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project digitLocal96 remaining), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)})))
+        | Phase.end => (offer budget x (ctor Uorc.Wire.Output::Event.end) (record State {phase := (ctor Phase.done), afterNumber := (project stLocal56 afterNumber), request := (project stLocal56 request), program := (project stLocal56 program), raw := (project stLocal56 raw), wireRoot := (project stLocal56 wireRoot), index := (project stLocal56 index), sum := (project stLocal56 sum), bodyLength := (project stLocal56 bodyLength), number := (project stLocal56 number), wireBytes := (project stLocal56 wireBytes), pending := (project stLocal56 pending), mode := (project stLocal56 mode), failure := (project stLocal56 failure)}))
+        | Phase.done => (record Transition {session := (record Session {state := (project x state), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.complete)}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: acknowledgePaid,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    x : Session,
+    ack : Uorc.Wire.Output::Ack
+  ],
+  result: Transition,
+  body: (let stLocal97 : State := (project x state); (match (project stLocal97 failure)
+    | Option.some eLocal98 => (record Transition {session := (record Session {state := (project x state), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+    | Option.none => (match (project stLocal97 pending)
+      | Option.some eventLocal99 => (match (project stLocal97 pending)
+        | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal97 phase), afterNumber := (project stLocal97 afterNumber), request := (project stLocal97 request), program := (project stLocal97 program), raw := (project stLocal97 raw), wireRoot := (project stLocal97 wireRoot), index := (project stLocal97 index), sum := (project stLocal97 sum), bodyLength := (project stLocal97 bodyLength), number := (project stLocal97 number), wireBytes := (project stLocal97 wireBytes), pending := (project stLocal97 pending), mode := (project stLocal97 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+        | Option.some eventLocal100 => (let imageLocal101 : Uorc.Core.RuntimeValue::Handle := (Uorc.Wire.Output::spanImage eventLocal100); (match ack
+          | Uorc.Wire.Output::Ack.consumed => (record Transition {session := (record Session {state := (record State {phase := (project stLocal97 phase), afterNumber := (project stLocal97 afterNumber), request := (project stLocal97 request), program := (project stLocal97 program), raw := (project stLocal97 raw), wireRoot := (project stLocal97 wireRoot), index := (project stLocal97 index), sum := (project stLocal97 sum), bodyLength := (project stLocal97 bodyLength), number := (project stLocal97 number), wireBytes := (project stLocal97 wireBytes), pending := (ctor Option.none [Uorc.Wire.Output::Event]), mode := (project stLocal97 mode), failure := (project stLocal97 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})
+          | Uorc.Wire.Output::Ack.takeSpan => (if (Uorc.Core.RuntimeValue::isNull imageLocal101) then (record Transition {session := (record Session {state := (record State {phase := (project stLocal97 phase), afterNumber := (project stLocal97 afterNumber), request := (project stLocal97 request), program := (project stLocal97 program), raw := (project stLocal97 raw), wireRoot := (project stLocal97 wireRoot), index := (project stLocal97 index), sum := (project stLocal97 sum), bodyLength := (project stLocal97 bodyLength), number := (project stLocal97 number), wireBytes := (project stLocal97 wireBytes), pending := (project stLocal97 pending), mode := (project stLocal97 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}) else (match (Uorc.Core.Heap::retain (project x arena) imageLocal101)
+            | Result.error eLocal102 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal97 phase), afterNumber := (project stLocal97 afterNumber), request := (project stLocal97 request), program := (project stLocal97 program), raw := (project stLocal97 raw), wireRoot := (project stLocal97 wireRoot), index := (project stLocal97 index), sum := (project stLocal97 sum), bodyLength := (project stLocal97 bodyLength), number := (project stLocal97 number), wireBytes := (project stLocal97 wireBytes), pending := (project stLocal97 pending), mode := (project stLocal97 mode), failure := (ctor Option.some [Failure] (ctor Failure.heap eLocal102))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+            | Result.ok valueLocal103 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal97 phase), afterNumber := (project stLocal97 afterNumber), request := (project stLocal97 request), program := (project stLocal97 program), raw := (project stLocal97 raw), wireRoot := (project stLocal97 wireRoot), index := (project stLocal97 index), sum := (project stLocal97 sum), bodyLength := (project stLocal97 bodyLength), number := (project stLocal97 number), wireBytes := (project stLocal97 wireBytes), pending := (ctor Option.none [Uorc.Wire.Output::Event]), mode := (project stLocal97 mode), failure := (project stLocal97 failure)}), arena := (project valueLocal103 arena), usage := (project x usage)}), signal := (ctor Signal.transferred imageLocal101)}))))))
+      | Option.none => (if (prim equal (phaseCode (project stLocal97 phase)) (phaseCode (ctor Phase.body)) : Bool) then (match (project stLocal97 program)
+        | Option.none => (record Transition {session := (record Session {state := (record State {phase := (project stLocal97 phase), afterNumber := (project stLocal97 afterNumber), request := (project stLocal97 request), program := (project stLocal97 program), raw := (project stLocal97 raw), wireRoot := (project stLocal97 wireRoot), index := (project stLocal97 index), sum := (project stLocal97 sum), bodyLength := (project stLocal97 bodyLength), number := (project stLocal97 number), wireBytes := (project stLocal97 wireBytes), pending := (project stLocal97 pending), mode := (project stLocal97 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+        | Option.some childLocal104 => (childResult x childLocal104 (Uorc.Wire.ProgramEmit::acknowledge budget (childSession x childLocal104) ack) false)) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal97 phase), afterNumber := (project stLocal97 afterNumber), request := (project stLocal97 request), program := (project stLocal97 program), raw := (project stLocal97 raw), wireRoot := (project stLocal97 wireRoot), index := (project stLocal97 index), sum := (project stLocal97 sum), bodyLength := (project stLocal97 bodyLength), number := (project stLocal97 number), wireBytes := (project stLocal97 wireBytes), pending := (project stLocal97 pending), mode := (project stLocal97 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancel,
+  parameters: [x : Session],
+  result: Session,
+  body: (let stLocal105 : State := (project x state); (match (project stLocal105 failure)
+    | Option.some eLocal106 => x
+    | Option.none => (record Session {state := (record State {phase := (project stLocal105 phase), afterNumber := (project stLocal105 afterNumber), request := (project stLocal105 request), program := (project stLocal105 program), raw := (project stLocal105 raw), wireRoot := (project stLocal105 wireRoot), index := (project stLocal105 index), sum := (project stLocal105 sum), bodyLength := (project stLocal105 bodyLength), number := (project stLocal105 number), wireBytes := (project stLocal105 wireBytes), pending := (project stLocal105 pending), mode := (project stLocal105 mode), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), arena := (project x arena), usage := (project x usage)}))),
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: cleanupPaid,
+  parameters: [x : Session],
+  result: Transition,
+  body: (let stLocal107 : State := (project x state); (match (project stLocal107 failure)
+    | Option.some eLocal108 => (if (Uorc.Core.Heap::isReleasing (project x arena)) then (match (Uorc.Core.Heap::releaseStep (project x arena))
+      | Result.error eLocal109 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal107 phase), afterNumber := (project stLocal107 afterNumber), request := (project stLocal107 request), program := (project stLocal107 program), raw := (project stLocal107 raw), wireRoot := (project stLocal107 wireRoot), index := (project stLocal107 index), sum := (project stLocal107 sum), bodyLength := (project stLocal107 bodyLength), number := (project stLocal107 number), wireBytes := (project stLocal107 wireBytes), pending := (project stLocal107 pending), mode := (project stLocal107 mode), failure := (ctor Option.some [Failure] (ctor Failure.heap eLocal109))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+      | Result.ok valueLocal110 => (record Transition {session := (record Session {state := (project x state), arena := (project valueLocal110 arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})) else (if (Uorc.Core.RuntimeValue::isNull (root stLocal107)) then (record Transition {session := (record Session {state := (record State {phase := (project stLocal107 phase), afterNumber := (project stLocal107 afterNumber), request := (project stLocal107 request), program := (ctor Option.none [Uorc.Wire.ProgramEmit::State]), raw := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), wireRoot := (project stLocal107 wireRoot), index := (project stLocal107 index), sum := (project stLocal107 sum), bodyLength := (project stLocal107 bodyLength), number := (project stLocal107 number), wireBytes := (project stLocal107 wireBytes), pending := (ctor Option.none [Uorc.Wire.Output::Event]), mode := (project stLocal107 mode), failure := (project stLocal107 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.clean)}) else (match (Uorc.Core.Heap::release (project x arena) (root stLocal107))
+      | Result.error eLocal111 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal107 phase), afterNumber := (project stLocal107 afterNumber), request := (project stLocal107 request), program := (project stLocal107 program), raw := (project stLocal107 raw), wireRoot := (project stLocal107 wireRoot), index := (project stLocal107 index), sum := (project stLocal107 sum), bodyLength := (project stLocal107 bodyLength), number := (project stLocal107 number), wireBytes := (project stLocal107 wireBytes), pending := (project stLocal107 pending), mode := (project stLocal107 mode), failure := (ctor Option.some [Failure] (ctor Failure.heap eLocal111))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+      | Result.ok valueLocal112 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal107 phase), afterNumber := (project stLocal107 afterNumber), request := (project stLocal107 request), program := (ctor Option.none [Uorc.Wire.ProgramEmit::State]), raw := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), wireRoot := (Uorc.Core.RuntimeValue::nullHandle), index := (project stLocal107 index), sum := (project stLocal107 sum), bodyLength := (project stLocal107 bodyLength), number := (project stLocal107 number), wireBytes := (project stLocal107 wireBytes), pending := (ctor Option.none [Uorc.Wire.Output::Event]), mode := (project stLocal107 mode), failure := (project stLocal107 failure)}), arena := (project valueLocal112 arena), usage := (project x usage)}), signal := (ctor Signal.advanced)}))))
+    | Option.none => (if (prim equal (phaseCode (project stLocal107 phase)) (phaseCode (ctor Phase.done)) : Bool) then (if (Uorc.Core.Heap::isReleasing (project x arena)) then (match (Uorc.Core.Heap::releaseStep (project x arena))
+      | Result.error eLocal113 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal107 phase), afterNumber := (project stLocal107 afterNumber), request := (project stLocal107 request), program := (project stLocal107 program), raw := (project stLocal107 raw), wireRoot := (project stLocal107 wireRoot), index := (project stLocal107 index), sum := (project stLocal107 sum), bodyLength := (project stLocal107 bodyLength), number := (project stLocal107 number), wireBytes := (project stLocal107 wireBytes), pending := (project stLocal107 pending), mode := (project stLocal107 mode), failure := (ctor Option.some [Failure] (ctor Failure.heap eLocal113))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+      | Result.ok valueLocal114 => (record Transition {session := (record Session {state := (project x state), arena := (project valueLocal114 arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})) else (if (Uorc.Core.RuntimeValue::isNull (root stLocal107)) then (record Transition {session := (record Session {state := (record State {phase := (project stLocal107 phase), afterNumber := (project stLocal107 afterNumber), request := (project stLocal107 request), program := (ctor Option.none [Uorc.Wire.ProgramEmit::State]), raw := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), wireRoot := (project stLocal107 wireRoot), index := (project stLocal107 index), sum := (project stLocal107 sum), bodyLength := (project stLocal107 bodyLength), number := (project stLocal107 number), wireBytes := (project stLocal107 wireBytes), pending := (ctor Option.none [Uorc.Wire.Output::Event]), mode := (project stLocal107 mode), failure := (project stLocal107 failure)}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.clean)}) else (match (Uorc.Core.Heap::release (project x arena) (root stLocal107))
+      | Result.error eLocal115 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal107 phase), afterNumber := (project stLocal107 afterNumber), request := (project stLocal107 request), program := (project stLocal107 program), raw := (project stLocal107 raw), wireRoot := (project stLocal107 wireRoot), index := (project stLocal107 index), sum := (project stLocal107 sum), bodyLength := (project stLocal107 bodyLength), number := (project stLocal107 number), wireBytes := (project stLocal107 wireBytes), pending := (project stLocal107 pending), mode := (project stLocal107 mode), failure := (ctor Option.some [Failure] (ctor Failure.heap eLocal115))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})
+      | Result.ok valueLocal116 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal107 phase), afterNumber := (project stLocal107 afterNumber), request := (project stLocal107 request), program := (ctor Option.none [Uorc.Wire.ProgramEmit::State]), raw := (ctor Option.none [Uorc.Wire.OwnedRead::Cursor]), wireRoot := (Uorc.Core.RuntimeValue::nullHandle), index := (project stLocal107 index), sum := (project stLocal107 sum), bodyLength := (project stLocal107 bodyLength), number := (project stLocal107 number), wireBytes := (project stLocal107 wireBytes), pending := (ctor Option.none [Uorc.Wire.Output::Event]), mode := (project stLocal107 mode), failure := (project stLocal107 failure)}), arena := (project valueLocal116 arena), usage := (project x usage)}), signal := (ctor Signal.advanced)})))) else (record Transition {session := (record Session {state := (record State {phase := (project stLocal107 phase), afterNumber := (project stLocal107 afterNumber), request := (project stLocal107 request), program := (project stLocal107 program), raw := (project stLocal107 raw), wireRoot := (project stLocal107 wireRoot), index := (project stLocal107 index), sum := (project stLocal107 sum), bodyLength := (project stLocal107 bodyLength), number := (project stLocal107 number), wireBytes := (project stLocal107 wireBytes), pending := (project stLocal107 pending), mode := (project stLocal107 mode), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: actionWork,
+  parameters: [],
+  result: UInt64,
+  body: (1024 : UInt64),
+  executable: true
+}
+
+definition{
+  name: prepay,
+  parameters: [budget : Uorc.Core.RuntimeResources::Budget, x : Session],
+  result: (Result Session Uorc.Core.RuntimeResources::Error),
+  body: (match (Uorc.Core.RuntimeResources::observeArena budget (project x usage) (project x arena))
+    | Result.error eLocal117 => (ctor Result.error [Session, Uorc.Core.RuntimeResources::Error] eLocal117)
+    | Result.ok observedLocal118 => (match (prim checked_add (project observedLocal118 work) (actionWork) : (Option UInt64))
+      | Option.none => (ctor Result.error [Session, Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted))
+      | Option.some checkedLocal119 => (match (Uorc.Core.RuntimeResources::charge budget observedLocal118 (record Uorc.Core.RuntimeResources::Event {work := (actionWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error eLocal120 => (ctor Result.error [Session, Uorc.Core.RuntimeResources::Error] eLocal120)
+        | Result.ok uLocal121 => (ctor Result.ok [Session, Uorc.Core.RuntimeResources::Error] (record Session {state := (project x state), arena := (project x arena), usage := uLocal121}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: observeResult,
+  parameters: [budget : Uorc.Core.RuntimeResources::Budget, t : Transition],
+  result: Transition,
+  body: (let xLocal122 : Session := (project t session); (let stLocal123 : State := (project xLocal122 state); (match (Uorc.Core.RuntimeResources::observeArena budget (project xLocal122 usage) (project xLocal122 arena))
+    | Result.error eLocal124 => (record Transition {session := (record Session {state := (record State {phase := (project stLocal123 phase), afterNumber := (project stLocal123 afterNumber), request := (project stLocal123 request), program := (project stLocal123 program), raw := (project stLocal123 raw), wireRoot := (project stLocal123 wireRoot), index := (project stLocal123 index), sum := (project stLocal123 sum), bodyLength := (project stLocal123 bodyLength), number := (project stLocal123 number), wireBytes := (project stLocal123 wireBytes), pending := (project stLocal123 pending), mode := (project stLocal123 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal124))}), arena := (project xLocal122 arena), usage := (project xLocal122 usage)}), signal := (ctor Signal.failed)})
+    | Result.ok uLocal125 => (record Transition {session := (record Session {state := (project xLocal122 state), arena := (project xLocal122 arena), usage := uLocal125}), signal := (project t signal)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: advance,
+  parameters: [budget : Uorc.Core.RuntimeResources::Budget, x : Session],
+  result: Transition,
+  body: (match (prepay budget x)
+    | Result.error eLocal126 => (match eLocal126
+      | Uorc.Core.RuntimeResources::Error.workLimit => (record Transition {session := x, signal := (ctor Signal.paused eLocal126)})
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => (let stLocal127 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal127 phase), afterNumber := (project stLocal127 afterNumber), request := (project stLocal127 request), program := (project stLocal127 program), raw := (project stLocal127 raw), wireRoot := (project stLocal127 wireRoot), index := (project stLocal127 index), sum := (project stLocal127 sum), bodyLength := (project stLocal127 bodyLength), number := (project stLocal127 number), wireBytes := (project stLocal127 wireBytes), pending := (project stLocal127 pending), mode := (project stLocal127 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal126))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.outputLimit => (let stLocal128 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal128 phase), afterNumber := (project stLocal128 afterNumber), request := (project stLocal128 request), program := (project stLocal128 program), raw := (project stLocal128 raw), wireRoot := (project stLocal128 wireRoot), index := (project stLocal128 index), sum := (project stLocal128 sum), bodyLength := (project stLocal128 bodyLength), number := (project stLocal128 number), wireBytes := (project stLocal128 wireBytes), pending := (project stLocal128 pending), mode := (project stLocal128 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal126))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.frameLimit => (let stLocal129 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal129 phase), afterNumber := (project stLocal129 afterNumber), request := (project stLocal129 request), program := (project stLocal129 program), raw := (project stLocal129 raw), wireRoot := (project stLocal129 wireRoot), index := (project stLocal129 index), sum := (project stLocal129 sum), bodyLength := (project stLocal129 bodyLength), number := (project stLocal129 number), wireBytes := (project stLocal129 wireBytes), pending := (project stLocal129 pending), mode := (project stLocal129 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal126))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => (let stLocal130 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal130 phase), afterNumber := (project stLocal130 afterNumber), request := (project stLocal130 request), program := (project stLocal130 program), raw := (project stLocal130 raw), wireRoot := (project stLocal130 wireRoot), index := (project stLocal130 index), sum := (project stLocal130 sum), bodyLength := (project stLocal130 bodyLength), number := (project stLocal130 number), wireBytes := (project stLocal130 wireBytes), pending := (project stLocal130 pending), mode := (project stLocal130 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal126))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => (let stLocal131 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal131 phase), afterNumber := (project stLocal131 afterNumber), request := (project stLocal131 request), program := (project stLocal131 program), raw := (project stLocal131 raw), wireRoot := (project stLocal131 wireRoot), index := (project stLocal131 index), sum := (project stLocal131 sum), bodyLength := (project stLocal131 bodyLength), number := (project stLocal131 number), wireBytes := (project stLocal131 wireBytes), pending := (project stLocal131 pending), mode := (project stLocal131 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal126))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => (let stLocal132 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal132 phase), afterNumber := (project stLocal132 afterNumber), request := (project stLocal132 request), program := (project stLocal132 program), raw := (project stLocal132 raw), wireRoot := (project stLocal132 wireRoot), index := (project stLocal132 index), sum := (project stLocal132 sum), bodyLength := (project stLocal132 bodyLength), number := (project stLocal132 number), wireBytes := (project stLocal132 wireBytes), pending := (project stLocal132 pending), mode := (project stLocal132 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal126))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.heap hLocal133 => (let stLocal134 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal134 phase), afterNumber := (project stLocal134 afterNumber), request := (project stLocal134 request), program := (project stLocal134 program), raw := (project stLocal134 raw), wireRoot := (project stLocal134 wireRoot), index := (project stLocal134 index), sum := (project stLocal134 sum), bodyLength := (project stLocal134 bodyLength), number := (project stLocal134 number), wireBytes := (project stLocal134 wireBytes), pending := (project stLocal134 pending), mode := (project stLocal134 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal126))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})))
+    | Result.ok paidLocal135 => (observeResult budget (advancePaid budget paidLocal135))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: acknowledge,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    x : Session,
+    ack : Uorc.Wire.Output::Ack
+  ],
+  result: Transition,
+  body: (match (prepay budget x)
+    | Result.error eLocal136 => (match eLocal136
+      | Uorc.Core.RuntimeResources::Error.workLimit => (record Transition {session := x, signal := (ctor Signal.paused eLocal136)})
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => (let stLocal137 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal137 phase), afterNumber := (project stLocal137 afterNumber), request := (project stLocal137 request), program := (project stLocal137 program), raw := (project stLocal137 raw), wireRoot := (project stLocal137 wireRoot), index := (project stLocal137 index), sum := (project stLocal137 sum), bodyLength := (project stLocal137 bodyLength), number := (project stLocal137 number), wireBytes := (project stLocal137 wireBytes), pending := (project stLocal137 pending), mode := (project stLocal137 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal136))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.outputLimit => (let stLocal138 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal138 phase), afterNumber := (project stLocal138 afterNumber), request := (project stLocal138 request), program := (project stLocal138 program), raw := (project stLocal138 raw), wireRoot := (project stLocal138 wireRoot), index := (project stLocal138 index), sum := (project stLocal138 sum), bodyLength := (project stLocal138 bodyLength), number := (project stLocal138 number), wireBytes := (project stLocal138 wireBytes), pending := (project stLocal138 pending), mode := (project stLocal138 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal136))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.frameLimit => (let stLocal139 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal139 phase), afterNumber := (project stLocal139 afterNumber), request := (project stLocal139 request), program := (project stLocal139 program), raw := (project stLocal139 raw), wireRoot := (project stLocal139 wireRoot), index := (project stLocal139 index), sum := (project stLocal139 sum), bodyLength := (project stLocal139 bodyLength), number := (project stLocal139 number), wireBytes := (project stLocal139 wireBytes), pending := (project stLocal139 pending), mode := (project stLocal139 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal136))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => (let stLocal140 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal140 phase), afterNumber := (project stLocal140 afterNumber), request := (project stLocal140 request), program := (project stLocal140 program), raw := (project stLocal140 raw), wireRoot := (project stLocal140 wireRoot), index := (project stLocal140 index), sum := (project stLocal140 sum), bodyLength := (project stLocal140 bodyLength), number := (project stLocal140 number), wireBytes := (project stLocal140 wireBytes), pending := (project stLocal140 pending), mode := (project stLocal140 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal136))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => (let stLocal141 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal141 phase), afterNumber := (project stLocal141 afterNumber), request := (project stLocal141 request), program := (project stLocal141 program), raw := (project stLocal141 raw), wireRoot := (project stLocal141 wireRoot), index := (project stLocal141 index), sum := (project stLocal141 sum), bodyLength := (project stLocal141 bodyLength), number := (project stLocal141 number), wireBytes := (project stLocal141 wireBytes), pending := (project stLocal141 pending), mode := (project stLocal141 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal136))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => (let stLocal142 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal142 phase), afterNumber := (project stLocal142 afterNumber), request := (project stLocal142 request), program := (project stLocal142 program), raw := (project stLocal142 raw), wireRoot := (project stLocal142 wireRoot), index := (project stLocal142 index), sum := (project stLocal142 sum), bodyLength := (project stLocal142 bodyLength), number := (project stLocal142 number), wireBytes := (project stLocal142 wireBytes), pending := (project stLocal142 pending), mode := (project stLocal142 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal136))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.heap hLocal143 => (let stLocal144 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal144 phase), afterNumber := (project stLocal144 afterNumber), request := (project stLocal144 request), program := (project stLocal144 program), raw := (project stLocal144 raw), wireRoot := (project stLocal144 wireRoot), index := (project stLocal144 index), sum := (project stLocal144 sum), bodyLength := (project stLocal144 bodyLength), number := (project stLocal144 number), wireBytes := (project stLocal144 wireBytes), pending := (project stLocal144 pending), mode := (project stLocal144 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal136))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})))
+    | Result.ok paidLocal145 => (observeResult budget (acknowledgePaid budget paidLocal145 ack))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: cleanup,
+  parameters: [budget : Uorc.Core.RuntimeResources::Budget, x : Session],
+  result: Transition,
+  body: (match (prepay budget x)
+    | Result.error eLocal146 => (match eLocal146
+      | Uorc.Core.RuntimeResources::Error.workLimit => (record Transition {session := x, signal := (ctor Signal.paused eLocal146)})
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => (let stLocal147 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal147 phase), afterNumber := (project stLocal147 afterNumber), request := (project stLocal147 request), program := (project stLocal147 program), raw := (project stLocal147 raw), wireRoot := (project stLocal147 wireRoot), index := (project stLocal147 index), sum := (project stLocal147 sum), bodyLength := (project stLocal147 bodyLength), number := (project stLocal147 number), wireBytes := (project stLocal147 wireBytes), pending := (project stLocal147 pending), mode := (project stLocal147 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal146))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.outputLimit => (let stLocal148 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal148 phase), afterNumber := (project stLocal148 afterNumber), request := (project stLocal148 request), program := (project stLocal148 program), raw := (project stLocal148 raw), wireRoot := (project stLocal148 wireRoot), index := (project stLocal148 index), sum := (project stLocal148 sum), bodyLength := (project stLocal148 bodyLength), number := (project stLocal148 number), wireBytes := (project stLocal148 wireBytes), pending := (project stLocal148 pending), mode := (project stLocal148 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal146))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.frameLimit => (let stLocal149 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal149 phase), afterNumber := (project stLocal149 afterNumber), request := (project stLocal149 request), program := (project stLocal149 program), raw := (project stLocal149 raw), wireRoot := (project stLocal149 wireRoot), index := (project stLocal149 index), sum := (project stLocal149 sum), bodyLength := (project stLocal149 bodyLength), number := (project stLocal149 number), wireBytes := (project stLocal149 wireBytes), pending := (project stLocal149 pending), mode := (project stLocal149 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal146))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => (let stLocal150 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal150 phase), afterNumber := (project stLocal150 afterNumber), request := (project stLocal150 request), program := (project stLocal150 program), raw := (project stLocal150 raw), wireRoot := (project stLocal150 wireRoot), index := (project stLocal150 index), sum := (project stLocal150 sum), bodyLength := (project stLocal150 bodyLength), number := (project stLocal150 number), wireBytes := (project stLocal150 wireBytes), pending := (project stLocal150 pending), mode := (project stLocal150 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal146))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => (let stLocal151 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal151 phase), afterNumber := (project stLocal151 afterNumber), request := (project stLocal151 request), program := (project stLocal151 program), raw := (project stLocal151 raw), wireRoot := (project stLocal151 wireRoot), index := (project stLocal151 index), sum := (project stLocal151 sum), bodyLength := (project stLocal151 bodyLength), number := (project stLocal151 number), wireBytes := (project stLocal151 wireBytes), pending := (project stLocal151 pending), mode := (project stLocal151 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal146))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => (let stLocal152 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal152 phase), afterNumber := (project stLocal152 afterNumber), request := (project stLocal152 request), program := (project stLocal152 program), raw := (project stLocal152 raw), wireRoot := (project stLocal152 wireRoot), index := (project stLocal152 index), sum := (project stLocal152 sum), bodyLength := (project stLocal152 bodyLength), number := (project stLocal152 number), wireBytes := (project stLocal152 wireBytes), pending := (project stLocal152 pending), mode := (project stLocal152 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal146))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)}))
+      | Uorc.Core.RuntimeResources::Error.heap hLocal153 => (let stLocal154 : State := (project x state); (record Transition {session := (record Session {state := (record State {phase := (project stLocal154 phase), afterNumber := (project stLocal154 afterNumber), request := (project stLocal154 request), program := (project stLocal154 program), raw := (project stLocal154 raw), wireRoot := (project stLocal154 wireRoot), index := (project stLocal154 index), sum := (project stLocal154 sum), bodyLength := (project stLocal154 bodyLength), number := (project stLocal154 number), wireBytes := (project stLocal154 wireBytes), pending := (project stLocal154 pending), mode := (project stLocal154 mode), failure := (ctor Option.some [Failure] (ctor Failure.resource eLocal146))}), arena := (project x arena), usage := (project x usage)}), signal := (ctor Signal.failed)})))
+    | Result.ok paidLocal155 => (observeResult budget (cleanupPaid paidLocal155))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  production: {effects: [allocation, overflow, recursion], targets: [rust-std]}
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "Charged frame PREIMAGE emission. The identity owner supplies Binding; this datum neither accepts a format nor freezes a checksum identity. Format2 diagnostic bytes remain independent; streaming format3 must be bound by its integrity owner. Output.end terminates the preimage; the external integrity controller reads wireBytes and appends/verifies its separately versioned integrity construction. No accepted archive or ready token is produced here. Request.lengths.table is indexed metadata kind FrameEventContract.lengthsMetadataKind: leaf metadataLink(kind,index,record), record word(kind,0,length). All ordered zeros are read and emitted. Count and sum are checked operational U64 values; exhaustion refuses operation without narrowing the mathematical finite wire language. Body raw uses owned sequence spans; body program is measured then emitted from RuntimeProgram metadata. Controls contain no Arena; child operations move the same actual Arena and Usage, then immediately return them. Request.record is charged metadata kind frameMetadataKind with links0 lengths.table.root,1 raw root or program.blocks.root,2 basis image or null. These links are checked before output. A single ownerRoot(wire,record) roots every borrowed handle. Only one charged wire root is inventoried, even when a child control aliases its handle. Work, reads and output events are prepaid; pauses retain achieved state. All spans borrow from that aggregate until consumed or explicitly retained/transferred by acknowledgment. Cleanup drains the achieved arena release cursor. Physical backend copying and general refinement remain separate qualifications.",
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

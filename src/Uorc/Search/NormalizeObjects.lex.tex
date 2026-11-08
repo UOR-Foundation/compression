@@ -1,0 +1,172 @@
+\begin{lexlean}{Uorc.Search.NormalizeObjects}
+\importmodule{Uorc.Search.Normalize}
+\importmodule{Uorc.Search.NormalizeCredit}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: objects, fields: []},
+    {name: normalizing, fields: [Uorc.Search.NormalizeCredit::Cursor]},
+    {name: reversing, fields: []}
+  ]
+}
+
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: state,
+      fields: [
+        (List Uorc.Core.Bytes::Rope),
+        (List Uorc.Core.Bytes::Rope),
+        (List Uorc.Core.Bytes::Rope),
+        Phase,
+        Nat,
+        Nat,
+        Nat,
+        Nat
+      ]
+    }
+  ]
+}
+
+structure{
+  name: Snapshot,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: objects, type: (List Uorc.Core.Bytes::Rope)},
+    {name: objectCount, type: Nat},
+    {name: canonicalWork, type: Nat},
+    {name: physicalWork, type: Nat},
+    {name: consumedCredits, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: normalization, fields: [Uorc.Search.Normalize::Error]},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+structure{
+  name: Cancellation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: objectsCompleted, type: Nat},
+    {name: canonicalWork, type: Nat},
+    {name: physicalWork, type: Nat},
+    {name: paidForNextCopy, type: Nat},
+    {name: consumedCredits, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: done, fields: [Snapshot]},
+    {name: failed, fields: [Error, Cancellation]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [objects : (List Uorc.Core.Bytes::Rope)],
+  result: Cursor,
+  body: (ctor Cursor.state objects (nil Uorc.Core.Bytes::Rope) (nil Uorc.Core.Bytes::Rope) (ctor Phase.objects) 0 0 0 0)
+}
+
+definition{
+  name: tick,
+  parameters: [policy : Uorc.Search.Normalize::Policy, cursor : Cursor],
+  result: Step,
+  body: (match cursor
+    | Cursor.state remaining reversed forward phase objectsCompleted canonicalWork physicalWork consumedCredits => (match phase
+      | Phase.objects => (match remaining
+        | List.nil => (ctor Step.pending (ctor Cursor.state remaining reversed forward (ctor Phase.reversing) objectsCompleted canonicalWork physicalWork (consumedCredits + 1)))
+        | List.cons headObject remainingObjects => (ctor Step.pending (ctor Cursor.state remainingObjects reversed forward (ctor Phase.normalizing (Uorc.Search.NormalizeCredit::start (Uorc.Search.Normalize::start headObject))) objectsCompleted canonicalWork physicalWork (consumedCredits + 1))))
+      | Phase.normalizing normalization => (match (Uorc.Search.NormalizeCredit::tick policy normalization)
+        | Uorc.Search.NormalizeCredit::Step.pending next => (ctor Step.pending (ctor Cursor.state remaining reversed forward (ctor Phase.normalizing next) objectsCompleted canonicalWork physicalWork (consumedCredits + 1)))
+        | Uorc.Search.NormalizeCredit::Step.done normalized physical credits => (ctor Step.pending (ctor Cursor.state remaining (cons (project normalized rope) reversed) forward (ctor Phase.objects) (objectsCompleted + 1) (canonicalWork + (project normalized logicalSteps)) (physicalWork + physical) (consumedCredits + 1)))
+        | Uorc.Search.NormalizeCredit::Step.rejected failure prefix credits => (ctor Step.failed (ctor Error.normalization failure) (record Cancellation {objectsCompleted := objectsCompleted, canonicalWork := (canonicalWork + (project prefix logicalSteps)), physicalWork := (physicalWork + (project prefix physicalSteps)), paidForNextCopy := 0, consumedCredits := (consumedCredits + 1)}))
+        | Uorc.Search.NormalizeCredit::Step.ropeFailure failure prefix credits => (ctor Step.failed (ctor Error.rope failure) (record Cancellation {objectsCompleted := objectsCompleted, canonicalWork := (canonicalWork + (project prefix logicalSteps)), physicalWork := (physicalWork + (project prefix physicalSteps)), paidForNextCopy := 0, consumedCredits := (consumedCredits + 1)})))
+      | Phase.reversing => (match reversed
+        | List.nil => (ctor Step.done (record Snapshot {objects := forward, objectCount := objectsCompleted, canonicalWork := canonicalWork, physicalWork := physicalWork, consumedCredits := (consumedCredits + 1)}))
+        | List.cons headObject remainingObjects => (ctor Step.pending (ctor Cursor.state remaining remainingObjects (cons headObject forward) phase objectsCompleted canonicalWork physicalWork (consumedCredits + 1)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancel,
+  parameters: [cursor : Cursor],
+  result: Cancellation,
+  body: (match cursor
+    | Cursor.state b0 b1 b2 phase objectsCompleted canonicalWork physicalWork consumedCredits => (match phase
+      | Phase.objects => (record Cancellation {objectsCompleted := objectsCompleted, canonicalWork := (canonicalWork + 0), physicalWork := (physicalWork + 0), paidForNextCopy := 0, consumedCredits := consumedCredits})
+      | Phase.reversing => (record Cancellation {objectsCompleted := objectsCompleted, canonicalWork := (canonicalWork + 0), physicalWork := (physicalWork + 0), paidForNextCopy := 0, consumedCredits := consumedCredits})
+      | Phase.normalizing normalization => (let cancelled : Uorc.Search.NormalizeCredit::Cancellation := (Uorc.Search.NormalizeCredit::cancel normalization); (record Cancellation {objectsCompleted := objectsCompleted, canonicalWork := (canonicalWork + (project (project cancelled completed) logicalSteps)), physicalWork := (physicalWork + (project (project cancelled completed) physicalSteps)), paidForNextCopy := (project cancelled paidForNextEvent), consumedCredits := consumedCredits}))))
+}
+
+definition{
+  name: runWork,
+  parameters: [work : Nat, policy : Uorc.Search.Normalize::Policy, state : Step],
+  result: Step,
+  body: (match work
+    | Nat.zero => state
+    | Nat.succ remainingWork => (match state
+      | Step.pending cursor => (runWork remainingWork policy (tick policy cursor))
+      | Step.done snapshot => (ctor Step.done snapshot)
+      | Step.failed failure cursor => (ctor Step.failed failure cursor))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+definition{
+  name: canonicalObjects,
+  parameters: [state : Step],
+  result: (Option (List Uorc.Core.Bytes::Rope)),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [(List Uorc.Core.Bytes::Rope)])
+    | Step.done snapshot => (ctor Option.some [(List Uorc.Core.Bytes::Rope)] (project snapshot objects))
+    | Step.failed failure cursor => (ctor Option.none [(List Uorc.Core.Bytes::Rope)]))
+}
+
+theorem{
+  name: ordered_empty_basis_objects_are_preserved,
+  parameters: [],
+  statement: ((canonicalObjects (runWork 500 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (cons (Uorc.Core.Bytes::fromBytes 0x) (cons (Uorc.Core.Bytes::fromBytes 0x00ff) (cons (Uorc.Core.Bytes::fromBytes 0x) (nil Uorc.Core.Bytes::Rope)))))))) = (ctor Option.some [(List Uorc.Core.Bytes::Rope)] (cons (Uorc.Core.Bytes::fromBytes 0x) (cons (Uorc.Core.Bytes::fromBytes 0x00ff) (cons (Uorc.Core.Bytes::fromBytes 0x) (nil Uorc.Core.Bytes::Rope)))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: basis_transport_partition_has_one_canonical_snapshot,
+  parameters: [],
+  statement: ((canonicalObjects (runWork 500 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (cons (Uorc.Core.Bytes::fromBytes 0x0001ff80) (nil Uorc.Core.Bytes::Rope)))))) = (canonicalObjects (runWork 500 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (cons (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0x01ff80)) (nil Uorc.Core.Bytes::Rope))))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: basis_object_order_is_not_sorted,
+  parameters: [],
+  statement: ((canonicalObjects (runWork 500 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (cons (Uorc.Core.Bytes::fromBytes 0xff) (cons (Uorc.Core.Bytes::fromBytes 0x00) (nil Uorc.Core.Bytes::Rope))))))) = (ctor Option.some [(List Uorc.Core.Bytes::Rope)] (cons (Uorc.Core.Bytes::fromBytes 0xff) (cons (Uorc.Core.Bytes::fromBytes 0x00) (nil Uorc.Core.Bytes::Rope))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

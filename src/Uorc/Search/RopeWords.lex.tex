@@ -1,0 +1,122 @@
+\begin{lexlean}{Uorc.Search.RopeWords}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Enumerate}
+\importmodule{Uorc.Search.RopeBuilder}
+\importmodule{Uorc.Search.Normalize}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: enumerating, fields: []},
+    {name: reversing, fields: [(List Nat), (List Nat)]},
+    {name: emitting, fields: [(List Nat), Uorc.Search.RopeBuilder::Builder]},
+    {name: building, fields: [Uorc.Search.Normalize::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: maximumLength, type: Nat},
+    {name: enumerator, type: Uorc.Search.Enumerate::Cursor},
+    {name: phase, type: Phase},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidDigit, fields: []},
+    {name: normalization, fields: [Uorc.Search.Normalize::Error]},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: word, fields: [Uorc.Core.Bytes::Rope, Cursor]},
+    {name: finished, fields: []},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [maximumLength : Nat],
+  result: Cursor,
+  body: (record Cursor {maximumLength := maximumLength, enumerator := (Uorc.Search.Enumerate::initial), phase := (ctor Phase.enumerating), completedEvents := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.enumerating => (match (Uorc.Search.Enumerate::step (project cursor maximumLength) (project cursor enumerator))
+      | Uorc.Search.Enumerate::Step.pending enumerator => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := enumerator, phase := (ctor Phase.enumerating), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Enumerate::Step.word word enumerator => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := enumerator, phase := (ctor Phase.reversing (project word reversedDigits) (nil Nat)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Enumerate::Step.finished => (ctor Step.finished)
+      | Uorc.Search.Enumerate::Step.invalidDigit => (ctor Step.failed (ctor Error.invalidDigit)))
+    | Phase.reversing remaining forward => (match remaining
+      | List.nil => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.emitting forward (Uorc.Search.RopeBuilder::empty)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons digit tail => (if (digit <? 256) then (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.reversing tail (cons digit forward)), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.failed (ctor Error.invalidDigit))))
+    | Phase.emitting remaining builder => (match remaining
+      | List.nil => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.building (Uorc.Search.RopeBuilder::finish builder)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons digit tail => (if (digit <? 256) then (match (Uorc.Search.Enumerate::natByteSlice digit)
+        | Option.none => (ctor Step.failed (ctor Error.invalidDigit))
+        | Option.some singleton => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.emitting tail (Uorc.Search.RopeBuilder::appendChunk builder singleton)), completedEvents := ((project cursor completedEvents) + 1)}))) else (ctor Step.failed (ctor Error.invalidDigit))))
+    | Phase.building builderCursor => (match (Uorc.Search.Normalize::step (record Uorc.Search.Normalize::Policy {blockBytes := 1}) builderCursor)
+      | Uorc.Search.Normalize::Step.pending nextBuilder => (ctor Step.pending (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.building nextBuilder), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Normalize::Step.done normalized physical => (ctor Step.word (project normalized rope) (record Cursor {maximumLength := (project cursor maximumLength), enumerator := (project cursor enumerator), phase := (ctor Phase.enumerating), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Normalize::Step.rejected error => (ctor Step.failed (ctor Error.normalization error))
+      | Uorc.Search.Normalize::Step.ropeFailure error => (ctor Step.failed (ctor Error.rope error)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: firstWord,
+  parameters: [fuel : Nat, cursor : Cursor],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => (ctor Step.pending cursor)
+    | Nat.succ remainingFuel => (match (step cursor)
+      | Step.pending next => (firstWord remainingFuel next)
+      | Step.word word next => (ctor Step.word word next)
+      | Step.finished => (ctor Step.finished)
+      | Step.failed error => (ctor Step.failed error))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: wordLength,
+  parameters: [state : Step],
+  result: (Option Nat),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [Nat])
+    | Step.word word cursor => (ctor Option.some [Nat] (Uorc.Core.Bytes::length word))
+    | Step.finished => (ctor Option.none [Nat])
+    | Step.failed error => (ctor Option.none [Nat]))
+}
+
+theorem{
+  name: empty_word_is_a_real_rope_candidate,
+  parameters: [],
+  statement: ((wordLength (firstWord 30 (start 2))) = (ctor Option.some [Nat] 0)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

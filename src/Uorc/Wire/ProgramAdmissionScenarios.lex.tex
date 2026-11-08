@@ -1,0 +1,157 @@
+\begin{lexlean}{Uorc.Wire.ProgramAdmissionScenarios}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Wire.ProgramAdmission}
+\importmodule{Uorc.Wire.ProgramEmitScenarios}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeAdmission}
+\importmodule{Uorc.Core.RuntimeAdmissionCancel}
+\importmodule{Uorc.Wire.ProgramParse}
+\importmodule{Uorc.Wire.ArchiveContract}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: fuel, fields: []},
+    {name: admission, fields: []},
+    {name: protocol, fields: []},
+    {name: ownership, fields: []},
+    {name: pause, fields: []}
+  ]
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (Uorc.Wire.ProgramEmitScenarios::budget)
+}
+
+definition{name: wire, parameters: [], result: Bytes, body: 0x01000301030300ff800100}
+
+definition{
+  name: feed,
+  parameters: [x : Uorc.Wire.ProgramAdmission::Cursor, image : Uorc.Core.RuntimeValue::Handle],
+  result: (Result Uorc.Wire.ProgramAdmission::Cursor Error),
+  body: (match (project x phase)
+    | Uorc.Wire.ProgramAdmission::Phase.producer loanLocal1 => (if (project (project (project x control) parser) ended) then (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.protocol)) else (if (prim equal (project (project (project x control) parser) position) (0 : UInt64) : Bool) then (ctor Result.ok [Uorc.Wire.ProgramAdmission::Cursor, Error] (project (Uorc.Wire.ProgramAdmission::feedBorrowed x image (0 : UInt64) (11 : UInt64)) cursor)) else (ctor Result.ok [Uorc.Wire.ProgramAdmission::Cursor, Error] (project (Uorc.Wire.ProgramAdmission::finishInput x) cursor))))
+    | Uorc.Wire.ProgramAdmission::Phase.admission coreLocal2 => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.protocol))
+    | Uorc.Wire.ProgramAdmission::Phase.returning returningLocal3 => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.protocol))
+    | Uorc.Wire.ProgramAdmission::Phase.accepted readyLocal4 ledgerLocal5 => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.protocol))
+    | Uorc.Wire.ProgramAdmission::Phase.failedAdmission coreLocal6 ledgerLocal7 => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.protocol))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drive,
+  parameters: [
+    fuel : Nat,
+    x : Uorc.Wire.ProgramAdmission::Cursor,
+    image : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Uorc.Wire.ProgramAdmission::Cursor Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.fuel))
+    | Nat.succ restLocal8 => (let tLocal9 : Uorc.Wire.ProgramAdmission::Transition := (Uorc.Wire.ProgramAdmission::advance x (1024 : UInt64)); (match (project tLocal9 signal)
+      | Uorc.Wire.ProgramAdmission::Signal.advanced => (drive restLocal8 (project tLocal9 cursor) image)
+      | Uorc.Wire.ProgramAdmission::Signal.needInput => (match (feed (project tLocal9 cursor) image)
+        | Result.error whyLocal10 => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] whyLocal10)
+        | Result.ok fedLocal11 => (drive restLocal8 fedLocal11 image))
+      | Uorc.Wire.ProgramAdmission::Signal.ready => (ctor Result.ok [Uorc.Wire.ProgramAdmission::Cursor, Error] (project tLocal9 cursor))
+      | Uorc.Wire.ProgramAdmission::Signal.failed => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.admission))
+      | Uorc.Wire.ProgramAdmission::Signal.paused whyLocal12 => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.pause))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: runReady,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.archive) (wire)))
+    | Result.error whyLocal13 => (ctor Result.error [Unit, Error] (ctor Error.admission))
+    | Result.ok allocationLocal14 => (match (drive 100000 (Uorc.Wire.ProgramAdmission::begin (budget) (project allocationLocal14 arena) (Uorc.Core.RuntimeResources::zeroUsage) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis)), root := (Uorc.Core.RuntimeValue::nullHandle)}) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (project allocationLocal14 handle)})) (project allocationLocal14 handle))
+      | Result.error whyLocal15 => (ctor Result.error [Unit, Error] whyLocal15)
+      | Result.ok doneLocal16 => (match (project doneLocal16 phase)
+        | Uorc.Wire.ProgramAdmission::Phase.accepted readyLocal17 ledgerLocal18 => (if (Uorc.Core.HeapAudit::auditRoots (project readyLocal17 arena) (Uorc.Core.RuntimeProgram::rootInventory (project readyLocal17 program) (project readyLocal17 caller))) then (if (prim equal (project (project readyLocal17 program) blockCount) (1 : UInt64) : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.admission))) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))
+        | Uorc.Wire.ProgramAdmission::Phase.admission coreLocal19 => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.ProgramAdmission::Phase.producer loanLocal20 => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.ProgramAdmission::Phase.returning returningLocal21 => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.ProgramAdmission::Phase.failedAdmission coreLocal22 ledgerLocal23 => (ctor Result.error [Unit, Error] (ctor Error.protocol))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: driveRetained,
+  parameters: [
+    fuel : Nat,
+    x : Uorc.Wire.ProgramAdmission::Cursor,
+    image : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Uorc.Wire.ProgramAdmission::Cursor Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.fuel))
+    | Nat.succ restLocal24 => (let tLocal25 : Uorc.Wire.ProgramAdmission::Transition := (Uorc.Wire.ProgramAdmission::advance x (1024 : UInt64)); (match (project tLocal25 signal)
+      | Uorc.Wire.ProgramAdmission::Signal.advanced => (driveRetained restLocal24 (project tLocal25 cursor) image)
+      | Uorc.Wire.ProgramAdmission::Signal.needInput => (match (feed (project tLocal25 cursor) image)
+        | Result.error whyLocal26 => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] whyLocal26)
+        | Result.ok fedLocal27 => (driveRetained restLocal24 fedLocal27 image))
+      | Uorc.Wire.ProgramAdmission::Signal.ready => (ctor Result.ok [Uorc.Wire.ProgramAdmission::Cursor, Error] (project tLocal25 cursor))
+      | Uorc.Wire.ProgramAdmission::Signal.failed => (ctor Result.ok [Uorc.Wire.ProgramAdmission::Cursor, Error] (project tLocal25 cursor))
+      | Uorc.Wire.ProgramAdmission::Signal.paused whyLocal28 => (ctor Result.error [Uorc.Wire.ProgramAdmission::Cursor, Error] (ctor Error.pause))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: cancelCore,
+  parameters: [
+    fuel : Nat,
+    x : Uorc.Core.RuntimeAdmissionCancel::Cursor,
+    image : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Unit Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Unit, Error] (ctor Error.fuel))
+    | Nat.succ restLocal29 => (match (Uorc.Core.RuntimeAdmissionCancel::tick x)
+      | Uorc.Core.RuntimeAdmissionCancel::Event.pending nextLocal30 => (cancelCore restLocal29 nextLocal30 image)
+      | Uorc.Core.RuntimeAdmissionCancel::Event.cancelled cancelledLocal31 => (if (Uorc.Core.HeapAudit::auditRoots (project cancelledLocal31 arena) (cons image (nil Uorc.Core.RuntimeValue::Handle))) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))
+      | Uorc.Core.RuntimeAdmissionCancel::Event.failed whyLocal32 retainedLocal33 => (ctor Result.error [Unit, Error] (ctor Error.admission)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: runRejectReturnZero,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.archive) 0x01000301030300ff800000))
+    | Result.error whyLocal34 => (ctor Result.error [Unit, Error] (ctor Error.admission))
+    | Result.ok allocationLocal35 => (match (driveRetained 100000 (Uorc.Wire.ProgramAdmission::begin (budget) (project allocationLocal35 arena) (Uorc.Core.RuntimeResources::zeroUsage) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.basis)), root := (Uorc.Core.RuntimeValue::nullHandle)}) (record Uorc.Core.RuntimeProgram::CallerRoots {input := (Uorc.Core.RuntimeValue::nullHandle), archive := (Uorc.Core.RuntimeValue::nullHandle), search := (Uorc.Core.RuntimeValue::nullHandle), checkpoint := (Uorc.Core.RuntimeValue::nullHandle), certificate := (Uorc.Core.RuntimeValue::nullHandle), verification := (Uorc.Core.RuntimeValue::nullHandle), wire := (project allocationLocal35 handle)})) (project allocationLocal35 handle))
+      | Result.error whyLocal36 => (ctor Result.error [Unit, Error] whyLocal36)
+      | Result.ok doneLocal37 => (match (project doneLocal37 phase)
+        | Uorc.Wire.ProgramAdmission::Phase.failedAdmission coreLocal38 ledgerLocal39 => (if (Uorc.Core.HeapAudit::auditRoots (project coreLocal38 arena) (Uorc.Core.RuntimeAdmission::rootInventory coreLocal38)) then (cancelCore 100000 (Uorc.Core.RuntimeAdmissionCancel::start coreLocal38) (project allocationLocal35 handle)) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))
+        | Uorc.Wire.ProgramAdmission::Phase.admission coreLocal40 => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.ProgramAdmission::Phase.producer loanLocal41 => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.ProgramAdmission::Phase.returning returningLocal42 => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.ProgramAdmission::Phase.accepted readyLocal43 ledgerLocal44 => (ctor Result.error [Unit, Error] (ctor Error.protocol))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (runReady)
+    | Result.error whyLocal45 => (ctor Result.error [Unit, Error] whyLocal45)
+    | Result.ok readyCheckedLocal46 => (runRejectReturnZero)),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

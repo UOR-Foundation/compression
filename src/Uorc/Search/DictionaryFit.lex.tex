@@ -1,0 +1,213 @@
+\begin{lexlean}{Uorc.Search.DictionaryFit}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Dictionary}
+\importmodule{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Search.RopeBuilder}
+\importmodule{Uorc.Search.Normalize}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Search.Enumerate}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Entry,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: code, type: Nat}, {name: chunk, type: Uorc.Core.Bytes::Rope}]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: nextChunk, fields: []},
+    {name: slicing, fields: [Uorc.Core.Bytes::Work]},
+    {name: lookup, fields: [Uorc.Core.Bytes::Rope, (List Entry)]},
+    {
+      name: comparing,
+      fields: [Uorc.Core.Bytes::Rope, (List Entry), Entry, Uorc.Search.VerifyRope::Cursor]
+    },
+    {name: reverseEntries, fields: [(List Entry), (List Entry)]},
+    {name: dictionary, fields: [(List Entry)]},
+    {name: joinDictionary, fields: [Uorc.Core.Bytes::Work, (List Entry)]},
+    {name: reverseAssignments, fields: [(List Nat), (List Nat)]},
+    {name: codes, fields: [(List Nat)]},
+    {name: codeDigits, fields: [Nat, Nat, (List Nat)]},
+    {name: buildCodes, fields: [Uorc.Search.Normalize::Cursor]},
+    {name: tail, fields: [Uorc.Core.Bytes::Work, Uorc.Core.Bytes::Rope]}
+  ]
+}
+
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: state,
+      fields: [
+        Uorc.Core.Bytes::Rope,
+        Nat,
+        Nat,
+        (List Entry),
+        Nat,
+        (List Nat),
+        Uorc.Core.Bytes::Rope,
+        Uorc.Search.RopeBuilder::Builder,
+        Nat,
+        Phase,
+        Nat
+      ]
+    }
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: zeroWidth, fields: []},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: normalization, fields: [Uorc.Search.Normalize::Error]},
+    {name: invalidState, fields: []},
+    {name: coordinateOverflow, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Nat]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [target : Uorc.Core.Bytes::Rope, width : Nat],
+  result: Step,
+  body: (if (width =? 0) then (ctor Step.rejected (ctor Error.zeroWidth)) else (ctor Step.pending (ctor Cursor.state target width 0 (nil Entry) 0 (nil Nat) (ctor Uorc.Core.Bytes::Rope.empty) (Uorc.Search.RopeBuilder::empty) 1 (ctor Phase.nextChunk) 0)))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match cursor
+    | Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes f_phase f_completedEvents => (match f_phase
+      | Phase.nextChunk => (if (f_width <=? (prim subtract (Uorc.Core.Bytes::length f_target) f_offset : Nat)) then (match (Uorc.Core.Bytes::startSlice f_target f_offset f_width)
+        | Result.error error => (ctor Step.rejected (ctor Error.rope error))
+        | Result.ok work => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.slicing work) (f_completedEvents + 1)))) else (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder (Uorc.Search.Dictionary::indexWidth (prim subtract f_nextCode 1 : Nat)) (ctor Phase.reverseEntries f_entries (nil Entry)) (f_completedEvents + 1))))
+      | Phase.slicing work => (match (Uorc.Core.Bytes::workStep work)
+        | Uorc.Core.Bytes::WorkEvent.advanced next => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.slicing next) (f_completedEvents + 1)))
+        | Uorc.Core.Bytes::WorkEvent.sequenceDone chunk => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.lookup chunk f_entries) (f_completedEvents + 1)))
+        | Uorc.Core.Bytes::WorkEvent.byteDone unexpected => (ctor Step.rejected (ctor Error.invalidState))
+        | Uorc.Core.Bytes::WorkEvent.failed error => (ctor Step.rejected (ctor Error.rope error)))
+      | Phase.lookup chunk remainingEntries => (match remainingEntries
+        | List.nil => (if (f_nextCode <? 18446744073709551615) then (ctor Step.pending (ctor Cursor.state f_target f_width (f_offset + f_width) (cons (record Entry {code := f_nextCode, chunk := chunk}) f_entries) (f_nextCode + 1) (cons f_nextCode f_assignmentsReversed) f_dictionary f_codeBuilder f_codeBytes (ctor Phase.nextChunk) (f_completedEvents + 1))) else (ctor Step.rejected (ctor Error.coordinateOverflow)))
+        | List.cons entry otherEntries => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.comparing chunk otherEntries entry (Uorc.Search.VerifyRope::start (cons chunk (nil Uorc.Core.Bytes::Rope)) (cons (project entry chunk) (nil Uorc.Core.Bytes::Rope)))) (f_completedEvents + 1))))
+      | Phase.comparing chunk otherEntries entry comparison => (match (Uorc.Search.VerifyRope::step comparison)
+        | Uorc.Search.VerifyRope::Step.pending next => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.comparing chunk otherEntries entry next) (f_completedEvents + 1)))
+        | Uorc.Search.VerifyRope::Step.matched compared boundaries => (ctor Step.pending (ctor Cursor.state f_target f_width (f_offset + f_width) f_entries f_nextCode (cons (project entry code) f_assignmentsReversed) f_dictionary f_codeBuilder f_codeBytes (ctor Phase.nextChunk) (f_completedEvents + 1)))
+        | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.lookup chunk otherEntries) (f_completedEvents + 1)))
+        | Uorc.Search.VerifyRope::Step.ropeFailure error => (ctor Step.rejected (ctor Error.rope error)))
+      | Phase.reverseEntries remainingEntries forwardEntries => (match remainingEntries
+        | List.nil => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.dictionary forwardEntries) (f_completedEvents + 1)))
+        | List.cons entry otherEntries => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.reverseEntries otherEntries (cons entry forwardEntries)) (f_completedEvents + 1))))
+      | Phase.dictionary remainingEntries => (match remainingEntries
+        | List.nil => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.reverseAssignments f_assignmentsReversed (nil Nat)) (f_completedEvents + 1)))
+        | List.cons entry otherEntries => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.joinDictionary (Uorc.Core.Bytes::startJoin f_dictionary (project entry chunk)) otherEntries) (f_completedEvents + 1))))
+      | Phase.joinDictionary work remainingEntries => (match (Uorc.Core.Bytes::workStep work)
+        | Uorc.Core.Bytes::WorkEvent.advanced next => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.joinDictionary next remainingEntries) (f_completedEvents + 1)))
+        | Uorc.Core.Bytes::WorkEvent.sequenceDone dictionary => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed dictionary f_codeBuilder f_codeBytes (ctor Phase.dictionary remainingEntries) (f_completedEvents + 1)))
+        | Uorc.Core.Bytes::WorkEvent.byteDone unexpected => (ctor Step.rejected (ctor Error.invalidState))
+        | Uorc.Core.Bytes::WorkEvent.failed error => (ctor Step.rejected (ctor Error.rope error)))
+      | Phase.reverseAssignments remainingAssignments forwardAssignments => (match remainingAssignments
+        | List.nil => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.codes forwardAssignments) (f_completedEvents + 1)))
+        | List.cons code otherAssignments => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.reverseAssignments otherAssignments (cons code forwardAssignments)) (f_completedEvents + 1))))
+      | Phase.codes remainingAssignments => (match remainingAssignments
+        | List.nil => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.buildCodes (Uorc.Search.RopeBuilder::finish f_codeBuilder)) (f_completedEvents + 1)))
+        | List.cons code otherAssignments => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.codeDigits code f_codeBytes otherAssignments) (f_completedEvents + 1))))
+      | Phase.codeDigits code remainingDigits remainingAssignments => (if (remainingDigits =? 0) then (if (code =? 0) then (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.codes remainingAssignments) (f_completedEvents + 1))) else (ctor Step.rejected (ctor Error.coordinateOverflow))) else (match (Uorc.Search.Enumerate::natByteSlice (prim remainder code 256 0 : Nat))
+        | Option.none => (ctor Step.rejected (ctor Error.invalidState))
+        | Option.some encodedByte => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary (Uorc.Search.RopeBuilder::appendChunk f_codeBuilder encodedByte) f_codeBytes (ctor Phase.codeDigits (prim quotient code 256 0 : Nat) (prim subtract remainingDigits 1 : Nat) remainingAssignments) (f_completedEvents + 1)))))
+      | Phase.buildCodes builderCursor => (match (Uorc.Search.Normalize::step (record Uorc.Search.Normalize::Policy {blockBytes := 1}) builderCursor)
+        | Uorc.Search.Normalize::Step.pending next => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.buildCodes next) (f_completedEvents + 1)))
+        | Uorc.Search.Normalize::Step.done normalized physical => (match (Uorc.Core.Bytes::startSlice f_target f_offset (prim subtract (Uorc.Core.Bytes::length f_target) f_offset : Nat))
+          | Result.error error => (ctor Step.rejected (ctor Error.rope error))
+          | Result.ok work => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.tail work (project normalized rope)) (f_completedEvents + 1))))
+        | Uorc.Search.Normalize::Step.rejected error => (ctor Step.rejected (ctor Error.normalization error))
+        | Uorc.Search.Normalize::Step.ropeFailure error => (ctor Step.rejected (ctor Error.rope error)))
+      | Phase.tail work codes => (match (Uorc.Core.Bytes::workStep work)
+        | Uorc.Core.Bytes::WorkEvent.advanced next => (ctor Step.pending (ctor Cursor.state f_target f_width f_offset f_entries f_nextCode f_assignmentsReversed f_dictionary f_codeBuilder f_codeBytes (ctor Phase.tail next codes) (f_completedEvents + 1)))
+        | Uorc.Core.Bytes::WorkEvent.sequenceDone tail => (match (Uorc.Search.Effort::checkedU64 f_offset)
+          | Result.error error => (ctor Step.rejected (ctor Error.coordinateOverflow))
+          | Result.ok count => (match (Uorc.Search.Effort::checkedU64 f_width)
+            | Result.error error => (ctor Step.rejected (ctor Error.coordinateOverflow))
+            | Result.ok width => (match (Uorc.Search.Effort::checkedU64 f_codeBytes)
+              | Result.error error => (ctor Step.rejected (ctor Error.coordinateOverflow))
+              | Result.ok codeBytes => (ctor Step.proposal (Uorc.Search.Dictionary::program count width codeBytes codes f_dictionary tail) (f_completedEvents + 1)))))
+        | Uorc.Core.Bytes::WorkEvent.byteDone unexpected => (ctor Step.rejected (ctor Error.invalidState))
+        | Uorc.Core.Bytes::WorkEvent.failed error => (ctor Step.rejected (ctor Error.rope error))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runCursor,
+  parameters: [fuel : Nat, cursor : Cursor],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => (ctor Step.pending cursor)
+    | Nat.succ remainingFuel => (match (step cursor)
+      | Step.pending nextCursor => (runCursor remainingFuel nextCursor)
+      | Step.proposal graph events => (ctor Step.proposal graph events)
+      | Step.rejected error => (ctor Step.rejected error))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match state
+    | Step.pending cursor => (runCursor fuel cursor)
+    | Step.proposal graph events => (ctor Step.proposal graph events)
+    | Step.rejected error => (ctor Step.rejected error)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: proposal,
+  parameters: [state : Step],
+  result: (Option Uorc.Core.Graph::Graph),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [Uorc.Core.Graph::Graph])
+    | Step.proposal graph events => (ctor Option.some [Uorc.Core.Graph::Graph] graph)
+    | Step.rejected error => (ctor Option.none [Uorc.Core.Graph::Graph]))
+}
+
+theorem{
+  name: learned_dictionary_is_an_ordinary_typed_graph,
+  parameters: [],
+  statement: ((match (proposal (run 300 (start (Uorc.Core.Bytes::fromBytes 0x616263646162636458) 2)))
+    | Option.none => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.emptyGraph))
+    | Option.some graph => (Uorc.Core.Graph::validateGraph graph)) = (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ())),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: zero_width_is_explicit_family_configuration_error,
+  parameters: [],
+  statement: ((start (Uorc.Core.Bytes::fromBytes 0x0001ff) 0) = (ctor Step.rejected (ctor Error.zeroWidth))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

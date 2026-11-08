@@ -1,0 +1,66 @@
+\begin{lexlean}{Uorc.Search.Compose}
+\importmodule{Uorc.Core.Graph}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: prefix, fields: []},
+    {name: suffix, fields: []},
+    {name: reverse, fields: []}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: phase, type: Phase},
+    {name: prefix, type: (List Uorc.Core.Graph::Block)},
+    {name: suffix, type: (List Uorc.Core.Graph::Block)},
+    {name: reversed, type: (List Uorc.Core.Graph::Block)},
+    {name: forward, type: (List Uorc.Core.Graph::Block)},
+    {name: blockCount, type: Nat},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [Uorc.Core.Graph::Graph, Nat]},
+    {name: empty, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [prefix : (List Uorc.Core.Graph::Block), suffix : (List Uorc.Core.Graph::Block)],
+  result: Cursor,
+  body: (record Cursor {phase := (ctor Phase.prefix), prefix := prefix, suffix := suffix, reversed := (nil Uorc.Core.Graph::Block), forward := (nil Uorc.Core.Graph::Block), blockCount := 0, completedEvents := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.prefix => (match (project cursor prefix)
+      | List.nil => (ctor Step.pending (record Cursor {phase := (ctor Phase.suffix), prefix := (project cursor prefix), suffix := (project cursor suffix), reversed := (project cursor reversed), forward := (project cursor forward), blockCount := (project cursor blockCount), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons block rest => (if ((project cursor blockCount) <? 18446744073709551615) then (ctor Step.pending (record Cursor {phase := (project cursor phase), prefix := rest, suffix := (project cursor suffix), reversed := (cons block (project cursor reversed)), forward := (project cursor forward), blockCount := ((project cursor blockCount) + 1), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.addressSpaceExhausted)))
+    | Phase.suffix => (match (project cursor suffix)
+      | List.nil => (ctor Step.pending (record Cursor {phase := (ctor Phase.reverse), prefix := (project cursor prefix), suffix := (project cursor suffix), reversed := (project cursor reversed), forward := (project cursor forward), blockCount := (project cursor blockCount), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons block rest => (if ((project cursor blockCount) <? 18446744073709551615) then (ctor Step.pending (record Cursor {phase := (project cursor phase), prefix := (project cursor prefix), suffix := rest, reversed := (cons block (project cursor reversed)), forward := (project cursor forward), blockCount := ((project cursor blockCount) + 1), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.addressSpaceExhausted)))
+    | Phase.reverse => (match (project cursor reversed)
+      | List.nil => (if (0 <? (project cursor blockCount)) then (ctor Step.complete (record Uorc.Core.Graph::Graph {blocks := (project cursor forward), entry := (prim subtract (project cursor blockCount) 1 : Nat)}) ((project cursor completedEvents) + 1)) else (ctor Step.empty))
+      | List.cons block rest => (ctor Step.pending (record Cursor {phase := (project cursor phase), prefix := (project cursor prefix), suffix := (project cursor suffix), reversed := rest, forward := (cons block (project cursor forward)), blockCount := (project cursor blockCount), completedEvents := ((project cursor completedEvents) + 1)}))))
+}
+\end{semanticmodule}
+\end{lexlean}

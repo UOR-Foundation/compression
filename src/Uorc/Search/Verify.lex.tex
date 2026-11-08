@@ -1,0 +1,226 @@
+\begin{lexlean}{Uorc.Search.Verify}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: MismatchKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: objectCount, fields: []},
+    {name: objectLength, fields: []},
+    {name: byteValue, fields: []},
+    {name: invalidCursor, fields: []}
+  ]
+}
+
+structure{
+  name: Mismatch,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: kind, type: MismatchKind},
+    {name: objectIndex, type: Nat},
+    {name: byteOffset, type: Nat}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: expected, type: (List Bytes)},
+    {name: actual, type: (List Bytes)},
+    {name: objectIndex, type: Nat},
+    {name: byteOffset, type: Nat},
+    {name: bytesCompared, type: Nat},
+    {name: boundariesChecked, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: matched, fields: [Nat, Nat]},
+    {name: mismatch, fields: [Mismatch]}
+  ]
+}
+
+structure{
+  name: CheckedArchive,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: wire, type: Bytes},
+    {name: bytesCompared, type: Nat},
+    {name: boundariesChecked, type: Nat}
+  ]
+}
+
+structure{
+  name: Trial,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: wire, type: Bytes}, {name: cursor, type: Cursor}]
+}
+
+inductive{
+  name: TrialStep,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Trial]},
+    {name: eligible, fields: [CheckedArchive]},
+    {name: rejected, fields: [Mismatch]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [expected : (List Bytes), actual : (List Bytes)],
+  result: Cursor,
+  body: (record Cursor {expected := expected, actual := actual, objectIndex := 0, byteOffset := 0, bytesCompared := 0, boundariesChecked := 0})
+}
+
+definition{
+  name: failure,
+  parameters: [cursor : Cursor, kind : MismatchKind],
+  result: Step,
+  body: (ctor Step.mismatch (record Mismatch {kind := kind, objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset)}))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor expected)
+    | List.nil => (match (project cursor actual)
+      | List.nil => (if ((project cursor byteOffset) =? 0) then (ctor Step.matched (project cursor bytesCompared) (project cursor boundariesChecked)) else (failure cursor (ctor MismatchKind.invalidCursor)))
+      | List.cons unexpectedHead unexpectedTail => (failure cursor (ctor MismatchKind.objectCount)))
+    | List.cons expectedHead expectedRest => (match (project cursor actual)
+      | List.nil => (failure cursor (ctor MismatchKind.objectCount))
+      | List.cons actualHead actualRest => (if ((prim length expectedHead : Nat) =? (prim length actualHead : Nat)) then (if ((project cursor byteOffset) <? (prim length expectedHead : Nat)) then (match (prim index expectedHead (project cursor byteOffset) : (Option UInt8))
+        | Option.none => (failure cursor (ctor MismatchKind.invalidCursor))
+        | Option.some expectedByte => (match (prim index actualHead (project cursor byteOffset) : (Option UInt8))
+          | Option.none => (failure cursor (ctor MismatchKind.invalidCursor))
+          | Option.some actualByte => (if (prim equal expectedByte actualByte : Bool) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), objectIndex := (project cursor objectIndex), byteOffset := ((project cursor byteOffset) + 1), bytesCompared := ((project cursor bytesCompared) + 1), boundariesChecked := (project cursor boundariesChecked)})) else (failure cursor (ctor MismatchKind.byteValue))))) else (if ((project cursor byteOffset) =? (prim length expectedHead : Nat)) then (ctor Step.pending (record Cursor {expected := expectedRest, actual := actualRest, objectIndex := ((project cursor objectIndex) + 1), byteOffset := 0, bytesCompared := (project cursor bytesCompared), boundariesChecked := ((project cursor boundariesChecked) + 1)})) else (failure cursor (ctor MismatchKind.invalidCursor)))) else (failure cursor (ctor MismatchKind.objectLength)))))
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, cursor : Cursor],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => (ctor Step.pending cursor)
+    | Nat.succ restFuel => (match (step cursor)
+      | Step.pending next => (run restFuel next)
+      | Step.matched bytes boundaries => (ctor Step.matched bytes boundaries)
+      | Step.mismatch mismatch => (ctor Step.mismatch mismatch))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: startTrial,
+  parameters: [wire : Bytes, expected : (List Bytes), actual : (List Bytes)],
+  result: Trial,
+  body: (record Trial {wire := wire, cursor := (start expected actual)})
+}
+
+definition{
+  name: stepTrial,
+  parameters: [trial : Trial],
+  result: TrialStep,
+  body: (match (step (project trial cursor))
+    | Step.pending next => (ctor TrialStep.pending (record Trial {wire := (project trial wire), cursor := next}))
+    | Step.matched bytes boundaries => (ctor TrialStep.eligible (record CheckedArchive {wire := (project trial wire), bytesCompared := bytes, boundariesChecked := boundaries}))
+    | Step.mismatch mismatch => (ctor TrialStep.rejected mismatch))
+}
+
+definition{
+  name: runTrial,
+  parameters: [fuel : Nat, trial : Trial],
+  result: TrialStep,
+  body: (match fuel
+    | Nat.zero => (ctor TrialStep.pending trial)
+    | Nat.succ restFuel => match{
+      branches: [
+        {body: (runTrial restFuel next), binders: [next], constructor: TrialStep.pending},
+        {
+          body: (ctor TrialStep.eligible var{name: checked}),
+          binders: [checked],
+          constructor: TrialStep.eligible
+        },
+        {
+          body: (ctor TrialStep.rejected mismatch),
+          binders: [mismatch],
+          constructor: TrialStep.rejected
+        }
+      ],
+      scrutinee: (stepTrial trial)
+    }),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: empty_snapshot,
+  parameters: [],
+  statement: ((run 20 (start (nil Bytes) (nil Bytes))) = (ctor Step.matched 0 0)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_length_objects_are_boundaries,
+  parameters: [],
+  statement: ((run 20 (start (cons 0x (cons 0x (nil Bytes))) (cons 0x (cons 0x (nil Bytes))))) = (ctor Step.matched 0 2)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: same_flattening_different_boundary_rejected,
+  parameters: [],
+  statement: ((run 20 (start (cons 0x01 (cons 0x02 (nil Bytes))) (cons 0x0102 (cons 0x (nil Bytes))))) = (ctor Step.mismatch (record Mismatch {kind := (ctor MismatchKind.objectLength), objectIndex := 0, byteOffset := 0}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: extra_empty_object_rejected,
+  parameters: [],
+  statement: ((run 20 (start (nil Bytes) (cons 0x (nil Bytes)))) = (ctor Step.mismatch (record Mismatch {kind := (ctor MismatchKind.objectCount), objectIndex := 0, byteOffset := 0}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: full_bytes_not_digest_equality,
+  parameters: [],
+  statement: ((run 20 (start (cons 0x01020304 (nil Bytes)) (cons 0x01020904 (nil Bytes)))) = (ctor Step.mismatch (record Mismatch {kind := (ctor MismatchKind.byteValue), objectIndex := 0, byteOffset := 2}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: all_bytes_including_zero_and_ff,
+  parameters: [],
+  statement: ((run 20 (start (cons 0x0001ff80 (nil Bytes)) (cons 0x0001ff80 (nil Bytes)))) = (ctor Step.matched 4 1)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_work_is_paused,
+  parameters: [],
+  statement: ((run 0 (start (cons 0x00 (nil Bytes)) (cons 0x00 (nil Bytes)))) = (ctor Step.pending (start (cons 0x00 (nil Bytes)) (cons 0x00 (nil Bytes))))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: resumed_prefix_matches_uninterrupted,
+  parameters: [],
+  statement: ((match (run 3 (start (cons 0x0001ff80 (cons 0x0203 (nil Bytes))) (cons 0x0001ff80 (cons 0x0203 (nil Bytes)))))
+    | Step.pending next => (run 7 next)
+    | Step.matched bytes bounds => (ctor Step.matched bytes bounds)
+    | Step.mismatch m => (ctor Step.mismatch m)) = (run 10 (start (cons 0x0001ff80 (cons 0x0203 (nil Bytes))) (cons 0x0001ff80 (cons 0x0203 (nil Bytes)))))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

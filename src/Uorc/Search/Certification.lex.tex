@@ -1,0 +1,238 @@
+\begin{lexlean}{Uorc.Search.Certification}
+\importmodule{Uorc.Search.Replay}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Search.ArchiveTrial}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Mode,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: produce, fields: []}, {name: check, fields: []}]
+}
+
+structure{
+  name: Artifact,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: request, type: Uorc.Search.Replay::Request},
+    {name: claimedBodyWords, type: Nat},
+    {name: claimedMaximumBodyLength, type: Nat}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: mode, type: Mode},
+    {name: request, type: Uorc.Search.Replay::Request},
+    {name: expected, type: Uorc.Search.Replay::Seal},
+    {name: allowances, type: Uorc.Search.Effort::Allowances},
+    {name: effortLedger, type: Uorc.Search.Effort::Ledger},
+    {name: replay, type: Uorc.Search.Replay::Step}
+  ]
+}
+
+structure{
+  name: Cancellation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: continuation, type: Cursor},
+    {name: replayCancellation, type: (Option Uorc.Search.Replay::Cancellation)}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: allowance, fields: [Uorc.Search.Effort::Error]},
+    {name: replay, fields: [Uorc.Search.Replay::Error]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {
+      name: produced,
+      fields: [Artifact, Uorc.Search.Replay::CompleteBodyReplay, Uorc.Search.Effort::Ledger]
+    },
+    {name: checked, fields: [Uorc.Search.Replay::CompleteBodyReplay, Uorc.Search.Effort::Ledger]},
+    {
+      name: counterexample,
+      fields: [Uorc.Search.Replay::Counterexample, Uorc.Search.Effort::Ledger]
+    },
+    {name: incomplete, fields: [Error, Cancellation]}
+  ]
+}
+
+definition{
+  name: startProduction,
+  parameters: [
+    request : Uorc.Search.Replay::Request,
+    expected : Uorc.Search.Replay::Seal,
+    allowances : Uorc.Search.Effort::Allowances
+  ],
+  result: Cursor,
+  body: (record Cursor {mode := (ctor Mode.produce), request := request, expected := expected, allowances := allowances, effortLedger := (Uorc.Search.Effort::zeroLedger), replay := (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start request expected))})
+}
+
+definition{
+  name: startChecking,
+  parameters: [
+    artifact : Artifact,
+    expected : Uorc.Search.Replay::Seal,
+    allowances : Uorc.Search.Effort::Allowances
+  ],
+  result: Cursor,
+  body: (record Cursor {mode := (ctor Mode.check), request := (project artifact request), expected := expected, allowances := allowances, effortLedger := (Uorc.Search.Effort::zeroLedger), replay := (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (project artifact request) expected))})
+}
+
+definition{
+  name: partition,
+  parameters: [mode : Mode],
+  result: Uorc.Search.Effort::Partition,
+  body: (match mode
+    | Mode.produce => (ctor Uorc.Search.Effort::Partition.certificateProduction)
+    | Mode.check => (ctor Uorc.Search.Effort::Partition.checker))
+}
+
+definition{
+  name: cancel,
+  parameters: [cursor : Cursor],
+  result: Cancellation,
+  body: (record Cancellation {continuation := cursor, replayCancellation := (match (project cursor replay)
+    | Uorc.Search.Replay::Step.pending prefix => (ctor Option.some [Uorc.Search.Replay::Cancellation] (Uorc.Search.Replay::cancel prefix))
+    | Uorc.Search.Replay::Step.counterexample found => (ctor Option.none [Uorc.Search.Replay::Cancellation])
+    | Uorc.Search.Replay::Step.completeBodyReplay coverage => (ctor Option.none [Uorc.Search.Replay::Cancellation])
+    | Uorc.Search.Replay::Step.incomplete error prefix => (ctor Option.some [Uorc.Search.Replay::Cancellation] (Uorc.Search.Replay::cancel prefix)))})
+}
+
+definition{
+  name: dispatch,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor replay)
+    | Uorc.Search.Replay::Step.pending prefix => (ctor Step.pending (record Cursor {mode := (project cursor mode), request := (project cursor request), expected := (project cursor expected), allowances := (project cursor allowances), effortLedger := (project cursor effortLedger), replay := (Uorc.Search.Replay::step prefix)}))
+    | Uorc.Search.Replay::Step.counterexample found => (ctor Step.counterexample found (project cursor effortLedger))
+    | Uorc.Search.Replay::Step.completeBodyReplay coverage => (match (project cursor mode)
+      | Mode.produce => (ctor Step.produced (record Artifact {request := (record Uorc.Search.Replay::Request {seal := (project coverage seal), winnerWire := (project (project (project coverage winner) checked) wire)}), claimedBodyWords := (project (project coverage ledger) bodyWords), claimedMaximumBodyLength := (project coverage maximumBodyLength)}) coverage (project cursor effortLedger))
+      | Mode.check => (ctor Step.checked coverage (project cursor effortLedger)))
+    | Uorc.Search.Replay::Step.incomplete error prefix => (ctor Step.incomplete (ctor Error.replay error) (cancel cursor))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (Uorc.Search.Effort::charge (project cursor allowances) (project cursor effortLedger) (partition (project cursor mode)))
+    | Result.error failure => (ctor Step.incomplete (ctor Error.allowance failure) (cancel cursor))
+    | Result.ok nextLedger => (dispatch (record Cursor {mode := (project cursor mode), request := (project cursor request), expected := (project cursor expected), allowances := (project cursor allowances), effortLedger := nextLedger, replay := (project cursor replay)}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: withAllowances,
+  parameters: [cursor : Cursor, allowances : Uorc.Search.Effort::Allowances],
+  result: Cursor,
+  body: (record Cursor {mode := (project cursor mode), request := (project cursor request), expected := (project cursor expected), allowances := allowances, effortLedger := (project cursor effortLedger), replay := (project cursor replay)})
+}
+
+definition{
+  name: resumeOwned,
+  parameters: [cancellation : Cancellation, allowances : Uorc.Search.Effort::Allowances],
+  result: Cursor,
+  body: (withAllowances (project cancellation continuation) allowances)
+}
+
+definition{
+  name: runWork,
+  parameters: [work : Nat, state : Step],
+  result: Step,
+  body: (match work
+    | Nat.zero => state
+    | Nat.succ remainingWork => (match state
+      | Step.pending cursor => (runWork remainingWork (step cursor))
+      | Step.produced artifact coverage ledger => (ctor Step.produced artifact coverage ledger)
+      | Step.checked coverage ledger => (ctor Step.checked coverage ledger)
+      | Step.counterexample found ledger => (ctor Step.counterexample found ledger)
+      | Step.incomplete error prefix => (ctor Step.incomplete error prefix))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: producedConditional, fields: []},
+    {name: checkedConditional, fields: []},
+    {name: counterexample, fields: []},
+    {name: incomplete, fields: []}
+  ]
+}
+
+definition{
+  name: outcome,
+  parameters: [state : Step],
+  result: Outcome,
+  body: (match state
+    | Step.pending cursor => (ctor Outcome.pending)
+    | Step.produced artifact coverage ledger => (ctor Outcome.producedConditional)
+    | Step.checked coverage ledger => (ctor Outcome.checkedConditional)
+    | Step.counterexample found ledger => (ctor Outcome.counterexample)
+    | Step.incomplete error prefix => (ctor Outcome.incomplete))
+}
+
+definition{
+  name: qualificationBoundary,
+  parameters: [],
+  result: String,
+  body: "Artifacts are typed unshipped source carriers, not a frozen wire certificate format. Produced/checked body replay remains conditional on its explicit OPEN mathematical/profile/handle-runtime/simulation links. No partial prefix, artifact counter, digest, checkpoint, timeout or effort budget certifies a minimum."
+}
+
+theorem{
+  name: checking_ignores_all_claimed_coverage_counts,
+  parameters: [
+    request : Uorc.Search.Replay::Request,
+    expected : Uorc.Search.Replay::Seal,
+    allowances : Uorc.Search.Effort::Allowances,
+    countA : Nat,
+    boundA : Nat,
+    countB : Nat,
+    boundB : Nat
+  ],
+  statement: ((startChecking (record Artifact {request := request, claimedBodyWords := countA, claimedMaximumBodyLength := boundA}) expected allowances) = (startChecking (record Artifact {request := request, claimedBodyWords := countB, claimedMaximumBodyLength := boundB}) expected allowances)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: allowance_change_preserves_sealed_decoder_scope,
+  parameters: [cursor : Cursor, allowances : Uorc.Search.Effort::Allowances],
+  statement: ((project (project (withAllowances cursor allowances) request) seal) = (project (project cursor request) seal)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_work_preserves_any_certificate_prefix,
+  parameters: [state : Step],
+  statement: ((runWork 0 state) = state),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use repo_model::{codegen, AuthorityGraph};
+use sha2::{Digest, Sha256};
 
 use crate::Fail;
 
@@ -147,6 +148,15 @@ fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Res
             continue;
         }
 
+        if let Some(expected) = graph.imported_validation_artifacts.get(&rel) {
+            let bytes = std::fs::read(&path)?;
+            let digest = format!("{:x}", Sha256::digest(&bytes));
+            if &digest != expected {
+                violations.push(format!("{rel}: imported validation artifact differs from its source-owned exact digest"));
+            }
+            continue;
+        }
+
         let contents = std::fs::read_to_string(&path)?;
         if let Some(expected) = generated.get(&rel) {
             if &contents != expected {
@@ -174,8 +184,8 @@ fn audit_source_authority_with_graph(root: &Path, graph: &AuthorityGraph) -> Res
 
     if !violations.is_empty() {
         return Err(format!(
-            "R1: UORC project semantics are authored only in src/Uorc/Specification.lex.tex \
-             and src/Uorc/Registry.lex.tex. Handwritten prose may carry evidence or planning, \
+            "R1: UORC project semantics are authored only in the src/Uorc LexLean graph. \
+             Handwritten prose may carry evidence or planning, \
              but cannot become a second authority.\n\n{}",
             violations.join("\n")
         )
@@ -589,6 +599,38 @@ mod source_authority_tests {
         )
         .is_none());
         assert!(specification_shaped_path("notes/UORC-SPEC.md"));
+    }
+
+    #[test]
+    fn imported_notice_requires_its_exact_source_bound_bytes_uc_sha_01() {
+        let root =
+            std::env::temp_dir().join(format!("uorc-imported-notice-audit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("standards/nist-sha256")).unwrap();
+        std::fs::write(
+            root.join("template-contract.json"),
+            r#"{"universal_policy_paths":[]}"#,
+        )
+        .unwrap();
+        let relative = "standards/nist-sha256/Readme.txt";
+        let bytes = std::fs::read(repo_model::repo_root().join(relative)).unwrap();
+        let graph = AuthorityGraph::load(&repo_model::repo_root()).unwrap();
+        std::fs::write(root.join(relative), &bytes).unwrap();
+        audit_source_authority_with_graph(&root, &graph)
+            .expect("exact imported notice is permitted");
+        let mut changed = bytes.clone();
+        changed.push(b' ');
+        std::fs::write(root.join(relative), changed).unwrap();
+        let error =
+            audit_source_authority_with_graph(&root, &graph).expect_err("changed notice must fail");
+        assert!(error.to_string().contains("source-owned exact digest"));
+        std::fs::write(root.join(relative), &bytes).unwrap();
+        audit_source_authority_with_graph(&root, &graph).expect("restored notice passes");
+        std::fs::write(root.join("standards/nist-sha256/unregistered.txt"), bytes).unwrap();
+        let error = audit_source_authority_with_graph(&root, &graph)
+            .expect_err("unregistered prose must fail");
+        assert!(error.to_string().contains("non-authority marker"));
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

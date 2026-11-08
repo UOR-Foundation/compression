@@ -1,0 +1,236 @@
+\begin{lexlean}{Uorc.Wire.Frame}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Wire.GraphEmit}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Scope,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: selfContained, fields: []}, {name: conditional, fields: [Bytes]}]
+}
+
+inductive{
+  name: Body,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: raw, fields: [Uorc.Core.Bytes::Rope]},
+    {name: program, fields: [Uorc.Core.Graph::Graph]}
+  ]
+}
+
+structure{
+  name: Frame,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: objectLengths, type: (List Nat)},
+    {name: scope, type: Scope},
+    {name: body, type: Body}
+  ]
+}
+
+structure{
+  name: Prepared,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frame, type: Frame},
+    {name: objectCount, type: Nat},
+    {name: outputLength, type: Nat},
+    {name: bodyLength, type: Nat}
+  ]
+}
+
+inductive{
+  name: PrepareError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: basisIdentityLength, fields: []},
+    {name: rawLengthMismatch, fields: []},
+    {name: invalidEmitter, fields: []}
+  ]
+}
+
+inductive{
+  name: PreparePhase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: lengths, fields: []}, {name: body, fields: []}]
+}
+
+structure{
+  name: PrepareState,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frame, type: Frame},
+    {name: remainingLengths, type: (List Nat)},
+    {name: objectCount, type: Nat},
+    {name: outputLength, type: Nat},
+    {name: measure, type: Uorc.Wire.GraphEmit::State},
+    {name: phase, type: PreparePhase}
+  ]
+}
+
+inductive{
+  name: PrepareEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [PrepareState]},
+    {name: complete, fields: [Prepared]},
+    {name: failed, fields: [PrepareError]}
+  ]
+}
+
+definition{
+  name: startPreparation,
+  parameters: [frame : Frame],
+  result: PrepareState,
+  body: (record PrepareState {frame := frame, remainingLengths := (project frame objectLengths), objectCount := 0, outputLength := 0, measure := (match (project frame body)
+    | Body.raw ignoredRaw => (record Uorc.Wire.GraphEmit::State {pending := (nil Uorc.Wire.GraphEmit::Task), position := 0, work := 0})
+    | Body.program graph => (Uorc.Wire.GraphEmit::start graph)), phase := (ctor PreparePhase.lengths)})
+}
+
+definition{
+  name: prepareStep,
+  parameters: [s : PrepareState],
+  result: PrepareEvent,
+  body: (match (project s phase)
+    | PreparePhase.lengths => (match (project s remainingLengths)
+      | List.nil => (if (match (project (project s frame) scope)
+        | Scope.selfContained => true
+        | Scope.conditional identity => ((prim length identity : Nat) =? 32)) then (ctor PrepareEvent.advanced (record PrepareState {frame := (project s frame), remainingLengths := (nil Nat), objectCount := (project s objectCount), outputLength := (project s outputLength), measure := (project s measure), phase := (ctor PreparePhase.body)})) else (ctor PrepareEvent.failed (ctor PrepareError.basisIdentityLength)))
+      | List.cons headLength tailLengths => (ctor PrepareEvent.advanced (record PrepareState {frame := (project s frame), remainingLengths := tailLengths, objectCount := ((project s objectCount) + 1), outputLength := ((project s outputLength) + headLength), measure := (project s measure), phase := (ctor PreparePhase.lengths)})))
+    | PreparePhase.body => (match (project (project s frame) body)
+      | Body.raw rawBytes => (if ((Uorc.Core.Bytes::length rawBytes) =? (project s outputLength)) then (ctor PrepareEvent.complete (record Prepared {frame := (project s frame), objectCount := (project s objectCount), outputLength := (project s outputLength), bodyLength := (project s outputLength)})) else (ctor PrepareEvent.failed (ctor PrepareError.rawLengthMismatch)))
+      | Body.program ignoredGraph => (match (Uorc.Wire.GraphEmit::measureStep (project s measure))
+        | Uorc.Wire.GraphEmit::Event.advanced nextMeasure => (ctor PrepareEvent.advanced (record PrepareState {frame := (project s frame), remainingLengths := (nil Nat), objectCount := (project s objectCount), outputLength := (project s outputLength), measure := nextMeasure, phase := (ctor PreparePhase.body)}))
+        | Uorc.Wire.GraphEmit::Event.produced unexpectedBytes nextMeasure => (ctor PrepareEvent.failed (ctor PrepareError.invalidEmitter))
+        | Uorc.Wire.GraphEmit::Event.failed reason position events => (ctor PrepareEvent.failed (ctor PrepareError.invalidEmitter))
+        | Uorc.Wire.GraphEmit::Event.complete size events => (ctor PrepareEvent.complete (record Prepared {frame := (project s frame), objectCount := (project s objectCount), outputLength := (project s outputLength), bodyLength := size}))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{name: formatVersion, parameters: [], result: Nat, body: 2}
+
+definition{name: machineProfile, parameters: [], result: Nat, body: 1}
+
+definition{name: productGeneration, parameters: [], result: String, body: "0.1"}
+
+definition{
+  name: preimageStart,
+  parameters: [prepared : Prepared],
+  result: Uorc.Wire.GraphEmit::State,
+  body: (record Uorc.Wire.GraphEmit::State {pending := (cons (ctor Uorc.Wire.GraphEmit::Task.byte 85) (cons (ctor Uorc.Wire.GraphEmit::Task.byte 79) (cons (ctor Uorc.Wire.GraphEmit::Task.byte 82) (cons (ctor Uorc.Wire.GraphEmit::Task.byte 67) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (formatVersion)) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (machineProfile)) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (match (project (project prepared frame) scope)
+    | Scope.selfContained => 0
+    | Scope.conditional ignoredIdentity => 1)) (cons (ctor Uorc.Wire.GraphEmit::Task.byte (match (project (project prepared frame) body)
+    | Body.raw ignoredRaw => 0
+    | Body.program ignoredGraph => 1)) (cons (ctor Uorc.Wire.GraphEmit::Task.number (project prepared objectCount)) (cons (ctor Uorc.Wire.GraphEmit::Task.references (project (project prepared frame) objectLengths)) (cons (ctor Uorc.Wire.GraphEmit::Task.number (project prepared bodyLength)) (match (project (project prepared frame) scope)
+    | Scope.selfContained => (match (project (project prepared frame) body)
+      | Body.raw rawBytes => (cons (ctor Uorc.Wire.GraphEmit::Task.rope (Uorc.Core.Bytes::cursor rawBytes) (Uorc.Core.Bytes::length rawBytes)) (nil Uorc.Wire.GraphEmit::Task))
+      | Body.program graph => (project (Uorc.Wire.GraphEmit::start graph) pending))
+    | Scope.conditional identity => (cons (ctor Uorc.Wire.GraphEmit::Task.rope (Uorc.Core.Bytes::cursor (Uorc.Core.Bytes::fromBytes identity)) 32) (match (project (project prepared frame) body)
+      | Body.raw rawBytes => (cons (ctor Uorc.Wire.GraphEmit::Task.rope (Uorc.Core.Bytes::cursor rawBytes) (Uorc.Core.Bytes::length rawBytes)) (nil Uorc.Wire.GraphEmit::Task))
+      | Body.program graph => (project (Uorc.Wire.GraphEmit::start graph) pending))))))))))))))), position := 0, work := 0})
+}
+
+definition{
+  name: preimageBoundary,
+  parameters: [],
+  result: String,
+  body: "This module emits the archive preimage only: UORC magic, format2, machine profile1, scope tag, representation tag, shortest-natural object count, ordered object lengths, body length, optional exact32-byte basis identity, and exact body. Integrity bytes and final verification are composed by the integrity/framing boundary before publication. It neither accepts legacy formats nor claims a completed archive. Product generation0.1 is independent of wire identifiers. Raw length equals the aggregate ordered object lengths; zero-length objects and empty collections remain distinct. Program output length and exact reconstruction are checked by execution, not inferred from metadata."
+}
+
+definition{
+  name: prepareFixture,
+  parameters: [fuel : Nat, s : PrepareState],
+  result: PrepareEvent,
+  body: (match fuel
+    | Nat.zero => (ctor PrepareEvent.advanced s)
+    | Nat.succ remaining => (match (prepareStep s)
+      | PrepareEvent.advanced next => (prepareFixture remaining next)
+      | PrepareEvent.complete preparedValue => (ctor PrepareEvent.complete preparedValue)
+      | PrepareEvent.failed reason => (ctor PrepareEvent.failed reason))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+theorem{
+  name: prepare_empty_collection,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (nil Nat), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (nil Nat), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 0, outputLength := 0, bodyLength := 0}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: preimage_empty_collection,
+  parameters: [],
+  statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (nil Nat), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 0, outputLength := 0, bodyLength := 0})) 0x) = (ctor Option.some [Bytes] 0x554f5243020100000000)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: prepare_empty_object,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 0 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (cons 0 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 1, outputLength := 0, bodyLength := 0}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: preimage_empty_object,
+  parameters: [],
+  statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (cons 0 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x))}), objectCount := 1, outputLength := 0, bodyLength := 0})) 0x) = (ctor Option.some [Bytes] 0x554f524302010000010000)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: prepare_binary,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 3 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff80))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (cons 3 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff80))}), objectCount := 1, outputLength := 3, bodyLength := 3}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: preimage_binary,
+  parameters: [],
+  statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (cons 3 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff80))}), objectCount := 1, outputLength := 3, bodyLength := 3})) 0x) = (ctor Option.some [Bytes] 0x554f52430201000001030300ff80)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: prepare_empty_boundaries,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 0 (cons 1 (cons 0 (cons 1 (cons 0 (nil Nat)))))), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}))) = (ctor PrepareEvent.complete (record Prepared {frame := (record Frame {objectLengths := (cons 0 (cons 1 (cons 0 (cons 1 (cons 0 (nil Nat)))))), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}), objectCount := 5, outputLength := 2, bodyLength := 2}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: preimage_empty_boundaries,
+  parameters: [],
+  statement: ((Uorc.Wire.GraphEmit::collectFixture 300 (preimageStart (record Prepared {frame := (record Frame {objectLengths := (cons 0 (cons 1 (cons 0 (cons 1 (cons 0 (nil Nat)))))), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00ff))}), objectCount := 5, outputLength := 2, bodyLength := 2})) 0x) = (ctor Option.some [Bytes] 0x554f5243020100000500010001000200ff)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_raw_mismatch,
+  parameters: [],
+  statement: ((prepareFixture 30 (startPreparation (record Frame {objectLengths := (cons 2 (nil Nat)), scope := (ctor Scope.selfContained), body := (ctor Body.raw (Uorc.Core.Bytes::fromBytes 0x00))}))) = (ctor PrepareEvent.failed (ctor PrepareError.rawLengthMismatch))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

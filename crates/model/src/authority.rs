@@ -2,6 +2,7 @@
 //!
 //! `src/Uorc/Specification.lex.tex` owns the project charter and evidence
 //! boundaries. `src/Uorc/Registry.lex.tex` owns the project claim register.
+//! `src/Uorc/Claims.lex.tex` owns evidence classification and research dispositions.
 //! `model/*.toml` and project Markdown are generated projections of this graph,
 //! never a second source of UORC semantics.
 
@@ -10,7 +11,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::{Authorities, IdRow, Ids, Ledger, Level, Model, ModelError};
+use crate::{Authorities, Claim, ClaimPolicy, IdRow, Ids, Ledger, Level, Model, ModelError};
 
 /// The LexLean module that owns the product charter.
 pub const SPECIFICATION_PATH: &str = "src/Uorc/Specification.lex.tex";
@@ -112,6 +113,10 @@ pub struct ScenarioProjection {
 /// The complete project-owned authority graph needed by the repository model.
 #[derive(Debug, Clone)]
 pub struct AuthorityGraph {
+    /// Exact immutable imported validation artifacts, including upstream notices.
+    pub imported_validation_artifacts: BTreeMap<String, String>,
+    /// Source-owned bounded varint contract and kernel inventory.
+    pub varint: crate::varint::VarintContract,
     /// Product charter.
     pub charter: Charter,
     /// Claim-class distinctions.
@@ -128,13 +133,18 @@ pub struct AuthorityGraph {
     pub scenarios: Vec<ScenarioProjection>,
     /// Imported authorities represented by this authority slice.
     pub authorities: Authorities,
-    /// Non-ID ledger claims represented by this authority slice.
+    /// Source-owned evidence classification policy.
+    pub claim_policy: ClaimPolicy,
+    /// Generated claim-disposition ledger.
     pub ledger: Ledger,
 }
 
 impl AuthorityGraph {
-    /// Load and structurally validate the two LexLean authority modules.
+    /// Load and structurally validate the LexLean authority modules.
     pub fn load(root: &Path) -> Result<Self, ModelError> {
+        let varint = crate::varint::VarintContract::load(root)?;
+        let integrity_authorities = integrity_authorities(root)?;
+        let imported_validation_artifacts = imported_validation_artifacts(root)?;
         let specification =
             semantic_declarations(&root.join(SPECIFICATION_PATH), "Uorc.Specification")?;
         let registry = semantic_declarations(&root.join(REGISTRY_PATH), "Uorc.Registry")?;
@@ -199,6 +209,8 @@ impl AuthorityGraph {
             &["nonAuthorityMarker", "normativeSubject"],
         )?;
 
+        let claim_policy = ClaimPolicy::load_source(root)?;
+        let mut claims = Vec::new();
         let mut ids = Vec::new();
         let mut scenarios = Vec::new();
         for declaration in &registry {
@@ -208,12 +220,45 @@ impl AuthorityGraph {
             let fields = definition_string_fields(
                 declaration,
                 "ConformanceRow",
-                &["id", "level", "suite", "statement", "given", "when", "then"],
+                &[
+                    "id",
+                    "level",
+                    "suite",
+                    "statement",
+                    "given",
+                    "when",
+                    "expected",
+                    "evidenceKind",
+                    "researchDisposition",
+                ],
             )?;
             let id = required(&fields, "id")?;
             let level = required(&fields, "level")?;
             let suite = required(&fields, "suite")?;
             let statement = required(&fields, "statement")?;
+            claims.push(Claim {
+                id: id.clone(),
+                level: parse_level(&level)?,
+                statement: statement.clone(),
+                feature: Some(format!("features/suites/{suite}.feature")),
+                authority: if level == "some-true" {
+                    Some(
+                        id.strip_prefix("AUTH-")
+                            .ok_or_else(|| {
+                                ModelError::Inconsistent(
+                                    "imported claim must carry an AUTH- identity".into(),
+                                )
+                            })?
+                            .to_string(),
+                    )
+                } else {
+                    None
+                },
+                sample_size: None,
+                seed: None,
+                evidence_kind: required(&fields, "evidenceKind")?,
+                research_disposition: required(&fields, "researchDisposition")?,
+            });
             ids.push(IdRow {
                 id: id.clone(),
                 level: parse_level(&level)?,
@@ -227,7 +272,7 @@ impl AuthorityGraph {
                 statement,
                 given: required(&fields, "given")?,
                 when: required(&fields, "when")?,
-                then: required(&fields, "then")?,
+                then: required(&fields, "expected")?,
             });
         }
         if ids.is_empty() {
@@ -237,6 +282,8 @@ impl AuthorityGraph {
         }
 
         let graph = Self {
+            imported_validation_artifacts,
+            varint,
             charter: Charter {
                 product_name: required(&charter, "productName")?,
                 purpose: required(&charter, "purpose")?,
@@ -281,11 +328,12 @@ impl AuthorityGraph {
             scenarios,
             authorities: Authorities {
                 spec: "template/1".to_string(),
-                authority: Vec::new(),
+                authority: integrity_authorities,
             },
+            claim_policy,
             ledger: Ledger {
                 spec: "template/1".to_string(),
-                claim: Vec::new(),
+                claim: claims,
             },
         };
 
@@ -297,6 +345,7 @@ impl AuthorityGraph {
     #[must_use]
     pub fn model(&self) -> Model {
         Model {
+            claim_policy: self.claim_policy.clone(),
             ledger: self.ledger.clone(),
             ids: self.ids.clone(),
             authorities: self.authorities.clone(),
@@ -304,7 +353,88 @@ impl AuthorityGraph {
     }
 }
 
-fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelError> {
+fn imported_validation_artifacts(root: &Path) -> Result<BTreeMap<String, String>, ModelError> {
+    let declarations = semantic_declarations(
+        &root.join("src/Uorc/Integrity/Contract.lex.tex"),
+        "Uorc.Integrity.Contract",
+    )?;
+    let mut artifacts = BTreeMap::new();
+    for declaration in &declarations {
+        if definition_result_name(declaration) != Some("ImportedArtifact") {
+            continue;
+        }
+        let fields =
+            definition_string_fields(declaration, "ImportedArtifact", &["path", "sha256", "role"])?;
+        let path = required(&fields, "path")?;
+        let digest = required(&fields, "sha256")?;
+        if path.starts_with('/')
+            || path
+                .split('/')
+                .any(|c| c.is_empty() || c == "." || c == "..")
+            || digest.len() != 64
+            || !digest
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            || artifacts.insert(path, digest).is_some()
+        {
+            return Err(ModelError::Inconsistent(
+                "invalid or duplicate imported validation artifact".into(),
+            ));
+        }
+    }
+    if artifacts.is_empty() {
+        return Err(ModelError::Inconsistent(
+            "empty imported artifact inventory".into(),
+        ));
+    }
+    Ok(artifacts)
+}
+
+fn integrity_authorities(root: &Path) -> Result<Vec<crate::AuthorityRow>, ModelError> {
+    let declarations = semantic_declarations(
+        &root.join("src/Uorc/Integrity/Contract.lex.tex"),
+        "Uorc.Integrity.Contract",
+    )?;
+    let mut rows = Vec::new();
+    for declaration in &declarations {
+        if definition_result_name(declaration) != Some("CitedAuthority") {
+            continue;
+        }
+        let fields = definition_string_fields(
+            declaration,
+            "CitedAuthority",
+            &[
+                "id",
+                "name",
+                "citation",
+                "checksum",
+                "checksumReason",
+                "statement",
+                "realizedBy",
+            ],
+        )?;
+        rows.push(crate::AuthorityRow {
+            id: required(&fields, "id")?,
+            name: required(&fields, "name")?,
+            citation: required(&fields, "citation")?,
+            checksum: required(&fields, "checksum")?,
+            checksum_reason: required(&fields, "checksumReason")?,
+            statement: required(&fields, "statement")?,
+            realized_by: vec![required(&fields, "realizedBy")?],
+        });
+    }
+    if rows.len() != 2 {
+        return Err(ModelError::Inconsistent(
+            "integrity authority inventory must contain its two locked response files".into(),
+        ));
+    }
+    Ok(rows)
+}
+
+/// The semantic-module schema of the project language (1.2).
+pub const SEMANTIC_MODULE_SPEC: &str = "lexlean/semantic-module/2";
+
+pub(crate) fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelError> {
     let text = std::fs::read_to_string(path).map_err(|e| ModelError::Io(path.to_path_buf(), e))?;
     let open = format!("\\begin{{lexlean}}{{{module}}}");
     if !text.contains(&open)
@@ -318,37 +448,17 @@ fn semantic_declarations(path: &Path, module: &str) -> Result<Vec<Value>, ModelE
         )));
     }
 
-    const MARKER: &str = "\\semanticdata{";
-    if text.matches(MARKER).count() != 1 {
+    // Language 1.2 sources are written in the notation (LexLean SPEC 17.21.1);
+    // the SDK's own reader is the one conversion to the module data.
+    let value: Value = lexlean::sdk::read_module(&text).map_err(|e| {
+        ModelError::Inconsistent(format!(
+            "{} is not a well-formed LexLean semantic module: {e}",
+            path.display()
+        ))
+    })?;
+    if value.get("spec").and_then(Value::as_str) != Some(SEMANTIC_MODULE_SPEC) {
         return Err(ModelError::Inconsistent(format!(
-            "{} must contain exactly one semanticdata value",
-            path.display()
-        )));
-    }
-    let start = text.find(MARKER).expect("counted one semanticdata marker") + MARKER.len();
-    let tail = &text[start..];
-    let end = tail.find("\\end{semanticmodule}").ok_or_else(|| {
-        ModelError::Inconsistent(format!(
-            "{} has no semanticmodule terminator after semanticdata",
-            path.display()
-        ))
-    })?;
-    let wrapped = tail[..end].trim();
-    let json = wrapped.strip_suffix('}').ok_or_else(|| {
-        ModelError::Inconsistent(format!(
-            "{} semanticdata macro has no closing brace",
-            path.display()
-        ))
-    })?;
-    let value: Value = serde_json::from_str(json).map_err(|e| {
-        ModelError::Inconsistent(format!(
-            "{} contains invalid semantic JSON: {e}",
-            path.display()
-        ))
-    })?;
-    if value.get("spec").and_then(Value::as_str) != Some("lexlean/semantic-module/1") {
-        return Err(ModelError::Inconsistent(format!(
-            "{} must use lexlean/semantic-module/1",
+            "{} must use {SEMANTIC_MODULE_SPEC}",
             path.display()
         )));
     }
@@ -511,7 +621,17 @@ fn validate_registry_declarations(declarations: &[Value]) -> Result<(), ModelErr
     validate_string_structure(
         declarations,
         "ConformanceRow",
-        &["id", "level", "suite", "statement", "given", "when", "then"],
+        &[
+            "id",
+            "level",
+            "suite",
+            "statement",
+            "given",
+            "when",
+            "expected",
+            "evidenceKind",
+            "researchDisposition",
+        ],
     )?;
     Ok(())
 }
@@ -738,6 +858,31 @@ mod tests {
         let graph = AuthorityGraph::load(&crate::repo_root()).expect("authority graph loads");
         assert!(!graph.charter.product_name.is_empty());
         assert!(!graph.ids.id.is_empty());
+    }
+
+    #[test]
+    fn registry_outcomes_keep_the_gherkin_then_step_uc_chr_01() {
+        let root = crate::repo_root();
+        let graph = AuthorityGraph::load(&root).expect("authority graph loads");
+        assert!(graph.scenarios.iter().all(|row| !row.then.is_empty()));
+        let declarations =
+            semantic_declarations(&root.join(REGISTRY_PATH), "Uorc.Registry").expect("registry");
+        validate_string_structure(
+            &declarations,
+            "ConformanceRow",
+            &[
+                "id",
+                "level",
+                "suite",
+                "statement",
+                "given",
+                "when",
+                "expected",
+                "evidenceKind",
+                "researchDisposition",
+            ],
+        )
+        .expect("the source outcome field is a plain Lean identifier");
     }
 
     #[test]

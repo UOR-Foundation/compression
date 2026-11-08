@@ -1,0 +1,227 @@
+\begin{lexlean}{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Verify}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: expected, type: (List Uorc.Core.Bytes::Rope)},
+    {name: actual, type: (List Uorc.Core.Bytes::Rope)},
+    {name: expectedCursor, type: (Option Uorc.Core.Bytes::Cursor)},
+    {name: actualCursor, type: (Option Uorc.Core.Bytes::Cursor)},
+    {name: expectedByte, type: (Option UInt8)},
+    {name: actualByte, type: (Option UInt8)},
+    {name: expectedEnded, type: Bool},
+    {name: actualEnded, type: Bool},
+    {name: objectIndex, type: Nat},
+    {name: byteOffset, type: Nat},
+    {name: bytesCompared, type: Nat},
+    {name: boundariesChecked, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: matched, fields: [Nat, Nat]},
+    {name: mismatch, fields: [Uorc.Search.Verify::Mismatch]},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+structure{
+  name: CheckedArchive,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: wire, type: Uorc.Core.Bytes::Rope},
+    {name: bytesCompared, type: Nat},
+    {name: boundariesChecked, type: Nat}
+  ]
+}
+
+structure{
+  name: Trial,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: wire, type: Uorc.Core.Bytes::Rope}, {name: cursor, type: Cursor}]
+}
+
+inductive{
+  name: TrialStep,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Trial]},
+    {name: eligible, fields: [CheckedArchive]},
+    {name: rejected, fields: [Uorc.Search.Verify::Mismatch]},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [expected : (List Uorc.Core.Bytes::Rope), actual : (List Uorc.Core.Bytes::Rope)],
+  result: Cursor,
+  body: (record Cursor {expected := expected, actual := actual, expectedCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), actualCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), expectedByte := (ctor Option.none [UInt8]), actualByte := (ctor Option.none [UInt8]), expectedEnded := false, actualEnded := false, objectIndex := 0, byteOffset := 0, bytesCompared := 0, boundariesChecked := 0})
+}
+
+definition{
+  name: failure,
+  parameters: [cursor : Cursor, kind : Uorc.Search.Verify::MismatchKind],
+  result: Step,
+  body: (ctor Step.mismatch (record Uorc.Search.Verify::Mismatch {kind := kind, objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset)}))
+}
+
+definition{
+  name: readExpected,
+  parameters: [cursor : Cursor, reader : Uorc.Core.Bytes::Cursor],
+  result: Step,
+  body: (match (Uorc.Core.Bytes::nextChunk reader 1)
+    | Result.error ropeError => (ctor Step.ropeFailure ropeError)
+    | Result.ok event => (match event
+      | Uorc.Core.Bytes::CursorEvent.advanced next => (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (ctor Option.some [Uorc.Core.Bytes::Cursor] next), actualCursor := (project cursor actualCursor), expectedByte := (project cursor expectedByte), actualByte := (project cursor actualByte), expectedEnded := (project cursor expectedEnded), actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset), bytesCompared := (project cursor bytesCompared), boundariesChecked := (project cursor boundariesChecked)}))
+      | Uorc.Core.Bytes::CursorEvent.produced chunk next => (if ((prim length chunk : Nat) =? 1) then (match (prim index chunk 0 : (Option UInt8))
+        | Option.none => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor))
+        | Option.some byte => (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (ctor Option.some [Uorc.Core.Bytes::Cursor] next), actualCursor := (project cursor actualCursor), expectedByte := (ctor Option.some [UInt8] byte), actualByte := (project cursor actualByte), expectedEnded := (project cursor expectedEnded), actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset), bytesCompared := (project cursor bytesCompared), boundariesChecked := (project cursor boundariesChecked)}))) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor)))
+      | Uorc.Core.Bytes::CursorEvent.done => (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (project cursor expectedCursor), actualCursor := (project cursor actualCursor), expectedByte := (project cursor expectedByte), actualByte := (project cursor actualByte), expectedEnded := true, actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset), bytesCompared := (project cursor bytesCompared), boundariesChecked := (project cursor boundariesChecked)}))))
+}
+
+definition{
+  name: readActual,
+  parameters: [cursor : Cursor, reader : Uorc.Core.Bytes::Cursor],
+  result: Step,
+  body: (match (Uorc.Core.Bytes::nextChunk reader 1)
+    | Result.error ropeError => (ctor Step.ropeFailure ropeError)
+    | Result.ok event => (match event
+      | Uorc.Core.Bytes::CursorEvent.advanced next => (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (project cursor expectedCursor), actualCursor := (ctor Option.some [Uorc.Core.Bytes::Cursor] next), expectedByte := (project cursor expectedByte), actualByte := (project cursor actualByte), expectedEnded := (project cursor expectedEnded), actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset), bytesCompared := (project cursor bytesCompared), boundariesChecked := (project cursor boundariesChecked)}))
+      | Uorc.Core.Bytes::CursorEvent.produced chunk next => (if ((prim length chunk : Nat) =? 1) then (match (prim index chunk 0 : (Option UInt8))
+        | Option.none => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor))
+        | Option.some byte => (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (project cursor expectedCursor), actualCursor := (ctor Option.some [Uorc.Core.Bytes::Cursor] next), expectedByte := (project cursor expectedByte), actualByte := (ctor Option.some [UInt8] byte), expectedEnded := (project cursor expectedEnded), actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset), bytesCompared := (project cursor bytesCompared), boundariesChecked := (project cursor boundariesChecked)}))) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor)))
+      | Uorc.Core.Bytes::CursorEvent.done => (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (project cursor expectedCursor), actualCursor := (project cursor actualCursor), expectedByte := (project cursor expectedByte), actualByte := (project cursor actualByte), expectedEnded := (project cursor expectedEnded), actualEnded := true, objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset), bytesCompared := (project cursor bytesCompared), boundariesChecked := (project cursor boundariesChecked)}))))
+}
+
+definition{
+  name: compareCurrent,
+  parameters: [
+    cursor : Cursor,
+    expectedReader : Uorc.Core.Bytes::Cursor,
+    actualReader : Uorc.Core.Bytes::Cursor
+  ],
+  result: Step,
+  body: (match (project cursor expectedByte)
+    | Option.none => (if (project cursor expectedEnded) then (match (project cursor actualByte)
+      | Option.none => (if (project cursor actualEnded) then (match (project cursor expectedByte)
+        | Option.none => (match (project cursor actualByte)
+          | Option.none => (if ((project cursor expectedEnded) && (project cursor actualEnded)) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), actualCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), expectedByte := (project cursor expectedByte), actualByte := (project cursor actualByte), expectedEnded := false, actualEnded := false, objectIndex := ((project cursor objectIndex) + 1), byteOffset := 0, bytesCompared := (project cursor bytesCompared), boundariesChecked := ((project cursor boundariesChecked) + 1)})) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor)))
+          | Option.some extraActual => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectLength)))
+        | Option.some expectedByte => (match (project cursor actualByte)
+          | Option.none => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectLength))
+          | Option.some actualByte => (if (prim equal expectedByte actualByte : Bool) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (project cursor expectedCursor), actualCursor := (project cursor actualCursor), expectedByte := (ctor Option.none [UInt8]), actualByte := (ctor Option.none [UInt8]), expectedEnded := (project cursor expectedEnded), actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := ((project cursor byteOffset) + 1), bytesCompared := ((project cursor bytesCompared) + 1), boundariesChecked := (project cursor boundariesChecked)})) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.byteValue))))) else (readActual cursor actualReader))
+      | Option.some availableActual => (match (project cursor expectedByte)
+        | Option.none => (match (project cursor actualByte)
+          | Option.none => (if ((project cursor expectedEnded) && (project cursor actualEnded)) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), actualCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), expectedByte := (project cursor expectedByte), actualByte := (project cursor actualByte), expectedEnded := false, actualEnded := false, objectIndex := ((project cursor objectIndex) + 1), byteOffset := 0, bytesCompared := (project cursor bytesCompared), boundariesChecked := ((project cursor boundariesChecked) + 1)})) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor)))
+          | Option.some extraActual => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectLength)))
+        | Option.some expectedByte => (match (project cursor actualByte)
+          | Option.none => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectLength))
+          | Option.some actualByte => (if (prim equal expectedByte actualByte : Bool) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (project cursor expectedCursor), actualCursor := (project cursor actualCursor), expectedByte := (ctor Option.none [UInt8]), actualByte := (ctor Option.none [UInt8]), expectedEnded := (project cursor expectedEnded), actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := ((project cursor byteOffset) + 1), bytesCompared := ((project cursor bytesCompared) + 1), boundariesChecked := (project cursor boundariesChecked)})) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.byteValue)))))) else (readExpected cursor expectedReader))
+    | Option.some availableExpected => (match (project cursor actualByte)
+      | Option.none => (if (project cursor actualEnded) then (match (project cursor expectedByte)
+        | Option.none => (match (project cursor actualByte)
+          | Option.none => (if ((project cursor expectedEnded) && (project cursor actualEnded)) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), actualCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), expectedByte := (project cursor expectedByte), actualByte := (project cursor actualByte), expectedEnded := false, actualEnded := false, objectIndex := ((project cursor objectIndex) + 1), byteOffset := 0, bytesCompared := (project cursor bytesCompared), boundariesChecked := ((project cursor boundariesChecked) + 1)})) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor)))
+          | Option.some extraActual => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectLength)))
+        | Option.some expectedByte => (match (project cursor actualByte)
+          | Option.none => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectLength))
+          | Option.some actualByte => (if (prim equal expectedByte actualByte : Bool) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (project cursor expectedCursor), actualCursor := (project cursor actualCursor), expectedByte := (ctor Option.none [UInt8]), actualByte := (ctor Option.none [UInt8]), expectedEnded := (project cursor expectedEnded), actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := ((project cursor byteOffset) + 1), bytesCompared := ((project cursor bytesCompared) + 1), boundariesChecked := (project cursor boundariesChecked)})) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.byteValue))))) else (readActual cursor actualReader))
+      | Option.some availableActual => (match (project cursor expectedByte)
+        | Option.none => (match (project cursor actualByte)
+          | Option.none => (if ((project cursor expectedEnded) && (project cursor actualEnded)) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), actualCursor := (ctor Option.none [Uorc.Core.Bytes::Cursor]), expectedByte := (project cursor expectedByte), actualByte := (project cursor actualByte), expectedEnded := false, actualEnded := false, objectIndex := ((project cursor objectIndex) + 1), byteOffset := 0, bytesCompared := (project cursor bytesCompared), boundariesChecked := ((project cursor boundariesChecked) + 1)})) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor)))
+          | Option.some extraActual => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectLength)))
+        | Option.some expectedByte => (match (project cursor actualByte)
+          | Option.none => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectLength))
+          | Option.some actualByte => (if (prim equal expectedByte actualByte : Bool) then (ctor Step.pending (record Cursor {expected := (project cursor expected), actual := (project cursor actual), expectedCursor := (project cursor expectedCursor), actualCursor := (project cursor actualCursor), expectedByte := (ctor Option.none [UInt8]), actualByte := (ctor Option.none [UInt8]), expectedEnded := (project cursor expectedEnded), actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := ((project cursor byteOffset) + 1), bytesCompared := ((project cursor bytesCompared) + 1), boundariesChecked := (project cursor boundariesChecked)})) else (failure cursor (ctor Uorc.Search.Verify::MismatchKind.byteValue)))))))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor expectedCursor)
+    | Option.none => (match (project cursor actualCursor)
+      | Option.none => (match (project cursor expected)
+        | List.nil => (match (project cursor actual)
+          | List.nil => (ctor Step.matched (project cursor bytesCompared) (project cursor boundariesChecked))
+          | List.cons extraObject extraRest => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectCount)))
+        | List.cons expectedObject expectedRest => (match (project cursor actual)
+          | List.nil => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.objectCount))
+          | List.cons actualObject actualRest => (ctor Step.pending (record Cursor {expected := expectedRest, actual := actualRest, expectedCursor := (ctor Option.some [Uorc.Core.Bytes::Cursor] (Uorc.Core.Bytes::cursor expectedObject)), actualCursor := (ctor Option.some [Uorc.Core.Bytes::Cursor] (Uorc.Core.Bytes::cursor actualObject)), expectedByte := (project cursor expectedByte), actualByte := (project cursor actualByte), expectedEnded := (project cursor expectedEnded), actualEnded := (project cursor actualEnded), objectIndex := (project cursor objectIndex), byteOffset := (project cursor byteOffset), bytesCompared := (project cursor bytesCompared), boundariesChecked := (project cursor boundariesChecked)}))))
+      | Option.some unexpectedActualReader => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor)))
+    | Option.some expectedReader => (match (project cursor actualCursor)
+      | Option.none => (failure cursor (ctor Uorc.Search.Verify::MismatchKind.invalidCursor))
+      | Option.some actualReader => (compareCurrent cursor expectedReader actualReader)))
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, cursor : Cursor],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => (ctor Step.pending cursor)
+    | Nat.succ restFuel => (match (step cursor)
+      | Step.pending next => (run restFuel next)
+      | Step.matched compared boundaries => (ctor Step.matched compared boundaries)
+      | Step.mismatch mismatch => (ctor Step.mismatch mismatch)
+      | Step.ropeFailure ropeError => (ctor Step.ropeFailure ropeError))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: startTrial,
+  parameters: [
+    wire : Uorc.Core.Bytes::Rope,
+    expected : (List Uorc.Core.Bytes::Rope),
+    actual : (List Uorc.Core.Bytes::Rope)
+  ],
+  result: Trial,
+  body: (record Trial {wire := wire, cursor := (start expected actual)})
+}
+
+definition{
+  name: stepTrial,
+  parameters: [trial : Trial],
+  result: TrialStep,
+  body: (match (step (project trial cursor))
+    | Step.pending next => (ctor TrialStep.pending (record Trial {wire := (project trial wire), cursor := next}))
+    | Step.matched compared boundaries => (ctor TrialStep.eligible (record CheckedArchive {wire := (project trial wire), bytesCompared := compared, boundariesChecked := boundaries}))
+    | Step.mismatch mismatch => (ctor TrialStep.rejected mismatch)
+    | Step.ropeFailure ropeError => (ctor TrialStep.ropeFailure ropeError))
+}
+
+theorem{
+  name: different_rope_partitions_same_object,
+  parameters: [],
+  statement: ((run 150 (start (cons (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x0001) (Uorc.Core.Bytes::fromBytes 0xff80)) (nil Uorc.Core.Bytes::Rope)) (cons (Uorc.Core.Bytes::fromBytes 0x0001ff80) (nil Uorc.Core.Bytes::Rope)))) = (ctor Step.matched 4 1)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_object_boundaries_preserved,
+  parameters: [],
+  statement: ((run 150 (start (cons (Uorc.Core.Bytes::fromBytes 0x) (cons (Uorc.Core.Bytes::fromBytes 0x) (nil Uorc.Core.Bytes::Rope))) (cons (Uorc.Core.Bytes::fromBytes 0x) (cons (Uorc.Core.Bytes::fromBytes 0x) (nil Uorc.Core.Bytes::Rope))))) = (ctor Step.matched 0 2)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: content_change_never_hidden_by_chunking,
+  parameters: [],
+  statement: ((run 150 (start (cons (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x0102) (Uorc.Core.Bytes::fromBytes 0x03)) (nil Uorc.Core.Bytes::Rope)) (cons (Uorc.Core.Bytes::fromBytes 0x010209) (nil Uorc.Core.Bytes::Rope)))) = (ctor Step.mismatch (record Uorc.Search.Verify::Mismatch {kind := (ctor Uorc.Search.Verify::MismatchKind.byteValue), objectIndex := 0, byteOffset := 2}))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

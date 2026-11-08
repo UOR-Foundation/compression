@@ -1,0 +1,470 @@
+\begin{lexlean}{Uorc.Search.ReplayControls}
+\importmodule{Uorc.Search.Replay}
+\importmodule{Uorc.Search.ArchiveTrial}
+\importmodule{Uorc.Search.ArchiveControls}
+\importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Search.Identity}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Wire.GraphParse}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Search.RopeWords}
+\importmodule{Uorc.Wire.GraphEmit}
+\importmodule{Uorc.Core.ExecutionCredit}
+\importmodule{Uorc.Search.VerifyRope}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
+definition{
+  name: fixtureFromTrial,
+  parameters: [query : Uorc.Search.Identity::Snapshot, produced : Uorc.Search.ArchiveTrial::Step],
+  result: (Option Uorc.Search.Replay::Step),
+  body: (match produced
+    | Uorc.Search.ArchiveTrial::Step.pending c => (ctor Option.none [Uorc.Search.Replay::Step])
+    | Uorc.Search.ArchiveTrial::Step.complete eligible => (ctor Option.some [Uorc.Search.Replay::Step] (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := query, wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (project (project eligible checked) wire)}) (record Uorc.Search.Replay::Seal {query := query, wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}))))
+    | Uorc.Search.ArchiveTrial::Step.rejected e u l n => (ctor Option.none [Uorc.Search.Replay::Step]))
+}
+
+definition{
+  name: fixture,
+  parameters: [query : Uorc.Search.Identity::Snapshot, frame : Uorc.Wire.Frame::Frame],
+  result: (Option Uorc.Search.Replay::Step),
+  body: (fixtureFromTrial query (Uorc.Search.ArchiveControls::run 15000 (Uorc.Search.ArchiveTrial::startFrame query (Uorc.Core.Resources::zeroUsage) frame))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runBlocks,
+  parameters: [blocks : Nat, workPerBlock : Nat, state : Uorc.Search.Replay::Step],
+  result: Uorc.Search.Replay::Step,
+  body: (match blocks
+    | Nat.zero => state
+    | Nat.succ remaining => (runBlocks remaining workPerBlock (Uorc.Search.Replay::run workPerBlock state))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: blocks
+}
+
+definition{
+  name: fixtureOutcome,
+  parameters: [input : (Option Uorc.Search.Replay::Step), blocks : Nat],
+  result: (Option Uorc.Search.Replay::Outcome),
+  body: (match input
+    | Option.none => (ctor Option.none [Uorc.Search.Replay::Outcome])
+    | Option.some state => (ctor Option.some [Uorc.Search.Replay::Outcome] (Uorc.Search.Replay::outcome (runBlocks blocks 1000 state)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: coverageSummary,
+  parameters: [state : Uorc.Search.Replay::Step],
+  result: (Option (List Nat)),
+  body: (match state
+    | Uorc.Search.Replay::Step.pending c => (ctor Option.none [(List Nat)])
+    | Uorc.Search.Replay::Step.counterexample c => (ctor Option.none [(List Nat)])
+    | Uorc.Search.Replay::Step.incomplete e c => (ctor Option.none [(List Nat)])
+    | Uorc.Search.Replay::Step.completeBodyReplay coverage => (ctor Option.some [(List Nat)] (cons (project coverage maximumBodyLength) (cons (project (project coverage ledger) bodyWords) (cons (project (project coverage ledger) syntaxRejected) (cons (prim length (project coverage outstanding) : Nat) (nil Nat)))))))
+}
+
+definition{
+  name: fixtureCoverage,
+  parameters: [input : (Option Uorc.Search.Replay::Step)],
+  result: (Option (List Nat)),
+  body: (match input
+    | Option.none => (ctor Option.none [(List Nat)])
+    | Option.some state => (coverageSummary (runBlocks 30 1000 state))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: actual_empty_raw_exhausts_one_empty_body,
+  parameters: [],
+  result: Bool,
+  body: (match (fixtureCoverage (fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})))
+    | Option.none => false
+    | Option.some v => (match v
+      | List.nil => false
+      | List.cons h0 t0 => ((h0 =? 0) && (match t0
+        | List.nil => false
+        | List.cons h1 t1 => ((h1 =? 1) && (match t1
+          | List.nil => false
+          | List.cons h2 t2 => ((h2 =? 1) && (match t2
+            | List.nil => false
+            | List.cons h3 t3 => ((h3 =? 10) && (match t3
+              | List.nil => true
+              | List.cons h4 t4 => false)))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: actual_literal_winner_returns_checked_raw_counterexample,
+  parameters: [],
+  result: Bool,
+  body: (match (fixtureOutcome (fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 2 (nil Nat)), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.program (Uorc.Core.Graph::literalGraph 0x00ff))})) 30)
+    | Option.none => false
+    | Option.some v => (match v
+      | Uorc.Search.Replay::Outcome.pending => false
+      | Uorc.Search.Replay::Outcome.counterexample => true
+      | Uorc.Search.Replay::Outcome.completeBodyReplay => false
+      | Uorc.Search.Replay::Outcome.incomplete => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: zero_checker_work_never_certifies,
+  parameters: [],
+  result: Bool,
+  body: (match (fixtureOutcome (fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (nil Nat), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})) 0)
+    | Option.none => false
+    | Option.some v => (match v
+      | Uorc.Search.Replay::Outcome.pending => true
+      | Uorc.Search.Replay::Outcome.counterexample => false
+      | Uorc.Search.Replay::Outcome.completeBodyReplay => false
+      | Uorc.Search.Replay::Outcome.incomplete => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ordered_empty_objects_are_independently_replayed,
+  parameters: [],
+  result: Bool,
+  body: (match (fixtureOutcome (fixture (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 0 (cons 0 (nil Nat))), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}) (record Uorc.Wire.Frame::Frame {objectLengths := (cons 0 (cons 0 (nil Nat))), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), body := (ctor Uorc.Wire.Frame::Body.raw (Uorc.Core.Bytes::fromBytes 0x))})) 30)
+    | Option.none => false
+    | Option.some v => (match v
+      | Uorc.Search.Replay::Outcome.pending => false
+      | Uorc.Search.Replay::Outcome.counterexample => false
+      | Uorc.Search.Replay::Outcome.completeBodyReplay => true
+      | Uorc.Search.Replay::Outcome.incomplete => false)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: truncated_claimed_archive_stops_incomplete,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Search.Replay::outcome (runBlocks 30 1000 (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x)}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)})))))
+    | Uorc.Search.Replay::Outcome.pending => false
+    | Uorc.Search.Replay::Outcome.counterexample => false
+    | Uorc.Search.Replay::Outcome.completeBodyReplay => false
+    | Uorc.Search.Replay::Outcome.incomplete => true),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: changed_original_is_rejected_before_winner_metadata,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::outcome (Uorc.Search.Replay::run 1000 (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00ff), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x)}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 2 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x00fe), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}))))) = (ctor Uorc.Search.Replay::Outcome.incomplete)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: native_addressing_identity_is_checked_not_advisory,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::outcome (Uorc.Search.Replay::run 1000 (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Core.Bytes::fromBytes 0x00)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x)}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Core.Bytes::fromBytes 0x00)}))))) = (ctor Uorc.Search.Replay::Outcome.incomplete)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: credit_or_hash_errors_are_not_coverage,
+  parameters: [],
+  statement: ((((Uorc.Search.Replay::trialExclusion (ctor Uorc.Search.ArchiveTrial::Error.integrityMismatch)) || (Uorc.Search.Replay::trialExclusion (ctor Uorc.Search.ArchiveTrial::Error.credit (ctor Uorc.Core.ExecutionCredit::CreditError.invalidCursor)))) || (Uorc.Search.Replay::syntaxFailure (ctor Uorc.Wire.GraphParse::ParseError.invalidState))) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: address_exhaustion_is_not_syntax_coverage,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::syntaxFailure (ctor Uorc.Wire.GraphParse::ParseError.addressSpaceExhausted)) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: operational_decode_and_checker_limits_both_leave_coverage_incomplete,
+  parameters: [],
+  statement: (((Uorc.Search.Replay::decodeExclusion (ctor Uorc.Core.Resources::OperationalError.stepLimit)) || (Uorc.Search.Replay::decodeExclusion (ctor Uorc.Core.Resources::OperationalError.cancelled))) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_work_preserves_any_replay_prefix,
+  parameters: [state : Uorc.Search.Replay::Step],
+  statement: ((Uorc.Search.Replay::run 0 state) = state),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: stepLedger,
+  parameters: [s : Uorc.Search.Replay::Step],
+  result: Uorc.Search.Replay::Ledger,
+  body: (match s
+    | Uorc.Search.Replay::Step.pending c => (project c ledger)
+    | Uorc.Search.Replay::Step.counterexample x => (project x ledger)
+    | Uorc.Search.Replay::Step.completeBodyReplay x => (project x ledger)
+    | Uorc.Search.Replay::Step.incomplete e c => (project c ledger)),
+  axioms: []
+}
+
+definition{
+  name: outcomeCode,
+  parameters: [o : Uorc.Search.Replay::Outcome],
+  result: Nat,
+  body: (match o
+    | Uorc.Search.Replay::Outcome.pending => 0
+    | Uorc.Search.Replay::Outcome.counterexample => 1
+    | Uorc.Search.Replay::Outcome.completeBodyReplay => 2
+    | Uorc.Search.Replay::Outcome.incomplete => 3),
+  axioms: []
+}
+
+definition{
+  name: sameObservableStep,
+  parameters: [a : Uorc.Search.Replay::Step, b : Uorc.Search.Replay::Step],
+  result: Bool,
+  body: (let la : Uorc.Search.Replay::Ledger := (stepLedger a); (let lb : Uorc.Search.Replay::Ledger := (stepLedger b); (((outcomeCode (Uorc.Search.Replay::outcome a)) =? (outcomeCode (Uorc.Search.Replay::outcome b))) && (((project la checkerEvents) =? (project lb checkerEvents)) && (((project la identityEvents) =? (project lb identityEvents)) && (((project la enumerationEvents) =? (project lb enumerationEvents)) && (((project la parseEvents) =? (project lb parseEvents)) && (((project la validationEvents) =? (project lb validationEvents)) && (((project la measurementEvents) =? (project lb measurementEvents)) && (((project la orderingEvents) =? (project lb orderingEvents)) && (((project la bodyWords) =? (project lb bodyWords)) && (((project la syntaxRejected) =? (project lb syntaxRejected)) && (((project la staticRejected) =? (project lb staticRejected)) && (((project la sizePruned) =? (project lb sizePruned)) && (((project la eligiblePredecessors) =? (project lb eligiblePredecessors)) && (((project la notBetter) =? (project lb notBetter)) && ((project la trialRejected) =? (project lb trialRejected)))))))))))))))))),
+  axioms: []
+}
+
+definition{
+  name: resumption_preserves_bounded_event_sequence,
+  parameters: [],
+  result: Bool,
+  body: (sameObservableStep (Uorc.Search.Replay::run 13 (Uorc.Search.Replay::run 17 (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x)}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}))))) (Uorc.Search.Replay::run 30 (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x)}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}))))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: checkpoint_counts_never_authorize_coverage,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::restart (record Uorc.Search.Replay::Checkpoint {request := (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x)}), observedBodyWords := 999999999999, observedCheckerEvents := 999999999999}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)})) = (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x)}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (nil Nat), target := (Uorc.Core.Bytes::fromBytes 0x), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: static_address_exhaustion_is_not_coverage,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::staticExclusion (ctor Uorc.Core.Types::StaticError.addressSpaceExhausted)) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: native_sequence_address_exhaustion_is_not_coverage,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::semanticExclusion (ctor Uorc.Core.Types::SemanticError.sequenceLengthOverflow)) = false),
+  proof: reflexivity{}
+}
+
+inductive{
+  name: ProbeSetup,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Uorc.Search.Replay::Step]},
+    {name: ready, fields: [Uorc.Search.Replay::Cursor, Uorc.Search.RopeWords::Cursor]},
+    {name: unavailable, fields: []}
+  ]
+}
+
+definition{
+  name: seekWords,
+  parameters: [work : Nat, state : Uorc.Search.Replay::Step],
+  result: ProbeSetup,
+  body: (match work
+    | Nat.zero => (ctor ProbeSetup.pending state)
+    | Nat.succ remaining => (match state
+      | Uorc.Search.Replay::Step.pending cursor => (match (project cursor phase)
+        | Uorc.Search.Replay::Phase.words nextWords => (ctor ProbeSetup.ready cursor nextWords)
+        | Uorc.Search.Replay::Phase.queryIdentity c => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.sealIdentity c => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.winnerTrial s => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.winnerPreparation c => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.rawTrial s => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.ordering r e o w => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.parsing b e r f w => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.validating b c w => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.measuring g c w => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.predecessorTrial s w => (seekWords remaining (Uorc.Search.Replay::step cursor))
+        | Uorc.Search.Replay::Phase.unresolvedTrial retainedTrial retainedWords => (ctor ProbeSetup.pending state))
+      | Uorc.Search.Replay::Step.counterexample c => (ctor ProbeSetup.unavailable)
+      | Uorc.Search.Replay::Step.completeBodyReplay c => (ctor ProbeSetup.unavailable)
+      | Uorc.Search.Replay::Step.incomplete e c => (ctor ProbeSetup.unavailable))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+theorem{
+  name: unresolved_predecessor_probe_preserves_exact_pending_prefix,
+  parameters: [
+    remaining : Nat,
+    originalCursor : Uorc.Search.Replay::Cursor,
+    retainedTrial : Uorc.Search.ArchiveTrial::Step,
+    retainedWords : Uorc.Search.RopeWords::Cursor
+  ],
+  statement: ((seekWords (remaining + 1) (ctor Uorc.Search.Replay::Step.pending (record Uorc.Search.Replay::Cursor {request := (project originalCursor request), expected := (project originalCursor expected), phase := (ctor Uorc.Search.Replay::Phase.unresolvedTrial retainedTrial retainedWords), winner := (project originalCursor winner), raw := (project originalCursor raw), maximumBodyLength := (project originalCursor maximumBodyLength), ledger := (project originalCursor ledger), failures := (project originalCursor failures)}))) = (ctor ProbeSetup.pending (ctor Uorc.Search.Replay::Step.pending (record Uorc.Search.Replay::Cursor {request := (project originalCursor request), expected := (project originalCursor expected), phase := (ctor Uorc.Search.Replay::Phase.unresolvedTrial retainedTrial retainedWords), winner := (project originalCursor winner), raw := (project originalCursor raw), maximumBodyLength := (project originalCursor maximumBodyLength), ledger := (project originalCursor ledger), failures := (project originalCursor failures)})))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: seekBlocks,
+  parameters: [blocks : Nat, setup : ProbeSetup],
+  result: ProbeSetup,
+  body: (match blocks
+    | Nat.zero => setup
+    | Nat.succ remaining => (match setup
+      | ProbeSetup.pending state => (seekBlocks remaining (seekWords 1000 state))
+      | ProbeSetup.ready cursor words => (ctor ProbeSetup.ready cursor words)
+      | ProbeSetup.unavailable => (ctor ProbeSetup.unavailable))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: blocks
+}
+
+definition{
+  name: probeStart,
+  parameters: [input : (Option Uorc.Search.Replay::Step), body : Bytes],
+  result: (Option Uorc.Search.Replay::Step),
+  body: (match input
+    | Option.none => (ctor Option.none [Uorc.Search.Replay::Step])
+    | Option.some state => (match (seekBlocks 30 (ctor ProbeSetup.pending state))
+      | ProbeSetup.pending waiting => (ctor Option.none [Uorc.Search.Replay::Step])
+      | ProbeSetup.unavailable => (ctor Option.none [Uorc.Search.Replay::Step])
+      | ProbeSetup.ready cursor words => (ctor Option.some [Uorc.Search.Replay::Step] (ctor Uorc.Search.Replay::Step.pending (record Uorc.Search.Replay::Cursor {request := (project cursor request), expected := (project cursor expected), phase := (ctor Uorc.Search.Replay::Phase.parsing (Uorc.Core.Bytes::fromBytes body) (ctor Uorc.Wire.GraphParse::Event.advanced (Uorc.Wire.GraphParse::start)) (Uorc.Core.Bytes::cursor (Uorc.Core.Bytes::fromBytes body)) false words), winner := (project cursor winner), raw := (project cursor raw), maximumBodyLength := (project cursor maximumBodyLength), ledger := (project cursor ledger), failures := (project cursor failures)}))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: isCounterexample,
+  parameters: [state : Uorc.Search.Replay::Step],
+  result: Bool,
+  body: (match state
+    | Uorc.Search.Replay::Step.pending c => false
+    | Uorc.Search.Replay::Step.counterexample c => true
+    | Uorc.Search.Replay::Step.completeBodyReplay c => false
+    | Uorc.Search.Replay::Step.incomplete e c => false)
+}
+
+definition{
+  name: probeCounterexample,
+  parameters: [input : (Option Uorc.Search.Replay::Step)],
+  result: Bool,
+  body: (match input
+    | Option.none => false
+    | Option.some state => (isCounterexample (runBlocks 40 1000 state))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: targeted_real_program_predecessor_is_checked_counterexample,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Wire.GraphEmit::collectFixture 2000 (Uorc.Wire.GraphEmit::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (24 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 1 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1})) 0x)
+    | Option.none => false
+    | Option.some emittedBody => (probeCounterexample (probeStart (ctor Option.some [Uorc.Search.Replay::Step] (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 24 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000000000000000000000000000000000000000000000000), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x554f5243020100000118180000000000000000000000000000000000000000000000006d0cd23ea481accf4a967e12b82b25ccdcaafa32f5e00dc7a6b3e570d9806f9f)}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 24 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000000000000000000000000000000000000000000000000), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)})))) emittedBody))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: probeStaticBeforePruning,
+  parameters: [input : (Option Uorc.Search.Replay::Step)],
+  result: Bool,
+  body: (match input
+    | Option.none => false
+    | Option.some state => (match (seekBlocks 20 (ctor ProbeSetup.pending state))
+      | ProbeSetup.pending waiting => false
+      | ProbeSetup.unavailable => false
+      | ProbeSetup.ready cursor words => (((project (project cursor ledger) staticRejected) =? 1) && ((project (project cursor ledger) sizePruned) =? 0)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: probeFreshEOF,
+  parameters: [input : (Option Uorc.Search.Replay::Step)],
+  result: Bool,
+  body: (match input
+    | Option.none => false
+    | Option.some state => (match (seekBlocks 20 (ctor ProbeSetup.pending state))
+      | ProbeSetup.pending waiting => false
+      | ProbeSetup.unavailable => false
+      | ProbeSetup.ready cursor words => (((project (project cursor ledger) syntaxRejected) =? 1) && ((project (project cursor ledger) sizePruned) =? 0)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: invalid_large_body_is_validated_before_cached_size_pruning,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Wire.GraphEmit::collectFixture 2000 (Uorc.Wire.GraphEmit::start (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0x00000000000000000000000000000000000000000000000000) (nil Uorc.Core.Graph::Instruction)), returnDistance := 0}) (nil Uorc.Core.Graph::Block)), entry := 0})) 0x)
+    | Option.none => false
+    | Option.some emittedBody => (probeStaticBeforePruning (probeStart (ctor Option.some [Uorc.Search.Replay::Step] (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 24 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000000000000000000000000000000000000000000000000), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x554f5243020100000118180000000000000000000000000000000000000000000000006d0cd23ea481accf4a967e12b82b25ccdcaafa32f5e00dc7a6b3e570d9806f9f)}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 24 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000000000000000000000000000000000000000000000000), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)})))) emittedBody))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: trailing_body_byte_is_rejected_by_fresh_eof,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Wire.GraphEmit::collectFixture 2000 (Uorc.Wire.GraphEmit::start (Uorc.Core.Graph::literalGraph 0x)) 0x)
+    | Option.none => false
+    | Option.some emittedBody => (probeFreshEOF (probeStart (ctor Option.some [Uorc.Search.Replay::Step] (ctor Uorc.Search.Replay::Step.pending (Uorc.Search.Replay::start (record Uorc.Search.Replay::Request {seal := (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 24 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000000000000000000000000000000000000000000000000), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)}), winnerWire := (Uorc.Core.Bytes::fromBytes 0x554f5243020100000118180000000000000000000000000000000000000000000000006d0cd23ea481accf4a967e12b82b25ccdcaafa32f5e00dc7a6b3e570d9806f9f)}) (record Uorc.Search.Replay::Seal {query := (record Uorc.Search.Identity::Snapshot {archiveFormat := 2, machineProfile := 1, scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := (cons 24 (nil Nat)), target := (Uorc.Core.Bytes::fromBytes 0x000000000000000000000000000000000000000000000000), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 10000000, maxLiveCells := 10000000, maxOutputBytes := 10000000, maxFrames := 1000}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}), wireProfile := (Uorc.Core.Bytes::fromBytes 0x02), machineSource := (Uorc.Core.Bytes::fromBytes 0x01), basisSemantics := (Uorc.Core.Bytes::fromBytes 0x62617369732d7631), outputSemantics := (Uorc.Core.Bytes::fromBytes 0x6f7264657265642d656d7074792d6f626a65637473), objectiveSemantics := (Uorc.Core.Bytes::fromBytes 0x6c656e6774682d756e7369676e65642d6c6578), operationalAddressing := (Uorc.Search.Replay::operationalAddressingIdentity)})))) (prim append emittedBody 0x00 : Bytes)))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: operational_stepLimit_is_not_semantic_exclusion,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::decodeExclusion (ctor Uorc.Core.Resources::OperationalError.stepLimit)) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: operational_liveCellLimit_is_not_semantic_exclusion,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::decodeExclusion (ctor Uorc.Core.Resources::OperationalError.liveCellLimit)) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: operational_outputLimit_is_not_semantic_exclusion,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::decodeExclusion (ctor Uorc.Core.Resources::OperationalError.outputLimit)) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: operational_frameLimit_is_not_semantic_exclusion,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::decodeExclusion (ctor Uorc.Core.Resources::OperationalError.frameLimit)) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: operational_hostMemory_is_not_semantic_exclusion,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::decodeExclusion (ctor Uorc.Core.Resources::OperationalError.hostMemory)) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: operational_addressSpaceExhausted_is_not_semantic_exclusion,
+  parameters: [],
+  statement: ((Uorc.Search.Replay::decodeExclusion (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)) = false),
+  proof: reflexivity{}
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "ReplayControls.actual_empty_raw_exhausts_one_empty_body", passed := (actual_empty_raw_exhausts_one_empty_body)}) (cons (record Observation {id := "ReplayControls.actual_literal_winner_returns_checked_raw_counterexample", passed := (actual_literal_winner_returns_checked_raw_counterexample)}) (cons (record Observation {id := "ReplayControls.invalid_large_body_is_validated_before_cached_size_pruning", passed := (invalid_large_body_is_validated_before_cached_size_pruning)}) (cons (record Observation {id := "ReplayControls.ordered_empty_objects_are_independently_replayed", passed := (ordered_empty_objects_are_independently_replayed)}) (cons (record Observation {id := "ReplayControls.targeted_real_program_predecessor_is_checked_counterexample", passed := (targeted_real_program_predecessor_is_checked_counterexample)}) (cons (record Observation {id := "ReplayControls.trailing_body_byte_is_rejected_by_fresh_eof", passed := (trailing_body_byte_is_rejected_by_fresh_eof)}) (cons (record Observation {id := "ReplayControls.resumption_preserves_bounded_event_sequence", passed := (resumption_preserves_bounded_event_sequence)}) (cons (record Observation {id := "ReplayControls.zero_checker_work_never_certifies", passed := (zero_checker_work_never_certifies)}) (cons (record Observation {id := "ReplayControls.truncated_claimed_archive_stops_incomplete", passed := (truncated_claimed_archive_stops_incomplete)}) (nil Observation)))))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

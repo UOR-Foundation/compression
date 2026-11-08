@@ -1,0 +1,387 @@
+\begin{lexlean}{Uorc.Search.Normalize}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Schedule}
+\importmodule{Uorc.Core.ByteBuilder}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Policy,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: blockBytes, type: Nat}]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: zeroBlockSize, fields: []},
+    {name: invalidCursor, fields: []},
+    {name: builder, fields: [Uorc.Core.ByteBuilder::Error]}
+  ]
+}
+
+structure{
+  name: Normalized,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: rope, type: Uorc.Core.Bytes::Rope},
+    {name: totalBytes, type: Nat},
+    {name: blockBytes, type: Nat},
+    {name: logicalSteps, type: Nat}
+  ]
+}
+
+structure{
+  name: Reverse,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: remaining, type: (List Uorc.Core.Bytes::Rope)},
+    {name: forward, type: (List Uorc.Core.Bytes::Rope)},
+    {name: chunkCount, type: Nat},
+    {name: totalBytes, type: Nat},
+    {name: logicalSteps, type: Nat},
+    {name: physicalSteps, type: Nat}
+  ]
+}
+
+inductive{
+  name: TreeTask,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: subtree, fields: [Nat]}, {name: combine, fields: []}]
+}
+
+inductive{
+  name: Build,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: state,
+      fields: [
+        (List TreeTask),
+        (List Uorc.Core.Bytes::Rope),
+        (List Uorc.Core.Bytes::Rope),
+        Nat,
+        Nat,
+        Nat
+      ]
+    }
+  ]
+}
+
+inductive{
+  name: BlockRead,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: state, fields: [Uorc.Core.Bytes::Cursor, Uorc.Core.ByteBuilder::Builder, Nat, Nat, Nat]}
+  ]
+}
+
+inductive{
+  name: BlockAppend,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: state, fields: [Uorc.Core.Bytes::Cursor, Uorc.Core.ByteBuilder::Work, Nat, Nat, Nat]}
+  ]
+}
+
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: reversing, fields: [Reverse]},
+    {name: building, fields: [Build]},
+    {name: initial, fields: [Uorc.Core.Bytes::Rope]},
+    {name: blockReading, fields: [BlockRead]},
+    {name: blockAppending, fields: [BlockAppend]},
+    {name: blockFinishing, fields: [BlockAppend]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: done, fields: [Normalized, Nat]},
+    {name: rejected, fields: [Error]},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [source : Uorc.Core.Bytes::Rope],
+  result: Cursor,
+  body: (ctor Cursor.initial source)
+}
+
+definition{
+  name: reverseStep,
+  parameters: [state : Reverse],
+  result: Step,
+  body: (match (project state remaining)
+    | List.nil => (ctor Step.pending (ctor Cursor.building (ctor Build.state (cons (ctor TreeTask.subtree (project state chunkCount)) (nil TreeTask)) (project state forward) (nil Uorc.Core.Bytes::Rope) (project state totalBytes) ((project state logicalSteps) + 1) (project state physicalSteps))))
+    | List.cons chunk rest => (ctor Step.pending (ctor Cursor.reversing (record Reverse {remaining := rest, forward := (cons chunk (project state forward)), chunkCount := (project state chunkCount), totalBytes := (project state totalBytes), logicalSteps := ((project state logicalSteps) + 1), physicalSteps := (project state physicalSteps)}))))
+}
+
+definition{
+  name: buildStep,
+  parameters: [policy : Policy, state : Build],
+  result: Step,
+  body: (match state
+    | Build.state tasks chunks values totalBytes logicalSteps physicalSteps => (match tasks
+      | List.nil => (match chunks
+        | List.cons unexpectedChunk unexpectedChunks => (ctor Step.rejected (ctor Error.invalidCursor))
+        | List.nil => (match values
+          | List.nil => (ctor Step.rejected (ctor Error.invalidCursor))
+          | List.cons rope remainingValues => (match remainingValues
+            | List.cons extraValue extraValues => (ctor Step.rejected (ctor Error.invalidCursor))
+            | List.nil => (ctor Step.done (record Normalized {rope := rope, totalBytes := totalBytes, blockBytes := (project policy blockBytes), logicalSteps := (logicalSteps + 1)}) physicalSteps))))
+      | List.cons task restTasks => (match task
+        | TreeTask.subtree count => (if (count =? 0) then (ctor Step.pending (ctor Cursor.building (ctor Build.state restTasks chunks (cons (ctor Uorc.Core.Bytes::Rope.empty) values) totalBytes (logicalSteps + 1) physicalSteps))) else (if (count =? 1) then (match chunks
+          | List.nil => (ctor Step.rejected (ctor Error.invalidCursor))
+          | List.cons chunk remainingChunks => (ctor Step.pending (ctor Cursor.building (ctor Build.state restTasks remainingChunks (cons chunk values) totalBytes (logicalSteps + 1) physicalSteps)))) else (ctor Step.pending (ctor Cursor.building (ctor Build.state (cons (ctor TreeTask.subtree (prim quotient count 2 0 : Nat)) (cons (ctor TreeTask.subtree (prim subtract count (prim quotient count 2 0 : Nat) : Nat)) (cons (ctor TreeTask.combine) restTasks))) chunks values totalBytes (logicalSteps + 1) physicalSteps)))))
+        | TreeTask.combine => (match values
+          | List.nil => (ctor Step.rejected (ctor Error.invalidCursor))
+          | List.cons rightTree afterRight => (match afterRight
+            | List.nil => (ctor Step.rejected (ctor Error.invalidCursor))
+            | List.cons leftTree remainingValues => (ctor Step.pending (ctor Cursor.building (ctor Build.state restTasks chunks (cons (Uorc.Core.Bytes::node leftTree rightTree) remainingValues) totalBytes (logicalSteps + 1) physicalSteps))))))))
+}
+
+definition{
+  name: initialStep,
+  parameters: [policy : Policy, source : Uorc.Core.Bytes::Rope],
+  result: Step,
+  body: (match (Uorc.Core.ByteBuilder::start (project policy blockBytes))
+    | Result.error builderError => (ctor Step.rejected (ctor Error.builder builderError))
+    | Result.ok builder => (ctor Step.pending (ctor Cursor.blockReading (ctor BlockRead.state (Uorc.Core.Bytes::cursor source) builder 0 1 0))))
+}
+
+definition{
+  name: blockReadStep,
+  parameters: [state : BlockRead],
+  result: Step,
+  body: (match state
+    | BlockRead.state source builder totalBytes logicalSteps physicalSteps => (match (Uorc.Core.Bytes::nextChunk source 1)
+      | Result.error ropeError => (ctor Step.ropeFailure ropeError)
+      | Result.ok event => (match event
+        | Uorc.Core.Bytes::CursorEvent.advanced next => (ctor Step.pending (ctor Cursor.blockReading (ctor BlockRead.state next builder totalBytes logicalSteps (physicalSteps + 1))))
+        | Uorc.Core.Bytes::CursorEvent.produced chunk next => (if ((prim length chunk : Nat) =? 1) then (match (prim index chunk 0 : (Option UInt8))
+          | Option.none => (ctor Step.rejected (ctor Error.invalidCursor))
+          | Option.some byte => (ctor Step.pending (ctor Cursor.blockAppending (ctor BlockAppend.state next (Uorc.Core.ByteBuilder::appendByte builder byte) (totalBytes + 1) (logicalSteps + 1) (physicalSteps + 1))))) else (ctor Step.rejected (ctor Error.invalidCursor)))
+        | Uorc.Core.Bytes::CursorEvent.done => (ctor Step.pending (ctor Cursor.blockFinishing (ctor BlockAppend.state source (Uorc.Core.ByteBuilder::finish builder) totalBytes (logicalSteps + 1) (physicalSteps + 1)))))))
+}
+
+definition{
+  name: blockAppendStep,
+  parameters: [policy : Policy, state : BlockAppend],
+  result: Step,
+  body: (match state
+    | BlockAppend.state source work totalBytes logicalSteps physicalSteps => (match (Uorc.Core.ByteBuilder::step work)
+      | Uorc.Core.ByteBuilder::Event.advanced next => (ctor Step.pending (ctor Cursor.blockAppending (ctor BlockAppend.state source next totalBytes (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work)) physicalSteps)))
+      | Uorc.Core.ByteBuilder::Event.appended builder => (ctor Step.pending (ctor Cursor.blockReading (ctor BlockRead.state source builder totalBytes (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work)) physicalSteps)))
+      | Uorc.Core.ByteBuilder::Event.finished rope => (ctor Step.rejected (ctor Error.invalidCursor))
+      | Uorc.Core.ByteBuilder::Event.failed builderError => (ctor Step.rejected (ctor Error.builder builderError)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: blockFinishStep,
+  parameters: [policy : Policy, state : BlockAppend],
+  result: Step,
+  body: (match state
+    | BlockAppend.state source work totalBytes logicalSteps physicalSteps => (match (Uorc.Core.ByteBuilder::step work)
+      | Uorc.Core.ByteBuilder::Event.advanced next => (ctor Step.pending (ctor Cursor.blockFinishing (ctor BlockAppend.state source next totalBytes (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work)) physicalSteps)))
+      | Uorc.Core.ByteBuilder::Event.appended builder => (ctor Step.rejected (ctor Error.invalidCursor))
+      | Uorc.Core.ByteBuilder::Event.finished rope => (ctor Step.done (record Normalized {rope := rope, totalBytes := totalBytes, blockBytes := (project policy blockBytes), logicalSteps := (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work))}) physicalSteps)
+      | Uorc.Core.ByteBuilder::Event.failed builderError => (ctor Step.rejected (ctor Error.builder builderError)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: step,
+  parameters: [policy : Policy, cursor : Cursor],
+  result: Step,
+  body: (if ((project policy blockBytes) =? 0) then (ctor Step.rejected (ctor Error.zeroBlockSize)) else (match cursor
+    | Cursor.reversing state => (reverseStep state)
+    | Cursor.building state => (buildStep policy state)
+    | Cursor.initial source => (initialStep policy source)
+    | Cursor.blockReading state => (blockReadStep state)
+    | Cursor.blockAppending state => (blockAppendStep policy state)
+    | Cursor.blockFinishing state => (blockFinishStep policy state))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, policy : Policy, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ restFuel => (match state
+      | Step.pending cursor => (run restFuel policy (step policy cursor))
+      | Step.done normalized physical => (ctor Step.done normalized physical)
+      | Step.rejected error => (ctor Step.rejected error)
+      | Step.ropeFailure error => (ctor Step.ropeFailure error))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: canonicalResult,
+  parameters: [state : Step],
+  result: (Option Normalized),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [Normalized])
+    | Step.done normalized physical => (ctor Option.some [Normalized] normalized)
+    | Step.rejected error => (ctor Option.none [Normalized])
+    | Step.ropeFailure error => (ctor Option.none [Normalized]))
+}
+
+theorem{
+  name: transport_partition_does_not_change_canonical_snapshot,
+  parameters: [],
+  statement: ((canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))) = (canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x) (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x01ff) (Uorc.Core.Bytes::fromBytes 0x80))))))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: empty_chunks_dont_change_canonical_snapshot,
+  parameters: [],
+  statement: ((canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x))))) = (canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x) (Uorc.Core.Bytes::fromBytes 0x))))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: zero_block_policy_is_configuration_error,
+  parameters: [],
+  statement: ((step (record Policy {blockBytes := 0}) (start (Uorc.Core.Bytes::fromBytes 0x0001ff80))) = (ctor Step.rejected (ctor Error.zeroBlockSize))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: canonical_block_tree_and_logical_events,
+  parameters: [],
+  statement: ((canonicalResult (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))) = (ctor Option.some [Normalized] (record Normalized {rope := (Uorc.Core.Bytes::node (Uorc.Core.Bytes::fromBytes 0x0001) (Uorc.Core.Bytes::fromBytes 0xff80)), totalBytes := 4, blockBytes := 2, logicalSteps := 59}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+structure{
+  name: SearchSeed,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: snapshot, type: Normalized},
+    {name: scheduler, type: Uorc.Search.Schedule::Cursor}
+  ]
+}
+
+definition{
+  name: seedAfterWork,
+  parameters: [
+    work : Nat,
+    searchPolicy : Uorc.Search.Schedule::Policy,
+    availability : Uorc.Search.Schedule::Availability,
+    normalization : Step
+  ],
+  result: (Option SearchSeed),
+  body: (match normalization
+    | Step.pending cursor => (ctor Option.none [SearchSeed])
+    | Step.done normalized physicalTelemetry => (match (Uorc.Search.Schedule::advance work searchPolicy availability (Uorc.Search.Schedule::initial searchPolicy))
+      | Option.none => (ctor Option.none [SearchSeed])
+      | Option.some scheduler => (ctor Option.some [SearchSeed] (record SearchSeed {snapshot := normalized, scheduler := scheduler})))
+    | Step.rejected error => (ctor Option.none [SearchSeed])
+    | Step.ropeFailure error => (ctor Option.none [SearchSeed]))
+}
+
+theorem{
+  name: equal_work_search_state_ignores_transport_partition,
+  parameters: [],
+  statement: ((seedAfterWork 23 (record Uorc.Search.Schedule::Policy {quantum := 2, sourceBinding := 0x01, seedInventoryBinding := 0x02}) (record Uorc.Search.Schedule::Availability {typedGeneration := true, addressCharts := true, antiUnification := true, sharingLayout := true, stateGenerators := true, completeEnumeration := true}) (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))) = (seedAfterWork 23 (record Uorc.Search.Schedule::Policy {quantum := 2, sourceBinding := 0x01, seedInventoryBinding := 0x02}) (record Uorc.Search.Schedule::Availability {typedGeneration := true, addressCharts := true, antiUnification := true, sharingLayout := true, stateGenerators := true, completeEnumeration := true}) (run 300 (record Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x) (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x01ff) (Uorc.Core.Bytes::fromBytes 0x80))))))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+structure{
+  name: WorkPrefix,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: logicalSteps, type: Nat}, {name: physicalSteps, type: Nat}]
+}
+
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: result, type: Step}, {name: prefix, type: WorkPrefix}]
+}
+
+definition{
+  name: workPrefix,
+  parameters: [cursor : Cursor],
+  result: WorkPrefix,
+  body: (match cursor
+    | Cursor.reversing observedState => (record WorkPrefix {logicalSteps := (project observedState logicalSteps), physicalSteps := (project observedState physicalSteps)})
+    | Cursor.building observedState => (match observedState
+      | Build.state b0 b1 b2 b3 logicalSteps physicalSteps => (record WorkPrefix {logicalSteps := logicalSteps, physicalSteps := physicalSteps}))
+    | Cursor.initial observedSource => (record WorkPrefix {logicalSteps := 0, physicalSteps := 0})
+    | Cursor.blockReading observedState => (match observedState
+      | BlockRead.state b0 b1 b2 logicalSteps physicalSteps => (record WorkPrefix {logicalSteps := logicalSteps, physicalSteps := physicalSteps}))
+    | Cursor.blockAppending observedState => (match observedState
+      | BlockAppend.state b0 b1 b2 logicalSteps physicalSteps => (record WorkPrefix {logicalSteps := logicalSteps, physicalSteps := physicalSteps}))
+    | Cursor.blockFinishing observedState => (match observedState
+      | BlockAppend.state b0 b1 b2 logicalSteps physicalSteps => (record WorkPrefix {logicalSteps := logicalSteps, physicalSteps := physicalSteps})))
+}
+
+definition{
+  name: attemptPrefix,
+  parameters: [cursor : Cursor],
+  result: WorkPrefix,
+  body: (match cursor
+    | Cursor.reversing observedState => (record WorkPrefix {logicalSteps := ((project observedState logicalSteps) + 1), physicalSteps := (project observedState physicalSteps)})
+    | Cursor.building observedState => (match observedState
+      | Build.state b0 b1 b2 b3 logicalSteps physicalSteps => (record WorkPrefix {logicalSteps := (logicalSteps + 1), physicalSteps := physicalSteps}))
+    | Cursor.initial observedSource => (record WorkPrefix {logicalSteps := (0 + 1), physicalSteps := 0})
+    | Cursor.blockReading observedState => (match observedState
+      | BlockRead.state b0 b1 b2 logicalSteps physicalSteps => (record WorkPrefix {logicalSteps := logicalSteps, physicalSteps := (physicalSteps + 1)}))
+    | Cursor.blockAppending observedState => (match observedState
+      | BlockAppend.state b0 work b2 logicalSteps physicalSteps => (record WorkPrefix {logicalSteps := (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work)), physicalSteps := physicalSteps}))
+    | Cursor.blockFinishing observedState => (match observedState
+      | BlockAppend.state b0 work b2 logicalSteps physicalSteps => (record WorkPrefix {logicalSteps := (logicalSteps + (Uorc.Core.ByteBuilder::eventWork work)), physicalSteps := physicalSteps})))
+}
+
+definition{
+  name: observe,
+  parameters: [policy : Policy, cursor : Cursor],
+  result: Observation,
+  body: (let result : Step := (step policy cursor); (record Observation {result := result, prefix := (match result
+    | Step.pending nextCursor => (workPrefix nextCursor)
+    | Step.done normalized physical => (record WorkPrefix {logicalSteps := (project normalized logicalSteps), physicalSteps := physical})
+    | Step.rejected failure => (if ((project policy blockBytes) =? 0) then (workPrefix cursor) else (attemptPrefix cursor))
+    | Step.ropeFailure failure => (attemptPrefix cursor))})),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: zero_policy_preserves_work_prefix,
+  parameters: [cursor : Cursor],
+  statement: ((project (observe (record Policy {blockBytes := 0}) cursor) prefix) = (workPrefix cursor)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

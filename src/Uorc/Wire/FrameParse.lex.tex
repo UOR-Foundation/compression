@@ -1,0 +1,607 @@
+\begin{lexlean}{Uorc.Wire.FrameParse}
+\importmodule{Uorc.Wire.Cursor}
+\importmodule{Uorc.Wire.Frame}
+\importmodule{Uorc.Wire.GraphParse}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.ByteBuilder}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Field,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: magic, fields: []},
+    {name: format, fields: []},
+    {name: profile, fields: []},
+    {name: scope, fields: []},
+    {name: representation, fields: []},
+    {name: objectCount, fields: []},
+    {name: objectLength, fields: []},
+    {name: bodyLength, fields: []},
+    {name: basis, fields: []},
+    {name: body, fields: []},
+    {name: integrity, fields: []},
+    {name: end, fields: []}
+  ]
+}
+
+inductive{
+  name: ParseError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: truncated, fields: []},
+    {name: wrongMagic, fields: []},
+    {name: unsupportedFormat, fields: []},
+    {name: unsupportedProfile, fields: []},
+    {name: invalidScope, fields: []},
+    {name: invalidRepresentation, fields: []},
+    {name: nonShortest, fields: []},
+    {name: rawLengthMismatch, fields: []},
+    {name: invalidGraphSyntax, fields: []},
+    {name: trailingBytes, fields: []},
+    {name: invalidState, fields: []},
+    {name: invalidQuantum, fields: []},
+    {name: cursorFailure, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+structure{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: kind, type: ParseError},
+    {name: field, type: Field},
+    {name: offset, type: Nat},
+    {name: graphError, type: (Option Uorc.Wire.GraphParse::ParseError)}
+  ]
+}
+
+inductive{
+  name: NumberTarget,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: objectCount, fields: []},
+    {name: objectLength, fields: []},
+    {name: bodyLength, fields: []}
+  ]
+}
+
+structure{
+  name: Header,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: conditional, type: Bool},
+    {name: program, type: Bool},
+    {name: objectCount, type: Nat},
+    {name: remainingLengths, type: Nat},
+    {name: objectLengths, type: (List Nat)},
+    {name: outputLength, type: Nat},
+    {name: bodyLength, type: Nat},
+    {name: basis, type: Bytes},
+    {name: bodyStart, type: Nat}
+  ]
+}
+
+inductive{
+  name: Stage,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: magic, fields: [Nat]},
+    {name: format, fields: []},
+    {name: profile, fields: []},
+    {name: scope, fields: []},
+    {name: representation, fields: []},
+    {name: number, fields: [NumberTarget, Nat, Nat, Nat]},
+    {name: reverseLengths, fields: [(List Nat), (List Nat)]},
+    {name: basis, fields: [Nat, Bytes]},
+    {name: raw, fields: [Nat, Uorc.Core.ByteBuilder::Builder]},
+    {name: rawWork, fields: [Nat, Uorc.Core.ByteBuilder::Work, Nat]},
+    {name: program, fields: [Nat, Uorc.Wire.GraphParse::State]},
+    {name: integrity, fields: [Nat, Bytes]},
+    {name: end, fields: [Bytes]}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Uorc.Wire.Cursor::Cursor},
+    {name: ended, type: Bool},
+    {name: waiting, type: Bool},
+    {name: header, type: Header},
+    {name: body, type: (Option Uorc.Wire.Frame::Body)},
+    {name: preimageLength, type: Nat},
+    {name: stage, type: Stage},
+    {name: work, type: Nat}
+  ]
+}
+
+structure{
+  name: ParsedArchive,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: frame, type: Uorc.Wire.Frame::Frame},
+    {name: integrity, type: Bytes},
+    {name: preimageLength, type: Nat},
+    {name: archiveLength, type: Nat}
+  ]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [State]},
+    {name: needInput, fields: [State]},
+    {name: complete, fields: [ParsedArchive, Nat]},
+    {name: failed, fields: [Error, Nat]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [],
+  result: State,
+  body: (record State {cursor := (Uorc.Wire.Cursor::start (nil Bytes)), ended := false, waiting := false, header := (record Header {conditional := false, program := false, objectCount := 0, remainingLengths := 0, objectLengths := (nil Nat), outputLength := 0, bodyLength := 0, basis := 0x, bodyStart := 0}), body := (ctor Option.none [Uorc.Wire.Frame::Body]), preimageLength := 0, stage := (ctor Stage.magic 0), work := 0})
+}
+
+definition{
+  name: feed,
+  parameters: [s : State, chunk : Bytes],
+  result: Event,
+  body: (if ((project s waiting) && ((not (project s ended)) && true)) then (ctor Event.advanced (record State {cursor := (record Uorc.Wire.Cursor::Cursor {parts := (cons chunk (nil Bytes)), offset := 0, position := (project (project s cursor) position)}), ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)})) else (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)))
+}
+
+definition{
+  name: finishInput,
+  parameters: [s : State],
+  result: Event,
+  body: (if ((project s waiting) && ((not (project s ended)) && true)) then (ctor Event.advanced (record State {cursor := (project s cursor), ended := true, waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)})) else (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.end), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)))
+}
+
+definition{
+  name: step,
+  parameters: [s : State, quantum : Nat],
+  result: Event,
+  body: (if (quantum =? 0) then (ctor Event.failed (record Error {kind := (ctor ParseError.invalidQuantum), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (if (project s waiting) then (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (match (project s stage)
+    | Stage.magic indexValue => (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (if ((prim to_nat readValue : Nat) =? (if (indexValue =? 0) then 85 else (if (indexValue =? 1) then 79 else (if (indexValue =? 2) then 82 else 67)))) then (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (if (indexValue =? 3) then (ctor Stage.format) else (ctor Stage.magic (indexValue + 1))), work := ((project s work) + 1)})) else (ctor Event.failed (record Error {kind := (ctor ParseError.wrongMagic), field := (ctor Field.magic), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.magic), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (ctor Field.magic), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))))
+    | Stage.format => (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (if ((prim to_nat readValue : Nat) =? (Uorc.Wire.Frame::formatVersion)) then (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.profile), work := ((project s work) + 1)})) else (ctor Event.failed (record Error {kind := (ctor ParseError.unsupportedFormat), field := (ctor Field.format), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.format), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (ctor Field.format), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))))
+    | Stage.profile => (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (if ((prim to_nat readValue : Nat) =? (Uorc.Wire.Frame::machineProfile)) then (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.scope), work := ((project s work) + 1)})) else (ctor Event.failed (record Error {kind := (ctor ParseError.unsupportedProfile), field := (ctor Field.profile), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.profile), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (ctor Field.profile), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))))
+    | Stage.scope => (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (if ((prim to_nat readValue : Nat) <=? 1) then (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (record Header {conditional := ((prim to_nat readValue : Nat) =? 1), program := (project (project s header) program), objectCount := (project (project s header) objectCount), remainingLengths := (project (project s header) remainingLengths), objectLengths := (project (project s header) objectLengths), outputLength := (project (project s header) outputLength), bodyLength := (project (project s header) bodyLength), basis := (project (project s header) basis), bodyStart := (project (project s header) bodyStart)}), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.representation), work := ((project s work) + 1)})) else (ctor Event.failed (record Error {kind := (ctor ParseError.invalidScope), field := (ctor Field.scope), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.scope), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (ctor Field.scope), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))))
+    | Stage.representation => (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (if ((prim to_nat readValue : Nat) <=? 1) then (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (record Header {conditional := (project (project s header) conditional), program := ((prim to_nat readValue : Nat) =? 1), objectCount := (project (project s header) objectCount), remainingLengths := (project (project s header) remainingLengths), objectLengths := (project (project s header) objectLengths), outputLength := (project (project s header) outputLength), bodyLength := (project (project s header) bodyLength), basis := (project (project s header) basis), bodyStart := (project (project s header) bodyStart)}), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.number (ctor NumberTarget.objectCount) 0 1 0), work := ((project s work) + 1)})) else (ctor Event.failed (record Error {kind := (ctor ParseError.invalidRepresentation), field := (ctor Field.representation), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.representation), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (ctor Field.representation), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))))
+    | Stage.number target value factor used => (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (if ((prim to_nat readValue : Nat) <? 128) then (if ((0 <? used) && (((prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) =? 0) && true)) then (ctor Event.failed (record Error {kind := (ctor ParseError.nonShortest), field := (match target
+        | NumberTarget.objectCount => (ctor Field.objectCount)
+        | NumberTarget.objectLength => (ctor Field.objectLength)
+        | NumberTarget.bodyLength => (ctor Field.bodyLength)), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (match target
+        | NumberTarget.objectCount => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (record Header {conditional := (project (project s header) conditional), program := (project (project s header) program), objectCount := (value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)), remainingLengths := (value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)), objectLengths := (nil Nat), outputLength := (project (project s header) outputLength), bodyLength := (project (project s header) bodyLength), basis := (project (project s header) basis), bodyStart := (project (project s header) bodyStart)}), body := (project s body), preimageLength := (project s preimageLength), stage := (if ((value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)) =? 0) then (ctor Stage.number (ctor NumberTarget.bodyLength) 0 1 0) else (ctor Stage.number (ctor NumberTarget.objectLength) 0 1 0)), work := ((project s work) + 1)}))
+        | NumberTarget.objectLength => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (record Header {conditional := (project (project s header) conditional), program := (project (project s header) program), objectCount := (project (project s header) objectCount), remainingLengths := (prim subtract (project (project s header) remainingLengths) 1 : Nat), objectLengths := (cons (value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)) (project (project s header) objectLengths)), outputLength := ((project (project s header) outputLength) + (value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat))), bodyLength := (project (project s header) bodyLength), basis := (project (project s header) basis), bodyStart := (project (project s header) bodyStart)}), body := (project s body), preimageLength := (project s preimageLength), stage := (if ((prim subtract (project (project s header) remainingLengths) 1 : Nat) =? 0) then (ctor Stage.reverseLengths (cons (value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)) (project (project s header) objectLengths)) (nil Nat)) else (ctor Stage.number (ctor NumberTarget.objectLength) 0 1 0)), work := ((project s work) + 1)}))
+        | NumberTarget.bodyLength => (if ((not (project (project s header) program)) && ((not ((value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)) =? (project (project s header) outputLength))) && true)) then (ctor Event.failed (record Error {kind := (ctor ParseError.rawLengthMismatch), field := (ctor Field.bodyLength), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (record Header {conditional := (project (project s header) conditional), program := (project (project s header) program), objectCount := (project (project s header) objectCount), remainingLengths := (project (project s header) remainingLengths), objectLengths := (project (project s header) objectLengths), outputLength := (project (project s header) outputLength), bodyLength := (value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)), basis := (project (project s header) basis), bodyStart := (project nextCursor position)}), body := (project s body), preimageLength := (project s preimageLength), stage := (if (project (project s header) conditional) then (ctor Stage.basis 32 0x) else (if (project (project s header) program) then (ctor Stage.program (value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)) (Uorc.Wire.GraphParse::start)) else (ctor Stage.raw (value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)) (Uorc.Core.ByteBuilder::empty)))), work := ((project s work) + 1)}))))) else (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.number target (value + (prim multiply (prim remainder (prim to_nat readValue : Nat) 128 0 : Nat) factor : Nat)) (prim multiply factor 128 : Nat) (used + 1)), work := ((project s work) + 1)})))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (match target
+        | NumberTarget.objectCount => (ctor Field.objectCount)
+        | NumberTarget.objectLength => (ctor Field.objectLength)
+        | NumberTarget.bodyLength => (ctor Field.bodyLength)), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (match target
+        | NumberTarget.objectCount => (ctor Field.objectCount)
+        | NumberTarget.objectLength => (ctor Field.objectLength)
+        | NumberTarget.bodyLength => (ctor Field.bodyLength)), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))))
+    | Stage.reverseLengths remainingItems reversedItems => (match remainingItems
+      | List.nil => (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (record Header {conditional := (project (project s header) conditional), program := (project (project s header) program), objectCount := (project (project s header) objectCount), remainingLengths := (project (project s header) remainingLengths), objectLengths := reversedItems, outputLength := (project (project s header) outputLength), bodyLength := (project (project s header) bodyLength), basis := (project (project s header) basis), bodyStart := (project (project s header) bodyStart)}), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.number (ctor NumberTarget.bodyLength) 0 1 0), work := ((project s work) + 1)}))
+      | List.cons item rest => (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.reverseLengths rest (cons item reversedItems)), work := ((project s work) + 1)})))
+    | Stage.basis remainingBasis basisBytes => (if (remainingBasis =? 0) then (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (record Header {conditional := (project (project s header) conditional), program := (project (project s header) program), objectCount := (project (project s header) objectCount), remainingLengths := (project (project s header) remainingLengths), objectLengths := (project (project s header) objectLengths), outputLength := (project (project s header) outputLength), bodyLength := (project (project s header) bodyLength), basis := basisBytes, bodyStart := (project (project s cursor) position)}), body := (project s body), preimageLength := (project s preimageLength), stage := (if (project (project s header) program) then (ctor Stage.program (project (project s header) bodyLength) (Uorc.Wire.GraphParse::start)) else (ctor Stage.raw (project (project s header) bodyLength) (Uorc.Core.ByteBuilder::empty))), work := ((project s work) + 1)})) else (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.basis (prim subtract remainingBasis 1 : Nat) (prim append basisBytes (Uorc.Core.Types::singletonSequence readValue) : Bytes)), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.basis), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (ctor Field.basis), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)})))))
+    | Stage.raw remainingBody builder => (if (remainingBody =? 0) then (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (Uorc.Core.ByteBuilder::finish builder) 0), work := ((project s work) + 1)})) else (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork (prim subtract remainingBody 1 : Nat) (Uorc.Core.ByteBuilder::appendByte builder readValue) 0), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)})))))
+    | Stage.rawWork remainingBody builderWork credit => (if ((credit + 1) <? (Uorc.Core.ByteBuilder::eventWork builderWork)) then (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork remainingBody builderWork (credit + 1)), work := ((project s work) + 1)})) else (match (Uorc.Core.ByteBuilder::step builderWork)
+      | Uorc.Core.ByteBuilder::Event.advanced nextBuilderWork => (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork remainingBody nextBuilderWork 0), work := ((project s work) + 1)}))
+      | Uorc.Core.ByteBuilder::Event.appended nextBuilder => (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.raw remainingBody nextBuilder), work := ((project s work) + 1)}))
+      | Uorc.Core.ByteBuilder::Event.finished rawRope => (if (remainingBody =? 0) then (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (ctor Option.some [Uorc.Wire.Frame::Body] (ctor Uorc.Wire.Frame::Body.raw rawRope)), preimageLength := (project (project s cursor) position), stage := (ctor Stage.integrity 32 0x), work := ((project s work) + 1)})) else (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)))
+      | Uorc.Core.ByteBuilder::Event.failed builderError => (match builderError
+        | Uorc.Core.ByteBuilder::Error.invalidState => (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+        | Uorc.Core.ByteBuilder::Error.addressSpaceExhausted => (ctor Event.failed (record Error {kind := (ctor ParseError.addressSpaceExhausted), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+        | Uorc.Core.ByteBuilder::Error.rope ignoredRopeError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+        | Uorc.Core.ByteBuilder::Error.zeroBlockSize => (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)))))
+    | Stage.program remainingBody graphState => (match (Uorc.Wire.GraphParse::step graphState quantum)
+      | Uorc.Wire.GraphParse::Event.advanced nextGraphState => (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.program remainingBody nextGraphState), work := ((project s work) + 1)}))
+      | Uorc.Wire.GraphParse::Event.needInput demandState => (if (remainingBody =? 0) then (match (Uorc.Wire.GraphParse::finishInput demandState)
+        | Uorc.Wire.GraphParse::Event.advanced nextGraphState => (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.program 0 nextGraphState), work := ((project s work) + 1)}))
+        | Uorc.Wire.GraphParse::Event.needInput unexpectedDemand => (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+        | Uorc.Wire.GraphParse::Event.complete unexpectedGraph unexpectedPosition unexpectedWork => (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+        | Uorc.Wire.GraphParse::Event.failed graphError graphOffset graphWork => (if (Uorc.Wire.GraphParse::isOperationalFailure graphError) then (ctor Event.failed (record Error {kind := (ctor ParseError.addressSpaceExhausted), field := (ctor Field.body), offset := ((project (project s header) bodyStart) + graphOffset), graphError := (ctor Option.some [Uorc.Wire.GraphParse::ParseError] graphError)}) ((project s work) + 1)) else (ctor Event.failed (record Error {kind := (ctor ParseError.invalidGraphSyntax), field := (ctor Field.body), offset := ((project (project s header) bodyStart) + graphOffset), graphError := (ctor Option.some [Uorc.Wire.GraphParse::ParseError] graphError)}) ((project s work) + 1)))) else (match (Uorc.Wire.Cursor::readStep (project s cursor))
+        | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+        | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (match (Uorc.Wire.GraphParse::feed demandState (Uorc.Core.Types::singletonSequence readValue))
+          | Uorc.Wire.GraphParse::Event.advanced nextGraphState => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.program (prim subtract remainingBody 1 : Nat) nextGraphState), work := ((project s work) + 1)}))
+          | Uorc.Wire.GraphParse::Event.needInput unexpectedDemand => (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+          | Uorc.Wire.GraphParse::Event.complete unexpectedGraph unexpectedPosition unexpectedWork => (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+          | Uorc.Wire.GraphParse::Event.failed graphError graphOffset graphWork => (if (Uorc.Wire.GraphParse::isOperationalFailure graphError) then (ctor Event.failed (record Error {kind := (ctor ParseError.addressSpaceExhausted), field := (ctor Field.body), offset := ((project (project s header) bodyStart) + graphOffset), graphError := (ctor Option.some [Uorc.Wire.GraphParse::ParseError] graphError)}) ((project s work) + 1)) else (ctor Event.failed (record Error {kind := (ctor ParseError.invalidGraphSyntax), field := (ctor Field.body), offset := ((project (project s header) bodyStart) + graphOffset), graphError := (ctor Option.some [Uorc.Wire.GraphParse::ParseError] graphError)}) ((project s work) + 1))))
+        | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+        | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)})))))
+      | Uorc.Wire.GraphParse::Event.failed graphError graphOffset graphWork => (if (Uorc.Wire.GraphParse::isOperationalFailure graphError) then (ctor Event.failed (record Error {kind := (ctor ParseError.addressSpaceExhausted), field := (ctor Field.body), offset := ((project (project s header) bodyStart) + graphOffset), graphError := (ctor Option.some [Uorc.Wire.GraphParse::ParseError] graphError)}) ((project s work) + 1)) else (ctor Event.failed (record Error {kind := (ctor ParseError.invalidGraphSyntax), field := (ctor Field.body), offset := ((project (project s header) bodyStart) + graphOffset), graphError := (ctor Option.some [Uorc.Wire.GraphParse::ParseError] graphError)}) ((project s work) + 1)))
+      | Uorc.Wire.GraphParse::Event.complete graphValue graphPosition graphWork => (if ((remainingBody =? 0) && ((graphPosition =? (project (project s header) bodyLength)) && true)) then (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (ctor Option.some [Uorc.Wire.Frame::Body] (ctor Uorc.Wire.Frame::Body.program graphValue)), preimageLength := (project (project s cursor) position), stage := (ctor Stage.integrity 32 0x), work := ((project s work) + 1)})) else (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))))
+    | Stage.integrity remainingDigest digestBytes => (if (remainingDigest =? 0) then (ctor Event.advanced (record State {cursor := (project s cursor), ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.end digestBytes), work := ((project s work) + 1)})) else (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.integrity (prim subtract remainingDigest 1 : Nat) (prim append digestBytes (Uorc.Core.Types::singletonSequence readValue) : Bytes)), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.integrity), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (ctor Event.failed (record Error {kind := (ctor ParseError.truncated), field := (ctor Field.integrity), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1)) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)})))))
+    | Stage.end digestBytes => (match (Uorc.Wire.Cursor::readStep (project s cursor))
+      | Uorc.Wire.Cursor::ReadEvent.advanced nextCursor => (ctor Event.advanced (record State {cursor := nextCursor, ended := (project s ended), waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))
+      | Uorc.Wire.Cursor::ReadEvent.byte readValue nextCursor => (ctor Event.failed (record Error {kind := (ctor ParseError.trailingBytes), field := (ctor Field.end), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.failed ignoredReadError => (ctor Event.failed (record Error {kind := (ctor ParseError.cursorFailure), field := (ctor Field.end), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+      | Uorc.Wire.Cursor::ReadEvent.end emptyCursor => (if (project s ended) then (match (project s body)
+        | Option.none => (ctor Event.failed (record Error {kind := (ctor ParseError.invalidState), field := (ctor Field.body), offset := (project (project s cursor) position), graphError := (ctor Option.none [Uorc.Wire.GraphParse::ParseError])}) ((project s work) + 1))
+        | Option.some bodyValue => (ctor Event.complete (record ParsedArchive {frame := (record Uorc.Wire.Frame::Frame {objectLengths := (project (project s header) objectLengths), scope := (if (project (project s header) conditional) then (ctor Uorc.Wire.Frame::Scope.conditional (project (project s header) basis)) else (ctor Uorc.Wire.Frame::Scope.selfContained)), body := bodyValue}), integrity := digestBytes, preimageLength := (project s preimageLength), archiveLength := (project (project s cursor) position)}) ((project s work) + 1))) else (ctor Event.needInput (record State {cursor := emptyCursor, ended := (project s ended), waiting := true, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := ((project s work) + 1)}))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{name: eventWork, parameters: [s : State, quantum : Nat], result: Nat, body: 1}
+
+definition{name: inputWork, parameters: [s : State], result: Nat, body: 1}
+
+definition{
+  name: fixtureStart,
+  parameters: [input : Bytes],
+  result: State,
+  body: (let s : State := (start); (record State {cursor := (Uorc.Wire.Cursor::start (cons input (nil Bytes))), ended := true, waiting := false, header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (project s stage), work := (project s work)}))
+}
+
+definition{
+  name: runFixture,
+  parameters: [fuel : Nat, s : State],
+  result: Event,
+  body: (match fuel
+    | Nat.zero => (ctor Event.advanced s)
+    | Nat.succ remaining => (match (step s 4096)
+      | Event.advanced nextStateValue => (runFixture remaining nextStateValue)
+      | Event.needInput nextStateValue => (ctor Event.needInput nextStateValue)
+      | Event.complete archive workValue => (ctor Event.complete archive workValue)
+      | Event.failed errorValue workValue => (ctor Event.failed errorValue workValue))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: accepted,
+  parameters: [event : Event],
+  result: Bool,
+  body: (match event
+    | Event.complete a w => true
+    | Event.advanced s => false
+    | Event.needInput s => false
+    | Event.failed e w => false)
+}
+
+definition{
+  name: errorKind,
+  parameters: [event : Event],
+  result: (Option ParseError),
+  body: (match event
+    | Event.complete a w => (ctor Option.none [ParseError])
+    | Event.advanced s => (ctor Option.none [ParseError])
+    | Event.needInput s => (ctor Option.none [ParseError])
+    | Event.failed e w => (ctor Option.some [ParseError] (project e kind)))
+}
+
+theorem{
+  name: syntax_empty_collection,
+  parameters: [],
+  statement: ((accepted (runFixture 4000 (fixtureStart 0x554f52430201000000000000000000000000000000000000000000000000000000000000000000000000))) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: syntax_empty_object,
+  parameters: [],
+  statement: ((accepted (runFixture 4000 (fixtureStart 0x554f5243020100000100000000000000000000000000000000000000000000000000000000000000000000))) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: syntax_binary,
+  parameters: [],
+  statement: ((accepted (runFixture 4000 (fixtureStart 0x554f52430201000001030300ff800000000000000000000000000000000000000000000000000000000000000000))) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: syntax_empty_boundaries,
+  parameters: [],
+  statement: ((accepted (runFixture 4000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000))) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: syntax_program,
+  parameters: [],
+  statement: ((accepted (runFixture 4000 (fixtureStart 0x554f52430201000101030b01000301030300ff8001000000000000000000000000000000000000000000000000000000000000000000))) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_truncated,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x))) = (ctor Option.some [ParseError] (ctor ParseError.truncated))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_wrong_magic,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x00))) = (ctor Option.some [ParseError] (ctor ParseError.wrongMagic))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_legacy_format,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f524301))) = (ctor Option.some [ParseError] (ctor ParseError.unsupportedFormat))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_legacy_profile,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f52430202))) = (ctor Option.some [ParseError] (ctor ParseError.unsupportedProfile))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_scope,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f5243020102))) = (ctor Option.some [ParseError] (ctor ParseError.invalidScope))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_representation,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f524302010002))) = (ctor Option.some [ParseError] (ctor ParseError.invalidRepresentation))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_overlong,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f5243020100008000))) = (ctor Option.some [ParseError] (ctor ParseError.nonShortest))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_raw_length,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f524302010000010201))) = (ctor Option.some [ParseError] (ctor ParseError.rawLengthMismatch))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_short_integrity,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f524302010000000000000000000000000000000000000000000000000000000000000000000000))) = (ctor Option.some [ParseError] (ctor ParseError.truncated))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reject_trailing,
+  parameters: [],
+  statement: ((errorKind (runFixture 4000 (fixtureStart 0x554f5243020100000000000000000000000000000000000000000000000000000000000000000000000000))) = (ctor Option.some [ParseError] (ctor ParseError.trailingBytes))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runChunksFixture,
+  parameters: [fuel : Nat, s : State, chunks : (List Bytes)],
+  result: Event,
+  body: (match fuel
+    | Nat.zero => (ctor Event.advanced s)
+    | Nat.succ remaining => (match (step s 17)
+      | Event.advanced nextStateValue => (runChunksFixture remaining nextStateValue chunks)
+      | Event.needInput demandState => (match chunks
+        | List.nil => (match (finishInput demandState)
+          | Event.advanced forwardState => (runChunksFixture remaining forwardState (nil Bytes))
+          | Event.needInput forwardState => (ctor Event.needInput forwardState)
+          | Event.complete forwardArchive forwardWork => (ctor Event.complete forwardArchive forwardWork)
+          | Event.failed forwardError forwardWork => (ctor Event.failed forwardError forwardWork))
+        | List.cons chunkHead chunkTail => (match (feed demandState chunkHead)
+          | Event.advanced forwardState => (runChunksFixture remaining forwardState chunkTail)
+          | Event.needInput forwardState => (ctor Event.needInput forwardState)
+          | Event.complete forwardArchive forwardWork => (ctor Event.complete forwardArchive forwardWork)
+          | Event.failed forwardError forwardWork => (ctor Event.failed forwardError forwardWork)))
+      | Event.complete archive workValue => (ctor Event.complete archive workValue)
+      | Event.failed errorValue workValue => (ctor Event.failed errorValue workValue))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: parsedValue,
+  parameters: [event : Event],
+  result: (Option ParsedArchive),
+  body: (match event
+    | Event.complete archive ignoredWork => (ctor Option.some [ParsedArchive] archive)
+    | Event.advanced ignoredState => (ctor Option.none [ParsedArchive])
+    | Event.needInput ignoredState => (ctor Option.none [ParsedArchive])
+    | Event.failed ignoredError ignoredWork => (ctor Option.none [ParsedArchive]))
+}
+
+theorem{
+  name: partition_0,
+  parameters: [],
+  statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x (cons 0x (cons 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partition_1,
+  parameters: [],
+  statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x55 (cons 0x (cons 0x4f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partition_4,
+  parameters: [],
+  statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f5243 (cons 0x (cons 0x020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partition_8,
+  parameters: [],
+  statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f524302010000 (cons 0x (cons 0x0500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partition_9,
+  parameters: [],
+  statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f52430201000005 (cons 0x (cons 0x00010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partition_15,
+  parameters: [],
+  statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f52430201000005000100010002 (cons 0x (cons 0x00ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partition_17,
+  parameters: [],
+  statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f5243020100000500010001000200ff (cons 0x (cons 0x0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partition_48,
+  parameters: [],
+  statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f5243020100000500010001000200ff00000000000000000000000000000000000000000000000000000000000000 (cons 0x (cons 0x00 (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partition_49,
+  parameters: [],
+  statement: ((parsedValue (runChunksFixture 8000 (start) (cons 0x (cons 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000 (cons 0x (cons 0x (cons 0x (nil Bytes)))))))) = (parsedValue (runFixture 8000 (fixtureStart 0x554f5243020100000500010001000200ff0000000000000000000000000000000000000000000000000000000000000000)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: feed_without_demand_rejected,
+  parameters: [],
+  statement: ((errorKind (feed (start) 0x)) = (ctor Option.some [ParseError] (ctor ParseError.invalidState))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: eof_without_demand_rejected,
+  parameters: [],
+  statement: ((errorKind (finishInput (start))) = (ctor Option.some [ParseError] (ctor ParseError.invalidState))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: raw_copy_waits_for_credit_0,
+  parameters: [],
+  statement: ((step (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 0), work := 0})) 1) = (ctor Event.advanced (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 1), work := 1})))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: raw_copy_waits_for_credit_1,
+  parameters: [],
+  statement: ((step (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 1), work := 1})) 1) = (ctor Event.advanced (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 2), work := 2})))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: raw_copy_executes_only_after_three_units,
+  parameters: [],
+  statement: ((step (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x02 (cons (ctor Option.some [Bytes] 0x01) (nil (Option Bytes))) 0 2 4096) 2), work := 2})) 1) = (ctor Event.advanced (let s : State := (start); (record State {cursor := (project s cursor), ended := (project s ended), waiting := (project s waiting), header := (project s header), body := (project s body), preimageLength := (project s preimageLength), stage := (ctor Stage.rawWork 0 (ctor Uorc.Core.ByteBuilder::Work.merging (ctor Uorc.Core.Bytes::Rope.empty) 0x0102 (nil (Option Bytes)) 1 2 4096) 0), work := 3})))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: parser_event_cost_is_one,
+  parameters: [],
+  statement: ((eventWork (start) 4096) = 1),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "ParsedArchive means only complete canonical syntax and exact body boundaries. Its32-byte integrity field is unverified until the independent integrity checker traverses exactly preimageLength bytes of the immutable archive snapshot and compares the digest. Every program must subsequently pass complete static validation before execution. Raw frame syntax checks aggregate object lengths. This parser demands new input explicitly and never consumes integrity bytes as graph-body input; legacy formats/profiles and trailing bytes are rejected. Canonical raw/literal storage uses4096-byte leaves, independent of input chunking; this is not an input-size limit. Each public step/feed/EOF event costs one logical parser unit, covering a fixed bounded control dispatch and at most a32-byte header copy. Variable-size payload copies use retained ByteBuilder credit and execute only after their exact declared cost is paid. Inner graph feeds contain at most one byte; no caller quantum hides an uncharged bulk slice. Parser-owned retained memory is a separate ownership obligation, and these units are not physical time or RSS."
+}
+\end{semanticmodule}
+\end{lexlean}

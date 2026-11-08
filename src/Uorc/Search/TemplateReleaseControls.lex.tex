@@ -1,0 +1,136 @@
+\begin{lexlean}{Uorc.Search.TemplateReleaseControls}
+\importmodule{Uorc.Search.TemplateRelease}
+\importmodule{Uorc.Search.TemplateAdmission}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeTable}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Expected,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: originalSearch, type: Uorc.Core.RuntimeValue::Handle},
+    {name: blocks, type: Uorc.Core.RuntimeValue::Handle},
+    {name: basis, type: Uorc.Core.RuntimeValue::Handle},
+    {name: entry, type: UInt64},
+    {name: blockCount, type: UInt64},
+    {name: initialWork, type: UInt64}
+  ]
+}
+
+structure{
+  name: Probe,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Uorc.Search.TemplateRelease::Cursor},
+    {name: expected, type: Expected},
+    {name: control, type: Uorc.Core.RuntimeValue::Handle},
+    {name: passed, type: Bool},
+    {name: done, type: Bool}
+  ]
+}
+
+definition{
+  name: live,
+  parameters: [activeArena : Uorc.Core.Heap::Arena, handle : Uorc.Core.RuntimeValue::Handle],
+  result: Bool,
+  body: (if (Uorc.Core.RuntimeValue::isNull handle) then true else (match (Uorc.Core.Heap::lookup activeArena handle)
+    | Result.error heapFailure => false
+    | Result.ok entry => true)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: knownControl,
+  parameters: [cursor : Uorc.Search.TemplateRelease::Cursor],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (project (match (project cursor phase)
+    | Uorc.Search.TemplateRelease::Phase.active activeArena header stage => header
+    | Uorc.Search.TemplateRelease::Phase.splitting splitCursor header => header) control)
+}
+
+definition{
+  name: zeroCreditPreservesMetrics,
+  parameters: [cursor : Uorc.Search.TemplateRelease::Cursor],
+  result: Bool,
+  body: (let change : Uorc.Search.TemplateRelease::Transition := (Uorc.Search.TemplateRelease::step cursor (0 : UInt64)); ((prim equal (project (Uorc.Search.TemplateRelease::arena cursor) ownedBytes) (project (Uorc.Search.TemplateRelease::arena (project change cursor)) ownedBytes) : Bool) && ((prim equal (project (Uorc.Search.TemplateRelease::usage cursor) work) (project (Uorc.Search.TemplateRelease::usage (project change cursor)) work) : Bool) && ((prim equal (project cursor attemptedOperations) (project (project change cursor) attemptedOperations) : Bool) && (prim equal (project cursor paid) (project (project change cursor) paid) : Bool))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: start,
+  parameters: [admitted : Uorc.Search.TemplateAdmission::Cursor],
+  result: (Option Probe),
+  body: (match (Uorc.Search.TemplateAdmission::admitted admitted)
+    | Option.none => (ctor Option.none [Probe])
+    | Option.some ready => (match (Uorc.Search.TemplateRelease::start admitted)
+      | Result.error releaseFailure => (ctor Option.none [Probe])
+      | Result.ok started => (ctor Option.some [Probe] (record Probe {cursor := started, expected := (record Expected {originalSearch := (project (project admitted meta) originalSearch), blocks := (project (project (project ready program) blocks) root), basis := (project (project (project ready program) basis) root), entry := (project (project ready program) entry), blockCount := (project (project ready program) blockCount), initialWork := (project (project ready usage) work)}), control := (Uorc.Core.RuntimeValue::nullHandle), passed := (Uorc.Core.HeapAudit::auditRoots (Uorc.Search.TemplateRelease::arena started) (Uorc.Search.TemplateRelease::rootInventory started)), done := false})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: completed,
+  parameters: [
+    cursor : Uorc.Search.TemplateRelease::Cursor,
+    expected : Expected,
+    control : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: Bool,
+  body: (match (Uorc.Search.TemplateRelease::released cursor)
+    | Option.none => false
+    | Option.some ready => (((prim equal (project (project ready program) blockCount) (project expected blockCount) : Bool) && ((prim equal (project (project ready program) entry) (project expected entry) : Bool) && ((prim equal (project (project (project (project ready program) basis) root) id) (project (project expected basis) id) : Bool) && ((prim equal (project (project (project (project ready program) blocks) root) id) (project (project expected blocks) id) : Bool) && ((prim equal (project (project (project ready caller) search) id) (project (project expected originalSearch) id) : Bool) && true))))) && ((match (prim checked_subtract (project (project ready usage) work) (project expected initialWork) : (Option UInt64))
+      | Option.none => false
+      | Option.some work => (prim equal work (project cursor consumedCredits) : Bool)) && ((not (Uorc.Core.RuntimeValue::isNull control)) && (not (live (project ready arena) control)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: advance,
+  parameters: [probe : Probe],
+  result: Probe,
+  body: (let known : Uorc.Core.RuntimeValue::Handle := (knownControl (project probe cursor)); (let remembered : Uorc.Core.RuntimeValue::Handle := (if (Uorc.Core.RuntimeValue::isNull known) then (project probe control) else known); (let change : Uorc.Search.TemplateRelease::Transition := (Uorc.Search.TemplateRelease::step (project probe cursor) (1000000 : UInt64)); (record Probe {cursor := (project change cursor), expected := (project probe expected), control := remembered, passed := ((project probe passed) && ((zeroCreditPreservesMetrics (project probe cursor)) && ((Uorc.Core.HeapAudit::auditRoots (Uorc.Search.TemplateRelease::arena (project change cursor)) (Uorc.Search.TemplateRelease::rootInventory (project change cursor))) && (match (project change outcome)
+    | Uorc.Search.TemplateRelease::Outcome.pending => (live (Uorc.Search.TemplateRelease::arena (project change cursor)) remembered)
+    | Uorc.Search.TemplateRelease::Outcome.released => (completed (project change cursor) (project probe expected) remembered)
+    | Uorc.Search.TemplateRelease::Outcome.failed releaseFailure => false)))), done := (match (project change outcome)
+    | Uorc.Search.TemplateRelease::Outcome.pending => false
+    | Uorc.Search.TemplateRelease::Outcome.released => true
+    | Uorc.Search.TemplateRelease::Outcome.failed releaseFailure => true)})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [work : Nat, probe : Probe],
+  result: Probe,
+  body: (match work
+    | Nat.zero => probe
+    | Nat.succ remaining => (if (project probe done) then probe else (run remaining (advance probe)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+definition{
+  name: cleanupProbe,
+  parameters: [work : Nat, admitted : Uorc.Search.TemplateAdmission::Cursor],
+  result: Bool,
+  body: (match (start admitted)
+    | Option.none => false
+    | Option.some probe => (let finished : Probe := (run work probe); ((project finished done) && (project finished passed)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: qualification,
+  parameters: [],
+  result: String,
+  body: "The bounded executable cleanup probe consumes an actual admitted producer cursor supplied by the full source integration control. Every cleanup ownership prefix audits, zero credit preserves operational metrics, the original search and program handles are restored exactly, cumulative cleanup work equals fully funded fees, and the control reservation remains allocated through the last cleanup transition. Guard exhaustion is incomplete diagnostic evidence, not malformed input or a product limit. The probe is not a universal ownership/refinement proof, native performance result, or archive eligibility claim."
+}
+\end{semanticmodule}
+\end{lexlean}

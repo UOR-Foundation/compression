@@ -1,0 +1,598 @@
+\begin{lexlean}{Uorc.Core.Types}
+\importmodule{Uorc.Core.Store}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: SemanticError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: divisionByZero, fields: []},
+    {name: arithmeticOverflow, fields: []},
+    {name: negativeDifference, fields: []},
+    {name: byteOutOfRange, fields: []},
+    {name: shiftOutOfRange, fields: []},
+    {name: indexOutOfBounds, fields: []},
+    {name: sliceOutOfBounds, fields: []},
+    {name: basisOutOfBounds, fields: []},
+    {name: sequenceLengthOverflow, fields: []},
+    {name: outputMismatch, fields: []}
+  ]
+}
+
+inductive{
+  name: StaticError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidLocalReference, fields: []},
+    {name: invalidBlockReference, fields: []},
+    {name: typeMismatch, fields: []},
+    {name: arityMismatch, fields: []},
+    {name: returnMismatch, fields: []},
+    {name: entrySignatureMismatch, fields: []},
+    {name: emptyGraph, fields: []},
+    {name: invalidTypeTag, fields: []},
+    {name: undefinedOpcode, fields: []},
+    {name: unresolvedWireProfile, fields: []},
+    {name: invalidSequenceRope, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: ValueType,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: natural, fields: []},
+    {name: byte, fields: []},
+    {name: predicate, fields: []},
+    {name: sequence, fields: []},
+    {name: store, fields: []}
+  ]
+}
+
+inductive{
+  name: Value,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: natural, fields: [UInt64]},
+    {name: byte, fields: [UInt8]},
+    {name: predicate, fields: [Bool]},
+    {name: sequence, fields: [Bytes]},
+    {name: store, fields: [Uorc.Core.Store::Store]},
+    {name: segmentedSequence, fields: [Uorc.Core.Bytes::Rope]}
+  ]
+}
+
+definition{
+  name: typeOf,
+  parameters: [value : Value],
+  result: ValueType,
+  body: (match value
+    | Value.natural payload => (ctor ValueType.natural)
+    | Value.byte payload => (ctor ValueType.byte)
+    | Value.predicate payload => (ctor ValueType.predicate)
+    | Value.sequence payload => (ctor ValueType.sequence)
+    | Value.store payload => (ctor ValueType.store)
+    | Value.segmentedSequence payload => (ctor ValueType.sequence))
+}
+
+definition{
+  name: sameType,
+  parameters: [left : ValueType, right : ValueType],
+  result: Bool,
+  body: (match left
+    | ValueType.natural => (match right
+      | ValueType.natural => true
+      | ValueType.byte => false
+      | ValueType.predicate => false
+      | ValueType.sequence => false
+      | ValueType.store => false)
+    | ValueType.byte => (match right
+      | ValueType.natural => false
+      | ValueType.byte => true
+      | ValueType.predicate => false
+      | ValueType.sequence => false
+      | ValueType.store => false)
+    | ValueType.predicate => (match right
+      | ValueType.natural => false
+      | ValueType.byte => false
+      | ValueType.predicate => true
+      | ValueType.sequence => false
+      | ValueType.store => false)
+    | ValueType.sequence => (match right
+      | ValueType.natural => false
+      | ValueType.byte => false
+      | ValueType.predicate => false
+      | ValueType.sequence => true
+      | ValueType.store => false)
+    | ValueType.store => (match right
+      | ValueType.natural => false
+      | ValueType.byte => false
+      | ValueType.predicate => false
+      | ValueType.sequence => false
+      | ValueType.store => true))
+}
+
+definition{
+  name: wordToNatAux,
+  parameters: [depth : Nat, value : UInt64],
+  result: Nat,
+  body: (match depth
+    | Nat.zero => 0
+    | Nat.succ remaining => ((if (Uorc.Core.Store::lowBit value) then 1 else 0) + (prim multiply 2 (wordToNatAux remaining (Uorc.Core.Store::nextKey value)) : Nat))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: depth
+}
+
+definition{
+  name: wordToNat,
+  parameters: [value : UInt64],
+  result: Nat,
+  body: (wordToNatAux 64 value),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wordOfNatAux,
+  parameters: [depth : Nat, value : Nat],
+  result: (Option UInt64),
+  body: (match depth
+    | Nat.zero => (if (value =? 0) then (ctor Option.some [UInt64] (0 : UInt64)) else (ctor Option.none [UInt64]))
+    | Nat.succ remaining => (match (wordOfNatAux remaining (prim quotient value 2 0 : Nat))
+      | Option.none => (ctor Option.none [UInt64])
+      | Option.some upper => (match (prim checked_multiply upper (2 : UInt64) : (Option UInt64))
+        | Option.none => (ctor Option.none [UInt64])
+        | Option.some doubled => (prim checked_add doubled (if ((prim remainder value 2 0 : Nat) =? 0) then (0 : UInt64) else (1 : UInt64)) : (Option UInt64))))),
+  axioms: [Quot.sound, propext],
+  executable: true,
+  recursive_argument: depth
+}
+
+definition{
+  name: wordOfNat,
+  parameters: [value : Nat],
+  result: (Option UInt64),
+  body: (wordOfNatAux 64 value),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: wordLess,
+  parameters: [left : UInt64, right : UInt64],
+  result: Bool,
+  body: (match (prim checked_subtract left right : (Option UInt64))
+    | Option.none => true
+    | Option.some difference => false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: byteLess,
+  parameters: [left : UInt8, right : UInt8],
+  result: Bool,
+  body: (match (prim checked_subtract left right : (Option UInt8))
+    | Option.none => true
+    | Option.some difference => false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkedAdd,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 SemanticError),
+  body: (match (prim checked_add left right : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.arithmeticOverflow))
+    | Option.some sum => (ctor Result.ok [UInt64, SemanticError] sum)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkedSubtract,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 SemanticError),
+  body: (match (prim checked_subtract left right : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.negativeDifference))
+    | Option.some difference => (ctor Result.ok [UInt64, SemanticError] difference)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkedMultiply,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 SemanticError),
+  body: (match (prim checked_multiply left right : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.arithmeticOverflow))
+    | Option.some product => (ctor Result.ok [UInt64, SemanticError] product)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkedDivide,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 SemanticError),
+  body: (if (prim equal right (0 : UInt64) : Bool) then (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.divisionByZero)) else (match (prim checked_quotient left right : (Option UInt64))
+    | Option.none => (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.arithmeticOverflow))
+    | Option.some quotient => (ctor Result.ok [UInt64, SemanticError] quotient))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkedRemainder,
+  parameters: [left : UInt64, right : UInt64],
+  result: (Result UInt64 SemanticError),
+  body: (match (checkedDivide left right)
+    | Result.error error => (ctor Result.error [UInt64, SemanticError] error)
+    | Result.ok value => (match (checkedMultiply value right)
+      | Result.error productError => (ctor Result.error [UInt64, SemanticError] productError)
+      | Result.ok productValue => (checkedSubtract left productValue))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: naturalToByte,
+  parameters: [value : UInt64],
+  result: (Result UInt8 SemanticError),
+  body: (match (prim checked_convert value : (Option UInt8))
+    | Option.none => (ctor Result.error [UInt8, SemanticError] (ctor SemanticError.byteOutOfRange))
+    | Option.some converted => (ctor Result.ok [UInt8, SemanticError] converted)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: byteToNatural,
+  parameters: [value : UInt8],
+  result: UInt64,
+  body: (match (prim checked_convert value : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some converted => converted),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkedShiftLeft,
+  parameters: [value : UInt64, count : UInt64],
+  result: (Result UInt64 SemanticError),
+  body: (match (prim checked_convert count : (Option UInt32))
+    | Option.none => (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.shiftOutOfRange))
+    | Option.some converted => (match (prim shift_left value converted : (Option UInt64))
+      | Option.none => (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.shiftOutOfRange))
+      | Option.some shifted => (ctor Result.ok [UInt64, SemanticError] shifted))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkedShiftRight,
+  parameters: [value : UInt64, count : UInt64],
+  result: (Result UInt64 SemanticError),
+  body: (match (prim checked_convert count : (Option UInt32))
+    | Option.none => (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.shiftOutOfRange))
+    | Option.some converted => (match (prim shift_right value converted : (Option UInt64))
+      | Option.none => (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.shiftOutOfRange))
+      | Option.some shifted => (ctor Result.ok [UInt64, SemanticError] shifted))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sequenceLength,
+  parameters: [value : Bytes],
+  result: (Result UInt64 SemanticError),
+  body: (match (wordOfNat (prim length value : Nat))
+    | Option.none => (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.sequenceLengthOverflow))
+    | Option.some length => (ctor Result.ok [UInt64, SemanticError] length)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sequenceIndex,
+  parameters: [value : Bytes, index : UInt64],
+  result: (Result UInt8 SemanticError),
+  body: (match (prim index value (wordToNat index) : (Option UInt8))
+    | Option.none => (ctor Result.error [UInt8, SemanticError] (ctor SemanticError.indexOutOfBounds))
+    | Option.some selected => (ctor Result.ok [UInt8, SemanticError] selected)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sequenceSlice,
+  parameters: [value : Bytes, start : UInt64, count : UInt64],
+  result: (Result Bytes SemanticError),
+  body: (match (prim slice value (wordToNat start) (wordToNat count) : (Option Bytes))
+    | Option.none => (ctor Result.error [Bytes, SemanticError] (ctor SemanticError.sliceOutOfBounds))
+    | Option.some selected => (ctor Result.ok [Bytes, SemanticError] selected)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: singletons,
+  parameters: [],
+  result: (List Bytes),
+  body: (prim append (prim append (prim append (prim append (cons 0x00 (cons 0x01 (cons 0x02 (cons 0x03 (cons 0x04 (cons 0x05 (cons 0x06 (cons 0x07 (cons 0x08 (cons 0x09 (cons 0x0a (cons 0x0b (cons 0x0c (cons 0x0d (cons 0x0e (cons 0x0f (nil Bytes))))))))))))))))) (cons 0x10 (cons 0x11 (cons 0x12 (cons 0x13 (cons 0x14 (cons 0x15 (cons 0x16 (cons 0x17 (cons 0x18 (cons 0x19 (cons 0x1a (cons 0x1b (cons 0x1c (cons 0x1d (cons 0x1e (cons 0x1f (nil Bytes))))))))))))))))) : (List Bytes)) (prim append (cons 0x20 (cons 0x21 (cons 0x22 (cons 0x23 (cons 0x24 (cons 0x25 (cons 0x26 (cons 0x27 (cons 0x28 (cons 0x29 (cons 0x2a (cons 0x2b (cons 0x2c (cons 0x2d (cons 0x2e (cons 0x2f (nil Bytes))))))))))))))))) (cons 0x30 (cons 0x31 (cons 0x32 (cons 0x33 (cons 0x34 (cons 0x35 (cons 0x36 (cons 0x37 (cons 0x38 (cons 0x39 (cons 0x3a (cons 0x3b (cons 0x3c (cons 0x3d (cons 0x3e (cons 0x3f (nil Bytes))))))))))))))))) : (List Bytes)) : (List Bytes)) (prim append (prim append (cons 0x40 (cons 0x41 (cons 0x42 (cons 0x43 (cons 0x44 (cons 0x45 (cons 0x46 (cons 0x47 (cons 0x48 (cons 0x49 (cons 0x4a (cons 0x4b (cons 0x4c (cons 0x4d (cons 0x4e (cons 0x4f (nil Bytes))))))))))))))))) (cons 0x50 (cons 0x51 (cons 0x52 (cons 0x53 (cons 0x54 (cons 0x55 (cons 0x56 (cons 0x57 (cons 0x58 (cons 0x59 (cons 0x5a (cons 0x5b (cons 0x5c (cons 0x5d (cons 0x5e (cons 0x5f (nil Bytes))))))))))))))))) : (List Bytes)) (prim append (cons 0x60 (cons 0x61 (cons 0x62 (cons 0x63 (cons 0x64 (cons 0x65 (cons 0x66 (cons 0x67 (cons 0x68 (cons 0x69 (cons 0x6a (cons 0x6b (cons 0x6c (cons 0x6d (cons 0x6e (cons 0x6f (nil Bytes))))))))))))))))) (cons 0x70 (cons 0x71 (cons 0x72 (cons 0x73 (cons 0x74 (cons 0x75 (cons 0x76 (cons 0x77 (cons 0x78 (cons 0x79 (cons 0x7a (cons 0x7b (cons 0x7c (cons 0x7d (cons 0x7e (cons 0x7f (nil Bytes))))))))))))))))) : (List Bytes)) : (List Bytes)) : (List Bytes)) (prim append (prim append (prim append (cons 0x80 (cons 0x81 (cons 0x82 (cons 0x83 (cons 0x84 (cons 0x85 (cons 0x86 (cons 0x87 (cons 0x88 (cons 0x89 (cons 0x8a (cons 0x8b (cons 0x8c (cons 0x8d (cons 0x8e (cons 0x8f (nil Bytes))))))))))))))))) (cons 0x90 (cons 0x91 (cons 0x92 (cons 0x93 (cons 0x94 (cons 0x95 (cons 0x96 (cons 0x97 (cons 0x98 (cons 0x99 (cons 0x9a (cons 0x9b (cons 0x9c (cons 0x9d (cons 0x9e (cons 0x9f (nil Bytes))))))))))))))))) : (List Bytes)) (prim append (cons 0xa0 (cons 0xa1 (cons 0xa2 (cons 0xa3 (cons 0xa4 (cons 0xa5 (cons 0xa6 (cons 0xa7 (cons 0xa8 (cons 0xa9 (cons 0xaa (cons 0xab (cons 0xac (cons 0xad (cons 0xae (cons 0xaf (nil Bytes))))))))))))))))) (cons 0xb0 (cons 0xb1 (cons 0xb2 (cons 0xb3 (cons 0xb4 (cons 0xb5 (cons 0xb6 (cons 0xb7 (cons 0xb8 (cons 0xb9 (cons 0xba (cons 0xbb (cons 0xbc (cons 0xbd (cons 0xbe (cons 0xbf (nil Bytes))))))))))))))))) : (List Bytes)) : (List Bytes)) (prim append (prim append (cons 0xc0 (cons 0xc1 (cons 0xc2 (cons 0xc3 (cons 0xc4 (cons 0xc5 (cons 0xc6 (cons 0xc7 (cons 0xc8 (cons 0xc9 (cons 0xca (cons 0xcb (cons 0xcc (cons 0xcd (cons 0xce (cons 0xcf (nil Bytes))))))))))))))))) (cons 0xd0 (cons 0xd1 (cons 0xd2 (cons 0xd3 (cons 0xd4 (cons 0xd5 (cons 0xd6 (cons 0xd7 (cons 0xd8 (cons 0xd9 (cons 0xda (cons 0xdb (cons 0xdc (cons 0xdd (cons 0xde (cons 0xdf (nil Bytes))))))))))))))))) : (List Bytes)) (prim append (cons 0xe0 (cons 0xe1 (cons 0xe2 (cons 0xe3 (cons 0xe4 (cons 0xe5 (cons 0xe6 (cons 0xe7 (cons 0xe8 (cons 0xe9 (cons 0xea (cons 0xeb (cons 0xec (cons 0xed (cons 0xee (cons 0xef (nil Bytes))))))))))))))))) (cons 0xf0 (cons 0xf1 (cons 0xf2 (cons 0xf3 (cons 0xf4 (cons 0xf5 (cons 0xf6 (cons 0xf7 (cons 0xf8 (cons 0xf9 (cons 0xfa (cons 0xfb (cons 0xfc (cons 0xfd (cons 0xfe (cons 0xff (nil Bytes))))))))))))))))) : (List Bytes)) : (List Bytes)) : (List Bytes)) : (List Bytes))
+}
+
+definition{
+  name: singletonSequence,
+  parameters: [value : UInt8],
+  result: Bytes,
+  body: (if (byteLess value (128 : UInt8)) then (if (byteLess value (64 : UInt8)) then (if (byteLess value (32 : UInt8)) then (if (byteLess value (16 : UInt8)) then (if (byteLess value (8 : UInt8)) then (if (byteLess value (4 : UInt8)) then (if (byteLess value (2 : UInt8)) then (if (byteLess value (1 : UInt8)) then 0x00 else 0x01) else (if (byteLess value (3 : UInt8)) then 0x02 else 0x03)) else (if (byteLess value (6 : UInt8)) then (if (byteLess value (5 : UInt8)) then 0x04 else 0x05) else (if (byteLess value (7 : UInt8)) then 0x06 else 0x07))) else (if (byteLess value (12 : UInt8)) then (if (byteLess value (10 : UInt8)) then (if (byteLess value (9 : UInt8)) then 0x08 else 0x09) else (if (byteLess value (11 : UInt8)) then 0x0a else 0x0b)) else (if (byteLess value (14 : UInt8)) then (if (byteLess value (13 : UInt8)) then 0x0c else 0x0d) else (if (byteLess value (15 : UInt8)) then 0x0e else 0x0f)))) else (if (byteLess value (24 : UInt8)) then (if (byteLess value (20 : UInt8)) then (if (byteLess value (18 : UInt8)) then (if (byteLess value (17 : UInt8)) then 0x10 else 0x11) else (if (byteLess value (19 : UInt8)) then 0x12 else 0x13)) else (if (byteLess value (22 : UInt8)) then (if (byteLess value (21 : UInt8)) then 0x14 else 0x15) else (if (byteLess value (23 : UInt8)) then 0x16 else 0x17))) else (if (byteLess value (28 : UInt8)) then (if (byteLess value (26 : UInt8)) then (if (byteLess value (25 : UInt8)) then 0x18 else 0x19) else (if (byteLess value (27 : UInt8)) then 0x1a else 0x1b)) else (if (byteLess value (30 : UInt8)) then (if (byteLess value (29 : UInt8)) then 0x1c else 0x1d) else (if (byteLess value (31 : UInt8)) then 0x1e else 0x1f))))) else (if (byteLess value (48 : UInt8)) then (if (byteLess value (40 : UInt8)) then (if (byteLess value (36 : UInt8)) then (if (byteLess value (34 : UInt8)) then (if (byteLess value (33 : UInt8)) then 0x20 else 0x21) else (if (byteLess value (35 : UInt8)) then 0x22 else 0x23)) else (if (byteLess value (38 : UInt8)) then (if (byteLess value (37 : UInt8)) then 0x24 else 0x25) else (if (byteLess value (39 : UInt8)) then 0x26 else 0x27))) else (if (byteLess value (44 : UInt8)) then (if (byteLess value (42 : UInt8)) then (if (byteLess value (41 : UInt8)) then 0x28 else 0x29) else (if (byteLess value (43 : UInt8)) then 0x2a else 0x2b)) else (if (byteLess value (46 : UInt8)) then (if (byteLess value (45 : UInt8)) then 0x2c else 0x2d) else (if (byteLess value (47 : UInt8)) then 0x2e else 0x2f)))) else (if (byteLess value (56 : UInt8)) then (if (byteLess value (52 : UInt8)) then (if (byteLess value (50 : UInt8)) then (if (byteLess value (49 : UInt8)) then 0x30 else 0x31) else (if (byteLess value (51 : UInt8)) then 0x32 else 0x33)) else (if (byteLess value (54 : UInt8)) then (if (byteLess value (53 : UInt8)) then 0x34 else 0x35) else (if (byteLess value (55 : UInt8)) then 0x36 else 0x37))) else (if (byteLess value (60 : UInt8)) then (if (byteLess value (58 : UInt8)) then (if (byteLess value (57 : UInt8)) then 0x38 else 0x39) else (if (byteLess value (59 : UInt8)) then 0x3a else 0x3b)) else (if (byteLess value (62 : UInt8)) then (if (byteLess value (61 : UInt8)) then 0x3c else 0x3d) else (if (byteLess value (63 : UInt8)) then 0x3e else 0x3f)))))) else (if (byteLess value (96 : UInt8)) then (if (byteLess value (80 : UInt8)) then (if (byteLess value (72 : UInt8)) then (if (byteLess value (68 : UInt8)) then (if (byteLess value (66 : UInt8)) then (if (byteLess value (65 : UInt8)) then 0x40 else 0x41) else (if (byteLess value (67 : UInt8)) then 0x42 else 0x43)) else (if (byteLess value (70 : UInt8)) then (if (byteLess value (69 : UInt8)) then 0x44 else 0x45) else (if (byteLess value (71 : UInt8)) then 0x46 else 0x47))) else (if (byteLess value (76 : UInt8)) then (if (byteLess value (74 : UInt8)) then (if (byteLess value (73 : UInt8)) then 0x48 else 0x49) else (if (byteLess value (75 : UInt8)) then 0x4a else 0x4b)) else (if (byteLess value (78 : UInt8)) then (if (byteLess value (77 : UInt8)) then 0x4c else 0x4d) else (if (byteLess value (79 : UInt8)) then 0x4e else 0x4f)))) else (if (byteLess value (88 : UInt8)) then (if (byteLess value (84 : UInt8)) then (if (byteLess value (82 : UInt8)) then (if (byteLess value (81 : UInt8)) then 0x50 else 0x51) else (if (byteLess value (83 : UInt8)) then 0x52 else 0x53)) else (if (byteLess value (86 : UInt8)) then (if (byteLess value (85 : UInt8)) then 0x54 else 0x55) else (if (byteLess value (87 : UInt8)) then 0x56 else 0x57))) else (if (byteLess value (92 : UInt8)) then (if (byteLess value (90 : UInt8)) then (if (byteLess value (89 : UInt8)) then 0x58 else 0x59) else (if (byteLess value (91 : UInt8)) then 0x5a else 0x5b)) else (if (byteLess value (94 : UInt8)) then (if (byteLess value (93 : UInt8)) then 0x5c else 0x5d) else (if (byteLess value (95 : UInt8)) then 0x5e else 0x5f))))) else (if (byteLess value (112 : UInt8)) then (if (byteLess value (104 : UInt8)) then (if (byteLess value (100 : UInt8)) then (if (byteLess value (98 : UInt8)) then (if (byteLess value (97 : UInt8)) then 0x60 else 0x61) else (if (byteLess value (99 : UInt8)) then 0x62 else 0x63)) else (if (byteLess value (102 : UInt8)) then (if (byteLess value (101 : UInt8)) then 0x64 else 0x65) else (if (byteLess value (103 : UInt8)) then 0x66 else 0x67))) else (if (byteLess value (108 : UInt8)) then (if (byteLess value (106 : UInt8)) then (if (byteLess value (105 : UInt8)) then 0x68 else 0x69) else (if (byteLess value (107 : UInt8)) then 0x6a else 0x6b)) else (if (byteLess value (110 : UInt8)) then (if (byteLess value (109 : UInt8)) then 0x6c else 0x6d) else (if (byteLess value (111 : UInt8)) then 0x6e else 0x6f)))) else (if (byteLess value (120 : UInt8)) then (if (byteLess value (116 : UInt8)) then (if (byteLess value (114 : UInt8)) then (if (byteLess value (113 : UInt8)) then 0x70 else 0x71) else (if (byteLess value (115 : UInt8)) then 0x72 else 0x73)) else (if (byteLess value (118 : UInt8)) then (if (byteLess value (117 : UInt8)) then 0x74 else 0x75) else (if (byteLess value (119 : UInt8)) then 0x76 else 0x77))) else (if (byteLess value (124 : UInt8)) then (if (byteLess value (122 : UInt8)) then (if (byteLess value (121 : UInt8)) then 0x78 else 0x79) else (if (byteLess value (123 : UInt8)) then 0x7a else 0x7b)) else (if (byteLess value (126 : UInt8)) then (if (byteLess value (125 : UInt8)) then 0x7c else 0x7d) else (if (byteLess value (127 : UInt8)) then 0x7e else 0x7f))))))) else (if (byteLess value (192 : UInt8)) then (if (byteLess value (160 : UInt8)) then (if (byteLess value (144 : UInt8)) then (if (byteLess value (136 : UInt8)) then (if (byteLess value (132 : UInt8)) then (if (byteLess value (130 : UInt8)) then (if (byteLess value (129 : UInt8)) then 0x80 else 0x81) else (if (byteLess value (131 : UInt8)) then 0x82 else 0x83)) else (if (byteLess value (134 : UInt8)) then (if (byteLess value (133 : UInt8)) then 0x84 else 0x85) else (if (byteLess value (135 : UInt8)) then 0x86 else 0x87))) else (if (byteLess value (140 : UInt8)) then (if (byteLess value (138 : UInt8)) then (if (byteLess value (137 : UInt8)) then 0x88 else 0x89) else (if (byteLess value (139 : UInt8)) then 0x8a else 0x8b)) else (if (byteLess value (142 : UInt8)) then (if (byteLess value (141 : UInt8)) then 0x8c else 0x8d) else (if (byteLess value (143 : UInt8)) then 0x8e else 0x8f)))) else (if (byteLess value (152 : UInt8)) then (if (byteLess value (148 : UInt8)) then (if (byteLess value (146 : UInt8)) then (if (byteLess value (145 : UInt8)) then 0x90 else 0x91) else (if (byteLess value (147 : UInt8)) then 0x92 else 0x93)) else (if (byteLess value (150 : UInt8)) then (if (byteLess value (149 : UInt8)) then 0x94 else 0x95) else (if (byteLess value (151 : UInt8)) then 0x96 else 0x97))) else (if (byteLess value (156 : UInt8)) then (if (byteLess value (154 : UInt8)) then (if (byteLess value (153 : UInt8)) then 0x98 else 0x99) else (if (byteLess value (155 : UInt8)) then 0x9a else 0x9b)) else (if (byteLess value (158 : UInt8)) then (if (byteLess value (157 : UInt8)) then 0x9c else 0x9d) else (if (byteLess value (159 : UInt8)) then 0x9e else 0x9f))))) else (if (byteLess value (176 : UInt8)) then (if (byteLess value (168 : UInt8)) then (if (byteLess value (164 : UInt8)) then (if (byteLess value (162 : UInt8)) then (if (byteLess value (161 : UInt8)) then 0xa0 else 0xa1) else (if (byteLess value (163 : UInt8)) then 0xa2 else 0xa3)) else (if (byteLess value (166 : UInt8)) then (if (byteLess value (165 : UInt8)) then 0xa4 else 0xa5) else (if (byteLess value (167 : UInt8)) then 0xa6 else 0xa7))) else (if (byteLess value (172 : UInt8)) then (if (byteLess value (170 : UInt8)) then (if (byteLess value (169 : UInt8)) then 0xa8 else 0xa9) else (if (byteLess value (171 : UInt8)) then 0xaa else 0xab)) else (if (byteLess value (174 : UInt8)) then (if (byteLess value (173 : UInt8)) then 0xac else 0xad) else (if (byteLess value (175 : UInt8)) then 0xae else 0xaf)))) else (if (byteLess value (184 : UInt8)) then (if (byteLess value (180 : UInt8)) then (if (byteLess value (178 : UInt8)) then (if (byteLess value (177 : UInt8)) then 0xb0 else 0xb1) else (if (byteLess value (179 : UInt8)) then 0xb2 else 0xb3)) else (if (byteLess value (182 : UInt8)) then (if (byteLess value (181 : UInt8)) then 0xb4 else 0xb5) else (if (byteLess value (183 : UInt8)) then 0xb6 else 0xb7))) else (if (byteLess value (188 : UInt8)) then (if (byteLess value (186 : UInt8)) then (if (byteLess value (185 : UInt8)) then 0xb8 else 0xb9) else (if (byteLess value (187 : UInt8)) then 0xba else 0xbb)) else (if (byteLess value (190 : UInt8)) then (if (byteLess value (189 : UInt8)) then 0xbc else 0xbd) else (if (byteLess value (191 : UInt8)) then 0xbe else 0xbf)))))) else (if (byteLess value (224 : UInt8)) then (if (byteLess value (208 : UInt8)) then (if (byteLess value (200 : UInt8)) then (if (byteLess value (196 : UInt8)) then (if (byteLess value (194 : UInt8)) then (if (byteLess value (193 : UInt8)) then 0xc0 else 0xc1) else (if (byteLess value (195 : UInt8)) then 0xc2 else 0xc3)) else (if (byteLess value (198 : UInt8)) then (if (byteLess value (197 : UInt8)) then 0xc4 else 0xc5) else (if (byteLess value (199 : UInt8)) then 0xc6 else 0xc7))) else (if (byteLess value (204 : UInt8)) then (if (byteLess value (202 : UInt8)) then (if (byteLess value (201 : UInt8)) then 0xc8 else 0xc9) else (if (byteLess value (203 : UInt8)) then 0xca else 0xcb)) else (if (byteLess value (206 : UInt8)) then (if (byteLess value (205 : UInt8)) then 0xcc else 0xcd) else (if (byteLess value (207 : UInt8)) then 0xce else 0xcf)))) else (if (byteLess value (216 : UInt8)) then (if (byteLess value (212 : UInt8)) then (if (byteLess value (210 : UInt8)) then (if (byteLess value (209 : UInt8)) then 0xd0 else 0xd1) else (if (byteLess value (211 : UInt8)) then 0xd2 else 0xd3)) else (if (byteLess value (214 : UInt8)) then (if (byteLess value (213 : UInt8)) then 0xd4 else 0xd5) else (if (byteLess value (215 : UInt8)) then 0xd6 else 0xd7))) else (if (byteLess value (220 : UInt8)) then (if (byteLess value (218 : UInt8)) then (if (byteLess value (217 : UInt8)) then 0xd8 else 0xd9) else (if (byteLess value (219 : UInt8)) then 0xda else 0xdb)) else (if (byteLess value (222 : UInt8)) then (if (byteLess value (221 : UInt8)) then 0xdc else 0xdd) else (if (byteLess value (223 : UInt8)) then 0xde else 0xdf))))) else (if (byteLess value (240 : UInt8)) then (if (byteLess value (232 : UInt8)) then (if (byteLess value (228 : UInt8)) then (if (byteLess value (226 : UInt8)) then (if (byteLess value (225 : UInt8)) then 0xe0 else 0xe1) else (if (byteLess value (227 : UInt8)) then 0xe2 else 0xe3)) else (if (byteLess value (230 : UInt8)) then (if (byteLess value (229 : UInt8)) then 0xe4 else 0xe5) else (if (byteLess value (231 : UInt8)) then 0xe6 else 0xe7))) else (if (byteLess value (236 : UInt8)) then (if (byteLess value (234 : UInt8)) then (if (byteLess value (233 : UInt8)) then 0xe8 else 0xe9) else (if (byteLess value (235 : UInt8)) then 0xea else 0xeb)) else (if (byteLess value (238 : UInt8)) then (if (byteLess value (237 : UInt8)) then 0xec else 0xed) else (if (byteLess value (239 : UInt8)) then 0xee else 0xef)))) else (if (byteLess value (248 : UInt8)) then (if (byteLess value (244 : UInt8)) then (if (byteLess value (242 : UInt8)) then (if (byteLess value (241 : UInt8)) then 0xf0 else 0xf1) else (if (byteLess value (243 : UInt8)) then 0xf2 else 0xf3)) else (if (byteLess value (246 : UInt8)) then (if (byteLess value (245 : UInt8)) then 0xf4 else 0xf5) else (if (byteLess value (247 : UInt8)) then 0xf6 else 0xf7))) else (if (byteLess value (252 : UInt8)) then (if (byteLess value (250 : UInt8)) then (if (byteLess value (249 : UInt8)) then 0xf8 else 0xf9) else (if (byteLess value (251 : UInt8)) then 0xfa else 0xfb)) else (if (byteLess value (254 : UInt8)) then (if (byteLess value (253 : UInt8)) then 0xfc else 0xfd) else (if (byteLess value (255 : UInt8)) then 0xfe else 0xff)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_0,
+  parameters: [],
+  statement: ((wordToNat (0 : UInt64)) = 0),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_0,
+  parameters: [],
+  statement: ((wordOfNat 0) = (ctor Option.some [UInt64] (0 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_1,
+  parameters: [],
+  statement: ((wordToNat (1 : UInt64)) = 1),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_1,
+  parameters: [],
+  statement: ((wordOfNat 1) = (ctor Option.some [UInt64] (1 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_127,
+  parameters: [],
+  statement: ((wordToNat (127 : UInt64)) = 127),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_127,
+  parameters: [],
+  statement: ((wordOfNat 127) = (ctor Option.some [UInt64] (127 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_128,
+  parameters: [],
+  statement: ((wordToNat (128 : UInt64)) = 128),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_128,
+  parameters: [],
+  statement: ((wordOfNat 128) = (ctor Option.some [UInt64] (128 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_255,
+  parameters: [],
+  statement: ((wordToNat (255 : UInt64)) = 255),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_255,
+  parameters: [],
+  statement: ((wordOfNat 255) = (ctor Option.some [UInt64] (255 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_256,
+  parameters: [],
+  statement: ((wordToNat (256 : UInt64)) = 256),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_256,
+  parameters: [],
+  statement: ((wordOfNat 256) = (ctor Option.some [UInt64] (256 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_4096,
+  parameters: [],
+  statement: ((wordToNat (4096 : UInt64)) = 4096),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_4096,
+  parameters: [],
+  statement: ((wordOfNat 4096) = (ctor Option.some [UInt64] (4096 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_4294967295,
+  parameters: [],
+  statement: ((wordToNat (4294967295 : UInt64)) = 4294967295),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_4294967295,
+  parameters: [],
+  statement: ((wordOfNat 4294967295) = (ctor Option.some [UInt64] (4294967295 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_9223372036854775808,
+  parameters: [],
+  statement: ((wordToNat (9223372036854775808 : UInt64)) = 9223372036854775808),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_9223372036854775808,
+  parameters: [],
+  statement: ((wordOfNat 9223372036854775808) = (ctor Option.some [UInt64] (9223372036854775808 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: word_nat_vector_18446744073709551615,
+  parameters: [],
+  statement: ((wordToNat (18446744073709551615 : UInt64)) = 18446744073709551615),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_vector_18446744073709551615,
+  parameters: [],
+  statement: ((wordOfNat 18446744073709551615) = (ctor Option.some [UInt64] (18446744073709551615 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_overflow_18446744073709551616,
+  parameters: [],
+  statement: ((wordOfNat 18446744073709551616) = (ctor Option.none [UInt64])),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nat_word_overflow_1208925819614629174706176,
+  parameters: [],
+  statement: ((wordOfNat 1208925819614629174706176) = (ctor Option.none [UInt64])),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: add_overflow,
+  parameters: [],
+  statement: ((checkedAdd (18446744073709551615 : UInt64) (1 : UInt64)) = (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.arithmeticOverflow))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: subtract_underflow,
+  parameters: [],
+  statement: ((checkedSubtract (0 : UInt64) (1 : UInt64)) = (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.negativeDifference))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: multiply_overflow,
+  parameters: [],
+  statement: ((checkedMultiply (9223372036854775808 : UInt64) (2 : UInt64)) = (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.arithmeticOverflow))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: divide_zero,
+  parameters: [],
+  statement: ((checkedDivide (1 : UInt64) (0 : UInt64)) = (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.divisionByZero))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: remainder_zero,
+  parameters: [],
+  statement: ((checkedRemainder (1 : UInt64) (0 : UInt64)) = (ctor Result.error [UInt64, SemanticError] (ctor SemanticError.divisionByZero))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: remainder_value,
+  parameters: [],
+  statement: ((checkedRemainder (17 : UInt64) (5 : UInt64)) = (ctor Result.ok [UInt64, SemanticError] (2 : UInt64))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: byte_overflow,
+  parameters: [],
+  statement: ((naturalToByte (256 : UInt64)) = (ctor Result.error [UInt8, SemanticError] (ctor SemanticError.byteOutOfRange))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: index_end,
+  parameters: [],
+  statement: ((sequenceIndex 0x00ff (2 : UInt64)) = (ctor Result.error [UInt8, SemanticError] (ctor SemanticError.indexOutOfBounds))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: slice_end_empty,
+  parameters: [],
+  statement: ((sequenceSlice 0x00ff (2 : UInt64) (0 : UInt64)) = (ctor Result.ok [Bytes, SemanticError] 0x)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: slice_overrun,
+  parameters: [],
+  statement: ((sequenceSlice 0x00ff (1 : UInt64) (2 : UInt64)) = (ctor Result.error [Bytes, SemanticError] (ctor SemanticError.sliceOutOfBounds))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: slice_arithmetic_no_wrap,
+  parameters: [],
+  statement: ((sequenceSlice 0x00ff (18446744073709551615 : UInt64) (2 : UInt64)) = (ctor Result.error [Bytes, SemanticError] (ctor SemanticError.sliceOutOfBounds))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: singleton_non_utf8,
+  parameters: [],
+  statement: ((singletonSequence (255 : UInt8)) = 0xff),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

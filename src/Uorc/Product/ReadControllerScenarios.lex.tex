@@ -1,0 +1,1656 @@
+\begin{lexlean}{Uorc.Product.ReadControllerScenarios}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.ReadController}
+\importmodule{Uorc.Product.ReadImage}
+\importmodule{Uorc.Product.ResourceIO}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: Uorc.Product.Api::Run,
+  body: (record Uorc.Product.Api::Run {instance := 1, serial := 2, revision := 3}),
+  axioms: []
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}),
+  axioms: []
+}
+
+definition{
+  name: source,
+  parameters: [],
+  result: Uorc.Product.ResourceIO::Source,
+  body: (record Uorc.Product.ResourceIO::Source {resource := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 10, generation := 1}), length := (ctor Option.none [Nat]), access := (ctor Uorc.Product.ResourceIO::Access.singlePass)}),
+  axioms: []
+}
+
+definition{name: sample, parameters: [], result: Bytes, body: 0x0102ff, axioms: []}
+
+definition{
+  name: initial,
+  parameters: [],
+  result: Uorc.Product.ReadController::Session,
+  body: (Uorc.Product.ReadController::begin (run) (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 30, generation := 1}) (source) 3 (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage)),
+  axioms: []
+}
+
+definition{
+  name: initialized,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::tick (budget) (initial)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: asked,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::demand (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (initialized) session) (run)) (run)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: offer,
+  parameters: [
+    local1_s : Uorc.Product.ReadController::Session,
+    local2_length : Nat,
+    local3_eof : Bool,
+    local4_lease : Uorc.Product.Api::ResourceRef
+  ],
+  result: Uorc.Product.ReadController::Transition,
+  body: (match (project (project local1_s cursor) request)
+    | Option.none => (Uorc.Product.ReadController::tick (budget) local1_s)
+    | Option.some local5_request => (Uorc.Product.ReadController::leaseReady (budget) local1_s (record Uorc.Product.ReadImage::LeaseReady {run := (project local5_request run), source := (project local5_request source), ticket := (project local5_request ticket), offset := (project local5_request offset), lease := local4_lease, length := local2_length, eof := local3_eof, failed := false}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: deliver,
+  parameters: [local6_s : Uorc.Product.ReadController::Session],
+  result: Uorc.Product.ReadController::Transition,
+  body: (match (project (project local6_s cursor) intake)
+    | Option.none => (Uorc.Product.ReadController::tick (budget) local6_s)
+    | Option.some local7_child => (match (project local7_child lease)
+      | Option.none => (Uorc.Product.ReadController::tick (budget) local6_s)
+      | Option.some local8_ready => (Uorc.Product.ReadController::payload (budget) local6_s (record Uorc.Product.ReadImage::PayloadReply {run := (project local8_ready run), source := (project local8_ready source), ticket := (project local8_ready ticket), offset := (project local8_ready offset), lease := (project local8_ready lease), bytes := (sample), failed := false})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: metadata,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (offer (project (asked) session) 3 true (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 20, generation := 1})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: childControl,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (metadata) session) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: reserved,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (childControl) session) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: armed,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (reserved) session) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: committed,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (deliver (Uorc.Product.ReadController::acknowledgeDelta (project (armed) session) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: taken,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (committed) session) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: attaching,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (taken) session) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: attach,
+  parameters: [
+    local9_s : Uorc.Product.ReadController::Session,
+    local10_lease : Uorc.Product.Api::ResourceRef
+  ],
+  result: Uorc.Product.ReadController::Transition,
+  body: (match (project (project local9_s cursor) attachment)
+    | Option.none => (Uorc.Product.ReadController::tick (budget) local9_s)
+    | Option.some local11_request => (Uorc.Product.ReadController::attachmentReply local9_s (record Uorc.Product.ReadController::AttachmentReply {request := local11_request, result := (ctor Uorc.Product.ReadController::AttachmentResult.attached local10_lease)}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: held,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (attach (project (attaching) session) (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 40, generation := 1})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consume,
+  parameters: [local12_s : Uorc.Product.ReadController::Session, local13_consumed : UInt64],
+  result: Uorc.Product.ReadController::Transition,
+  body: (match (Uorc.Product.ReadController::consumerTicket local12_s)
+    | Option.none => (Uorc.Product.ReadController::tick (budget) local12_s)
+    | Option.some local14_ticket => (Uorc.Product.ReadController::consumerAck local12_s (record Uorc.Product.ReadController::ConsumerAck {ticket := local14_ticket, consumed := local13_consumed}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consumed,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (consume (project (held) session) (3 : UInt64)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: unregistering,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (consumed) session) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: unregister,
+  parameters: [local15_s : Uorc.Product.ReadController::Session, local16_done : Bool],
+  result: Uorc.Product.ReadController::Transition,
+  body: (match (project (project local15_s cursor) attachment)
+    | Option.none => (Uorc.Product.ReadController::tick (budget) local15_s)
+    | Option.some local17_request => (match (project (project local15_s cursor) imageLease)
+      | Option.none => (Uorc.Product.ReadController::tick (budget) local15_s)
+      | Option.some local18_lease => (Uorc.Product.ReadController::imageUnregistered local15_s (record Uorc.Product.ReadController::ImageUnregistered {request := local17_request, lease := local18_lease, unregistered := local16_done})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: unregistered,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (unregister (project (unregistering) session) true),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: react,
+  parameters: [local19_t : Uorc.Product.ReadController::Transition],
+  result: Uorc.Product.ReadController::Transition,
+  body: (match (project local19_t command)
+    | Option.none => (match (project local19_t outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)))
+      | Uorc.Product.ReadController::Outcome.ready => (Uorc.Product.ReadController::demand (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)) (run))
+      | Uorc.Product.ReadController::Outcome.awaiting => (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)))
+      | Uorc.Product.ReadController::Outcome.awaitDelta => (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)))
+      | Uorc.Product.ReadController::Outcome.span local20_v0 => (consume (project local19_t session) (3 : UInt64))
+      | Uorc.Product.ReadController::Outcome.end => (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)))
+      | Uorc.Product.ReadController::Outcome.complete => (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)))
+      | Uorc.Product.ReadController::Outcome.cancelled => (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)))
+      | Uorc.Product.ReadController::Outcome.failed local21_v0 => (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)))
+      | Uorc.Product.ReadController::Outcome.refused local22_v0 => (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)))
+      | Uorc.Product.ReadController::Outcome.rejected local23_v0 local24_v1 => (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run))))
+    | Option.some local25_command => (match local25_command
+      | Uorc.Product.ReadController::Command.read local26_v0 => (offer (project local19_t session) 3 true (record Uorc.Product.Api::ResourceRef {instance := 1, slot := (100 + (project local26_v0 ticket)), generation := 1}))
+      | Uorc.Product.ReadController::Command.payload local27_v0 => (deliver (Uorc.Product.ReadController::acknowledgeDelta (project local19_t session) (run)))
+      | Uorc.Product.ReadController::Command.attach local28_v0 => (attach (project local19_t session) (record Uorc.Product.Api::ResourceRef {instance := 1, slot := (200 + (project local28_v0 attachmentTicket)), generation := 1}))
+      | Uorc.Product.ReadController::Command.cancelRead local29_v0 => (Uorc.Product.ReadController::readStopped (project local19_t session) (record Uorc.Product.ResourceIO::ReadCancellationReply {run := (project local29_v0 run), source := (project local29_v0 source), ticket := (project local29_v0 ticket), offset := (project local29_v0 offset), stopped := true}))
+      | Uorc.Product.ReadController::Command.cancelPayload local30_v0 => (Uorc.Product.ReadController::payloadStopped (project local19_t session) (record Uorc.Product.ReadImage::PayloadStopped {run := (project local30_v0 run), source := (project local30_v0 source), ticket := (project local30_v0 ticket), offset := (project local30_v0 offset), lease := (project local30_v0 lease), stopped := true}))
+      | Uorc.Product.ReadController::Command.cancelAttach local31_v0 => (Uorc.Product.ReadController::attachmentReply (project local19_t session) (record Uorc.Product.ReadController::AttachmentReply {request := local31_v0, result := (ctor Uorc.Product.ReadController::AttachmentResult.stopped true)}))
+      | Uorc.Product.ReadController::Command.stopConsumer local32_v0 => (Uorc.Product.ReadController::consumerStopped (project local19_t session) (record Uorc.Product.ReadController::ConsumerStopped {ticket := local32_v0, stopped := true}))
+      | Uorc.Product.ReadController::Command.releaseRaw local33_v0 => (Uorc.Product.ReadController::rawReleased (project local19_t session) (record Uorc.Product.ReadImage::LeaseReleased {run := (project local33_v0 run), source := (project local33_v0 source), ticket := (project local33_v0 ticket), offset := (project local33_v0 offset), lease := (project local33_v0 lease), released := true}))
+      | Uorc.Product.ReadController::Command.unregisterImage local34_v0 local35_v1 => (Uorc.Product.ReadController::imageUnregistered (project local19_t session) (record Uorc.Product.ReadController::ImageUnregistered {request := local34_v0, lease := local35_v1, unregistered := true}))
+      | Uorc.Product.ReadController::Command.releaseIncoming local36_v0 => (Uorc.Product.ReadController::incomingReleased (project local19_t session) (record Uorc.Product.ReadController::IncomingReleased {incoming := local36_v0, released := true})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: drive,
+  parameters: [local37_fuel : Nat, local38_t : Uorc.Product.ReadController::Transition],
+  result: Uorc.Product.ReadController::Transition,
+  body: (match local37_fuel
+    | Nat.zero => local38_t
+    | Nat.succ local39_rest => (drive local39_rest (react local38_t))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: local37_fuel
+}
+
+definition{
+  name: finished,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (drive 40 (held)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancelledRead,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::cancel (project (asked) session) (run)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancelledPayload,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::cancel (project (armed) session) (run)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancelledAttachment,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::cancel (project (attaching) session) (run)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancelledConsumer,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::cancel (project (held) session) (run)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: leaseCount,
+  parameters: [local40_leases : (List Uorc.Product.Api::ResourceRef)],
+  result: Nat,
+  body: (match local40_leases
+    | List.nil => 0
+    | List.cons local41_head local42_tail => (1 + (leaseCount local42_tail))),
+  axioms: [],
+  recursive_argument: local40_leases
+}
+
+definition{
+  name: controlReservationControl,
+  parameters: [],
+  result: Bool,
+  body: (let local43_t : Uorc.Product.ReadController::Transition := (initialized); ((prim equal (project (project (project local43_t session) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)) : Bool) && ((prim equal (project (project local43_t delta) allocatedEntries) (1 : UInt64) : Bool) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local43_t session) cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project (project local43_t session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local43_t session) cursor))) && ((match (project local43_t command)
+    | Option.none => true
+    | Option.some local44_present => false) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: deltaBlocksDemandControl,
+  parameters: [],
+  result: Bool,
+  body: (let local45_t : Uorc.Product.ReadController::Transition := (initialized); (let local46_blocked : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::demand (budget) (project local45_t session) (run)); ((match (project local46_blocked outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => true
+    | Uorc.Product.ReadController::Outcome.span local47_case1_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local48_case1_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local49_case1_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local50_case1_0 local51_case1_1 => false) && ((prim equal (project (project (project local46_blocked session) usage) work) (project (project (project local45_t session) usage) work) : Bool) && ((match (project local46_blocked command)
+    | Option.none => true
+    | Option.some local52_present => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local46_blocked session) cursor))) =? 1) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: actualRequestControl,
+  parameters: [],
+  result: Bool,
+  body: (let local53_t : Uorc.Product.ReadController::Transition := (asked); ((match (project local53_t command)
+    | Option.none => false
+    | Option.some local54_command => (match local54_command
+      | Uorc.Product.ReadController::Command.read local55_case2_0 => (((project local55_case2_0 ticket) =? 1) && (((project local55_case2_0 offset) =? 0) && (((project local55_case2_0 maximum) =? 3) && true)))
+      | Uorc.Product.ReadController::Command.payload local56_case2_0 => false
+      | Uorc.Product.ReadController::Command.attach local57_case2_0 => false
+      | Uorc.Product.ReadController::Command.cancelRead local58_case2_0 => false
+      | Uorc.Product.ReadController::Command.cancelPayload local59_case2_0 => false
+      | Uorc.Product.ReadController::Command.cancelAttach local60_case2_0 => false
+      | Uorc.Product.ReadController::Command.stopConsumer local61_case2_0 => false
+      | Uorc.Product.ReadController::Command.releaseRaw local62_case2_0 => false
+      | Uorc.Product.ReadController::Command.unregisterImage local63_case2_0 local64_case2_1 => false
+      | Uorc.Product.ReadController::Command.releaseIncoming local65_case2_0 => false)) && ((not (match (project (project (project (project local53_t session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local66_present => false)) && ((match (project (project (project (project local53_t session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local67_present => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local53_t session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local53_t session) cursor))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: boundedCapacityControl,
+  parameters: [],
+  result: Bool,
+  body: (let local68_t : Uorc.Product.ReadController::Transition := (armed); ((match (project local68_t command)
+    | Option.none => false
+    | Option.some local69_command => (match local69_command
+      | Uorc.Product.ReadController::Command.read local70_case3_0 => false
+      | Uorc.Product.ReadController::Command.payload local71_case3_0 => true
+      | Uorc.Product.ReadController::Command.attach local72_case3_0 => false
+      | Uorc.Product.ReadController::Command.cancelRead local73_case3_0 => false
+      | Uorc.Product.ReadController::Command.cancelPayload local74_case3_0 => false
+      | Uorc.Product.ReadController::Command.cancelAttach local75_case3_0 => false
+      | Uorc.Product.ReadController::Command.stopConsumer local76_case3_0 => false
+      | Uorc.Product.ReadController::Command.releaseRaw local77_case3_0 => false
+      | Uorc.Product.ReadController::Command.unregisterImage local78_case3_0 local79_case3_1 => false
+      | Uorc.Product.ReadController::Command.releaseIncoming local80_case3_0 => false)) && ((prim equal (project (project (project local68_t session) usage) work) (Uorc.Core.Heap::wordAdd (Uorc.Core.Heap::wordAdd (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapAllocate))) : Bool) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local68_t session) cursor))) =? 3) && ((match (project (project (project (project local68_t session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local81_present => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local68_t session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local68_t session) cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: attachmentBeforeReplyControl,
+  parameters: [],
+  result: Bool,
+  body: (let local82_t : Uorc.Product.ReadController::Transition := (attaching); ((match (project local82_t command)
+    | Option.none => false
+    | Option.some local83_command => (match local83_command
+      | Uorc.Product.ReadController::Command.read local84_case4_0 => false
+      | Uorc.Product.ReadController::Command.payload local85_case4_0 => false
+      | Uorc.Product.ReadController::Command.attach local86_case4_0 => true
+      | Uorc.Product.ReadController::Command.cancelRead local87_case4_0 => false
+      | Uorc.Product.ReadController::Command.cancelPayload local88_case4_0 => false
+      | Uorc.Product.ReadController::Command.cancelAttach local89_case4_0 => false
+      | Uorc.Product.ReadController::Command.stopConsumer local90_case4_0 => false
+      | Uorc.Product.ReadController::Command.releaseRaw local91_case4_0 => false
+      | Uorc.Product.ReadController::Command.unregisterImage local92_case4_0 local93_case4_1 => false
+      | Uorc.Product.ReadController::Command.releaseIncoming local94_case4_0 => false)) && ((project (project (project local82_t session) cursor) attachmentPending) && ((match (project (project (project (project local82_t session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local95_present => false) && (((project (project (project (project local82_t session) cursor) reader) offset) =? 0) && ((not (match (project (project (project (project local82_t session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local96_present => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local82_t session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local82_t session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local82_t session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: singleImageTicketControl,
+  parameters: [],
+  result: Bool,
+  body: (let local97_t : Uorc.Product.ReadController::Transition := (held); ((match (project local97_t outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local98_case5_0 => true
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local99_case5_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local100_case5_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local101_case5_0 local102_case5_1 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local97_t session) cursor))) =? 3) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local97_t session) cursor))) =? 2) && ((match (Uorc.Core.Heap::lookup (project (project local97_t session) arena) (project (project (project local97_t session) cursor) image))
+    | Result.error local103_why => false
+    | Result.ok local104_entry => ((prim equal (project local104_entry roots) (1 : UInt64) : Bool) && ((prim equal (project local104_entry incoming) (1 : UInt64) : Bool) && true))) && ((not (match (project (project (project (project local97_t session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local105_present => false)) && (((project (project (project (project local97_t session) cursor) reader) offset) =? 3) && ((match (project (project (project (project local97_t session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local106_present => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local97_t session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local97_t session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: bytesAfterAttachmentControl,
+  parameters: [],
+  result: Bool,
+  body: (let local107_t : Uorc.Product.ReadController::Transition := (held); (match (Uorc.Core.RuntimeImage::readByte (project (project local107_t session) arena) (project (project (project local107_t session) cursor) image) (2 : UInt64))
+    | Result.error local108_why => false
+    | Result.ok local109_byte => (prim equal local109_byte (255 : UInt8) : Bool))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: fullConsumerAckControl,
+  parameters: [],
+  result: Bool,
+  body: (let local110_t : Uorc.Product.ReadController::Transition := (held); (let local111_partial : Uorc.Product.ReadController::Transition := (consume (project local110_t session) (2 : UInt64)); ((match (project local111_partial outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local112_case6_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local113_case6_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local114_case6_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local115_case6_0 local116_case6_1 => true) && ((project (project (project local111_partial session) cursor) consumerPending) && ((not (match (project (project (project (project local111_partial session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local117_present => false)) && ((match (project local111_partial command)
+    | Option.none => true
+    | Option.some local118_present => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local111_partial session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local111_partial session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local111_partial session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consumeEffectControl,
+  parameters: [],
+  result: Bool,
+  body: (let local119_t : Uorc.Product.ReadController::Transition := (unregistering); ((match (project local119_t command)
+    | Option.none => false
+    | Option.some local120_command => (match local120_command
+      | Uorc.Product.ReadController::Command.read local121_case7_0 => false
+      | Uorc.Product.ReadController::Command.payload local122_case7_0 => false
+      | Uorc.Product.ReadController::Command.attach local123_case7_0 => false
+      | Uorc.Product.ReadController::Command.cancelRead local124_case7_0 => false
+      | Uorc.Product.ReadController::Command.cancelPayload local125_case7_0 => false
+      | Uorc.Product.ReadController::Command.cancelAttach local126_case7_0 => false
+      | Uorc.Product.ReadController::Command.stopConsumer local127_case7_0 => false
+      | Uorc.Product.ReadController::Command.releaseRaw local128_case7_0 => false
+      | Uorc.Product.ReadController::Command.unregisterImage local129_case7_0 local130_case7_1 => true
+      | Uorc.Product.ReadController::Command.releaseIncoming local131_case7_0 => false)) && ((not (project (project (project local119_t session) cursor) consumerPending)) && ((match (project (project (project (project local119_t session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local132_present => false) && ((not (match (project (project (project local119_t session) cursor) imageLease)
+    | Option.none => true
+    | Option.some local133_present => false)) && ((not (Uorc.Core.RuntimeValue::isNull (project (project (project local119_t session) cursor) image))) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local119_t session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local119_t session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local119_t session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: unregisterBeforeReleaseControl,
+  parameters: [],
+  result: Bool,
+  body: (let local134_t : Uorc.Product.ReadController::Transition := (unregistering); (let local135_pending : Uorc.Product.ReadController::Transition := (unregister (project local134_t session) false); (let local136_waited : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local135_pending session) (run))); ((not (match (project (project (project local136_waited session) cursor) imageLease)
+    | Option.none => true
+    | Option.some local137_present => false)) && ((not (Uorc.Core.RuntimeValue::isNull (project (project (project local136_waited session) cursor) image))) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local136_waited session) cursor))) =? 3) && ((match (Uorc.Core.Heap::lookup (project (project local136_waited session) arena) (project (project (project local136_waited session) cursor) image))
+    | Result.error local138_why => false
+    | Result.ok local139_entry => (prim equal (project local139_entry roots) (1 : UInt64) : Bool)) && ((prim equal (project (project (project local136_waited session) arena) liveEntries) (project (project (project local134_t session) arena) liveEntries) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project (project local136_waited session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local136_waited session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sourceReleasesImageControl,
+  parameters: [],
+  result: Bool,
+  body: (let local140_t : Uorc.Product.ReadController::Transition := (unregistered); (let local141_released : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local140_t session) (run))); ((Uorc.Core.RuntimeValue::isNull (project (project (project local141_released session) cursor) image)) && ((match (project (project (project local141_released session) cursor) imageLease)
+    | Option.none => true
+    | Option.some local142_present => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local141_released session) cursor))) =? 2) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local141_released session) cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project (project local141_released session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local141_released session) cursor))) && ((let local143_drained : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local141_released session) (run))); ((prim equal (project (project local143_drained delta) releasedEntries) (1 : UInt64) : Bool) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local143_drained session) cursor))) =? 2) && ((Uorc.Core.HeapAudit::auditRoots (project (project local143_drained session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local143_drained session) cursor))) && true)))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: completeCleanupControl,
+  parameters: [],
+  result: Bool,
+  body: (let local144_t : Uorc.Product.ReadController::Transition := (finished); ((match (project local144_t outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local145_case8_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => true
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local146_case8_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local147_case8_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local148_case8_0 local149_case8_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local144_t session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local150_reason => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local144_t session) cursor))) =? 0) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local144_t session) cursor))) =? 0) && ((prim equal (project (project (project local144_t session) arena) liveEntries) (0 : UInt64) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project (project local144_t session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local144_t session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: pendingCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (let local151_t : Uorc.Product.ReadController::Transition := (cancelledPayload); (let local152_waited : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local151_t session) (run))); ((match (project local152_waited command)
+    | Option.none => false
+    | Option.some local153_command => (match local153_command
+      | Uorc.Product.ReadController::Command.read local154_case9_0 => false
+      | Uorc.Product.ReadController::Command.payload local155_case9_0 => false
+      | Uorc.Product.ReadController::Command.attach local156_case9_0 => false
+      | Uorc.Product.ReadController::Command.cancelRead local157_case9_0 => false
+      | Uorc.Product.ReadController::Command.cancelPayload local158_case9_0 => true
+      | Uorc.Product.ReadController::Command.cancelAttach local159_case9_0 => false
+      | Uorc.Product.ReadController::Command.stopConsumer local160_case9_0 => false
+      | Uorc.Product.ReadController::Command.releaseRaw local161_case9_0 => false
+      | Uorc.Product.ReadController::Command.unregisterImage local162_case9_0 local163_case9_1 => false
+      | Uorc.Product.ReadController::Command.releaseIncoming local164_case9_0 => false)) && ((not (match (project (project (project (project local152_waited session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local165_present => false)) && ((not (match (project (project (project local152_waited session) cursor) intake)
+    | Option.none => true
+    | Option.some local166_present => false)) && ((not (match (Uorc.Product.ReadController::releaseDisposition (project (project local152_waited session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local167_reason => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local152_waited session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local152_waited session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local152_waited session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: readCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (let local168_t : Uorc.Product.ReadController::Transition := (cancelledRead); (let local169_stopped : Uorc.Product.ReadController::Transition := (drive 30 local168_t); ((match (project local169_stopped outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local170_case10_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => true
+    | Uorc.Product.ReadController::Outcome.failed local171_case10_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local172_case10_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local173_case10_0 local174_case10_1 => false) && ((match (project (project (project (project local169_stopped session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local175_present => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local169_stopped session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local176_reason => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local169_stopped session) cursor))) =? 0) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local169_stopped session) cursor))) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project (project local169_stopped session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local169_stopped session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: payloadCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (let local177_t : Uorc.Product.ReadController::Transition := (cancelledPayload); (let local178_stopped : Uorc.Product.ReadController::Transition := (drive 30 local177_t); ((match (project local178_stopped outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local179_case11_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => true
+    | Uorc.Product.ReadController::Outcome.failed local180_case11_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local181_case11_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local182_case11_0 local183_case11_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local178_stopped session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local184_reason => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local178_stopped session) cursor))) =? 0) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local178_stopped session) cursor))) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project (project local178_stopped session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local178_stopped session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: attachmentCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (let local185_t : Uorc.Product.ReadController::Transition := (cancelledAttachment); (let local186_stopped : Uorc.Product.ReadController::Transition := (drive 30 local185_t); ((match (project local186_stopped outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local187_case12_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => true
+    | Uorc.Product.ReadController::Outcome.failed local188_case12_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local189_case12_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local190_case12_0 local191_case12_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local186_stopped session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local192_reason => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local186_stopped session) cursor))) =? 0) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local186_stopped session) cursor))) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project (project local186_stopped session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local186_stopped session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consumerCancellationControl,
+  parameters: [],
+  result: Bool,
+  body: (let local193_t : Uorc.Product.ReadController::Transition := (cancelledConsumer); (let local194_stopped : Uorc.Product.ReadController::Transition := (drive 30 local193_t); ((match (project local194_stopped outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local195_case13_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => true
+    | Uorc.Product.ReadController::Outcome.failed local196_case13_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local197_case13_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local198_case13_0 local199_case13_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local194_stopped session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local200_reason => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local194_stopped session) cursor))) =? 0) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local194_stopped session) cursor))) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project (project local194_stopped session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local194_stopped session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: attachmentFalseStopControl,
+  parameters: [],
+  result: Bool,
+  body: (let local201_t : Uorc.Product.ReadController::Transition := (cancelledAttachment); (let local202_reply : Uorc.Product.ReadController::Transition := (match (project (project (project local201_t session) cursor) attachment)
+    | Option.none => (Uorc.Product.ReadController::tick (budget) (project local201_t session))
+    | Option.some local203_request => (Uorc.Product.ReadController::attachmentReply (project local201_t session) (record Uorc.Product.ReadController::AttachmentReply {request := local203_request, result := (ctor Uorc.Product.ReadController::AttachmentResult.stopped false)}))); ((match (project local202_reply outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => true
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local204_case14_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local205_case14_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local206_case14_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local207_case14_0 local208_case14_1 => false) && ((project (project (project local202_reply session) cursor) attachmentPending) && ((not (match (project (project (project (project local202_reply session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local209_present => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local202_reply session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local202_reply session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local202_reply session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lateAttachmentControl,
+  parameters: [],
+  result: Bool,
+  body: (let local210_t : Uorc.Product.ReadController::Transition := (cancelledAttachment); (let local211_late : Uorc.Product.ReadController::Transition := (attach (project local210_t session) (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 40, generation := 1})); ((not (match (project local211_late outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local212_case15_0 => true
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local213_case15_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local214_case15_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local215_case15_0 local216_case15_1 => false)) && ((not (match (project (project (project local211_late session) cursor) imageLease)
+    | Option.none => true
+    | Option.some local217_present => false)) && ((not (project (project (project local211_late session) cursor) attachmentPending)) && ((not (project (project (project local211_late session) cursor) consumerPending)) && ((match (project (project (project (project local211_late session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local218_present => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local211_late session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local211_late session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local211_late session) cursor))) && ((let local219_clean : Uorc.Product.ReadController::Transition := (drive 30 local211_late); ((match (project local219_clean outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local220_case16_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => true
+    | Uorc.Product.ReadController::Outcome.failed local221_case16_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local222_case16_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local223_case16_0 local224_case16_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local219_clean session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local225_reason => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local219_clean session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local219_clean session) cursor))) && true)))) && true)))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: latePayloadControl,
+  parameters: [],
+  result: Bool,
+  body: (let local226_t : Uorc.Product.ReadController::Transition := (cancelledPayload); (let local227_late : Uorc.Product.ReadController::Transition := (deliver (project local226_t session)); ((not (match (project local227_late outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local228_case17_0 => true
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local229_case17_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local230_case17_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local231_case17_0 local232_case17_1 => false)) && ((match (project (project (project local227_late session) cursor) imageLease)
+    | Option.none => true
+    | Option.some local233_present => false) && ((Uorc.Core.RuntimeValue::isNull (project (project (project local227_late session) cursor) image)) && ((let local234_clean : Uorc.Product.ReadController::Transition := (drive 30 local227_late); ((match (project local234_clean outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local235_case18_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => true
+    | Uorc.Product.ReadController::Outcome.failed local236_case18_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local237_case18_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local238_case18_0 local239_case18_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local234_clean session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local240_reason => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local234_clean session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local234_clean session) cursor))) && true)))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emptyMetadata,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (offer (project (asked) session) 0 true (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 20, generation := 1})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emptyEnd,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (emptyMetadata) session) (run))) session) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emptyEofControl,
+  parameters: [],
+  result: Bool,
+  body: (let local241_t : Uorc.Product.ReadController::Transition := (emptyEnd); ((match (project local241_t outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local242_case19_0 => false
+    | Uorc.Product.ReadController::Outcome.end => true
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local243_case19_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local244_case19_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local245_case19_0 local246_case19_1 => false) && ((Uorc.Core.RuntimeValue::isNull (project (project (project local241_t session) cursor) image)) && ((match (project (project (project local241_t session) cursor) attachment)
+    | Option.none => true
+    | Option.some local247_present => false) && ((match (project (project (project (project local241_t session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local248_present => false) && ((match (project (project (project (project local241_t session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local249_present => false) && (((project (project (project (project local241_t session) cursor) reader) offset) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project (project local241_t session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local241_t session) cursor))) && ((let local250_clean : Uorc.Product.ReadController::Transition := (drive 30 local241_t); ((match (project local250_clean outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local251_case20_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => true
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local252_case20_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local253_case20_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local254_case20_0 local255_case20_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local250_clean session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local256_reason => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local250_clean session) cursor))) =? 0) && ((Uorc.Core.HeapAudit::auditRoots (project (project local250_clean session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local250_clean session) cursor))) && true))))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: quotaNoPayloadControl,
+  parameters: [],
+  result: Bool,
+  body: (let local257_t : Uorc.Product.ReadController::Transition := (metadata); (let local258_limited : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project (project local257_t session) usage) work), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project local257_t session)); ((match (project local258_limited outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local259_case22_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local260_case22_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local261_case22_0 => (match local261_case22_0
+      | Uorc.Core.RuntimeResources::Error.workLimit => true
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap local262_case21_0 => false)
+    | Uorc.Product.ReadController::Outcome.rejected local263_case22_0 local264_case22_1 => false) && ((match (project local258_limited command)
+    | Option.none => true
+    | Option.some local265_present => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local258_limited session) cursor))) =? 1) && ((match (project (project (project (project local258_limited session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local266_present => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local258_limited session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local258_limited session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: noProgressControl,
+  parameters: [],
+  result: Bool,
+  body: (let local267_bad : Uorc.Product.ReadController::Transition := (offer (project (asked) session) 0 false (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 20, generation := 1})); ((match (project local267_bad outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local268_case23_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local269_case23_0 => true
+    | Uorc.Product.ReadController::Outcome.refused local270_case23_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local271_case23_0 local272_case23_1 => false) && ((match (project local267_bad command)
+    | Option.none => true
+    | Option.some local273_present => false) && ((match (project (project (project (project local267_bad session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local274_present => false) && ((let local275_clean : Uorc.Product.ReadController::Transition := (drive 30 local267_bad); ((match (project local275_clean outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local276_case24_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local277_case24_0 => true
+    | Uorc.Product.ReadController::Outcome.refused local278_case24_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local279_case24_0 local280_case24_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local275_clean session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local281_reason => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local275_clean session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local275_clean session) cursor))) && true)))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: oversizeControl,
+  parameters: [],
+  result: Bool,
+  body: (let local282_bad : Uorc.Product.ReadController::Transition := (offer (project (asked) session) 4 false (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 20, generation := 1})); ((match (project local282_bad outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local283_case25_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local284_case25_0 => true
+    | Uorc.Product.ReadController::Outcome.refused local285_case25_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local286_case25_0 local287_case25_1 => false) && ((match (project local282_bad command)
+    | Option.none => true
+    | Option.some local288_present => false) && ((match (project (project (project (project local282_bad session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local289_present => false) && ((let local290_clean : Uorc.Product.ReadController::Transition := (drive 30 local282_bad); ((match (project local290_clean outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local291_case26_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local292_case26_0 => true
+    | Uorc.Product.ReadController::Outcome.refused local293_case26_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local294_case26_0 local295_case26_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local290_clean session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local296_reason => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local290_clean session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local290_clean session) cursor))) && true)))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: staleMetadata,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::leaseReady (budget) (project (asked) session) (record Uorc.Product.ReadImage::LeaseReady {run := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) run), source := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) source), ticket := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) ticket), offset := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) offset), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}), length := 3, eof := true, failed := false})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: staleIncomingControl,
+  parameters: [],
+  result: Bool,
+  body: (let local297_t : Uorc.Product.ReadController::Transition := (staleMetadata); ((match (project local297_t command)
+    | Option.none => false
+    | Option.some local298_command => (match local298_command
+      | Uorc.Product.ReadController::Command.read local299_case27_0 => false
+      | Uorc.Product.ReadController::Command.payload local300_case27_0 => false
+      | Uorc.Product.ReadController::Command.attach local301_case27_0 => false
+      | Uorc.Product.ReadController::Command.cancelRead local302_case27_0 => false
+      | Uorc.Product.ReadController::Command.cancelPayload local303_case27_0 => false
+      | Uorc.Product.ReadController::Command.cancelAttach local304_case27_0 => false
+      | Uorc.Product.ReadController::Command.stopConsumer local305_case27_0 => false
+      | Uorc.Product.ReadController::Command.releaseRaw local306_case27_0 => false
+      | Uorc.Product.ReadController::Command.unregisterImage local307_case27_0 local308_case27_1 => false
+      | Uorc.Product.ReadController::Command.releaseIncoming local309_case27_0 => true)) && ((not (match (project (project (project local297_t session) cursor) orphan)
+    | Option.none => true
+    | Option.some local310_present => false)) && ((not (match (project (project (project (project local297_t session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local311_present => false)) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local297_t session) cursor))) =? 1) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local297_t session) cursor))) =? 1) && ((not (match (Uorc.Product.ReadController::releaseDisposition (project (project local297_t session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local312_reason => false)) && ((Uorc.Core.HeapAudit::auditRoots (project (project local297_t session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local297_t session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongAttachmentRunControl,
+  parameters: [],
+  result: Bool,
+  body: (let local313_t : Uorc.Product.ReadController::Transition := (attaching); (match (project (project (project local313_t session) cursor) attachment)
+    | Option.none => false
+    | Option.some local314_expected => (let local315_bad : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::attachmentReply (project local313_t session) (record Uorc.Product.ReadController::AttachmentReply {request := (record Uorc.Product.ReadController::AttachmentRequest {run := (record Uorc.Product.Api::Run {instance := 1, serial := 3, revision := 3}), arenaBinding := (project local314_expected arenaBinding), source := (project local314_expected source), ticket := (project local314_expected ticket), offset := (project local314_expected offset), attachmentTicket := (project local314_expected attachmentTicket), span := (project local314_expected span), eof := (project local314_expected eof), rawLease := (project local314_expected rawLease)}), result := (ctor Uorc.Product.ReadController::AttachmentResult.attached (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}))})); ((match (project local315_bad outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => false
+      | Uorc.Product.ReadController::Outcome.ready => false
+      | Uorc.Product.ReadController::Outcome.awaiting => false
+      | Uorc.Product.ReadController::Outcome.awaitDelta => false
+      | Uorc.Product.ReadController::Outcome.span local316_case28_0 => false
+      | Uorc.Product.ReadController::Outcome.end => false
+      | Uorc.Product.ReadController::Outcome.complete => false
+      | Uorc.Product.ReadController::Outcome.cancelled => false
+      | Uorc.Product.ReadController::Outcome.failed local317_case28_0 => false
+      | Uorc.Product.ReadController::Outcome.refused local318_case28_0 => false
+      | Uorc.Product.ReadController::Outcome.rejected local319_case28_0 local320_case28_1 => true) && ((project (project (project local315_bad session) cursor) attachmentPending) && ((match (project (project (project (project local315_bad session) cursor) reader) held)
+      | Option.none => true
+      | Option.some local321_present => false) && ((match (project local315_bad command)
+      | Option.none => false
+      | Option.some local322_command => (match local322_command
+        | Uorc.Product.ReadController::Command.read local323_case29_0 => false
+        | Uorc.Product.ReadController::Command.payload local324_case29_0 => false
+        | Uorc.Product.ReadController::Command.attach local325_case29_0 => false
+        | Uorc.Product.ReadController::Command.cancelRead local326_case29_0 => false
+        | Uorc.Product.ReadController::Command.cancelPayload local327_case29_0 => false
+        | Uorc.Product.ReadController::Command.cancelAttach local328_case29_0 => false
+        | Uorc.Product.ReadController::Command.stopConsumer local329_case29_0 => false
+        | Uorc.Product.ReadController::Command.releaseRaw local330_case29_0 => false
+        | Uorc.Product.ReadController::Command.unregisterImage local331_case29_0 local332_case29_1 => false
+        | Uorc.Product.ReadController::Command.releaseIncoming local333_case29_0 => true)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local315_bad session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local315_bad session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local315_bad session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongAttachmentArenaControl,
+  parameters: [],
+  result: Bool,
+  body: (let local334_t : Uorc.Product.ReadController::Transition := (attaching); (match (project (project (project local334_t session) cursor) attachment)
+    | Option.none => false
+    | Option.some local335_expected => (let local336_bad : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::attachmentReply (project local334_t session) (record Uorc.Product.ReadController::AttachmentReply {request := (record Uorc.Product.ReadController::AttachmentRequest {run := (project local335_expected run), arenaBinding := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 31, generation := 1}), source := (project local335_expected source), ticket := (project local335_expected ticket), offset := (project local335_expected offset), attachmentTicket := (project local335_expected attachmentTicket), span := (project local335_expected span), eof := (project local335_expected eof), rawLease := (project local335_expected rawLease)}), result := (ctor Uorc.Product.ReadController::AttachmentResult.attached (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}))})); ((match (project local336_bad outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => false
+      | Uorc.Product.ReadController::Outcome.ready => false
+      | Uorc.Product.ReadController::Outcome.awaiting => false
+      | Uorc.Product.ReadController::Outcome.awaitDelta => false
+      | Uorc.Product.ReadController::Outcome.span local337_case30_0 => false
+      | Uorc.Product.ReadController::Outcome.end => false
+      | Uorc.Product.ReadController::Outcome.complete => false
+      | Uorc.Product.ReadController::Outcome.cancelled => false
+      | Uorc.Product.ReadController::Outcome.failed local338_case30_0 => false
+      | Uorc.Product.ReadController::Outcome.refused local339_case30_0 => false
+      | Uorc.Product.ReadController::Outcome.rejected local340_case30_0 local341_case30_1 => true) && ((project (project (project local336_bad session) cursor) attachmentPending) && ((match (project (project (project (project local336_bad session) cursor) reader) held)
+      | Option.none => true
+      | Option.some local342_present => false) && ((match (project local336_bad command)
+      | Option.none => false
+      | Option.some local343_command => (match local343_command
+        | Uorc.Product.ReadController::Command.read local344_case31_0 => false
+        | Uorc.Product.ReadController::Command.payload local345_case31_0 => false
+        | Uorc.Product.ReadController::Command.attach local346_case31_0 => false
+        | Uorc.Product.ReadController::Command.cancelRead local347_case31_0 => false
+        | Uorc.Product.ReadController::Command.cancelPayload local348_case31_0 => false
+        | Uorc.Product.ReadController::Command.cancelAttach local349_case31_0 => false
+        | Uorc.Product.ReadController::Command.stopConsumer local350_case31_0 => false
+        | Uorc.Product.ReadController::Command.releaseRaw local351_case31_0 => false
+        | Uorc.Product.ReadController::Command.unregisterImage local352_case31_0 local353_case31_1 => false
+        | Uorc.Product.ReadController::Command.releaseIncoming local354_case31_0 => true)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local336_bad session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local336_bad session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local336_bad session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongAttachmentTicketControl,
+  parameters: [],
+  result: Bool,
+  body: (let local355_t : Uorc.Product.ReadController::Transition := (attaching); (match (project (project (project local355_t session) cursor) attachment)
+    | Option.none => false
+    | Option.some local356_expected => (let local357_bad : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::attachmentReply (project local355_t session) (record Uorc.Product.ReadController::AttachmentReply {request := (record Uorc.Product.ReadController::AttachmentRequest {run := (project local356_expected run), arenaBinding := (project local356_expected arenaBinding), source := (project local356_expected source), ticket := 2, offset := (project local356_expected offset), attachmentTicket := (project local356_expected attachmentTicket), span := (project local356_expected span), eof := (project local356_expected eof), rawLease := (project local356_expected rawLease)}), result := (ctor Uorc.Product.ReadController::AttachmentResult.attached (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}))})); ((match (project local357_bad outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => false
+      | Uorc.Product.ReadController::Outcome.ready => false
+      | Uorc.Product.ReadController::Outcome.awaiting => false
+      | Uorc.Product.ReadController::Outcome.awaitDelta => false
+      | Uorc.Product.ReadController::Outcome.span local358_case32_0 => false
+      | Uorc.Product.ReadController::Outcome.end => false
+      | Uorc.Product.ReadController::Outcome.complete => false
+      | Uorc.Product.ReadController::Outcome.cancelled => false
+      | Uorc.Product.ReadController::Outcome.failed local359_case32_0 => false
+      | Uorc.Product.ReadController::Outcome.refused local360_case32_0 => false
+      | Uorc.Product.ReadController::Outcome.rejected local361_case32_0 local362_case32_1 => true) && ((project (project (project local357_bad session) cursor) attachmentPending) && ((match (project (project (project (project local357_bad session) cursor) reader) held)
+      | Option.none => true
+      | Option.some local363_present => false) && ((match (project local357_bad command)
+      | Option.none => false
+      | Option.some local364_command => (match local364_command
+        | Uorc.Product.ReadController::Command.read local365_case33_0 => false
+        | Uorc.Product.ReadController::Command.payload local366_case33_0 => false
+        | Uorc.Product.ReadController::Command.attach local367_case33_0 => false
+        | Uorc.Product.ReadController::Command.cancelRead local368_case33_0 => false
+        | Uorc.Product.ReadController::Command.cancelPayload local369_case33_0 => false
+        | Uorc.Product.ReadController::Command.cancelAttach local370_case33_0 => false
+        | Uorc.Product.ReadController::Command.stopConsumer local371_case33_0 => false
+        | Uorc.Product.ReadController::Command.releaseRaw local372_case33_0 => false
+        | Uorc.Product.ReadController::Command.unregisterImage local373_case33_0 local374_case33_1 => false
+        | Uorc.Product.ReadController::Command.releaseIncoming local375_case33_0 => true)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local357_bad session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local357_bad session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local357_bad session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongAttachmentOffsetControl,
+  parameters: [],
+  result: Bool,
+  body: (let local376_t : Uorc.Product.ReadController::Transition := (attaching); (match (project (project (project local376_t session) cursor) attachment)
+    | Option.none => false
+    | Option.some local377_expected => (let local378_bad : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::attachmentReply (project local376_t session) (record Uorc.Product.ReadController::AttachmentReply {request := (record Uorc.Product.ReadController::AttachmentRequest {run := (project local377_expected run), arenaBinding := (project local377_expected arenaBinding), source := (project local377_expected source), ticket := (project local377_expected ticket), offset := 1, attachmentTicket := (project local377_expected attachmentTicket), span := (project local377_expected span), eof := (project local377_expected eof), rawLease := (project local377_expected rawLease)}), result := (ctor Uorc.Product.ReadController::AttachmentResult.attached (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}))})); ((match (project local378_bad outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => false
+      | Uorc.Product.ReadController::Outcome.ready => false
+      | Uorc.Product.ReadController::Outcome.awaiting => false
+      | Uorc.Product.ReadController::Outcome.awaitDelta => false
+      | Uorc.Product.ReadController::Outcome.span local379_case34_0 => false
+      | Uorc.Product.ReadController::Outcome.end => false
+      | Uorc.Product.ReadController::Outcome.complete => false
+      | Uorc.Product.ReadController::Outcome.cancelled => false
+      | Uorc.Product.ReadController::Outcome.failed local380_case34_0 => false
+      | Uorc.Product.ReadController::Outcome.refused local381_case34_0 => false
+      | Uorc.Product.ReadController::Outcome.rejected local382_case34_0 local383_case34_1 => true) && ((project (project (project local378_bad session) cursor) attachmentPending) && ((match (project (project (project (project local378_bad session) cursor) reader) held)
+      | Option.none => true
+      | Option.some local384_present => false) && ((match (project local378_bad command)
+      | Option.none => false
+      | Option.some local385_command => (match local385_command
+        | Uorc.Product.ReadController::Command.read local386_case35_0 => false
+        | Uorc.Product.ReadController::Command.payload local387_case35_0 => false
+        | Uorc.Product.ReadController::Command.attach local388_case35_0 => false
+        | Uorc.Product.ReadController::Command.cancelRead local389_case35_0 => false
+        | Uorc.Product.ReadController::Command.cancelPayload local390_case35_0 => false
+        | Uorc.Product.ReadController::Command.cancelAttach local391_case35_0 => false
+        | Uorc.Product.ReadController::Command.stopConsumer local392_case35_0 => false
+        | Uorc.Product.ReadController::Command.releaseRaw local393_case35_0 => false
+        | Uorc.Product.ReadController::Command.unregisterImage local394_case35_0 local395_case35_1 => false
+        | Uorc.Product.ReadController::Command.releaseIncoming local396_case35_0 => true)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local378_bad session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local378_bad session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local378_bad session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongAttachmentSpanControl,
+  parameters: [],
+  result: Bool,
+  body: (let local397_t : Uorc.Product.ReadController::Transition := (attaching); (match (project (project (project local397_t session) cursor) attachment)
+    | Option.none => false
+    | Option.some local398_expected => (let local399_bad : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::attachmentReply (project local397_t session) (record Uorc.Product.ReadController::AttachmentReply {request := (record Uorc.Product.ReadController::AttachmentRequest {run := (project local398_expected run), arenaBinding := (project local398_expected arenaBinding), source := (project local398_expected source), ticket := (project local398_expected ticket), offset := (project local398_expected offset), attachmentTicket := (project local398_expected attachmentTicket), span := (record Uorc.Core.RuntimeSequence::Span {image := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (3 : UInt64)}), eof := (project local398_expected eof), rawLease := (project local398_expected rawLease)}), result := (ctor Uorc.Product.ReadController::AttachmentResult.attached (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}))})); ((match (project local399_bad outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => false
+      | Uorc.Product.ReadController::Outcome.ready => false
+      | Uorc.Product.ReadController::Outcome.awaiting => false
+      | Uorc.Product.ReadController::Outcome.awaitDelta => false
+      | Uorc.Product.ReadController::Outcome.span local400_case36_0 => false
+      | Uorc.Product.ReadController::Outcome.end => false
+      | Uorc.Product.ReadController::Outcome.complete => false
+      | Uorc.Product.ReadController::Outcome.cancelled => false
+      | Uorc.Product.ReadController::Outcome.failed local401_case36_0 => false
+      | Uorc.Product.ReadController::Outcome.refused local402_case36_0 => false
+      | Uorc.Product.ReadController::Outcome.rejected local403_case36_0 local404_case36_1 => true) && ((project (project (project local399_bad session) cursor) attachmentPending) && ((match (project (project (project (project local399_bad session) cursor) reader) held)
+      | Option.none => true
+      | Option.some local405_present => false) && ((match (project local399_bad command)
+      | Option.none => false
+      | Option.some local406_command => (match local406_command
+        | Uorc.Product.ReadController::Command.read local407_case37_0 => false
+        | Uorc.Product.ReadController::Command.payload local408_case37_0 => false
+        | Uorc.Product.ReadController::Command.attach local409_case37_0 => false
+        | Uorc.Product.ReadController::Command.cancelRead local410_case37_0 => false
+        | Uorc.Product.ReadController::Command.cancelPayload local411_case37_0 => false
+        | Uorc.Product.ReadController::Command.cancelAttach local412_case37_0 => false
+        | Uorc.Product.ReadController::Command.stopConsumer local413_case37_0 => false
+        | Uorc.Product.ReadController::Command.releaseRaw local414_case37_0 => false
+        | Uorc.Product.ReadController::Command.unregisterImage local415_case37_0 local416_case37_1 => false
+        | Uorc.Product.ReadController::Command.releaseIncoming local417_case37_0 => true)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local399_bad session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local399_bad session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local399_bad session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: aliasingLeaseControl,
+  parameters: [],
+  result: Bool,
+  body: (let local418_t : Uorc.Product.ReadController::Transition := (attaching); (let local419_bad : Uorc.Product.ReadController::Transition := (attach (project local418_t session) (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 20, generation := 1})); ((match (project local419_bad outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local420_case38_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local421_case38_0 => true
+    | Uorc.Product.ReadController::Outcome.refused local422_case38_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local423_case38_0 local424_case38_1 => false) && ((match (project (project (project (project local419_bad session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local425_present => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local419_bad session) cursor))) =? 3) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local419_bad session) cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project (project local419_bad session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local419_bad session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: deliverWith,
+  parameters: [
+    local426_s : Uorc.Product.ReadController::Session,
+    local427_limits : Uorc.Core.RuntimeResources::Budget
+  ],
+  result: Uorc.Product.ReadController::Transition,
+  body: (match (project (project local426_s cursor) intake)
+    | Option.none => (Uorc.Product.ReadController::tick local427_limits local426_s)
+    | Option.some local428_child => (match (project local428_child lease)
+      | Option.none => (Uorc.Product.ReadController::tick local427_limits local426_s)
+      | Option.some local429_ready => (Uorc.Product.ReadController::payload local427_limits local426_s (record Uorc.Product.ReadImage::PayloadReply {run := (project local429_ready run), source := (project local429_ready source), ticket := (project local429_ready ticket), offset := (project local429_ready offset), lease := (project local429_ready lease), bytes := (sample), failed := false})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: commitPrepaymentControl,
+  parameters: [],
+  result: Bool,
+  body: (let local430_t : Uorc.Product.ReadController::Transition := (armed); (match (project (project (project local430_t session) cursor) intake)
+    | Option.none => false
+    | Option.some local431_child => (match (Uorc.Core.Heap::preflightImageCommit (project (project local430_t session) arena) (project local431_child reservation) (3 : UInt64))
+      | Result.error local432_why => false
+      | Result.ok local433_copy => (match (Uorc.Core.RuntimeWork::feeWithCopy (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapAllocate)) local433_copy)
+        | Option.none => false
+        | Option.some local434_fee => (let local435_limited : Uorc.Product.ReadController::Transition := (deliverWith (Uorc.Product.ReadController::acknowledgeDelta (project local430_t session) (run)) (record Uorc.Core.RuntimeResources::Budget {maxWork := (Uorc.Core.Heap::wordSub (Uorc.Core.Heap::wordAdd (project (project (project local430_t session) usage) work) local434_fee) (1 : UInt64)), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)})); ((match (project local435_limited outcome)
+          | Uorc.Product.ReadController::Outcome.advanced => false
+          | Uorc.Product.ReadController::Outcome.ready => false
+          | Uorc.Product.ReadController::Outcome.awaiting => false
+          | Uorc.Product.ReadController::Outcome.awaitDelta => false
+          | Uorc.Product.ReadController::Outcome.span local436_case40_0 => false
+          | Uorc.Product.ReadController::Outcome.end => false
+          | Uorc.Product.ReadController::Outcome.complete => false
+          | Uorc.Product.ReadController::Outcome.cancelled => false
+          | Uorc.Product.ReadController::Outcome.failed local437_case40_0 => false
+          | Uorc.Product.ReadController::Outcome.refused local438_case40_0 => (match local438_case40_0
+            | Uorc.Core.RuntimeResources::Error.workLimit => true
+            | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+            | Uorc.Core.RuntimeResources::Error.outputLimit => false
+            | Uorc.Core.RuntimeResources::Error.frameLimit => false
+            | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+            | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+            | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+            | Uorc.Core.RuntimeResources::Error.heap local439_case39_0 => false)
+          | Uorc.Product.ReadController::Outcome.rejected local440_case40_0 local441_case40_1 => false) && ((prim equal (project (project (project local435_limited session) usage) work) (project (project (project local430_t session) usage) work) : Bool) && ((Uorc.Core.RuntimeValue::isNull (project (project (project local435_limited session) cursor) image)) && ((match (project (project (project (project local435_limited session) cursor) reader) held)
+          | Option.none => true
+          | Option.some local442_present => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local435_limited session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local435_limited session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local435_limited session) cursor))) && true))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongRunControl,
+  parameters: [],
+  result: Bool,
+  body: (let local443_t : Uorc.Product.ReadController::Transition := (asked); (let local444_wrong : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::cancel (project local443_t session) (record Uorc.Product.Api::Run {instance := 1, serial := 99, revision := 3})); ((match (project local444_wrong outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local445_case41_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local446_case41_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local447_case41_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local448_case41_0 local449_case41_1 => true) && ((not (project (project (project local444_wrong session) cursor) cancelled)) && ((not (match (project (project (project (project local444_wrong session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local450_present => false)) && ((Uorc.Core.HeapAudit::auditRoots (project (project local444_wrong session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local444_wrong session) cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongArenaControl,
+  parameters: [],
+  result: Bool,
+  body: (let local451_bad : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::begin (run) (record Uorc.Product.Api::ResourceRef {instance := 2, slot := 30, generation := 1}) (source) 3 (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage))); ((match (project local451_bad outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local452_case42_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local453_case42_0 => true
+    | Uorc.Product.ReadController::Outcome.refused local454_case42_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local455_case42_0 local456_case42_1 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local451_bad session) cursor))) =? 0) && ((prim equal (project (project (project local451_bad session) usage) work) (0 : UInt64) : Bool) && ((match (project local451_bad command)
+    | Option.none => true
+    | Option.some local457_present => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local451_bad session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local451_bad session) cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: orderBlocksDemandControl,
+  parameters: [],
+  result: Bool,
+  body: (let local458_t : Uorc.Product.ReadController::Transition := (held); (let local459_early : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::demand (budget) (project local458_t session) (run)); ((match (project local459_early outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local460_case43_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local461_case43_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local462_case43_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local463_case43_0 local464_case43_1 => true) && ((match (project local459_early command)
+    | Option.none => true
+    | Option.some local465_present => false) && (((project (project (project (project local459_early session) cursor) reader) ticket) =? 1) && (((project (project (project (project local459_early session) cursor) reader) offset) =? 3) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local459_early session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local459_early session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local459_early session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: attachmentFailureControl,
+  parameters: [],
+  result: Bool,
+  body: (let local466_t : Uorc.Product.ReadController::Transition := (attaching); (let local467_bad : Uorc.Product.ReadController::Transition := (match (project (project (project local466_t session) cursor) attachment)
+    | Option.none => (Uorc.Product.ReadController::tick (budget) (project local466_t session))
+    | Option.some local468_request => (Uorc.Product.ReadController::attachmentReply (project local466_t session) (record Uorc.Product.ReadController::AttachmentReply {request := local468_request, result := (ctor Uorc.Product.ReadController::AttachmentResult.failed)}))); ((match (project local467_bad outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local469_case44_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local470_case44_0 => true
+    | Uorc.Product.ReadController::Outcome.refused local471_case44_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local472_case44_0 local473_case44_1 => false) && ((match (project (project (project (project local467_bad session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local474_present => false) && ((let local475_clean : Uorc.Product.ReadController::Transition := (drive 30 local467_bad); ((match (project local475_clean outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local476_case45_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local477_case45_0 => true
+    | Uorc.Product.ReadController::Outcome.refused local478_case45_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local479_case45_0 local480_case45_1 => false) && ((match (Uorc.Product.ReadController::releaseDisposition (project (project local475_clean session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local481_reason => false) && ((Uorc.Core.HeapAudit::auditRoots (project (project local475_clean session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local475_clean session) cursor))) && true)))) && true))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongImageInstanceControl,
+  parameters: [],
+  result: Bool,
+  body: (let local482_t : Uorc.Product.ReadController::Transition := (attaching); (let local483_bad : Uorc.Product.ReadController::Transition := (attach (project local482_t session) (record Uorc.Product.Api::ResourceRef {instance := 2, slot := 40, generation := 1})); ((match (project local483_bad outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local484_case46_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local485_case46_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local486_case46_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local487_case46_0 local488_case46_1 => true) && ((project (project (project local483_bad session) cursor) attachmentPending) && ((match (project (project (project (project local483_bad session) cursor) reader) held)
+    | Option.none => true
+    | Option.some local489_present => false) && ((not (match (project (project (project local483_bad session) cursor) orphan)
+    | Option.none => true
+    | Option.some local490_present => false)) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local483_bad session) cursor))) =? 2) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local483_bad session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local483_bad session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local483_bad session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: oneAttachmentReceiptControl,
+  parameters: [],
+  result: Bool,
+  body: (let local491_t : Uorc.Product.ReadController::Transition := (held); (let local492_duplicate : Uorc.Product.ReadController::Transition := (attach (project local491_t session) (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 40, generation := 1})); ((match (project local492_duplicate outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local493_case47_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local494_case47_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local495_case47_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local496_case47_0 local497_case47_1 => true) && ((match (project local492_duplicate command)
+    | Option.none => true
+    | Option.some local498_present => false) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local492_duplicate session) cursor))) =? 2) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local492_duplicate session) cursor))) =? 3) && (((project (project (project (project local492_duplicate session) cursor) reader) offset) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local492_duplicate session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local492_duplicate session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongConsumerControl,
+  parameters: [],
+  result: Bool,
+  body: (let local499_t : Uorc.Product.ReadController::Transition := (held); (match (Uorc.Product.ReadController::consumerTicket (project local499_t session))
+    | Option.none => false
+    | Option.some local500_ticket => (let local501_wrong : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::consumerAck (project local499_t session) (record Uorc.Product.ReadController::ConsumerAck {ticket := (record Uorc.Product.ReadController::ConsumerTicket {request := (project local500_ticket request), attachmentTicket := 99, span := (project local500_ticket span), lease := (project local500_ticket lease), eof := (project local500_ticket eof)}), consumed := (3 : UInt64)})); ((match (project local501_wrong outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => false
+      | Uorc.Product.ReadController::Outcome.ready => false
+      | Uorc.Product.ReadController::Outcome.awaiting => false
+      | Uorc.Product.ReadController::Outcome.awaitDelta => false
+      | Uorc.Product.ReadController::Outcome.span local502_case48_0 => false
+      | Uorc.Product.ReadController::Outcome.end => false
+      | Uorc.Product.ReadController::Outcome.complete => false
+      | Uorc.Product.ReadController::Outcome.cancelled => false
+      | Uorc.Product.ReadController::Outcome.failed local503_case48_0 => false
+      | Uorc.Product.ReadController::Outcome.refused local504_case48_0 => false
+      | Uorc.Product.ReadController::Outcome.rejected local505_case48_0 local506_case48_1 => true) && ((project (project (project local501_wrong session) cursor) consumerPending) && ((not (match (project (project (project (project local501_wrong session) cursor) reader) held)
+      | Option.none => true
+      | Option.some local507_present => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local501_wrong session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local501_wrong session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local501_wrong session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consumerFalseStopControl,
+  parameters: [],
+  result: Bool,
+  body: (let local508_t : Uorc.Product.ReadController::Transition := (cancelledConsumer); (match (Uorc.Product.ReadController::consumerTicket (project local508_t session))
+    | Option.none => false
+    | Option.some local509_ticket => (let local510_pending : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::consumerStopped (project local508_t session) (record Uorc.Product.ReadController::ConsumerStopped {ticket := local509_ticket, stopped := false})); ((match (project local510_pending outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => false
+      | Uorc.Product.ReadController::Outcome.ready => false
+      | Uorc.Product.ReadController::Outcome.awaiting => true
+      | Uorc.Product.ReadController::Outcome.awaitDelta => false
+      | Uorc.Product.ReadController::Outcome.span local511_case49_0 => false
+      | Uorc.Product.ReadController::Outcome.end => false
+      | Uorc.Product.ReadController::Outcome.complete => false
+      | Uorc.Product.ReadController::Outcome.cancelled => false
+      | Uorc.Product.ReadController::Outcome.failed local512_case49_0 => false
+      | Uorc.Product.ReadController::Outcome.refused local513_case49_0 => false
+      | Uorc.Product.ReadController::Outcome.rejected local514_case49_0 local515_case49_1 => false) && ((project (project (project local510_pending session) cursor) consumerPending) && ((not (match (project (project (project local510_pending session) cursor) imageLease)
+      | Option.none => true
+      | Option.some local516_present => false)) && ((match (project local510_pending command)
+      | Option.none => true
+      | Option.some local517_present => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local510_pending session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local510_pending session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local510_pending session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongUnregisterControl,
+  parameters: [],
+  result: Bool,
+  body: (let local518_t : Uorc.Product.ReadController::Transition := (unregistering); (match (project (project (project local518_t session) cursor) attachment)
+    | Option.none => false
+    | Option.some local519_request => (let local520_wrong : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::imageUnregistered (project local518_t session) (record Uorc.Product.ReadController::ImageUnregistered {request := (record Uorc.Product.ReadController::AttachmentRequest {run := (project local519_request run), arenaBinding := (project local519_request arenaBinding), source := (project local519_request source), ticket := (project local519_request ticket), offset := (project local519_request offset), attachmentTicket := 99, span := (project local519_request span), eof := (project local519_request eof), rawLease := (project local519_request rawLease)}), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 40, generation := 1}), unregistered := true})); ((match (project local520_wrong outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => false
+      | Uorc.Product.ReadController::Outcome.ready => false
+      | Uorc.Product.ReadController::Outcome.awaiting => false
+      | Uorc.Product.ReadController::Outcome.awaitDelta => false
+      | Uorc.Product.ReadController::Outcome.span local521_case50_0 => false
+      | Uorc.Product.ReadController::Outcome.end => false
+      | Uorc.Product.ReadController::Outcome.complete => false
+      | Uorc.Product.ReadController::Outcome.cancelled => false
+      | Uorc.Product.ReadController::Outcome.failed local522_case50_0 => false
+      | Uorc.Product.ReadController::Outcome.refused local523_case50_0 => false
+      | Uorc.Product.ReadController::Outcome.rejected local524_case50_0 local525_case50_1 => true) && ((not (match (project (project (project local520_wrong session) cursor) imageLease)
+      | Option.none => true
+      | Option.some local526_present => false)) && ((not (Uorc.Core.RuntimeValue::isNull (project (project (project local520_wrong session) cursor) image))) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local520_wrong session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local520_wrong session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local520_wrong session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: readFalseStopControl,
+  parameters: [],
+  result: Bool,
+  body: (let local527_t : Uorc.Product.ReadController::Transition := (cancelledRead); (let local528_pending : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::readStopped (project local527_t session) (record Uorc.Product.ResourceIO::ReadCancellationReply {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 10, generation := 1}), ticket := 1, offset := 0, stopped := false})); ((not (match (project (project (project (project local528_pending session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local529_present => false)) && ((not (match (Uorc.Product.ReadController::releaseDisposition (project (project local528_pending session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local530_reason => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local528_pending session) cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project (project local528_pending session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local528_pending session) cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: readWrongStopControl,
+  parameters: [],
+  result: Bool,
+  body: (let local531_t : Uorc.Product.ReadController::Transition := (cancelledRead); (let local532_pending : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::readStopped (project local531_t session) (record Uorc.Product.ResourceIO::ReadCancellationReply {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 10, generation := 1}), ticket := 99, offset := 0, stopped := true})); ((match (project local532_pending outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local533_case51_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local534_case51_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local535_case51_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local536_case51_0 local537_case51_1 => true) && ((not (match (project (project (project (project local532_pending session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local538_present => false)) && ((not (match (Uorc.Product.ReadController::releaseDisposition (project (project local532_pending session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local539_reason => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local532_pending session) cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project (project local532_pending session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local532_pending session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: payloadFalseStopControl,
+  parameters: [],
+  result: Bool,
+  body: (let local540_t : Uorc.Product.ReadController::Transition := (cancelledPayload); (let local541_pending : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::payloadStopped (project local540_t session) (record Uorc.Product.ReadImage::PayloadStopped {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 10, generation := 1}), ticket := 1, offset := 0, lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 20, generation := 1}), stopped := false})); ((not (match (project (project (project (project local541_pending session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local542_present => false)) && ((not (match (Uorc.Product.ReadController::releaseDisposition (project (project local541_pending session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local543_reason => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local541_pending session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local541_pending session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local541_pending session) cursor))) && true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: payloadWrongStopControl,
+  parameters: [],
+  result: Bool,
+  body: (let local544_t : Uorc.Product.ReadController::Transition := (cancelledPayload); (let local545_pending : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::payloadStopped (project local544_t session) (record Uorc.Product.ReadImage::PayloadStopped {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 10, generation := 1}), ticket := 99, offset := 0, lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 20, generation := 1}), stopped := true})); ((match (project local545_pending outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local546_case52_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local547_case52_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local548_case52_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local549_case52_0 local550_case52_1 => true) && ((not (match (project (project (project (project local545_pending session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local551_present => false)) && ((not (match (Uorc.Product.ReadController::releaseDisposition (project (project local545_pending session) cursor))
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local552_reason => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local545_pending session) cursor))) =? 3) && ((Uorc.Core.HeapAudit::auditRoots (project (project local545_pending session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local545_pending session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: incomingBackpressureControl,
+  parameters: [],
+  result: Bool,
+  body: (let local553_t : Uorc.Product.ReadController::Transition := (staleMetadata); (let local554_second : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::leaseReady (budget) (project local553_t session) (record Uorc.Product.ReadImage::LeaseReady {run := (project (record Uorc.Product.ReadImage::LeaseReady {run := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) run), source := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) source), ticket := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) ticket), offset := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) offset), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}), length := 3, eof := true, failed := false}) run), source := (project (record Uorc.Product.ReadImage::LeaseReady {run := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) run), source := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) source), ticket := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) ticket), offset := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) offset), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}), length := 3, eof := true, failed := false}) source), ticket := (project (record Uorc.Product.ReadImage::LeaseReady {run := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) run), source := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) source), ticket := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) ticket), offset := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) offset), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}), length := 3, eof := true, failed := false}) ticket), offset := (project (record Uorc.Product.ReadImage::LeaseReady {run := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) run), source := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) source), ticket := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) ticket), offset := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) offset), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}), length := 3, eof := true, failed := false}) offset), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 91, generation := 1}), length := (project (record Uorc.Product.ReadImage::LeaseReady {run := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) run), source := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) source), ticket := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) ticket), offset := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) offset), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}), length := 3, eof := true, failed := false}) length), eof := (project (record Uorc.Product.ReadImage::LeaseReady {run := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) run), source := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) source), ticket := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) ticket), offset := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) offset), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}), length := 3, eof := true, failed := false}) eof), failed := (project (record Uorc.Product.ReadImage::LeaseReady {run := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) run), source := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) source), ticket := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) ticket), offset := (project (record Uorc.Product.ResourceIO::ReadRequest {run := (run), source := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 99, generation := 1}), ticket := 1, offset := 0, maximum := 3}) offset), lease := (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 90, generation := 1}), length := 3, eof := true, failed := false}) failed)})); ((match (project local554_second outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local555_case53_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local556_case53_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local557_case53_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local558_case53_0 local559_case53_1 => (not (match local559_case53_1
+      | Option.none => true
+      | Option.some local560_present => false))) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local554_second session) cursor))) =? 1) && ((not (match (project (project (project local554_second session) cursor) orphan)
+    | Option.none => true
+    | Option.some local561_present => false)) && ((not (match (project (project (project (project local554_second session) cursor) reader) request)
+    | Option.none => true
+    | Option.some local562_present => false)) && ((not (match (Uorc.Product.ReadController::transitionDisposition local554_second)
+    | Uorc.Product.Api::ReleaseDisposition.releasable => true
+    | Uorc.Product.Api::ReleaseDisposition.retain local563_why => false)) && ((Uorc.Core.HeapAudit::auditRoots (project (project local554_second session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local554_second session) cursor))) && true)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: incomingFalseReleaseControl,
+  parameters: [],
+  result: Bool,
+  body: (let local564_t : Uorc.Product.ReadController::Transition := (staleMetadata); (match (project (project (project local564_t session) cursor) orphan)
+    | Option.none => false
+    | Option.some local565_incoming => (let local566_pending : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::incomingReleased (project local564_t session) (record Uorc.Product.ReadController::IncomingReleased {incoming := local565_incoming, released := false})); ((not (match (project (project (project local566_pending session) cursor) orphan)
+      | Option.none => true
+      | Option.some local567_present => false)) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local566_pending session) cursor))) =? 1) && ((not (match (project (project (project (project local566_pending session) cursor) reader) request)
+      | Option.none => true
+      | Option.some local568_present => false)) && ((Uorc.Core.HeapAudit::auditRoots (project (project local566_pending session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local566_pending session) cursor))) && true))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: windowMetadata,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (offer (project (asked) session) 3 false (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 20, generation := 1})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: windowArmed,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (windowMetadata) session) (run))) session) (run))) session) (run))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: windowHeld,
+  parameters: [],
+  result: Uorc.Product.ReadController::Transition,
+  body: (attach (project (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project (deliver (Uorc.Product.ReadController::acknowledgeDelta (project (windowArmed) session) (run))) session) (run))) session) (run))) session) (record Uorc.Product.Api::ResourceRef {instance := 1, slot := 40, generation := 1})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: toReady,
+  parameters: [local569_fuel : Nat, local570_t : Uorc.Product.ReadController::Transition],
+  result: Uorc.Product.ReadController::Transition,
+  body: (match local569_fuel
+    | Nat.zero => local570_t
+    | Nat.succ local571_rest => (if (match (project local570_t outcome)
+      | Uorc.Product.ReadController::Outcome.advanced => false
+      | Uorc.Product.ReadController::Outcome.ready => true
+      | Uorc.Product.ReadController::Outcome.awaiting => false
+      | Uorc.Product.ReadController::Outcome.awaitDelta => false
+      | Uorc.Product.ReadController::Outcome.span local572_case54_0 => false
+      | Uorc.Product.ReadController::Outcome.end => false
+      | Uorc.Product.ReadController::Outcome.complete => false
+      | Uorc.Product.ReadController::Outcome.cancelled => false
+      | Uorc.Product.ReadController::Outcome.failed local573_case54_0 => false
+      | Uorc.Product.ReadController::Outcome.refused local574_case54_0 => false
+      | Uorc.Product.ReadController::Outcome.rejected local575_case54_0 local576_case54_1 => false) then local570_t else (toReady local571_rest (react local570_t)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: local569_fuel
+}
+
+definition{
+  name: nextWindowControl,
+  parameters: [],
+  result: Bool,
+  body: (let local577_clean : Uorc.Product.ReadController::Transition := (toReady 30 (windowHeld)); (let local578_next : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::demand (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local577_clean session) (run)) (run)); ((match (project local577_clean outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => true
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local579_case55_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local580_case55_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local581_case55_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local582_case55_0 local583_case55_1 => false) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local577_clean session) cursor))) =? 1) && (((leaseCount (Uorc.Product.ReadController::ownedLeases (project (project local577_clean session) cursor))) =? 0) && ((match (project local578_next command)
+    | Option.none => false
+    | Option.some local584_command => (match local584_command
+      | Uorc.Product.ReadController::Command.read local585_case56_0 => (((project local585_case56_0 offset) =? 3) && (((project local585_case56_0 ticket) =? 2) && (((project local585_case56_0 maximum) =? 3) && true)))
+      | Uorc.Product.ReadController::Command.payload local586_case56_0 => false
+      | Uorc.Product.ReadController::Command.attach local587_case56_0 => false
+      | Uorc.Product.ReadController::Command.cancelRead local588_case56_0 => false
+      | Uorc.Product.ReadController::Command.cancelPayload local589_case56_0 => false
+      | Uorc.Product.ReadController::Command.cancelAttach local590_case56_0 => false
+      | Uorc.Product.ReadController::Command.stopConsumer local591_case56_0 => false
+      | Uorc.Product.ReadController::Command.releaseRaw local592_case56_0 => false
+      | Uorc.Product.ReadController::Command.unregisterImage local593_case56_0 local594_case56_1 => false
+      | Uorc.Product.ReadController::Command.releaseIncoming local595_case56_0 => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local578_next session) cursor))) =? 1) && ((Uorc.Core.HeapAudit::auditRoots (project (project local577_clean session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local577_clean session) cursor))) && ((Uorc.Core.HeapAudit::auditRoots (project (project local578_next session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local578_next session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: extendQuotaControl,
+  parameters: [],
+  result: Bool,
+  body: (let local596_t : Uorc.Product.ReadController::Transition := (metadata); (let local597_limited : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project (project local596_t session) usage) work), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project local596_t session)); (let local598_extended : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::extend (budget) (project local597_limited session) (run)); (let local599_resumed : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (budget) (Uorc.Product.ReadController::acknowledgeDelta (project local598_extended session) (run))); ((match (project local597_limited outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local600_case58_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local601_case58_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local602_case58_0 => (match local602_case58_0
+      | Uorc.Core.RuntimeResources::Error.workLimit => true
+      | Uorc.Core.RuntimeResources::Error.ownedByteLimit => false
+      | Uorc.Core.RuntimeResources::Error.outputLimit => false
+      | Uorc.Core.RuntimeResources::Error.frameLimit => false
+      | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => false
+      | Uorc.Core.RuntimeResources::Error.invalidUsage => false
+      | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => false
+      | Uorc.Core.RuntimeResources::Error.heap local603_case57_0 => false)
+    | Uorc.Product.ReadController::Outcome.rejected local604_case58_0 local605_case58_1 => false) && ((prim equal (project (project (project local597_limited session) usage) work) (project (project (project local596_t session) usage) work) : Bool) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local599_resumed session) cursor))) =? 2) && ((prim equal (project (project (project local599_resumed session) usage) work) (Uorc.Core.Heap::wordAdd (project (project (project local596_t session) usage) work) (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))) : Bool) && ((Uorc.Core.HeapAudit::auditRoots (project (project local599_resumed session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local599_resumed session) cursor))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: achievedReleaseReceiptControl,
+  parameters: [],
+  result: Bool,
+  body: (let local606_t : Uorc.Product.ReadController::Transition := (unregistered); (let local607_limited : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::extend (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (project (project (project local606_t session) usage) peakOwnedBytes), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (project local606_t session) (run)); (let local608_released : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (record Uorc.Core.RuntimeResources::Budget {maxWork := (1000000 : UInt64), maxOwnedBytes := (project (project (project local606_t session) usage) peakOwnedBytes), maxOutputBytes := (1000000 : UInt64), maxFrames := (100 : UInt64)}) (Uorc.Product.ReadController::acknowledgeDelta (project local607_limited session) (run))); ((match (project local608_released outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => true
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => false
+    | Uorc.Product.ReadController::Outcome.span local609_case59_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local610_case59_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local611_case59_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local612_case59_0 local613_case59_1 => false) && ((Uorc.Core.RuntimeValue::isNull (project (project (project local608_released session) cursor) image)) && ((not (match (project (project (project local608_released session) cursor) pendingDelta)
+    | Option.none => true
+    | Option.some local614_present => false)) && (((Uorc.Core.HeapAudit::lengthHandles (Uorc.Product.ReadController::ownedRoots (project (project local608_released session) cursor))) =? 2) && ((Uorc.Core.HeapAudit::auditRoots (project (project local608_released session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local608_released session) cursor))) && ((let local615_blocked : Uorc.Product.ReadController::Transition := (Uorc.Product.ReadController::tick (budget) (project local608_released session)); ((match (project local615_blocked outcome)
+    | Uorc.Product.ReadController::Outcome.advanced => false
+    | Uorc.Product.ReadController::Outcome.ready => false
+    | Uorc.Product.ReadController::Outcome.awaiting => false
+    | Uorc.Product.ReadController::Outcome.awaitDelta => true
+    | Uorc.Product.ReadController::Outcome.span local616_case60_0 => false
+    | Uorc.Product.ReadController::Outcome.end => false
+    | Uorc.Product.ReadController::Outcome.complete => false
+    | Uorc.Product.ReadController::Outcome.cancelled => false
+    | Uorc.Product.ReadController::Outcome.failed local617_case60_0 => false
+    | Uorc.Product.ReadController::Outcome.refused local618_case60_0 => false
+    | Uorc.Product.ReadController::Outcome.rejected local619_case60_0 local620_case60_1 => false) && ((prim equal (project (project (project local615_blocked session) usage) work) (project (project (project local608_released session) usage) work) : Bool) && ((not (match (project (project (project local615_blocked session) cursor) pendingDelta)
+    | Option.none => true
+    | Option.some local621_present => false)) && ((Uorc.Core.HeapAudit::auditRoots (project (project local615_blocked session) arena) (Uorc.Product.ReadController::ownedRoots (project (project local615_blocked session) cursor))) && true))))) && true))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "controlReservationControl", passed := (controlReservationControl)}) (cons (record Observation {id := "deltaBlocksDemandControl", passed := (deltaBlocksDemandControl)}) (cons (record Observation {id := "actualRequestControl", passed := (actualRequestControl)}) (cons (record Observation {id := "boundedCapacityControl", passed := (boundedCapacityControl)}) (cons (record Observation {id := "attachmentBeforeReplyControl", passed := (attachmentBeforeReplyControl)}) (cons (record Observation {id := "singleImageTicketControl", passed := (singleImageTicketControl)}) (cons (record Observation {id := "bytesAfterAttachmentControl", passed := (bytesAfterAttachmentControl)}) (cons (record Observation {id := "fullConsumerAckControl", passed := (fullConsumerAckControl)}) (cons (record Observation {id := "consumeEffectControl", passed := (consumeEffectControl)}) (cons (record Observation {id := "unregisterBeforeReleaseControl", passed := (unregisterBeforeReleaseControl)}) (cons (record Observation {id := "sourceReleasesImageControl", passed := (sourceReleasesImageControl)}) (cons (record Observation {id := "completeCleanupControl", passed := (completeCleanupControl)}) (cons (record Observation {id := "pendingCancellationControl", passed := (pendingCancellationControl)}) (cons (record Observation {id := "readCancellationControl", passed := (readCancellationControl)}) (cons (record Observation {id := "payloadCancellationControl", passed := (payloadCancellationControl)}) (cons (record Observation {id := "attachmentCancellationControl", passed := (attachmentCancellationControl)}) (cons (record Observation {id := "consumerCancellationControl", passed := (consumerCancellationControl)}) (cons (record Observation {id := "attachmentFalseStopControl", passed := (attachmentFalseStopControl)}) (cons (record Observation {id := "lateAttachmentControl", passed := (lateAttachmentControl)}) (cons (record Observation {id := "latePayloadControl", passed := (latePayloadControl)}) (cons (record Observation {id := "emptyEofControl", passed := (emptyEofControl)}) (cons (record Observation {id := "quotaNoPayloadControl", passed := (quotaNoPayloadControl)}) (cons (record Observation {id := "noProgressControl", passed := (noProgressControl)}) (cons (record Observation {id := "oversizeControl", passed := (oversizeControl)}) (cons (record Observation {id := "staleIncomingControl", passed := (staleIncomingControl)}) (cons (record Observation {id := "wrongAttachmentRunControl", passed := (wrongAttachmentRunControl)}) (cons (record Observation {id := "wrongAttachmentArenaControl", passed := (wrongAttachmentArenaControl)}) (cons (record Observation {id := "wrongAttachmentTicketControl", passed := (wrongAttachmentTicketControl)}) (cons (record Observation {id := "wrongAttachmentOffsetControl", passed := (wrongAttachmentOffsetControl)}) (cons (record Observation {id := "wrongAttachmentSpanControl", passed := (wrongAttachmentSpanControl)}) (cons (record Observation {id := "aliasingLeaseControl", passed := (aliasingLeaseControl)}) (cons (record Observation {id := "commitPrepaymentControl", passed := (commitPrepaymentControl)}) (cons (record Observation {id := "wrongRunControl", passed := (wrongRunControl)}) (cons (record Observation {id := "wrongArenaControl", passed := (wrongArenaControl)}) (cons (record Observation {id := "orderBlocksDemandControl", passed := (orderBlocksDemandControl)}) (cons (record Observation {id := "attachmentFailureControl", passed := (attachmentFailureControl)}) (cons (record Observation {id := "wrongImageInstanceControl", passed := (wrongImageInstanceControl)}) (cons (record Observation {id := "oneAttachmentReceiptControl", passed := (oneAttachmentReceiptControl)}) (cons (record Observation {id := "wrongConsumerControl", passed := (wrongConsumerControl)}) (cons (record Observation {id := "consumerFalseStopControl", passed := (consumerFalseStopControl)}) (cons (record Observation {id := "wrongUnregisterControl", passed := (wrongUnregisterControl)}) (cons (record Observation {id := "readFalseStopControl", passed := (readFalseStopControl)}) (cons (record Observation {id := "readWrongStopControl", passed := (readWrongStopControl)}) (cons (record Observation {id := "payloadFalseStopControl", passed := (payloadFalseStopControl)}) (cons (record Observation {id := "payloadWrongStopControl", passed := (payloadWrongStopControl)}) (cons (record Observation {id := "incomingBackpressureControl", passed := (incomingBackpressureControl)}) (cons (record Observation {id := "incomingFalseReleaseControl", passed := (incomingFalseReleaseControl)}) (cons (record Observation {id := "nextWindowControl", passed := (nextWindowControl)}) (cons (record Observation {id := "extendQuotaControl", passed := (extendQuotaControl)}) (cons (record Observation {id := "achievedReleaseReceiptControl", passed := (achievedReleaseReceiptControl)}) (nil Observation))))))))))))))))))))))))))))))))))))))))))))))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

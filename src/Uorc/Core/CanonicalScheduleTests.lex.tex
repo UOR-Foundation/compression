@@ -1,0 +1,435 @@
+\begin{lexlean}{Uorc.Core.CanonicalScheduleTests}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: sameEvent,
+  parameters: [
+    first : Uorc.Core.CanonicalCost::SemanticEvent,
+    second : Uorc.Core.CanonicalCost::SemanticEvent
+  ],
+  result: Bool,
+  body: (match var{name: first}
+    | Uorc.Core.CanonicalCost::SemanticEvent.instruction payload => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => (prim equal (Uorc.Core.RuntimeOpcode::code payload) (Uorc.Core.RuntimeOpcode::code otherPayload) : Bool)
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => true
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits payload => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => (prim equal payload otherPayload : Bool)
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => false)
+    | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits payload => (match var{name: second}
+      | Uorc.Core.CanonicalCost::SemanticEvent.instruction otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits otherPayload => false
+      | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits otherPayload => (prim equal payload otherPayload : Bool))),
+  executable: false
+}
+
+definition{
+  name: sameEvents,
+  parameters: [
+    first : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    second : (List Uorc.Core.CanonicalCost::SemanticEvent)
+  ],
+  result: Bool,
+  body: (match var{name: first}
+    | List.nil => (match var{name: second} | List.nil => true | List.cons other others => false)
+    | List.cons event rest => (match var{name: second}
+      | List.nil => false
+      | List.cons other others => ((sameEvent event other) && (sameEvents rest others)))),
+  executable: false,
+  recursive_argument: first
+}
+
+definition{
+  name: sameOptionalEvent,
+  parameters: [
+    first : (Option Uorc.Core.CanonicalCost::SemanticEvent),
+    second : (Option Uorc.Core.CanonicalCost::SemanticEvent)
+  ],
+  result: Bool,
+  body: (match var{name: first}
+    | Option.none => (match var{name: second} | Option.none => true | Option.some other => false)
+    | Option.some event => (match var{name: second}
+      | Option.none => false
+      | Option.some other => (sameEvent event other))),
+  executable: false
+}
+
+definition{
+  name: isWorkLimit,
+  parameters: [failure : Uorc.Core.CanonicalCost::Error],
+  result: Bool,
+  body: (match failure
+    | Uorc.Core.CanonicalCost::Error.invalidUsage => false
+    | Uorc.Core.CanonicalCost::Error.workLimit => true
+    | Uorc.Core.CanonicalCost::Error.storageLimit => false
+    | Uorc.Core.CanonicalCost::Error.storageUnderflow => false
+    | Uorc.Core.CanonicalCost::Error.frameUnderflow => false),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: newProfileRejectsProvisional,
+  parameters: [],
+  result: Bool,
+  body: ((Uorc.Core.CanonicalCost::profileSupported (ctor Uorc.Core.CanonicalCost::ProfileId.logicalReferenceEvents1)) && ((not (Uorc.Core.CanonicalCost::profileSupported (ctor Uorc.Core.CanonicalCost::ProfileId.canonicalReferenceWork1))) && ((not (Uorc.Core.CanonicalCost::budgetSupported (ctor Uorc.Core.CanonicalCost::ProfileId.logicalReferenceEvents1) (record Uorc.Core.CanonicalCost::Budget {maxSemanticWork := 99, storage := (ctor Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadBytes 99)}))) && true))),
+  executable: false
+}
+
+definition{
+  name: literalHasLogicalNotSpanWork,
+  parameters: [],
+  result: Bool,
+  body: (prim equal (Uorc.Core.CanonicalCost::workOf (project (Uorc.Core.CanonicalSchedule::literalPlan 0x112233 (nil Uorc.Core.CanonicalBindings::Binding)) events)) 5 : Bool),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: duplicateParametersHaveDuplicateLogicalUnits,
+  parameters: [],
+  result: Bool,
+  body: (prim equal (Uorc.Core.CanonicalBindings::inventoryUnits (Uorc.Core.CanonicalBindings::parameters (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 42) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 42) (nil Uorc.Core.ReferenceSemantics::Value))))) 16 : Bool),
+  executable: false
+}
+
+definition{
+  name: literalCompletionHasExactBindingAndPrefix,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalSchedule::run 20 (record Uorc.Core.CanonicalCost::Budget {maxSemanticWork := 100, storage := (ctor Uorc.Core.CanonicalCost::StorageScope.unconstrained)}) (Uorc.Core.CanonicalSchedule::startPlan (Uorc.Core.CanonicalSchedule::literalPlan 0x112233 (nil Uorc.Core.CanonicalBindings::Binding)) (Uorc.Core.CanonicalCost::zeroUsage)))
+    | Uorc.Core.CanonicalSchedule::Step.completed meaning usage => ((prim equal (project usage semanticWork) 5 : Bool) && ((prim equal (project usage semanticStorageUnits) 3 : Bool) && ((prim equal (project usage peakSemanticStorageUnits) 3 : Bool) && true)))
+    | Uorc.Core.CanonicalSchedule::Step.pending pending => false
+    | Uorc.Core.CanonicalSchedule::Step.failed failure retained => false),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: failedEventRetainsCommittedPrefix,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalSchedule::run 20 (record Uorc.Core.CanonicalCost::Budget {maxSemanticWork := 2, storage := (ctor Uorc.Core.CanonicalCost::StorageScope.unconstrained)}) (Uorc.Core.CanonicalSchedule::startPlan (Uorc.Core.CanonicalSchedule::literalPlan 0x112233 (nil Uorc.Core.CanonicalBindings::Binding)) (Uorc.Core.CanonicalCost::zeroUsage)))
+    | Uorc.Core.CanonicalSchedule::Step.completed meaning usage => false
+    | Uorc.Core.CanonicalSchedule::Step.pending pending => false
+    | Uorc.Core.CanonicalSchedule::Step.failed failure retained => ((isWorkLimit failure) && ((prim equal (project (project retained usage) semanticWork) 2 : Bool) && ((prim equal (project (project retained usage) semanticStorageUnits) 0 : Bool) && ((prim equal (Uorc.Core.CanonicalCost::workOf (project retained pending)) 3 : Bool) && true))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: emptyObjectBoundaryIsNotDropped,
+  parameters: [],
+  result: Bool,
+  body: (sameEvents (Uorc.Core.CanonicalSchedule::outputObjectEvents 0) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary) (nil Uorc.Core.CanonicalCost::SemanticEvent))),
+  executable: false
+}
+
+definition{
+  name: nonemptyOutputTraversalIsPerByte,
+  parameters: [],
+  result: Bool,
+  body: (prim equal (Uorc.Core.CanonicalCost::workOf (Uorc.Core.CanonicalSchedule::outputObjectEvents 3)) 7 : Bool),
+  executable: false
+}
+
+definition{
+  name: scanObserverAndUpdaterAreNotCommuted,
+  parameters: [],
+  result: Bool,
+  body: ((sameOptionalEvent (prim index (Uorc.Core.CanonicalSchedule::scanIterationEvents (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteComparison) (nil Uorc.Core.CanonicalCost::SemanticEvent)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary) (nil Uorc.Core.CanonicalCost::SemanticEvent)) (Uorc.Core.CanonicalBindings::parameter (ctor Uorc.Core.ReferenceSemantics::Value.natural 7))) 0 : (Option Uorc.Core.CanonicalCost::SemanticEvent)) (ctor Option.some [Uorc.Core.CanonicalCost::SemanticEvent] (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteComparison))) && ((sameOptionalEvent (prim index (Uorc.Core.CanonicalSchedule::scanIterationEvents (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteComparison) (nil Uorc.Core.CanonicalCost::SemanticEvent)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary) (nil Uorc.Core.CanonicalCost::SemanticEvent)) (Uorc.Core.CanonicalBindings::parameter (ctor Uorc.Core.ReferenceSemantics::Value.natural 7))) 4 : (Option Uorc.Core.CanonicalCost::SemanticEvent)) (ctor Option.some [Uorc.Core.CanonicalCost::SemanticEvent] (ctor Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary))) && true)),
+  executable: false
+}
+
+definition{
+  name: frameEntryAllocatesInSourceOrder,
+  parameters: [],
+  result: Bool,
+  body: (sameEvents (Uorc.Core.CanonicalBindings::frameEntryEvents (cons (ctor Uorc.Core.ReferenceSemantics::Value.byte 1) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 2) (nil Uorc.Core.ReferenceSemantics::Value)))) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.blockEnter) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.parameterBind) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits 1) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.parameterBind) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits 8) (nil Uorc.Core.CanonicalCost::SemanticEvent))))))),
+  executable: false
+}
+
+definition{
+  name: zeroCountLoopStillObservesExit,
+  parameters: [],
+  result: Bool,
+  body: (sameEvents (Uorc.Core.CanonicalSchedule::loopCondition) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.loopObserve) (nil Uorc.Core.CanonicalCost::SemanticEvent))),
+  executable: false
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: Bool,
+  body: ((newProfileRejectsProvisional) && ((literalHasLogicalNotSpanWork) && ((duplicateParametersHaveDuplicateLogicalUnits) && ((literalCompletionHasExactBindingAndPrefix) && ((failedEventRetainsCommittedPrefix) && ((emptyObjectBoundaryIsNotDropped) && ((nonemptyOutputTraversalIsPerByte) && ((scanObserverAndUpdaterAreNotCommuted) && ((frameEntryAllocatesInSourceOrder) && ((zeroCountLoopStillObservesExit) && true)))))))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

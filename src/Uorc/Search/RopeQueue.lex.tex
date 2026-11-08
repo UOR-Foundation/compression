@@ -1,0 +1,125 @@
+\begin{lexlean}{Uorc.Search.RopeQueue}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.RopeLex}
+\importmodule{Uorc.Search.Schedule}
+\importmodule{Uorc.Search.Order}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Task,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: phase, type: Uorc.Search.Schedule::Phase},
+    {name: round, type: Nat},
+    {name: wire, type: Uorc.Core.Bytes::Rope},
+    {name: canonicalTask, type: Bytes}
+  ]
+}
+
+inductive{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: scan, fields: [Task, (List Task), (List Task), Nat]},
+    {name: compareWire, fields: [Task, (List Task), (List Task), Uorc.Search.RopeLex::Cursor]},
+    {name: rebuild, fields: [(List Task), (List Task)]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: done, fields: [(List Task)]},
+    {name: invalidCursor, fields: []},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: beginInsert,
+  parameters: [incoming : Task, queue : (List Task)],
+  result: Cursor,
+  body: (ctor Cursor.scan incoming (nil Task) queue 0)
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match cursor
+    | Cursor.scan incoming leftReversed right offset => (match right
+      | List.nil => (ctor Step.pending (ctor Cursor.rebuild leftReversed (cons incoming (nil Task))))
+      | List.cons head tail => (if ((project incoming round) <? (project head round)) then (ctor Step.pending (ctor Cursor.rebuild leftReversed (cons incoming right))) else (if ((project head round) <? (project incoming round)) then (ctor Step.pending (ctor Cursor.scan incoming (cons head leftReversed) tail 0)) else (if ((Uorc.Core.Bytes::length (project incoming wire)) <? (Uorc.Core.Bytes::length (project head wire))) then (ctor Step.pending (ctor Cursor.rebuild leftReversed (cons incoming right))) else (if ((Uorc.Core.Bytes::length (project head wire)) <? (Uorc.Core.Bytes::length (project incoming wire))) then (ctor Step.pending (ctor Cursor.scan incoming (cons head leftReversed) tail 0)) else (if ((offset <? (prim length (project incoming canonicalTask) : Nat)) && (offset <? (prim length (project head canonicalTask) : Nat))) then (match (prim index (project incoming canonicalTask) offset : (Option UInt8))
+        | Option.none => (ctor Step.invalidCursor)
+        | Option.some newByte => (match (prim index (project head canonicalTask) offset : (Option UInt8))
+          | Option.none => (ctor Step.invalidCursor)
+          | Option.some oldByte => (if (prim equal newByte oldByte : Bool) then (ctor Step.pending (ctor Cursor.scan incoming leftReversed right (offset + 1))) else (if (Uorc.Search.Order::byteLess newByte oldByte) then (ctor Step.pending (ctor Cursor.rebuild leftReversed (cons incoming right))) else (ctor Step.pending (ctor Cursor.scan incoming (cons head leftReversed) tail 0)))))) else (if ((offset =? (prim length (project incoming canonicalTask) : Nat)) && (offset =? (prim length (project head canonicalTask) : Nat))) then (ctor Step.pending (ctor Cursor.compareWire incoming leftReversed right (Uorc.Search.RopeLex::start (project incoming wire) (project head wire)))) else (if (offset =? (prim length (project incoming canonicalTask) : Nat)) then (ctor Step.pending (ctor Cursor.rebuild leftReversed (cons incoming right))) else (if (offset =? (prim length (project head canonicalTask) : Nat)) then (ctor Step.pending (ctor Cursor.scan incoming (cons head leftReversed) tail 0)) else (ctor Step.invalidCursor))))))))))
+    | Cursor.compareWire incoming leftReversed right comparison => (match right
+      | List.nil => (ctor Step.invalidCursor)
+      | List.cons head tail => (match (Uorc.Search.RopeLex::step comparison)
+        | Uorc.Search.RopeLex::Step.pending next => (ctor Step.pending (ctor Cursor.compareWire incoming leftReversed right next))
+        | Uorc.Search.RopeLex::Step.ordered ordering => (match ordering
+          | Uorc.Search.RopeLex::ByteOrder.less => (ctor Step.pending (ctor Cursor.rebuild leftReversed (cons incoming right)))
+          | Uorc.Search.RopeLex::ByteOrder.greater => (ctor Step.pending (ctor Cursor.scan incoming (cons head leftReversed) tail 0))
+          | Uorc.Search.RopeLex::ByteOrder.equal => (ctor Step.pending (ctor Cursor.rebuild leftReversed right)))
+        | Uorc.Search.RopeLex::Step.invalidCursor => (ctor Step.invalidCursor)
+        | Uorc.Search.RopeLex::Step.ropeFailure error => (ctor Step.ropeFailure error)))
+    | Cursor.rebuild leftReversed right => (match leftReversed
+      | List.nil => (ctor Step.done right)
+      | List.cons head tail => (ctor Step.pending (ctor Cursor.rebuild tail (cons head right))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ remainingFuel => (match state
+      | Step.pending cursor => (run remainingFuel (step cursor))
+      | Step.done queue => (ctor Step.done queue)
+      | Step.invalidCursor => (ctor Step.invalidCursor)
+      | Step.ropeFailure error => (ctor Step.ropeFailure error))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+theorem{
+  name: full_wire_size_precedes_metadata,
+  parameters: [],
+  statement: ((run 80 (ctor Step.pending (beginInsert (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0xff), canonicalTask := 0xff}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))) = (ctor Step.done (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0xff), canonicalTask := 0xff}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: colliding_task_key_uses_exact_full_wire,
+  parameters: [],
+  statement: ((run 80 (ctor Step.pending (beginInsert (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x0080), canonicalTask := 0x01}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))) = (ctor Step.done (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x0080), canonicalTask := 0x01}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: whole_wire_equality_deduplicates,
+  parameters: [],
+  statement: ((run 80 (ctor Step.pending (beginInsert (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))) = (ctor Step.done (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fair_round_precedes_wire_size,
+  parameters: [],
+  statement: ((run 80 (ctor Step.pending (beginInsert (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 1, wire := (Uorc.Core.Bytes::fromBytes 0x00), canonicalTask := 0x00}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (nil Task))))) = (ctor Step.done (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 0, wire := (Uorc.Core.Bytes::fromBytes 0x00ff), canonicalTask := 0x01}) (cons (record Task {phase := (ctor Uorc.Search.Schedule::Phase.typedGeneration), round := 1, wire := (Uorc.Core.Bytes::fromBytes 0x00), canonicalTask := 0x00}) (nil Task))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

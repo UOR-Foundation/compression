@@ -1,0 +1,180 @@
+\begin{lexlean}{Uorc.Core.CanonicalRetirementProofs}
+\importmodule{Uorc.Core.CanonicalRetirement}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.CanonicalCost}
+\title{Parameters}
+\begin{semanticmodule}
+theorem{
+  name: remaining_zero,
+  parameters: [
+    slot : Nat,
+    returnedSlot : Nat,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  statement: ((Uorc.Core.CanonicalRetirement::remainingFrom 0 slot returnedSlot liveAt) = (nil Uorc.Core.CanonicalBindings::Binding)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: remaining_successor,
+  parameters: [
+    count : Nat,
+    slot : Nat,
+    returnedSlot : Nat,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  statement: ((Uorc.Core.CanonicalRetirement::remainingFrom (ctor Nat.succ count) slot returnedSlot liveAt) = (if (slot =? returnedSlot) then (Uorc.Core.CanonicalRetirement::remainingFrom count (slot + 1) returnedSlot liveAt) else (Uorc.Core.CanonicalRetirement::prependLive (apply liveAt slot) (Uorc.Core.CanonicalRetirement::remainingFrom count (slot + 1) returnedSlot liveAt)))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: prepend_missing,
+  parameters: [rest : (List Uorc.Core.CanonicalBindings::Binding)],
+  statement: ((Uorc.Core.CanonicalRetirement::prependLive (ctor Option.none [Uorc.Core.CanonicalBindings::Binding]) rest) = rest),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: prepend_present,
+  parameters: [
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    rest : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((Uorc.Core.CanonicalRetirement::prependLive (ctor Option.some [Uorc.Core.CanonicalBindings::Binding] binding) rest) = (cons binding rest)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: missing_slot_has_no_release_event,
+  parameters: [rest : (List Uorc.Core.CanonicalBindings::Binding)],
+  statement: ((Uorc.Core.CanonicalBindings::releaseEvents (Uorc.Core.CanonicalRetirement::prependLive (ctor Option.none [Uorc.Core.CanonicalBindings::Binding]) rest)) = (Uorc.Core.CanonicalBindings::releaseEvents rest)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: present_slot_releases_its_binding_first,
+  parameters: [
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    rest : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  statement: ((Uorc.Core.CanonicalBindings::releaseEvents (Uorc.Core.CanonicalRetirement::prependLive (ctor Option.some [Uorc.Core.CanonicalBindings::Binding] binding) rest)) = (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits (Uorc.Core.CanonicalBindings::units binding)) (Uorc.Core.CanonicalBindings::releaseEvents rest))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: returned_slot_is_excluded,
+  parameters: [
+    count : Nat,
+    returnedSlot : Nat,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  statement: ((Uorc.Core.CanonicalRetirement::remainingFrom (ctor Nat.succ count) returnedSlot returnedSlot liveAt) = (Uorc.Core.CanonicalRetirement::remainingFrom count (returnedSlot + 1) returnedSlot liveAt)),
+  proof: linear_arithmetic{definitions: [Uorc.Core.CanonicalRetirement::remainingFrom]},
+  axioms: [propext]
+}
+
+theorem{
+  name: frame_return_preserves_returned_value,
+  parameters: [
+    count : Nat,
+    returnedSlot : Nat,
+    returnedBinding : Uorc.Core.CanonicalBindings::Binding,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  statement: ((project (project (Uorc.Core.CanonicalRetirement::frameReturnPlan count returnedSlot returnedBinding liveAt) binding) value) = (project returnedBinding value)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: frame_return_reads_then_retires_then_leaves,
+  parameters: [
+    count : Nat,
+    returnedSlot : Nat,
+    returnedBinding : Uorc.Core.CanonicalBindings::Binding,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  statement: ((project (Uorc.Core.CanonicalRetirement::frameReturnPlan count returnedSlot returnedBinding liveAt) events) = (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalRetirement::releaseEventsFrom count 0 returnedSlot liveAt) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.blockLeave) (nil Uorc.Core.CanonicalCost::SemanticEvent))))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: coherent_return_plan_represents_actual_slot,
+  parameters: [
+    count : Nat,
+    returnedSlot : Nat,
+    returnedBinding : Uorc.Core.CanonicalBindings::Binding,
+    liveAt : (Fn (Nat) (Option Uorc.Core.CanonicalBindings::Binding))
+  ],
+  statement: ((Uorc.Core.CanonicalRetirement::returnCoherent count returnedSlot returnedBinding liveAt) -> (Uorc.Core.CanonicalRetirement::planRepresentsReturnedSlot count returnedSlot (project returnedBinding role) (Uorc.Core.CanonicalRetirement::frameReturnPlan count returnedSlot returnedBinding liveAt) liveAt)),
+  proof: linear_arithmetic{
+    definitions: [
+      Uorc.Core.CanonicalBindings::frameReturnEvents,
+      Uorc.Core.CanonicalBindings::transfer,
+      Uorc.Core.CanonicalRetirement::frameReturnPlan,
+      Uorc.Core.CanonicalRetirement::planRepresentsReturnedSlot,
+      Uorc.Core.CanonicalRetirement::returnCoherent,
+      Uorc.Core.CanonicalSchedule::returnPlan
+    ]
+  }
+}
+
+theorem{
+  name: tabulate_completion_keeps_append_before_update,
+  parameters: [bodyEvents : (List Uorc.Core.CanonicalCost::SemanticEvent)],
+  statement: ((Uorc.Core.CanonicalSchedule::tabulateIterationEvents bodyEvents) = (Uorc.Core.CanonicalCost::appendEvents bodyEvents (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteWrite) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits 1) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits 1) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate) (nil Uorc.Core.CanonicalCost::SemanticEvent))))))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: fold_completion_releases_old_state_before_update,
+  parameters: [
+    bodyEvents : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    oldState : Uorc.Core.CanonicalBindings::Binding
+  ],
+  statement: ((Uorc.Core.CanonicalSchedule::foldIterationEvents bodyEvents oldState) = (Uorc.Core.CanonicalCost::appendEvents bodyEvents (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits (Uorc.Core.CanonicalBindings::units oldState)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate) (nil Uorc.Core.CanonicalCost::SemanticEvent))))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: scan_completion_appends_before_updater_then_releases_old,
+  parameters: [
+    observerEvents : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    updaterEvents : (List Uorc.Core.CanonicalCost::SemanticEvent),
+    oldState : Uorc.Core.CanonicalBindings::Binding
+  ],
+  statement: ((Uorc.Core.CanonicalSchedule::scanIterationEvents observerEvents updaterEvents oldState) = (Uorc.Core.CanonicalCost::appendEvents observerEvents (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.byteWrite) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits 1) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits 1) (Uorc.Core.CanonicalCost::appendEvents updaterEvents (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits (Uorc.Core.CanonicalBindings::units oldState)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate) (nil Uorc.Core.CanonicalCost::SemanticEvent))))))))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: scan_finish_releases_only_final_state,
+  parameters: [state : Uorc.Core.CanonicalBindings::Binding],
+  statement: ((Uorc.Core.CanonicalSchedule::scanFinish state) = (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits (Uorc.Core.CanonicalBindings::units state)) (nil Uorc.Core.CanonicalCost::SemanticEvent))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: role_transfer_has_no_second_allocation,
+  parameters: [
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    targetRole : Uorc.Core.CanonicalBindings::Role
+  ],
+  statement: ((project (Uorc.Core.CanonicalBindings::move binding targetRole) event) = (ctor Option.none [Uorc.Core.CanonicalCost::SemanticEvent])),
+  proof: reflexivity{},
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

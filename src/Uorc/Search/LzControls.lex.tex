@@ -1,0 +1,219 @@
+\begin{lexlean}{Uorc.Search.LzControls}
+\importmodule{Uorc.Search.LzFit}
+\importmodule{Uorc.Search.LzProgram}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Search.PackedControls}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: instructionLiteralBytes,
+  parameters: [instruction : Uorc.Core.Graph::Instruction],
+  result: Nat,
+  body: (match instruction
+    | Uorc.Core.Graph::Instruction.naturalConstant part0 => 0
+    | Uorc.Core.Graph::Instruction.byteConstant part0 => 0
+    | Uorc.Core.Graph::Instruction.predicateConstant part0 => 0
+    | Uorc.Core.Graph::Instruction.sequenceConstant part0 => (prim length part0 : Nat)
+    | Uorc.Core.Graph::Instruction.naturalAdd part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalSubtract part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalMultiply part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalDivide part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalRemainder part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalAnd part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalOr part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalXor part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalNot part0 => 0
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalShiftRight part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalEqual part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalLess part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.byteEqual part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.byteLess part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.naturalToByte part0 => 0
+    | Uorc.Core.Graph::Instruction.byteToNatural part0 => 0
+    | Uorc.Core.Graph::Instruction.predicateNot part0 => 0
+    | Uorc.Core.Graph::Instruction.predicateAnd part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.predicateOr part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.sequenceLength part0 => 0
+    | Uorc.Core.Graph::Instruction.sequenceIndex part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.sequenceSlice part0 part1 part2 => 0
+    | Uorc.Core.Graph::Instruction.sequenceConcat part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.sequenceEqual part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.singletonSequence part0 => 0
+    | Uorc.Core.Graph::Instruction.basisGet part0 => 0
+    | Uorc.Core.Graph::Instruction.storeNew part0 => 0
+    | Uorc.Core.Graph::Instruction.storeRead part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.storeWrite part0 part1 part2 => 0
+    | Uorc.Core.Graph::Instruction.choose part0 part1 part2 => 0
+    | Uorc.Core.Graph::Instruction.apply part0 part1 => 0
+    | Uorc.Core.Graph::Instruction.tabulate part0 part1 part2 => 0
+    | Uorc.Core.Graph::Instruction.fold part0 part1 part2 part3 => 0
+    | Uorc.Core.Graph::Instruction.scan part0 part1 part2 part3 part4 part5 => 0
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant part0 => (Uorc.Core.Bytes::length part0))
+}
+
+definition{
+  name: instructionLiterals,
+  parameters: [instructions : (List Uorc.Core.Graph::Instruction)],
+  result: Nat,
+  body: (match instructions
+    | List.nil => 0
+    | List.cons instruction rest => ((instructionLiteralBytes instruction) + (instructionLiterals rest))),
+  recursive_argument: instructions
+}
+
+definition{
+  name: blockLiterals,
+  parameters: [blocks : (List Uorc.Core.Graph::Block)],
+  result: Nat,
+  body: (match blocks
+    | List.nil => 0
+    | List.cons block rest => ((instructionLiterals (project block instructions)) + (blockLiterals rest))),
+  recursive_argument: blocks
+}
+
+definition{
+  name: fitsExactly,
+  parameters: [state : Uorc.Search.LzFit::Step, expected : Bytes],
+  result: Bool,
+  body: (match state
+    | Uorc.Search.LzFit::Step.pending cursor => false
+    | Uorc.Search.LzFit::Step.proposal graph events table literals references => ((Uorc.Search.PackedControls::meaningFits graph expected) && (((blockLiterals (project graph blocks)) =? literals) && ((literals + references) =? (prim length expected : Nat))))
+    | Uorc.Search.LzFit::Step.rejected failure events => false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: usedReference,
+  parameters: [state : Uorc.Search.LzFit::Step],
+  result: Bool,
+  body: (match state
+    | Uorc.Search.LzFit::Step.pending cursor => false
+    | Uorc.Search.LzFit::Step.proposal graph events table literals references => (0 <? references)
+    | Uorc.Search.LzFit::Step.rejected failure events => false)
+}
+
+theorem{
+  name: empty_reconstructs_using_only_charged_literals,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x) (Uorc.Search.LzFit::defaultPolicy))) 0x) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: short_tail_reconstructs_using_only_charged_literals,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x7879) (Uorc.Search.LzFit::defaultPolicy))) 0x7879) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: binary_literal_only_reconstructs_using_only_charged_literals,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f) (Uorc.Search.LzFit::defaultPolicy))) 0x000102030405060708090a0b0c0d0e0f) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: overlapping_run_reconstructs_using_only_charged_literals,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161) (Uorc.Search.LzFit::defaultPolicy))) 0x61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partial_last_period_reconstructs_using_only_charged_literals,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x6162636162636162636162) (Uorc.Search.LzFit::defaultPolicy))) 0x6162636162636162636162) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: nonoverlapping_phrase_reconstructs_using_only_charged_literals,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x68656c6c6f2065617274682068656c6c6f20656172746821) (Uorc.Search.LzFit::defaultPolicy))) 0x68656c6c6f2065617274682068656c6c6f20656172746821) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: binary_substring_reconstructs_using_only_charged_literals,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f) (Uorc.Search.LzFit::defaultPolicy))) 0x000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_tail_reconstructs_using_only_charged_literals,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x6162636478656667686162636478656667685441494c) (Uorc.Search.LzFit::defaultPolicy))) 0x6162636478656667686162636478656667685441494c) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: overlap_has_real_closed_periodic_program,
+  parameters: [],
+  statement: ((usedReference (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161) (Uorc.Search.LzFit::defaultPolicy)))) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: wrong_partial_last_copy_does_not_reconstruct,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x6162636162636162636162) (Uorc.Search.LzFit::defaultPolicy))) 0x616263616263616263616263) = false),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: zero_distance_reference_rejected,
+  parameters: [],
+  statement: ((Uorc.Search.LzProgram::beginReference (record Uorc.Search.LzProgram::Builder {instructionsReversed := (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant (Uorc.Core.Bytes::fromBytes 0x61)) (nil Uorc.Core.Graph::Instruction)), instructionCount := 1, outputSlot := (ctor Option.some [Nat] 0), outputBytes := 1, usesPeriod := false}) 1 8) = (ctor Result.error [Uorc.Search.LzProgram::Cursor, Uorc.Search.LzProgram::Error] (ctor Uorc.Search.LzProgram::Error.invalidRange))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: out_of_range_source_reference_rejected,
+  parameters: [],
+  statement: ((Uorc.Search.LzProgram::beginReference (record Uorc.Search.LzProgram::Builder {instructionsReversed := (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant (Uorc.Core.Bytes::fromBytes 0x61)) (nil Uorc.Core.Graph::Instruction)), instructionCount := 1, outputSlot := (ctor Option.some [Nat] 0), outputBytes := 1, usesPeriod := false}) 2 8) = (ctor Result.error [Uorc.Search.LzProgram::Cursor, Uorc.Search.LzProgram::Error] (ctor Uorc.Search.LzProgram::Error.invalidRange))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: substring_search_resume_is_exact,
+  parameters: [],
+  statement: ((Uorc.Search.LzFit::runWork 31 (Uorc.Search.LzFit::runWork 17 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x68656c6c6f2065617274682068656c6c6f20656172746821) (Uorc.Search.LzFit::defaultPolicy)))) = (Uorc.Search.LzFit::runWork 48 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x68656c6c6f2065617274682068656c6c6f20656172746821) (Uorc.Search.LzFit::defaultPolicy)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partitioned_source_reconstructs_exactly,
+  parameters: [],
+  statement: ((fitsExactly (Uorc.Search.LzFit::runWork 15000 (Uorc.Search.LzFit::start (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x0001) (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x02030001) (Uorc.Core.Bytes::fromBytes 0x020300010203))) (record Uorc.Search.LzFit::Policy {minimumMatch := 3}))) 0x000102030001020300010203) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: policy_zero_is_not_an_input_restriction,
+  parameters: [],
+  statement: ((Uorc.Search.LzFit::start (Uorc.Core.Bytes::fromBytes 0x) (record Uorc.Search.LzFit::Policy {minimumMatch := 0})) = (ctor Uorc.Search.LzFit::Step.rejected (ctor Uorc.Search.LzFit::Error.zeroMinimum) 0)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

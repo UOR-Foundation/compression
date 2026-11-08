@@ -1,0 +1,465 @@
+\begin{lexlean}{Uorc.Wire.OwnedBasisScenarios}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Wire.OwnedRead}
+\importmodule{Uorc.Integrity.OwnedHash}
+\importmodule{Uorc.Integrity.Profile}
+\importmodule{Uorc.Wire.OwnedBasisSnapshot}
+\importmodule{Uorc.Wire.OwnedBasisHash}
+\importmodule{Uorc.Wire.ProgramEmitScenarios}
+\importmodule{Uorc.Wire.OwnedBasisContract}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: fuel, fields: []},
+    {name: build, fields: []},
+    {name: hash, fields: []},
+    {name: digest, fields: []},
+    {name: ownership, fields: []},
+    {name: protocol, fields: []},
+    {name: pause, fields: []},
+    {name: descriptor, fields: []}
+  ]
+}
+
+structure{
+  name: Prepared,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: snapshot, type: Uorc.Wire.OwnedBasisSnapshot::Snapshot},
+    {name: external, type: Uorc.Core.RuntimeValue::Handle}
+  ]
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (record Uorc.Core.RuntimeResources::Budget {maxWork := (9223372036854775807 : UInt64), maxOwnedBytes := (10000000 : UInt64), maxOutputBytes := (9223372036854775807 : UInt64), maxFrames := (1000 : UInt64)})
+}
+
+definition{
+  name: cleanSnapshot,
+  parameters: [fuel : Nat, x : Uorc.Wire.OwnedBasisSnapshot::Session],
+  result: (Result Uorc.Wire.OwnedBasisSnapshot::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal1 => (let tLocal2 : Uorc.Wire.OwnedBasisSnapshot::Transition := (Uorc.Wire.OwnedBasisSnapshot::cleanup (budget) x); (match (project tLocal2 signal)
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.advanced => (cleanSnapshot restLocal1 (project tLocal2 session))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.stored => (cleanSnapshot restLocal1 (project tLocal2 session))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.sealed => (cleanSnapshot restLocal1 (project tLocal2 session))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.failed => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.clean => (ctor Result.ok [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (project tLocal2 session))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.paused whyLocal3 => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.snapshot snapLocal4 => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: cleanHash,
+  parameters: [fuel : Nat, x : Uorc.Wire.OwnedBasisHash::Session],
+  result: (Result Uorc.Wire.OwnedBasisHash::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal5 => (let tLocal6 : Uorc.Wire.OwnedBasisHash::Transition := (Uorc.Wire.OwnedBasisHash::cleanup (budget) x); (match (project tLocal6 signal)
+      | Uorc.Wire.OwnedBasisHash::Signal.advanced => (cleanHash restLocal5 (project tLocal6 session))
+      | Uorc.Wire.OwnedBasisHash::Signal.complete => (cleanHash restLocal5 (project tLocal6 session))
+      | Uorc.Wire.OwnedBasisHash::Signal.failed => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] (ctor Error.hash))
+      | Uorc.Wire.OwnedBasisHash::Signal.clean => (ctor Result.ok [Uorc.Wire.OwnedBasisHash::Session, Error] (project tLocal6 session))
+      | Uorc.Wire.OwnedBasisHash::Signal.paused whyLocal7 => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] (ctor Error.hash))
+      | Uorc.Wire.OwnedBasisHash::Signal.digest hLocal8 => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] (ctor Error.hash))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: checkSnapshotCancel,
+  parameters: [
+    x : Uorc.Wire.OwnedBasisSnapshot::Session,
+    external : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Unit Error),
+  body: (match (cleanSnapshot 10000 (Uorc.Wire.OwnedBasisSnapshot::cancel x))
+    | Result.error eLocal9 => (ctor Result.error [Unit, Error] eLocal9)
+    | Result.ok cleanedLocal10 => (if (Uorc.Wire.ProgramEmitScenarios::roots (project cleanedLocal10 arena) (Uorc.Wire.OwnedBasisSnapshot::addRoot external (nil Uorc.Core.RuntimeValue::Handle))) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkSnapshotPause,
+  parameters: [x : Uorc.Wire.OwnedBasisSnapshot::Session],
+  result: (Result Unit Error),
+  body: (let lowLocal11 : Uorc.Core.RuntimeResources::Budget := (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project x usage) work), maxOwnedBytes := (10000000 : UInt64), maxOutputBytes := (9223372036854775807 : UInt64), maxFrames := (1000 : UInt64)}); (let tLocal12 : Uorc.Wire.OwnedBasisSnapshot::Transition := (Uorc.Wire.OwnedBasisSnapshot::advance lowLocal11 x); (match (project tLocal12 signal)
+    | Uorc.Wire.OwnedBasisSnapshot::Signal.paused whyLocal13 => (if (prim equal (project (project (project tLocal12 session) usage) work) (project (project x usage) work) : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.pause)))
+    | Uorc.Wire.OwnedBasisSnapshot::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.pause))
+    | Uorc.Wire.OwnedBasisSnapshot::Signal.stored => (ctor Result.error [Unit, Error] (ctor Error.pause))
+    | Uorc.Wire.OwnedBasisSnapshot::Signal.sealed => (ctor Result.error [Unit, Error] (ctor Error.pause))
+    | Uorc.Wire.OwnedBasisSnapshot::Signal.failed => (ctor Result.error [Unit, Error] (ctor Error.pause))
+    | Uorc.Wire.OwnedBasisSnapshot::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.pause))
+    | Uorc.Wire.OwnedBasisSnapshot::Signal.snapshot sLocal14 => (ctor Result.error [Unit, Error] (ctor Error.pause))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: driveSnapshot,
+  parameters: [
+    fuel : Nat,
+    x : Uorc.Wire.OwnedBasisSnapshot::Session,
+    external : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Uorc.Wire.OwnedBasisSnapshot::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal15 => (match (checkSnapshotCancel x external)
+      | Result.error eLocal16 => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] eLocal16)
+      | Result.ok checkedLocal17 => (match (checkSnapshotPause x)
+        | Result.error eLocal18 => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] eLocal18)
+        | Result.ok pausedLocal19 => (let tLocal20 : Uorc.Wire.OwnedBasisSnapshot::Transition := (Uorc.Wire.OwnedBasisSnapshot::advance (budget) x); (match (project tLocal20 signal)
+          | Uorc.Wire.OwnedBasisSnapshot::Signal.advanced => (driveSnapshot restLocal15 (project tLocal20 session) external)
+          | Uorc.Wire.OwnedBasisSnapshot::Signal.stored => (ctor Result.ok [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (project tLocal20 session))
+          | Uorc.Wire.OwnedBasisSnapshot::Signal.sealed => (ctor Result.ok [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (project tLocal20 session))
+          | Uorc.Wire.OwnedBasisSnapshot::Signal.failed => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))
+          | Uorc.Wire.OwnedBasisSnapshot::Signal.clean => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))
+          | Uorc.Wire.OwnedBasisSnapshot::Signal.paused whyLocal21 => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))
+          | Uorc.Wire.OwnedBasisSnapshot::Signal.snapshot snapLocal22 => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: driveBulk,
+  parameters: [fuel : Nat, x : Uorc.Wire.OwnedBasisSnapshot::Session],
+  result: (Result Uorc.Wire.OwnedBasisSnapshot::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal23 => (let tLocal24 : Uorc.Wire.OwnedBasisSnapshot::Transition := (Uorc.Wire.OwnedBasisSnapshot::advance (budget) x); (match (project tLocal24 signal)
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.advanced => (driveBulk restLocal23 (project tLocal24 session))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.stored => (ctor Result.ok [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (project tLocal24 session))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.sealed => (driveBulk restLocal23 (project tLocal24 session))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.failed => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.clean => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.paused whyLocal25 => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.snapshot snapLocal26 => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] (ctor Error.build))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: makeSequence,
+  parameters: [arena : Uorc.Core.Heap::Arena, bytes : Bytes],
+  result: (Result Uorc.Core.Heap::Allocation Error),
+  body: (match (Uorc.Core.Heap::allocate arena (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.basis) bytes))
+    | Result.error eLocal27 => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.build))
+    | Result.ok imageLocal28 => (match (Uorc.Core.Heap::wordOfNat (prim length bytes : Nat))
+      | Option.none => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.build))
+      | Option.some lengthLocal29 => (match (Uorc.Core.Heap::allocateMoved (project imageLocal28 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal28 handle) (0 : UInt64) lengthLocal29) true false)
+        | Result.error eLocal30 => (ctor Result.error [Uorc.Core.Heap::Allocation, Error] (ctor Error.build))
+        | Result.ok sequenceLocal31 => (ctor Result.ok [Uorc.Core.Heap::Allocation, Error] sequenceLocal31)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: appendOne,
+  parameters: [
+    x : Uorc.Wire.OwnedBasisSnapshot::Session,
+    sequence : Uorc.Core.RuntimeValue::Handle,
+    external : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Uorc.Wire.OwnedBasisSnapshot::Session Error),
+  body: (driveSnapshot 10000 (project (Uorc.Wire.OwnedBasisSnapshot::append (budget) x sequence) session) external),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: finishSnapshot,
+  parameters: [
+    x : Uorc.Wire.OwnedBasisSnapshot::Session,
+    external : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: (Result Prepared Error),
+  body: (match (driveSnapshot 10000 (project (Uorc.Wire.OwnedBasisSnapshot::seal (budget) x) session) external)
+    | Result.error eLocal32 => (ctor Result.error [Prepared, Error] eLocal32)
+    | Result.ok sealedLocal33 => (let mLocal34 : Uorc.Wire.OwnedBasisSnapshot::Transition := (Uorc.Wire.OwnedBasisSnapshot::takeSnapshot (budget) sealedLocal33); (match (project mLocal34 signal)
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.snapshot snapLocal35 => (let againLocal36 : Uorc.Wire.OwnedBasisSnapshot::Transition := (Uorc.Wire.OwnedBasisSnapshot::takeSnapshot (budget) (project mLocal34 session)); (match (project againLocal36 signal)
+        | Uorc.Wire.OwnedBasisSnapshot::Signal.failed => (match (Uorc.Wire.OwnedBasisSnapshot::view (project (project mLocal34 session) arena) (project snapLocal35 record))
+          | Result.error eLocal37 => (ctor Result.error [Prepared, Error] (ctor Error.descriptor))
+          | Result.ok viewLocal38 => (if (prim equal (project viewLocal38 count) (project snapLocal35 count) : Bool) then (ctor Result.ok [Prepared, Error] (record Prepared {arena := (project (project mLocal34 session) arena), usage := (project (project mLocal34 session) usage), snapshot := snapLocal35, external := external})) else (ctor Result.error [Prepared, Error] (ctor Error.descriptor))))
+        | Uorc.Wire.OwnedBasisSnapshot::Signal.advanced => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+        | Uorc.Wire.OwnedBasisSnapshot::Signal.stored => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+        | Uorc.Wire.OwnedBasisSnapshot::Signal.sealed => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+        | Uorc.Wire.OwnedBasisSnapshot::Signal.clean => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+        | Uorc.Wire.OwnedBasisSnapshot::Signal.paused whyLocal39 => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+        | Uorc.Wire.OwnedBasisSnapshot::Signal.snapshot sLocal40 => (ctor Result.error [Prepared, Error] (ctor Error.protocol))))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.advanced => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.stored => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.sealed => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.failed => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.clean => (ctor Result.error [Prepared, Error] (ctor Error.protocol))
+      | Uorc.Wire.OwnedBasisSnapshot::Signal.paused whyLocal41 => (ctor Result.error [Prepared, Error] (ctor Error.protocol))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: prepareMixed,
+  parameters: [],
+  result: (Result Prepared Error),
+  body: (match (makeSequence (Uorc.Core.Heap::emptyArena (10000000 : UInt64)) 0x6162)
+    | Result.error eLocal42 => (ctor Result.error [Prepared, Error] eLocal42)
+    | Result.ok seqLocal43 => (let xLocal44 : Uorc.Wire.OwnedBasisSnapshot::Session := (Uorc.Wire.OwnedBasisSnapshot::begin (project seqLocal43 arena) (Uorc.Core.RuntimeResources::zeroUsage)); (match (appendOne xLocal44 (Uorc.Core.RuntimeValue::nullHandle) (project seqLocal43 handle))
+      | Result.error eLocal45 => (ctor Result.error [Prepared, Error] eLocal45)
+      | Result.ok x1Local46 => (match (appendOne x1Local46 (project seqLocal43 handle) (project seqLocal43 handle))
+        | Result.error eLocal47 => (ctor Result.error [Prepared, Error] eLocal47)
+        | Result.ok x2Local48 => (match (appendOne x2Local48 (Uorc.Core.RuntimeValue::nullHandle) (project seqLocal43 handle))
+          | Result.error eLocal49 => (ctor Result.error [Prepared, Error] eLocal49)
+          | Result.ok x3Local50 => (finishSnapshot x3Local50 (project seqLocal43 handle))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: prepareEmpty,
+  parameters: [],
+  result: (Result Prepared Error),
+  body: (finishSnapshot (Uorc.Wire.OwnedBasisSnapshot::begin (Uorc.Core.Heap::emptyArena (10000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage)) (Uorc.Core.RuntimeValue::nullHandle)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: prepareLong,
+  parameters: [],
+  result: (Result Prepared Error),
+  body: (match (makeSequence (Uorc.Core.Heap::emptyArena (10000000 : UInt64)) 0x7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f)
+    | Result.error eLocal51 => (ctor Result.error [Prepared, Error] eLocal51)
+    | Result.ok seqLocal52 => (match (appendOne (Uorc.Wire.OwnedBasisSnapshot::begin (project seqLocal52 arena) (Uorc.Core.RuntimeResources::zeroUsage)) (project seqLocal52 handle) (project seqLocal52 handle))
+      | Result.error eLocal53 => (ctor Result.error [Prepared, Error] eLocal53)
+      | Result.ok xLocal54 => (finishSnapshot xLocal54 (project seqLocal52 handle)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: appendEmpties,
+  parameters: [fuel : Nat, x : Uorc.Wire.OwnedBasisSnapshot::Session],
+  result: (Result Uorc.Wire.OwnedBasisSnapshot::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.ok [Uorc.Wire.OwnedBasisSnapshot::Session, Error] x)
+    | Nat.succ restLocal55 => (match (driveBulk 10000 (project (Uorc.Wire.OwnedBasisSnapshot::append (budget) x (Uorc.Core.RuntimeValue::nullHandle)) session))
+      | Result.error eLocal56 => (ctor Result.error [Uorc.Wire.OwnedBasisSnapshot::Session, Error] eLocal56)
+      | Result.ok nextLocal57 => (appendEmpties restLocal55 nextLocal57))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: prepareCountBoundary,
+  parameters: [],
+  result: (Result Prepared Error),
+  body: (match (appendEmpties 128 (Uorc.Wire.OwnedBasisSnapshot::begin (Uorc.Core.Heap::emptyArena (10000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage)))
+    | Result.error eLocal58 => (ctor Result.error [Prepared, Error] eLocal58)
+    | Result.ok xLocal59 => (finishSnapshot xLocal59 (Uorc.Core.RuntimeValue::nullHandle))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: externalRoots,
+  parameters: [p : Prepared],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Wire.OwnedBasisSnapshot::addRoot (project p external) (cons (project (project p snapshot) record) (nil Uorc.Core.RuntimeValue::Handle)))
+}
+
+definition{
+  name: checkHashCancel,
+  parameters: [x : Uorc.Wire.OwnedBasisHash::Session, p : Prepared],
+  result: (Result Unit Error),
+  body: (match (cleanHash 10000 (Uorc.Wire.OwnedBasisHash::cancel x))
+    | Result.error eLocal60 => (ctor Result.error [Unit, Error] eLocal60)
+    | Result.ok cleanedLocal61 => (if (Uorc.Wire.ProgramEmitScenarios::roots (project cleanedLocal61 arena) (externalRoots p)) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkHashPause,
+  parameters: [x : Uorc.Wire.OwnedBasisHash::Session],
+  result: (Result Unit Error),
+  body: (let lowLocal62 : Uorc.Core.RuntimeResources::Budget := (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project x usage) work), maxOwnedBytes := (10000000 : UInt64), maxOutputBytes := (9223372036854775807 : UInt64), maxFrames := (1000 : UInt64)}); (let tLocal63 : Uorc.Wire.OwnedBasisHash::Transition := (Uorc.Wire.OwnedBasisHash::advance lowLocal62 x); (match (project tLocal63 signal)
+    | Uorc.Wire.OwnedBasisHash::Signal.paused whyLocal64 => (if (prim equal (project (project (project tLocal63 session) usage) work) (project (project x usage) work) : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.pause)))
+    | Uorc.Wire.OwnedBasisHash::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.pause))
+    | Uorc.Wire.OwnedBasisHash::Signal.complete => (ctor Result.error [Unit, Error] (ctor Error.pause))
+    | Uorc.Wire.OwnedBasisHash::Signal.failed => (ctor Result.error [Unit, Error] (ctor Error.pause))
+    | Uorc.Wire.OwnedBasisHash::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.pause))
+    | Uorc.Wire.OwnedBasisHash::Signal.digest hLocal65 => (ctor Result.error [Unit, Error] (ctor Error.pause))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: hashPhaseCode,
+  parameters: [x : Uorc.Wire.OwnedBasisHash::Session],
+  result: UInt64,
+  body: (match (project (project x state) phase)
+    | Uorc.Wire.OwnedBasisHash::Phase.validate => (0 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.start => (1 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.hashing => (match (project (project x state) hash)
+      | Option.none => (90 : UInt64)
+      | Option.some hcLocal66 => (match (project hcLocal66 phase)
+        | Uorc.Integrity.OwnedHash::Phase.prefix unused0Local67 => (100 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.ready unused0Local68 => (101 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.updating unused0Local69 => (102 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.inputDrain unused0Local70 => (103 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.finalizing unused0Local71 => (104 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.commitDigest unused0Local72 => (105 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.releaseControl => (106 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.controlDrain => (107 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.publish => (108 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.done => (109 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.cancelDrain => (110 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.cancelInput => (111 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.cancelOutput => (112 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.cancelControl => (113 : UInt64)
+        | Uorc.Integrity.OwnedHash::Phase.cancelled => (114 : UInt64)))
+    | Uorc.Wire.OwnedBasisHash::Phase.count => (3 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.numberReserve => (4 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.numberCommit => (5 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.numberOffer => (6 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.numberNext => (7 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.objectLoad => (8 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.objectRead => (9 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.finalize => (10 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.done => (11 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.transferred => (12 : UInt64)
+    | Uorc.Wire.OwnedBasisHash::Phase.clean => (13 : UInt64))
+}
+
+definition{
+  name: checkHashPrefix,
+  parameters: [x : Uorc.Wire.OwnedBasisHash::Session, p : Prepared, previous : UInt64],
+  result: (Result Unit Error),
+  body: (if (if (Uorc.Core.Heap::less (project (project p snapshot) count) (4 : UInt64)) then (prim equal (hashPhaseCode x) previous : Bool) else true) then (checkHashPause x) else (match (checkHashCancel x p)
+    | Result.error eLocal73 => (ctor Result.error [Unit, Error] eLocal73)
+    | Result.ok cleanedLocal74 => (checkHashPause x))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: driveHash,
+  parameters: [fuel : Nat, x : Uorc.Wire.OwnedBasisHash::Session, p : Prepared, previous : UInt64],
+  result: (Result Uorc.Wire.OwnedBasisHash::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal75 => (match (checkHashPrefix x p previous)
+      | Result.error eLocal76 => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] eLocal76)
+      | Result.ok checkedLocal77 => (let tLocal78 : Uorc.Wire.OwnedBasisHash::Transition := (Uorc.Wire.OwnedBasisHash::advance (budget) x); (match (project tLocal78 signal)
+        | Uorc.Wire.OwnedBasisHash::Signal.advanced => (driveHash restLocal75 (project tLocal78 session) p (hashPhaseCode x))
+        | Uorc.Wire.OwnedBasisHash::Signal.complete => (ctor Result.ok [Uorc.Wire.OwnedBasisHash::Session, Error] (project tLocal78 session))
+        | Uorc.Wire.OwnedBasisHash::Signal.failed => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] (ctor Error.hash))
+        | Uorc.Wire.OwnedBasisHash::Signal.clean => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] (ctor Error.hash))
+        | Uorc.Wire.OwnedBasisHash::Signal.paused whyLocal79 => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] (ctor Error.hash))
+        | Uorc.Wire.OwnedBasisHash::Signal.digest hLocal80 => (ctor Result.error [Uorc.Wire.OwnedBasisHash::Session, Error] (ctor Error.hash)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: checkDigest,
+  parameters: [p : Prepared, profile : Uorc.Integrity.Profile::Kind, canonical : Bytes],
+  result: (Result Unit Error),
+  body: (match (Uorc.Integrity.Profile::hash profile (ctor Uorc.Integrity.Profile::Purpose.basisObjects) canonical)
+    | Result.error eLocal81 => (ctor Result.error [Unit, Error] (ctor Error.hash))
+    | Result.ok expectedLocal82 => (match (driveHash 200000 (Uorc.Wire.OwnedBasisHash::begin (project p arena) (project p usage) (project p snapshot) profile) p (9999 : UInt64))
+      | Result.error eLocal83 => (ctor Result.error [Unit, Error] eLocal83)
+      | Result.ok completeLocal84 => (let takenLocal85 : Uorc.Wire.OwnedBasisHash::Transition := (Uorc.Wire.OwnedBasisHash::takeDigest (budget) completeLocal84); (match (project takenLocal85 signal)
+        | Uorc.Wire.OwnedBasisHash::Signal.digest digestLocal86 => (let duplicateLocal87 : Uorc.Wire.OwnedBasisHash::Transition := (Uorc.Wire.OwnedBasisHash::takeDigest (budget) (project takenLocal85 session)); (match (project duplicateLocal87 signal)
+          | Uorc.Wire.OwnedBasisHash::Signal.failed => (match (Uorc.Core.Heap::lookup (project (project takenLocal85 session) arena) digestLocal86)
+            | Result.error eLocal88 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+            | Result.ok entryLocal89 => (match (project entryLocal89 node)
+              | Uorc.Core.Heap::Node.image kindLocal90 bytesLocal91 => (if (prim equal bytesLocal91 expectedLocal82 : Bool) then (if (Uorc.Wire.ProgramEmitScenarios::roots (project (project takenLocal85 session) arena) (cons digestLocal86 (externalRoots p))) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership))) else (ctor Result.error [Unit, Error] (ctor Error.digest)))
+              | Uorc.Core.Heap::Node.sequenceLeaf unused0Local92 unused1Local93 unused2Local94 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.sequenceBranch unused0Local95 unused1Local96 unused2Local97 unused3Local98 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.storeLeaf unused0Local99 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.storeBranch unused0Local100 unused1Local101 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.slot unused0Local102 unused1Local103 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.rootBranch unused0Local104 unused1Local105 unused2Local106 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.metadataWord unused0Local107 unused1Local108 unused2Local109 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.metadataLink unused0Local110 unused1Local111 unused2Local112 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.metadataBranch unused0Local113 unused1Local114 unused2Local115 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.ownerRoot unused0Local116 unused1Local117 => (ctor Result.error [Unit, Error] (ctor Error.digest))
+              | Uorc.Core.Heap::Node.imageReservation unused0Local118 unused1Local119 => (ctor Result.error [Unit, Error] (ctor Error.digest))))
+          | Uorc.Wire.OwnedBasisHash::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+          | Uorc.Wire.OwnedBasisHash::Signal.complete => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+          | Uorc.Wire.OwnedBasisHash::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+          | Uorc.Wire.OwnedBasisHash::Signal.paused whyLocal120 => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+          | Uorc.Wire.OwnedBasisHash::Signal.digest hLocal121 => (ctor Result.error [Unit, Error] (ctor Error.protocol))))
+        | Uorc.Wire.OwnedBasisHash::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.OwnedBasisHash::Signal.complete => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.OwnedBasisHash::Signal.failed => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.OwnedBasisHash::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.protocol))
+        | Uorc.Wire.OwnedBasisHash::Signal.paused whyLocal122 => (ctor Result.error [Unit, Error] (ctor Error.protocol)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkProfiles,
+  parameters: [p : Prepared, canonical : Bytes],
+  result: (Result Unit Error),
+  body: (match (checkDigest p (ctor Uorc.Integrity.Profile::Kind.format2Chain) canonical)
+    | Result.error eLocal123 => (ctor Result.error [Unit, Error] eLocal123)
+    | Result.ok legacyLocal124 => (checkDigest p (ctor Uorc.Integrity.Profile::Kind.format3Stream) canonical)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkDescriptor,
+  parameters: [p : Prepared],
+  result: (Result Unit Error),
+  body: (let tLocal125 : Uorc.Wire.OwnedBasisHash::Transition := (Uorc.Wire.OwnedBasisHash::advance (budget) (Uorc.Wire.OwnedBasisHash::begin (project p arena) (project p usage) (record Uorc.Wire.OwnedBasisSnapshot::Snapshot {record := (project (project p snapshot) record), table := (project (project p snapshot) table), count := (Uorc.Core.Heap::wordAdd (project (project p snapshot) count) (1 : UInt64))}) (ctor Uorc.Integrity.Profile::Kind.format2Chain))); (match (project tLocal125 signal)
+    | Uorc.Wire.OwnedBasisHash::Signal.failed => (if (Uorc.Wire.ProgramEmitScenarios::roots (project (project tLocal125 session) arena) (externalRoots p)) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))
+    | Uorc.Wire.OwnedBasisHash::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.descriptor))
+    | Uorc.Wire.OwnedBasisHash::Signal.complete => (ctor Result.error [Unit, Error] (ctor Error.descriptor))
+    | Uorc.Wire.OwnedBasisHash::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.descriptor))
+    | Uorc.Wire.OwnedBasisHash::Signal.paused whyLocal126 => (ctor Result.error [Unit, Error] (ctor Error.descriptor))
+    | Uorc.Wire.OwnedBasisHash::Signal.digest hLocal127 => (ctor Result.error [Unit, Error] (ctor Error.descriptor)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (prepareEmpty)
+    | Result.error eLocal128 => (ctor Result.error [Unit, Error] eLocal128)
+    | Result.ok pLocal129 => (match (checkDescriptor pLocal129)
+      | Result.error eLocal130 => (ctor Result.error [Unit, Error] eLocal130)
+      | Result.ok descriptorLocal131 => (match (checkProfiles pLocal129 0x00)
+        | Result.error eLocal132 => (ctor Result.error [Unit, Error] eLocal132)
+        | Result.ok testedLocal133 => (match (prepareMixed)
+          | Result.error eLocal134 => (ctor Result.error [Unit, Error] eLocal134)
+          | Result.ok pLocal135 => (match (checkDescriptor pLocal135)
+            | Result.error eLocal136 => (ctor Result.error [Unit, Error] eLocal136)
+            | Result.ok descriptorLocal137 => (match (checkProfiles pLocal135 0x030002616200)
+              | Result.error eLocal138 => (ctor Result.error [Unit, Error] eLocal138)
+              | Result.ok testedLocal139 => (match (prepareLong)
+                | Result.error eLocal140 => (ctor Result.error [Unit, Error] eLocal140)
+                | Result.ok pLocal141 => (match (checkDescriptor pLocal141)
+                  | Result.error eLocal142 => (ctor Result.error [Unit, Error] eLocal142)
+                  | Result.ok descriptorLocal143 => (match (checkProfiles pLocal141 0x0180017f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f)
+                    | Result.error eLocal144 => (ctor Result.error [Unit, Error] eLocal144)
+                    | Result.ok testedLocal145 => (match (prepareCountBoundary)
+                      | Result.error eLocal146 => (ctor Result.error [Unit, Error] eLocal146)
+                      | Result.ok pLocal147 => (match (checkDescriptor pLocal147)
+                        | Result.error eLocal148 => (ctor Result.error [Unit, Error] eLocal148)
+                        | Result.ok descriptorLocal149 => (match (checkProfiles pLocal147 0x80010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000)
+                          | Result.error eLocal150 => (ctor Result.error [Unit, Error] eLocal150)
+                          | Result.ok testedLocal151 => (ctor Result.ok [Unit, Error] ()))))))))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

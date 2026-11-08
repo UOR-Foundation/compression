@@ -1,0 +1,309 @@
+\begin{lexlean}{Uorc.Search.TemplateStreamControls}
+\importmodule{Uorc.Search.TemplateStream}
+\importmodule{Uorc.Search.FixedTemplates}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Search.WaitingEquality}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Fixture,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: root, type: Uorc.Core.RuntimeValue::Handle},
+    {name: roots, type: (List Uorc.Core.RuntimeValue::Handle)}
+  ]
+}
+
+inductive{
+  name: Trial,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: state,
+      fields: [
+        Uorc.Core.Heap::Arena,
+        Uorc.Search.TemplateStream::State,
+        (List Uorc.Core.RuntimeValue::Handle),
+        UInt64,
+        Bool,
+        Bool,
+        Bool
+      ]
+    }
+  ]
+}
+
+definition{
+  name: oneImage,
+  parameters: [],
+  result: (Result Fixture Uorc.Core.Heap::HeapError),
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.runtime) 0x010203))
+    | Result.error heapFailure0 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure0)
+    | Result.ok image0 => (match (Uorc.Core.Heap::allocate (project image0 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project image0 handle) (0 : UInt64) (3 : UInt64)))
+      | Result.error heapFailure1 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure1)
+      | Result.ok leaf0 => (ctor Result.ok [Fixture, Uorc.Core.Heap::HeapError] (record Fixture {arena := (project leaf0 arena), root := (project leaf0 handle), roots := (cons (project image0 handle) (cons (project leaf0 handle) (nil Uorc.Core.RuntimeValue::Handle)))})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: twoImages,
+  parameters: [],
+  result: (Result Fixture Uorc.Core.Heap::HeapError),
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.runtime) 0x01))
+    | Result.error heapFailure0 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure0)
+    | Result.ok image0 => (match (Uorc.Core.Heap::allocate (project image0 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project image0 handle) (0 : UInt64) (1 : UInt64)))
+      | Result.error heapFailure1 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure1)
+      | Result.ok leaf0 => (match (Uorc.Core.Heap::allocate (project leaf0 arena) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.runtime) 0x0203))
+        | Result.error heapFailure2 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure2)
+        | Result.ok image1 => (match (Uorc.Core.Heap::allocate (project image1 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project image1 handle) (0 : UInt64) (2 : UInt64)))
+          | Result.error heapFailure3 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure3)
+          | Result.ok leaf1 => (match (Uorc.Core.Heap::allocate (project leaf1 arena) (ctor Uorc.Core.Heap::Node.sequenceBranch (3 : UInt64) (2 : UInt64) (project leaf0 handle) (project leaf1 handle)))
+            | Result.error heapFailure4 => (ctor Result.error [Fixture, Uorc.Core.Heap::HeapError] heapFailure4)
+            | Result.ok joined => (ctor Result.ok [Fixture, Uorc.Core.Heap::HeapError] (record Fixture {arena := (project joined arena), root := (project joined handle), roots := (cons (project image0 handle) (cons (project leaf0 handle) (cons (project image1 handle) (cons (project leaf1 handle) (cons (project joined handle) (nil Uorc.Core.RuntimeValue::Handle))))))}))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: joinRoots,
+  parameters: [
+    prefixRoots : (List Uorc.Core.RuntimeValue::Handle),
+    suffixRoots : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match prefixRoots
+    | List.nil => suffixRoots
+    | List.cons rootHead rootTail => (cons rootHead (joinRoots rootTail suffixRoots))),
+  recursive_argument: prefixRoots
+}
+
+definition{
+  name: startTrial,
+  parameters: [fixture : Fixture],
+  result: Trial,
+  body: (ctor Trial.state (project fixture arena) (Uorc.Search.TemplateStream::start (ctor Uorc.Search.FixedTemplates::Template.packedSingleton (3 : UInt64) (3 : UInt64) (project fixture root) (Uorc.Core.RuntimeValue::nullHandle))) (project fixture roots) (project (project fixture arena) ownedBytes) false false true)
+}
+
+definition{
+  name: advance,
+  parameters: [trial : Trial],
+  result: Trial,
+  body: (match trial
+    | Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable => (let change : Uorc.Search.TemplateStream::Transition := (match (project tState phase)
+      | Uorc.Search.TemplateStream::Phase.waiting => (Uorc.Search.TemplateStream::acknowledge tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.syntax => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.literalLength => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.spanBegin => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.spanWalking => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.spanRelease => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.spanDrain => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.complete => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.cancelling => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.cancelDrain => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))
+      | Uorc.Search.TemplateStream::Phase.cancelled => (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))); (let nextArena : Uorc.Core.Heap::Arena := (project change arena); (let nextState : Uorc.Search.TemplateStream::State := (project change state); (let nextWaitStable : Bool := (tWaitStable && (Uorc.Core.HeapAudit::auditRoots nextArena (joinRoots tRoots (Uorc.Search.TemplateStream::navigationOwnedRoots nextState)))); (match (project change outcome)
+      | Uorc.Search.TemplateStream::Outcome.failed sourceFailure => (ctor Trial.state nextArena nextState tRoots tBaseline tDone true nextWaitStable)
+      | Uorc.Search.TemplateStream::Outcome.complete => (ctor Trial.state nextArena nextState tRoots tBaseline true tFailed nextWaitStable)
+      | Uorc.Search.TemplateStream::Outcome.advanced => (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable)
+      | Uorc.Search.TemplateStream::Outcome.cancelled => (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable)
+      | Uorc.Search.TemplateStream::Outcome.produced semanticEvent => (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable)
+      | Uorc.Search.TemplateStream::Outcome.awaitingAcknowledgment semanticEvent => (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [work : Nat, trial : Trial],
+  result: Trial,
+  body: (match work
+    | Nat.zero => trial
+    | Nat.succ remaining => (match trial
+      | Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable => (if (tDone || tFailed) then (ctor Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable) else (run remaining (advance (ctor Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+definition{
+  name: auditComplete,
+  parameters: [trial : Trial],
+  result: Bool,
+  body: (match trial
+    | Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable => ((((tDone && (not tFailed)) && tWaitStable) && (prim equal (project tArena ownedBytes) tBaseline : Bool)) && (Uorc.Core.HeapAudit::auditRoots tArena tRoots))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: oneImageCompletes,
+  parameters: [],
+  result: Bool,
+  body: (match (oneImage)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (auditComplete (run 500 (startTrial fixture)))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: oneImage_all_spans_released_after_ack,
+  parameters: [],
+  statement: ((oneImageCompletes) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: twoImagesCompletes,
+  parameters: [],
+  result: Bool,
+  body: (match (twoImages)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (auditComplete (run 500 (startTrial fixture)))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: twoImages_all_spans_released_after_ack,
+  parameters: [],
+  statement: ((twoImagesCompletes) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: seek,
+  parameters: [work : Nat, ticket : Bool, trial : Trial],
+  result: Trial,
+  body: (match work
+    | Nat.zero => trial
+    | Nat.succ remaining => (match trial
+      | Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable => (if (if ticket then (not (Uorc.Core.RuntimeValue::isNull (project tState spanTicket))) else (match (project tState navigation)
+        | Option.none => false
+        | Option.some navigationCursor => true)) then (ctor Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable) else (seek remaining ticket (advance (ctor Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+definition{
+  name: cancelRun,
+  parameters: [work : Nat, first : Bool, trial : Trial],
+  result: Trial,
+  body: (match work
+    | Nat.zero => trial
+    | Nat.succ remaining => (match trial
+      | Trial.state tArena tState tRoots tBaseline tDone tFailed tWaitStable => (let change : Uorc.Search.TemplateStream::Transition := (if var{
+        name: first
+      } then (Uorc.Search.TemplateStream::cancel tArena tState (1 : UInt64)) else (Uorc.Search.TemplateStream::tick tArena tState (1 : UInt64))); (let nextArena : Uorc.Core.Heap::Arena := (project change arena); (let nextState : Uorc.Search.TemplateStream::State := (project change state); (let nextWaitStable : Bool := (tWaitStable && (Uorc.Core.HeapAudit::auditRoots nextArena (joinRoots tRoots (Uorc.Search.TemplateStream::navigationOwnedRoots nextState)))); (match (project change outcome)
+        | Uorc.Search.TemplateStream::Outcome.cancelled => (ctor Trial.state nextArena nextState tRoots tBaseline true tFailed nextWaitStable)
+        | Uorc.Search.TemplateStream::Outcome.failed sourceFailure => (ctor Trial.state nextArena nextState tRoots tBaseline tDone true nextWaitStable)
+        | Uorc.Search.TemplateStream::Outcome.advanced => (cancelRun remaining false (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable))
+        | Uorc.Search.TemplateStream::Outcome.complete => (cancelRun remaining false (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable))
+        | Uorc.Search.TemplateStream::Outcome.produced semanticEvent => (cancelRun remaining false (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable))
+        | Uorc.Search.TemplateStream::Outcome.awaitingAcknowledgment semanticEvent => (cancelRun remaining false (ctor Trial.state nextArena nextState tRoots tBaseline tDone tFailed nextWaitStable))))))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+definition{
+  name: oneImageCancelnavigation,
+  parameters: [],
+  result: Bool,
+  body: (match (oneImage)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 false (startTrial fixture))))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: oneImage_cancel_navigation_releases_exact_roots,
+  parameters: [],
+  statement: ((oneImageCancelnavigation) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: oneImageCancelterminal_span_ticket,
+  parameters: [],
+  result: Bool,
+  body: (match (oneImage)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 true (startTrial fixture))))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: oneImage_cancel_terminal_span_ticket_releases_exact_roots,
+  parameters: [],
+  statement: ((oneImageCancelterminal_span_ticket) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: twoImagesCancelnavigation,
+  parameters: [],
+  result: Bool,
+  body: (match (twoImages)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 false (startTrial fixture))))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: twoImages_cancel_navigation_releases_exact_roots,
+  parameters: [],
+  statement: ((twoImagesCancelnavigation) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: twoImagesCancelterminal_span_ticket,
+  parameters: [],
+  result: Bool,
+  body: (match (twoImages)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (auditComplete (cancelRun 100 true (seek 500 true (startTrial fixture))))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: twoImages_cancel_terminal_span_ticket_releases_exact_roots,
+  parameters: [],
+  statement: ((twoImagesCancelterminal_span_ticket) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: waitingProbe,
+  parameters: [],
+  result: Bool,
+  body: (match (oneImage)
+    | Result.error fixtureFailure => false
+    | Result.ok fixture => (match (seek 500 true (startTrial fixture))
+      | Trial.state pArena pState pRoots pBaseline pDone pFailed pWaitStable => (let observed : Uorc.Search.TemplateStream::Transition := (Uorc.Search.TemplateStream::tick pArena pState (1 : UInt64)); ((Uorc.Search.WaitingEquality::waitingEqSearchTemplateStreamState (project observed state) pState) && ((Uorc.Search.WaitingEquality::waitingEqCoreHeapArena (project observed arena) pArena) && (prim equal (project observed remainingCredit) (1 : UInt64) : Bool)))))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: unacknowledged_span_never_advances_or_releases_ticket,
+  parameters: [],
+  statement: ((waitingProbe) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: scope,
+  parameters: [],
+  result: String,
+  body: "These finite reference harnesses create actual shared-arena images and sequence DAGs, simulate a full admission acknowledgment, and test real navigation, ticket retention/release, cancellation and HeapAudit. They do not substitute for actual RuntimeAdmission offer/ack binding, generated-native performance, or universal ownership proofs."
+}
+\end{semanticmodule}
+\end{lexlean}

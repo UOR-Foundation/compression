@@ -1,0 +1,1467 @@
+\begin{lexlean}{Uorc.Wire.ProgramParseScenarios}
+\importmodule{Uorc.Wire.ProgramParse}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Wire.GraphParse}
+\importmodule{Uorc.Wire.GraphEmit}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Graph}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: assertion, fields: []},
+    {name: fuel, fields: []},
+    {name: wireFailure, fields: []},
+    {name: ownership, fields: []},
+    {name: trace, fields: []},
+    {name: unexpectedFailure, fields: []}
+  ]
+}
+
+structure{
+  name: Fixture,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: wire, type: Bytes}, {name: expected, type: (List UInt64)}]
+}
+
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: session, type: Uorc.Wire.ProgramParse::Session},
+    {name: remaining, type: (List UInt64)},
+    {name: demands, type: UInt64},
+    {name: sawLiteral, type: Bool}
+  ]
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (record Uorc.Core.RuntimeResources::Budget {maxWork := (18446744073709551615 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (18446744073709551615 : UInt64), maxFrames := (100 : UInt64)})
+}
+
+definition{
+  name: wireTag,
+  parameters: [op : Uorc.Core.RuntimeOpcode::Opcode],
+  result: UInt64,
+  body: (match op
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalConstant => (0 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteConstant => (1 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateConstant => (2 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConstant => (3 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAdd => (4 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalSubtract => (5 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalMultiply => (6 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalDivide => (7 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalRemainder => (8 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalAnd => (9 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalOr => (10 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalXor => (11 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalNot => (12 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftLeft => (13 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalShiftRight => (14 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalEqual => (15 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalLess => (16 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteEqual => (17 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteLess => (18 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.naturalToByte => (19 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.byteToNatural => (20 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateNot => (21 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateAnd => (22 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.predicateOr => (23 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceLength => (24 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex => (25 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceSlice => (26 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceConcat => (27 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.sequenceEqual => (28 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.singletonSequence => (29 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.basisGet => (30 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeNew => (31 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeRead => (32 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.storeWrite => (33 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.choose => (34 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.apply => (35 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.tabulate => (36 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.fold => (37 : UInt64)
+    | Uorc.Core.RuntimeOpcode::Opcode.scan => (38 : UInt64))
+}
+
+definition{
+  name: prefix,
+  parameters: [actual : (List UInt64), expected : (List UInt64)],
+  result: (Option (List UInt64)),
+  body: (match actual
+    | List.nil => (ctor Option.some [(List UInt64)] expected)
+    | List.cons aLocal1 tailLocal2 => (match expected
+      | List.nil => (ctor Option.none [(List UInt64)])
+      | List.cons eLocal3 restLocal4 => (if (prim equal aLocal1 eLocal3 : Bool) then (prefix tailLocal2 restLocal4) else (ctor Option.none [(List UInt64)])))),
+  axioms: [],
+  recursive_argument: actual
+}
+
+definition{
+  name: spanWords,
+  parameters: [bytes : Bytes, offset : Nat, length : Nat],
+  result: (List UInt64),
+  body: (match length
+    | Nat.zero => (nil UInt64)
+    | Nat.succ restLocal5 => (match (prim index bytes offset : (Option UInt8))
+      | Option.none => (cons (999 : UInt64) (nil UInt64))
+      | Option.some byteLocal6 => (cons (18 : UInt64) (cons (Uorc.Wire.ProgramParse::byteWord byteLocal6) (spanWords bytes (offset + 1) restLocal5))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: length
+}
+
+definition{
+  name: eventWords,
+  parameters: [arena : Uorc.Core.Heap::Arena, event : Uorc.Core.RuntimeProgram::Event],
+  result: (List UInt64),
+  body: (match event
+    | Uorc.Core.RuntimeProgram::Event.beginBlock nLocal7 => (cons (10 : UInt64) (cons nLocal7 (nil UInt64)))
+    | Uorc.Core.RuntimeProgram::Event.parameter tLocal8 => (cons (11 : UInt64) (cons (Uorc.Core.RuntimeProgram::typeCode tLocal8) (nil UInt64)))
+    | Uorc.Core.RuntimeProgram::Event.beginBody tLocal9 nLocal10 => (cons (12 : UInt64) (cons (Uorc.Core.RuntimeProgram::typeCode tLocal9) (cons nLocal10 (nil UInt64))))
+    | Uorc.Core.RuntimeProgram::Event.beginInstruction opLocal11 => (cons (13 : UInt64) (cons (wireTag opLocal11) (nil UInt64)))
+    | Uorc.Core.RuntimeProgram::Event.scalar nLocal12 => (cons (14 : UInt64) (cons nLocal12 (nil UInt64)))
+    | Uorc.Core.RuntimeProgram::Event.beginCaptures laneLocal13 nLocal14 => (cons (15 : UInt64) (cons (match laneLocal13
+      | Uorc.Core.RuntimeProgram::CaptureLane.first => (0 : UInt64)
+      | Uorc.Core.RuntimeProgram::CaptureLane.second => (1 : UInt64)) (cons nLocal14 (nil UInt64))))
+    | Uorc.Core.RuntimeProgram::Event.capture nLocal15 => (cons (16 : UInt64) (cons nLocal15 (nil UInt64)))
+    | Uorc.Core.RuntimeProgram::Event.beginLiteral nLocal16 => (cons (17 : UInt64) (cons nLocal16 (nil UInt64)))
+    | Uorc.Core.RuntimeProgram::Event.literalSpan hLocal17 offsetLocal18 lengthLocal19 => (match (Uorc.Core.Heap::lookup arena hLocal17)
+      | Result.error eLocal20 => (cons (999 : UInt64) (nil UInt64))
+      | Result.ok entryLocal21 => (match (project entryLocal21 node)
+        | Uorc.Core.Heap::Node.image kindLocal22 bytesLocal23 => (spanWords bytesLocal23 (prim to_nat offsetLocal18 : Nat) (prim to_nat lengthLocal19 : Nat))
+        | Uorc.Core.Heap::Node.sequenceLeaf u0Local24 u1Local25 u2Local26 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.sequenceBranch u0Local27 u1Local28 u2Local29 u3Local30 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.storeLeaf u0Local31 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.storeBranch u0Local32 u1Local33 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.slot u0Local34 u1Local35 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.rootBranch u0Local36 u1Local37 u2Local38 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.metadataWord u0Local39 u1Local40 u2Local41 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.metadataLink u0Local42 u1Local43 u2Local44 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.metadataBranch u0Local45 u1Local46 u2Local47 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.ownerRoot u0Local48 u1Local49 => (cons (999 : UInt64) (nil UInt64))
+        | Uorc.Core.Heap::Node.imageReservation u0Local50 u1Local51 => (cons (999 : UInt64) (nil UInt64))))
+    | Uorc.Core.RuntimeProgram::Event.endInstruction => (cons (19 : UInt64) (nil UInt64))
+    | Uorc.Core.RuntimeProgram::Event.endBlock nLocal52 => (cons (20 : UInt64) (cons nLocal52 (nil UInt64)))
+    | Uorc.Core.RuntimeProgram::Event.seal nLocal53 => (cons (21 : UInt64) (cons nLocal53 (nil UInt64)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: dropTicket,
+  parameters: [x : Uorc.Wire.ProgramParse::Session, h : Uorc.Core.RuntimeValue::Handle],
+  result: (Option Uorc.Wire.ProgramParse::Session),
+  body: (match (Uorc.Core.Heap::release (project x arena) h)
+    | Result.error eLocal54 => (ctor Option.none [Uorc.Wire.ProgramParse::Session])
+    | Result.ok rLocal55 => (match (Uorc.Core.Heap::releaseStep (project rLocal55 arena))
+      | Result.error eLocal56 => (ctor Option.none [Uorc.Wire.ProgramParse::Session])
+      | Result.ok dLocal57 => (ctor Option.some [Uorc.Wire.ProgramParse::Session] (record Uorc.Wire.ProgramParse::Session {state := (project x state), arena := (project dLocal57 arena), usage := (project x usage)})))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cleanupAll,
+  parameters: [fuel : Nat, x : Uorc.Wire.ProgramParse::Session],
+  result: (Result Uorc.Wire.ProgramParse::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ProgramParse::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal58 => (let tLocal59 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::cleanup (budget) x); (match (project tLocal59 signal)
+      | Uorc.Wire.ProgramParse::Signal.clean => (ctor Result.ok [Uorc.Wire.ProgramParse::Session, Error] (project tLocal59 session))
+      | Uorc.Wire.ProgramParse::Signal.advanced => (cleanupAll restLocal58 (project tLocal59 session))
+      | Uorc.Wire.ProgramParse::Signal.needInput => (cleanupAll restLocal58 (project tLocal59 session))
+      | Uorc.Wire.ProgramParse::Signal.pending => (cleanupAll restLocal58 (project tLocal59 session))
+      | Uorc.Wire.ProgramParse::Signal.complete => (cleanupAll restLocal58 (project tLocal59 session))
+      | Uorc.Wire.ProgramParse::Signal.failed => (cleanupAll restLocal58 (project tLocal59 session))
+      | Uorc.Wire.ProgramParse::Signal.paused unusedLocal60 => (cleanupAll restLocal58 (project tLocal59 session))
+      | Uorc.Wire.ProgramParse::Signal.transferred unusedLocal61 => (cleanupAll restLocal58 (project tLocal59 session))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: failureCode,
+  parameters: [e : Uorc.Wire.ProgramParse::Failure],
+  result: UInt64,
+  body: (match e
+    | Uorc.Wire.ProgramParse::Failure.truncated => (1 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.nonminimal => (2 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.naturalOverflow => (3 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.invalidType => (4 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.invalidOpcode => (5 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.invalidPredicate => (6 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.trailingBytes => (7 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.protocol => (8 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.cancelled => (9 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.invalidSpan => (10 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.addressSpaceExhausted => (11 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.heap eLocal62 => (12 : UInt64)
+    | Uorc.Wire.ProgramParse::Failure.resource eLocal63 => (13 : UInt64))
+}
+
+structure{
+  name: Report,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: failure, type: UInt64},
+    {name: remaining, type: (List UInt64)},
+    {name: sawLiteral, type: Bool},
+    {name: roots, type: UInt64}
+  ]
+}
+
+definition{
+  name: drive,
+  parameters: [
+    fuel : Nat,
+    o : Observation,
+    image : Uorc.Core.RuntimeValue::Handle,
+    split : UInt64,
+    size : UInt64,
+    cancelLiteral : Bool
+  ],
+  result: (Result Report Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Report, Error] (ctor Error.fuel))
+    | Nat.succ restLocal64 => (match (project (project (project o session) state) failure)
+      | Option.some eLocal65 => (match (cleanupAll 16 (project o session))
+        | Result.error eLocal66 => (ctor Result.error [Report, Error] eLocal66)
+        | Result.ok cleanLocal67 => (match (Uorc.Core.Heap::lookup (project cleanLocal67 arena) image)
+          | Result.error eLocal68 => (ctor Result.error [Report, Error] (ctor Error.ownership))
+          | Result.ok entryLocal69 => (ctor Result.ok [Report, Error] (record Report {failure := (failureCode eLocal65), remaining := (project o remaining), sawLiteral := (project o sawLiteral), roots := (project entryLocal69 roots)}))))
+      | Option.none => (match (project (project (project o session) state) pending)
+        | Option.some eventIgnoredLocal70 => (match (project (project (project o session) state) pending)
+          | Option.none => (ctor Result.error [Report, Error] (ctor Error.assertion))
+          | Option.some eventLocal71 => (match (prefix (eventWords (project (project o session) arena) eventLocal71) (project o remaining))
+            | Option.none => (ctor Result.error [Report, Error] (ctor Error.trace))
+            | Option.some remainingLocal72 => (if (Uorc.Core.RuntimeValue::isNull (project (project (project o session) state) pendingImage)) then (let ackLocal73 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::acknowledge (budget) (project o session) (if (Uorc.Core.RuntimeValue::isNull (project (project (project o session) state) pendingImage)) then (ctor Uorc.Wire.ProgramParse::Ack.consumed) else (ctor Uorc.Wire.ProgramParse::Ack.takeLiteral))); (match (project ackLocal73 signal)
+              | Uorc.Wire.ProgramParse::Signal.transferred hLocal74 => (match (Uorc.Core.Heap::lookup (project (project ackLocal73 session) arena) hLocal74)
+                | Result.error eLocal75 => (ctor Result.error [Report, Error] (ctor Error.ownership))
+                | Result.ok entryLocal76 => (if (prim equal (project entryLocal76 roots) (2 : UInt64) : Bool) then (match (dropTicket (project ackLocal73 session) hLocal74)
+                  | Option.none => (ctor Result.error [Report, Error] (ctor Error.ownership))
+                  | Option.some droppedLocal77 => (drive restLocal64 (record Observation {session := droppedLocal77, remaining := remainingLocal72, demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)) else (ctor Result.error [Report, Error] (ctor Error.ownership))))
+              | Uorc.Wire.ProgramParse::Signal.advanced => (drive restLocal64 (record Observation {session := (project ackLocal73 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+              | Uorc.Wire.ProgramParse::Signal.needInput => (drive restLocal64 (record Observation {session := (project ackLocal73 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+              | Uorc.Wire.ProgramParse::Signal.pending => (drive restLocal64 (record Observation {session := (project ackLocal73 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+              | Uorc.Wire.ProgramParse::Signal.complete => (drive restLocal64 (record Observation {session := (project ackLocal73 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+              | Uorc.Wire.ProgramParse::Signal.failed => (drive restLocal64 (record Observation {session := (project ackLocal73 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+              | Uorc.Wire.ProgramParse::Signal.clean => (drive restLocal64 (record Observation {session := (project ackLocal73 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+              | Uorc.Wire.ProgramParse::Signal.paused unusedLocal78 => (drive restLocal64 (record Observation {session := (project ackLocal73 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral))) else (if cancelLiteral then (match (cleanupAll 16 (Uorc.Wire.ProgramParse::cancel (project o session)))
+              | Result.error eLocal79 => (ctor Result.error [Report, Error] eLocal79)
+              | Result.ok cleanLocal80 => (match (Uorc.Core.Heap::lookup (project cleanLocal80 arena) image)
+                | Result.error eLocal81 => (ctor Result.error [Report, Error] (ctor Error.ownership))
+                | Result.ok entryLocal82 => (ctor Result.ok [Report, Error] (record Report {failure := (9 : UInt64), remaining := (project o remaining), sawLiteral := true, roots := (project entryLocal82 roots)})))) else (match (Uorc.Core.Heap::lookup (project (project o session) arena) image)
+              | Result.error eLocal83 => (ctor Result.error [Report, Error] (ctor Error.ownership))
+              | Result.ok entryLocal84 => (if (if (prim equal (project entryLocal84 roots) (1 : UInt64) : Bool) then (prim equal (project entryLocal84 incoming) (2 : UInt64) : Bool) else false) then (let ackLocal85 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::acknowledge (budget) (project o session) (if (Uorc.Core.RuntimeValue::isNull (project (project (project o session) state) pendingImage)) then (ctor Uorc.Wire.ProgramParse::Ack.consumed) else (ctor Uorc.Wire.ProgramParse::Ack.takeLiteral))); (match (project ackLocal85 signal)
+                | Uorc.Wire.ProgramParse::Signal.transferred hLocal86 => (match (Uorc.Core.Heap::lookup (project (project ackLocal85 session) arena) hLocal86)
+                  | Result.error eLocal87 => (ctor Result.error [Report, Error] (ctor Error.ownership))
+                  | Result.ok entryLocal88 => (if (prim equal (project entryLocal88 roots) (2 : UInt64) : Bool) then (match (dropTicket (project ackLocal85 session) hLocal86)
+                    | Option.none => (ctor Result.error [Report, Error] (ctor Error.ownership))
+                    | Option.some droppedLocal89 => (drive restLocal64 (record Observation {session := droppedLocal89, remaining := remainingLocal72, demands := (project o demands), sawLiteral := true}) image split size cancelLiteral)) else (ctor Result.error [Report, Error] (ctor Error.ownership))))
+                | Uorc.Wire.ProgramParse::Signal.advanced => (drive restLocal64 (record Observation {session := (project ackLocal85 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := true}) image split size cancelLiteral)
+                | Uorc.Wire.ProgramParse::Signal.needInput => (drive restLocal64 (record Observation {session := (project ackLocal85 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := true}) image split size cancelLiteral)
+                | Uorc.Wire.ProgramParse::Signal.pending => (drive restLocal64 (record Observation {session := (project ackLocal85 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := true}) image split size cancelLiteral)
+                | Uorc.Wire.ProgramParse::Signal.complete => (drive restLocal64 (record Observation {session := (project ackLocal85 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := true}) image split size cancelLiteral)
+                | Uorc.Wire.ProgramParse::Signal.failed => (drive restLocal64 (record Observation {session := (project ackLocal85 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := true}) image split size cancelLiteral)
+                | Uorc.Wire.ProgramParse::Signal.clean => (drive restLocal64 (record Observation {session := (project ackLocal85 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := true}) image split size cancelLiteral)
+                | Uorc.Wire.ProgramParse::Signal.paused unusedLocal90 => (drive restLocal64 (record Observation {session := (project ackLocal85 session), remaining := remainingLocal72, demands := (project o demands), sawLiteral := true}) image split size cancelLiteral))) else (ctor Result.error [Report, Error] (ctor Error.ownership))))))))
+        | Option.none => (if (project (project (project o session) state) waiting) then (let tLocal91 : Uorc.Wire.ProgramParse::Transition := (if (prim equal (project o demands) (5 : UInt64) : Bool) then (Uorc.Wire.ProgramParse::finishInput (budget) (project o session)) else (Uorc.Wire.ProgramParse::feed (budget) (project o session) image (if (prim equal (project o demands) (3 : UInt64) : Bool) then split else (0 : UInt64)) (if (prim equal (project o demands) (1 : UInt64) : Bool) then split else (if (prim equal (project o demands) (3 : UInt64) : Bool) then (Uorc.Core.Heap::wordSub size split) else (0 : UInt64))))); (drive restLocal64 (record Observation {session := (project tLocal91 session), remaining := (project o remaining), demands := (Uorc.Core.Heap::wordAdd (project o demands) (1 : UInt64)), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)) else (let tLocal92 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::advance (budget) (project o session)); (match (project tLocal92 signal)
+          | Uorc.Wire.ProgramParse::Signal.needInput => (drive restLocal64 (record Observation {session := (project tLocal92 session), remaining := (project o remaining), demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+          | Uorc.Wire.ProgramParse::Signal.complete => (match (cleanupAll 16 (project tLocal92 session))
+            | Result.error eLocal93 => (ctor Result.error [Report, Error] eLocal93)
+            | Result.ok cleanLocal94 => (match (Uorc.Core.Heap::lookup (project cleanLocal94 arena) image)
+              | Result.error eLocal95 => (ctor Result.error [Report, Error] (ctor Error.ownership))
+              | Result.ok entryLocal96 => (ctor Result.ok [Report, Error] (record Report {failure := (0 : UInt64), remaining := (project o remaining), sawLiteral := (project o sawLiteral), roots := (project entryLocal96 roots)}))))
+          | Uorc.Wire.ProgramParse::Signal.advanced => (drive restLocal64 (record Observation {session := (project tLocal92 session), remaining := (project o remaining), demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+          | Uorc.Wire.ProgramParse::Signal.pending => (drive restLocal64 (record Observation {session := (project tLocal92 session), remaining := (project o remaining), demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+          | Uorc.Wire.ProgramParse::Signal.failed => (drive restLocal64 (record Observation {session := (project tLocal92 session), remaining := (project o remaining), demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+          | Uorc.Wire.ProgramParse::Signal.clean => (drive restLocal64 (record Observation {session := (project tLocal92 session), remaining := (project o remaining), demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+          | Uorc.Wire.ProgramParse::Signal.paused unusedLocal97 => (drive restLocal64 (record Observation {session := (project tLocal92 session), remaining := (project o remaining), demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral)
+          | Uorc.Wire.ProgramParse::Signal.transferred unusedLocal98 => (drive restLocal64 (record Observation {session := (project tLocal92 session), remaining := (project o remaining), demands := (project o demands), sawLiteral := (project o sawLiteral)}) image split size cancelLiteral))))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: runFixture,
+  parameters: [fixture : Fixture, split : UInt64, cancelLiteral : Bool],
+  result: (Result Report Error),
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.archive) (project fixture wire)))
+    | Result.error eLocal99 => (ctor Result.error [Report, Error] (ctor Error.ownership))
+    | Result.ok allocLocal100 => (drive 1500 (record Observation {session := (Uorc.Wire.ProgramParse::begin (project allocLocal100 arena) (Uorc.Core.RuntimeResources::zeroUsage)), remaining := (project fixture expected), demands := (0 : UInt64), sawLiteral := false}) (project allocLocal100 handle) split (match (Uorc.Core.Heap::wordOfNat (prim length (project fixture wire) : Nat))
+      | Option.none => (0 : UInt64)
+      | Option.some sizeLocal101 => sizeLocal101) cancelLiteral)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkFixture,
+  parameters: [fixture : Fixture, split : UInt64],
+  result: (Result Unit Error),
+  body: (match (runFixture fixture split false)
+    | Result.error eLocal102 => (ctor Result.error [Unit, Error] eLocal102)
+    | Result.ok rLocal103 => (if (if (prim equal (project rLocal103 failure) (0 : UInt64) : Bool) then (prim equal (project rLocal103 roots) (1 : UInt64) : Bool) else false) then (match (project rLocal103 remaining)
+      | List.nil => (ctor Result.ok [Unit, Error] ())
+      | List.cons hLocal104 tLocal105 => (ctor Result.error [Unit, Error] (ctor Error.trace))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkSplits,
+  parameters: [remaining : Nat, fixture : Fixture],
+  result: (Result Unit Error),
+  body: (match remaining
+    | Nat.zero => (checkFixture fixture (0 : UInt64))
+    | Nat.succ restLocal106 => (match (checkFixture fixture (match (Uorc.Core.Heap::wordOfNat (ctor Nat.succ restLocal106))
+        | Option.none => (0 : UInt64)
+        | Option.some widthLocal107 => widthLocal107))
+      | Result.error eLocal108 => (ctor Result.error [Unit, Error] eLocal108)
+      | Result.ok uLocal109 => (checkSplits restLocal106 fixture))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: remaining
+}
+
+definition{
+  name: fixture_naturalConstant,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000010081010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (0 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_byteConstant,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000101ff0100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (1 : UInt64) (cons (14 : UInt64) (cons (255 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_predicateConstant,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000102010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (2 : UInt64) (cons (14 : UInt64) (cons (1 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_sequenceConstant,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x0101000001030300ff800100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (3 : UInt64) (cons (17 : UInt64) (cons (3 : UInt64) (cons (18 : UInt64) (cons (0 : UInt64) (cons (18 : UInt64) (cons (255 : UInt64) (cons (18 : UInt64) (cons (128 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalAdd,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000104810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (4 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalSubtract,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000105810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (5 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalMultiply,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000106810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (6 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalDivide,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000107810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (7 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalRemainder,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000108810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (8 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalAnd,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000109810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (9 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalOr,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000010a810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (10 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalXor,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000010b810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (11 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalNot,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000010c81010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (12 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalShiftLeft,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000010d810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (13 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalShiftRight,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000010e810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (14 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalEqual,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000010f810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (15 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalLess,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000110810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (16 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_byteEqual,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000111810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (17 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_byteLess,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000112810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (18 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_naturalToByte,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011381010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (19 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_byteToNatural,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011481010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (20 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_predicateNot,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011581010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (21 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_predicateAnd,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000116810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (22 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_predicateOr,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000117810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (23 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_sequenceLength,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011881010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (24 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_sequenceIndex,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000119810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (25 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_sequenceSlice,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011a8101820283030100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (26 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (14 : UInt64) (cons (387 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))))})
+}
+
+definition{
+  name: fixture_sequenceConcat,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011b810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (27 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_sequenceEqual,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011c810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (28 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_singletonSequence,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011d81010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (29 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_basisGet,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011e81010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (30 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_storeNew,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000011f81010100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (31 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))})
+}
+
+definition{
+  name: fixture_storeRead,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000120810182020100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (32 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))})
+}
+
+definition{
+  name: fixture_storeWrite,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x0101000001218101820283030100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (33 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (14 : UInt64) (cons (387 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))))})
+}
+
+definition{
+  name: fixture_choose,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x0101000001228101820283030100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (34 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (14 : UInt64) (cons (387 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))))})
+}
+
+definition{
+  name: fixture_apply,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000012381010207080100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (35 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (15 : UInt64) (cons (0 : UInt64) (cons (2 : UInt64) (cons (16 : UInt64) (cons (7 : UInt64) (cons (16 : UInt64) (cons (8 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64))))))))))))))))))))))))})
+}
+
+definition{
+  name: fixture_tabulate,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000124810182020207080100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (36 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (15 : UInt64) (cons (0 : UInt64) (cons (2 : UInt64) (cons (16 : UInt64) (cons (7 : UInt64) (cons (16 : UInt64) (cons (8 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64))))))))))))))))))))))))))})
+}
+
+definition{
+  name: fixture_fold,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x0101000001258101820283030207080100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (37 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (14 : UInt64) (cons (387 : UInt64) (cons (15 : UInt64) (cons (0 : UInt64) (cons (2 : UInt64) (cons (16 : UInt64) (cons (7 : UInt64) (cons (16 : UInt64) (cons (8 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64))))))))))))))))))))))))))))})
+}
+
+definition{
+  name: fixture_scan,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x010100000126810182028303020708840401090100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (38 : UInt64) (cons (14 : UInt64) (cons (129 : UInt64) (cons (14 : UInt64) (cons (258 : UInt64) (cons (14 : UInt64) (cons (387 : UInt64) (cons (15 : UInt64) (cons (0 : UInt64) (cons (2 : UInt64) (cons (16 : UInt64) (cons (7 : UInt64) (cons (16 : UInt64) (cons (8 : UInt64) (cons (14 : UInt64) (cons (516 : UInt64) (cons (15 : UInt64) (cons (1 : UInt64) (cons (1 : UInt64) (cons (16 : UInt64) (cons (9 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))))))))))))))))))))))})
+}
+
+definition{
+  name: fixture_empty_literal,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x0100030103000100, expected := (cons (10 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (3 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (3 : UInt64) (cons (17 : UInt64) (cons (0 : UInt64) (cons (19 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))))))))))))))})
+}
+
+definition{
+  name: fixture_empty_block,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x01010000000100, expected := (cons (10 : UInt64) (cons (1 : UInt64) (cons (11 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (0 : UInt64) (cons (20 : UInt64) (cons (1 : UInt64) (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64))))))))))))})
+}
+
+definition{
+  name: fixture_empty_graph,
+  parameters: [],
+  result: Fixture,
+  body: (record Fixture {wire := 0x0000, expected := (cons (21 : UInt64) (cons (0 : UInt64) (nil UInt64)))})
+}
+
+definition{
+  name: splitGroup0,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkSplits 10 (fixture_naturalConstant))
+    | Result.error eLocal110 => (ctor Result.error [Unit, Error] eLocal110)
+    | Result.ok unitfixture_naturalConstantLocal111 => (match (checkSplits 9 (fixture_byteConstant))
+      | Result.error eLocal112 => (ctor Result.error [Unit, Error] eLocal112)
+      | Result.ok unitfixture_byteConstantLocal113 => (match (checkSplits 9 (fixture_predicateConstant))
+        | Result.error eLocal114 => (ctor Result.error [Unit, Error] eLocal114)
+        | Result.ok unitfixture_predicateConstantLocal115 => (match (checkSplits 12 (fixture_sequenceConstant))
+          | Result.error eLocal116 => (ctor Result.error [Unit, Error] eLocal116)
+          | Result.ok unitfixture_sequenceConstantLocal117 => (match (checkSplits 12 (fixture_naturalAdd))
+            | Result.error eLocal118 => (ctor Result.error [Unit, Error] eLocal118)
+            | Result.ok unitfixture_naturalAddLocal119 => (match (checkSplits 12 (fixture_naturalSubtract))
+              | Result.error eLocal120 => (ctor Result.error [Unit, Error] eLocal120)
+              | Result.ok unitfixture_naturalSubtractLocal121 => (match (checkSplits 12 (fixture_naturalMultiply))
+                | Result.error eLocal122 => (ctor Result.error [Unit, Error] eLocal122)
+                | Result.ok unitfixture_naturalMultiplyLocal123 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: splitGroup1,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkSplits 12 (fixture_naturalDivide))
+    | Result.error eLocal124 => (ctor Result.error [Unit, Error] eLocal124)
+    | Result.ok unitfixture_naturalDivideLocal125 => (match (checkSplits 12 (fixture_naturalRemainder))
+      | Result.error eLocal126 => (ctor Result.error [Unit, Error] eLocal126)
+      | Result.ok unitfixture_naturalRemainderLocal127 => (match (checkSplits 12 (fixture_naturalAnd))
+        | Result.error eLocal128 => (ctor Result.error [Unit, Error] eLocal128)
+        | Result.ok unitfixture_naturalAndLocal129 => (match (checkSplits 12 (fixture_naturalOr))
+          | Result.error eLocal130 => (ctor Result.error [Unit, Error] eLocal130)
+          | Result.ok unitfixture_naturalOrLocal131 => (match (checkSplits 12 (fixture_naturalXor))
+            | Result.error eLocal132 => (ctor Result.error [Unit, Error] eLocal132)
+            | Result.ok unitfixture_naturalXorLocal133 => (match (checkSplits 10 (fixture_naturalNot))
+              | Result.error eLocal134 => (ctor Result.error [Unit, Error] eLocal134)
+              | Result.ok unitfixture_naturalNotLocal135 => (match (checkSplits 12 (fixture_naturalShiftLeft))
+                | Result.error eLocal136 => (ctor Result.error [Unit, Error] eLocal136)
+                | Result.ok unitfixture_naturalShiftLeftLocal137 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: splitGroup2,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkSplits 12 (fixture_naturalShiftRight))
+    | Result.error eLocal138 => (ctor Result.error [Unit, Error] eLocal138)
+    | Result.ok unitfixture_naturalShiftRightLocal139 => (match (checkSplits 12 (fixture_naturalEqual))
+      | Result.error eLocal140 => (ctor Result.error [Unit, Error] eLocal140)
+      | Result.ok unitfixture_naturalEqualLocal141 => (match (checkSplits 12 (fixture_naturalLess))
+        | Result.error eLocal142 => (ctor Result.error [Unit, Error] eLocal142)
+        | Result.ok unitfixture_naturalLessLocal143 => (match (checkSplits 12 (fixture_byteEqual))
+          | Result.error eLocal144 => (ctor Result.error [Unit, Error] eLocal144)
+          | Result.ok unitfixture_byteEqualLocal145 => (match (checkSplits 12 (fixture_byteLess))
+            | Result.error eLocal146 => (ctor Result.error [Unit, Error] eLocal146)
+            | Result.ok unitfixture_byteLessLocal147 => (match (checkSplits 10 (fixture_naturalToByte))
+              | Result.error eLocal148 => (ctor Result.error [Unit, Error] eLocal148)
+              | Result.ok unitfixture_naturalToByteLocal149 => (match (checkSplits 10 (fixture_byteToNatural))
+                | Result.error eLocal150 => (ctor Result.error [Unit, Error] eLocal150)
+                | Result.ok unitfixture_byteToNaturalLocal151 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: splitGroup3,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkSplits 10 (fixture_predicateNot))
+    | Result.error eLocal152 => (ctor Result.error [Unit, Error] eLocal152)
+    | Result.ok unitfixture_predicateNotLocal153 => (match (checkSplits 12 (fixture_predicateAnd))
+      | Result.error eLocal154 => (ctor Result.error [Unit, Error] eLocal154)
+      | Result.ok unitfixture_predicateAndLocal155 => (match (checkSplits 12 (fixture_predicateOr))
+        | Result.error eLocal156 => (ctor Result.error [Unit, Error] eLocal156)
+        | Result.ok unitfixture_predicateOrLocal157 => (match (checkSplits 10 (fixture_sequenceLength))
+          | Result.error eLocal158 => (ctor Result.error [Unit, Error] eLocal158)
+          | Result.ok unitfixture_sequenceLengthLocal159 => (match (checkSplits 12 (fixture_sequenceIndex))
+            | Result.error eLocal160 => (ctor Result.error [Unit, Error] eLocal160)
+            | Result.ok unitfixture_sequenceIndexLocal161 => (match (checkSplits 14 (fixture_sequenceSlice))
+              | Result.error eLocal162 => (ctor Result.error [Unit, Error] eLocal162)
+              | Result.ok unitfixture_sequenceSliceLocal163 => (match (checkSplits 12 (fixture_sequenceConcat))
+                | Result.error eLocal164 => (ctor Result.error [Unit, Error] eLocal164)
+                | Result.ok unitfixture_sequenceConcatLocal165 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: splitGroup4,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkSplits 12 (fixture_sequenceEqual))
+    | Result.error eLocal166 => (ctor Result.error [Unit, Error] eLocal166)
+    | Result.ok unitfixture_sequenceEqualLocal167 => (match (checkSplits 10 (fixture_singletonSequence))
+      | Result.error eLocal168 => (ctor Result.error [Unit, Error] eLocal168)
+      | Result.ok unitfixture_singletonSequenceLocal169 => (match (checkSplits 10 (fixture_basisGet))
+        | Result.error eLocal170 => (ctor Result.error [Unit, Error] eLocal170)
+        | Result.ok unitfixture_basisGetLocal171 => (match (checkSplits 10 (fixture_storeNew))
+          | Result.error eLocal172 => (ctor Result.error [Unit, Error] eLocal172)
+          | Result.ok unitfixture_storeNewLocal173 => (match (checkSplits 12 (fixture_storeRead))
+            | Result.error eLocal174 => (ctor Result.error [Unit, Error] eLocal174)
+            | Result.ok unitfixture_storeReadLocal175 => (match (checkSplits 14 (fixture_storeWrite))
+              | Result.error eLocal176 => (ctor Result.error [Unit, Error] eLocal176)
+              | Result.ok unitfixture_storeWriteLocal177 => (match (checkSplits 14 (fixture_choose))
+                | Result.error eLocal178 => (ctor Result.error [Unit, Error] eLocal178)
+                | Result.ok unitfixture_chooseLocal179 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: splitGroup5,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkSplits 13 (fixture_apply))
+    | Result.error eLocal180 => (ctor Result.error [Unit, Error] eLocal180)
+    | Result.ok unitfixture_applyLocal181 => (match (checkSplits 15 (fixture_tabulate))
+      | Result.error eLocal182 => (ctor Result.error [Unit, Error] eLocal182)
+      | Result.ok unitfixture_tabulateLocal183 => (match (checkSplits 17 (fixture_fold))
+        | Result.error eLocal184 => (ctor Result.error [Unit, Error] eLocal184)
+        | Result.ok unitfixture_foldLocal185 => (match (checkSplits 21 (fixture_scan))
+          | Result.error eLocal186 => (ctor Result.error [Unit, Error] eLocal186)
+          | Result.ok unitfixture_scanLocal187 => (match (checkSplits 8 (fixture_empty_literal))
+            | Result.error eLocal188 => (ctor Result.error [Unit, Error] eLocal188)
+            | Result.ok unitfixture_empty_literalLocal189 => (match (checkSplits 7 (fixture_empty_block))
+              | Result.error eLocal190 => (ctor Result.error [Unit, Error] eLocal190)
+              | Result.ok unitfixture_empty_blockLocal191 => (match (checkSplits 2 (fixture_empty_graph))
+                | Result.error eLocal192 => (ctor Result.error [Unit, Error] eLocal192)
+                | Result.ok unitfixture_empty_graphLocal193 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runSplits,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (splitGroup0)
+    | Result.error eLocal194 => (ctor Result.error [Unit, Error] eLocal194)
+    | Result.ok usplitGroup0Local195 => (match (splitGroup1)
+      | Result.error eLocal196 => (ctor Result.error [Unit, Error] eLocal196)
+      | Result.ok usplitGroup1Local197 => (match (splitGroup2)
+        | Result.error eLocal198 => (ctor Result.error [Unit, Error] eLocal198)
+        | Result.ok usplitGroup2Local199 => (match (splitGroup3)
+          | Result.error eLocal200 => (ctor Result.error [Unit, Error] eLocal200)
+          | Result.ok usplitGroup3Local201 => (match (splitGroup4)
+            | Result.error eLocal202 => (ctor Result.error [Unit, Error] eLocal202)
+            | Result.ok usplitGroup4Local203 => (match (splitGroup5)
+              | Result.error eLocal204 => (ctor Result.error [Unit, Error] eLocal204)
+              | Result.ok usplitGroup5Local205 => (ctor Result.ok [Unit, Error] ()))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runNegatives,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (runFixture (record Fixture {wire := 0x8000, expected := (nil UInt64)}) (1 : UInt64) false)
+    | Result.error eLocal206 => (ctor Result.error [Unit, Error] eLocal206)
+    | Result.ok rLocal207 => (if (if (prim equal (project rLocal207 failure) (2 : UInt64) : Bool) then (prim equal (project rLocal207 roots) (1 : UInt64) : Bool) else false) then (match (runFixture (record Fixture {wire := 0xffffffffffffffffffff01, expected := (nil UInt64)}) (5 : UInt64) false)
+      | Result.error eLocal208 => (ctor Result.error [Unit, Error] eLocal208)
+      | Result.ok rLocal209 => (if (if (prim equal (project rLocal209 failure) (11 : UInt64) : Bool) then (prim equal (project rLocal209 roots) (1 : UInt64) : Bool) else false) then (match (runFixture (record Fixture {wire := 0x0100000100ffffffffffffffffffff, expected := (cons (10 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (0 : UInt64) (nil UInt64))))))))}) (7 : UInt64) false)
+        | Result.error eLocal210 => (ctor Result.error [Unit, Error] eLocal210)
+        | Result.ok rLocal211 => (if (if (prim equal (project rLocal211 failure) (3 : UInt64) : Bool) then (prim equal (project rLocal211 roots) (1 : UInt64) : Bool) else false) then (match (runFixture (record Fixture {wire := 0x010105, expected := (cons (10 : UInt64) (cons (1 : UInt64) (nil UInt64)))}) (1 : UInt64) false)
+          | Result.error eLocal212 => (ctor Result.error [Unit, Error] eLocal212)
+          | Result.ok rLocal213 => (if (if (prim equal (project rLocal213 failure) (4 : UInt64) : Bool) then (prim equal (project rLocal213 roots) (1 : UInt64) : Bool) else false) then (match (runFixture (record Fixture {wire := 0x0100000127, expected := (cons (10 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (nil UInt64))))))}) (2 : UInt64) false)
+            | Result.error eLocal214 => (ctor Result.error [Unit, Error] eLocal214)
+            | Result.ok rLocal215 => (if (if (prim equal (project rLocal215 failure) (5 : UInt64) : Bool) then (prim equal (project rLocal215 roots) (1 : UInt64) : Bool) else false) then (match (runFixture (record Fixture {wire := 0x010000010202, expected := (cons (10 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (0 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (2 : UInt64) (nil UInt64))))))))}) (3 : UInt64) false)
+              | Result.error eLocal216 => (ctor Result.error [Unit, Error] eLocal216)
+              | Result.ok rLocal217 => (if (if (prim equal (project rLocal217 failure) (6 : UInt64) : Bool) then (prim equal (project rLocal217 roots) (1 : UInt64) : Bool) else false) then (match (runFixture (record Fixture {wire := 0x000000, expected := (nil UInt64)}) (1 : UInt64) false)
+                | Result.error eLocal218 => (ctor Result.error [Unit, Error] eLocal218)
+                | Result.ok rLocal219 => (if (if (prim equal (project rLocal219 failure) (7 : UInt64) : Bool) then (prim equal (project rLocal219 roots) (1 : UInt64) : Bool) else false) then (match (runFixture (record Fixture {wire := 0x01000301030201, expected := (cons (10 : UInt64) (cons (0 : UInt64) (cons (12 : UInt64) (cons (3 : UInt64) (cons (1 : UInt64) (cons (13 : UInt64) (cons (3 : UInt64) (cons (17 : UInt64) (cons (2 : UInt64) (cons (18 : UInt64) (cons (1 : UInt64) (nil UInt64))))))))))))}) (3 : UInt64) false)
+                  | Result.error eLocal220 => (ctor Result.error [Unit, Error] eLocal220)
+                  | Result.ok rLocal221 => (if (if (prim equal (project rLocal221 failure) (1 : UInt64) : Bool) then (prim equal (project rLocal221 roots) (1 : UInt64) : Bool) else false) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runCancellation,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (runFixture (fixture_sequenceConstant) (8 : UInt64) true)
+    | Result.error eLocal222 => (ctor Result.error [Unit, Error] eLocal222)
+    | Result.ok rLocal223 => (if (if (project rLocal223 sawLiteral) then (if (prim equal (project rLocal223 failure) (9 : UInt64) : Bool) then (prim equal (project rLocal223 roots) (1 : UInt64) : Bool) else false) else false) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: rootCount,
+  parameters: [x : Uorc.Wire.ProgramParse::Session, h : Uorc.Core.RuntimeValue::Handle],
+  result: UInt64,
+  body: (match (Uorc.Core.Heap::lookup (project x arena) h)
+    | Result.error eLocal224 => (0 : UInt64)
+    | Result.ok entryLocal225 => (project entryLocal225 roots)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: seekLiteral,
+  parameters: [fuel : Nat, x : Uorc.Wire.ProgramParse::Session],
+  result: (Result Uorc.Wire.ProgramParse::Session Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ProgramParse::Session, Error] (ctor Error.fuel))
+    | Nat.succ restLocal226 => (if (Uorc.Core.RuntimeValue::isNull (project (project x state) pendingImage)) then (match (project (project x state) pending)
+      | Option.some eventLocal227 => (seekLiteral restLocal226 (project (Uorc.Wire.ProgramParse::acknowledge (budget) x (ctor Uorc.Wire.ProgramParse::Ack.consumed)) session))
+      | Option.none => (let tLocal228 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::advance (budget) x); (match (project tLocal228 signal)
+        | Uorc.Wire.ProgramParse::Signal.failed => (ctor Result.error [Uorc.Wire.ProgramParse::Session, Error] (ctor Error.wireFailure))
+        | Uorc.Wire.ProgramParse::Signal.advanced => (seekLiteral restLocal226 (project tLocal228 session))
+        | Uorc.Wire.ProgramParse::Signal.needInput => (seekLiteral restLocal226 (project tLocal228 session))
+        | Uorc.Wire.ProgramParse::Signal.pending => (seekLiteral restLocal226 (project tLocal228 session))
+        | Uorc.Wire.ProgramParse::Signal.complete => (seekLiteral restLocal226 (project tLocal228 session))
+        | Uorc.Wire.ProgramParse::Signal.clean => (seekLiteral restLocal226 (project tLocal228 session))
+        | Uorc.Wire.ProgramParse::Signal.paused unusedLocal229 => (seekLiteral restLocal226 (project tLocal228 session))
+        | Uorc.Wire.ProgramParse::Signal.transferred unusedLocal230 => (seekLiteral restLocal226 (project tLocal228 session))))) else (ctor Result.ok [Uorc.Wire.ProgramParse::Session, Error] x))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: firstLiteral,
+  parameters: [],
+  result: (Result Uorc.Wire.ProgramParse::Session Error),
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.archive) (project (fixture_sequenceConstant) wire)))
+    | Result.error eLocal231 => (ctor Result.error [Uorc.Wire.ProgramParse::Session, Error] (ctor Error.ownership))
+    | Result.ok aLocal232 => (seekLiteral 100 (project (Uorc.Wire.ProgramParse::feed (budget) (Uorc.Wire.ProgramParse::begin (project aLocal232 arena) (Uorc.Core.RuntimeResources::zeroUsage)) (project aLocal232 handle) (0 : UInt64) (12 : UInt64)) session))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runPendingOwnership,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (firstLiteral)
+    | Result.error eLocal233 => (ctor Result.error [Unit, Error] eLocal233)
+    | Result.ok xLocal234 => (if (prim equal (rootCount xLocal234 (project (project xLocal234 state) pendingImage)) (1 : UInt64) : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runProtocol,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (firstLiteral)
+    | Result.error eLocal235 => (ctor Result.error [Unit, Error] eLocal235)
+    | Result.ok xLocal236 => (let wrongLocal237 : Uorc.Wire.ProgramParse::Session := (project (Uorc.Wire.ProgramParse::acknowledge (budget) xLocal236 (ctor Uorc.Wire.ProgramParse::Ack.consumed)) session); (if (match (project (project wrongLocal237 state) failure)
+      | Option.none => false
+      | Option.some fLocal238 => (if (prim equal (failureCode fLocal238) (8 : UInt64) : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle (project (project wrongLocal237 state) pendingImage) (project (project xLocal236 state) pendingImage)) then (prim equal (rootCount wrongLocal237 (project (project xLocal236 state) pendingImage)) (1 : UInt64) : Bool) else false) else false)) then (let feedLocal239 : Uorc.Wire.ProgramParse::Session := (project (Uorc.Wire.ProgramParse::feed (budget) xLocal236 (project (project xLocal236 state) image) (0 : UInt64) (0 : UInt64)) session); (if (match (project (project feedLocal239 state) failure)
+      | Option.none => false
+      | Option.some fLocal240 => (if (prim equal (failureCode fLocal240) (8 : UInt64) : Bool) then (if (Uorc.Core.RuntimeValue::sameHandle (project (project feedLocal239 state) pendingImage) (project (project xLocal236 state) pendingImage)) then (prim equal (rootCount feedLocal239 (project (project xLocal236 state) pendingImage)) (1 : UInt64) : Bool) else false) else false)) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))) else (ctor Result.error [Unit, Error] (ctor Error.ownership))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runPause,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (firstLiteral)
+    | Result.error eLocal241 => (ctor Result.error [Unit, Error] eLocal241)
+    | Result.ok xLocal242 => (let tLocal243 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::advance (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project xLocal242 usage) work), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (18446744073709551615 : UInt64), maxFrames := (100 : UInt64)}) xLocal242); (if (match (project tLocal243 signal)
+      | Uorc.Wire.ProgramParse::Signal.paused eLocal244 => (if (prim equal (project (project (project tLocal243 session) usage) work) (project (project xLocal242 usage) work) : Bool) then (if (prim equal (project (project (project tLocal243 session) state) offset) (project (project xLocal242 state) offset) : Bool) then (prim equal (rootCount (project tLocal243 session) (project (project xLocal242 state) pendingImage)) (1 : UInt64) : Bool) else false) else false)
+      | Uorc.Wire.ProgramParse::Signal.advanced => false
+      | Uorc.Wire.ProgramParse::Signal.needInput => false
+      | Uorc.Wire.ProgramParse::Signal.pending => false
+      | Uorc.Wire.ProgramParse::Signal.complete => false
+      | Uorc.Wire.ProgramParse::Signal.failed => false
+      | Uorc.Wire.ProgramParse::Signal.clean => false
+      | Uorc.Wire.ProgramParse::Signal.transferred hLocal245 => false) then (let resumedLocal246 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::advance (budget) (project tLocal243 session)); (if (prim equal (project (project (project resumedLocal246 session) usage) work) (Uorc.Core.Heap::wordAdd (project (project xLocal242 usage) work) (Uorc.Wire.ProgramParse::actionWork)) : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.ownership))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runEOF,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (let xLocal247 : Uorc.Wire.ProgramParse::Session := (Uorc.Wire.ProgramParse::begin (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (Uorc.Core.RuntimeResources::zeroUsage)); (let onceLocal248 : Uorc.Wire.ProgramParse::Session := (project (Uorc.Wire.ProgramParse::finishInput (budget) xLocal247) session); (let twiceLocal249 : Uorc.Wire.ProgramParse::Session := (project (Uorc.Wire.ProgramParse::finishInput (budget) onceLocal248) session); (match (project (project twiceLocal249 state) failure)
+    | Option.none => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+    | Option.some fLocal250 => (if (prim equal (failureCode fLocal250) (8 : UInt64) : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.assertion))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runTransferOwnership,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (firstLiteral)
+    | Result.error eLocal251 => (ctor Result.error [Unit, Error] eLocal251)
+    | Result.ok xLocal252 => (let tLocal253 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::acknowledge (budget) xLocal252 (ctor Uorc.Wire.ProgramParse::Ack.takeLiteral)); (match (project tLocal253 signal)
+      | Uorc.Wire.ProgramParse::Signal.transferred hLocal254 => (if (prim equal (rootCount (project tLocal253 session) hLocal254) (2 : UInt64) : Bool) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))
+      | Uorc.Wire.ProgramParse::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+      | Uorc.Wire.ProgramParse::Signal.needInput => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+      | Uorc.Wire.ProgramParse::Signal.pending => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+      | Uorc.Wire.ProgramParse::Signal.complete => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+      | Uorc.Wire.ProgramParse::Signal.failed => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+      | Uorc.Wire.ProgramParse::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+      | Uorc.Wire.ProgramParse::Signal.paused eLocal255 => (ctor Result.error [Unit, Error] (ctor Error.ownership))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: referenceWords,
+  parameters: [refs : (List Nat)],
+  result: (List UInt64),
+  body: (match refs
+    | List.nil => (nil UInt64)
+    | List.cons headLocal256 tailLocal257 => (prim append (cons (16 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat headLocal256)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal258 => wordLocal258) (nil UInt64))) (referenceWords tailLocal257) : (List UInt64))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: refs
+}
+
+definition{
+  name: ropeWords,
+  parameters: [rope : Uorc.Core.Bytes::Rope, offset : Nat, length : Nat],
+  result: (List UInt64),
+  body: (match length
+    | Nat.zero => (nil UInt64)
+    | Nat.succ restLocal259 => (match (Uorc.Core.Bytes::atUnchecked rope offset)
+      | Option.none => (cons (999 : UInt64) (nil UInt64))
+      | Option.some byteLocal260 => (prim append (cons (18 : UInt64) (cons (Uorc.Wire.ProgramParse::byteWord byteLocal260) (nil UInt64))) (ropeWords rope (offset + 1) restLocal259) : (List UInt64)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: length
+}
+
+definition{
+  name: instructionWords,
+  parameters: [instruction : Uorc.Core.Graph::Instruction],
+  result: (List UInt64),
+  body: (match instruction
+    | Uorc.Core.Graph::Instruction.naturalConstant x0Local261 => (prim append (cons (13 : UInt64) (cons (0 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons x0Local261 (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.byteConstant x0Local262 => (prim append (cons (13 : UInt64) (cons (1 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (Uorc.Wire.ProgramParse::byteWord x0Local262) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.predicateConstant x0Local263 => (prim append (cons (13 : UInt64) (cons (2 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (if x0Local263 then (1 : UInt64) else (0 : UInt64)) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.sequenceConstant x0Local264 => (prim append (cons (13 : UInt64) (cons (3 : UInt64) (cons (17 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (prim length x0Local264 : Nat))
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal265 => wordLocal265) (nil UInt64))))) (prim append (spanWords x0Local264 0 (prim length x0Local264 : Nat)) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalAdd x0Local266 x1Local267 => (prim append (cons (13 : UInt64) (cons (4 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local266)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal268 => wordLocal268) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local267)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal269 => wordLocal269) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalSubtract x0Local270 x1Local271 => (prim append (cons (13 : UInt64) (cons (5 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local270)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal272 => wordLocal272) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local271)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal273 => wordLocal273) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalMultiply x0Local274 x1Local275 => (prim append (cons (13 : UInt64) (cons (6 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local274)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal276 => wordLocal276) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local275)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal277 => wordLocal277) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalDivide x0Local278 x1Local279 => (prim append (cons (13 : UInt64) (cons (7 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local278)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal280 => wordLocal280) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local279)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal281 => wordLocal281) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalRemainder x0Local282 x1Local283 => (prim append (cons (13 : UInt64) (cons (8 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local282)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal284 => wordLocal284) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local283)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal285 => wordLocal285) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalAnd x0Local286 x1Local287 => (prim append (cons (13 : UInt64) (cons (9 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local286)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal288 => wordLocal288) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local287)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal289 => wordLocal289) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalOr x0Local290 x1Local291 => (prim append (cons (13 : UInt64) (cons (10 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local290)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal292 => wordLocal292) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local291)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal293 => wordLocal293) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalXor x0Local294 x1Local295 => (prim append (cons (13 : UInt64) (cons (11 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local294)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal296 => wordLocal296) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local295)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal297 => wordLocal297) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalNot x0Local298 => (prim append (cons (13 : UInt64) (cons (12 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local298)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal299 => wordLocal299) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft x0Local300 x1Local301 => (prim append (cons (13 : UInt64) (cons (13 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local300)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal302 => wordLocal302) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local301)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal303 => wordLocal303) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalShiftRight x0Local304 x1Local305 => (prim append (cons (13 : UInt64) (cons (14 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local304)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal306 => wordLocal306) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local305)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal307 => wordLocal307) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalEqual x0Local308 x1Local309 => (prim append (cons (13 : UInt64) (cons (15 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local308)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal310 => wordLocal310) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local309)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal311 => wordLocal311) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalLess x0Local312 x1Local313 => (prim append (cons (13 : UInt64) (cons (16 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local312)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal314 => wordLocal314) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local313)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal315 => wordLocal315) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.byteEqual x0Local316 x1Local317 => (prim append (cons (13 : UInt64) (cons (17 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local316)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal318 => wordLocal318) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local317)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal319 => wordLocal319) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.byteLess x0Local320 x1Local321 => (prim append (cons (13 : UInt64) (cons (18 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local320)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal322 => wordLocal322) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local321)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal323 => wordLocal323) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.naturalToByte x0Local324 => (prim append (cons (13 : UInt64) (cons (19 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local324)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal325 => wordLocal325) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.byteToNatural x0Local326 => (prim append (cons (13 : UInt64) (cons (20 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local326)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal327 => wordLocal327) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.predicateNot x0Local328 => (prim append (cons (13 : UInt64) (cons (21 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local328)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal329 => wordLocal329) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.predicateAnd x0Local330 x1Local331 => (prim append (cons (13 : UInt64) (cons (22 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local330)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal332 => wordLocal332) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local331)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal333 => wordLocal333) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.predicateOr x0Local334 x1Local335 => (prim append (cons (13 : UInt64) (cons (23 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local334)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal336 => wordLocal336) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local335)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal337 => wordLocal337) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.sequenceLength x0Local338 => (prim append (cons (13 : UInt64) (cons (24 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local338)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal339 => wordLocal339) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.sequenceIndex x0Local340 x1Local341 => (prim append (cons (13 : UInt64) (cons (25 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local340)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal342 => wordLocal342) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local341)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal343 => wordLocal343) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.sequenceSlice x0Local344 x1Local345 x2Local346 => (prim append (cons (13 : UInt64) (cons (26 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local344)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal347 => wordLocal347) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local345)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal348 => wordLocal348) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x2Local346)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal349 => wordLocal349) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.sequenceConcat x0Local350 x1Local351 => (prim append (cons (13 : UInt64) (cons (27 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local350)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal352 => wordLocal352) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local351)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal353 => wordLocal353) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.sequenceEqual x0Local354 x1Local355 => (prim append (cons (13 : UInt64) (cons (28 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local354)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal356 => wordLocal356) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local355)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal357 => wordLocal357) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.singletonSequence x0Local358 => (prim append (cons (13 : UInt64) (cons (29 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local358)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal359 => wordLocal359) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.basisGet x0Local360 => (prim append (cons (13 : UInt64) (cons (30 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local360)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal361 => wordLocal361) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.storeNew x0Local362 => (prim append (cons (13 : UInt64) (cons (31 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local362)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal363 => wordLocal363) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.storeRead x0Local364 x1Local365 => (prim append (cons (13 : UInt64) (cons (32 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local364)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal366 => wordLocal366) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local365)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal367 => wordLocal367) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.storeWrite x0Local368 x1Local369 x2Local370 => (prim append (cons (13 : UInt64) (cons (33 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local368)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal371 => wordLocal371) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local369)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal372 => wordLocal372) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x2Local370)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal373 => wordLocal373) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.choose x0Local374 x1Local375 x2Local376 => (prim append (cons (13 : UInt64) (cons (34 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local374)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal377 => wordLocal377) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local375)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal378 => wordLocal378) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x2Local376)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal379 => wordLocal379) (nil UInt64))) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.apply x0Local380 x1Local381 => (prim append (cons (13 : UInt64) (cons (35 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local380)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal382 => wordLocal382) (nil UInt64))) (prim append (prim append (cons (15 : UInt64) (cons (0 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (prim length x1Local381 : Nat))
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal383 => wordLocal383) (nil UInt64)))) (referenceWords x1Local381) : (List UInt64)) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.tabulate x0Local384 x1Local385 x2Local386 => (prim append (cons (13 : UInt64) (cons (36 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local384)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal387 => wordLocal387) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local385)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal388 => wordLocal388) (nil UInt64))) (prim append (prim append (cons (15 : UInt64) (cons (0 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (prim length x2Local386 : Nat))
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal389 => wordLocal389) (nil UInt64)))) (referenceWords x2Local386) : (List UInt64)) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.fold x0Local390 x1Local391 x2Local392 x3Local393 => (prim append (cons (13 : UInt64) (cons (37 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local390)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal394 => wordLocal394) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local391)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal395 => wordLocal395) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x2Local392)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal396 => wordLocal396) (nil UInt64))) (prim append (prim append (cons (15 : UInt64) (cons (0 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (prim length x3Local393 : Nat))
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal397 => wordLocal397) (nil UInt64)))) (referenceWords x3Local393) : (List UInt64)) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.scan x0Local398 x1Local399 x2Local400 x3Local401 x4Local402 x5Local403 => (prim append (cons (13 : UInt64) (cons (38 : UInt64) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x0Local398)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal404 => wordLocal404) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x1Local399)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal405 => wordLocal405) (nil UInt64))) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x2Local400)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal406 => wordLocal406) (nil UInt64))) (prim append (prim append (cons (15 : UInt64) (cons (0 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (prim length x3Local401 : Nat))
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal407 => wordLocal407) (nil UInt64)))) (referenceWords x3Local401) : (List UInt64)) (prim append (cons (14 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat x4Local402)
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal408 => wordLocal408) (nil UInt64))) (prim append (prim append (cons (15 : UInt64) (cons (1 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (prim length x5Local403 : Nat))
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal409 => wordLocal409) (nil UInt64)))) (referenceWords x5Local403) : (List UInt64)) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64))
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant x0Local410 => (prim append (cons (13 : UInt64) (cons (3 : UInt64) (cons (17 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (Uorc.Core.Bytes::length x0Local410))
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal411 => wordLocal411) (nil UInt64))))) (prim append (ropeWords x0Local410 0 (Uorc.Core.Bytes::length x0Local410)) (cons (19 : UInt64) (nil UInt64)) : (List UInt64)) : (List UInt64))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: instructionsWords,
+  parameters: [items : (List Uorc.Core.Graph::Instruction)],
+  result: (List UInt64),
+  body: (match items
+    | List.nil => (nil UInt64)
+    | List.cons headLocal412 tailLocal413 => (prim append (instructionWords headLocal412) (instructionsWords tailLocal413) : (List UInt64))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: items
+}
+
+definition{
+  name: parameterWords,
+  parameters: [items : (List Uorc.Core.Types::ValueType)],
+  result: (List UInt64),
+  body: (match items
+    | List.nil => (nil UInt64)
+    | List.cons headLocal414 tailLocal415 => (prim append (cons (11 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (Uorc.Wire.GraphEmit::typeCode headLocal414))
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal416 => wordLocal416) (nil UInt64))) (parameterWords tailLocal415) : (List UInt64))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: items
+}
+
+definition{
+  name: blockWords,
+  parameters: [block : Uorc.Core.Graph::Block],
+  result: (List UInt64),
+  body: (prim append (cons (10 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (prim length (project block parameters) : Nat))
+    | Option.none => (999999 : UInt64)
+    | Option.some wordLocal417 => wordLocal417) (nil UInt64))) (prim append (parameterWords (project block parameters)) (prim append (cons (12 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (Uorc.Wire.GraphEmit::typeCode (project block result)))
+    | Option.none => (999999 : UInt64)
+    | Option.some wordLocal418 => wordLocal418) (cons (match (Uorc.Core.Heap::wordOfNat (prim length (project block instructions) : Nat))
+    | Option.none => (999999 : UInt64)
+    | Option.some wordLocal419 => wordLocal419) (nil UInt64)))) (prim append (instructionsWords (project block instructions)) (cons (20 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (project block returnDistance))
+    | Option.none => (999999 : UInt64)
+    | Option.some wordLocal420 => wordLocal420) (nil UInt64))) : (List UInt64)) : (List UInt64)) : (List UInt64)) : (List UInt64)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: blocksWords,
+  parameters: [items : (List Uorc.Core.Graph::Block)],
+  result: (List UInt64),
+  body: (match items
+    | List.nil => (nil UInt64)
+    | List.cons headLocal421 tailLocal422 => (prim append (blockWords headLocal421) (blocksWords tailLocal422) : (List UInt64))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: items
+}
+
+definition{
+  name: checkDiagnostic,
+  parameters: [fixture : Fixture],
+  result: (Result Unit Error),
+  body: (match (Uorc.Wire.GraphParse::runFixture 5000 (Uorc.Wire.GraphParse::fixtureStart (project fixture wire)))
+    | Uorc.Wire.GraphParse::Event.complete graphLocal423 positionLocal424 workLocal425 => (match (prefix (prim append (blocksWords (project graphLocal423 blocks)) (cons (21 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (project graphLocal423 entry))
+        | Option.none => (999999 : UInt64)
+        | Option.some wordLocal426 => wordLocal426) (nil UInt64))) : (List UInt64)) (project fixture expected))
+      | Option.none => (ctor Result.error [Unit, Error] (ctor Error.trace))
+      | Option.some leftLocal427 => (match leftLocal427
+        | List.nil => (ctor Result.ok [Unit, Error] ())
+        | List.cons hLocal428 tLocal429 => (ctor Result.error [Unit, Error] (ctor Error.trace))))
+    | Uorc.Wire.GraphParse::Event.advanced stateLocal430 => (ctor Result.error [Unit, Error] (ctor Error.wireFailure))
+    | Uorc.Wire.GraphParse::Event.needInput stateLocal431 => (ctor Result.error [Unit, Error] (ctor Error.wireFailure))
+    | Uorc.Wire.GraphParse::Event.failed errorLocal432 positionLocal433 workLocal434 => (ctor Result.error [Unit, Error] (ctor Error.wireFailure))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: diagnosticGroup0,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkDiagnostic (fixture_naturalConstant))
+    | Result.error eLocal435 => (ctor Result.error [Unit, Error] eLocal435)
+    | Result.ok unitfixture_naturalConstantLocal436 => (match (checkDiagnostic (fixture_byteConstant))
+      | Result.error eLocal437 => (ctor Result.error [Unit, Error] eLocal437)
+      | Result.ok unitfixture_byteConstantLocal438 => (match (checkDiagnostic (fixture_predicateConstant))
+        | Result.error eLocal439 => (ctor Result.error [Unit, Error] eLocal439)
+        | Result.ok unitfixture_predicateConstantLocal440 => (match (checkDiagnostic (fixture_sequenceConstant))
+          | Result.error eLocal441 => (ctor Result.error [Unit, Error] eLocal441)
+          | Result.ok unitfixture_sequenceConstantLocal442 => (match (checkDiagnostic (fixture_naturalAdd))
+            | Result.error eLocal443 => (ctor Result.error [Unit, Error] eLocal443)
+            | Result.ok unitfixture_naturalAddLocal444 => (match (checkDiagnostic (fixture_naturalSubtract))
+              | Result.error eLocal445 => (ctor Result.error [Unit, Error] eLocal445)
+              | Result.ok unitfixture_naturalSubtractLocal446 => (match (checkDiagnostic (fixture_naturalMultiply))
+                | Result.error eLocal447 => (ctor Result.error [Unit, Error] eLocal447)
+                | Result.ok unitfixture_naturalMultiplyLocal448 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: diagnosticGroup1,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkDiagnostic (fixture_naturalDivide))
+    | Result.error eLocal449 => (ctor Result.error [Unit, Error] eLocal449)
+    | Result.ok unitfixture_naturalDivideLocal450 => (match (checkDiagnostic (fixture_naturalRemainder))
+      | Result.error eLocal451 => (ctor Result.error [Unit, Error] eLocal451)
+      | Result.ok unitfixture_naturalRemainderLocal452 => (match (checkDiagnostic (fixture_naturalAnd))
+        | Result.error eLocal453 => (ctor Result.error [Unit, Error] eLocal453)
+        | Result.ok unitfixture_naturalAndLocal454 => (match (checkDiagnostic (fixture_naturalOr))
+          | Result.error eLocal455 => (ctor Result.error [Unit, Error] eLocal455)
+          | Result.ok unitfixture_naturalOrLocal456 => (match (checkDiagnostic (fixture_naturalXor))
+            | Result.error eLocal457 => (ctor Result.error [Unit, Error] eLocal457)
+            | Result.ok unitfixture_naturalXorLocal458 => (match (checkDiagnostic (fixture_naturalNot))
+              | Result.error eLocal459 => (ctor Result.error [Unit, Error] eLocal459)
+              | Result.ok unitfixture_naturalNotLocal460 => (match (checkDiagnostic (fixture_naturalShiftLeft))
+                | Result.error eLocal461 => (ctor Result.error [Unit, Error] eLocal461)
+                | Result.ok unitfixture_naturalShiftLeftLocal462 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: diagnosticGroup2,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkDiagnostic (fixture_naturalShiftRight))
+    | Result.error eLocal463 => (ctor Result.error [Unit, Error] eLocal463)
+    | Result.ok unitfixture_naturalShiftRightLocal464 => (match (checkDiagnostic (fixture_naturalEqual))
+      | Result.error eLocal465 => (ctor Result.error [Unit, Error] eLocal465)
+      | Result.ok unitfixture_naturalEqualLocal466 => (match (checkDiagnostic (fixture_naturalLess))
+        | Result.error eLocal467 => (ctor Result.error [Unit, Error] eLocal467)
+        | Result.ok unitfixture_naturalLessLocal468 => (match (checkDiagnostic (fixture_byteEqual))
+          | Result.error eLocal469 => (ctor Result.error [Unit, Error] eLocal469)
+          | Result.ok unitfixture_byteEqualLocal470 => (match (checkDiagnostic (fixture_byteLess))
+            | Result.error eLocal471 => (ctor Result.error [Unit, Error] eLocal471)
+            | Result.ok unitfixture_byteLessLocal472 => (match (checkDiagnostic (fixture_naturalToByte))
+              | Result.error eLocal473 => (ctor Result.error [Unit, Error] eLocal473)
+              | Result.ok unitfixture_naturalToByteLocal474 => (match (checkDiagnostic (fixture_byteToNatural))
+                | Result.error eLocal475 => (ctor Result.error [Unit, Error] eLocal475)
+                | Result.ok unitfixture_byteToNaturalLocal476 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: diagnosticGroup3,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkDiagnostic (fixture_predicateNot))
+    | Result.error eLocal477 => (ctor Result.error [Unit, Error] eLocal477)
+    | Result.ok unitfixture_predicateNotLocal478 => (match (checkDiagnostic (fixture_predicateAnd))
+      | Result.error eLocal479 => (ctor Result.error [Unit, Error] eLocal479)
+      | Result.ok unitfixture_predicateAndLocal480 => (match (checkDiagnostic (fixture_predicateOr))
+        | Result.error eLocal481 => (ctor Result.error [Unit, Error] eLocal481)
+        | Result.ok unitfixture_predicateOrLocal482 => (match (checkDiagnostic (fixture_sequenceLength))
+          | Result.error eLocal483 => (ctor Result.error [Unit, Error] eLocal483)
+          | Result.ok unitfixture_sequenceLengthLocal484 => (match (checkDiagnostic (fixture_sequenceIndex))
+            | Result.error eLocal485 => (ctor Result.error [Unit, Error] eLocal485)
+            | Result.ok unitfixture_sequenceIndexLocal486 => (match (checkDiagnostic (fixture_sequenceSlice))
+              | Result.error eLocal487 => (ctor Result.error [Unit, Error] eLocal487)
+              | Result.ok unitfixture_sequenceSliceLocal488 => (match (checkDiagnostic (fixture_sequenceConcat))
+                | Result.error eLocal489 => (ctor Result.error [Unit, Error] eLocal489)
+                | Result.ok unitfixture_sequenceConcatLocal490 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: diagnosticGroup4,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkDiagnostic (fixture_sequenceEqual))
+    | Result.error eLocal491 => (ctor Result.error [Unit, Error] eLocal491)
+    | Result.ok unitfixture_sequenceEqualLocal492 => (match (checkDiagnostic (fixture_singletonSequence))
+      | Result.error eLocal493 => (ctor Result.error [Unit, Error] eLocal493)
+      | Result.ok unitfixture_singletonSequenceLocal494 => (match (checkDiagnostic (fixture_basisGet))
+        | Result.error eLocal495 => (ctor Result.error [Unit, Error] eLocal495)
+        | Result.ok unitfixture_basisGetLocal496 => (match (checkDiagnostic (fixture_storeNew))
+          | Result.error eLocal497 => (ctor Result.error [Unit, Error] eLocal497)
+          | Result.ok unitfixture_storeNewLocal498 => (match (checkDiagnostic (fixture_storeRead))
+            | Result.error eLocal499 => (ctor Result.error [Unit, Error] eLocal499)
+            | Result.ok unitfixture_storeReadLocal500 => (match (checkDiagnostic (fixture_storeWrite))
+              | Result.error eLocal501 => (ctor Result.error [Unit, Error] eLocal501)
+              | Result.ok unitfixture_storeWriteLocal502 => (match (checkDiagnostic (fixture_choose))
+                | Result.error eLocal503 => (ctor Result.error [Unit, Error] eLocal503)
+                | Result.ok unitfixture_chooseLocal504 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: diagnosticGroup5,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkDiagnostic (fixture_apply))
+    | Result.error eLocal505 => (ctor Result.error [Unit, Error] eLocal505)
+    | Result.ok unitfixture_applyLocal506 => (match (checkDiagnostic (fixture_tabulate))
+      | Result.error eLocal507 => (ctor Result.error [Unit, Error] eLocal507)
+      | Result.ok unitfixture_tabulateLocal508 => (match (checkDiagnostic (fixture_fold))
+        | Result.error eLocal509 => (ctor Result.error [Unit, Error] eLocal509)
+        | Result.ok unitfixture_foldLocal510 => (match (checkDiagnostic (fixture_scan))
+          | Result.error eLocal511 => (ctor Result.error [Unit, Error] eLocal511)
+          | Result.ok unitfixture_scanLocal512 => (match (checkDiagnostic (fixture_empty_literal))
+            | Result.error eLocal513 => (ctor Result.error [Unit, Error] eLocal513)
+            | Result.ok unitfixture_empty_literalLocal514 => (match (checkDiagnostic (fixture_empty_block))
+              | Result.error eLocal515 => (ctor Result.error [Unit, Error] eLocal515)
+              | Result.ok unitfixture_empty_blockLocal516 => (match (checkDiagnostic (fixture_empty_graph))
+                | Result.error eLocal517 => (ctor Result.error [Unit, Error] eLocal517)
+                | Result.ok unitfixture_empty_graphLocal518 => (ctor Result.ok [Unit, Error] ())))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runDiagnostic,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (diagnosticGroup0)
+    | Result.error eLocal519 => (ctor Result.error [Unit, Error] eLocal519)
+    | Result.ok udiagnosticGroup0Local520 => (match (diagnosticGroup1)
+      | Result.error eLocal521 => (ctor Result.error [Unit, Error] eLocal521)
+      | Result.ok udiagnosticGroup1Local522 => (match (diagnosticGroup2)
+        | Result.error eLocal523 => (ctor Result.error [Unit, Error] eLocal523)
+        | Result.ok udiagnosticGroup2Local524 => (match (diagnosticGroup3)
+          | Result.error eLocal525 => (ctor Result.error [Unit, Error] eLocal525)
+          | Result.ok udiagnosticGroup3Local526 => (match (diagnosticGroup4)
+            | Result.error eLocal527 => (ctor Result.error [Unit, Error] eLocal527)
+            | Result.ok udiagnosticGroup4Local528 => (match (diagnosticGroup5)
+              | Result.error eLocal529 => (ctor Result.error [Unit, Error] eLocal529)
+              | Result.ok udiagnosticGroup5Local530 => (ctor Result.ok [Unit, Error] ()))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkCarrier,
+  parameters: [graph : Uorc.Core.Graph::Graph],
+  result: (Result Unit Error),
+  body: (match (Uorc.Wire.GraphEmit::collectFixture 2000 (Uorc.Wire.GraphEmit::start graph) 0x)
+    | Option.none => (ctor Result.error [Unit, Error] (ctor Error.wireFailure))
+    | Option.some wireLocal531 => (checkSplits (prim length wireLocal531 : Nat) (record Fixture {wire := wireLocal531, expected := (prim append (blocksWords (project graph blocks)) (cons (21 : UInt64) (cons (match (Uorc.Core.Heap::wordOfNat (project graph entry))
+      | Option.none => (999999 : UInt64)
+      | Option.some wordLocal532 => wordLocal532) (nil UInt64))) : (List UInt64))}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runLiteralCarriers,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (checkCarrier (Uorc.Core.Graph::literalGraph 0x00ff80))
+    | Result.error eLocal533 => (ctor Result.error [Unit, Error] eLocal533)
+    | Result.ok uLocal534 => (checkCarrier (Uorc.Core.Graph::literalRopeGraph (Uorc.Core.Bytes::fromBytes 0x00ff80)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runFailureFamilies,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000000 : UInt64)) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.archive) (project (fixture_sequenceConstant) wire)))
+    | Result.error eLocal535 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+    | Result.ok aLocal536 => (let xLocal537 : Uorc.Wire.ProgramParse::Session := (Uorc.Wire.ProgramParse::begin (project aLocal536 arena) (Uorc.Core.RuntimeResources::zeroUsage)); (let badSpanLocal538 : Uorc.Wire.ProgramParse::Session := (project (Uorc.Wire.ProgramParse::feed (budget) xLocal537 (project aLocal536 handle) (12 : UInt64) (1 : UInt64)) session); (if (if (match (project (project badSpanLocal538 state) failure)
+      | Option.none => false
+      | Option.some fLocal539 => (prim equal (failureCode fLocal539) (10 : UInt64) : Bool)) then (prim equal (project (project badSpanLocal538 usage) work) (Uorc.Wire.ProgramParse::actionWork) : Bool) else false) then (let largeLocal540 : Uorc.Wire.ProgramParse::Session := (project (Uorc.Wire.ProgramParse::feed (budget) xLocal537 (project aLocal536 handle) (18446744073709551615 : UInt64) (1 : UInt64)) session); (if (match (project (project largeLocal540 state) failure)
+      | Option.none => false
+      | Option.some fLocal541 => (prim equal (failureCode fLocal541) (11 : UInt64) : Bool)) then (let badHandleLocal542 : Uorc.Wire.ProgramParse::Session := (project (Uorc.Wire.ProgramParse::feed (budget) xLocal537 (Uorc.Core.RuntimeValue::nullHandle) (0 : UInt64) (0 : UInt64)) session); (if (match (project (project badHandleLocal542 state) failure)
+      | Option.none => false
+      | Option.some fLocal543 => (prim equal (failureCode fLocal543) (12 : UInt64) : Bool)) then (let badBudgetLocal544 : Uorc.Wire.ProgramParse::Session := (project (Uorc.Wire.ProgramParse::advance (record Uorc.Core.RuntimeResources::Budget {maxWork := (18446744073709551615 : UInt64), maxOwnedBytes := (999999 : UInt64), maxOutputBytes := (18446744073709551615 : UInt64), maxFrames := (100 : UInt64)}) xLocal537) session); (if (match (project (project badBudgetLocal544 state) failure)
+      | Option.none => false
+      | Option.some fLocal545 => (prim equal (failureCode fLocal545) (13 : UInt64) : Bool)) then (let overflowLocal546 : Uorc.Wire.ProgramParse::Session := (project (Uorc.Wire.ProgramParse::advance (budget) (Uorc.Wire.ProgramParse::begin (project aLocal536 arena) (record Uorc.Core.RuntimeResources::Usage {work := (18446744073709551615 : UInt64), ownedBytes := (0 : UInt64), peakOwnedBytes := (0 : UInt64), outputBytes := (0 : UInt64), frames := (0 : UInt64)}))) session); (if (match (project (project overflowLocal546 state) failure)
+      | Option.none => false
+      | Option.some fLocal547 => (prim equal (failureCode fLocal547) (13 : UInt64) : Bool)) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))) else (ctor Result.error [Unit, Error] (ctor Error.assertion)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runCancelPause,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (firstLiteral)
+    | Result.error eLocal548 => (ctor Result.error [Unit, Error] eLocal548)
+    | Result.ok xLocal549 => (let cancelledLocal550 : Uorc.Wire.ProgramParse::Session := (Uorc.Wire.ProgramParse::cancel xLocal549); (let tLocal551 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::cleanup (record Uorc.Core.RuntimeResources::Budget {maxWork := (project (project xLocal549 usage) work), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (18446744073709551615 : UInt64), maxFrames := (100 : UInt64)}) cancelledLocal550); (if (match (project tLocal551 signal)
+      | Uorc.Wire.ProgramParse::Signal.paused eLocal552 => (if (prim equal (project (project (project tLocal551 session) usage) work) (project (project xLocal549 usage) work) : Bool) then (if (prim equal (project (project (project tLocal551 session) state) offset) (project (project xLocal549 state) offset) : Bool) then (prim equal (rootCount (project tLocal551 session) (project (project xLocal549 state) pendingImage)) (1 : UInt64) : Bool) else false) else false)
+      | Uorc.Wire.ProgramParse::Signal.advanced => false
+      | Uorc.Wire.ProgramParse::Signal.needInput => false
+      | Uorc.Wire.ProgramParse::Signal.pending => false
+      | Uorc.Wire.ProgramParse::Signal.complete => false
+      | Uorc.Wire.ProgramParse::Signal.failed => false
+      | Uorc.Wire.ProgramParse::Signal.clean => false
+      | Uorc.Wire.ProgramParse::Signal.transferred hLocal553 => false) then (match (cleanupAll 16 (project tLocal551 session))
+      | Result.error eLocal554 => (ctor Result.error [Unit, Error] eLocal554)
+      | Result.ok cleanedLocal555 => (if (if (match (project (project cleanedLocal555 state) failure)
+        | Option.none => false
+        | Option.some fLocal556 => (prim equal (failureCode fLocal556) (9 : UInt64) : Bool)) then (prim equal (rootCount cleanedLocal555 (project (project xLocal549 state) pendingImage)) (1 : UInt64) : Bool) else false) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (runSplits)
+    | Result.error eLocal557 => (ctor Result.error [Unit, Error] eLocal557)
+    | Result.ok unitrunSplitsLocal558 => (match (runDiagnostic)
+      | Result.error eLocal559 => (ctor Result.error [Unit, Error] eLocal559)
+      | Result.ok unitrunDiagnosticLocal560 => (match (runLiteralCarriers)
+        | Result.error eLocal561 => (ctor Result.error [Unit, Error] eLocal561)
+        | Result.ok unitrunLiteralCarriersLocal562 => (match (runNegatives)
+          | Result.error eLocal563 => (ctor Result.error [Unit, Error] eLocal563)
+          | Result.ok unitrunNegativesLocal564 => (match (runCancellation)
+            | Result.error eLocal565 => (ctor Result.error [Unit, Error] eLocal565)
+            | Result.ok unitrunCancellationLocal566 => (match (runPendingOwnership)
+              | Result.error eLocal567 => (ctor Result.error [Unit, Error] eLocal567)
+              | Result.ok unitrunPendingOwnershipLocal568 => (match (runTransferOwnership)
+                | Result.error eLocal569 => (ctor Result.error [Unit, Error] eLocal569)
+                | Result.ok unitrunTransferOwnershipLocal570 => (match (runProtocol)
+                  | Result.error eLocal571 => (ctor Result.error [Unit, Error] eLocal571)
+                  | Result.ok unitrunProtocolLocal572 => (match (runPause)
+                    | Result.error eLocal573 => (ctor Result.error [Unit, Error] eLocal573)
+                    | Result.ok unitrunPauseLocal574 => (match (runEOF)
+                      | Result.error eLocal575 => (ctor Result.error [Unit, Error] eLocal575)
+                      | Result.ok unitrunEOFLocal576 => (match (runFailureFamilies)
+                        | Result.error eLocal577 => (ctor Result.error [Unit, Error] eLocal577)
+                        | Result.ok unitrunFailureFamiliesLocal578 => (match (runCancelPause)
+                          | Result.error eLocal579 => (ctor Result.error [Unit, Error] eLocal579)
+                          | Result.ok unitrunCancelPauseLocal580 => (ctor Result.ok [Unit, Error] ()))))))))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

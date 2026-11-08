@@ -1,0 +1,1029 @@
+\begin{lexlean}{Uorc.Product.WriteImage}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.ResourceIO}
+\importmodule{Uorc.Product.Storage}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Core.RuntimeImageCopy}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Ownership,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: transferred, fields: []}, {name: borrowed, fields: []}]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: control, fields: []},
+    {name: retain, fields: []},
+    {name: staging, fields: []},
+    {name: quote, fields: []},
+    {name: materialize, fields: []},
+    {name: awaitingAttachment, fields: []},
+    {name: writing, fields: []},
+    {name: cleaning, fields: []},
+    {name: chunkCleaning, fields: []},
+    {name: draining, fields: []},
+    {name: awaitingLeaseRelease, fields: []},
+    {name: clean, fields: []}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidQuantum, fields: []},
+    {name: addressSpaceExhausted, fields: []},
+    {name: notReady, fields: []},
+    {name: staleReply, fields: []},
+    {name: wrongDestination, fields: []},
+    {name: wrongLease, fields: []},
+    {name: lengthMismatch, fields: []},
+    {name: mutableAttachment, fields: []},
+    {name: attachmentFailure, fields: []},
+    {name: falseStopped, fields: []},
+    {name: falseReleased, fields: []},
+    {name: protocol, fields: []},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: image, fields: [Uorc.Core.RuntimeImage::ImageFailure]},
+    {name: writer, fields: [Uorc.Product.ResourceIO::Error]},
+    {name: storage, fields: [Uorc.Product.Storage::Error]}
+  ]
+}
+
+structure{
+  name: AttachmentRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: destination, type: Uorc.Product.Api::ResourceRef},
+    {name: ticket, type: UInt64},
+    {name: length, type: UInt64}
+  ]
+}
+
+structure{
+  name: AttachmentReply,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: request, type: AttachmentRequest},
+    {name: lease, type: (Option Uorc.Product.Api::ResourceRef)},
+    {name: length, type: UInt64},
+    {name: immutable, type: Bool},
+    {name: failed, type: Bool}
+  ]
+}
+
+structure{
+  name: AttachmentStopped,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: request, type: AttachmentRequest}, {name: stopped, type: Bool}]
+}
+
+structure{
+  name: WriteStopped,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: reply, type: Uorc.Product.ResourceIO::WriteReply},
+    {name: lease, type: Uorc.Product.Api::ResourceRef},
+    {name: stopped, type: Bool}
+  ]
+}
+
+structure{
+  name: LeaseReleased,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: request, type: AttachmentRequest},
+    {name: lease, type: Uorc.Product.Api::ResourceRef},
+    {name: released, type: Bool}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: writer, type: Uorc.Product.ResourceIO::Writer},
+    {name: span, type: Uorc.Core.RuntimeImage::BorrowedSpan},
+    {name: maximum, type: UInt64},
+    {name: ticket, type: UInt64},
+    {name: receiptSerial, type: UInt64},
+    {name: relativeOffset, type: UInt64},
+    {name: quoted, type: (Option Uorc.Core.RuntimeImage::BorrowedSpan)},
+    {name: resume, type: Phase},
+    {name: phase, type: Phase},
+    {name: imageOwned, type: Bool},
+    {name: control, type: Uorc.Core.RuntimeValue::Handle},
+    {name: staging, type: Uorc.Core.RuntimeValue::Handle},
+    {name: lease, type: (Option Uorc.Product.Api::ResourceRef)},
+    {name: attachmentPending, type: Bool},
+    {name: leaseReleasePending, type: Bool},
+    {name: writerStarted, type: Bool},
+    {name: cancelled, type: Bool},
+    {name: stopSent, type: Bool},
+    {name: writerTaken, type: Bool},
+    {name: cleanupSlot, type: Nat},
+    {name: failure, type: (Option Error)},
+    {name: refusal, type: (Option Uorc.Core.RuntimeResources::Error)},
+    {name: pendingDelta, type: (Option Uorc.Core.Heap::Delta)}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: []},
+    {name: awaitAttachment, fields: []},
+    {name: awaitWrite, fields: []},
+    {name: awaitStopped, fields: []},
+    {name: awaitLeaseRelease, fields: []},
+    {name: awaitDelta, fields: []},
+    {name: readyToTake, fields: []},
+    {name: notReady, fields: []},
+    {name: attach, fields: [AttachmentRequest, Bytes]},
+    {name: cancelAttachment, fields: [AttachmentRequest]},
+    {name: write, fields: [Uorc.Product.ResourceIO::WriteRequest]},
+    {name: cancelWrite, fields: [Uorc.Product.ResourceIO::WriteRequest]},
+    {name: releaseLease, fields: [AttachmentRequest, Uorc.Product.Api::ResourceRef]},
+    {name: settled, fields: [Uorc.Product.ResourceIO::Writer, (Option Error), Bool]},
+    {name: failed, fields: [Error]},
+    {name: refused, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: rejected, fields: [Error, (Option Uorc.Product.Api::ResourceRef)]}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: cursor, type: Cursor},
+    {name: delta, type: Uorc.Core.Heap::Delta},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+definition{
+  name: zeroDelta,
+  parameters: [],
+  result: Uorc.Core.Heap::Delta,
+  body: (record Uorc.Core.Heap::Delta {allocatedBytes := (0 : UInt64), releasedBytes := (0 : UInt64), allocatedEntries := (0 : UInt64), releasedEntries := (0 : UInt64), retainedEdges := (0 : UInt64), droppedEdges := (0 : UInt64), retainedRoots := (0 : UInt64), droppedRoots := (0 : UInt64), work := (0 : UInt64)}),
+  axioms: []
+}
+
+definition{
+  name: achievedUsage,
+  parameters: [usage : Uorc.Core.RuntimeResources::Usage, arena : Uorc.Core.Heap::Arena],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (Uorc.Core.Heap::totalOwnedBytes arena)
+    | Result.error reason => usage
+    | Result.ok bytes => (record Uorc.Core.RuntimeResources::Usage {work := (project usage work), ownedBytes := bytes, peakOwnedBytes := (if (Uorc.Core.Heap::less (project usage peakOwnedBytes) bytes) then bytes else (project usage peakOwnedBytes)), outputBytes := (project usage outputBytes), frames := (project usage frames)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: controlBytes,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeOwnerRoots::controlBytes),
+  axioms: []
+}
+
+definition{
+  name: controlWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)),
+  axioms: []
+}
+
+definition{
+  name: immutableAttachment,
+  parameters: [reply : AttachmentReply],
+  result: Bool,
+  body: (project reply immutable),
+  axioms: []
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "A successful start transfers cursor custody; a rejected start leaves all input tickets with the caller. A cursor owns one full image span and one writer, and quotes bounded transport chunks. Transferred images move an existing root; borrowed images acquire exactly one prepaid retain. The cursor retains no Arena or Bytes. The shared RuntimeImage preflight and matched copy quote precede extraction. A separately charged staging control accounts the bounded attachment envelope logically; it is not a physical RSS or transport-capacity guarantee. The immutable external lease stays live across partial writes and until an exact release receipt. Cancellation stays latched through late replies and requires exact stopped receipts for pending effects. Heap deltas require acknowledgement before further mutations. The bridge does not charge logical VM emitted-output bytes again for materialization or short-write retries. Achieved writer storage transfers once through takeWriter, including failed partial output. Callers sequence extents for arbitrarily large resources without a total product-size cap.",
+  axioms: []
+}
+
+definition{
+  name: phaseCode,
+  parameters: [value : Phase],
+  result: Nat,
+  body: (match value
+    | Phase.control => 0
+    | Phase.retain => 1
+    | Phase.staging => 2
+    | Phase.quote => 3
+    | Phase.materialize => 4
+    | Phase.awaitingAttachment => 5
+    | Phase.writing => 6
+    | Phase.cleaning => 7
+    | Phase.chunkCleaning => 8
+    | Phase.draining => 9
+    | Phase.awaitingLeaseRelease => 10
+    | Phase.clean => 11),
+  axioms: []
+}
+
+definition{
+  name: extentLength,
+  parameters: [s : Cursor],
+  result: UInt64,
+  body: (match (project s quoted)
+    | Option.none => (0 : UInt64)
+    | Option.some extent => (project extent length)),
+  axioms: []
+}
+
+definition{
+  name: attachmentRequest,
+  parameters: [s : Cursor],
+  result: AttachmentRequest,
+  body: (record AttachmentRequest {run := (project (project s writer) run), destination := (project (project s writer) destination), ticket := (project s ticket), length := (extentLength s)}),
+  axioms: []
+}
+
+definition{
+  name: requestMatches,
+  parameters: [s : Cursor, request : AttachmentRequest],
+  result: Bool,
+  body: ((Uorc.Product.ResourceIO::sameRunIdentity (project (project s writer) run) (project request run)) && ((Uorc.Product.Api::sameResource (project (project s writer) destination) (project request destination)) && ((prim equal (project s ticket) (project request ticket) : Bool) && ((prim equal (extentLength s) (project request length) : Bool) && true)))),
+  axioms: []
+}
+
+definition{
+  name: writerReady,
+  parameters: [writer : Uorc.Product.ResourceIO::Writer],
+  result: Bool,
+  body: (match (project writer phase)
+    | Uorc.Product.ResourceIO::WritePhase.ready => true
+    | Uorc.Product.ResourceIO::WritePhase.waiting => false
+    | Uorc.Product.ResourceIO::WritePhase.complete => false
+    | Uorc.Product.ResourceIO::WritePhase.cancelled => false
+    | Uorc.Product.ResourceIO::WritePhase.failed => false),
+  axioms: []
+}
+
+definition{
+  name: start,
+  parameters: [
+    writer : Uorc.Product.ResourceIO::Writer,
+    span : Uorc.Core.RuntimeImage::BorrowedSpan,
+    ownership : Ownership,
+    maximum : UInt64,
+    ticket : UInt64
+  ],
+  result: (Result Cursor Error),
+  body: (if (prim equal maximum (0 : UInt64) : Bool) then (ctor Result.error [Cursor, Error] (ctor Error.invalidQuantum)) else (if ((not (writerReady writer)) || ((match (project writer pending)
+    | Option.none => false
+    | Option.some value => true) || (match (project writer remaining)
+    | Option.none => false
+    | Option.some value => true))) then (ctor Result.error [Cursor, Error] (ctor Error.notReady)) else (ctor Result.ok [Cursor, Error] (record Cursor {writer := writer, span := span, maximum := maximum, ticket := ticket, receiptSerial := (0 : UInt64), relativeOffset := (0 : UInt64), quoted := (ctor Option.none [Uorc.Core.RuntimeImage::BorrowedSpan]), resume := (ctor Phase.cleaning), phase := (ctor Phase.control), imageOwned := (match ownership
+    | Ownership.transferred => true
+    | Ownership.borrowed => false), control := (Uorc.Core.RuntimeValue::nullHandle), staging := (Uorc.Core.RuntimeValue::nullHandle), lease := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attachmentPending := false, leaseReleasePending := false, writerStarted := false, cancelled := false, stopSent := false, writerTaken := false, cleanupSlot := 0, failure := (ctor Option.none [Error]), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])})))),
+  axioms: []
+}
+
+definition{
+  name: afterMutationObserved,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    delta : Uorc.Core.Heap::Delta,
+    outcome : Outcome
+  ],
+  result: Transition,
+  body: (match (Uorc.Core.RuntimeResources::observeArena budget (achievedUsage usage arena) arena)
+    | Result.error reason => (record Transition {arena := arena, usage := (achievedUsage usage arena), cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] delta)}), delta := delta, outcome := (ctor Outcome.refused reason)})
+    | Result.ok observed => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] delta)}), delta := delta, outcome := outcome})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: afterMutation,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    delta : Uorc.Core.Heap::Delta,
+    outcome : Outcome
+  ],
+  result: Transition,
+  body: (match (prim checked_add (project s receiptSerial) (1 : UInt64) : (Option UInt64))
+    | Option.none => (record Transition {arena := arena, usage := (achievedUsage usage arena), cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted)), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] delta)}), delta := delta, outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted))})
+    | Option.some serial => (afterMutationObserved budget arena usage (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := serial, relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) delta outcome)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: heapFailure,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reason : Uorc.Core.Heap::HeapError
+  ],
+  result: Transition,
+  body: (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap reason)), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.heap reason))}),
+  axioms: []
+}
+
+definition{
+  name: allocateControl,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (match (prim checked_add (project s receiptSerial) (1 : UInt64) : (Option UInt64))
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted)), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted))})
+      | Option.some nextSerial => (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (controlWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::allocateControl arena (controlBytes))
+            | Result.error reason => (heapFailure budget arena paid s reason)
+            | Result.ok allocation => (afterMutation budget (project allocation arena) paid (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.retain), imageOwned := (project s imageOwned), control := (project allocation handle), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project allocation delta) (ctor Outcome.advanced))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: retainImage,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (match (prim checked_add (project s receiptSerial) (1 : UInt64) : (Option UInt64))
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted)), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted))})
+      | Option.some nextSerial => (if (project s imageOwned) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.quote), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}) else (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRetain)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::retain arena (project (project s span) image))
+            | Result.error reason => (heapFailure budget arena paid s reason)
+            | Result.ok mutation => (afterMutation budget (project mutation arena) paid (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.quote), imageOwned := true, control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project mutation delta) (ctor Outcome.advanced)))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: reserveStaging,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (match (prim checked_add (project s receiptSerial) (1 : UInt64) : (Option UInt64))
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted)), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted))})
+      | Option.some nextSerial => (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::allocateControl arena (extentLength s))
+            | Result.error reason => (heapFailure budget arena paid s reason)
+            | Result.ok allocation => (afterMutation budget (project allocation arena) paid (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.materialize), imageOwned := (project s imageOwned), control := (project s control), staging := (project allocation handle), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project allocation delta) (ctor Outcome.advanced))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sameDelta,
+  parameters: [left : Uorc.Core.Heap::Delta, right : Uorc.Core.Heap::Delta],
+  result: Bool,
+  body: ((prim equal (project left allocatedBytes) (project right allocatedBytes) : Bool) && ((prim equal (project left releasedBytes) (project right releasedBytes) : Bool) && ((prim equal (project left allocatedEntries) (project right allocatedEntries) : Bool) && ((prim equal (project left releasedEntries) (project right releasedEntries) : Bool) && ((prim equal (project left retainedEdges) (project right retainedEdges) : Bool) && ((prim equal (project left droppedEdges) (project right droppedEdges) : Bool) && ((prim equal (project left retainedRoots) (project right retainedRoots) : Bool) && ((prim equal (project left droppedRoots) (project right droppedRoots) : Bool) && ((prim equal (project left work) (project right work) : Bool) && true))))))))),
+  axioms: []
+}
+
+definition{
+  name: acknowledgeDelta,
+  parameters: [
+    s : Cursor,
+    run : Uorc.Product.Api::Run,
+    serial : UInt64,
+    delta : Uorc.Core.Heap::Delta
+  ],
+  result: Cursor,
+  body: (match (project s pendingDelta)
+    | Option.none => s
+    | Option.some actual => (if ((Uorc.Product.ResourceIO::sameRunIdentity (project (project s writer) run) run) && ((prim equal (project s receiptSerial) serial : Bool) && ((sameDelta actual delta) && true))) then (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}) else s)),
+  axioms: []
+}
+
+definition{
+  name: cancel,
+  parameters: [s : Cursor, run : Uorc.Product.Api::Run],
+  result: Cursor,
+  body: (if ((Uorc.Product.ResourceIO::sameRunIdentity (project (project s writer) run) run) && ((not (project s writerTaken)) && true)) then (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := true, stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) else s),
+  axioms: []
+}
+
+definition{
+  name: incomingLease,
+  parameters: [s : Cursor, incoming : (Option Uorc.Product.Api::ResourceRef)],
+  result: (Option Uorc.Product.Api::ResourceRef),
+  body: (match incoming
+    | Option.none => (ctor Option.none [Uorc.Product.Api::ResourceRef])
+    | Option.some offered => (match (project s lease)
+      | Option.none => (ctor Option.some [Uorc.Product.Api::ResourceRef] offered)
+      | Option.some held => (if (Uorc.Product.Api::sameResource held offered) then (ctor Option.none [Uorc.Product.Api::ResourceRef]) else (ctor Option.some [Uorc.Product.Api::ResourceRef] offered)))),
+  axioms: []
+}
+
+definition{
+  name: attached,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reply : AttachmentReply
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (if (not (project s attachmentPending)) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.notReady) (incomingLease s (project reply lease)))}) else (if (not (requestMatches s (project reply request))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (incomingLease s (project reply lease)))}) else (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.acknowledgment)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+      | Result.ok paid => (match (project reply lease)
+        | Option.none => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := false, leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.attachmentFailure)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.attachmentFailure))})
+        | Option.some lease => (if (not ((project lease instance) =? (project (project (project s writer) run) instance))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.wrongLease) (ctor Option.some [Uorc.Product.Api::ResourceRef] lease))}) else (if ((project reply failed) || ((not (immutableAttachment reply)) || (not (prim equal (project reply length) (extentLength s) : Bool)))) then (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (ctor Option.some [Uorc.Product.Api::ResourceRef] lease), attachmentPending := false, leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (if (project reply failed) then (ctor Error.attachmentFailure) else (if (not (immutableAttachment reply)) then (ctor Error.mutableAttachment) else (if (not (prim equal (project reply length) (extentLength s) : Bool)) then (ctor Error.lengthMismatch) else (ctor Error.protocol))))), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (if (project reply failed) then (ctor Error.attachmentFailure) else (if (not (immutableAttachment reply)) then (ctor Error.mutableAttachment) else (if (not (prim equal (project reply length) (extentLength s) : Bool)) then (ctor Error.lengthMismatch) else (ctor Error.protocol)))))}) else (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (if (project s cancelled) then (ctor Phase.cleaning) else (ctor Phase.writing)), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (ctor Option.some [Uorc.Product.Api::ResourceRef] lease), attachmentPending := false, leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)})))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: attachmentStopped,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reply : AttachmentStopped
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (if (not ((project s attachmentPending) && ((project s cancelled) && ((project s stopSent) && true)))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.notReady) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (not (requestMatches s (project reply request))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (not (project reply stopped)) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.falseStopped) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.acknowledgment)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+      | Result.ok paid => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := false, leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)})))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: writerFailure,
+  parameters: [writer : Uorc.Product.ResourceIO::Writer],
+  result: (Option Error),
+  body: (match (project (project writer storage) error)
+    | Option.none => (match (project writer error)
+      | Option.none => (ctor Option.none [Error])
+      | Option.some writerError => (ctor Option.some [Error] (ctor Error.writer writerError)))
+    | Option.some storageError => (ctor Option.some [Error] (ctor Error.storage storageError))),
+  axioms: []
+}
+
+definition{
+  name: issuedWrite,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    step : Uorc.Product.ResourceIO::WriteStep
+  ],
+  result: Transition,
+  body: (match (project step request)
+    | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project step state), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (if (match (writerFailure (project step state))
+      | Option.none => false
+      | Option.some value => true) then (ctor Phase.cleaning) else (ctor Phase.writing)), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := true, cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (writerFailure (project step state)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)})
+    | Option.some request => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project step state), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (if (match (writerFailure (project step state))
+      | Option.none => false
+      | Option.some value => true) then (ctor Phase.cleaning) else (ctor Phase.writing)), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := true, cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (writerFailure (project step state)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.write request)})),
+  axioms: []
+}
+
+definition{
+  name: beginWrite,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (if ((project s cancelled) || (match (project s failure)
+      | Option.none => false
+      | Option.some value => true)) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}) else (match (project s lease)
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.protocol)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Option.some lease => (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.smallControl)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok paid => (issuedWrite budget arena paid s (if (project s writerStarted) then (Uorc.Product.ResourceIO::continueWrite (project s writer)) else (Uorc.Product.ResourceIO::requestWrite (project s writer) (record Uorc.Product.Api::Span {resource := lease, offset := 0, length := (Uorc.Core.RuntimeImage::wordToNatAux 64 (extentLength s))})))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: acceptedWrite,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    step : Uorc.Product.ResourceIO::WriteStep
+  ],
+  result: Transition,
+  body: (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project step state), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (if (((project s cancelled) || (match (project s failure)
+    | Option.none => false
+    | Option.some value => true)) || (match (writerFailure (project step state))
+    | Option.none => false
+    | Option.some value => true)) then (ctor Phase.cleaning) else (if (match (project (project step state) remaining)
+    | Option.none => false
+    | Option.some value => true) then (ctor Phase.writing) else (ctor Phase.cleaning))), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (match (project s failure)
+    | Option.none => (writerFailure (project step state))
+    | Option.some value => (project s failure)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}),
+  axioms: []
+}
+
+definition{
+  name: writeExtentValid,
+  parameters: [s : Cursor, reply : Uorc.Product.ResourceIO::WriteReply],
+  result: Bool,
+  body: (match (project (project s writer) pending)
+    | Option.none => false
+    | Option.some request => ((project reply written) <=? (project (project request span) length))),
+  axioms: []
+}
+
+definition{
+  name: written,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reply : Uorc.Product.ResourceIO::WriteReply
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (if ((project s cancelled) || (match (project s failure)
+      | Option.none => false
+      | Option.some value => true)) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.notReady) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (not (Uorc.Product.ResourceIO::writeMatches (project s writer) reply)) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (not (writeExtentValid s reply)) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.writer (ctor Uorc.Product.ResourceIO::Error.writeExtent))), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.writer (ctor Uorc.Product.ResourceIO::Error.writeExtent)))}) else (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.acknowledgment)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+      | Result.ok paid => (acceptedWrite budget arena paid s (Uorc.Product.ResourceIO::writeReply (project s writer) reply))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: writeStopped,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    stopped : WriteStopped
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (if (not (((project s cancelled) || (match (project s failure)
+      | Option.none => false
+      | Option.some value => true)) && ((project s stopSent) && true))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.notReady) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (match (project s lease)
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.wrongLease) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})
+      | Option.some lease => (if (not (Uorc.Product.Api::sameResource lease (project stopped lease))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.wrongLease) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (not (project stopped stopped)) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.falseStopped) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (not (Uorc.Product.ResourceIO::writeMatches (project s writer) (project stopped reply))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (not (writeExtentValid s (project stopped reply))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.protocol) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.acknowledgment)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok paid => (acceptedWrite budget arena paid s (Uorc.Product.ResourceIO::writeReply (project s writer) (project stopped reply))))))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: writerAfterLeaseRelease,
+  parameters: [s : Cursor],
+  result: Uorc.Product.ResourceIO::Writer,
+  body: (record Uorc.Product.ResourceIO::Writer {run := (project (project s writer) run), destination := (project (project s writer) destination), category := (project (project s writer) category), limits := (project (project s writer) limits), storage := (project (project s writer) storage), offset := (project (project s writer) offset), ticket := (project (project s writer) ticket), phase := (if (project s cancelled) then (ctor Uorc.Product.ResourceIO::WritePhase.cancelled) else (project (project s writer) phase)), pending := (project (project s writer) pending), remaining := (ctor Option.none [Uorc.Product.Api::Span]), error := (project (project s writer) error)}),
+  axioms: []
+}
+
+definition{
+  name: afterLeaseRelease,
+  parameters: [s : Cursor],
+  result: Cursor,
+  body: (if ((project s cancelled) || (match (project s failure)
+    | Option.none => false
+    | Option.some value => true)) then (record Cursor {writer := (writerAfterLeaseRelease s), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (ctor Option.none [Uorc.Core.RuntimeImage::BorrowedSpan]), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attachmentPending := (project s attachmentPending), leaseReleasePending := false, writerStarted := false, cancelled := (project s cancelled), stopSent := false, writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) else (match (prim checked_add (project s relativeOffset) (extentLength s) : (Option UInt64))
+    | Option.none => (record Cursor {writer := (writerAfterLeaseRelease s), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (ctor Option.none [Uorc.Core.RuntimeImage::BorrowedSpan]), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attachmentPending := (project s attachmentPending), leaseReleasePending := false, writerStarted := false, cancelled := (project s cancelled), stopSent := false, writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.addressSpaceExhausted)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)})
+    | Option.some nextOffset => (if (Uorc.Core.Heap::less (project (project s span) length) nextOffset) then (record Cursor {writer := (writerAfterLeaseRelease s), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (ctor Option.none [Uorc.Core.RuntimeImage::BorrowedSpan]), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attachmentPending := (project s attachmentPending), leaseReleasePending := false, writerStarted := false, cancelled := (project s cancelled), stopSent := false, writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.protocol)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) else (if (Uorc.Core.Heap::less nextOffset (project (project s span) length)) then (match (prim checked_add (project s ticket) (1 : UInt64) : (Option UInt64))
+      | Option.none => (record Cursor {writer := (writerAfterLeaseRelease s), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (ctor Option.none [Uorc.Core.RuntimeImage::BorrowedSpan]), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attachmentPending := (project s attachmentPending), leaseReleasePending := false, writerStarted := false, cancelled := (project s cancelled), stopSent := false, writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.addressSpaceExhausted)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)})
+      | Option.some nextTicket => (record Cursor {writer := (writerAfterLeaseRelease s), span := (project s span), maximum := (project s maximum), ticket := nextTicket, receiptSerial := (project s receiptSerial), relativeOffset := nextOffset, quoted := (ctor Option.none [Uorc.Core.RuntimeImage::BorrowedSpan]), resume := (project s resume), phase := (ctor Phase.chunkCleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attachmentPending := (project s attachmentPending), leaseReleasePending := false, writerStarted := false, cancelled := (project s cancelled), stopSent := false, writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)})) else (record Cursor {writer := (writerAfterLeaseRelease s), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := nextOffset, quoted := (ctor Option.none [Uorc.Core.RuntimeImage::BorrowedSpan]), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (ctor Option.none [Uorc.Product.Api::ResourceRef]), attachmentPending := (project s attachmentPending), leaseReleasePending := false, writerStarted := false, cancelled := (project s cancelled), stopSent := false, writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: leaseReleased,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    reply : LeaseReleased
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (if (not (project s leaseReleasePending)) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.notReady) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (not (requestMatches s (project reply request))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.staleReply) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (match (project s lease)
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.wrongLease) (ctor Option.none [Uorc.Product.Api::ResourceRef]))})
+      | Option.some lease => (if (not (Uorc.Product.Api::sameResource lease (project reply lease))) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.wrongLease) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (if (not (project reply released)) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.rejected (ctor Error.falseReleased) (ctor Option.none [Uorc.Product.Api::ResourceRef]))}) else (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.acknowledgment)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok paid => (record Transition {arena := arena, usage := paid, cursor := (afterLeaseRelease s), delta := (zeroDelta), outcome := (ctor Outcome.advanced)})))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cleanupTarget,
+  parameters: [s : Cursor],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (if (project s imageOwned) then (project (project s span) image) else (if (not (Uorc.Core.RuntimeValue::isNull (project s staging))) then (project s staging) else (project s control))),
+  axioms: []
+}
+
+definition{
+  name: cleanupSlot,
+  parameters: [s : Cursor],
+  result: Nat,
+  body: (if (project s imageOwned) then 1 else (if (not (Uorc.Core.RuntimeValue::isNull (project s staging))) then 2 else 3)),
+  axioms: []
+}
+
+definition{
+  name: clearCleanupTarget,
+  parameters: [s : Cursor],
+  result: Cursor,
+  body: (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s resume), imageOwned := (if ((project s cleanupSlot) =? 1) then false else (project s imageOwned)), control := (if ((project s cleanupSlot) =? 3) then (Uorc.Core.RuntimeValue::nullHandle) else (project s control)), staging := (if ((project s cleanupSlot) =? 2) then (Uorc.Core.RuntimeValue::nullHandle) else (project s staging)), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := 0, failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}),
+  axioms: []
+}
+
+definition{
+  name: drain,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (match (prim checked_add (project s receiptSerial) (1 : UInt64) : (Option UInt64))
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted)), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted))})
+      | Option.some nextSerial => (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::releaseStep arena)
+            | Result.error reason => (heapFailure budget arena paid s reason)
+            | Result.ok mutation => (afterMutation budget (project mutation arena) paid (if (project mutation complete) then (clearCleanupTarget s) else s) (project mutation delta) (ctor Outcome.advanced))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: releaseImageOrControl,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (match (prim checked_add (project s receiptSerial) (1 : UInt64) : (Option UInt64))
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted)), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted))})
+      | Option.some nextSerial => (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::release arena (cleanupTarget s))
+            | Result.error reason => (heapFailure budget arena paid s reason)
+            | Result.ok mutation => (afterMutation budget (project mutation arena) paid (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (ctor Phase.cleaning), phase := (ctor Phase.draining), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (cleanupSlot s), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project mutation delta) (ctor Outcome.advanced))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cleanup,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (if (project s attachmentPending) then (if (project s stopSent) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitStopped)}) else (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.smallControl)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+      | Result.ok paid => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := true, writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.cancelAttachment (attachmentRequest s))}))) else (if (match (project (project s writer) pending)
+      | Option.none => false
+      | Option.some value => true) then (match (project (project s writer) pending)
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)})
+      | Option.some request => (if (project s stopSent) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitStopped)}) else (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.smallControl)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok paid => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project (Uorc.Product.ResourceIO::cancelWrite (project s writer)) state), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := true, writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.cancelWrite request)})))) else (match (project s lease)
+      | Option.none => (if ((project s imageOwned) || ((not (Uorc.Core.RuntimeValue::isNull (project s staging))) || (not (Uorc.Core.RuntimeValue::isNull (project s control))))) then (releaseImageOrControl budget arena usage s) else (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.clean), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.readyToTake)}))
+      | Option.some lease => (if (project s leaseReleasePending) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitLeaseRelease)}) else (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.smallControl)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok paid => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.awaitingLeaseRelease), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := true, writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.releaseLease (attachmentRequest s) lease)}))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: takeWriter,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    run : Uorc.Product.Api::Run
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (if ((Uorc.Product.ResourceIO::sameRunIdentity (project (project s writer) run) run) && (((phaseCode (project s phase)) =? 11) && ((not (project s writerTaken)) && true))) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := true, cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.settled (project s writer) (project s failure) (project s cancelled))}) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.notReady)}))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: []
+}
+
+definition{
+  name: addRoot,
+  parameters: [
+    root : Uorc.Core.RuntimeValue::Handle,
+    roots : (List Uorc.Core.RuntimeValue::Handle)
+  ],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (Uorc.Core.RuntimeValue::isNull root) then roots else (cons root roots)),
+  axioms: []
+}
+
+definition{
+  name: ownedRoots,
+  parameters: [s : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (addRoot (if (project s imageOwned) then (project (project s span) image) else (Uorc.Core.RuntimeValue::nullHandle)) (addRoot (project s staging) (addRoot (project s control) (nil Uorc.Core.RuntimeValue::Handle)))),
+  axioms: []
+}
+
+definition{
+  name: ownedLease,
+  parameters: [s : Cursor],
+  result: (Option Uorc.Product.Api::ResourceRef),
+  body: (project s lease),
+  axioms: []
+}
+
+definition{
+  name: outcomeLeases,
+  parameters: [outcome : Outcome],
+  result: (List Uorc.Product.Api::ResourceRef),
+  body: (match outcome
+    | Outcome.advanced => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitAttachment => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitWrite => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitStopped => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitLeaseRelease => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.awaitDelta => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.readyToTake => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.notReady => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.attach a0 a1 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.cancelAttachment a0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.write a0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.cancelWrite a0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.releaseLease a0 a1 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.settled a0 a1 a2 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.failed a0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.refused a0 => (nil Uorc.Product.Api::ResourceRef)
+    | Outcome.rejected a0 a1 => (match a1
+      | Option.none => (nil Uorc.Product.Api::ResourceRef)
+      | Option.some lease => (cons lease (nil Uorc.Product.Api::ResourceRef)))),
+  axioms: []
+}
+
+definition{
+  name: outcomeStorage,
+  parameters: [outcome : Outcome],
+  result: (Option Uorc.Product.Storage::State),
+  body: (match outcome
+    | Outcome.advanced => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.awaitAttachment => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.awaitWrite => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.awaitStopped => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.awaitLeaseRelease => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.awaitDelta => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.readyToTake => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.notReady => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.attach a0 a1 => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.cancelAttachment a0 => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.write a0 => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.cancelWrite a0 => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.releaseLease a0 a1 => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.settled a0 a1 a2 => (ctor Option.some [Uorc.Product.Storage::State] (project a0 storage))
+    | Outcome.failed a0 => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.refused a0 => (ctor Option.none [Uorc.Product.Storage::State])
+    | Outcome.rejected a0 a1 => (ctor Option.none [Uorc.Product.Storage::State])),
+  axioms: []
+}
+
+definition{
+  name: ownedStorage,
+  parameters: [s : Cursor],
+  result: (Option Uorc.Product.Storage::State),
+  body: (if (project s writerTaken) then (ctor Option.none [Uorc.Product.Storage::State]) else (ctor Option.some [Uorc.Product.Storage::State] (project (project s writer) storage))),
+  axioms: []
+}
+
+definition{
+  name: releaseDisposition,
+  parameters: [s : Cursor],
+  result: Uorc.Product.Api::ReleaseDisposition,
+  body: (if ((project s attachmentPending) || ((match (project (project s writer) pending)
+    | Option.none => false
+    | Option.some value => true) || (project s leaseReleasePending))) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.pendingIo)) else (if (match (project s pendingDelta)
+    | Option.none => false
+    | Option.some value => true) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt)) else (if (match (project s lease)
+    | Option.none => false
+    | Option.some value => true) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.resourceLease)) else (if ((project s imageOwned) || ((not (Uorc.Core.RuntimeValue::isNull (project s staging))) || (not (Uorc.Core.RuntimeValue::isNull (project s control))))) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.imageTicket)) else (if (not (project s writerTaken)) then (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.storage)) else (ctor Uorc.Product.Api::ReleaseDisposition.releasable)))))),
+  axioms: []
+}
+
+definition{
+  name: quoteWork,
+  parameters: [arena : Uorc.Core.Heap::Arena, s : Cursor],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeImageCopy::quoteCost arena (project s span) (project s relativeOffset) (project s maximum)),
+  axioms: []
+}
+
+definition{
+  name: materializationWork,
+  parameters: [quoted : Uorc.Core.RuntimeImage::BorrowedSpan],
+  result: (Result UInt64 Uorc.Core.RuntimeImage::ImageFailure),
+  body: (Uorc.Core.RuntimeImageCopy::copyCost quoted),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: quote,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+      | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+      | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (quoteWork arena s), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+        | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok paid => (match (Uorc.Core.RuntimeImageCopy::quoteChunk arena (project s span) (project s relativeOffset) (project s maximum))
+          | Result.error reason => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.image reason)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.image reason))})
+          | Result.ok quoted => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (ctor Option.some [Uorc.Core.RuntimeImage::BorrowedSpan] quoted), resume := (project s resume), phase := (if (prim equal (project quoted length) (0 : UInt64) : Bool) then (ctor Phase.cleaning) else (ctor Phase.staging)), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: materialize,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (match (project s quoted)
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.protocol)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.protocol))})
+      | Option.some quoted => (if (prim equal (project quoted length) (0 : UInt64) : Bool) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}) else (match (materializationWork quoted)
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.image reason)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.image reason))})
+        | Result.ok copyFee => (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+          | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := copyFee, emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+            | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+            | Result.ok paid => (match (Uorc.Core.RuntimeImageCopy::copyChunk arena quoted)
+              | Result.error reason => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.cleaning), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (ctor Option.some [Error] (ctor Error.image reason)), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.failed (ctor Error.image reason))})
+              | Result.ok bytes => (record Transition {arena := arena, usage := paid, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.awaitingAttachment), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := true, leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := false, writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.attach (attachmentRequest s) bytes)})))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cleanupChunk,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (match (prim checked_add (project s receiptSerial) (1 : UInt64) : (Option UInt64))
+      | Option.none => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted)), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.addressSpaceExhausted))})
+      | Option.some nextSerial => (if (Uorc.Core.RuntimeValue::isNull (project s staging)) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (ctor Phase.quote), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.advanced)}) else (match (Uorc.Core.RuntimeResources::observeArena budget usage arena)
+        | Result.error reason => (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+        | Result.ok observed => (match (Uorc.Core.RuntimeResources::charge budget observed (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+          | Result.error reason => (record Transition {arena := arena, usage := observed, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] reason), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused reason)})
+          | Result.ok paid => (match (Uorc.Core.Heap::release arena (project s staging))
+            | Result.error reason => (heapFailure budget arena paid s reason)
+            | Result.ok mutation => (afterMutation budget (project mutation arena) paid (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (ctor Phase.quote), phase := (ctor Phase.draining), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := 2, failure := (project s failure), refusal := (project s refusal), pendingDelta := (project s pendingDelta)}) (project mutation delta) (ctor Outcome.advanced)))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: tick,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor
+  ],
+  result: Transition,
+  body: (match (project s pendingDelta)
+    | Option.none => (if (project s writerTaken) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.notReady)}) else (if ((phaseCode (project s phase)) =? 9) then (drain budget arena usage s) else (if (Uorc.Core.Heap::isReleasing arena) then (record Transition {arena := arena, usage := usage, cursor := (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress))), pendingDelta := (project s pendingDelta)}), delta := (zeroDelta), outcome := (ctor Outcome.refused (ctor Uorc.Core.RuntimeResources::Error.heap (ctor Uorc.Core.Heap::HeapError.releaseInProgress)))}) else (if ((project s cancelled) || (match (project s failure)
+      | Option.none => false
+      | Option.some value => true)) then (cleanup budget arena usage s) else (match (project s phase)
+      | Phase.control => (allocateControl budget arena usage s)
+      | Phase.retain => (retainImage budget arena usage s)
+      | Phase.staging => (reserveStaging budget arena usage s)
+      | Phase.quote => (quote budget arena usage s)
+      | Phase.materialize => (materialize budget arena usage s)
+      | Phase.awaitingAttachment => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitAttachment)})
+      | Phase.writing => (if (match (project (project s writer) pending)
+        | Option.none => false
+        | Option.some value => true) then (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitWrite)}) else (if ((project s writerStarted) && ((not (match (project (project s writer) remaining)
+        | Option.none => false
+        | Option.some value => true)) && true)) then (cleanup budget arena usage s) else (beginWrite budget arena usage s)))
+      | Phase.cleaning => (cleanup budget arena usage s)
+      | Phase.chunkCleaning => (cleanupChunk budget arena usage s)
+      | Phase.draining => (drain budget arena usage s)
+      | Phase.awaitingLeaseRelease => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitLeaseRelease)})
+      | Phase.clean => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.readyToTake)}))))))
+    | Option.some unacknowledged => (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.awaitDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: extend,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    s : Cursor,
+    run : Uorc.Product.Api::Run
+  ],
+  result: Transition,
+  body: (if (Uorc.Product.ResourceIO::sameRunIdentity (project (project s writer) run) run) then (tick budget arena usage (record Cursor {writer := (project s writer), span := (project s span), maximum := (project s maximum), ticket := (project s ticket), receiptSerial := (project s receiptSerial), relativeOffset := (project s relativeOffset), quoted := (project s quoted), resume := (project s resume), phase := (project s phase), imageOwned := (project s imageOwned), control := (project s control), staging := (project s staging), lease := (project s lease), attachmentPending := (project s attachmentPending), leaseReleasePending := (project s leaseReleasePending), writerStarted := (project s writerStarted), cancelled := (project s cancelled), stopSent := (project s stopSent), writerTaken := (project s writerTaken), cleanupSlot := (project s cleanupSlot), failure := (project s failure), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project s pendingDelta)})) else (record Transition {arena := arena, usage := usage, cursor := s, delta := (zeroDelta), outcome := (ctor Outcome.notReady)})),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

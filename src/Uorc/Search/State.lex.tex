@@ -1,0 +1,178 @@
+\begin{lexlean}{Uorc.Search.State}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Search.Charts}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: insufficientObservations, fields: []},
+    {name: arithmeticOverflow, fields: []}
+  ]
+}
+
+structure{
+  name: Parameters,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: initial, type: UInt64},
+    {name: multiplier, type: UInt64},
+    {name: increment, type: UInt64}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: nextMultiplier, type: Nat}]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Cursor]},
+    {name: finished, fields: []},
+    {name: rejected, fields: [Error, Cursor]}
+  ]
+}
+
+definition{
+  name: initial,
+  parameters: [],
+  result: Cursor,
+  body: (record Cursor {nextMultiplier := 0})
+}
+
+definition{
+  name: infer,
+  parameters: [input : Bytes, multiplier : UInt64],
+  result: (Result Parameters Error),
+  body: match{
+    branches: [
+      {
+        body: (ctor Result.error [Parameters, Error] (ctor Error.insufficientObservations)),
+        binders: [],
+        constructor: Option.none
+      },
+      {
+        body: match{
+          branches: [
+            {
+              body: (ctor Result.error [Parameters, Error] (ctor Error.insufficientObservations)),
+              binders: [],
+              constructor: Option.none
+            },
+            {
+              body: (match (prim checked_multiply multiplier (Uorc.Search.Charts::byteNatural var{
+                  name: first
+                }) : (Option UInt64))
+                | Option.none => (ctor Result.error [Parameters, Error] (ctor Error.arithmeticOverflow))
+                | Option.some product => (match (prim checked_quotient product (256 : UInt64) : (Option UInt64))
+                  | Option.none => (ctor Result.error [Parameters, Error] (ctor Error.arithmeticOverflow))
+                  | Option.some quotient => (match (prim checked_multiply quotient (256 : UInt64) : (Option UInt64))
+                    | Option.none => (ctor Result.error [Parameters, Error] (ctor Error.arithmeticOverflow))
+                    | Option.some multiple => (match (prim checked_subtract product multiple : (Option UInt64))
+                      | Option.none => (ctor Result.error [Parameters, Error] (ctor Error.arithmeticOverflow))
+                      | Option.some reduced => (match (Uorc.Search.Charts::ringDifference (Uorc.Search.Charts::byteNatural var{
+                          name: second
+                        }) reduced)
+                        | Result.error chartError => (ctor Result.error [Parameters, Error] (ctor Error.arithmeticOverflow))
+                        | Result.ok increment => (ctor Result.ok [Parameters, Error] (record Parameters {initial := (Uorc.Search.Charts::byteNatural var{
+                          name: first
+                        }), multiplier := multiplier, increment := increment}))))))),
+              binders: [second],
+              constructor: Option.some
+            }
+          ],
+          scrutinee: (prim index input 1 : (Option UInt8))
+        },
+        binders: [first],
+        constructor: Option.some
+      }
+    ],
+    scrutinee: (prim index input 0 : (Option UInt8))
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: observerBlock,
+  parameters: [],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1})
+}
+
+definition{
+  name: updaterBlock,
+  parameters: [parameters : Parameters],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters multiplier)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters increment)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (256 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalMultiply 4 3) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 1 3) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 1 3) (nil Uorc.Core.Graph::Instruction))))))), returnDistance := 1})
+}
+
+definition{
+  name: stateGraph,
+  parameters: [parameters : Parameters, count : UInt64],
+  result: Uorc.Core.Graph::Graph,
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons (observerBlock) (cons (updaterBlock parameters) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters initial)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2})
+}
+
+definition{
+  name: step,
+  parameters: [input : Bytes, cursor : Cursor],
+  result: Step,
+  body: (if (256 <=? (project cursor nextMultiplier)) then (ctor Step.finished) else (match (Uorc.Search.Effort::checkedU64 (project cursor nextMultiplier))
+    | Result.error conversionError => (ctor Step.rejected (ctor Error.arithmeticOverflow) (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)}))
+    | Result.ok multiplier => (match (infer input multiplier)
+      | Result.error inferenceError => (ctor Step.rejected inferenceError (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)}))
+      | Result.ok parameters => (match (Uorc.Search.Effort::checkedU64 (prim length input : Nat))
+        | Result.error sizeError => (ctor Step.rejected (ctor Error.arithmeticOverflow) (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)}))
+        | Result.ok count => (ctor Step.proposal (stateGraph parameters count) (record Cursor {nextMultiplier := ((project cursor nextMultiplier) + 1)})))))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: transition_parameters_are_input_derived,
+  parameters: [],
+  statement: ((infer 0x0726c1c8 (5 : UInt64)) = (ctor Result.ok [Parameters, Error] (record Parameters {initial := (7 : UInt64), multiplier := (5 : UInt64), increment := (3 : UInt64)}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: scan_witness_is_ordinary_typed_graph,
+  parameters: [],
+  statement: ((Uorc.Core.Graph::validateGraph (stateGraph (record Parameters {initial := (7 : UInt64), multiplier := (5 : UInt64), increment := (3 : UInt64)}) (65536 : UInt64))) = (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ())),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: all_256_multipliers_only_priority_not_universe,
+  parameters: [],
+  statement: ((step 0x0001 (record Cursor {nextMultiplier := 256})) = (ctor Step.finished)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: foldGraph,
+  parameters: [parameters : Parameters, count : UInt64],
+  result: Uorc.Core.Graph::Graph,
+  body: (record Uorc.Core.Graph::Graph {blocks := (cons (updaterBlock parameters) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project parameters initial)) (cons (ctor Uorc.Core.Graph::Instruction.fold 2 1 1 (nil Nat)) (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (cons (ctor Uorc.Core.Graph::Instruction.singletonSequence 1) (nil Uorc.Core.Graph::Instruction)))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1})
+}
+
+theorem{
+  name: fold_is_distinct_typed_reduction,
+  parameters: [],
+  statement: ((Uorc.Core.Graph::validateGraph (foldGraph (record Parameters {initial := (7 : UInt64), multiplier := (5 : UInt64), increment := (3 : UInt64)}) (33 : UInt64))) = (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ())),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

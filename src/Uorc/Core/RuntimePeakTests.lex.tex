@@ -1,0 +1,171 @@
+\begin{lexlean}{Uorc.Core.RuntimePeakTests}
+
+\importmodule{Uorc.Core.RuntimeValue}
+
+\importmodule{Uorc.Core.Heap}
+
+\importmodule{Uorc.Core.HeapAudit}
+
+\importmodule{Uorc.Core.RuntimePeak}
+
+\title{Parameters}
+
+\begin{semanticmodule}
+definition{
+  name: wordIs,
+  parameters: [attempt : (Result UInt64 Uorc.Core.Heap::HeapError), expected : UInt64],
+  result: Bool,
+  body: (match attempt
+    | Result.error failure => false
+    | Result.ok observed => (prim equal observed expected : Bool)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: isOwnedBytesOverflow,
+  parameters: [attempt : (Result UInt64 Uorc.Core.Heap::HeapError)],
+  result: Bool,
+  body: (match attempt
+    | Result.ok observed => false
+    | Result.error failure => (match failure
+      | Uorc.Core.Heap::HeapError.malformedHandle => false
+      | Uorc.Core.Heap::HeapError.invalidNode => false
+      | Uorc.Core.Heap::HeapError.countOverflow => false
+      | Uorc.Core.Heap::HeapError.countUnderflow => false
+      | Uorc.Core.Heap::HeapError.handleOverflow => false
+      | Uorc.Core.Heap::HeapError.ownedBytesOverflow => true
+      | Uorc.Core.Heap::HeapError.budgetExceeded => false
+      | Uorc.Core.Heap::HeapError.releaseInProgress => false
+      | Uorc.Core.Heap::HeapError.releaseNotStarted => false
+      | Uorc.Core.Heap::HeapError.invalidRoot => false
+      | Uorc.Core.Heap::HeapError.protocolFailure => false)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: twoChildParent,
+  parameters: [],
+  result: (Result Uorc.Core.Heap::Allocation Uorc.Core.Heap::HeapError),
+  body: (match (Uorc.Core.Heap::allocate (Uorc.Core.Heap::emptyArena (1000 : UInt64)) (ctor Uorc.Core.Heap::Node.storeLeaf (1 : UInt8)))
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok leftAllocation => (match (Uorc.Core.Heap::allocate (project leftAllocation arena) (ctor Uorc.Core.Heap::Node.storeLeaf (2 : UInt8)))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Allocation, Uorc.Core.Heap::HeapError] failure)
+      | Result.ok rightAllocation => (Uorc.Core.Heap::allocateMoved (project rightAllocation arena) (ctor Uorc.Core.Heap::Node.storeBranch (project leftAllocation handle) (project rightAllocation handle)) true true))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: releasedTwoChild,
+  parameters: [],
+  result: (Result Uorc.Core.Heap::Transition Uorc.Core.Heap::HeapError),
+  body: (match (twoChildParent)
+    | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] failure)
+    | Result.ok parentAllocation => (match (Uorc.Core.Heap::release (project parentAllocation arena) (project parentAllocation handle))
+      | Result.error failure => (ctor Result.error [Uorc.Core.Heap::Transition, Uorc.Core.Heap::HeapError] failure)
+      | Result.ok rootRelease => (Uorc.Core.Heap::releaseStep (project rootRelease arena)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: malformedOverflow,
+  parameters: [arena : Uorc.Core.Heap::Arena],
+  result: Uorc.Core.Heap::Arena,
+  body: (record Uorc.Core.Heap::Arena {index := (project arena index), nextHandle := (project arena nextHandle), exhausted := (project arena exhausted), ownedBytes := (project arena ownedBytes), liveEntries := (project arena liveEntries), maxOwnedBytes := (project arena maxOwnedBytes), cursor := (record Uorc.Core.Heap::ReleaseCursor {pending := (nil Uorc.Core.RuntimeValue::Handle), pendingCount := (18446744073709551615 : UInt64), rootStep := false})}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: twoChildReleaseScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (twoChildParent)
+    | Result.error failure => false
+    | Result.ok parentAllocation => (match (Uorc.Core.RuntimePeak::beginEvent (project parentAllocation arena))
+      | Result.error failure => false
+      | Result.ok beforeBytes => (if (Uorc.Core.HeapAudit::auditRoots (project parentAllocation arena) (cons (project parentAllocation handle) (nil Uorc.Core.RuntimeValue::Handle))) then (if (prim equal beforeBytes (128 : UInt64) : Bool) then (if (match (Uorc.Core.Heap::release (project parentAllocation arena) (project parentAllocation handle))
+        | Result.error failure => false
+        | Result.ok rootRelease => (if (Uorc.Core.HeapAudit::auditRoots (project rootRelease arena) (nil Uorc.Core.RuntimeValue::Handle)) then (if (wordIs (Uorc.Core.RuntimePeak::beginEvent (project rootRelease arena)) (128 : UInt64)) then (if (match (Uorc.Core.Heap::releaseStep (project rootRelease arena))
+          | Result.error failure => false
+          | Result.ok edgeRelease => (if (Uorc.Core.HeapAudit::auditRoots (project edgeRelease arena) (nil Uorc.Core.RuntimeValue::Handle)) then (if (prim equal (project (project edgeRelease arena) ownedBytes) (80 : UInt64) : Bool) then (if (prim equal (project (project (project edgeRelease arena) cursor) pendingCount) (2 : UInt64) : Bool) then (if (if (if (project (project (project edgeRelease arena) cursor) rootStep) then false else true) then true else false) then (if (wordIs (Uorc.Core.RuntimePeak::beginEvent (project edgeRelease arena)) (112 : UInt64)) then (if (wordIs (Uorc.Core.RuntimePeak::completeEvent (0 : UInt64) beforeBytes (project edgeRelease arena)) (128 : UInt64)) then true else false) else false) else false) else false) else false) else false)) then true else false) else false) else false)) then true else false) else false) else false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: afterBytesScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (twoChildParent)
+    | Result.error failure => false
+    | Result.ok parentAllocation => (wordIs (Uorc.Core.RuntimePeak::completeEvent (0 : UInt64) (80 : UInt64) (project parentAllocation arena)) (128 : UInt64))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: historyAndFailureScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (releasedTwoChild)
+    | Result.error failure => false
+    | Result.ok edgeRelease => (if (wordIs (Uorc.Core.RuntimePeak::completeEvent (200 : UInt64) (128 : UInt64) (project edgeRelease arena)) (200 : UInt64)) then (if (prim equal (Uorc.Core.RuntimePeak::failedEvent (200 : UInt64) (128 : UInt64)) (200 : UInt64) : Bool) then (if (prim equal (Uorc.Core.RuntimePeak::failedEvent (0 : UInt64) (128 : UInt64)) (128 : UInt64) : Bool) then true else false) else false) else false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: unsignedMaxScenario,
+  parameters: [],
+  result: Bool,
+  body: (if (prim equal (Uorc.Core.RuntimePeak::failedEvent (0 : UInt64) (18446744073709551615 : UInt64)) (18446744073709551615 : UInt64) : Bool) then (if (prim equal (Uorc.Core.RuntimePeak::failedEvent (18446744073709551615 : UInt64) (0 : UInt64)) (18446744073709551615 : UInt64) : Bool) then true else false) else false),
+  axioms: [propext],
+  executable: true
+}
+
+definition{
+  name: beginOverflowScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (releasedTwoChild)
+    | Result.error failure => false
+    | Result.ok edgeRelease => (isOwnedBytesOverflow (Uorc.Core.RuntimePeak::beginEvent (malformedOverflow (project edgeRelease arena))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: completeOverflowScenario,
+  parameters: [],
+  result: Bool,
+  body: (match (releasedTwoChild)
+    | Result.error failure => false
+    | Result.ok edgeRelease => (isOwnedBytesOverflow (Uorc.Core.RuntimePeak::completeEvent (10 : UInt64) (20 : UInt64) (malformedOverflow (project edgeRelease arena))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: scenarioNames,
+  parameters: [],
+  result: (List String),
+  body: (cons "twoChildReleaseScenario" (cons "afterBytesScenario" (cons "historyAndFailureScenario" (cons "unsignedMaxScenario" (cons "beginOverflowScenario" (cons "completeOverflowScenario" (nil String))))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: suite,
+  parameters: [],
+  result: Bool,
+  body: (if (twoChildReleaseScenario) then (if (afterBytesScenario) then (if (historyAndFailureScenario) then (if (unsignedMaxScenario) then (if (beginOverflowScenario) then (if (completeOverflowScenario) then true else false) else false) else false) else false) else false) else false),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+
+\end{lexlean}

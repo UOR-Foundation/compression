@@ -1,0 +1,630 @@
+\begin{lexlean}{Uorc.Product.ComparisonOwner}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeMachine}
+\importmodule{Uorc.Core.RuntimeMachineEngine}
+\importmodule{Uorc.Core.RuntimeMachineSemantic}
+\importmodule{Uorc.Core.RuntimeOwnerRoots}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.MachineBinding}
+\importmodule{Uorc.Product.OwnedCompare}
+\importmodule{Uorc.Wire.OwnedRead}
+\title{Boolean}
+\begin{semanticmodule}
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: read, fields: [Uorc.Product.OwnedCompare::Side, Uorc.Wire.OwnedRead::Failure]},
+    {name: comparison, fields: [Uorc.Product.OwnedCompare::Failure]},
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: upstream, fields: [Uorc.Core.RuntimeMachine::Failure]}
+  ]
+}
+
+inductive{
+  name: Disposition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: incomplete, fields: []},
+    {name: equal, fields: []},
+    {name: different, fields: [UInt64]},
+    {name: lengthMismatch, fields: [UInt64, UInt64]},
+    {name: failed, fields: [Failure]},
+    {name: cancelled, fields: []}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: allocate, fields: [Uorc.Core.RuntimeValue::Handle, Uorc.Core.RuntimeValue::Handle]},
+    {
+      name: initLeft,
+      fields: [
+        Uorc.Core.RuntimeValue::Handle,
+        Uorc.Core.RuntimeValue::Handle,
+        Uorc.Core.RuntimeValue::Handle
+      ]
+    },
+    {
+      name: initRight,
+      fields: [
+        Uorc.Core.RuntimeValue::Handle,
+        Uorc.Wire.OwnedRead::Cursor,
+        Uorc.Core.RuntimeValue::Handle
+      ]
+    },
+    {name: comparing, fields: [Uorc.Core.RuntimeValue::Handle, Uorc.Product.OwnedCompare::State]},
+    {name: releaseControl, fields: [Uorc.Core.RuntimeValue::Handle]},
+    {name: draining, fields: []},
+    {name: done, fields: []}
+  ]
+}
+
+inductive{
+  name: Owner,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: owned, fields: [Uorc.Product.MachineBinding::Terminal, Phase]},
+    {name: handedOff, fields: [Uorc.Core.RuntimeResources::Usage]}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: run, type: Uorc.Product.Api::Run},
+    {name: owner, type: Owner},
+    {name: budget, type: Uorc.Core.RuntimeResources::Budget},
+    {name: disposition, type: Disposition},
+    {name: refusal, type: (Option Uorc.Core.RuntimeResources::Error)},
+    {name: pendingDelta, type: (Option Uorc.Core.Heap::Delta)}
+  ]
+}
+
+inductive{
+  name: DeltaTake,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: stale, fields: [State]},
+    {name: empty, fields: [State]},
+    {name: taken, fields: [State, Uorc.Core.Heap::Delta]}
+  ]
+}
+
+inductive{
+  name: Movement,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: stale, fields: [State]},
+    {name: notReady, fields: [State]},
+    {name: moved, fields: [State, Uorc.Product.MachineBinding::Terminal, Disposition]}
+  ]
+}
+
+definition{
+  name: controlRationale,
+  parameters: [],
+  result: String,
+  body: "The 4096-byte reservation covers the fixed packed comparison shell: two bounded readers and spans, scalar phase and disposition, one pending byte plan, and one delta receipt. Programs and inputs remain in the sole terminal arena."
+}
+
+definition{
+  name: controlBytes,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeOwnerRoots::controlBytes)
+}
+
+definition{
+  name: controlWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))
+}
+
+definition{
+  name: beginWork,
+  parameters: [],
+  result: UInt64,
+  body: (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin))
+}
+
+definition{
+  name: start,
+  parameters: [
+    local1_terminal : Uorc.Product.MachineBinding::Terminal,
+    local2_budget : Uorc.Core.RuntimeResources::Budget,
+    local3_left : Uorc.Core.RuntimeValue::Handle,
+    local4_right : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: State,
+  body: (record State {run := (project local1_terminal run), owner := (if ((not (project local1_terminal cancelled)) && ((match (project local1_terminal failure)
+    | Option.none => true
+    | Option.some local5_failure => false) && true)) then (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local1_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (record Uorc.Core.Heap::Arena {index := (project (project (project (project local1_terminal transfer) ready) arena) index), nextHandle := (project (project (project (project local1_terminal transfer) ready) arena) nextHandle), exhausted := (project (project (project (project local1_terminal transfer) ready) arena) exhausted), ownedBytes := (project (project (project (project local1_terminal transfer) ready) arena) ownedBytes), liveEntries := (project (project (project (project local1_terminal transfer) ready) arena) liveEntries), maxOwnedBytes := (project local2_budget maxOwnedBytes), cursor := (project (project (project (project local1_terminal transfer) ready) arena) cursor)}), program := (project (project (project local1_terminal transfer) ready) program), caller := (project (project (project local1_terminal transfer) ready) caller), usage := (project (project (project local1_terminal transfer) ready) usage)}), semanticBudget := (project (project local1_terminal transfer) semanticBudget), semanticLedger := (project (project local1_terminal transfer) semanticLedger)}), output := (project local1_terminal output), cancelled := (project local1_terminal cancelled), failure := (project local1_terminal failure), receipt := (project local1_terminal receipt), semanticRefusal := (project local1_terminal semanticRefusal)}) (ctor Phase.allocate local3_left local4_right)) else (ctor Owner.owned local1_terminal (ctor Phase.done))), budget := local2_budget, disposition := (if (project local1_terminal cancelled) then (ctor Disposition.cancelled) else (match (project local1_terminal failure)
+    | Option.none => (ctor Disposition.incomplete)
+    | Option.some local6_failure => (ctor Disposition.failed (ctor Failure.upstream local6_failure)))), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])})
+}
+
+definition{
+  name: usage,
+  parameters: [local7_s : State],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (project local7_s owner)
+    | Owner.owned local8_terminal local9_phase => (project (project (project local8_terminal transfer) ready) usage)
+    | Owner.handedOff local10_achieved => local10_achieved)
+}
+
+definition{
+  name: achievedUsage,
+  parameters: [
+    local11_current : Uorc.Core.RuntimeResources::Usage,
+    local12_arena : Uorc.Core.Heap::Arena
+  ],
+  result: Uorc.Core.RuntimeResources::Usage,
+  body: (match (Uorc.Core.Heap::totalOwnedBytes local12_arena)
+    | Result.error local13_reason => local11_current
+    | Result.ok local14_bytes => (record Uorc.Core.RuntimeResources::Usage {work := (project local11_current work), ownedBytes := local14_bytes, peakOwnedBytes := (if (Uorc.Core.Heap::less (project local11_current peakOwnedBytes) local14_bytes) then local14_bytes else (project local11_current peakOwnedBytes)), outputBytes := (project local11_current outputBytes), frames := (project local11_current frames)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: afterMutation,
+  parameters: [
+    local15_s : State,
+    local16_terminal : Uorc.Product.MachineBinding::Terminal,
+    local17_nextPhase : Phase,
+    local18_nextArena : Uorc.Core.Heap::Arena,
+    local19_paid : Uorc.Core.RuntimeResources::Usage,
+    local20_delta : Uorc.Core.Heap::Delta
+  ],
+  result: State,
+  body: (match (Uorc.Core.RuntimeResources::observeArena (project local15_s budget) (achievedUsage local19_paid local18_nextArena) local18_nextArena)
+    | Result.error local21_reason => (record State {run := (project local15_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local16_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := local18_nextArena, program := (project (project (project local16_terminal transfer) ready) program), caller := (project (project (project local16_terminal transfer) ready) caller), usage := (achievedUsage local19_paid local18_nextArena)}), semanticBudget := (project (project local16_terminal transfer) semanticBudget), semanticLedger := (project (project local16_terminal transfer) semanticLedger)}), output := (project local16_terminal output), cancelled := (project local16_terminal cancelled), failure := (project local16_terminal failure), receipt := (project local16_terminal receipt), semanticRefusal := (project local16_terminal semanticRefusal)}) local17_nextPhase), budget := (project local15_s budget), disposition := (project local15_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local21_reason), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] local20_delta)})
+    | Result.ok local22_observed => (record State {run := (project local15_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local16_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := local18_nextArena, program := (project (project (project local16_terminal transfer) ready) program), caller := (project (project (project local16_terminal transfer) ready) caller), usage := local22_observed}), semanticBudget := (project (project local16_terminal transfer) semanticBudget), semanticLedger := (project (project local16_terminal transfer) semanticLedger)}), output := (project local16_terminal output), cancelled := (project local16_terminal cancelled), failure := (project local16_terminal failure), receipt := (project local16_terminal receipt), semanticRefusal := (project local16_terminal semanticRefusal)}) local17_nextPhase), budget := (project local15_s budget), disposition := (project local15_s disposition), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (ctor Option.some [Uorc.Core.Heap::Delta] local20_delta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: heapRefusal,
+  parameters: [
+    local23_s : State,
+    local24_terminal : Uorc.Product.MachineBinding::Terminal,
+    local25_phase : Phase,
+    local26_paid : Uorc.Core.RuntimeResources::Usage,
+    local27_error : Uorc.Core.Heap::HeapError
+  ],
+  result: State,
+  body: (match local27_error
+    | Uorc.Core.Heap::HeapError.malformedHandle => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local28_left local29_right => (ctor Phase.done)
+      | Phase.initLeft local30_control local31_left local32_right => local25_phase
+      | Phase.initRight local33_control local34_leftReader local35_right => local25_phase
+      | Phase.comparing local36_control local37_comparison => local25_phase
+      | Phase.releaseControl local38_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.invalidNode => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local39_left local40_right => (ctor Phase.done)
+      | Phase.initLeft local41_control local42_left local43_right => local25_phase
+      | Phase.initRight local44_control local45_leftReader local46_right => local25_phase
+      | Phase.comparing local47_control local48_comparison => local25_phase
+      | Phase.releaseControl local49_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.countOverflow => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local50_left local51_right => (ctor Phase.done)
+      | Phase.initLeft local52_control local53_left local54_right => local25_phase
+      | Phase.initRight local55_control local56_leftReader local57_right => local25_phase
+      | Phase.comparing local58_control local59_comparison => local25_phase
+      | Phase.releaseControl local60_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.countUnderflow => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local61_left local62_right => (ctor Phase.done)
+      | Phase.initLeft local63_control local64_left local65_right => local25_phase
+      | Phase.initRight local66_control local67_leftReader local68_right => local25_phase
+      | Phase.comparing local69_control local70_comparison => local25_phase
+      | Phase.releaseControl local71_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.handleOverflow => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local72_left local73_right => (ctor Phase.done)
+      | Phase.initLeft local74_control local75_left local76_right => local25_phase
+      | Phase.initRight local77_control local78_leftReader local79_right => local25_phase
+      | Phase.comparing local80_control local81_comparison => local25_phase
+      | Phase.releaseControl local82_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.ownedBytesOverflow => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local83_left local84_right => (ctor Phase.done)
+      | Phase.initLeft local85_control local86_left local87_right => local25_phase
+      | Phase.initRight local88_control local89_leftReader local90_right => local25_phase
+      | Phase.comparing local91_control local92_comparison => local25_phase
+      | Phase.releaseControl local93_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.budgetExceeded => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) local25_phase), budget := (project local23_s budget), disposition := (project local23_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.ownedByteLimit)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.releaseInProgress => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local94_left local95_right => (ctor Phase.done)
+      | Phase.initLeft local96_control local97_left local98_right => local25_phase
+      | Phase.initRight local99_control local100_leftReader local101_right => local25_phase
+      | Phase.comparing local102_control local103_comparison => local25_phase
+      | Phase.releaseControl local104_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.releaseNotStarted => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local105_left local106_right => (ctor Phase.done)
+      | Phase.initLeft local107_control local108_left local109_right => local25_phase
+      | Phase.initRight local110_control local111_leftReader local112_right => local25_phase
+      | Phase.comparing local113_control local114_comparison => local25_phase
+      | Phase.releaseControl local115_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.invalidRoot => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local116_left local117_right => (ctor Phase.done)
+      | Phase.initLeft local118_control local119_left local120_right => local25_phase
+      | Phase.initRight local121_control local122_leftReader local123_right => local25_phase
+      | Phase.comparing local124_control local125_comparison => local25_phase
+      | Phase.releaseControl local126_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)})
+    | Uorc.Core.Heap::HeapError.protocolFailure => (record State {run := (project local23_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local24_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local24_terminal transfer) ready) arena), program := (project (project (project local24_terminal transfer) ready) program), caller := (project (project (project local24_terminal transfer) ready) caller), usage := local26_paid}), semanticBudget := (project (project local24_terminal transfer) semanticBudget), semanticLedger := (project (project local24_terminal transfer) semanticLedger)}), output := (project local24_terminal output), cancelled := (project local24_terminal cancelled), failure := (project local24_terminal failure), receipt := (project local24_terminal receipt), semanticRefusal := (project local24_terminal semanticRefusal)}) (match local25_phase
+      | Phase.allocate local127_left local128_right => (ctor Phase.done)
+      | Phase.initLeft local129_control local130_left local131_right => local25_phase
+      | Phase.initRight local132_control local133_leftReader local134_right => local25_phase
+      | Phase.comparing local135_control local136_comparison => local25_phase
+      | Phase.releaseControl local137_control => local25_phase
+      | Phase.draining => local25_phase
+      | Phase.done => local25_phase)), budget := (project local23_s budget), disposition := (ctor Disposition.failed (ctor Failure.heap local27_error)), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] (ctor Uorc.Core.RuntimeResources::Error.heap local27_error)), pendingDelta := (project local23_s pendingDelta)}))
+}
+
+definition{
+  name: afterComparison,
+  parameters: [
+    local138_s : State,
+    local139_terminal : Uorc.Product.MachineBinding::Terminal,
+    local140_control : Uorc.Core.RuntimeValue::Handle,
+    local141_comparison : Uorc.Product.OwnedCompare::State,
+    local142_paid : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: State,
+  body: (match (project local141_comparison result)
+    | Uorc.Product.OwnedCompare::Disposition.working => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.comparing local140_control local141_comparison)), budget := (project local138_s budget), disposition := (project local138_s disposition), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.equal => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.equal), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.different local143_index => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.different local143_index), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.lengthMismatch local144_leftLength local145_rightLength => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.lengthMismatch local144_leftLength local145_rightLength), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.failed local146_failure => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.failed (ctor Failure.comparison local146_failure)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)})
+    | Uorc.Product.OwnedCompare::Disposition.cancelled => (record State {run := (project local138_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local139_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local139_terminal transfer) ready) arena), program := (project (project (project local139_terminal transfer) ready) program), caller := (project (project (project local139_terminal transfer) ready) caller), usage := local142_paid}), semanticBudget := (project (project local139_terminal transfer) semanticBudget), semanticLedger := (project (project local139_terminal transfer) semanticLedger)}), output := (project local139_terminal output), cancelled := (project local139_terminal cancelled), failure := (project local139_terminal failure), receipt := (project local139_terminal receipt), semanticRefusal := (project local139_terminal semanticRefusal)}) (ctor Phase.releaseControl local140_control)), budget := (project local138_s budget), disposition := (ctor Disposition.cancelled), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local138_s pendingDelta)}))
+}
+
+definition{
+  name: allocateObserved,
+  parameters: [
+    local147_s : State,
+    local148_terminal : Uorc.Product.MachineBinding::Terminal,
+    local149_phase : Phase,
+    local150_left : Uorc.Core.RuntimeValue::Handle,
+    local151_right : Uorc.Core.RuntimeValue::Handle
+  ],
+  result: State,
+  body: (match (Uorc.Core.Heap::allocateControl (project (project (project local148_terminal transfer) ready) arena) (controlBytes))
+    | Result.error local152_error => (heapRefusal local147_s local148_terminal local149_phase (project (project (project local148_terminal transfer) ready) usage) local152_error)
+    | Result.ok local153_allocation => (afterMutation local147_s local148_terminal (ctor Phase.initLeft (project local153_allocation handle) local150_left local151_right) (project local153_allocation arena) (project (project (project local148_terminal transfer) ready) usage) (project local153_allocation delta))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: allocatePaid,
+  parameters: [
+    local154_s : State,
+    local155_terminal : Uorc.Product.MachineBinding::Terminal,
+    local156_phase : Phase,
+    local157_left : Uorc.Core.RuntimeValue::Handle,
+    local158_right : Uorc.Core.RuntimeValue::Handle,
+    local159_paid : Uorc.Core.RuntimeResources::Usage
+  ],
+  result: State,
+  body: (match (Uorc.Core.RuntimeResources::observeArena (project local154_s budget) local159_paid (project (project (project local155_terminal transfer) ready) arena))
+    | Result.error local160_reason => (record State {run := (project local154_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local155_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local155_terminal transfer) ready) arena), program := (project (project (project local155_terminal transfer) ready) program), caller := (project (project (project local155_terminal transfer) ready) caller), usage := local159_paid}), semanticBudget := (project (project local155_terminal transfer) semanticBudget), semanticLedger := (project (project local155_terminal transfer) semanticLedger)}), output := (project local155_terminal output), cancelled := (project local155_terminal cancelled), failure := (project local155_terminal failure), receipt := (project local155_terminal receipt), semanticRefusal := (project local155_terminal semanticRefusal)}) local156_phase), budget := (project local154_s budget), disposition := (project local154_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local160_reason), pendingDelta := (project local154_s pendingDelta)})
+    | Result.ok local161_observed => (allocateObserved local154_s (record Uorc.Product.MachineBinding::Terminal {run := (project local155_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local155_terminal transfer) ready) arena), program := (project (project (project local155_terminal transfer) ready) program), caller := (project (project (project local155_terminal transfer) ready) caller), usage := local161_observed}), semanticBudget := (project (project local155_terminal transfer) semanticBudget), semanticLedger := (project (project local155_terminal transfer) semanticLedger)}), output := (project local155_terminal output), cancelled := (project local155_terminal cancelled), failure := (project local155_terminal failure), receipt := (project local155_terminal receipt), semanticRefusal := (project local155_terminal semanticRefusal)}) local156_phase local157_left local158_right)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: tickPhase,
+  parameters: [
+    local162_s : State,
+    local163_terminal : Uorc.Product.MachineBinding::Terminal,
+    local164_phase : Phase
+  ],
+  result: State,
+  body: (match local164_phase
+    | Phase.allocate local165_left local166_right => (match (Uorc.Core.RuntimeResources::charge (project local162_s budget) (project (project (project local163_terminal transfer) ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (controlWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error local167_reason => (record State {run := (project local162_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local163_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local163_terminal transfer) ready) arena), program := (project (project (project local163_terminal transfer) ready) program), caller := (project (project (project local163_terminal transfer) ready) caller), usage := (project (project (project local163_terminal transfer) ready) usage)}), semanticBudget := (project (project local163_terminal transfer) semanticBudget), semanticLedger := (project (project local163_terminal transfer) semanticLedger)}), output := (project local163_terminal output), cancelled := (project local163_terminal cancelled), failure := (project local163_terminal failure), receipt := (project local163_terminal receipt), semanticRefusal := (project local163_terminal semanticRefusal)}) local164_phase), budget := (project local162_s budget), disposition := (project local162_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local167_reason), pendingDelta := (project local162_s pendingDelta)})
+      | Result.ok local168_paid => (allocatePaid local162_s local163_terminal local164_phase local165_left local166_right local168_paid))
+    | Phase.initLeft local169_control local170_left local171_right => (match (Uorc.Core.RuntimeResources::charge (project local162_s budget) (project (project (project local163_terminal transfer) ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (beginWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error local172_reason => (record State {run := (project local162_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local163_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local163_terminal transfer) ready) arena), program := (project (project (project local163_terminal transfer) ready) program), caller := (project (project (project local163_terminal transfer) ready) caller), usage := (project (project (project local163_terminal transfer) ready) usage)}), semanticBudget := (project (project local163_terminal transfer) semanticBudget), semanticLedger := (project (project local163_terminal transfer) semanticLedger)}), output := (project local163_terminal output), cancelled := (project local163_terminal cancelled), failure := (project local163_terminal failure), receipt := (project local163_terminal receipt), semanticRefusal := (project local163_terminal semanticRefusal)}) local164_phase), budget := (project local162_s budget), disposition := (project local162_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local172_reason), pendingDelta := (project local162_s pendingDelta)})
+      | Result.ok local173_paid => (match (Uorc.Wire.OwnedRead::begin (project (project (project local163_terminal transfer) ready) arena) local170_left)
+        | Result.error local174_failure => (record State {run := (project local162_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local163_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local163_terminal transfer) ready) arena), program := (project (project (project local163_terminal transfer) ready) program), caller := (project (project (project local163_terminal transfer) ready) caller), usage := local173_paid}), semanticBudget := (project (project local163_terminal transfer) semanticBudget), semanticLedger := (project (project local163_terminal transfer) semanticLedger)}), output := (project local163_terminal output), cancelled := (project local163_terminal cancelled), failure := (project local163_terminal failure), receipt := (project local163_terminal receipt), semanticRefusal := (project local163_terminal semanticRefusal)}) (ctor Phase.releaseControl local169_control)), budget := (project local162_s budget), disposition := (ctor Disposition.failed (ctor Failure.read (ctor Uorc.Product.OwnedCompare::Side.left) local174_failure)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local162_s pendingDelta)})
+        | Result.ok local175_leftReader => (record State {run := (project local162_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local163_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local163_terminal transfer) ready) arena), program := (project (project (project local163_terminal transfer) ready) program), caller := (project (project (project local163_terminal transfer) ready) caller), usage := local173_paid}), semanticBudget := (project (project local163_terminal transfer) semanticBudget), semanticLedger := (project (project local163_terminal transfer) semanticLedger)}), output := (project local163_terminal output), cancelled := (project local163_terminal cancelled), failure := (project local163_terminal failure), receipt := (project local163_terminal receipt), semanticRefusal := (project local163_terminal semanticRefusal)}) (ctor Phase.initRight local169_control local175_leftReader local171_right)), budget := (project local162_s budget), disposition := (project local162_s disposition), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local162_s pendingDelta)})))
+    | Phase.initRight local176_control local177_leftReader local178_right => (match (Uorc.Core.RuntimeResources::charge (project local162_s budget) (project (project (project local163_terminal transfer) ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (beginWork), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error local179_reason => (record State {run := (project local162_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local163_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local163_terminal transfer) ready) arena), program := (project (project (project local163_terminal transfer) ready) program), caller := (project (project (project local163_terminal transfer) ready) caller), usage := (project (project (project local163_terminal transfer) ready) usage)}), semanticBudget := (project (project local163_terminal transfer) semanticBudget), semanticLedger := (project (project local163_terminal transfer) semanticLedger)}), output := (project local163_terminal output), cancelled := (project local163_terminal cancelled), failure := (project local163_terminal failure), receipt := (project local163_terminal receipt), semanticRefusal := (project local163_terminal semanticRefusal)}) local164_phase), budget := (project local162_s budget), disposition := (project local162_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local179_reason), pendingDelta := (project local162_s pendingDelta)})
+      | Result.ok local180_paid => (match (Uorc.Wire.OwnedRead::begin (project (project (project local163_terminal transfer) ready) arena) local178_right)
+        | Result.error local181_failure => (record State {run := (project local162_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local163_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local163_terminal transfer) ready) arena), program := (project (project (project local163_terminal transfer) ready) program), caller := (project (project (project local163_terminal transfer) ready) caller), usage := local180_paid}), semanticBudget := (project (project local163_terminal transfer) semanticBudget), semanticLedger := (project (project local163_terminal transfer) semanticLedger)}), output := (project local163_terminal output), cancelled := (project local163_terminal cancelled), failure := (project local163_terminal failure), receipt := (project local163_terminal receipt), semanticRefusal := (project local163_terminal semanticRefusal)}) (ctor Phase.releaseControl local176_control)), budget := (project local162_s budget), disposition := (ctor Disposition.failed (ctor Failure.read (ctor Uorc.Product.OwnedCompare::Side.right) local181_failure)), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local162_s pendingDelta)})
+        | Result.ok local182_rightReader => (afterComparison local162_s local163_terminal local176_control (Uorc.Product.OwnedCompare::fromReaders local177_leftReader local182_rightReader) local180_paid)))
+    | Phase.comparing local183_control local184_comparison => (match (Uorc.Product.OwnedCompare::tick (project local162_s budget) (project (project (project local163_terminal transfer) ready) usage) (project (project (project local163_terminal transfer) ready) arena) local184_comparison)
+      | Uorc.Product.OwnedCompare::Tick.advanced local185_next local186_paid => (afterComparison local162_s local163_terminal local183_control local185_next local186_paid)
+      | Uorc.Product.OwnedCompare::Tick.refused local187_reason local188_next local189_paid => (record State {run := (project local162_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local163_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local163_terminal transfer) ready) arena), program := (project (project (project local163_terminal transfer) ready) program), caller := (project (project (project local163_terminal transfer) ready) caller), usage := local189_paid}), semanticBudget := (project (project local163_terminal transfer) semanticBudget), semanticLedger := (project (project local163_terminal transfer) semanticLedger)}), output := (project local163_terminal output), cancelled := (project local163_terminal cancelled), failure := (project local163_terminal failure), receipt := (project local163_terminal receipt), semanticRefusal := (project local163_terminal semanticRefusal)}) (ctor Phase.comparing local183_control local188_next)), budget := (project local162_s budget), disposition := (project local162_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local187_reason), pendingDelta := (project local162_s pendingDelta)}))
+    | Phase.releaseControl local190_control => (match (Uorc.Core.RuntimeResources::charge (project local162_s budget) (project (project (project local163_terminal transfer) ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error local191_reason => (record State {run := (project local162_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local163_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local163_terminal transfer) ready) arena), program := (project (project (project local163_terminal transfer) ready) program), caller := (project (project (project local163_terminal transfer) ready) caller), usage := (project (project (project local163_terminal transfer) ready) usage)}), semanticBudget := (project (project local163_terminal transfer) semanticBudget), semanticLedger := (project (project local163_terminal transfer) semanticLedger)}), output := (project local163_terminal output), cancelled := (project local163_terminal cancelled), failure := (project local163_terminal failure), receipt := (project local163_terminal receipt), semanticRefusal := (project local163_terminal semanticRefusal)}) local164_phase), budget := (project local162_s budget), disposition := (project local162_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local191_reason), pendingDelta := (project local162_s pendingDelta)})
+      | Result.ok local192_paid => (match (Uorc.Core.Heap::release (project (project (project local163_terminal transfer) ready) arena) local190_control)
+        | Result.error local193_error => (heapRefusal local162_s local163_terminal local164_phase local192_paid local193_error)
+        | Result.ok local194_transition => (afterMutation local162_s local163_terminal (if (project local194_transition complete) then (ctor Phase.done) else (ctor Phase.draining)) (project local194_transition arena) local192_paid (project local194_transition delta))))
+    | Phase.draining => (match (Uorc.Core.RuntimeResources::charge (project local162_s budget) (project (project (project local163_terminal transfer) ready) usage) (record Uorc.Core.RuntimeResources::Event {work := (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+      | Result.error local195_reason => (record State {run := (project local162_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local163_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local163_terminal transfer) ready) arena), program := (project (project (project local163_terminal transfer) ready) program), caller := (project (project (project local163_terminal transfer) ready) caller), usage := (project (project (project local163_terminal transfer) ready) usage)}), semanticBudget := (project (project local163_terminal transfer) semanticBudget), semanticLedger := (project (project local163_terminal transfer) semanticLedger)}), output := (project local163_terminal output), cancelled := (project local163_terminal cancelled), failure := (project local163_terminal failure), receipt := (project local163_terminal receipt), semanticRefusal := (project local163_terminal semanticRefusal)}) local164_phase), budget := (project local162_s budget), disposition := (project local162_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local195_reason), pendingDelta := (project local162_s pendingDelta)})
+      | Result.ok local196_paid => (match (Uorc.Core.Heap::releaseStep (project (project (project local163_terminal transfer) ready) arena))
+        | Result.error local197_error => (heapRefusal local162_s local163_terminal local164_phase local196_paid local197_error)
+        | Result.ok local198_transition => (afterMutation local162_s local163_terminal (if (project local198_transition complete) then (ctor Phase.done) else (ctor Phase.draining)) (project local198_transition arena) local196_paid (project local198_transition delta))))
+    | Phase.done => local162_s),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: tickOwned,
+  parameters: [
+    local199_s : State,
+    local200_terminal : Uorc.Product.MachineBinding::Terminal,
+    local201_phase : Phase
+  ],
+  result: State,
+  body: (match local201_phase
+    | Phase.allocate local202_left local203_right => (tickPhase local199_s local200_terminal local201_phase)
+    | Phase.initLeft local204_control local205_left local206_right => (match (Uorc.Core.RuntimeResources::observeArena (project local199_s budget) (project (project (project local200_terminal transfer) ready) usage) (project (project (project local200_terminal transfer) ready) arena))
+      | Result.error local207_reason => (record State {run := (project local199_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := (project (project (project local200_terminal transfer) ready) usage)}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase), budget := (project local199_s budget), disposition := (project local199_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local207_reason), pendingDelta := (project local199_s pendingDelta)})
+      | Result.ok local208_observed => (tickPhase local199_s (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := local208_observed}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase))
+    | Phase.initRight local209_control local210_leftReader local211_right => (match (Uorc.Core.RuntimeResources::observeArena (project local199_s budget) (project (project (project local200_terminal transfer) ready) usage) (project (project (project local200_terminal transfer) ready) arena))
+      | Result.error local212_reason => (record State {run := (project local199_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := (project (project (project local200_terminal transfer) ready) usage)}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase), budget := (project local199_s budget), disposition := (project local199_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local212_reason), pendingDelta := (project local199_s pendingDelta)})
+      | Result.ok local213_observed => (tickPhase local199_s (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := local213_observed}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase))
+    | Phase.comparing local214_control local215_comparison => (match (Uorc.Core.RuntimeResources::observeArena (project local199_s budget) (project (project (project local200_terminal transfer) ready) usage) (project (project (project local200_terminal transfer) ready) arena))
+      | Result.error local216_reason => (record State {run := (project local199_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := (project (project (project local200_terminal transfer) ready) usage)}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase), budget := (project local199_s budget), disposition := (project local199_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local216_reason), pendingDelta := (project local199_s pendingDelta)})
+      | Result.ok local217_observed => (tickPhase local199_s (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := local217_observed}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase))
+    | Phase.releaseControl local218_control => (match (Uorc.Core.RuntimeResources::observeArena (project local199_s budget) (project (project (project local200_terminal transfer) ready) usage) (project (project (project local200_terminal transfer) ready) arena))
+      | Result.error local219_reason => (record State {run := (project local199_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := (project (project (project local200_terminal transfer) ready) usage)}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase), budget := (project local199_s budget), disposition := (project local199_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local219_reason), pendingDelta := (project local199_s pendingDelta)})
+      | Result.ok local220_observed => (tickPhase local199_s (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := local220_observed}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase))
+    | Phase.draining => (match (Uorc.Core.RuntimeResources::observeArena (project local199_s budget) (project (project (project local200_terminal transfer) ready) usage) (project (project (project local200_terminal transfer) ready) arena))
+      | Result.error local221_reason => (record State {run := (project local199_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := (project (project (project local200_terminal transfer) ready) usage)}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase), budget := (project local199_s budget), disposition := (project local199_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local221_reason), pendingDelta := (project local199_s pendingDelta)})
+      | Result.ok local222_observed => (tickPhase local199_s (record Uorc.Product.MachineBinding::Terminal {run := (project local200_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (project (project (project local200_terminal transfer) ready) arena), program := (project (project (project local200_terminal transfer) ready) program), caller := (project (project (project local200_terminal transfer) ready) caller), usage := local222_observed}), semanticBudget := (project (project local200_terminal transfer) semanticBudget), semanticLedger := (project (project local200_terminal transfer) semanticLedger)}), output := (project local200_terminal output), cancelled := (project local200_terminal cancelled), failure := (project local200_terminal failure), receipt := (project local200_terminal receipt), semanticRefusal := (project local200_terminal semanticRefusal)}) local201_phase))
+    | Phase.done => (tickPhase local199_s local200_terminal local201_phase)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: heapFailed,
+  parameters: [local223_s : State],
+  result: Bool,
+  body: (match (project local223_s disposition)
+    | Disposition.incomplete => false
+    | Disposition.equal => false
+    | Disposition.different local224_index => false
+    | Disposition.lengthMismatch local225_left local226_right => false
+    | Disposition.failed local227_failure => (match local227_failure
+      | Failure.read local228_side local229_reason => false
+      | Failure.comparison local230_reason => false
+      | Failure.heap local231_reason => true
+      | Failure.upstream local232_reason => false)
+    | Disposition.cancelled => false)
+}
+
+definition{
+  name: tick,
+  parameters: [local233_s : State, local234_run : Uorc.Product.Api::Run],
+  result: State,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project local233_s run) local234_run) then (if (heapFailed local233_s) then local233_s else (match (project local233_s pendingDelta)
+    | Option.some local235_delta => local233_s
+    | Option.none => (match (project local233_s refusal)
+      | Option.some local236_reason => local233_s
+      | Option.none => (match (project local233_s owner)
+        | Owner.owned local237_terminal local238_phase => (tickOwned local233_s local237_terminal local238_phase)
+        | Owner.handedOff local239_achieved => local233_s)))) else local233_s),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: extendOwned,
+  parameters: [
+    local240_s : State,
+    local241_terminal : Uorc.Product.MachineBinding::Terminal,
+    local242_phase : Phase,
+    local243_budget : Uorc.Core.RuntimeResources::Budget
+  ],
+  result: State,
+  body: (match (Uorc.Core.RuntimeResources::observeArena local243_budget (project (project (project local241_terminal transfer) ready) usage) (record Uorc.Core.Heap::Arena {index := (project (project (project (project local241_terminal transfer) ready) arena) index), nextHandle := (project (project (project (project local241_terminal transfer) ready) arena) nextHandle), exhausted := (project (project (project (project local241_terminal transfer) ready) arena) exhausted), ownedBytes := (project (project (project (project local241_terminal transfer) ready) arena) ownedBytes), liveEntries := (project (project (project (project local241_terminal transfer) ready) arena) liveEntries), maxOwnedBytes := (project local243_budget maxOwnedBytes), cursor := (project (project (project (project local241_terminal transfer) ready) arena) cursor)}))
+    | Result.error local244_reason => (record State {run := (project local240_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local241_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (record Uorc.Core.Heap::Arena {index := (project (project (project (project local241_terminal transfer) ready) arena) index), nextHandle := (project (project (project (project local241_terminal transfer) ready) arena) nextHandle), exhausted := (project (project (project (project local241_terminal transfer) ready) arena) exhausted), ownedBytes := (project (project (project (project local241_terminal transfer) ready) arena) ownedBytes), liveEntries := (project (project (project (project local241_terminal transfer) ready) arena) liveEntries), maxOwnedBytes := (project local243_budget maxOwnedBytes), cursor := (project (project (project (project local241_terminal transfer) ready) arena) cursor)}), program := (project (project (project local241_terminal transfer) ready) program), caller := (project (project (project local241_terminal transfer) ready) caller), usage := (project (project (project local241_terminal transfer) ready) usage)}), semanticBudget := (project (project local241_terminal transfer) semanticBudget), semanticLedger := (project (project local241_terminal transfer) semanticLedger)}), output := (project local241_terminal output), cancelled := (project local241_terminal cancelled), failure := (project local241_terminal failure), receipt := (project local241_terminal receipt), semanticRefusal := (project local241_terminal semanticRefusal)}) local242_phase), budget := local243_budget, disposition := (project local240_s disposition), refusal := (ctor Option.some [Uorc.Core.RuntimeResources::Error] local244_reason), pendingDelta := (project local240_s pendingDelta)})
+    | Result.ok local245_observed => (record State {run := (project local240_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local241_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (record Uorc.Core.RuntimeProgram::Ready {arena := (record Uorc.Core.Heap::Arena {index := (project (project (project (project local241_terminal transfer) ready) arena) index), nextHandle := (project (project (project (project local241_terminal transfer) ready) arena) nextHandle), exhausted := (project (project (project (project local241_terminal transfer) ready) arena) exhausted), ownedBytes := (project (project (project (project local241_terminal transfer) ready) arena) ownedBytes), liveEntries := (project (project (project (project local241_terminal transfer) ready) arena) liveEntries), maxOwnedBytes := (project local243_budget maxOwnedBytes), cursor := (project (project (project (project local241_terminal transfer) ready) arena) cursor)}), program := (project (project (project local241_terminal transfer) ready) program), caller := (project (project (project local241_terminal transfer) ready) caller), usage := local245_observed}), semanticBudget := (project (project local241_terminal transfer) semanticBudget), semanticLedger := (project (project local241_terminal transfer) semanticLedger)}), output := (project local241_terminal output), cancelled := (project local241_terminal cancelled), failure := (project local241_terminal failure), receipt := (project local241_terminal receipt), semanticRefusal := (project local241_terminal semanticRefusal)}) local242_phase), budget := local243_budget, disposition := (project local240_s disposition), refusal := (match (project local240_s refusal)
+      | Option.none => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+      | Option.some local246_prior => (match local246_prior
+        | Uorc.Core.RuntimeResources::Error.workLimit => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.ownedByteLimit => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.outputLimit => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.frameLimit => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.addressSpaceExhausted => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.invalidUsage => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.arenaBudgetMismatch => (ctor Option.none [Uorc.Core.RuntimeResources::Error])
+        | Uorc.Core.RuntimeResources::Error.heap local247_error => (ctor Option.some [Uorc.Core.RuntimeResources::Error] local246_prior))), pendingDelta := (project local240_s pendingDelta)})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: extend,
+  parameters: [
+    local248_s : State,
+    local249_run : Uorc.Product.Api::Run,
+    local250_budget : Uorc.Core.RuntimeResources::Budget
+  ],
+  result: State,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project local248_s run) local249_run) then (match (project local248_s owner)
+    | Owner.owned local251_terminal local252_phase => (extendOwned local248_s local251_terminal local252_phase local250_budget)
+    | Owner.handedOff local253_achieved => local248_s) else local248_s),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancel,
+  parameters: [local254_s : State, local255_run : Uorc.Product.Api::Run],
+  result: State,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project local254_s run) local255_run) then (if (heapFailed local254_s) then local254_s else (match (project local254_s owner)
+    | Owner.owned local256_terminal local257_phase => (record State {run := (project local254_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local256_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (project (project local256_terminal transfer) ready), semanticBudget := (project (project local256_terminal transfer) semanticBudget), semanticLedger := (project (project local256_terminal transfer) semanticLedger)}), output := (project local256_terminal output), cancelled := true, failure := (project local256_terminal failure), receipt := (project local256_terminal receipt), semanticRefusal := (project local256_terminal semanticRefusal)}) (match local257_phase
+      | Phase.allocate local258_left local259_right => (ctor Phase.done)
+      | Phase.initLeft local260_control local261_left local262_right => (ctor Phase.releaseControl local260_control)
+      | Phase.initRight local263_control local264_leftReader local265_right => (ctor Phase.releaseControl local263_control)
+      | Phase.comparing local266_control local267_comparison => (ctor Phase.releaseControl local266_control)
+      | Phase.releaseControl local268_control => local257_phase
+      | Phase.draining => local257_phase
+      | Phase.done => local257_phase)), budget := (project local254_s budget), disposition := (ctor Disposition.cancelled), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local254_s pendingDelta)})
+    | Owner.handedOff local269_achieved => local254_s)) else local254_s)
+}
+
+definition{
+  name: takeDelta,
+  parameters: [local270_s : State, local271_run : Uorc.Product.Api::Run],
+  result: DeltaTake,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project local270_s run) local271_run) then (match (project local270_s pendingDelta)
+    | Option.none => (ctor DeltaTake.empty local270_s)
+    | Option.some local272_delta => (ctor DeltaTake.taken (record State {run := (project local270_s run), owner := (project local270_s owner), budget := (project local270_s budget), disposition := (project local270_s disposition), refusal := (project local270_s refusal), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}) local272_delta)) else (ctor DeltaTake.stale local270_s))
+}
+
+definition{
+  name: moveTerminal,
+  parameters: [local273_s : State, local274_run : Uorc.Product.Api::Run],
+  result: Movement,
+  body: (if (Uorc.Product.MachineBinding::sameRun (project local273_s run) local274_run) then (match (project local273_s pendingDelta)
+    | Option.some local275_delta => (ctor Movement.notReady local273_s)
+    | Option.none => (match (project local273_s owner)
+      | Owner.owned local276_terminal local277_phase => (match local277_phase
+        | Phase.allocate local278_left local279_right => (ctor Movement.notReady local273_s)
+        | Phase.initLeft local280_control local281_left local282_right => (ctor Movement.notReady local273_s)
+        | Phase.initRight local283_control local284_leftReader local285_right => (ctor Movement.notReady local273_s)
+        | Phase.comparing local286_control local287_comparison => (ctor Movement.notReady local273_s)
+        | Phase.releaseControl local288_control => (ctor Movement.notReady local273_s)
+        | Phase.draining => (ctor Movement.notReady local273_s)
+        | Phase.done => (ctor Movement.moved (record State {run := (project local273_s run), owner := (ctor Owner.handedOff (project (project (project local276_terminal transfer) ready) usage)), budget := (project local273_s budget), disposition := (project local273_s disposition), refusal := (project local273_s refusal), pendingDelta := (project local273_s pendingDelta)}) local276_terminal (project local273_s disposition)))
+      | Owner.handedOff local289_achieved => (ctor Movement.notReady local273_s))) else (ctor Movement.stale local273_s))
+}
+
+definition{
+  name: ownedRoots,
+  parameters: [local290_s : State],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (match (project local290_s owner)
+    | Owner.owned local291_terminal local292_phase => (match local292_phase
+      | Phase.allocate local293_left local294_right => (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller)))
+      | Phase.initLeft local295_control local296_left local297_right => (Uorc.Core.RuntimeMachineEngine::addRoot local295_control (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller))))
+      | Phase.initRight local298_control local299_leftReader local300_right => (Uorc.Core.RuntimeMachineEngine::addRoot local298_control (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller))))
+      | Phase.comparing local301_control local302_comparison => (Uorc.Core.RuntimeMachineEngine::addRoot local301_control (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller))))
+      | Phase.releaseControl local303_control => (Uorc.Core.RuntimeMachineEngine::addRoot local303_control (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller))))
+      | Phase.draining => (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller)))
+      | Phase.done => (Uorc.Product.MachineBinding::addOutputRoot (project local291_terminal output) (Uorc.Core.RuntimeProgram::rootInventory (project (project (project local291_terminal transfer) ready) program) (project (project (project local291_terminal transfer) ready) caller))))
+    | Owner.handedOff local304_achieved => (nil Uorc.Core.RuntimeValue::Handle))
+}
+
+definition{
+  name: releaseDisposition,
+  parameters: [local305_s : State],
+  result: Uorc.Product.Api::ReleaseDisposition,
+  body: (match (project local305_s owner)
+    | Owner.owned local306_terminal local307_phase => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.arena))
+    | Owner.handedOff local308_achieved => (match (project local305_s pendingDelta)
+      | Option.some local309_delta => (ctor Uorc.Product.Api::ReleaseDisposition.retain (ctor Uorc.Product.Api::CustodyReason.receipt))
+      | Option.none => (ctor Uorc.Product.Api::ReleaseDisposition.releasable)))
+}
+
+theorem{
+  name: tick_guard_binding,
+  parameters: [local310_s : State, local311_run : Uorc.Product.Api::Run],
+  statement: ((tick local310_s local311_run) = (if (Uorc.Product.MachineBinding::sameRun (project local310_s run) local311_run) then (if (heapFailed local310_s) then local310_s else (match (project local310_s pendingDelta)
+    | Option.some local312_delta => local310_s
+    | Option.none => (match (project local310_s refusal)
+      | Option.some local313_reason => local310_s
+      | Option.none => (match (project local310_s owner)
+        | Owner.owned local314_terminal local315_phase => (tickOwned local310_s local314_terminal local315_phase)
+        | Owner.handedOff local316_achieved => local310_s)))) else local310_s)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cancel_guard_binding,
+  parameters: [local317_s : State, local318_run : Uorc.Product.Api::Run],
+  statement: ((cancel local317_s local318_run) = (if (Uorc.Product.MachineBinding::sameRun (project local317_s run) local318_run) then (if (heapFailed local317_s) then local317_s else (match (project local317_s owner)
+    | Owner.owned local319_terminal local320_phase => (record State {run := (project local317_s run), owner := (ctor Owner.owned (record Uorc.Product.MachineBinding::Terminal {run := (project local319_terminal run), transfer := (record Uorc.Core.RuntimeMachineEngine::ReadyTransfer {ready := (project (project local319_terminal transfer) ready), semanticBudget := (project (project local319_terminal transfer) semanticBudget), semanticLedger := (project (project local319_terminal transfer) semanticLedger)}), output := (project local319_terminal output), cancelled := true, failure := (project local319_terminal failure), receipt := (project local319_terminal receipt), semanticRefusal := (project local319_terminal semanticRefusal)}) (match local320_phase
+      | Phase.allocate local321_left local322_right => (ctor Phase.done)
+      | Phase.initLeft local323_control local324_left local325_right => (ctor Phase.releaseControl local323_control)
+      | Phase.initRight local326_control local327_leftReader local328_right => (ctor Phase.releaseControl local326_control)
+      | Phase.comparing local329_control local330_comparison => (ctor Phase.releaseControl local329_control)
+      | Phase.releaseControl local331_control => local320_phase
+      | Phase.draining => local320_phase
+      | Phase.done => local320_phase)), budget := (project local317_s budget), disposition := (ctor Disposition.cancelled), refusal := (ctor Option.none [Uorc.Core.RuntimeResources::Error]), pendingDelta := (project local317_s pendingDelta)})
+    | Owner.handedOff local332_achieved => local317_s)) else local317_s)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: extend_guard_binding,
+  parameters: [
+    local333_s : State,
+    local334_run : Uorc.Product.Api::Run,
+    local335_budget : Uorc.Core.RuntimeResources::Budget
+  ],
+  statement: ((extend local333_s local334_run local335_budget) = (if (Uorc.Product.MachineBinding::sameRun (project local333_s run) local334_run) then (match (project local333_s owner)
+    | Owner.owned local336_terminal local337_phase => (extendOwned local333_s local336_terminal local337_phase local335_budget)
+    | Owner.handedOff local338_achieved => local333_s) else local333_s)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: takeDelta_guard_binding,
+  parameters: [local339_s : State, local340_run : Uorc.Product.Api::Run],
+  statement: ((takeDelta local339_s local340_run) = (if (Uorc.Product.MachineBinding::sameRun (project local339_s run) local340_run) then (match (project local339_s pendingDelta)
+    | Option.none => (ctor DeltaTake.empty local339_s)
+    | Option.some local341_delta => (ctor DeltaTake.taken (record State {run := (project local339_s run), owner := (project local339_s owner), budget := (project local339_s budget), disposition := (project local339_s disposition), refusal := (project local339_s refusal), pendingDelta := (ctor Option.none [Uorc.Core.Heap::Delta])}) local341_delta)) else (ctor DeltaTake.stale local339_s))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: moveTerminal_guard_binding,
+  parameters: [local342_s : State, local343_run : Uorc.Product.Api::Run],
+  statement: ((moveTerminal local342_s local343_run) = (if (Uorc.Product.MachineBinding::sameRun (project local342_s run) local343_run) then (match (project local342_s pendingDelta)
+    | Option.some local344_delta => (ctor Movement.notReady local342_s)
+    | Option.none => (match (project local342_s owner)
+      | Owner.owned local345_terminal local346_phase => (match local346_phase
+        | Phase.allocate local347_left local348_right => (ctor Movement.notReady local342_s)
+        | Phase.initLeft local349_control local350_left local351_right => (ctor Movement.notReady local342_s)
+        | Phase.initRight local352_control local353_leftReader local354_right => (ctor Movement.notReady local342_s)
+        | Phase.comparing local355_control local356_comparison => (ctor Movement.notReady local342_s)
+        | Phase.releaseControl local357_control => (ctor Movement.notReady local342_s)
+        | Phase.draining => (ctor Movement.notReady local342_s)
+        | Phase.done => (ctor Movement.moved (record State {run := (project local342_s run), owner := (ctor Owner.handedOff (project (project (project local345_terminal transfer) ready) usage)), budget := (project local342_s budget), disposition := (project local342_s disposition), refusal := (project local342_s refusal), pendingDelta := (project local342_s pendingDelta)}) local345_terminal (project local342_s disposition)))
+      | Owner.handedOff local358_achieved => (ctor Movement.notReady local342_s))) else (ctor Movement.stale local342_s))),
+  proof: reflexivity{},
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}

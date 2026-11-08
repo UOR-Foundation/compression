@@ -1,0 +1,308 @@
+\begin{lexlean}{Uorc.Integrity.BoundedChain}
+\importmodule{Uorc.Integrity.Sha256}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: sha256, fields: [Uorc.Integrity.Sha256::Error]},
+    {name: invalidState, fields: []},
+    {name: workPending, fields: []},
+    {name: updateAfterFinalize, fields: []},
+    {name: notFinalized, fields: []},
+    {name: fuelExhausted, fields: []}
+  ]
+}
+
+inductive{
+  name: Stage,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: idle, fields: []},
+    {name: updating, fields: [Uorc.Integrity.Sha256::Update]},
+    {name: finalizing, fields: [Uorc.Integrity.Sha256::State]},
+    {name: finished, fields: []}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: chain, type: Bytes},
+    {name: buffer, type: Bytes},
+    {name: stage, type: Stage},
+    {name: closing, type: Bool}
+  ]
+}
+
+structure{
+  name: Update,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: state, type: State}, {name: input, type: Bytes}, {name: offset, type: Nat}]
+}
+
+inductive{
+  name: UpdateEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: advanced, fields: [Update]}, {name: done, fields: [State]}]
+}
+
+definition{
+  name: domain,
+  parameters: [],
+  result: Bytes,
+  body: 0x554f52432d5348413235362d434841494e2d763100,
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: constructionName,
+  parameters: [],
+  result: String,
+  body: "UORC-SHA256-CHAIN-v1",
+  axioms: []
+}
+
+definition{
+  name: initialFrame,
+  parameters: [],
+  result: Bytes,
+  body: (prim append (domain) 0x00 : Bytes),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: init,
+  parameters: [],
+  result: (Result State Error),
+  body: (match (Uorc.Integrity.Sha256::hash (initialFrame))
+    | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+    | Result.ok initial => (ctor Result.ok [State, Error] (record State {chain := initial, buffer := 0x, stage := (ctor Stage.idle), closing := false}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: phaseValid,
+  parameters: [state : State],
+  result: Bool,
+  body: (match (project state stage)
+    | Stage.idle => (if (project state closing) then false else true)
+    | Stage.updating job => ((prim length (project state buffer) : Nat) =? 0)
+    | Stage.finalizing hashState => ((prim length (project state buffer) : Nat) =? 0)
+    | Stage.finished => ((project state closing) && ((prim length (project state buffer) : Nat) =? 0))),
+  executable: true
+}
+
+definition{
+  name: valid,
+  parameters: [state : State],
+  result: Bool,
+  body: (((prim length (project state chain) : Nat) =? 32) && (((prim length (project state buffer) : Nat) <=? 63) && (phaseValid state))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: dataFrame,
+  parameters: [state : State, lastByte : UInt8],
+  result: Bytes,
+  body: (prim append (prim append (prim append (prim append (domain) 0x01 : Bytes) (project state chain) : Bytes) (project state buffer) : Bytes) (Uorc.Integrity.Sha256::byteBytes lastByte) : Bytes),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: terminalLength,
+  parameters: [state : State],
+  result: Bytes,
+  body: (match (prim slice 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f (prim length (project state buffer) : Nat) 1 : (Option Bytes))
+    | Option.none => 0x
+    | Option.some unwrapped => unwrapped),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: terminalFrame,
+  parameters: [state : State],
+  result: Bytes,
+  body: (prim append (prim append (prim append (prim append (domain) 0x02 : Bytes) (project state chain) : Bytes) (terminalLength state) : Bytes) (project state buffer) : Bytes),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: startFrame,
+  parameters: [state : State, frame : Bytes, closing : Bool],
+  result: (Result State Error),
+  body: (match (Uorc.Integrity.Sha256::beginUpdate (Uorc.Integrity.Sha256::init) frame)
+    | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+    | Result.ok job => (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := 0x, stage := (ctor Stage.updating job), closing := closing}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: absorbByte,
+  parameters: [state : State, byte : UInt8],
+  result: (Result State Error),
+  body: (if (valid state) then (if (project state closing) then (ctor Result.error [State, Error] (ctor Error.updateAfterFinalize)) else (match (project state stage)
+    | Stage.idle => (if ((prim length (project state buffer) : Nat) =? 63) then (startFrame state (dataFrame state byte) false) else (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (prim append (project state buffer) (Uorc.Integrity.Sha256::byteBytes byte) : Bytes), stage := (project state stage), closing := (project state closing)})))
+    | Stage.updating job => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.finalizing hashState => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.finished => (ctor Result.error [State, Error] (ctor Error.updateAfterFinalize)))) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: step,
+  parameters: [state : State],
+  result: (Result State Error),
+  body: (if (valid state) then (match (project state stage)
+    | Stage.idle => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.updating job => (match (Uorc.Integrity.Sha256::updateStep job)
+      | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+      | Result.ok event => (match event
+        | Uorc.Integrity.Sha256::UpdateEvent.advanced nextJob => (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (project state buffer), stage := (ctor Stage.updating nextJob), closing := (project state closing)}))
+        | Uorc.Integrity.Sha256::UpdateEvent.done hashState => (match (Uorc.Integrity.Sha256::finalize hashState)
+          | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+          | Result.ok started => (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (project state buffer), stage := (ctor Stage.finalizing started), closing := (project state closing)})))))
+    | Stage.finalizing hashState => (match (project hashState phase)
+      | Uorc.Integrity.Sha256::Phase.absorbing => (ctor Result.error [State, Error] (ctor Error.invalidState))
+      | Uorc.Integrity.Sha256::Phase.finishing padding => (match (Uorc.Integrity.Sha256::finalizeStep hashState)
+        | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+        | Result.ok nextState => (ctor Result.ok [State, Error] (record State {chain := (project state chain), buffer := (project state buffer), stage := (ctor Stage.finalizing nextState), closing := (project state closing)})))
+      | Uorc.Integrity.Sha256::Phase.finished => (match (Uorc.Integrity.Sha256::digest hashState)
+        | Result.error cause => (ctor Result.error [State, Error] (ctor Error.sha256 cause))
+        | Result.ok localDigest => (ctor Result.ok [State, Error] (record State {chain := localDigest, buffer := (project state buffer), stage := (if (project state closing) then (ctor Stage.finished) else (ctor Stage.idle)), closing := (project state closing)}))))
+    | Stage.finished => (ctor Result.ok [State, Error] state)) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finalize,
+  parameters: [state : State],
+  result: (Result State Error),
+  body: (if (valid state) then (if (project state closing) then (ctor Result.ok [State, Error] state) else (match (project state stage)
+    | Stage.idle => (startFrame state (terminalFrame state) true)
+    | Stage.updating job => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.finalizing hashState => (ctor Result.error [State, Error] (ctor Error.workPending))
+    | Stage.finished => (ctor Result.ok [State, Error] state))) else (ctor Result.error [State, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: digest,
+  parameters: [state : State],
+  result: (Result Bytes Error),
+  body: (if (valid state) then (match (project state stage)
+    | Stage.idle => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Stage.updating job => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Stage.finalizing hashState => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+    | Stage.finished => (if (project state closing) then (ctor Result.ok [Bytes, Error] (project state chain)) else (ctor Result.error [Bytes, Error] (ctor Error.invalidState)))) else (ctor Result.error [Bytes, Error] (ctor Error.invalidState))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: beginUpdate,
+  parameters: [state : State, input : Bytes],
+  result: (Result Update Error),
+  body: (if (valid state) then (if (project state closing) then (ctor Result.error [Update, Error] (ctor Error.updateAfterFinalize)) else (ctor Result.ok [Update, Error] (record Update {state := state, input := input, offset := 0}))) else (ctor Result.error [Update, Error] (ctor Error.invalidState))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: updateStep,
+  parameters: [localUpdate : Update],
+  result: (Result UpdateEvent Error),
+  body: (if (valid (project localUpdate state)) then (if (project (project localUpdate state) closing) then (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize)) else (if ((project localUpdate offset) <=? (prim length (project localUpdate input) : Nat)) then (match (project (project localUpdate state) stage)
+    | Stage.idle => (if ((project localUpdate offset) =? (prim length (project localUpdate input) : Nat)) then (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.done (project localUpdate state))) else (match (absorbByte (project localUpdate state) (match (prim index (project localUpdate input) (project localUpdate offset) : (Option UInt8))
+        | Option.none => (0 : UInt8)
+        | Option.some unwrapped => unwrapped))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project localUpdate input), offset := ((project localUpdate offset) + 1)})))))
+    | Stage.updating job => (match (step (project localUpdate state))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project localUpdate input), offset := (project localUpdate offset)}))))
+    | Stage.finalizing hashState => (match (step (project localUpdate state))
+      | Result.error failure => (ctor Result.error [UpdateEvent, Error] failure)
+      | Result.ok nextState => (ctor Result.ok [UpdateEvent, Error] (ctor UpdateEvent.advanced (record Update {state := nextState, input := (project localUpdate input), offset := (project localUpdate offset)}))))
+    | Stage.finished => (ctor Result.error [UpdateEvent, Error] (ctor Error.updateAfterFinalize))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidState)))) else (ctor Result.error [UpdateEvent, Error] (ctor Error.invalidState))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: runUpdate,
+  parameters: [fuel : Nat, localUpdate : Update],
+  result: (Result State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [State, Error] (ctor Error.fuelExhausted))
+    | Nat.succ rest => (match (updateStep localUpdate)
+      | Result.error failure => (ctor Result.error [State, Error] failure)
+      | Result.ok event => (match event
+        | UpdateEvent.advanced nextUpdate => (runUpdate rest nextUpdate)
+        | UpdateEvent.done state => (ctor Result.ok [State, Error] state)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: update,
+  parameters: [state : State, input : Bytes],
+  result: (Result State Error),
+  body: (match (beginUpdate state input)
+    | Result.error failure => (ctor Result.error [State, Error] failure)
+    | Result.ok job => (runUpdate ((prim multiply 12 (prim length input : Nat) : Nat) + 600) job)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runFinalize,
+  parameters: [fuel : Nat, state : State],
+  result: (Result Bytes Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Bytes, Error] (ctor Error.fuelExhausted))
+    | Nat.succ rest => (match (project state stage)
+      | Stage.idle => (ctor Result.error [Bytes, Error] (ctor Error.notFinalized))
+      | Stage.updating job => (match (step state)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok nextState => (runFinalize rest nextState))
+      | Stage.finalizing hashState => (match (step state)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok nextState => (runFinalize rest nextState))
+      | Stage.finished => (digest state))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: hash,
+  parameters: [input : Bytes],
+  result: (Result Bytes Error),
+  body: (match (init)
+    | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+    | Result.ok initial => (match (update initial input)
+      | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+      | Result.ok updated => (match (finalize updated)
+        | Result.error failure => (ctor Result.error [Bytes, Error] failure)
+        | Result.ok closing => (runFinalize 600 closing)))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

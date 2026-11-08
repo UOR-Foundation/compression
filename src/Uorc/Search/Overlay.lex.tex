@@ -1,0 +1,98 @@
+\begin{lexlean}{Uorc.Search.Overlay}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Validation}
+\importmodule{Uorc.Search.Residual}
+\importmodule{Uorc.Search.Compose}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: repairBlock,
+  parameters: [],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.sequence) (cons (ctor Uorc.Core.Types::ValueType.store) (cons (ctor Uorc.Core.Types::ValueType.store) (nil Uorc.Core.Types::ValueType))))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.storeRead 3 5) (cons (ctor Uorc.Core.Graph::Instruction.byteEqual 1 2) (cons (ctor Uorc.Core.Graph::Instruction.storeRead 4 7) (cons (ctor Uorc.Core.Graph::Instruction.sequenceIndex 7 8) (cons (ctor Uorc.Core.Graph::Instruction.choose 3 1 2) (nil Uorc.Core.Graph::Instruction))))))), returnDistance := 1})
+}
+
+structure{
+  name: Build,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: base, type: Uorc.Core.Validation::CheckedGraph},
+    {name: count, type: UInt64},
+    {name: remaining, type: (List Uorc.Search.Residual::Exception)},
+    {name: reversedInstructions, type: (List Uorc.Core.Graph::Instruction)},
+    {name: slots, type: Nat},
+    {name: predictionSlot, type: Nat},
+    {name: presenceSlot, type: Nat},
+    {name: valueSlot, type: Nat}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: building, fields: [Build]},
+    {
+      name: reversing,
+      fields: [
+        Uorc.Core.Validation::CheckedGraph,
+        (List Uorc.Core.Graph::Instruction),
+        (List Uorc.Core.Graph::Instruction)
+      ]
+    },
+    {name: composing, fields: [Uorc.Search.Compose::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: phase, type: Phase}, {name: completedEvents, type: Nat}]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Nat]},
+    {name: invalidBase, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    base : Uorc.Core.Validation::CheckedGraph,
+    count : UInt64,
+    exceptions : (List Uorc.Search.Residual::Exception)
+  ],
+  result: Step,
+  body: (if ((project base blocksValidated) <? 18446744073709551614) then (ctor Step.pending (record Cursor {phase := (ctor Phase.building (record Build {base := base, count := count, remaining := exceptions, reversedInstructions := (cons (ctor Uorc.Core.Graph::Instruction.storeNew 2) (cons (ctor Uorc.Core.Graph::Instruction.storeNew 1) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.apply (prim subtract ((project base blocksValidated) + 1) (project (project base graph) entry) : Nat) (nil Nat)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant count) (nil Uorc.Core.Graph::Instruction)))))), slots := 5, predictionSlot := 1, presenceSlot := 3, valueSlot := 4})), completedEvents := 0})) else (ctor Step.addressSpaceExhausted))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.building build => (match (project build remaining)
+      | List.nil => (ctor Step.pending (record Cursor {phase := (ctor Phase.reversing (project build base) (cons (ctor Uorc.Core.Graph::Instruction.tabulate (project build slots) 1 (cons (prim subtract (project build slots) (project build predictionSlot) : Nat) (cons (prim subtract (project build slots) (project build presenceSlot) : Nat) (cons (prim subtract (project build slots) (project build valueSlot) : Nat) (nil Nat))))) (project build reversedInstructions)) (nil Uorc.Core.Graph::Instruction)), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons exception remaining => (if ((project build slots) <=? 18446744073709551610) then (ctor Step.pending (record Cursor {phase := (ctor Phase.building (record Build {base := (project build base), count := (project build count), remaining := remaining, reversedInstructions := (cons (ctor Uorc.Core.Graph::Instruction.storeWrite (prim subtract ((project build slots) + 4) (project build valueSlot) : Nat) 4 1) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (project exception value)) (cons (ctor Uorc.Core.Graph::Instruction.storeWrite (prim subtract ((project build slots) + 2) (project build presenceSlot) : Nat) 2 1) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (1 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (project exception coordinate)) (project build reversedInstructions)))))), slots := ((project build slots) + 5), predictionSlot := (project build predictionSlot), presenceSlot := ((project build slots) + 2), valueSlot := ((project build slots) + 4)})), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.addressSpaceExhausted)))
+    | Phase.reversing base remaining forward => (match remaining
+      | List.nil => (ctor Step.pending (record Cursor {phase := (ctor Phase.composing (Uorc.Search.Compose::start (project (project base graph) blocks) (cons (repairBlock) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := forward, returnDistance := 1}) (nil Uorc.Core.Graph::Block))))), completedEvents := ((project cursor completedEvents) + 1)}))
+      | List.cons instruction rest => (ctor Step.pending (record Cursor {phase := (ctor Phase.reversing base rest (cons instruction forward)), completedEvents := ((project cursor completedEvents) + 1)})))
+    | Phase.composing composeCursor => (match (Uorc.Search.Compose::step composeCursor)
+      | Uorc.Search.Compose::Step.pending next => (ctor Step.pending (record Cursor {phase := (ctor Phase.composing next), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Compose::Step.complete proposal events => (ctor Step.proposal proposal ((project cursor completedEvents) + 1))
+      | Uorc.Search.Compose::Step.empty => (ctor Step.invalidBase)
+      | Uorc.Search.Compose::Step.addressSpaceExhausted => (ctor Step.addressSpaceExhausted)))
+}
+\end{semanticmodule}
+\end{lexlean}

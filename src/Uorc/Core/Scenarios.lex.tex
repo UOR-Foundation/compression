@@ -1,0 +1,46 @@
+\begin{lexlean}{Uorc.Core.Scenarios}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: partitionedEqualityFailed, fields: []},
+    {name: plantedMutationWasAccepted, fields: []},
+    {name: comparisonFailed, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: unexpectedMutationFailure, fields: []}
+  ]
+}
+
+definition{
+  name: checkRopeComparisonFixture,
+  parameters: [firstPair : Bytes],
+  result: (Result Unit ScenarioError),
+  body: (match (Uorc.Core.Bytes::partitionEqualityFixture firstPair)
+    | Result.error ropeError => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.comparisonFailed ropeError))
+    | Result.ok equalResult => (if equalResult then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.partitionedEqualityFailed))))
+}
+
+definition{
+  name: runRopeComparisonScenario,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if (Uorc.Core.Bytes::partition_independent_equality_vector) then (if (Uorc.Core.Bytes::planted_byte_mutation_is_detected) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.plantedMutationWasAccepted))) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.partitionedEqualityFailed)))
+}
+
+definition{
+  name: runPlantedRopeComparisonMutation,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (match (checkRopeComparisonFixture 0x00fe)
+    | Result.error scenarioError => (match scenarioError
+      | ScenarioError.partitionedEqualityFailed => (ctor Result.ok [Unit, ScenarioError] ())
+      | ScenarioError.plantedMutationWasAccepted => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.unexpectedMutationFailure))
+      | ScenarioError.comparisonFailed ropeError => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.comparisonFailed ropeError))
+      | ScenarioError.unexpectedMutationFailure => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.unexpectedMutationFailure)))
+    | Result.ok unexpectedSuccess => (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.plantedMutationWasAccepted)))
+}
+\end{semanticmodule}
+\end{lexlean}

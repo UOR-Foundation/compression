@@ -34,3 +34,9 @@ missing_safety_doc = "deny"
 opt-level = 3
 lto = "thin"
 codegen-units = 1
+
+# Dependencies (LexLean above all) carry no debug info in dev/test builds:
+# the SDK gate builds in a bounded temporary filesystem, and debug symbols of
+# the compiler crate alone exceed it.
+[profile.dev.package."*"]
+debug = false

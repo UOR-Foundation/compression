@@ -1,0 +1,31 @@
+def Uorc.Uorc.Integrity.OwnedControlLifetime.FinishPublished : Uorc.Uorc.Core.Heap.Arena →
+  Uorc.Uorc.Integrity.OwnedHash.Cursor →
+    Uorc.Uorc.Integrity.Profile.State →
+      Uorc.Uorc.Core.Heap.Arena → Uorc.Uorc.Core.RuntimeValue.Handle → Nat → ByteArray → Prop :=
+fun arena cursor state publishedArena handle a a_1 =>
+  Uorc.Uorc.Integrity.OwnedControlLifetime.FinishPublished._unary publishedArena handle
+    ⟨arena, ⟨cursor, ⟨state, ⟨a, a_1⟩⟩⟩⟩
+def Uorc.Uorc.Integrity.CanonicalRefinement.OwnedPublishPath : Uorc.Uorc.Core.Heap.Arena →
+  Uorc.Uorc.Integrity.OwnedHash.Cursor → Nat → Uorc.Uorc.Core.Heap.Arena → Uorc.Uorc.Core.RuntimeValue.Handle → Prop :=
+fun arena cursor x x_1 x_2 =>
+  Nat.brecOn (motive := fun x =>
+    Uorc.Uorc.Core.Heap.Arena →
+      Uorc.Uorc.Integrity.OwnedHash.Cursor → Uorc.Uorc.Core.Heap.Arena → Uorc.Uorc.Core.RuntimeValue.Handle → Prop)
+    x Uorc.Uorc.Integrity.CanonicalRefinement.OwnedPublishPath._f arena cursor x_1 x_2
+def Uorc.Uorc.Integrity.OwnedTranscript.CompletedView : Uorc.Uorc.Core.Heap.Arena →
+  Uorc.Uorc.Core.RuntimeValue.Handle →
+    Uorc.Uorc.Core.RuntimeValue.Handle →
+      UInt64 →
+        UInt64 →
+          Uorc.Uorc.Integrity.Profile.Kind →
+            Uorc.Uorc.Integrity.Profile.Purpose →
+              List Uorc.Uorc.Integrity.OwnedTranscript.Observation →
+                Uorc.Uorc.Core.Heap.Arena →
+                  Uorc.Uorc.Integrity.OwnedHash.Cursor →
+                    Uorc.Uorc.Wire.OwnedRead.Cursor →
+                      List UInt8 → Nat → Uorc.Uorc.Integrity.OwnedHash.Transition → Prop :=
+fun initial owner root start finish profile purpose observations arena cursor reader bytes work closing =>
+  Uorc.Uorc.Integrity.OwnedTranscript.StartedView initial owner root start finish profile purpose observations arena
+      cursor reader bytes work ∧
+    Uorc.Uorc.Integrity.OwnedTranscript.SourceEOF arena cursor reader ∧
+      (Uorc.Uorc.Integrity.OwnedHash.finalizeCharged arena cursor).result = Except.ok closing

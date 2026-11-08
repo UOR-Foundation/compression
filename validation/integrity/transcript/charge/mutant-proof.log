@@ -1,0 +1,776 @@
+$LOCAL/charge-contracts/mutant-model/Uorc/Uorc/Integrity/ChargeContracts.lean:647:0: error: native core declaration 'Uorc.Uorc.Integrity.ChargeContracts.charge_work_exact':
+  (kernel) application type mismatch
+    (match (motive :=
+        ∀ (x : Except Uorc.Uorc.Core.RuntimeResources.Error Uorc.Uorc.Core.RuntimeResources.Usage),
+          Uorc.Uorc.Core.RuntimeResources.validateUsage budget before = x →
+            (match Uorc.Uorc.Core.RuntimeResources.validateUsage budget before with
+                | Except.error usageError => Except.error usageError
+                | Except.ok a =>
+                  match LexLeanRuntime.checkedAdd before.work event.work with
+                  | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                  | some newWork =>
+                    if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                    else
+                      match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                      | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                      | some newOutput =>
+                        if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                          Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                        else
+                          match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                          | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                          | some transientFrames =>
+                            if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                              Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                            else
+                              match LexLeanRuntime.checkedSubtract transientFrames event.exitedFrames with
+                              | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                              | some newFrames =>
+                                Except.ok
+                                  { work := newWork, ownedBytes := before.ownedBytes,
+                                    peakOwnedBytes := before.peakOwnedBytes, outputBytes := newOutput,
+                                    frames := newFrames }) =
+                Except.ok after →
+              after.work.toNat = before.work.toNat + event.work.toNat)
+        Uorc.Uorc.Core.RuntimeResources.validateUsage budget before with
+      | Except.error usageError => fun h =>
+        Eq.ndrec (motive := fun x =>
+          Uorc.Uorc.Core.RuntimeResources.validateUsage budget before = x →
+            (match x with
+                | Except.error usageError => Except.error usageError
+                | Except.ok a =>
+                  match LexLeanRuntime.checkedAdd before.work event.work with
+                  | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                  | some newWork =>
+                    if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                    else
+                      match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                      | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                      | some newOutput =>
+                        if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                          Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                        else
+                          match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                          | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                          | some transientFrames =>
+                            if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                              Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                            else
+                              match LexLeanRuntime.checkedSubtract transientFrames event.exitedFrames with
+                              | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                              | some newFrames =>
+                                Except.ok
+                                  { work := newWork, ownedBytes := before.ownedBytes,
+                                    peakOwnedBytes := before.peakOwnedBytes, outputBytes := newOutput,
+                                    frames := newFrames }) =
+                Except.ok after →
+              after.work.toNat = before.work.toNat + event.work.toNat)
+          (fun heq =>
+            id fun charged =>
+              Eq.casesOn (motive := fun a t =>
+                Except.ok after = a → charged ≍ t → after.work.toNat = before.work.toNat + event.work.toNat) charged
+                (fun h => False.elim (noConfusion_of_Nat Except.ctorIdx h)) (Eq.refl (Except.ok after))
+                (HEq.refl charged))
+          (Eq.symm h) (Eq.refl (Uorc.Uorc.Core.RuntimeResources.validateUsage budget before))
+      | Except.ok a => fun h =>
+        Eq.ndrec (motive := fun x =>
+          Uorc.Uorc.Core.RuntimeResources.validateUsage budget before = x →
+            (match x with
+                | Except.error usageError => Except.error usageError
+                | Except.ok a =>
+                  match LexLeanRuntime.checkedAdd before.work event.work with
+                  | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                  | some newWork =>
+                    if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                    else
+                      match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                      | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                      | some newOutput =>
+                        if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                          Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                        else
+                          match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                          | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                          | some transientFrames =>
+                            if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                              Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                            else
+                              match LexLeanRuntime.checkedSubtract transientFrames event.exitedFrames with
+                              | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                              | some newFrames =>
+                                Except.ok
+                                  { work := newWork, ownedBytes := before.ownedBytes,
+                                    peakOwnedBytes := before.peakOwnedBytes, outputBytes := newOutput,
+                                    frames := newFrames }) =
+                Except.ok after →
+              after.work.toNat = before.work.toNat + event.work.toNat)
+          (fun heq =>
+            id fun charged =>
+              Option.casesOn (motive := fun t =>
+                LexLeanRuntime.checkedAdd before.work event.work = t →
+                  after.work.toNat = before.work.toNat + event.work.toNat)
+                (LexLeanRuntime.checkedAdd before.work event.work)
+                (fun h =>
+                  Eq.ndrec (motive := fun x =>
+                    LexLeanRuntime.checkedAdd before.work event.work = x →
+                      after.work.toNat = before.work.toNat + event.work.toNat)
+                    (fun addition =>
+                      Eq.casesOn (motive := fun a t =>
+                        Except.ok after = a →
+                          Eq.mp
+                                (congrFun'
+                                  (congrArg Eq
+                                    (congrArg
+                                      (fun x =>
+                                        match x with
+                                        | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                        | some newWork =>
+                                          if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                                            Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                          else
+                                            match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                                            | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                            | some newOutput =>
+                                              if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                                                Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                              else
+                                                match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                                | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                | some transientFrames =>
+                                                  if
+                                                      Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames =
+                                                        true then
+                                                    Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                  else
+                                                    match
+                                                      LexLeanRuntime.checkedSubtract transientFrames
+                                                        event.exitedFrames with
+                                                    | none =>
+                                                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                    | some newFrames =>
+                                                      Except.ok
+                                                        { work := newWork, ownedBytes := before.ownedBytes,
+                                                          peakOwnedBytes := before.peakOwnedBytes,
+                                                          outputBytes := newOutput, frames := newFrames })
+                                      addition))
+                                  (Except.ok after))
+                                charged ≍
+                              t →
+                            after.work.toNat = before.work.toNat + event.work.toNat)
+                        (Eq.mp
+                          (congrFun'
+                            (congrArg Eq
+                              (congrArg
+                                (fun x =>
+                                  match x with
+                                  | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                  | some newWork =>
+                                    if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                    else
+                                      match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                                      | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                      | some newOutput =>
+                                        if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                                          Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                        else
+                                          match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                          | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                          | some transientFrames =>
+                                            if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                                              Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                            else
+                                              match
+                                                LexLeanRuntime.checkedSubtract transientFrames event.exitedFrames with
+                                              | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                              | some newFrames =>
+                                                Except.ok
+                                                  { work := newWork, ownedBytes := before.ownedBytes,
+                                                    peakOwnedBytes := before.peakOwnedBytes, outputBytes := newOutput,
+                                                    frames := newFrames })
+                                addition))
+                            (Except.ok after))
+                          charged)
+                        (fun h => False.elim (noConfusion_of_Nat Except.ctorIdx h)) (Eq.refl (Except.ok after))
+                        (HEq.refl
+                          (Eq.mp
+                            (congrFun'
+                              (congrArg Eq
+                                (congrArg
+                                  (fun x =>
+                                    match x with
+                                    | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                    | some newWork =>
+                                      if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                                        Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                      else
+                                        match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                                        | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                        | some newOutput =>
+                                          if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                                            Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                          else
+                                            match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                            | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                            | some transientFrames =>
+                                              if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                                                Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                              else
+                                                match
+                                                  LexLeanRuntime.checkedSubtract transientFrames event.exitedFrames with
+                                                | none =>
+                                                  Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                | some newFrames =>
+                                                  Except.ok
+                                                    { work := newWork, ownedBytes := before.ownedBytes,
+                                                      peakOwnedBytes := before.peakOwnedBytes, outputBytes := newOutput,
+                                                      frames := newFrames })
+                                  addition))
+                              (Except.ok after))
+                            charged)))
+                    (Eq.symm h) (Eq.refl (LexLeanRuntime.checkedAdd before.work event.work)))
+                (fun newWork h =>
+                  Eq.ndrec (motive := fun x =>
+                    LexLeanRuntime.checkedAdd before.work event.work = x →
+                      after.work.toNat = before.work.toNat + event.work.toNat)
+                    (fun addition =>
+                      have exactWork :=
+                        Uorc.Uorc.Integrity.ChargeContracts.checked_add_work_exact before.work event.work newWork
+                          addition;
+                      Decidable.casesOn (instDecidableEqBool (Uorc.Uorc.Core.Heap.less budget.maxWork newWork) true)
+                        (fun h =>
+                          (match (motive :=
+                              ∀ (x : Option UInt64),
+                                LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes = x →
+                                  (match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                                      | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                      | some newOutput =>
+                                        if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                                          Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                        else
+                                          match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                          | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                          | some transientFrames =>
+                                            if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                                              Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                            else
+                                              match
+                                                LexLeanRuntime.checkedSubtract transientFrames event.exitedFrames with
+                                              | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                              | some newFrames =>
+                                                Except.ok
+                                                  { work := newWork, ownedBytes := before.ownedBytes,
+                                                    peakOwnedBytes := before.peakOwnedBytes, outputBytes := newOutput,
+                                                    frames := newFrames }) =
+                                      Except.ok after →
+                                    after.work.toNat = before.work.toNat + event.work.toNat)
+                              LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                            | none => fun h =>
+                              Eq.ndrec (motive := fun x =>
+                                LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes = x →
+                                  (match x with
+                                      | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                      | some newOutput =>
+                                        if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                                          Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                        else
+                                          match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                          | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                          | some transientFrames =>
+                                            if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                                              Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                            else
+                                              match
+                                                LexLeanRuntime.checkedSubtract transientFrames event.exitedFrames with
+                                              | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                              | some newFrames =>
+                                                Except.ok
+                                                  { work := newWork, ownedBytes := before.ownedBytes,
+                                                    peakOwnedBytes := before.peakOwnedBytes, outputBytes := newOutput,
+                                                    frames := newFrames }) =
+                                      Except.ok after →
+                                    after.work.toNat = before.work.toNat + event.work.toNat)
+                                (fun heq =>
+                                  id fun charged =>
+                                    Eq.casesOn (motive := fun a t =>
+                                      Except.ok after = a →
+                                        charged ≍ t → after.work.toNat = before.work.toNat + event.work.toNat)
+                                      charged (fun h => False.elim (noConfusion_of_Nat Except.ctorIdx h))
+                                      (Eq.refl (Except.ok after)) (HEq.refl charged))
+                                (Eq.symm h) (Eq.refl (LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes))
+                            | some remaining => fun h =>
+                              Eq.ndrec (motive := fun x =>
+                                LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes = x →
+                                  (match x with
+                                      | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                      | some newOutput =>
+                                        if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                                          Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                        else
+                                          match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                          | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                          | some transientFrames =>
+                                            if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                                              Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                            else
+                                              match
+                                                LexLeanRuntime.checkedSubtract transientFrames event.exitedFrames with
+                                              | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                              | some newFrames =>
+                                                Except.ok
+                                                  { work := newWork, ownedBytes := before.ownedBytes,
+                                                    peakOwnedBytes := before.peakOwnedBytes, outputBytes := newOutput,
+                                                    frames := newFrames }) =
+                                      Except.ok after →
+                                    after.work.toNat = before.work.toNat + event.work.toNat)
+                                (fun heq =>
+                                  id fun charged =>
+                                    Decidable.casesOn
+                                      (instDecidableEqBool (Uorc.Uorc.Core.Heap.less budget.maxOutputBytes remaining)
+                                        true)
+                                      (fun h =>
+                                        (match (motive :=
+                                            ∀ (x : Option UInt64),
+                                              LexLeanRuntime.checkedAdd before.frames event.enteredFrames = x →
+                                                (match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                                    | none =>
+                                                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                    | some transientFrames =>
+                                                      if
+                                                          Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames =
+                                                            true then
+                                                        Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                      else
+                                                        match
+                                                          LexLeanRuntime.checkedSubtract transientFrames
+                                                            event.exitedFrames with
+                                                        | none =>
+                                                          Except.error
+                                                            Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                        | some newFrames =>
+                                                          Except.ok
+                                                            { work := newWork, ownedBytes := before.ownedBytes,
+                                                              peakOwnedBytes := before.peakOwnedBytes,
+                                                              outputBytes := remaining, frames := newFrames }) =
+                                                    Except.ok after →
+                                                  after.work.toNat = before.work.toNat + event.work.toNat)
+                                            LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                          | none => fun h =>
+                                            Eq.ndrec (motive := fun x =>
+                                              LexLeanRuntime.checkedAdd before.frames event.enteredFrames = x →
+                                                (match x with
+                                                    | none =>
+                                                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                    | some transientFrames =>
+                                                      if
+                                                          Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames =
+                                                            true then
+                                                        Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                      else
+                                                        match
+                                                          LexLeanRuntime.checkedSubtract transientFrames
+                                                            event.exitedFrames with
+                                                        | none =>
+                                                          Except.error
+                                                            Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                        | some newFrames =>
+                                                          Except.ok
+                                                            { work := newWork, ownedBytes := before.ownedBytes,
+                                                              peakOwnedBytes := before.peakOwnedBytes,
+                                                              outputBytes := remaining, frames := newFrames }) =
+                                                    Except.ok after →
+                                                  after.work.toNat = before.work.toNat + event.work.toNat)
+                                              (fun heq =>
+                                                id fun charged =>
+                                                  Eq.casesOn (motive := fun a t =>
+                                                    Except.ok after = a →
+                                                      charged ≍ t →
+                                                        after.work.toNat = before.work.toNat + event.work.toNat)
+                                                    charged (fun h => False.elim (noConfusion_of_Nat Except.ctorIdx h))
+                                                    (Eq.refl (Except.ok after)) (HEq.refl charged))
+                                              (Eq.symm h)
+                                              (Eq.refl (LexLeanRuntime.checkedAdd before.frames event.enteredFrames))
+                                          | some remaining_1 => fun h =>
+                                            Eq.ndrec (motive := fun x =>
+                                              LexLeanRuntime.checkedAdd before.frames event.enteredFrames = x →
+                                                (match x with
+                                                    | none =>
+                                                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                    | some transientFrames =>
+                                                      if
+                                                          Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames =
+                                                            true then
+                                                        Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                      else
+                                                        match
+                                                          LexLeanRuntime.checkedSubtract transientFrames
+                                                            event.exitedFrames with
+                                                        | none =>
+                                                          Except.error
+                                                            Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                        | some newFrames =>
+                                                          Except.ok
+                                                            { work := newWork, ownedBytes := before.ownedBytes,
+                                                              peakOwnedBytes := before.peakOwnedBytes,
+                                                              outputBytes := remaining, frames := newFrames }) =
+                                                    Except.ok after →
+                                                  after.work.toNat = before.work.toNat + event.work.toNat)
+                                              (fun heq =>
+                                                id fun charged =>
+                                                  Decidable.casesOn
+                                                    (instDecidableEqBool
+                                                      (Uorc.Uorc.Core.Heap.less budget.maxFrames remaining_1) true)
+                                                    (fun h =>
+                                                      (match (motive :=
+                                                          ∀ (x : Option UInt64),
+                                                            LexLeanRuntime.checkedSubtract remaining_1
+                                                                  event.exitedFrames =
+                                                                x →
+                                                              (match
+                                                                    LexLeanRuntime.checkedSubtract remaining_1
+                                                                      event.exitedFrames with
+                                                                  | none =>
+                                                                    Except.error
+                                                                      Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                                  | some newFrames =>
+                                                                    Except.ok
+                                                                      { work := newWork,
+                                                                        ownedBytes := before.ownedBytes,
+                                                                        peakOwnedBytes := before.peakOwnedBytes,
+                                                                        outputBytes := remaining,
+                                                                        frames := newFrames }) =
+                                                                  Except.ok after →
+                                                                after.work.toNat = before.work.toNat + event.work.toNat)
+                                                          LexLeanRuntime.checkedSubtract remaining_1
+                                                            event.exitedFrames with
+                                                        | none => fun h =>
+                                                          Eq.ndrec (motive := fun x =>
+                                                            LexLeanRuntime.checkedSubtract remaining_1
+                                                                  event.exitedFrames =
+                                                                x →
+                                                              (match x with
+                                                                  | none =>
+                                                                    Except.error
+                                                                      Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                                  | some newFrames =>
+                                                                    Except.ok
+                                                                      { work := newWork,
+                                                                        ownedBytes := before.ownedBytes,
+                                                                        peakOwnedBytes := before.peakOwnedBytes,
+                                                                        outputBytes := remaining,
+                                                                        frames := newFrames }) =
+                                                                  Except.ok after →
+                                                                after.work.toNat = before.work.toNat + event.work.toNat)
+                                                            (fun heq =>
+                                                              id fun charged =>
+                                                                Eq.casesOn (motive := fun a t =>
+                                                                  Except.ok after = a →
+                                                                    charged ≍ t →
+                                                                      after.work.toNat =
+                                                                        before.work.toNat + event.work.toNat)
+                                                                  charged
+                                                                  (fun h =>
+                                                                    False.elim (noConfusion_of_Nat Except.ctorIdx h))
+                                                                  (Eq.refl (Except.ok after)) (HEq.refl charged))
+                                                            (Eq.symm h)
+                                                            (Eq.refl
+                                                              (LexLeanRuntime.checkedSubtract remaining_1
+                                                                event.exitedFrames))
+                                                        | some remaining_2 => fun h =>
+                                                          Eq.ndrec (motive := fun x =>
+                                                            LexLeanRuntime.checkedSubtract remaining_1
+                                                                  event.exitedFrames =
+                                                                x →
+                                                              (match x with
+                                                                  | none =>
+                                                                    Except.error
+                                                                      Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                                  | some newFrames =>
+                                                                    Except.ok
+                                                                      { work := newWork,
+                                                                        ownedBytes := before.ownedBytes,
+                                                                        peakOwnedBytes := before.peakOwnedBytes,
+                                                                        outputBytes := remaining,
+                                                                        frames := newFrames }) =
+                                                                  Except.ok after →
+                                                                after.work.toNat = before.work.toNat + event.work.toNat)
+                                                            (fun heq =>
+                                                              id fun charged =>
+                                                                Eq.casesOn (motive := fun a t =>
+                                                                  Except.ok after = a →
+                                                                    charged ≍ t →
+                                                                      after.work.toNat =
+                                                                        before.work.toNat + event.work.toNat)
+                                                                  charged
+                                                                  (fun h =>
+                                                                    Except.ok.noConfusion h fun a_eq =>
+                                                                      Eq.ndrec (motive := fun after =>
+                                                                        ∀
+                                                                          (charged :
+                                                                            Except.ok
+                                                                                { work := newWork,
+                                                                                  ownedBytes := before.ownedBytes,
+                                                                                  peakOwnedBytes :=
+                                                                                    before.peakOwnedBytes,
+                                                                                  outputBytes := remaining,
+                                                                                  frames := remaining_2 } =
+                                                                              Except.ok after),
+                                                                          charged ≍
+                                                                              Eq.refl
+                                                                                (Except.ok
+                                                                                  { work := newWork,
+                                                                                    ownedBytes := before.ownedBytes,
+                                                                                    peakOwnedBytes :=
+                                                                                      before.peakOwnedBytes,
+                                                                                    outputBytes := remaining,
+                                                                                    frames := remaining_2 }) →
+                                                                            after.work.toNat =
+                                                                              before.work.toNat + event.work.toNat)
+                                                                        (fun charged h => exactWork)
+                                                                        (Eq.symm (eq_of_heq a_eq)) charged)
+                                                                  (Eq.refl (Except.ok after)) (HEq.refl charged))
+                                                            (Eq.symm h)
+                                                            (Eq.refl
+                                                              (LexLeanRuntime.checkedSubtract remaining_1
+                                                                event.exitedFrames)))
+                                                        (Eq.refl
+                                                          (LexLeanRuntime.checkedSubtract remaining_1
+                                                            event.exitedFrames))
+                                                        (Eq.mp (congrFun' (congrArg Eq (if_neg h)) (Except.ok after))
+                                                          charged))
+                                                    fun h =>
+                                                    Eq.casesOn (motive := fun a t =>
+                                                      Except.ok after = a →
+                                                        Eq.mp (congrFun' (congrArg Eq (if_pos h)) (Except.ok after))
+                                                              charged ≍
+                                                            t →
+                                                          after.work.toNat = before.work.toNat + event.work.toNat)
+                                                      (Eq.mp (congrFun' (congrArg Eq (if_pos h)) (Except.ok after))
+                                                        charged)
+                                                      (fun h_1 => False.elim (noConfusion_of_Nat Except.ctorIdx h_1))
+                                                      (Eq.refl (Except.ok after))
+                                                      (HEq.refl
+                                                        (Eq.mp (congrFun' (congrArg Eq (if_pos h)) (Except.ok after))
+                                                          charged)))
+                                              (Eq.symm h)
+                                              (Eq.refl (LexLeanRuntime.checkedAdd before.frames event.enteredFrames)))
+                                          (Eq.refl (LexLeanRuntime.checkedAdd before.frames event.enteredFrames))
+                                          (Eq.mp (congrFun' (congrArg Eq (if_neg h)) (Except.ok after)) charged))
+                                      fun h =>
+                                      Eq.casesOn (motive := fun a t =>
+                                        Except.ok after = a →
+                                          Eq.mp (congrFun' (congrArg Eq (if_pos h)) (Except.ok after)) charged ≍ t →
+                                            after.work.toNat = before.work.toNat + event.work.toNat)
+                                        (Eq.mp (congrFun' (congrArg Eq (if_pos h)) (Except.ok after)) charged)
+                                        (fun h_1 => False.elim (noConfusion_of_Nat Except.ctorIdx h_1))
+                                        (Eq.refl (Except.ok after))
+                                        (HEq.refl
+                                          (Eq.mp (congrFun' (congrArg Eq (if_pos h)) (Except.ok after)) charged)))
+                                (Eq.symm h) (Eq.refl (LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes)))
+                            (Eq.refl (LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes))
+                            (Eq.mp (congrFun' (congrArg Eq (if_neg h)) (Except.ok after))
+                              (Eq.mp
+                                (congrFun'
+                                  (congrArg Eq
+                                    (congrArg
+                                      (fun x =>
+                                        match x with
+                                        | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                        | some newWork =>
+                                          if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                                            Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                          else
+                                            match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                                            | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                            | some newOutput =>
+                                              if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                                                Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                              else
+                                                match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                                | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                | some transientFrames =>
+                                                  if
+                                                      Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames =
+                                                        true then
+                                                    Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                  else
+                                                    match
+                                                      LexLeanRuntime.checkedSubtract transientFrames
+                                                        event.exitedFrames with
+                                                    | none =>
+                                                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                    | some newFrames =>
+                                                      Except.ok
+                                                        { work := newWork, ownedBytes := before.ownedBytes,
+                                                          peakOwnedBytes := before.peakOwnedBytes,
+                                                          outputBytes := newOutput, frames := newFrames })
+                                      addition))
+                                  (Except.ok after))
+                                charged)))
+                        fun h =>
+                        Eq.casesOn (motive := fun a t =>
+                          Except.ok after = a →
+                            Eq.mp (congrFun' (congrArg Eq (if_pos h)) (Except.ok after))
+                                  (Eq.mp
+                                    (congrFun'
+                                      (congrArg Eq
+                                        (congrArg
+                                          (fun x =>
+                                            match x with
+                                            | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                            | some newWork =>
+                                              if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                                                Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                              else
+                                                match
+                                                  LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                                                | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                                | some newOutput =>
+                                                  if
+                                                      Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput =
+                                                        true then
+                                                    Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                                  else
+                                                    match
+                                                      LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                                    | none =>
+                                                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                    | some transientFrames =>
+                                                      if
+                                                          Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames =
+                                                            true then
+                                                        Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                      else
+                                                        match
+                                                          LexLeanRuntime.checkedSubtract transientFrames
+                                                            event.exitedFrames with
+                                                        | none =>
+                                                          Except.error
+                                                            Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                        | some newFrames =>
+                                                          Except.ok
+                                                            { work := newWork, ownedBytes := before.ownedBytes,
+                                                              peakOwnedBytes := before.peakOwnedBytes,
+                                                              outputBytes := newOutput, frames := newFrames })
+                                          addition))
+                                      (Except.ok after))
+                                    charged) ≍
+                                t →
+                              after.work.toNat = before.work.toNat + event.work.toNat)
+                          (Eq.mp (congrFun' (congrArg Eq (if_pos h)) (Except.ok after))
+                            (Eq.mp
+                              (congrFun'
+                                (congrArg Eq
+                                  (congrArg
+                                    (fun x =>
+                                      match x with
+                                      | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                      | some newWork =>
+                                        if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                                          Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                        else
+                                          match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                                          | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                          | some newOutput =>
+                                            if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                                              Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                            else
+                                              match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                              | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                              | some transientFrames =>
+                                                if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                                                  Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                else
+                                                  match
+                                                    LexLeanRuntime.checkedSubtract transientFrames
+                                                      event.exitedFrames with
+                                                  | none =>
+                                                    Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                  | some newFrames =>
+                                                    Except.ok
+                                                      { work := newWork, ownedBytes := before.ownedBytes,
+                                                        peakOwnedBytes := before.peakOwnedBytes,
+                                                        outputBytes := newOutput, frames := newFrames })
+                                    addition))
+                                (Except.ok after))
+                              charged))
+                          (fun h_1 => False.elim (noConfusion_of_Nat Except.ctorIdx h_1)) (Eq.refl (Except.ok after))
+                          (HEq.refl
+                            (Eq.mp (congrFun' (congrArg Eq (if_pos h)) (Except.ok after))
+                              (Eq.mp
+                                (congrFun'
+                                  (congrArg Eq
+                                    (congrArg
+                                      (fun x =>
+                                        match x with
+                                        | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                        | some newWork =>
+                                          if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+                                            Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+                                          else
+                                            match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+                                            | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                            | some newOutput =>
+                                              if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                                                Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                                              else
+                                                match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                                                | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                | some transientFrames =>
+                                                  if
+                                                      Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames =
+                                                        true then
+                                                    Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                                                  else
+                                                    match
+                                                      LexLeanRuntime.checkedSubtract transientFrames
+                                                        event.exitedFrames with
+                                                    | none =>
+                                                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                                                    | some newFrames =>
+                                                      Except.ok
+                                                        { work := newWork, ownedBytes := before.ownedBytes,
+                                                          peakOwnedBytes := before.peakOwnedBytes,
+                                                          outputBytes := newOutput, frames := newFrames })
+                                      addition))
+                                  (Except.ok after))
+                                charged))))
+                    (Eq.symm h) (Eq.refl (LexLeanRuntime.checkedAdd before.work event.work)))
+                (Eq.refl (LexLeanRuntime.checkedAdd before.work event.work)))
+          (Eq.symm h) (Eq.refl (Uorc.Uorc.Core.RuntimeResources.validateUsage budget before)))
+      (Eq.refl (Uorc.Uorc.Core.RuntimeResources.validateUsage budget before)) charged
+  argument has type
+    Uorc.Uorc.Core.RuntimeResources.charge budget before event = Except.ok after
+  but function has type
+    (match Uorc.Uorc.Core.RuntimeResources.validateUsage budget before with
+        | Except.error usageError => Except.error usageError
+        | Except.ok a =>
+          match LexLeanRuntime.checkedAdd before.work event.work with
+          | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+          | some newWork =>
+            if Uorc.Uorc.Core.Heap.less budget.maxWork newWork = true then
+              Except.error Uorc.Uorc.Core.RuntimeResources.Error.workLimit
+            else
+              match LexLeanRuntime.checkedAdd before.outputBytes event.emittedBytes with
+              | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+              | some newOutput =>
+                if Uorc.Uorc.Core.Heap.less budget.maxOutputBytes newOutput = true then
+                  Except.error Uorc.Uorc.Core.RuntimeResources.Error.outputLimit
+                else
+                  match LexLeanRuntime.checkedAdd before.frames event.enteredFrames with
+                  | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                  | some transientFrames =>
+                    if Uorc.Uorc.Core.Heap.less budget.maxFrames transientFrames = true then
+                      Except.error Uorc.Uorc.Core.RuntimeResources.Error.frameLimit
+                    else
+                      match LexLeanRuntime.checkedSubtract transientFrames event.exitedFrames with
+                      | none => Except.error Uorc.Uorc.Core.RuntimeResources.Error.invalidUsage
+                      | some newFrames =>
+                        Except.ok
+                          { work := newWork, ownedBytes := before.ownedBytes, peakOwnedBytes := before.peakOwnedBytes,
+                            outputBytes := newOutput, frames := newFrames }) =
+        Except.ok after →
+      after.work.toNat = before.work.toNat + event.work.toNat

@@ -1,0 +1,1167 @@
+\begin{lexlean}{Uorc.Core.ReferenceSemantics}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: SemanticError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: divisionByZero, fields: []},
+    {name: arithmeticOverflow, fields: []},
+    {name: negativeDifference, fields: []},
+    {name: byteOutOfRange, fields: []},
+    {name: shiftOutOfRange, fields: []},
+    {name: indexOutOfBounds, fields: []},
+    {name: sliceOutOfBounds, fields: []},
+    {name: basisOutOfBounds, fields: []},
+    {name: sequenceLengthOverflow, fields: []},
+    {name: outputMismatch, fields: []}
+  ]
+}
+
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: static, fields: [Uorc.Core.Types::StaticError]},
+    {name: semantic, fields: [SemanticError]}
+  ]
+}
+
+structure{
+  name: Sequence,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: length, type: Nat}, {name: read, type: (Fn (Nat) (Option Nat))}]
+}
+
+structure{
+  name: Exception,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: key, type: Nat}, {name: value, type: Nat}]
+}
+
+structure{
+  name: Store,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: defaultByte, type: Nat}, {name: exceptions, type: (List Exception)}]
+}
+
+inductive{
+  name: Value,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: natural, fields: [Nat]},
+    {name: byte, fields: [Nat]},
+    {name: predicate, fields: [Bool]},
+    {name: sequence, fields: [Sequence]},
+    {name: store, fields: [Store]}
+  ]
+}
+
+structure{
+  name: BlockMeaning,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: parameters, type: (List Uorc.Core.Types::ValueType)},
+    {name: result, type: Uorc.Core.Types::ValueType},
+    {name: run, type: (Fn ((List Value)) (Result Value Failure))}
+  ]
+}
+
+definition{
+  name: admissibleNatural,
+  parameters: [value : Nat],
+  result: Bool,
+  body: (value <=? 18446744073709551615)
+}
+
+definition{name: admissibleByte, parameters: [value : Nat], result: Bool, body: (value <=? 255)}
+
+definition{
+  name: sequenceWellFormed,
+  parameters: [sequence : Sequence],
+  result: Prop,
+  body: (forall (index : Nat), (match (apply (project sequence read) index)
+    | Option.none => ((project sequence length) <= index)
+    | Option.some byteValue => ((index < (project sequence length)) /\ (byteValue <= 255))))
+}
+
+definition{
+  name: sequenceEqualLogical,
+  parameters: [left : Sequence, right : Sequence],
+  result: Prop,
+  body: (((project left length) = (project right length)) /\ (forall (index : Nat), ((apply (project left read) index) = (apply (project right read) index))))
+}
+
+definition{
+  name: sequenceFromBytes,
+  parameters: [bytes : Bytes],
+  result: Sequence,
+  body: (record Sequence {length := (prim length bytes : Nat), read := (fun [bytes] (index : Nat) => (match (Uorc.Core.Bytes::readLeafByte bytes index)
+    | Uorc.Core.Bytes::LeafByteRead.missing => (ctor Option.none [Nat])
+    | Uorc.Core.Bytes::LeafByteRead.found selected => (ctor Option.some [Nat] (Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural selected)))))}),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: appendSequence,
+  parameters: [left : Sequence, right : Sequence],
+  result: Sequence,
+  body: (record Sequence {length := ((project left length) + (project right length)), read := (fun [left, right] (index : Nat) => (if (index <? (project left length)) then (apply (project left read) index) else (apply (project right read) (prim subtract index (project left length) : Nat))))})
+}
+
+definition{
+  name: sequenceFromRope,
+  parameters: [rope : Uorc.Core.Bytes::Rope],
+  result: Sequence,
+  body: (match rope
+    | Uorc.Core.Bytes::Rope.empty => (sequenceFromBytes 0x)
+    | Uorc.Core.Bytes::Rope.leaf chunk => (sequenceFromBytes chunk)
+    | Uorc.Core.Bytes::Rope.branch cachedLength cachedHeight leftNode rightNode => (appendSequence (sequenceFromRope leftNode) (sequenceFromRope rightNode))
+    | Uorc.Core.Bytes::Rope.view backing viewOffset viewLength => (record Sequence {length := viewLength, read := (fun [backing, viewLength, viewOffset] (index : Nat) => (if (index <? viewLength) then (apply (project (sequenceFromBytes backing) read) (viewOffset + index)) else (ctor Option.none [Nat])))})),
+  axioms: [Quot.sound, propext],
+  recursive_argument: rope
+}
+
+definition{
+  name: singletonSequence,
+  parameters: [byteValue : Nat],
+  result: Sequence,
+  body: (record Sequence {length := 1, read := (fun [byteValue] (index : Nat) => (if (index =? 0) then (ctor Option.some [Nat] byteValue) else (ctor Option.none [Nat])))})
+}
+
+definition{
+  name: sliceSequence,
+  parameters: [sequence : Sequence, start : Nat, count : Nat],
+  result: (Result Sequence Failure),
+  body: (if ((start + count) <=? (project sequence length)) then (ctor Result.ok [Sequence, Failure] (record Sequence {length := count, read := (fun [count, sequence, start] (index : Nat) => (if (index <? count) then (apply (project sequence read) (start + index)) else (ctor Option.none [Nat])))})) else (ctor Result.error [Sequence, Failure] (ctor Failure.semantic (ctor SemanticError.sliceOutOfBounds))))
+}
+
+definition{
+  name: indexSequence,
+  parameters: [sequence : Sequence, index : Nat],
+  result: (Result Nat Failure),
+  body: (if (index <? (project sequence length)) then (match (apply (project sequence read) index)
+    | Option.none => (ctor Result.error [Nat, Failure] (ctor Failure.semantic (ctor SemanticError.indexOutOfBounds)))
+    | Option.some selected => (ctor Result.ok [Nat, Failure] selected)) else (ctor Result.error [Nat, Failure] (ctor Failure.semantic (ctor SemanticError.indexOutOfBounds))))
+}
+
+definition{
+  name: equalSequencePrefix,
+  parameters: [remaining : Nat, left : Sequence, right : Sequence, index : Nat],
+  result: Bool,
+  body: (match remaining
+    | Nat.zero => true
+    | Nat.succ rest => (match (apply (project left read) index)
+      | Option.none => false
+      | Option.some leftByte => (match (apply (project right read) index)
+        | Option.none => false
+        | Option.some rightByte => ((leftByte =? rightByte) && (equalSequencePrefix rest left right (index + 1)))))),
+  recursive_argument: remaining
+}
+
+definition{
+  name: equalSequences,
+  parameters: [left : Sequence, right : Sequence],
+  result: Bool,
+  body: (((project left length) =? (project right length)) && (equalSequencePrefix (project left length) left right 0))
+}
+
+definition{
+  name: readExceptions,
+  parameters: [exceptions : (List Exception), key : Nat, defaultByte : Nat],
+  result: Nat,
+  body: (match exceptions
+    | List.nil => defaultByte
+    | List.cons entry rest => (if ((project entry key) =? key) then (project entry value) else (readExceptions rest key defaultByte))),
+  recursive_argument: exceptions
+}
+
+definition{
+  name: eraseException,
+  parameters: [exceptions : (List Exception), key : Nat],
+  result: (List Exception),
+  body: (match exceptions
+    | List.nil => (nil Exception)
+    | List.cons entry rest => (if ((project entry key) =? key) then (eraseException rest key) else (cons entry (eraseException rest key)))),
+  recursive_argument: exceptions
+}
+
+definition{
+  name: newStore,
+  parameters: [defaultByte : Nat],
+  result: Store,
+  body: (record Store {defaultByte := defaultByte, exceptions := (nil Exception)})
+}
+
+definition{
+  name: storeRead,
+  parameters: [store : Store, key : Nat],
+  result: Nat,
+  body: (readExceptions (project store exceptions) key (project store defaultByte))
+}
+
+definition{
+  name: writeStore,
+  parameters: [store : Store, key : Nat, value : Nat],
+  result: Store,
+  body: (record Store {defaultByte := (project store defaultByte), exceptions := (if (value =? (project store defaultByte)) then (eraseException (project store exceptions) key) else (cons (record Exception {key := key, value := value}) (eraseException (project store exceptions) key)))})
+}
+
+definition{
+  name: checkedAdd,
+  parameters: [left : Nat, right : Nat],
+  result: (Result Nat Failure),
+  body: (if ((left + right) <=? 18446744073709551615) then (ctor Result.ok [Nat, Failure] (left + right)) else (ctor Result.error [Nat, Failure] (ctor Failure.semantic (ctor SemanticError.arithmeticOverflow))))
+}
+
+definition{
+  name: checkedSubtract,
+  parameters: [left : Nat, right : Nat],
+  result: (Result Nat Failure),
+  body: (if (right <=? left) then (ctor Result.ok [Nat, Failure] (prim subtract left right : Nat)) else (ctor Result.error [Nat, Failure] (ctor Failure.semantic (ctor SemanticError.negativeDifference))))
+}
+
+definition{
+  name: checkedMultiply,
+  parameters: [left : Nat, right : Nat],
+  result: (Result Nat Failure),
+  body: (if ((prim multiply left right : Nat) <=? 18446744073709551615) then (ctor Result.ok [Nat, Failure] (prim multiply left right : Nat)) else (ctor Result.error [Nat, Failure] (ctor Failure.semantic (ctor SemanticError.arithmeticOverflow))))
+}
+
+definition{
+  name: checkedDivide,
+  parameters: [left : Nat, right : Nat],
+  result: (Result Nat Failure),
+  body: (if (right =? 0) then (ctor Result.error [Nat, Failure] (ctor Failure.semantic (ctor SemanticError.divisionByZero))) else (ctor Result.ok [Nat, Failure] (prim quotient left right 0 : Nat)))
+}
+
+definition{
+  name: checkedRemainder,
+  parameters: [left : Nat, right : Nat],
+  result: (Result Nat Failure),
+  body: (if (right =? 0) then (ctor Result.error [Nat, Failure] (ctor Failure.semantic (ctor SemanticError.divisionByZero))) else (ctor Result.ok [Nat, Failure] (prim remainder left right 0 : Nat)))
+}
+
+inductive{
+  name: BitOperation,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: and, fields: []}, {name: or, fields: []}, {name: xor, fields: []}]
+}
+
+definition{
+  name: bitCombine,
+  parameters: [operation : BitOperation, left : Bool, right : Bool],
+  result: Bool,
+  body: (match operation
+    | BitOperation.and => (left && right)
+    | BitOperation.or => (left || right)
+    | BitOperation.xor => (not (prim equal left right : Bool)))
+}
+
+definition{
+  name: bitwise,
+  parameters: [remaining : Nat, operation : BitOperation, left : Nat, right : Nat],
+  result: Nat,
+  body: (match remaining
+    | Nat.zero => 0
+    | Nat.succ rest => ((if (bitCombine operation ((prim remainder left 2 0 : Nat) =? 1) ((prim remainder right 2 0 : Nat) =? 1)) then 1 else 0) + (prim multiply 2 (bitwise rest operation (prim quotient left 2 0 : Nat) (prim quotient right 2 0 : Nat)) : Nat))),
+  recursive_argument: remaining
+}
+
+definition{
+  name: powerTwo,
+  parameters: [exponent : Nat],
+  result: Nat,
+  body: (match exponent | Nat.zero => 1 | Nat.succ rest => (prim multiply 2 (powerTwo rest) : Nat)),
+  recursive_argument: exponent
+}
+
+definition{
+  name: shiftLeft,
+  parameters: [value : Nat, count : Nat],
+  result: (Result Nat Failure),
+  body: (if (count <? 64) then (ctor Result.ok [Nat, Failure] (prim remainder (prim multiply value (powerTwo count) : Nat) 18446744073709551616 0 : Nat)) else (ctor Result.error [Nat, Failure] (ctor Failure.semantic (ctor SemanticError.shiftOutOfRange))))
+}
+
+definition{
+  name: shiftRight,
+  parameters: [value : Nat, count : Nat],
+  result: (Result Nat Failure),
+  body: (if (count <? 64) then (ctor Result.ok [Nat, Failure] (prim quotient value (powerTwo count) 0 : Nat)) else (ctor Result.error [Nat, Failure] (ctor Failure.semantic (ctor SemanticError.shiftOutOfRange))))
+}
+
+definition{
+  name: localValue,
+  parameters: [slots : (List Value), distance : Nat],
+  result: (Result Value Failure),
+  body: (if (distance =? 0) then (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference))) else (if ((prim length slots : Nat) <? distance) then (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference))) else (match (prim index slots (prim subtract (prim length slots : Nat) distance : Nat) : (Option Value))
+    | Option.none => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidLocalReference)))
+    | Option.some selected => (ctor Result.ok [Value, Failure] selected))))
+}
+
+definition{
+  name: readNatural,
+  parameters: [slots : (List Value), distance : Nat],
+  result: (Result Nat Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [Nat, Failure] error)
+    | Result.ok selected => (match selected
+      | Value.natural payload => (ctor Result.ok [Nat, Failure] payload)
+      | Value.byte payload => (ctor Result.error [Nat, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.predicate payload => (ctor Result.error [Nat, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.sequence payload => (ctor Result.error [Nat, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.store payload => (ctor Result.error [Nat, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))))
+}
+
+definition{
+  name: readByte,
+  parameters: [slots : (List Value), distance : Nat],
+  result: (Result Nat Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [Nat, Failure] error)
+    | Result.ok selected => (match selected
+      | Value.natural payload => (ctor Result.error [Nat, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.byte payload => (ctor Result.ok [Nat, Failure] payload)
+      | Value.predicate payload => (ctor Result.error [Nat, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.sequence payload => (ctor Result.error [Nat, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.store payload => (ctor Result.error [Nat, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))))
+}
+
+definition{
+  name: readPredicate,
+  parameters: [slots : (List Value), distance : Nat],
+  result: (Result Bool Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [Bool, Failure] error)
+    | Result.ok selected => (match selected
+      | Value.natural payload => (ctor Result.error [Bool, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.byte payload => (ctor Result.error [Bool, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.predicate payload => (ctor Result.ok [Bool, Failure] payload)
+      | Value.sequence payload => (ctor Result.error [Bool, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.store payload => (ctor Result.error [Bool, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))))
+}
+
+definition{
+  name: readSequence,
+  parameters: [slots : (List Value), distance : Nat],
+  result: (Result Sequence Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [Sequence, Failure] error)
+    | Result.ok selected => (match selected
+      | Value.natural payload => (ctor Result.error [Sequence, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.byte payload => (ctor Result.error [Sequence, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.predicate payload => (ctor Result.error [Sequence, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.sequence payload => (ctor Result.ok [Sequence, Failure] payload)
+      | Value.store payload => (ctor Result.error [Sequence, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))))
+}
+
+definition{
+  name: readStore,
+  parameters: [slots : (List Value), distance : Nat],
+  result: (Result Store Failure),
+  body: (match (localValue slots distance)
+    | Result.error error => (ctor Result.error [Store, Failure] error)
+    | Result.ok selected => (match selected
+      | Value.natural payload => (ctor Result.error [Store, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.byte payload => (ctor Result.error [Store, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.predicate payload => (ctor Result.error [Store, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.sequence payload => (ctor Result.error [Store, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+      | Value.store payload => (ctor Result.ok [Store, Failure] payload)))
+}
+
+definition{
+  name: resolveReferences,
+  parameters: [references : (List Nat), slots : (List Value)],
+  result: (Result (List Value) Failure),
+  body: (match references
+    | List.nil => (ctor Result.ok [(List Value), Failure] (nil Value))
+    | List.cons reference rest => (match (localValue slots reference)
+      | Result.error headError => (ctor Result.error [(List Value), Failure] headError)
+      | Result.ok selected => (match (resolveReferences rest slots)
+        | Result.error tailError => (ctor Result.error [(List Value), Failure] tailError)
+        | Result.ok tailValues => (ctor Result.ok [(List Value), Failure] (cons selected tailValues))))),
+  recursive_argument: references
+}
+
+definition{
+  name: priorMeaning,
+  parameters: [prior : (List BlockMeaning), distance : Nat],
+  result: (Result BlockMeaning Failure),
+  body: (if (distance =? 0) then (ctor Result.error [BlockMeaning, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidBlockReference))) else (if ((prim length prior : Nat) <? distance) then (ctor Result.error [BlockMeaning, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidBlockReference))) else (match (prim index prior (prim subtract (prim length prior : Nat) distance : Nat) : (Option BlockMeaning))
+    | Option.none => (ctor Result.error [BlockMeaning, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidBlockReference)))
+    | Option.some selected => (ctor Result.ok [BlockMeaning, Failure] selected))))
+}
+
+definition{
+  name: tabulateLoop,
+  parameters: [
+    remaining : Nat,
+    index : Nat,
+    meaning : BlockMeaning,
+    captures : (List Value),
+    output : Sequence
+  ],
+  result: (Result Value Failure),
+  body: (match remaining
+    | Nat.zero => (ctor Result.ok [Value, Failure] (ctor Value.sequence output))
+    | Nat.succ rest => (match (apply (project meaning run) (cons (ctor Value.natural index) captures))
+      | Result.error error => (ctor Result.error [Value, Failure] error)
+      | Result.ok produced => (match produced
+        | Value.natural payload => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+        | Value.byte payload => (tabulateLoop rest (index + 1) meaning captures (appendSequence output (singletonSequence payload)))
+        | Value.predicate payload => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+        | Value.sequence payload => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+        | Value.store payload => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))))),
+  recursive_argument: remaining
+}
+
+definition{
+  name: foldLoop,
+  parameters: [
+    remaining : Nat,
+    index : Nat,
+    meaning : BlockMeaning,
+    captures : (List Value),
+    state : Value
+  ],
+  result: (Result Value Failure),
+  body: (match remaining
+    | Nat.zero => (ctor Result.ok [Value, Failure] state)
+    | Nat.succ rest => (match (apply (project meaning run) (cons (ctor Value.natural index) (cons state captures)))
+      | Result.error error => (ctor Result.error [Value, Failure] error)
+      | Result.ok nextState => (foldLoop rest (index + 1) meaning captures nextState))),
+  recursive_argument: remaining
+}
+
+definition{
+  name: scanLoop,
+  parameters: [
+    remaining : Nat,
+    index : Nat,
+    observer : BlockMeaning,
+    observerCaptures : (List Value),
+    updater : BlockMeaning,
+    updaterCaptures : (List Value),
+    state : Value,
+    output : Sequence
+  ],
+  result: (Result Value Failure),
+  body: (match remaining
+    | Nat.zero => (ctor Result.ok [Value, Failure] (ctor Value.sequence output))
+    | Nat.succ rest => (match (apply (project observer run) (cons (ctor Value.natural index) (cons state observerCaptures)))
+      | Result.error observerError => (ctor Result.error [Value, Failure] observerError)
+      | Result.ok observed => (match observed
+        | Value.natural payload => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+        | Value.byte payload => (match (apply (project updater run) (cons (ctor Value.natural index) (cons state updaterCaptures)))
+          | Result.error updaterError => (ctor Result.error [Value, Failure] updaterError)
+          | Result.ok nextState => (scanLoop rest (index + 1) observer observerCaptures updater updaterCaptures nextState (appendSequence output (singletonSequence payload))))
+        | Value.predicate payload => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+        | Value.sequence payload => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+        | Value.store payload => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))))),
+  recursive_argument: remaining
+}
+
+definition{
+  name: evaluateInstruction,
+  parameters: [
+    prior : (List BlockMeaning),
+    basis : (List Sequence),
+    slots : (List Value),
+    instruction : Uorc.Core.Graph::Instruction
+  ],
+  result: (Result Value Failure),
+  body: (match instruction
+    | Uorc.Core.Graph::Instruction.naturalConstant literal => (ctor Result.ok [Value, Failure] (ctor Value.natural (Uorc.Core.Types::wordToNat literal)))
+    | Uorc.Core.Graph::Instruction.byteConstant literal => (ctor Result.ok [Value, Failure] (ctor Value.byte (Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural literal))))
+    | Uorc.Core.Graph::Instruction.predicateConstant literal => (ctor Result.ok [Value, Failure] (ctor Value.predicate literal))
+    | Uorc.Core.Graph::Instruction.sequenceConstant literal => (ctor Result.ok [Value, Failure] (ctor Value.sequence (sequenceFromBytes literal)))
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant literal => (ctor Result.ok [Value, Failure] (ctor Value.sequence (sequenceFromRope literal)))
+    | Uorc.Core.Graph::Instruction.naturalAdd leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (match (checkedAdd left right)
+          | Result.error operationError => (ctor Result.error [Value, Failure] operationError)
+          | Result.ok operationValue => (ctor Result.ok [Value, Failure] (ctor Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalSubtract leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (match (checkedSubtract left right)
+          | Result.error operationError => (ctor Result.error [Value, Failure] operationError)
+          | Result.ok operationValue => (ctor Result.ok [Value, Failure] (ctor Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalMultiply leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (match (checkedMultiply left right)
+          | Result.error operationError => (ctor Result.error [Value, Failure] operationError)
+          | Result.ok operationValue => (ctor Result.ok [Value, Failure] (ctor Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalDivide leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (match (checkedDivide left right)
+          | Result.error operationError => (ctor Result.error [Value, Failure] operationError)
+          | Result.ok operationValue => (ctor Result.ok [Value, Failure] (ctor Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalRemainder leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (match (checkedRemainder left right)
+          | Result.error operationError => (ctor Result.error [Value, Failure] operationError)
+          | Result.ok operationValue => (ctor Result.ok [Value, Failure] (ctor Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (match (shiftLeft left right)
+          | Result.error operationError => (ctor Result.error [Value, Failure] operationError)
+          | Result.ok operationValue => (ctor Result.ok [Value, Failure] (ctor Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalShiftRight leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (match (shiftRight left right)
+          | Result.error operationError => (ctor Result.error [Value, Failure] operationError)
+          | Result.ok operationValue => (ctor Result.ok [Value, Failure] (ctor Value.natural operationValue)))))
+    | Uorc.Core.Graph::Instruction.naturalAnd leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.natural (bitwise 64 (ctor BitOperation.and) left right)))))
+    | Uorc.Core.Graph::Instruction.naturalOr leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.natural (bitwise 64 (ctor BitOperation.or) left right)))))
+    | Uorc.Core.Graph::Instruction.naturalXor leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.natural (bitwise 64 (ctor BitOperation.xor) left right)))))
+    | Uorc.Core.Graph::Instruction.naturalNot reference => (match (readNatural slots reference)
+      | Result.error operandError => (ctor Result.error [Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Value, Failure] (ctor Value.natural (prim subtract 18446744073709551615 operand : Nat))))
+    | Uorc.Core.Graph::Instruction.naturalEqual leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.predicate (left =? right)))))
+    | Uorc.Core.Graph::Instruction.naturalLess leftReference rightReference => (match (readNatural slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readNatural slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.predicate (left <? right)))))
+    | Uorc.Core.Graph::Instruction.byteEqual leftReference rightReference => (match (readByte slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readByte slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.predicate (left =? right)))))
+    | Uorc.Core.Graph::Instruction.byteLess leftReference rightReference => (match (readByte slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readByte slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.predicate (left <? right)))))
+    | Uorc.Core.Graph::Instruction.predicateAnd leftReference rightReference => (match (readPredicate slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readPredicate slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.predicate (left && right)))))
+    | Uorc.Core.Graph::Instruction.predicateOr leftReference rightReference => (match (readPredicate slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readPredicate slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.predicate (left || right)))))
+    | Uorc.Core.Graph::Instruction.sequenceEqual leftReference rightReference => (match (readSequence slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readSequence slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.predicate (equalSequences left right)))))
+    | Uorc.Core.Graph::Instruction.naturalToByte reference => (match (readNatural slots reference)
+      | Result.error operandError => (ctor Result.error [Value, Failure] operandError)
+      | Result.ok operand => (if (operand <=? 255) then (ctor Result.ok [Value, Failure] (ctor Value.byte operand)) else (ctor Result.error [Value, Failure] (ctor Failure.semantic (ctor SemanticError.byteOutOfRange)))))
+    | Uorc.Core.Graph::Instruction.byteToNatural reference => (match (readByte slots reference)
+      | Result.error operandError => (ctor Result.error [Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Value, Failure] (ctor Value.natural operand)))
+    | Uorc.Core.Graph::Instruction.predicateNot reference => (match (readPredicate slots reference)
+      | Result.error operandError => (ctor Result.error [Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Value, Failure] (ctor Value.predicate (not operand))))
+    | Uorc.Core.Graph::Instruction.sequenceLength reference => (match (readSequence slots reference)
+      | Result.error operandError => (ctor Result.error [Value, Failure] operandError)
+      | Result.ok operand => (if ((project operand length) <=? 18446744073709551615) then (ctor Result.ok [Value, Failure] (ctor Value.natural (project operand length))) else (ctor Result.error [Value, Failure] (ctor Failure.semantic (ctor SemanticError.sequenceLengthOverflow)))))
+    | Uorc.Core.Graph::Instruction.singletonSequence reference => (match (readByte slots reference)
+      | Result.error operandError => (ctor Result.error [Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Value, Failure] (ctor Value.sequence (singletonSequence operand))))
+    | Uorc.Core.Graph::Instruction.storeNew reference => (match (readByte slots reference)
+      | Result.error operandError => (ctor Result.error [Value, Failure] operandError)
+      | Result.ok operand => (ctor Result.ok [Value, Failure] (ctor Value.store (newStore operand))))
+    | Uorc.Core.Graph::Instruction.sequenceConcat leftReference rightReference => (match (readSequence slots leftReference)
+      | Result.error leftError => (ctor Result.error [Value, Failure] leftError)
+      | Result.ok left => (match (readSequence slots rightReference)
+        | Result.error rightError => (ctor Result.error [Value, Failure] rightError)
+        | Result.ok right => (ctor Result.ok [Value, Failure] (ctor Value.sequence (appendSequence left right)))))
+    | Uorc.Core.Graph::Instruction.sequenceIndex sequenceReference indexReference => (match (readSequence slots sequenceReference)
+      | Result.error sourceError => (ctor Result.error [Value, Failure] sourceError)
+      | Result.ok source => (match (readNatural slots indexReference)
+        | Result.error indexError => (ctor Result.error [Value, Failure] indexError)
+        | Result.ok index => (match (indexSequence source index)
+          | Result.error operationError => (ctor Result.error [Value, Failure] operationError)
+          | Result.ok operationValue => (ctor Result.ok [Value, Failure] (ctor Value.byte operationValue)))))
+    | Uorc.Core.Graph::Instruction.sequenceSlice sequenceReference startReference countReference => (match (readSequence slots sequenceReference)
+      | Result.error sourceError => (ctor Result.error [Value, Failure] sourceError)
+      | Result.ok source => (match (readNatural slots startReference)
+        | Result.error startError => (ctor Result.error [Value, Failure] startError)
+        | Result.ok start => (match (readNatural slots countReference)
+          | Result.error countError => (ctor Result.error [Value, Failure] countError)
+          | Result.ok count => (match (sliceSequence source start count)
+            | Result.error operationError => (ctor Result.error [Value, Failure] operationError)
+            | Result.ok operationValue => (ctor Result.ok [Value, Failure] (ctor Value.sequence operationValue))))))
+    | Uorc.Core.Graph::Instruction.basisGet indexReference => (match (readNatural slots indexReference)
+      | Result.error indexError => (ctor Result.error [Value, Failure] indexError)
+      | Result.ok index => (match (prim index basis index : (Option Sequence))
+        | Option.none => (ctor Result.error [Value, Failure] (ctor Failure.semantic (ctor SemanticError.basisOutOfBounds)))
+        | Option.some selected => (ctor Result.ok [Value, Failure] (ctor Value.sequence selected))))
+    | Uorc.Core.Graph::Instruction.storeRead storeReference keyReference => (match (readStore slots storeReference)
+      | Result.error storeValueError => (ctor Result.error [Value, Failure] storeValueError)
+      | Result.ok storeValue => (match (readNatural slots keyReference)
+        | Result.error keyError => (ctor Result.error [Value, Failure] keyError)
+        | Result.ok key => (ctor Result.ok [Value, Failure] (ctor Value.byte (storeRead storeValue key)))))
+    | Uorc.Core.Graph::Instruction.storeWrite storeReference keyReference valueReference => (match (readStore slots storeReference)
+      | Result.error storeValueError => (ctor Result.error [Value, Failure] storeValueError)
+      | Result.ok storeValue => (match (readNatural slots keyReference)
+        | Result.error keyError => (ctor Result.error [Value, Failure] keyError)
+        | Result.ok key => (match (readByte slots valueReference)
+          | Result.error byteValueError => (ctor Result.error [Value, Failure] byteValueError)
+          | Result.ok byteValue => (ctor Result.ok [Value, Failure] (ctor Value.store (writeStore storeValue key byteValue))))))
+    | Uorc.Core.Graph::Instruction.choose conditionReference trueReference falseReference => (match (readPredicate slots conditionReference)
+      | Result.error conditionError => (ctor Result.error [Value, Failure] conditionError)
+      | Result.ok condition => (match (localValue slots trueReference)
+        | Result.error trueError => (ctor Result.error [Value, Failure] trueError)
+        | Result.ok trueValue => (match (localValue slots falseReference)
+          | Result.error falseError => (ctor Result.error [Value, Failure] falseError)
+          | Result.ok falseValue => (ctor Result.ok [Value, Failure] (if condition then trueValue else falseValue)))))
+    | Uorc.Core.Graph::Instruction.apply distance arguments => (match (priorMeaning prior distance)
+      | Result.error blockError => (ctor Result.error [Value, Failure] blockError)
+      | Result.ok meaning => (match (resolveReferences arguments slots)
+        | Result.error argumentError => (ctor Result.error [Value, Failure] argumentError)
+        | Result.ok resolved => (apply (project meaning run) resolved)))
+    | Uorc.Core.Graph::Instruction.tabulate countReference distance captures => (match (readNatural slots countReference)
+      | Result.error countError => (ctor Result.error [Value, Failure] countError)
+      | Result.ok count => (match (priorMeaning prior distance)
+        | Result.error blockError => (ctor Result.error [Value, Failure] blockError)
+        | Result.ok meaning => (match (resolveReferences captures slots)
+          | Result.error captureError => (ctor Result.error [Value, Failure] captureError)
+          | Result.ok captured => (tabulateLoop count 0 meaning captured (sequenceFromBytes 0x)))))
+    | Uorc.Core.Graph::Instruction.fold countReference initialReference distance captures => (match (readNatural slots countReference)
+      | Result.error countError => (ctor Result.error [Value, Failure] countError)
+      | Result.ok count => (match (localValue slots initialReference)
+        | Result.error initialError => (ctor Result.error [Value, Failure] initialError)
+        | Result.ok initialState => (match (priorMeaning prior distance)
+          | Result.error blockError => (ctor Result.error [Value, Failure] blockError)
+          | Result.ok meaning => (match (resolveReferences captures slots)
+            | Result.error captureError => (ctor Result.error [Value, Failure] captureError)
+            | Result.ok captured => (foldLoop count 0 meaning captured initialState)))))
+    | Uorc.Core.Graph::Instruction.scan countReference initialReference observerDistance observerCaptures updaterDistance updaterCaptures => (match (readNatural slots countReference)
+      | Result.error countError => (ctor Result.error [Value, Failure] countError)
+      | Result.ok count => (match (localValue slots initialReference)
+        | Result.error initialError => (ctor Result.error [Value, Failure] initialError)
+        | Result.ok initialState => (match (priorMeaning prior observerDistance)
+          | Result.error observerError => (ctor Result.error [Value, Failure] observerError)
+          | Result.ok observerMeaning => (match (resolveReferences observerCaptures slots)
+            | Result.error observerCaptureError => (ctor Result.error [Value, Failure] observerCaptureError)
+            | Result.ok observedCaptures => (match (priorMeaning prior updaterDistance)
+              | Result.error updaterError => (ctor Result.error [Value, Failure] updaterError)
+              | Result.ok updaterMeaning => (match (resolveReferences updaterCaptures slots)
+                | Result.error updaterCaptureError => (ctor Result.error [Value, Failure] updaterCaptureError)
+                | Result.ok updatedCaptures => (scanLoop count 0 observerMeaning observedCaptures updaterMeaning updatedCaptures initialState (sequenceFromBytes 0x))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: evaluateInstructions,
+  parameters: [
+    instructions : (List Uorc.Core.Graph::Instruction),
+    prior : (List BlockMeaning),
+    basis : (List Sequence),
+    slots : (List Value)
+  ],
+  result: (Result (List Value) Failure),
+  body: (match instructions
+    | List.nil => (ctor Result.ok [(List Value), Failure] slots)
+    | List.cons instruction rest => (match (evaluateInstruction prior basis slots instruction)
+      | Result.error error => (ctor Result.error [(List Value), Failure] error)
+      | Result.ok produced => (evaluateInstructions rest prior basis (prim append slots (cons produced (nil Value)) : (List Value))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: instructions
+}
+
+definition{
+  name: evaluateBlock,
+  parameters: [
+    block : Uorc.Core.Graph::Block,
+    prior : (List BlockMeaning),
+    basis : (List Sequence),
+    arguments : (List Value)
+  ],
+  result: (Result Value Failure),
+  body: (match (evaluateInstructions (project block instructions) prior basis arguments)
+    | Result.error error => (ctor Result.error [Value, Failure] error)
+    | Result.ok slots => (localValue slots (project block returnDistance))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: compileBlocks,
+  parameters: [
+    blocks : (List Uorc.Core.Graph::Block),
+    prior : (List BlockMeaning),
+    basis : (List Sequence)
+  ],
+  result: (List BlockMeaning),
+  body: (match blocks
+    | List.nil => prior
+    | List.cons block rest => (compileBlocks rest (prim append prior (cons (record BlockMeaning {parameters := (project block parameters), result := (project block result), run := (fun [basis, block, prior] (arguments : (List Value)) => (evaluateBlock block prior basis arguments))}) (nil BlockMeaning)) : (List BlockMeaning)) basis)),
+  axioms: [Quot.sound, propext],
+  recursive_argument: blocks
+}
+
+definition{
+  name: evaluateGraph,
+  parameters: [graph : Uorc.Core.Graph::Graph, basis : (List Sequence)],
+  result: (Result Value Failure),
+  body: (match (Uorc.Core.Graph::validateGraph graph)
+    | Result.error staticError => (ctor Result.error [Value, Failure] (ctor Failure.static staticError))
+    | Result.ok unitResult => (match (prim index (compileBlocks (project graph blocks) (nil BlockMeaning) basis) (project graph entry) : (Option BlockMeaning))
+      | Option.none => (ctor Result.error [Value, Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.invalidBlockReference)))
+      | Option.some entryMeaning => (apply (project entryMeaning run) (nil Value)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: splitObjectsFrom,
+  parameters: [lengths : (List Nat), sequence : Sequence, offset : Nat],
+  result: (Result (List Sequence) Failure),
+  body: (match lengths
+    | List.nil => (if (offset =? (project sequence length)) then (ctor Result.ok [(List Sequence), Failure] (nil Sequence)) else (ctor Result.error [(List Sequence), Failure] (ctor Failure.semantic (ctor SemanticError.outputMismatch))))
+    | List.cons objectLength restLengths => (match (sliceSequence sequence offset objectLength)
+      | Result.error sliceError => (ctor Result.error [(List Sequence), Failure] (ctor Failure.semantic (ctor SemanticError.outputMismatch)))
+      | Result.ok object => (match (splitObjectsFrom restLengths sequence (offset + objectLength))
+        | Result.error tailError => (ctor Result.error [(List Sequence), Failure] tailError)
+        | Result.ok tailObjects => (ctor Result.ok [(List Sequence), Failure] (cons object tailObjects))))),
+  recursive_argument: lengths
+}
+
+definition{
+  name: splitObjects,
+  parameters: [lengths : (List Nat), sequence : Sequence],
+  result: (Result (List Sequence) Failure),
+  body: (splitObjectsFrom lengths sequence 0)
+}
+
+definition{
+  name: reconstructGraph,
+  parameters: [graph : Uorc.Core.Graph::Graph, basis : (List Sequence), objectLengths : (List Nat)],
+  result: (Result (List Sequence) Failure),
+  body: (match (evaluateGraph graph basis)
+    | Result.error error => (ctor Result.error [(List Sequence), Failure] error)
+    | Result.ok produced => (match produced
+      | Value.natural payload => (ctor Result.error [(List Sequence), Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.entrySignatureMismatch)))
+      | Value.byte payload => (ctor Result.error [(List Sequence), Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.entrySignatureMismatch)))
+      | Value.predicate payload => (ctor Result.error [(List Sequence), Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.entrySignatureMismatch)))
+      | Value.sequence payload => (splitObjects objectLengths payload)
+      | Value.store payload => (ctor Result.error [(List Sequence), Failure] (ctor Failure.static (ctor Uorc.Core.Types::StaticError.entrySignatureMismatch))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: resolveRaw,
+  parameters: [objects : (List Sequence)],
+  result: (List Sequence),
+  body: objects
+}
+
+definition{
+  name: objectsEqualLogical,
+  parameters: [left : (List Sequence), right : (List Sequence)],
+  result: Prop,
+  body: (match left
+    | List.nil => (match right | List.nil => (0 = 0) | List.cons rightHead rightTail => (0 = 1))
+    | List.cons leftHead leftTail => (match right
+      | List.nil => (0 = 1)
+      | List.cons rightHead rightTail => ((sequenceEqualLogical leftHead rightHead) /\ (objectsEqualLogical leftTail rightTail)))),
+  recursive_argument: left
+}
+
+definition{
+  name: evaluatesTo,
+  parameters: [
+    graph : Uorc.Core.Graph::Graph,
+    basis : (List Sequence),
+    outcome : (Result Value Failure)
+  ],
+  result: Prop,
+  body: ((evaluateGraph graph basis) = outcome),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: raw_resolution_identity,
+  parameters: [objects : (List Sequence)],
+  statement: ((resolveRaw objects) = objects),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_fold_is_initial,
+  parameters: [index : Nat, meaning : BlockMeaning, captures : (List Value), state : Value],
+  statement: ((foldLoop 0 index meaning captures state) = (ctor Result.ok [Value, Failure] state)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_scan_is_empty_evolution,
+  parameters: [
+    index : Nat,
+    observer : BlockMeaning,
+    observerCaptures : (List Value),
+    updater : BlockMeaning,
+    updaterCaptures : (List Value),
+    state : Value,
+    output : Sequence
+  ],
+  statement: ((scanLoop 0 index observer observerCaptures updater updaterCaptures state output) = (ctor Result.ok [Value, Failure] (ctor Value.sequence output))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: fresh_store_reads_default,
+  parameters: [defaultByte : Nat, key : Nat],
+  statement: ((storeRead (newStore defaultByte) key) = defaultByte),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: final_scan_update_failure_is_not_ignored,
+  parameters: [],
+  statement: ((scanLoop 1 0 (record BlockMeaning {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), run := (fun (arguments : (List Value)) => (ctor Result.ok [Value, Failure] (ctor Value.byte 7)))}) (nil Value) (record BlockMeaning {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), run := (fun (arguments : (List Value)) => (ctor Result.error [Value, Failure] (ctor Failure.semantic (ctor SemanticError.arithmeticOverflow))))}) (nil Value) (ctor Value.natural 18446744073709551615) (sequenceFromBytes 0x)) = (ctor Result.error [Value, Failure] (ctor Failure.semantic (ctor SemanticError.arithmeticOverflow)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: split_rejects_trailing_bytes,
+  parameters: [],
+  statement: ((splitObjects (cons 1 (nil Nat)) (sequenceFromBytes 0x00ff)) = (ctor Result.error [(List Sequence), Failure] (ctor Failure.semantic (ctor SemanticError.outputMismatch)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: split_rejects_short_output,
+  parameters: [],
+  statement: ((splitObjects (cons 3 (nil Nat)) (sequenceFromBytes 0x00ff)) = (ctor Result.error [(List Sequence), Failure] (ctor Failure.semantic (ctor SemanticError.outputMismatch)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rope_reference_length_ignores_runtime_caches,
+  parameters: [],
+  statement: ((project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.branch 999 777 (ctor Uorc.Core.Bytes::Rope.leaf 0x11) (ctor Uorc.Core.Bytes::Rope.leaf 0x22))) length) = 2),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rope_reference_contents_ignore_runtime_caches,
+  parameters: [],
+  statement: ((apply (project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.branch 999 777 (ctor Uorc.Core.Bytes::Rope.leaf 0x11) (ctor Uorc.Core.Bytes::Rope.leaf 0x22))) read) 1) = (ctor Option.some [Nat] 34)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rope_view_reference_reads_its_window,
+  parameters: [],
+  statement: ((apply (project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.view 0x00112233 1 2)) read) 1) = (ctor Option.some [Nat] 34)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rope_view_reference_hides_backing_suffix,
+  parameters: [],
+  statement: ((apply (project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.view 0x00112233 1 2)) read) 2) = (ctor Option.none [Nat])),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: append_reference_length_is_additive,
+  parameters: [leftSequence : Sequence, rightSequence : Sequence],
+  statement: ((project (appendSequence leftSequence rightSequence) length) = ((project leftSequence length) + (project rightSequence length))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: reference_region_option_select,
+  parameters: [regionGuard : Bool, leftRead : (Option Nat), rightRead : (Option Nat)],
+  result: (Option Nat),
+  body: (match regionGuard | Bool.false => rightRead | Bool.true => leftRead),
+  axioms: []
+}
+
+theorem{
+  name: reference_region_true_selects_left,
+  parameters: [regionGuard : Bool, leftRead : (Option Nat), rightRead : (Option Nat)],
+  statement: (((regionGuard = true) -> ((reference_region_option_select regionGuard leftRead rightRead) = leftRead)) <-> (0 = 0)),
+  proof: constructor{
+    branches: [
+      linear_arithmetic{definitions: [reference_region_option_select]},
+      linear_arithmetic{definitions: [reference_region_option_select]}
+    ]
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: reference_region_false_selects_right,
+  parameters: [regionGuard : Bool, leftRead : (Option Nat), rightRead : (Option Nat)],
+  statement: (((regionGuard = false) -> ((reference_region_option_select regionGuard leftRead rightRead) = rightRead)) <-> (0 = 0)),
+  proof: constructor{
+    branches: [
+      linear_arithmetic{definitions: [reference_region_option_select]},
+      linear_arithmetic{definitions: [reference_region_option_select]}
+    ]
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: reference_region_option_expansion,
+  parameters: [regionGuard : Bool, leftRead : (Option Nat), rightRead : (Option Nat)],
+  statement: ((if regionGuard then leftRead else rightRead) = (reference_region_option_select regionGuard leftRead rightRead)),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: regionGuard
+  },
+  axioms: []
+}
+
+theorem{
+  name: reference_region_ge_is_false_lt,
+  parameters: [regionIndex : Nat, regionBound : Nat],
+  statement: (((regionBound <=? regionIndex) = true) <-> ((regionIndex <? regionBound) = false)),
+  proof: constructor{branches: [linear_arithmetic{}, linear_arithmetic{}]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: append_reference_reads_left_region,
+  parameters: [leftSequence : Sequence, rightSequence : Sequence, index : Nat],
+  statement: (((index <? (project leftSequence length)) = true) -> ((apply (project (appendSequence leftSequence rightSequence) read) index) = (apply (project leftSequence read) index))),
+  proof: simplify{
+    definitions: [
+      appendSequence,
+      reference_region_option_expansion,
+      reference_region_true_selects_left
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: append_reference_reads_right_region,
+  parameters: [leftSequence : Sequence, rightSequence : Sequence, index : Nat],
+  statement: ((((project leftSequence length) <=? index) = true) -> ((apply (project (appendSequence leftSequence rightSequence) read) index) = (apply (project rightSequence read) (prim subtract index (project leftSequence length) : Nat)))),
+  proof: simplify{
+    definitions: [
+      appendSequence,
+      reference_region_false_selects_right,
+      reference_region_ge_is_false_lt,
+      reference_region_option_expansion
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rope_branch_reference_is_ordered_append,
+  parameters: [
+    cachedLength : Nat,
+    cachedHeight : Nat,
+    leftRope : Uorc.Core.Bytes::Rope,
+    rightRope : Uorc.Core.Bytes::Rope
+  ],
+  statement: ((sequenceFromRope (ctor Uorc.Core.Bytes::Rope.branch cachedLength cachedHeight leftRope rightRope)) = (appendSequence (sequenceFromRope leftRope) (sequenceFromRope rightRope))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rope_view_reference_length,
+  parameters: [backing : Bytes, offset : Nat, count : Nat],
+  statement: ((project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.view backing offset count)) length) = count),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rope_view_reference_reads_exact_window,
+  parameters: [backing : Bytes, offset : Nat, count : Nat, index : Nat],
+  statement: (((index <? count) = true) -> ((apply (project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.view backing offset count)) read) index) = (apply (project (sequenceFromBytes backing) read) (offset + index)))),
+  proof: simplify{
+    definitions: [
+      reference_region_option_expansion,
+      reference_region_true_selects_left,
+      sequenceFromRope
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rope_view_reference_hides_every_outside_index,
+  parameters: [backing : Bytes, offset : Nat, count : Nat, index : Nat],
+  statement: (((count <=? index) = true) -> ((apply (project (sequenceFromRope (ctor Uorc.Core.Bytes::Rope.view backing offset count)) read) index) = (ctor Option.none [Nat]))),
+  proof: simplify{
+    definitions: [
+      reference_region_false_selects_right,
+      reference_region_ge_is_false_lt,
+      reference_region_option_expansion,
+      sequenceFromRope
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: indexingWorkObservation,
+  parameters: [workValue : Uorc.Core.Bytes::Work],
+  result: (Option Nat),
+  body: (match (project workValue task)
+    | Uorc.Core.Bytes::WorkTask.joining leftRope rightRope => (ctor Option.none [Nat])
+    | Uorc.Core.Bytes::WorkTask.slicing sourceRope start count => (ctor Option.none [Nat])
+    | Uorc.Core.Bytes::WorkTask.indexing sourceRope index => (apply (project (sequenceFromRope sourceRope) read) index)
+    | Uorc.Core.Bytes::WorkTask.returning returnedRope => (ctor Option.none [Nat])),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: indexingEventObservation,
+  parameters: [event : Uorc.Core.Bytes::WorkEvent],
+  result: (Option Nat),
+  body: (match event
+    | Uorc.Core.Bytes::WorkEvent.advanced nextWork => (indexingWorkObservation nextWork)
+    | Uorc.Core.Bytes::WorkEvent.sequenceDone completedRope => (ctor Option.none [Nat])
+    | Uorc.Core.Bytes::WorkEvent.byteDone selectedByte => (ctor Option.some [Nat] (Uorc.Core.Types::wordToNat (Uorc.Core.Types::byteToNatural selectedByte)))
+    | Uorc.Core.Bytes::WorkEvent.failed ropeError => (ctor Option.none [Nat])),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: leaf_index_step_refines_independent_sequence,
+  parameters: [
+    backing : Bytes,
+    index : Nat,
+    continuations : (List Uorc.Core.Bytes::WorkContinuation)
+  ],
+  statement: ((indexingEventObservation (Uorc.Core.Bytes::workStep (record Uorc.Core.Bytes::Work {task := (ctor Uorc.Core.Bytes::WorkTask.indexing (ctor Uorc.Core.Bytes::Rope.leaf backing) index), continuations := continuations}))) = (apply (project (sequenceFromBytes backing) read) index)),
+  proof: term_cases{
+    definitions: [Uorc.Core.Bytes::workStep, indexingEventObservation, sequenceFromBytes],
+    scrutinee: (Uorc.Core.Bytes::readLeafByte backing index)
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reference_event_guard_observation,
+  parameters: [
+    observationGuard : Bool,
+    selectedEvent : Uorc.Core.Bytes::WorkEvent,
+    otherEvent : Uorc.Core.Bytes::WorkEvent
+  ],
+  statement: ((indexingEventObservation (if observationGuard then selectedEvent else otherEvent)) = (reference_region_option_select observationGuard (indexingEventObservation selectedEvent) (indexingEventObservation otherEvent))),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: "false"},
+      {proof: reflexivity{}, binders: [], constructor: "true"}
+    ],
+    scrutinee: observationGuard
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reference_equal_lengths_preserve_selected_observation,
+  parameters: [
+    runtimeLength : Nat,
+    semanticLength : Nat,
+    selectedIndex : Nat,
+    leftReader : (Fn (Nat) (Option Nat)),
+    rightReader : (Fn (Nat) (Option Nat))
+  ],
+  statement: (((runtimeLength = semanticLength) -> (((selectedIndex <? runtimeLength) = true) -> ((reference_region_option_select (selectedIndex <? runtimeLength) (apply leftReader selectedIndex) (apply rightReader (prim subtract selectedIndex runtimeLength : Nat))) = (reference_region_option_select (selectedIndex <? semanticLength) (apply leftReader selectedIndex) (apply rightReader (prim subtract selectedIndex semanticLength : Nat)))))) <-> (0 = 0)),
+  proof: constructor{
+    branches: [
+      linear_arithmetic{definitions: [reference_region_option_select]},
+      linear_arithmetic{definitions: [reference_region_option_select]}
+    ]
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: reference_advanced_index_observation,
+  parameters: [
+    observedRope : Uorc.Core.Bytes::Rope,
+    observedIndex : Nat,
+    observedContinuations : (List Uorc.Core.Bytes::WorkContinuation)
+  ],
+  statement: ((indexingEventObservation (ctor Uorc.Core.Bytes::WorkEvent.advanced (record Uorc.Core.Bytes::Work {task := (ctor Uorc.Core.Bytes::WorkTask.indexing observedRope observedIndex), continuations := observedContinuations}))) = (apply (project (sequenceFromRope observedRope) read) observedIndex)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: left_index_step_preserves_independent_observation,
+  parameters: [
+    cachedLength : Nat,
+    cachedHeight : Nat,
+    leftRope : Uorc.Core.Bytes::Rope,
+    rightRope : Uorc.Core.Bytes::Rope,
+    index : Nat,
+    continuations : (List Uorc.Core.Bytes::WorkContinuation)
+  ],
+  statement: (((Uorc.Core.Bytes::length leftRope) = (project (sequenceFromRope leftRope) length)) -> (((index <? (Uorc.Core.Bytes::length leftRope)) = true) -> ((indexingEventObservation (Uorc.Core.Bytes::workStep (record Uorc.Core.Bytes::Work {task := (ctor Uorc.Core.Bytes::WorkTask.indexing (ctor Uorc.Core.Bytes::Rope.branch cachedLength cachedHeight leftRope rightRope) index), continuations := continuations}))) = (indexingWorkObservation (record Uorc.Core.Bytes::Work {task := (ctor Uorc.Core.Bytes::WorkTask.indexing (ctor Uorc.Core.Bytes::Rope.branch cachedLength cachedHeight leftRope rightRope) index), continuations := continuations}))))),
+  proof: simplify{
+    definitions: [
+      appendSequence,
+      indexingWorkObservation,
+      reference_advanced_index_observation,
+      reference_equal_lengths_preserve_selected_observation,
+      reference_event_guard_observation,
+      reference_region_option_expansion,
+      sequenceFromRope,
+      Uorc.Core.Bytes::workStep
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

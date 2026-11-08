@@ -1,0 +1,143 @@
+\begin{lexlean}{Uorc.Search.Checkpoint}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Identity}
+\importmodule{Uorc.Search.VerifyRope}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: PolicySnapshot,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: quantum, type: Nat},
+    {name: sourceIdentity, type: Uorc.Core.Bytes::Rope},
+    {name: seedInventory, type: Uorc.Core.Bytes::Rope},
+    {name: sharingInventory, type: Uorc.Core.Bytes::Rope}
+  ]
+}
+
+structure{
+  name: Record,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: query, type: Uorc.Search.Identity::Snapshot},
+    {name: policy, type: PolicySnapshot},
+    {name: effortPrefix, type: Nat},
+    {name: incumbentWireToRecheck, type: (Option Uorc.Core.Bytes::Rope)}
+  ]
+}
+
+structure{
+  name: ReplayRequest,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: query, type: Uorc.Search.Identity::Snapshot},
+    {name: policy, type: PolicySnapshot},
+    {name: canonicalPrefix, type: Nat},
+    {name: incumbentWireToRecheck, type: (Option Uorc.Core.Bytes::Rope)}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: query, fields: [Uorc.Search.Identity::Cursor]},
+    {name: source, fields: [Uorc.Search.VerifyRope::Cursor]},
+    {name: seeds, fields: [Uorc.Search.VerifyRope::Cursor]},
+    {name: sharing, fields: [Uorc.Search.VerifyRope::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: record, type: Record},
+    {name: query, type: Uorc.Search.Identity::Snapshot},
+    {name: policy, type: PolicySnapshot},
+    {name: phase, type: Phase}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: queryMismatch, fields: [Uorc.Search.Identity::Field]},
+    {name: policyMismatch, fields: []},
+    {name: invalidScope, fields: []},
+    {name: invalidQuantum, fields: []},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: replayRequired, fields: [ReplayRequest]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [record : Record, query : Uorc.Search.Identity::Snapshot, policy : PolicySnapshot],
+  result: Cursor,
+  body: (record Cursor {record := var{
+    name: record
+  }, query := query, policy := policy, phase := (ctor Phase.query (Uorc.Search.Identity::start (project var{
+    name: record
+  } query) query))})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.query comparison => (match (Uorc.Search.Identity::step comparison)
+      | Uorc.Search.Identity::Step.pending next => (ctor Step.pending (record Cursor {record := (project cursor record), query := (project cursor query), policy := (project cursor policy), phase := (ctor Phase.query next)}))
+      | Uorc.Search.Identity::Step.matched => (if ((project (project cursor policy) quantum) =? 0) then (ctor Step.rejected (ctor Error.invalidQuantum)) else (if ((project (project cursor policy) quantum) =? (project (project (project cursor record) policy) quantum)) then (ctor Step.pending (record Cursor {record := (project cursor record), query := (project cursor query), policy := (project cursor policy), phase := (ctor Phase.source (Uorc.Search.VerifyRope::start (cons (project (project (project cursor record) policy) sourceIdentity) (nil Uorc.Core.Bytes::Rope)) (cons (project (project cursor policy) sourceIdentity) (nil Uorc.Core.Bytes::Rope))))})) else (ctor Step.rejected (ctor Error.policyMismatch))))
+      | Uorc.Search.Identity::Step.different field => (ctor Step.rejected (ctor Error.queryMismatch field))
+      | Uorc.Search.Identity::Step.invalidScope => (ctor Step.rejected (ctor Error.invalidScope))
+      | Uorc.Search.Identity::Step.ropeFailure error => (ctor Step.rejected (ctor Error.rope error)))
+    | Phase.source comparison => (match (Uorc.Search.VerifyRope::step comparison)
+      | Uorc.Search.VerifyRope::Step.pending next => (ctor Step.pending (record Cursor {record := (project cursor record), query := (project cursor query), policy := (project cursor policy), phase := (ctor Phase.source next)}))
+      | Uorc.Search.VerifyRope::Step.matched bytes boundaries => (ctor Step.pending (record Cursor {record := (project cursor record), query := (project cursor query), policy := (project cursor policy), phase := (ctor Phase.seeds (Uorc.Search.VerifyRope::start (cons (project (project (project cursor record) policy) seedInventory) (nil Uorc.Core.Bytes::Rope)) (cons (project (project cursor policy) seedInventory) (nil Uorc.Core.Bytes::Rope))))}))
+      | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor Step.rejected (ctor Error.policyMismatch))
+      | Uorc.Search.VerifyRope::Step.ropeFailure error => (ctor Step.rejected (ctor Error.rope error)))
+    | Phase.seeds comparison => (match (Uorc.Search.VerifyRope::step comparison)
+      | Uorc.Search.VerifyRope::Step.pending next => (ctor Step.pending (record Cursor {record := (project cursor record), query := (project cursor query), policy := (project cursor policy), phase := (ctor Phase.seeds next)}))
+      | Uorc.Search.VerifyRope::Step.matched bytes boundaries => (ctor Step.pending (record Cursor {record := (project cursor record), query := (project cursor query), policy := (project cursor policy), phase := (ctor Phase.sharing (Uorc.Search.VerifyRope::start (cons (project (project (project cursor record) policy) sharingInventory) (nil Uorc.Core.Bytes::Rope)) (cons (project (project cursor policy) sharingInventory) (nil Uorc.Core.Bytes::Rope))))}))
+      | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor Step.rejected (ctor Error.policyMismatch))
+      | Uorc.Search.VerifyRope::Step.ropeFailure error => (ctor Step.rejected (ctor Error.rope error)))
+    | Phase.sharing comparison => (match (Uorc.Search.VerifyRope::step comparison)
+      | Uorc.Search.VerifyRope::Step.pending next => (ctor Step.pending (record Cursor {record := (project cursor record), query := (project cursor query), policy := (project cursor policy), phase := (ctor Phase.sharing next)}))
+      | Uorc.Search.VerifyRope::Step.matched bytes boundaries => (ctor Step.replayRequired (record ReplayRequest {query := (project cursor query), policy := (project cursor policy), canonicalPrefix := (project (project cursor record) effortPrefix), incumbentWireToRecheck := (project (project cursor record) incumbentWireToRecheck)}))
+      | Uorc.Search.VerifyRope::Step.mismatch mismatch => (ctor Step.rejected (ctor Error.policyMismatch))
+      | Uorc.Search.VerifyRope::Step.ropeFailure error => (ctor Step.rejected (ctor Error.rope error))))
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ remainingFuel => (match state
+      | Step.pending cursor => (run remainingFuel (step cursor))
+      | Step.replayRequired request => (ctor Step.replayRequired request)
+      | Step.rejected error => (ctor Step.rejected error))),
+  recursive_argument: fuel
+}
+\end{semanticmodule}
+\end{lexlean}

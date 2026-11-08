@@ -1,0 +1,265 @@
+\begin{lexlean}{Uorc.Core.RuntimeInstructionCheck}
+\importmodule{Uorc.Core.RuntimeAdmissionChecks}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Resources}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: opcode, type: Uorc.Core.RuntimeOpcode::Opcode},
+    {name: seen, type: UInt64},
+    {name: operand0, type: UInt64},
+    {name: operand1, type: UInt64},
+    {name: operand2, type: UInt64},
+    {name: operand3, type: UInt64},
+    {name: resultType, type: Uorc.Core.RuntimeValue::RuntimeType},
+    {name: resultKnown, type: Bool},
+    {name: stateType, type: Uorc.Core.RuntimeValue::RuntimeType},
+    {name: stateKnown, type: Bool},
+    {name: first, type: (Option Uorc.Core.RuntimeAdmissionChecks::CaptureContract)},
+    {name: second, type: (Option Uorc.Core.RuntimeAdmissionChecks::CaptureContract)}
+  ]
+}
+
+structure{
+  name: ScalarEffect,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: state, type: State}, {name: usedSlot, type: (Option UInt64)}]
+}
+
+definition{
+  name: start,
+  parameters: [opcode : Uorc.Core.RuntimeOpcode::Opcode],
+  result: State,
+  body: (match (project (Uorc.Core.RuntimeOpcode::spec opcode) result)
+    | Uorc.Core.RuntimeOpcode::ResultRule.natural => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), resultKnown := true, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})
+    | Uorc.Core.RuntimeOpcode::ResultRule.byte => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.byte), resultKnown := true, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})
+    | Uorc.Core.RuntimeOpcode::ResultRule.predicate => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.predicate), resultKnown := true, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})
+    | Uorc.Core.RuntimeOpcode::ResultRule.sequence => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence), resultKnown := true, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})
+    | Uorc.Core.RuntimeOpcode::ResultRule.store => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.store), resultKnown := true, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})
+    | Uorc.Core.RuntimeOpcode::ResultRule.choice => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), resultKnown := false, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})
+    | Uorc.Core.RuntimeOpcode::ResultRule.callee => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), resultKnown := false, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})
+    | Uorc.Core.RuntimeOpcode::ResultRule.foldState => (record State {opcode := opcode, seen := (0 : UInt64), operand0 := (0 : UInt64), operand1 := (0 : UInt64), operand2 := (0 : UInt64), operand3 := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), resultKnown := false, stateType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural), stateKnown := false, first := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract]), second := (ctor Option.none [Uorc.Core.RuntimeAdmissionChecks::CaptureContract])})),
+  executable: true
+}
+
+definition{
+  name: advance,
+  parameters: [state : State, value : UInt64],
+  result: (Result State Uorc.Core.RuntimeProgram::Failure),
+  body: (match (prim checked_add (project state seen) (1 : UInt64) : (Option UInt64))
+    | Option.none => (ctor Result.error [State, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+    | Option.some nextSeen => (if (Uorc.Core.Heap::less (project state seen) (4 : UInt64)) then (ctor Result.ok [State, Uorc.Core.RuntimeProgram::Failure] (record State {opcode := (project state opcode), seen := nextSeen, operand0 := (if (prim equal (project state seen) (0 : UInt64) : Bool) then value else (project state operand0)), operand1 := (if (prim equal (project state seen) (1 : UInt64) : Bool) then value else (project state operand1)), operand2 := (if (prim equal (project state seen) (2 : UInt64) : Bool) then value else (project state operand2)), operand3 := (if (prim equal (project state seen) (3 : UInt64) : Bool) then value else (project state operand3)), resultType := (project state resultType), resultKnown := (project state resultKnown), stateType := (project state stateType), stateKnown := (project state stateKnown), first := (project state first), second := (project state second)})) else (ctor Result.error [State, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: installContract,
+  parameters: [
+    nextState : State,
+    secondLane : Bool,
+    contract : Uorc.Core.RuntimeAdmissionChecks::CaptureContract
+  ],
+  result: State,
+  body: (record State {opcode := (project nextState opcode), seen := (project nextState seen), operand0 := (project nextState operand0), operand1 := (project nextState operand1), operand2 := (project nextState operand2), operand3 := (project nextState operand3), resultType := (project contract resultType), resultKnown := true, stateType := (project nextState stateType), stateKnown := (project nextState stateKnown), first := (if secondLane then (project nextState first) else (ctor Option.some [Uorc.Core.RuntimeAdmissionChecks::CaptureContract] contract)), second := (if secondLane then (ctor Option.some [Uorc.Core.RuntimeAdmissionChecks::CaptureContract] contract) else (project nextState second))}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: localScalar,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    localTypes : Uorc.Core.RuntimeTable::Table,
+    slotCount : UInt64,
+    state : State,
+    nextState : State,
+    value : UInt64,
+    signature : Uorc.Core.RuntimeOpcode::Spec,
+    role : Uorc.Core.RuntimeOpcode::OperandRole
+  ],
+  result: (Result ScalarEffect Uorc.Core.RuntimeProgram::Failure),
+  body: (match (Uorc.Core.RuntimeAdmissionChecks::local arena localTypes slotCount value role)
+    | Result.error localError => (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] localError)
+    | Result.ok localInfo => (if ((prim equal (project state seen) (2 : UInt64) : Bool) && (prim equal (Uorc.Core.RuntimeOpcode::code (project state opcode)) (Uorc.Core.RuntimeOpcode::code (ctor Uorc.Core.RuntimeOpcode::Opcode.choose)) : Bool)) then (if (Uorc.Core.RuntimeAdmissionChecks::sameType (project state resultType) (project localInfo valueType)) then (ctor Result.ok [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] (record ScalarEffect {state := (record State {opcode := (project nextState opcode), seen := (project nextState seen), operand0 := (project nextState operand0), operand1 := (project nextState operand1), operand2 := (project nextState operand2), operand3 := (project nextState operand3), resultType := (if (((prim equal (project state seen) (1 : UInt64) : Bool) && (match (project signature call)
+      | Uorc.Core.RuntimeOpcode::CallRule.none => false
+      | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+      | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+      | Uorc.Core.RuntimeOpcode::CallRule.fold => true
+      | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) || ((prim equal (project state seen) (1 : UInt64) : Bool) && (prim equal (Uorc.Core.RuntimeOpcode::code (project state opcode)) (Uorc.Core.RuntimeOpcode::code (ctor Uorc.Core.RuntimeOpcode::Opcode.choose)) : Bool))) then (project localInfo valueType) else (project state resultType)), resultKnown := (if (((prim equal (project state seen) (1 : UInt64) : Bool) && (match (project signature call)
+      | Uorc.Core.RuntimeOpcode::CallRule.none => false
+      | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+      | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+      | Uorc.Core.RuntimeOpcode::CallRule.fold => true
+      | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) || ((prim equal (project state seen) (1 : UInt64) : Bool) && (prim equal (Uorc.Core.RuntimeOpcode::code (project state opcode)) (Uorc.Core.RuntimeOpcode::code (ctor Uorc.Core.RuntimeOpcode::Opcode.choose)) : Bool))) then true else (project state resultKnown)), stateType := (if ((prim equal (project state seen) (1 : UInt64) : Bool) && (match (project signature call)
+      | Uorc.Core.RuntimeOpcode::CallRule.none => false
+      | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+      | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+      | Uorc.Core.RuntimeOpcode::CallRule.fold => true
+      | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) then (project localInfo valueType) else (project state stateType)), stateKnown := (if ((prim equal (project state seen) (1 : UInt64) : Bool) && (match (project signature call)
+      | Uorc.Core.RuntimeOpcode::CallRule.none => false
+      | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+      | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+      | Uorc.Core.RuntimeOpcode::CallRule.fold => true
+      | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) then true else (project state stateKnown)), first := (project nextState first), second := (project nextState second)}), usedSlot := (ctor Option.some [UInt64] (project localInfo index))})) else (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))) else (ctor Result.ok [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] (record ScalarEffect {state := (record State {opcode := (project nextState opcode), seen := (project nextState seen), operand0 := (project nextState operand0), operand1 := (project nextState operand1), operand2 := (project nextState operand2), operand3 := (project nextState operand3), resultType := (if (((prim equal (project state seen) (1 : UInt64) : Bool) && (match (project signature call)
+      | Uorc.Core.RuntimeOpcode::CallRule.none => false
+      | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+      | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+      | Uorc.Core.RuntimeOpcode::CallRule.fold => true
+      | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) || ((prim equal (project state seen) (1 : UInt64) : Bool) && (prim equal (Uorc.Core.RuntimeOpcode::code (project state opcode)) (Uorc.Core.RuntimeOpcode::code (ctor Uorc.Core.RuntimeOpcode::Opcode.choose)) : Bool))) then (project localInfo valueType) else (project state resultType)), resultKnown := (if (((prim equal (project state seen) (1 : UInt64) : Bool) && (match (project signature call)
+      | Uorc.Core.RuntimeOpcode::CallRule.none => false
+      | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+      | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+      | Uorc.Core.RuntimeOpcode::CallRule.fold => true
+      | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) || ((prim equal (project state seen) (1 : UInt64) : Bool) && (prim equal (Uorc.Core.RuntimeOpcode::code (project state opcode)) (Uorc.Core.RuntimeOpcode::code (ctor Uorc.Core.RuntimeOpcode::Opcode.choose)) : Bool))) then true else (project state resultKnown)), stateType := (if ((prim equal (project state seen) (1 : UInt64) : Bool) && (match (project signature call)
+      | Uorc.Core.RuntimeOpcode::CallRule.none => false
+      | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+      | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+      | Uorc.Core.RuntimeOpcode::CallRule.fold => true
+      | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) then (project localInfo valueType) else (project state stateType)), stateKnown := (if ((prim equal (project state seen) (1 : UInt64) : Bool) && (match (project signature call)
+      | Uorc.Core.RuntimeOpcode::CallRule.none => false
+      | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+      | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+      | Uorc.Core.RuntimeOpcode::CallRule.fold => true
+      | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) then true else (project state stateKnown)), first := (project nextState first), second := (project nextState second)}), usedSlot := (ctor Option.some [UInt64] (project localInfo index))})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: blockScalar,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    program : Uorc.Core.RuntimeProgram::Program,
+    blockIndex : UInt64,
+    state : State,
+    nextState : State,
+    value : UInt64,
+    signature : Uorc.Core.RuntimeOpcode::Spec
+  ],
+  result: (Result ScalarEffect Uorc.Core.RuntimeProgram::Failure),
+  body: (if ((match (project signature call)
+    | Uorc.Core.RuntimeOpcode::CallRule.none => false
+    | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+    | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+    | Uorc.Core.RuntimeOpcode::CallRule.fold => true
+    | Uorc.Core.RuntimeOpcode::CallRule.scan => true) && (not (project state stateKnown))) then (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))) else (match (Uorc.Core.RuntimeAdmissionChecks::priorBlockIndex blockIndex value)
+    | Result.error referenceError => (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] referenceError)
+    | Result.ok absoluteBlock => (match (Uorc.Core.RuntimeProgram::blockAt arena program absoluteBlock)
+      | Result.error blockError => (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] blockError)
+      | Result.ok body => (match (Uorc.Core.RuntimeAdmissionChecks::callee arena body (project signature call) (if ((prim equal (project state seen) (3 : UInt64) : Bool) && (match (project signature call)
+          | Uorc.Core.RuntimeOpcode::CallRule.none => false
+          | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+          | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+          | Uorc.Core.RuntimeOpcode::CallRule.fold => false
+          | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) then (ctor Uorc.Core.RuntimeProgram::CaptureLane.second) else (ctor Uorc.Core.RuntimeProgram::CaptureLane.first)) (project state stateType))
+        | Result.error signatureError => (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] signatureError)
+        | Result.ok contract => (ctor Result.ok [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] (record ScalarEffect {state := (installContract nextState ((prim equal (project state seen) (3 : UInt64) : Bool) && (match (project signature call)
+          | Uorc.Core.RuntimeOpcode::CallRule.none => false
+          | Uorc.Core.RuntimeOpcode::CallRule.apply => false
+          | Uorc.Core.RuntimeOpcode::CallRule.tabulate => false
+          | Uorc.Core.RuntimeOpcode::CallRule.fold => false
+          | Uorc.Core.RuntimeOpcode::CallRule.scan => true)) contract), usedSlot := (ctor Option.none [UInt64])})))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: immediateScalar,
+  parameters: [nextState : State, value : UInt64, role : Uorc.Core.RuntimeOpcode::OperandRole],
+  result: (Result ScalarEffect Uorc.Core.RuntimeProgram::Failure),
+  body: (match (Uorc.Core.RuntimeAdmissionChecks::immediate role value)
+    | Result.error immediateError => (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] immediateError)
+    | Result.ok ignoredUnit => (ctor Result.ok [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] (record ScalarEffect {state := nextState, usedSlot := (ctor Option.none [UInt64])}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: scalar,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    program : Uorc.Core.RuntimeProgram::Program,
+    blockIndex : UInt64,
+    localTypes : Uorc.Core.RuntimeTable::Table,
+    slotCount : UInt64,
+    state : State,
+    value : UInt64
+  ],
+  result: (Result ScalarEffect Uorc.Core.RuntimeProgram::Failure),
+  body: (let signature : Uorc.Core.RuntimeOpcode::Spec := (Uorc.Core.RuntimeOpcode::spec (project state opcode)); (match (Uorc.Core.RuntimeOpcode::operandAt signature (project state seen))
+    | Option.none => (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+    | Option.some role => (match (advance state value)
+      | Result.error advanceError => (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] advanceError)
+      | Result.ok nextState => (match role
+        | Uorc.Core.RuntimeOpcode::OperandRole.absent => (ctor Result.error [ScalarEffect, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+        | Uorc.Core.RuntimeOpcode::OperandRole.immediateNatural => (immediateScalar nextState value role)
+        | Uorc.Core.RuntimeOpcode::OperandRole.immediateByte => (immediateScalar nextState value role)
+        | Uorc.Core.RuntimeOpcode::OperandRole.immediatePredicate => (immediateScalar nextState value role)
+        | Uorc.Core.RuntimeOpcode::OperandRole.localNatural => (localScalar arena localTypes slotCount state nextState value signature role)
+        | Uorc.Core.RuntimeOpcode::OperandRole.localByte => (localScalar arena localTypes slotCount state nextState value signature role)
+        | Uorc.Core.RuntimeOpcode::OperandRole.localPredicate => (localScalar arena localTypes slotCount state nextState value signature role)
+        | Uorc.Core.RuntimeOpcode::OperandRole.localSequence => (localScalar arena localTypes slotCount state nextState value signature role)
+        | Uorc.Core.RuntimeOpcode::OperandRole.localStore => (localScalar arena localTypes slotCount state nextState value signature role)
+        | Uorc.Core.RuntimeOpcode::OperandRole.localAny => (localScalar arena localTypes slotCount state nextState value signature role)
+        | Uorc.Core.RuntimeOpcode::OperandRole.blockReference => (blockScalar arena program blockIndex state nextState value signature))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finish,
+  parameters: [state : State],
+  result: (Result Uorc.Core.RuntimeValue::RuntimeType Uorc.Core.RuntimeProgram::Failure),
+  body: (match (prim checked_convert (project (Uorc.Core.RuntimeOpcode::spec (project state opcode)) operandCount) : (Option UInt64))
+    | Option.none => (ctor Result.error [Uorc.Core.RuntimeValue::RuntimeType, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+    | Option.some count => (if ((prim equal (project state seen) count : Bool) && (project state resultKnown)) then (ctor Result.ok [Uorc.Core.RuntimeValue::RuntimeType, Uorc.Core.RuntimeProgram::Failure] (project state resultType)) else (ctor Result.error [Uorc.Core.RuntimeValue::RuntimeType, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: captureContract,
+  parameters: [state : State, lane : Uorc.Core.RuntimeProgram::CaptureLane, count : UInt64],
+  result: (Result Uorc.Core.RuntimeAdmissionChecks::CaptureContract Uorc.Core.RuntimeProgram::Failure),
+  body: (match (match lane
+      | Uorc.Core.RuntimeProgram::CaptureLane.first => (project state first)
+      | Uorc.Core.RuntimeProgram::CaptureLane.second => (project state second))
+    | Option.none => (ctor Result.error [Uorc.Core.RuntimeAdmissionChecks::CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+    | Option.some contract => (if (prim equal (project contract count) count : Bool) then (ctor Result.ok [Uorc.Core.RuntimeAdmissionChecks::CaptureContract, Uorc.Core.RuntimeProgram::Failure] contract) else (ctor Result.error [Uorc.Core.RuntimeAdmissionChecks::CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))))),
+  executable: true
+}
+
+theorem{
+  name: callee_result_preserves_loop_stateType,
+  parameters: [
+    nextState : State,
+    secondLane : Bool,
+    contract : Uorc.Core.RuntimeAdmissionChecks::CaptureContract
+  ],
+  statement: ((project (installContract nextState secondLane contract) stateType) = (project nextState stateType)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: callee_result_preserves_loop_stateKnown,
+  parameters: [
+    nextState : State,
+    secondLane : Bool,
+    contract : Uorc.Core.RuntimeAdmissionChecks::CaptureContract
+  ],
+  statement: ((project (installContract nextState secondLane contract) stateKnown) = (project nextState stateKnown)),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

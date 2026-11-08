@@ -1,0 +1,91 @@
+\begin{lexlean}{Uorc.Core.CanonicalCallComposition}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: CompletionOrigin,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: fresh, fields: []}, {name: transferred, fields: []}]
+}
+
+definition{
+  name: capturePreparation,
+  parameters: [count : Nat],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalSchedule::captureReadEvents count),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: scanCapturePreparation,
+  parameters: [observerCount : Nat, updaterCount : Nat],
+  result: (List Uorc.Core.CanonicalCost::SemanticEvent),
+  body: (Uorc.Core.CanonicalCost::appendEvents (capturePreparation observerCount) (capturePreparation updaterCount)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: resolvedCallPlan,
+  parameters: [
+    lane : Uorc.Core.CanonicalSchedule::CallLane,
+    prefixArguments : (List Uorc.Core.ReferenceSemantics::Value),
+    capturedArguments : (List Uorc.Core.ReferenceSemantics::Value)
+  ],
+  result: Uorc.Core.CanonicalSchedule::CallPlan,
+  body: (Uorc.Core.CanonicalSchedule::callPlan lane (prim append prefixArguments capturedArguments : (List Uorc.Core.ReferenceSemantics::Value))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: appliedCallPlan,
+  parameters: [arguments : (List Uorc.Core.ReferenceSemantics::Value)],
+  result: Uorc.Core.CanonicalSchedule::CallPlan,
+  body: (record Uorc.Core.CanonicalSchedule::CallPlan {lane := (ctor Uorc.Core.CanonicalSchedule::CallLane.apply), arguments := arguments, entryEvents := (Uorc.Core.CanonicalCost::appendEvents (capturePreparation (prim length arguments : Nat)) (project (resolvedCallPlan (ctor Uorc.Core.CanonicalSchedule::CallLane.apply) (nil Uorc.Core.ReferenceSemantics::Value) arguments) entryEvents))}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: originForAction,
+  parameters: [action : Uorc.Core.CanonicalSchedule::Action],
+  result: CompletionOrigin,
+  body: (match action
+    | Uorc.Core.CanonicalSchedule::Action.scalar => (ctor CompletionOrigin.fresh)
+    | Uorc.Core.CanonicalSchedule::Action.literal => (ctor CompletionOrigin.fresh)
+    | Uorc.Core.CanonicalSchedule::Action.index => (ctor CompletionOrigin.fresh)
+    | Uorc.Core.CanonicalSchedule::Action.view => (ctor CompletionOrigin.fresh)
+    | Uorc.Core.CanonicalSchedule::Action.comparison => (ctor CompletionOrigin.fresh)
+    | Uorc.Core.CanonicalSchedule::Action.singleton => (ctor CompletionOrigin.fresh)
+    | Uorc.Core.CanonicalSchedule::Action.basis => (ctor CompletionOrigin.fresh)
+    | Uorc.Core.CanonicalSchedule::Action.store => (ctor CompletionOrigin.fresh)
+    | Uorc.Core.CanonicalSchedule::Action.apply => (ctor CompletionOrigin.transferred)
+    | Uorc.Core.CanonicalSchedule::Action.tabulate => (ctor CompletionOrigin.transferred)
+    | Uorc.Core.CanonicalSchedule::Action.fold => (ctor CompletionOrigin.transferred)
+    | Uorc.Core.CanonicalSchedule::Action.scan => (ctor CompletionOrigin.transferred)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: completeInstruction,
+  parameters: [
+    origin : CompletionOrigin,
+    binding : Uorc.Core.CanonicalBindings::Binding,
+    deadBindings : (List Uorc.Core.CanonicalBindings::Binding)
+  ],
+  result: Uorc.Core.CanonicalSchedule::ValuePlan,
+  body: (record Uorc.Core.CanonicalSchedule::ValuePlan {binding := (Uorc.Core.CanonicalBindings::transfer binding (ctor Uorc.Core.CanonicalBindings::Role.instruction)), events := (match origin
+    | CompletionOrigin.fresh => (Uorc.Core.CanonicalSchedule::completedResult (Uorc.Core.CanonicalBindings::transfer binding (ctor Uorc.Core.CanonicalBindings::Role.instruction)) deadBindings)
+    | CompletionOrigin.transferred => (Uorc.Core.CanonicalBindings::lastUseEvents deadBindings))}),
+  axioms: [],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

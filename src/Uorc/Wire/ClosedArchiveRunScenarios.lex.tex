@@ -1,0 +1,440 @@
+\begin{lexlean}{Uorc.Wire.ClosedArchiveRunScenarios}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Wire.ClosedArchive}
+\importmodule{Uorc.Wire.ArchiveSnapshotScenarios}
+\importmodule{Uorc.Wire.ArchiveSnapshot}
+\importmodule{Uorc.Wire.ArchiveIntegrity}
+\importmodule{Uorc.Integrity.Profile}
+\importmodule{Uorc.Wire.FrameEventContract}
+\importmodule{Uorc.Wire.ObjectDemux}
+\importmodule{Uorc.Wire.ArchiveObjects}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Wire.OwnedBasisSnapshot}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Wire.OwnedBasisScenarios}
+\importmodule{Uorc.Wire.ClosedArchiveContract}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: wire, fields: []},
+    {name: fuel, fields: []},
+    {name: assertion, fields: []},
+    {name: ownership, fields: []},
+    {name: trace, fields: []},
+    {name: pause, fields: []}
+  ]
+}
+
+definition{
+  name: budget,
+  parameters: [],
+  result: Uorc.Core.RuntimeResources::Budget,
+  body: (record Uorc.Core.RuntimeResources::Budget {maxWork := (18446744073709551615 : UInt64), maxOwnedBytes := (1000000 : UInt64), maxOutputBytes := (18446744073709551615 : UInt64), maxFrames := (100 : UInt64)})
+}
+
+definition{
+  name: wire,
+  parameters: [program : Bool, bad : Bool],
+  result: (Result Bytes Error),
+  body: (let preimageLocal1 : Bytes := (if program then 0x554f52430301000101030b01000301030300ff800100 else 0x554f5243030100000500010001000202ff); (match (Uorc.Integrity.Profile::hash (ctor Uorc.Integrity.Profile::Kind.format3Stream) (ctor Uorc.Integrity.Profile::Purpose.archivePreimage) preimageLocal1)
+    | Result.error whyLocal2 => (ctor Result.error [Bytes, Error] (ctor Error.wire))
+    | Result.ok valueLocal3 => (ctor Result.ok [Bytes, Error] (prim append preimageLocal1 (if bad then 0x0000000000000000000000000000000000000000000000000000000000000000 else valueLocal3) : Bytes)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: setup,
+  parameters: [program : Bool, bad : Bool],
+  result: (Result Uorc.Wire.ClosedArchive::State Error),
+  body: (match (wire program bad)
+    | Result.error whyLocal4 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+    | Result.ok valueLocal5 => (match (Uorc.Wire.ArchiveSnapshotScenarios::setupBytes valueLocal5)
+      | Result.error whyLocal6 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+      | Result.ok valueLocal7 => (let frameLocal8 : Uorc.Wire.ArchiveSnapshot::Session := valueLocal7; (match (Uorc.Wire.ClosedArchive::begin (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 1}) (budget) (project frameLocal8 arena) (project frameLocal8 usage) (project (project frameLocal8 state) archive) (ctor Option.none [Uorc.Wire.OwnedBasisSnapshot::Snapshot]))
+        | Result.error whyLocal9 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+        | Result.ok valueLocal10 => (ctor Result.ok [Uorc.Wire.ClosedArchive::State, Error] valueLocal10))))),
+  axioms: [Quot.sound, propext]
+}
+
+structure{
+  name: SpanResult,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: state, type: Uorc.Wire.ClosedArchive::State}, {name: position, type: Nat}]
+}
+
+definition{
+  name: span,
+  parameters: [
+    fuel : Nat,
+    x : Uorc.Wire.ClosedArchive::State,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    remaining : UInt64,
+    expected : Bytes,
+    position : Nat
+  ],
+  result: (Result SpanResult Error),
+  body: (match fuel
+    | Nat.zero => (if (prim equal remaining (0 : UInt64) : Bool) then (ctor Result.ok [SpanResult, Error] (record SpanResult {state := x, position := position})) else (ctor Result.error [SpanResult, Error] (ctor Error.fuel)))
+    | Nat.succ restLocal11 => (if (prim equal remaining (0 : UInt64) : Bool) then (ctor Result.ok [SpanResult, Error] (record SpanResult {state := x, position := position})) else (let readLocal12 : Uorc.Wire.ClosedArchive::ByteRead := (Uorc.Wire.ClosedArchive::readByte x image offset); (match (project readLocal12 value)
+      | Result.error whyLocal13 => (ctor Result.error [SpanResult, Error] (ctor Error.wire))
+      | Result.ok valueLocal14 => (let byteLocal15 : UInt8 := valueLocal14; (match (prim index expected position : (Option UInt8))
+        | Option.none => (ctor Result.error [SpanResult, Error] (ctor Error.trace))
+        | Option.some wantedLocal16 => (if (prim equal byteLocal15 wantedLocal16 : Bool) then (span restLocal11 (project readLocal12 state) image (Uorc.Core.Heap::wordAdd offset (1 : UInt64)) (Uorc.Core.Heap::wordSub remaining (1 : UInt64)) expected (position + 1)) else (ctor Result.error [SpanResult, Error] (ctor Error.trace))))))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+structure{
+  name: Observed,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: state, type: Uorc.Wire.ClosedArchive::State},
+    {name: position, type: Nat},
+    {name: begins, type: UInt64},
+    {name: ends, type: UInt64}
+  ]
+}
+
+definition{
+  name: drive,
+  parameters: [fuel : Nat, r : Observed, expected : Bytes],
+  result: (Result Observed Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Observed, Error] (ctor Error.fuel))
+    | Nat.succ restLocal17 => (match (Uorc.Wire.ClosedArchive::pending (project r state))
+      | Option.none => (let tLocal18 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::advance (project r state) (1024 : UInt64)); (match (project tLocal18 signal)
+        | Uorc.Wire.ClosedArchive::Signal.advanced => (drive restLocal17 (record Observed {state := (project tLocal18 state), position := (project r position), begins := (project r begins), ends := (project r ends)}) expected)
+        | Uorc.Wire.ClosedArchive::Signal.pending => (drive restLocal17 (record Observed {state := (project tLocal18 state), position := (project r position), begins := (project r begins), ends := (project r ends)}) expected)
+        | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.ok [Observed, Error] (record Observed {state := (project tLocal18 state), position := (project r position), begins := (project r begins), ends := (project r ends)}))
+        | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.error [Observed, Error] (ctor Error.wire))
+        | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Observed, Error] (ctor Error.wire))
+        | Uorc.Wire.ClosedArchive::Signal.paused whyLocal19 => (ctor Result.error [Observed, Error] (ctor Error.pause))
+        | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal20 => (ctor Result.error [Observed, Error] (ctor Error.wire))))
+      | Option.some eventLocal21 => (match eventLocal21
+        | Uorc.Wire.FrameEventContract::ObjectEvent.beginObject indexLocal22 lengthLocal23 => (if (prim equal indexLocal22 (project r begins) : Bool) then (drive restLocal17 (record Observed {state := (project (Uorc.Wire.ClosedArchive::acknowledge (project (record Observed {state := (project r state), position := (project r position), begins := (Uorc.Core.Heap::wordAdd (project r begins) (1 : UInt64)), ends := (project r ends)}) state) (ctor Uorc.Wire.ObjectDemux::Ack.consumed)) state), position := (project (record Observed {state := (project r state), position := (project r position), begins := (Uorc.Core.Heap::wordAdd (project r begins) (1 : UInt64)), ends := (project r ends)}) position), begins := (project (record Observed {state := (project r state), position := (project r position), begins := (Uorc.Core.Heap::wordAdd (project r begins) (1 : UInt64)), ends := (project r ends)}) begins), ends := (project (record Observed {state := (project r state), position := (project r position), begins := (Uorc.Core.Heap::wordAdd (project r begins) (1 : UInt64)), ends := (project r ends)}) ends)}) expected) else (ctor Result.error [Observed, Error] (ctor Error.trace)))
+        | Uorc.Wire.FrameEventContract::ObjectEvent.endObject indexLocal24 => (if (prim equal indexLocal24 (project r ends) : Bool) then (drive restLocal17 (record Observed {state := (project (Uorc.Wire.ClosedArchive::acknowledge (project (record Observed {state := (project r state), position := (project r position), begins := (project r begins), ends := (Uorc.Core.Heap::wordAdd (project r ends) (1 : UInt64))}) state) (ctor Uorc.Wire.ObjectDemux::Ack.consumed)) state), position := (project (record Observed {state := (project r state), position := (project r position), begins := (project r begins), ends := (Uorc.Core.Heap::wordAdd (project r ends) (1 : UInt64))}) position), begins := (project (record Observed {state := (project r state), position := (project r position), begins := (project r begins), ends := (Uorc.Core.Heap::wordAdd (project r ends) (1 : UInt64))}) begins), ends := (project (record Observed {state := (project r state), position := (project r position), begins := (project r begins), ends := (Uorc.Core.Heap::wordAdd (project r ends) (1 : UInt64))}) ends)}) expected) else (ctor Result.error [Observed, Error] (ctor Error.trace)))
+        | Uorc.Wire.FrameEventContract::ObjectEvent.bytes indexLocal25 imageLocal26 offsetLocal27 lengthLocal28 => (match (project (project r state) owner)
+          | Uorc.Wire.ClosedArchive::Owner.scanning sessionLocal29 => (ctor Result.error [Observed, Error] (ctor Error.trace))
+          | Uorc.Wire.ClosedArchive::Owner.integrity sessionLocal30 => (ctor Result.error [Observed, Error] (ctor Error.trace))
+          | Uorc.Wire.ClosedArchive::Owner.basisHash sessionLocal31 => (ctor Result.error [Observed, Error] (ctor Error.trace))
+          | Uorc.Wire.ClosedArchive::Owner.basisCompare sessionLocal32 => (ctor Result.error [Observed, Error] (ctor Error.trace))
+          | Uorc.Wire.ClosedArchive::Owner.preparing arenaLocal33 usageLocal34 => (ctor Result.error [Observed, Error] (ctor Error.trace))
+          | Uorc.Wire.ClosedArchive::Owner.program sessionLocal35 => (ctor Result.error [Observed, Error] (ctor Error.trace))
+          | Uorc.Wire.ClosedArchive::Owner.machine sessionLocal36 => (ctor Result.error [Observed, Error] (ctor Error.trace))
+          | Uorc.Wire.ClosedArchive::Owner.objects sessionLocal37 => (match (span 1000 (project r state) imageLocal26 offsetLocal27 lengthLocal28 expected (project r position))
+            | Result.error whyLocal38 => (ctor Result.error [Observed, Error] (ctor Error.wire))
+            | Result.ok valueLocal39 => (drive restLocal17 (record Observed {state := (project (Uorc.Wire.ClosedArchive::acknowledge (project (record Observed {state := (project valueLocal39 state), position := (project valueLocal39 position), begins := (project r begins), ends := (project r ends)}) state) (ctor Uorc.Wire.ObjectDemux::Ack.consumed)) state), position := (project (record Observed {state := (project valueLocal39 state), position := (project valueLocal39 position), begins := (project r begins), ends := (project r ends)}) position), begins := (project (record Observed {state := (project valueLocal39 state), position := (project valueLocal39 position), begins := (project r begins), ends := (project r ends)}) begins), ends := (project (record Observed {state := (project valueLocal39 state), position := (project valueLocal39 position), begins := (project r begins), ends := (project r ends)}) ends)}) expected))
+          | Uorc.Wire.ClosedArchive::Owner.terminal arenaLocal40 usageLocal41 => (ctor Result.error [Observed, Error] (ctor Error.trace))
+          | Uorc.Wire.ClosedArchive::Owner.clean arenaLocal42 usageLocal43 => (ctor Result.error [Observed, Error] (ctor Error.trace))
+          | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal44 => (ctor Result.error [Observed, Error] (ctor Error.trace)))
+        | Uorc.Wire.FrameEventContract::ObjectEvent.seal countLocal45 => (if (prim equal (prim to_nat countLocal45 : Nat) (project r position) : Bool) then (drive restLocal17 (record Observed {state := (project (Uorc.Wire.ClosedArchive::acknowledge (project r state) (ctor Uorc.Wire.ObjectDemux::Ack.consumed)) state), position := (project r position), begins := (project r begins), ends := (project r ends)}) expected) else (ctor Result.error [Observed, Error] (ctor Error.trace)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: clean,
+  parameters: [fuel : Nat, x : Uorc.Wire.ClosedArchive::State],
+  result: (Result Unit Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Unit, Error] (ctor Error.fuel))
+    | Nat.succ restLocal46 => (let tLocal47 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::cleanup x (1024 : UInt64)); (match (project tLocal47 signal)
+      | Uorc.Wire.ClosedArchive::Signal.advanced => (clean restLocal46 (project tLocal47 state))
+      | Uorc.Wire.ClosedArchive::Signal.pending => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Uorc.Wire.ClosedArchive::Signal.clean => (match (project (project tLocal47 state) owner)
+        | Uorc.Wire.ClosedArchive::Owner.scanning sessionLocal48 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.ClosedArchive::Owner.integrity sessionLocal49 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.ClosedArchive::Owner.basisHash sessionLocal50 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.ClosedArchive::Owner.basisCompare sessionLocal51 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.ClosedArchive::Owner.preparing arenaLocal52 usageLocal53 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.ClosedArchive::Owner.program sessionLocal54 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.ClosedArchive::Owner.machine sessionLocal55 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.ClosedArchive::Owner.objects sessionLocal56 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.ClosedArchive::Owner.terminal arenaLocal57 usageLocal58 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+        | Uorc.Wire.ClosedArchive::Owner.clean arenaLocal59 usageLocal60 => (if (Uorc.Core.HeapAudit::auditRoots arenaLocal59 (nil Uorc.Core.RuntimeValue::Handle)) then (ctor Result.ok [Unit, Error] ()) else (ctor Result.error [Unit, Error] (ctor Error.ownership)))
+        | Uorc.Wire.ClosedArchive::Owner.handedOff usageLocal61 => (ctor Result.error [Unit, Error] (ctor Error.ownership)))
+      | Uorc.Wire.ClosedArchive::Signal.paused whyLocal62 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal63 => (ctor Result.error [Unit, Error] (ctor Error.wire))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: check,
+  parameters: [program : Bool],
+  result: (Result Unit Error),
+  body: (match (setup program false)
+    | Result.error whyLocal64 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal65 => (match (drive 500000 (record Observed {state := valueLocal65, position := 0, begins := (0 : UInt64), ends := (0 : UInt64)}) (if program then 0x00ff80 else 0x02ff))
+      | Result.error whyLocal66 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal67 => (let doneLocal68 : Observed := valueLocal67; (if (prim equal (project doneLocal68 position) (if program then 3 else 2) : Bool) then (if (prim equal (project doneLocal68 begins) (if program then (1 : UInt64) else (5 : UInt64)) : Bool) then (if (prim equal (project doneLocal68 ends) (project doneLocal68 begins) : Bool) then (clean 500000 (project doneLocal68 state)) else (ctor Result.error [Unit, Error] (ctor Error.trace))) else (ctor Result.error [Unit, Error] (ctor Error.trace))) else (ctor Result.error [Unit, Error] (ctor Error.trace)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: conditionalWire,
+  parameters: [program : Bool, badBasis : Bool],
+  result: (Result Bytes Error),
+  body: (match (Uorc.Integrity.Profile::hash (ctor Uorc.Integrity.Profile::Kind.format3Stream) (ctor Uorc.Integrity.Profile::Purpose.basisObjects) 0x00)
+    | Result.error whyLocal69 => (ctor Result.error [Bytes, Error] (ctor Error.wire))
+    | Result.ok valueLocal70 => (let basisDigestLocal71 : Bytes := (if badBasis then 0x0000000000000000000000000000000000000000000000000000000000000000 else valueLocal70); (let headerLocal72 : Bytes := (if program then 0x554f52430301010101030b else 0x554f52430301010005000100010002); (let bodyLocal73 : Bytes := (if program then 0x01000301030300ff800100 else 0x02ff); (let preimageLocal74 : Bytes := (prim append headerLocal72 (prim append basisDigestLocal71 bodyLocal73 : Bytes) : Bytes); (match (Uorc.Integrity.Profile::hash (ctor Uorc.Integrity.Profile::Kind.format3Stream) (ctor Uorc.Integrity.Profile::Purpose.archivePreimage) preimageLocal74)
+      | Result.error whyLocal75 => (ctor Result.error [Bytes, Error] (ctor Error.wire))
+      | Result.ok valueLocal76 => (ctor Result.ok [Bytes, Error] (prim append preimageLocal74 valueLocal76 : Bytes)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: setupConditional,
+  parameters: [program : Bool, badBasis : Bool],
+  result: (Result Uorc.Wire.ClosedArchive::State Error),
+  body: (match (Uorc.Wire.OwnedBasisScenarios::prepareEmpty)
+    | Result.error whyLocal77 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+    | Result.ok valueLocal78 => (let basisPreparedLocal79 : Uorc.Wire.OwnedBasisScenarios::Prepared := valueLocal78; (match (conditionalWire program badBasis)
+      | Result.error whyLocal80 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+      | Result.ok valueLocal81 => (let bytesLocal82 : Bytes := valueLocal81; (match (Uorc.Core.Heap::allocate (project basisPreparedLocal79 arena) (ctor Uorc.Core.Heap::Node.image (ctor Uorc.Core.Heap::ImageKind.archive) bytesLocal82))
+        | Result.error whyLocal83 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+        | Result.ok valueLocal84 => (let imageLocal85 : Uorc.Core.Heap::Allocation := valueLocal84; (match (Uorc.Core.Heap::allocateMoved (project imageLocal85 arena) (ctor Uorc.Core.Heap::Node.sequenceLeaf (project imageLocal85 handle) (0 : UInt64) (match (Uorc.Core.Heap::wordOfNat (prim length bytesLocal82 : Nat))
+            | Option.none => (0 : UInt64)
+            | Option.some lengthLocal86 => lengthLocal86)) true false)
+          | Result.error whyLocal87 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+          | Result.ok valueLocal88 => (let sequenceLocal89 : Uorc.Core.Heap::Allocation := valueLocal88; (match (Uorc.Core.RuntimeResources::observeArena (Uorc.Wire.OwnedBasisScenarios::budget) (project basisPreparedLocal79 usage) (project sequenceLocal89 arena))
+            | Result.error whyLocal90 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+            | Result.ok valueLocal91 => (match (Uorc.Wire.ClosedArchive::begin (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 1}) (Uorc.Wire.OwnedBasisScenarios::budget) (project sequenceLocal89 arena) valueLocal91 (project sequenceLocal89 handle) (ctor Option.some [Uorc.Wire.OwnedBasisSnapshot::Snapshot] (project basisPreparedLocal79 snapshot)))
+              | Result.error whyLocal92 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+              | Result.ok valueLocal93 => (ctor Result.ok [Uorc.Wire.ClosedArchive::State, Error] valueLocal93))))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: checkConditional,
+  parameters: [program : Bool],
+  result: (Result Unit Error),
+  body: (match (setupConditional program false)
+    | Result.error whyLocal94 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal95 => (match (drive 500000 (record Observed {state := valueLocal95, position := 0, begins := (0 : UInt64), ends := (0 : UInt64)}) (if program then 0x00ff80 else 0x02ff))
+      | Result.error whyLocal96 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal97 => (let doneLocal98 : Observed := valueLocal97; (if (prim equal (project doneLocal98 position) (if program then 3 else 2) : Bool) then (clean 500000 (project doneLocal98 state)) else (ctor Result.error [Unit, Error] (ctor Error.trace)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: untilFailure,
+  parameters: [fuel : Nat, x : Uorc.Wire.ClosedArchive::State],
+  result: (Result Uorc.Wire.ClosedArchive::State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.fuel))
+    | Nat.succ restLocal99 => (let tLocal100 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::advance x (1024 : UInt64)); (match (project tLocal100 signal)
+      | Uorc.Wire.ClosedArchive::Signal.advanced => (untilFailure restLocal99 (project tLocal100 state))
+      | Uorc.Wire.ClosedArchive::Signal.pending => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+      | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+      | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.ok [Uorc.Wire.ClosedArchive::State, Error] (project tLocal100 state))
+      | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+      | Uorc.Wire.ClosedArchive::Signal.paused whyLocal101 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+      | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal102 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: wrongBasis,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setupConditional true true)
+    | Result.error whyLocal103 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal104 => (match (untilFailure 500000 valueLocal104)
+      | Result.error whyLocal105 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal106 => (let xLocal107 : Uorc.Wire.ClosedArchive::State := valueLocal106; (match (project xLocal107 failure)
+        | Option.none => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+        | Option.some whyLocal108 => (match whyLocal108
+          | Uorc.Wire.ClosedArchive::Failure.protocol => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.ownership => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.cancelled => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.missingBasis => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.basisIdentity => (clean 500000 xLocal107)
+          | Uorc.Wire.ClosedArchive::Failure.archiveIntegrity => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.framing => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.admission => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.execution => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.objects => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.publication => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.resource whyLocal109 => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.heap whyLocal110 => (ctor Result.error [Unit, Error] (ctor Error.assertion))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: wrongHash,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setup false true)
+    | Result.error whyLocal111 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal112 => (match (untilFailure 500000 valueLocal112)
+      | Result.error whyLocal113 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal114 => (let xLocal115 : Uorc.Wire.ClosedArchive::State := valueLocal114; (match (project xLocal115 failure)
+        | Option.none => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+        | Option.some whyLocal116 => (match whyLocal116
+          | Uorc.Wire.ClosedArchive::Failure.protocol => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.ownership => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.cancelled => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.missingBasis => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.basisIdentity => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.archiveIntegrity => (clean 500000 xLocal115)
+          | Uorc.Wire.ClosedArchive::Failure.framing => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.admission => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.execution => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.objects => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.publication => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.resource whyLocal117 => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+          | Uorc.Wire.ClosedArchive::Failure.heap whyLocal118 => (ctor Result.error [Unit, Error] (ctor Error.assertion))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ticks,
+  parameters: [fuel : Nat, x : Uorc.Wire.ClosedArchive::State],
+  result: Uorc.Wire.ClosedArchive::State,
+  body: (match fuel
+    | Nat.zero => x
+    | Nat.succ restLocal119 => (ticks restLocal119 (project (Uorc.Wire.ClosedArchive::advance x (1024 : UInt64)) state))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: cancelPrefix,
+  parameters: [prefix : Nat, program : Bool],
+  result: (Result Unit Error),
+  body: (match (setup program false)
+    | Result.error whyLocal120 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal121 => (clean 500000 (Uorc.Wire.ClosedArchive::cancel (ticks prefix valueLocal121)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: toBytes,
+  parameters: [fuel : Nat, x : Uorc.Wire.ClosedArchive::State],
+  result: (Result Uorc.Wire.ClosedArchive::State Error),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.fuel))
+    | Nat.succ restLocal122 => (match (Uorc.Wire.ClosedArchive::pending x)
+      | Option.none => (let tLocal123 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::advance x (1024 : UInt64)); (match (project tLocal123 signal)
+        | Uorc.Wire.ClosedArchive::Signal.advanced => (toBytes restLocal122 (project tLocal123 state))
+        | Uorc.Wire.ClosedArchive::Signal.pending => (toBytes restLocal122 (project tLocal123 state))
+        | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+        | Uorc.Wire.ClosedArchive::Signal.failed => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+        | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+        | Uorc.Wire.ClosedArchive::Signal.paused whyLocal124 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+        | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal125 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))))
+      | Option.some eventLocal126 => (match eventLocal126
+        | Uorc.Wire.FrameEventContract::ObjectEvent.beginObject indexLocal127 lengthLocal128 => (toBytes restLocal122 (project (Uorc.Wire.ClosedArchive::acknowledge x (ctor Uorc.Wire.ObjectDemux::Ack.consumed)) state))
+        | Uorc.Wire.FrameEventContract::ObjectEvent.bytes indexLocal129 imageLocal130 offsetLocal131 lengthLocal132 => (ctor Result.ok [Uorc.Wire.ClosedArchive::State, Error] x)
+        | Uorc.Wire.FrameEventContract::ObjectEvent.endObject indexLocal133 => (toBytes restLocal122 (project (Uorc.Wire.ClosedArchive::acknowledge x (ctor Uorc.Wire.ObjectDemux::Ack.consumed)) state))
+        | Uorc.Wire.FrameEventContract::ObjectEvent.seal countLocal134 => (toBytes restLocal122 (project (Uorc.Wire.ClosedArchive::acknowledge x (ctor Uorc.Wire.ObjectDemux::Ack.consumed)) state))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: failedPublication,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (setup true false)
+    | Result.error whyLocal135 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal136 => (match (toBytes 500000 valueLocal136)
+      | Result.error whyLocal137 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal138 => (let pendingLocal139 : Uorc.Wire.ClosedArchive::State := valueLocal138; (let failedLocal140 : Uorc.Wire.ClosedArchive::State := (Uorc.Wire.ClosedArchive::publicationFailed pendingLocal139); (let tLocal141 : Uorc.Wire.ClosedArchive::Transition := (Uorc.Wire.ClosedArchive::advance failedLocal140 (1024 : UInt64)); (match (project tLocal141 signal)
+        | Uorc.Wire.ClosedArchive::Signal.advanced => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+        | Uorc.Wire.ClosedArchive::Signal.pending => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+        | Uorc.Wire.ClosedArchive::Signal.decoded => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+        | Uorc.Wire.ClosedArchive::Signal.failed => (match (Uorc.Wire.ClosedArchive::pending (project tLocal141 state))
+          | Option.none => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+          | Option.some eventLocal142 => (match eventLocal142
+            | Uorc.Wire.FrameEventContract::ObjectEvent.beginObject indexLocal143 lengthLocal144 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+            | Uorc.Wire.FrameEventContract::ObjectEvent.bytes indexLocal145 imageLocal146 offsetLocal147 lengthLocal148 => (clean 500000 (Uorc.Wire.ClosedArchive::cancel (project tLocal141 state)))
+            | Uorc.Wire.FrameEventContract::ObjectEvent.endObject indexLocal149 => (ctor Result.error [Unit, Error] (ctor Error.ownership))
+            | Uorc.Wire.FrameEventContract::ObjectEvent.seal countLocal150 => (ctor Result.error [Unit, Error] (ctor Error.ownership))))
+        | Uorc.Wire.ClosedArchive::Signal.clean => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+        | Uorc.Wire.ClosedArchive::Signal.paused whyLocal151 => (ctor Result.error [Unit, Error] (ctor Error.assertion))
+        | Uorc.Wire.ClosedArchive::Signal.transferred imageLocal152 => (ctor Result.error [Unit, Error] (ctor Error.assertion)))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: negativeControls,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (wrongHash)
+    | Result.error whyLocal153 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal154 => (match (failedPublication)
+      | Result.error whyLocal155 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal156 => (match (cancelPrefix 0 false)
+        | Result.error whyLocal157 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+        | Result.ok valueLocal158 => (match (cancelPrefix 100 false)
+          | Result.error whyLocal159 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+          | Result.ok valueLocal160 => (match (cancelPrefix 1000 true)
+            | Result.error whyLocal161 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+            | Result.ok valueLocal162 => (cancelPrefix 3000 true)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: setupEmpty,
+  parameters: [program : Bool],
+  result: (Result Uorc.Wire.ClosedArchive::State Error),
+  body: (let preimageLocal163 : Bytes := (if program then 0x554f5243030100010100080100030103000100 else 0x554f5243030100000000); (match (Uorc.Integrity.Profile::hash (ctor Uorc.Integrity.Profile::Kind.format3Stream) (ctor Uorc.Integrity.Profile::Purpose.archivePreimage) preimageLocal163)
+    | Result.error whyLocal164 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+    | Result.ok valueLocal165 => (match (Uorc.Wire.ArchiveSnapshotScenarios::setupBytes (prim append preimageLocal163 valueLocal165 : Bytes))
+      | Result.error whyLocal166 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+      | Result.ok valueLocal167 => (let frameLocal168 : Uorc.Wire.ArchiveSnapshot::Session := valueLocal167; (match (Uorc.Wire.ClosedArchive::begin (record Uorc.Product.Api::Run {instance := 1, serial := 1, revision := 1}) (budget) (project frameLocal168 arena) (project frameLocal168 usage) (project (project frameLocal168 state) archive) (ctor Option.none [Uorc.Wire.OwnedBasisSnapshot::Snapshot]))
+        | Result.error whyLocal169 => (ctor Result.error [Uorc.Wire.ClosedArchive::State, Error] (ctor Error.wire))
+        | Result.ok valueLocal170 => (ctor Result.ok [Uorc.Wire.ClosedArchive::State, Error] valueLocal170)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: empty,
+  parameters: [program : Bool],
+  result: (Result Unit Error),
+  body: (match (setupEmpty program)
+    | Result.error whyLocal171 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal172 => (match (drive 500000 (record Observed {state := valueLocal172, position := 0, begins := (0 : UInt64), ends := (0 : UInt64)}) 0x)
+      | Result.error whyLocal173 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal174 => (let doneLocal175 : Observed := valueLocal174; (if (prim equal (project doneLocal175 position) 0 : Bool) then (if (prim equal (project doneLocal175 begins) (if program then (1 : UInt64) else (0 : UInt64)) : Bool) then (if (prim equal (project doneLocal175 ends) (project doneLocal175 begins) : Bool) then (clean 500000 (project doneLocal175 state)) else (ctor Result.error [Unit, Error] (ctor Error.trace))) else (ctor Result.error [Unit, Error] (ctor Error.trace))) else (ctor Result.error [Unit, Error] (ctor Error.trace)))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit Error),
+  body: (match (check false)
+    | Result.error whyLocal176 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+    | Result.ok valueLocal177 => (match (check true)
+      | Result.error whyLocal178 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+      | Result.ok valueLocal179 => (match (checkConditional false)
+        | Result.error whyLocal180 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+        | Result.ok valueLocal181 => (match (checkConditional true)
+          | Result.error whyLocal182 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+          | Result.ok valueLocal183 => (match (wrongBasis)
+            | Result.error whyLocal184 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+            | Result.ok valueLocal185 => (match (negativeControls)
+              | Result.error whyLocal186 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+              | Result.ok valueLocal187 => (match (empty false)
+                | Result.error whyLocal188 => (ctor Result.error [Unit, Error] (ctor Error.wire))
+                | Result.ok valueLocal189 => (empty true)))))))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

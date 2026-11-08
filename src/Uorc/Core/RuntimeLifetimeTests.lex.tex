@@ -1,0 +1,162 @@
+\begin{lexlean}{Uorc.Core.RuntimeLifetimeTests}
+\importmodule{Uorc.Core.RuntimeAdmissionChecks}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.RuntimeLifetime}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Core.RuntimeFixtures}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: failed, fields: []}]
+}
+
+definition{
+  name: absentUsesHaveExactReleasePoints,
+  parameters: [],
+  result: Bool,
+  body: ((match (Uorc.Core.RuntimeLifetime::step (Uorc.Core.Heap::emptyArena (0 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (2 : UInt64), instructionCount := (3 : UInt64), slotCount := (5 : UInt64), returnSlot := (4 : UInt64), nextSlot := (0 : UInt64)}))
+    | Result.error error_event => false
+    | Result.ok event => (match event
+      | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => ((prim equal slot (0 : UInt64) : Bool) && ((prim equal (project next nextSlot) (1 : UInt64) : Bool) && (match bucket
+        | Uorc.Core.RuntimeLifetime::Bucket.initial => true
+        | Uorc.Core.RuntimeLifetime::Bucket.after instruction => (false && (prim equal instruction (0 : UInt64) : Bool)))))
+      | Uorc.Core.RuntimeLifetime::Event.skipped next => false
+      | Uorc.Core.RuntimeLifetime::Event.done => false)) && ((match (Uorc.Core.RuntimeLifetime::step (Uorc.Core.Heap::emptyArena (0 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (2 : UInt64), instructionCount := (3 : UInt64), slotCount := (5 : UInt64), returnSlot := (4 : UInt64), nextSlot := (1 : UInt64)}))
+    | Result.error error_event => false
+    | Result.ok event => (match event
+      | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => ((prim equal slot (1 : UInt64) : Bool) && ((prim equal (project next nextSlot) (2 : UInt64) : Bool) && (match bucket
+        | Uorc.Core.RuntimeLifetime::Bucket.initial => true
+        | Uorc.Core.RuntimeLifetime::Bucket.after instruction => (false && (prim equal instruction (0 : UInt64) : Bool)))))
+      | Uorc.Core.RuntimeLifetime::Event.skipped next => false
+      | Uorc.Core.RuntimeLifetime::Event.done => false)) && ((match (Uorc.Core.RuntimeLifetime::step (Uorc.Core.Heap::emptyArena (0 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (2 : UInt64), instructionCount := (3 : UInt64), slotCount := (5 : UInt64), returnSlot := (4 : UInt64), nextSlot := (2 : UInt64)}))
+    | Result.error error_event => false
+    | Result.ok event => (match event
+      | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => ((prim equal slot (2 : UInt64) : Bool) && ((prim equal (project next nextSlot) (3 : UInt64) : Bool) && (match bucket
+        | Uorc.Core.RuntimeLifetime::Bucket.initial => false
+        | Uorc.Core.RuntimeLifetime::Bucket.after instruction => (true && (prim equal instruction (0 : UInt64) : Bool)))))
+      | Uorc.Core.RuntimeLifetime::Event.skipped next => false
+      | Uorc.Core.RuntimeLifetime::Event.done => false)) && ((match (Uorc.Core.RuntimeLifetime::step (Uorc.Core.Heap::emptyArena (0 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (2 : UInt64), instructionCount := (3 : UInt64), slotCount := (5 : UInt64), returnSlot := (4 : UInt64), nextSlot := (3 : UInt64)}))
+    | Result.error error_event => false
+    | Result.ok event => (match event
+      | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => ((prim equal slot (3 : UInt64) : Bool) && ((prim equal (project next nextSlot) (4 : UInt64) : Bool) && (match bucket
+        | Uorc.Core.RuntimeLifetime::Bucket.initial => false
+        | Uorc.Core.RuntimeLifetime::Bucket.after instruction => (true && (prim equal instruction (1 : UInt64) : Bool)))))
+      | Uorc.Core.RuntimeLifetime::Event.skipped next => false
+      | Uorc.Core.RuntimeLifetime::Event.done => false)) && ((match (Uorc.Core.RuntimeLifetime::step (Uorc.Core.Heap::emptyArena (0 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (2 : UInt64), instructionCount := (3 : UInt64), slotCount := (5 : UInt64), returnSlot := (4 : UInt64), nextSlot := (4 : UInt64)}))
+    | Result.error error_event => false
+    | Result.ok event => (match event
+      | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => false
+      | Uorc.Core.RuntimeLifetime::Event.skipped next => (prim equal (project next nextSlot) (5 : UInt64) : Bool)
+      | Uorc.Core.RuntimeLifetime::Event.done => false)) && ((match (Uorc.Core.RuntimeLifetime::step (Uorc.Core.Heap::emptyArena (0 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (2 : UInt64), instructionCount := (3 : UInt64), slotCount := (5 : UInt64), returnSlot := (4 : UInt64), nextSlot := (5 : UInt64)}))
+    | Result.error error_event => false
+    | Result.ok event => (match event
+      | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => false
+      | Uorc.Core.RuntimeLifetime::Event.skipped next => false
+      | Uorc.Core.RuntimeLifetime::Event.done => true)) && true)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: timestampAtCreatedSlot,
+  parameters: [stamp : UInt64],
+  result: Bool,
+  body: (match (Uorc.Core.RuntimeFixtures::put (Uorc.Core.Heap::emptyArena (100000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (3 : UInt64) (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache) (ctor Uorc.Core.RuntimeValue::RuntimeValue.natural stamp)))
+    | Result.error heapError => false
+    | Result.ok allocation => (if (prim equal stamp (1 : UInt64) : Bool) then (match (Uorc.Core.RuntimeLifetime::step (project allocation arena) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache)), root := (project allocation handle)}) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (2 : UInt64), instructionCount := (3 : UInt64), slotCount := (5 : UInt64), returnSlot := (4 : UInt64), nextSlot := (3 : UInt64)}))
+      | Result.error error_event => false
+      | Result.ok event => (match event
+        | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => ((prim equal slot (3 : UInt64) : Bool) && ((prim equal (project next nextSlot) (4 : UInt64) : Bool) && (match bucket
+          | Uorc.Core.RuntimeLifetime::Bucket.initial => false
+          | Uorc.Core.RuntimeLifetime::Bucket.after instruction => (true && (prim equal instruction (1 : UInt64) : Bool)))))
+        | Uorc.Core.RuntimeLifetime::Event.skipped next => false
+        | Uorc.Core.RuntimeLifetime::Event.done => false)) else (match (Uorc.Core.RuntimeLifetime::step (project allocation arena) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache)), root := (project allocation handle)}) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (2 : UInt64), instructionCount := (3 : UInt64), slotCount := (5 : UInt64), returnSlot := (4 : UInt64), nextSlot := (3 : UInt64)}))
+      | Result.error error => (match error
+        | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+        | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+        | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+          | Uorc.Core.Types::StaticError.invalidLocalReference => true
+          | Uorc.Core.Types::StaticError.invalidBlockReference => false
+          | Uorc.Core.Types::StaticError.typeMismatch => false
+          | Uorc.Core.Types::StaticError.arityMismatch => false
+          | Uorc.Core.Types::StaticError.returnMismatch => false
+          | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+          | Uorc.Core.Types::StaticError.emptyGraph => false
+          | Uorc.Core.Types::StaticError.invalidTypeTag => false
+          | Uorc.Core.Types::StaticError.undefinedOpcode => false
+          | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+          | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+          | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+        | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+        | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+        | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+      | Result.ok value => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: maximumCountDoesNotNeedSentinel,
+  parameters: [],
+  result: Bool,
+  body: (((match (Uorc.Core.RuntimeLifetime::start (18446744073709551615 : UInt64) (0 : UInt64) (18446744073709551614 : UInt64))
+    | Result.error error_initial => false
+    | Result.ok initial => (match (Uorc.Core.RuntimeLifetime::step (Uorc.Core.Heap::emptyArena (0 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) initial)
+      | Result.error error_event => false
+      | Result.ok event => (match event
+        | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => ((prim equal slot (0 : UInt64) : Bool) && ((prim equal (project next nextSlot) (1 : UInt64) : Bool) && (match bucket
+          | Uorc.Core.RuntimeLifetime::Bucket.initial => true
+          | Uorc.Core.RuntimeLifetime::Bucket.after instruction => (false && (prim equal instruction (0 : UInt64) : Bool)))))
+        | Uorc.Core.RuntimeLifetime::Event.skipped next => false
+        | Uorc.Core.RuntimeLifetime::Event.done => false))) && ((match (Uorc.Core.RuntimeLifetime::step (Uorc.Core.Heap::emptyArena (0 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (18446744073709551615 : UInt64), instructionCount := (0 : UInt64), slotCount := (18446744073709551615 : UInt64), returnSlot := (18446744073709551614 : UInt64), nextSlot := (18446744073709551614 : UInt64)}))
+    | Result.error error_event => false
+    | Result.ok event => (match event
+      | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => false
+      | Uorc.Core.RuntimeLifetime::Event.skipped next => (prim equal (project next nextSlot) (18446744073709551615 : UInt64) : Bool)
+      | Uorc.Core.RuntimeLifetime::Event.done => false)) && (match (Uorc.Core.RuntimeLifetime::step (Uorc.Core.Heap::emptyArena (0 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.lifetimeCache))) (record Uorc.Core.RuntimeLifetime::Cursor {parameterCount := (18446744073709551615 : UInt64), instructionCount := (0 : UInt64), slotCount := (18446744073709551615 : UInt64), returnSlot := (18446744073709551614 : UInt64), nextSlot := (18446744073709551615 : UInt64)}))
+    | Result.error error_event => false
+    | Result.ok event => (match event
+      | Uorc.Core.RuntimeLifetime::Event.assigned next bucket slot => false
+      | Uorc.Core.RuntimeLifetime::Event.skipped next => false
+      | Uorc.Core.RuntimeLifetime::Event.done => true)))) && (match (Uorc.Core.RuntimeLifetime::start (18446744073709551615 : UInt64) (1 : UInt64) (0 : UInt64))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+      | Uorc.Core.RuntimeProgram::Failure.static inside => false
+      | Uorc.Core.RuntimeProgram::Failure.operational inside => (match inside
+        | Uorc.Core.Resources::OperationalError.stepLimit => false
+        | Uorc.Core.Resources::OperationalError.liveCellLimit => false
+        | Uorc.Core.Resources::OperationalError.outputLimit => false
+        | Uorc.Core.Resources::OperationalError.frameLimit => false
+        | Uorc.Core.Resources::OperationalError.cancelled => false
+        | Uorc.Core.Resources::OperationalError.hostMemory => false
+        | Uorc.Core.Resources::OperationalError.timeLimit => false
+        | Uorc.Core.Resources::OperationalError.ioFailure => false
+        | Uorc.Core.Resources::OperationalError.internalInvariant => false
+        | Uorc.Core.Resources::OperationalError.addressSpaceExhausted => true)
+      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+    | Result.ok value => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if ((absentUsesHaveExactReleasePoints) && ((timestampAtCreatedSlot (0 : UInt64)) && ((timestampAtCreatedSlot (1 : UInt64)) && ((timestampAtCreatedSlot (3 : UInt64)) && (maximumCountDoesNotNeedSentinel))))) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -1,0 +1,63 @@
+\begin{lexlean}{Uorc.Search.RopeBuilder}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Normalize}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Builder,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: reverseChunks, type: (List Uorc.Core.Bytes::Rope)},
+    {name: chunkCount, type: Nat},
+    {name: byteCount, type: Nat},
+    {name: events, type: Nat}
+  ]
+}
+
+definition{
+  name: empty,
+  parameters: [],
+  result: Builder,
+  body: (record Builder {reverseChunks := (nil Uorc.Core.Bytes::Rope), chunkCount := 0, byteCount := 0, events := 0})
+}
+
+definition{
+  name: appendChunk,
+  parameters: [builder : Builder, chunk : Bytes],
+  result: Builder,
+  body: (if ((prim length chunk : Nat) =? 0) then (record Builder {reverseChunks := (project builder reverseChunks), chunkCount := (project builder chunkCount), byteCount := (project builder byteCount), events := ((project builder events) + 1)}) else (record Builder {reverseChunks := (cons (Uorc.Core.Bytes::fromBytes chunk) (project builder reverseChunks)), chunkCount := ((project builder chunkCount) + 1), byteCount := ((project builder byteCount) + (prim length chunk : Nat)), events := ((project builder events) + 1)}))
+}
+
+definition{
+  name: finish,
+  parameters: [builder : Builder],
+  result: Uorc.Search.Normalize::Cursor,
+  body: (ctor Uorc.Search.Normalize::Cursor.reversing (record Uorc.Search.Normalize::Reverse {remaining := (project builder reverseChunks), forward := (nil Uorc.Core.Bytes::Rope), chunkCount := (project builder chunkCount), totalBytes := (project builder byteCount), logicalSteps := (project builder events), physicalSteps := 0}))
+}
+
+definition{
+  name: resultBytes,
+  parameters: [builder : Builder],
+  result: Nat,
+  body: (project builder byteCount)
+}
+
+theorem{
+  name: all_stream_chunk_bytes_are_retained,
+  parameters: [],
+  statement: ((resultBytes (appendChunk (appendChunk (empty) 0x0001) 0xff80)) = 4),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: stream_finish_produces_valid_balanced_rope,
+  parameters: [],
+  statement: ((match (Uorc.Search.Normalize::canonicalResult (Uorc.Search.Normalize::run 80 (record Uorc.Search.Normalize::Policy {blockBytes := 1}) (ctor Uorc.Search.Normalize::Step.pending (finish (appendChunk (appendChunk (empty) 0x0001) 0xff80)))))
+    | Option.none => false
+    | Option.some normalized => (Uorc.Core.Bytes::valid (project normalized rope))) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

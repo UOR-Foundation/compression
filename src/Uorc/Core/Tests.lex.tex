@@ -1,0 +1,307 @@
+\begin{lexlean}{Uorc.Core.Tests}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.StepMachine}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Core.Slots}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Basis}
+\importmodule{Uorc.Core.Validation}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Observation,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: id, type: String}, {name: passed, type: Bool}]
+}
+
+definition{
+  name: resultLength,
+  parameters: [
+    evaluated : (Result Uorc.Core.StepMachine::Execution Uorc.Core.StepMachine::Failure)
+  ],
+  result: (Result Nat Uorc.Core.StepMachine::Failure),
+  body: (match evaluated
+    | Result.error error => (ctor Result.error [Nat, Uorc.Core.StepMachine::Failure] error)
+    | Result.ok execution => (match (project execution value)
+      | Uorc.Core.Types::Value.natural payload => (ctor Result.error [Nat, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.byte payload => (ctor Result.error [Nat, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [Nat, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.sequence payload => (ctor Result.ok [Nat, Uorc.Core.StepMachine::Failure] (prim length payload : Nat))
+      | Uorc.Core.Types::Value.store payload => (ctor Result.error [Nat, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (ctor Result.ok [Nat, Uorc.Core.StepMachine::Failure] (Uorc.Core.Bytes::length payload))))
+}
+
+definition{
+  name: resultByteAt,
+  parameters: [
+    evaluated : (Result Uorc.Core.StepMachine::Execution Uorc.Core.StepMachine::Failure),
+    index : Nat
+  ],
+  result: (Result UInt8 Uorc.Core.StepMachine::Failure),
+  body: (match evaluated
+    | Result.error error => (ctor Result.error [UInt8, Uorc.Core.StepMachine::Failure] error)
+    | Result.ok execution => (match (project execution value)
+      | Uorc.Core.Types::Value.natural payload => (ctor Result.error [UInt8, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.byte payload => (ctor Result.error [UInt8, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.predicate payload => (ctor Result.error [UInt8, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.sequence payload => (match (prim index payload index : (Option UInt8))
+        | Option.none => (ctor Result.error [UInt8, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+        | Option.some selected => (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] selected))
+      | Uorc.Core.Types::Value.store payload => (ctor Result.error [UInt8, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+      | Uorc.Core.Types::Value.segmentedSequence payload => (match (Uorc.Core.Bytes::at payload index)
+        | Result.error ropeError => (ctor Result.error [UInt8, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.internalInvariant)))
+        | Result.ok selected => (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] selected))))
+}
+
+theorem{
+  name: literal_length_empty,
+  parameters: [],
+  statement: ((resultLength (Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100}))) = (ctor Result.ok [Nat, Uorc.Core.StepMachine::Failure] 0)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_length_00,
+  parameters: [],
+  statement: ((resultLength (Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x00) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100}))) = (ctor Result.ok [Nat, Uorc.Core.StepMachine::Failure] 1)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_last_00,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x00) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 0) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (0 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_length_ff,
+  parameters: [],
+  statement: ((resultLength (Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0xff) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100}))) = (ctor Result.ok [Nat, Uorc.Core.StepMachine::Failure] 1)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_last_ff,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0xff) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 0) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (255 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_length_00ff1080,
+  parameters: [],
+  statement: ((resultLength (Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x00ff1080) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100}))) = (ctor Result.ok [Nat, Uorc.Core.StepMachine::Failure] 4)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_last_00ff1080,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x00ff1080) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 3) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (128 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_length_all_bytes,
+  parameters: [],
+  statement: ((resultLength (Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100}))) = (ctor Result.ok [Nat, Uorc.Core.StepMachine::Failure] 256)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_last_all_bytes,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 255) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (255 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: output_budget_enforced,
+  parameters: [],
+  statement: ((Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x00ff) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 1, maxFrames := 100})) = (ctor Result.error [Uorc.Core.StepMachine::Execution, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.outputLimit)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: step_budget_enforced,
+  parameters: [],
+  statement: ((Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x00ff) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 0, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) = (ctor Result.error [Uorc.Core.StepMachine::Execution, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.stepLimit)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: frame_budget_enforced,
+  parameters: [],
+  statement: ((Uorc.Core.StepMachine::runGraph (Uorc.Core.Graph::literalGraph 0x00ff) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 0})) = (ctor Result.error [Uorc.Core.StepMachine::Execution, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.operational (ctor Uorc.Core.Resources::OperationalError.frameLimit)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: unused_division_still_fails,
+  parameters: [],
+  statement: ((Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalDivide 2 1) (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0xaa) (nil Uorc.Core.Graph::Instruction))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) = (ctor Result.error [Uorc.Core.StepMachine::Execution, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.semantic (ctor Uorc.Core.Types::SemanticError.divisionByZero)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: apply_adds_one,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 2 1) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (41 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.apply 1 (cons 1 (nil Nat))) (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (cons (ctor Uorc.Core.Graph::Instruction.singletonSequence 1) (nil Uorc.Core.Graph::Instruction))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 0) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (42 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: fold_iterates_state,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 2 1) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (3 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.fold 2 1 1 (nil Nat)) (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (cons (ctor Uorc.Core.Graph::Instruction.singletonSequence 1) (nil Uorc.Core.Graph::Instruction)))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 0) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (3 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: tabulate_length,
+  parameters: [],
+  statement: ((resultLength (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (nil Uorc.Core.Graph::Instruction), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (3 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (7 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 2 1 (cons 1 (nil Nat))) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100}))) = (ctor Result.ok [Nat, Uorc.Core.StepMachine::Failure] 3)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: tabulate_last,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (nil Uorc.Core.Graph::Instruction), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (3 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (7 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.tabulate 2 1 (cons 1 (nil Nat))) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block))), entry := 1}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 2) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: scan_observes_before_update_0,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 2 1) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (3 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 0) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (0 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: scan_observes_before_update_1,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 2 1) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (3 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 1) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (1 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: scan_observes_before_update_2,
+  parameters: [],
+  statement: ((resultByteAt (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalToByte 1) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 2 1) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (3 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 2) = (ctor Result.ok [UInt8, Uorc.Core.StepMachine::Failure] (2 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: scan_final_update_can_fail,
+  parameters: [],
+  statement: ((Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (7 : UInt8)) (nil Uorc.Core.Graph::Instruction)), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))), result := (ctor Uorc.Core.Types::ValueType.natural), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalAdd 2 1) (nil Uorc.Core.Graph::Instruction))), returnDistance := 1}) (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (1 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant (18446744073709551615 : UInt64)) (cons (ctor Uorc.Core.Graph::Instruction.scan 2 1 2 (nil Nat) 1 (nil Nat)) (nil Uorc.Core.Graph::Instruction)))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)))), entry := 2}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) = (ctor Result.error [Uorc.Core.StepMachine::Execution, Uorc.Core.StepMachine::Failure] (ctor Uorc.Core.StepMachine::Failure.semantic (ctor Uorc.Core.Types::SemanticError.arithmeticOverflow)))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: partition_independent_machine_comparison,
+  parameters: [],
+  result: Bool,
+  body: (match (resultByteAt (Uorc.Core.StepMachine::runGraph (record Uorc.Core.Graph::Graph {blocks := (cons (record Uorc.Core.Graph::Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0x00ff) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0xff))) (cons (ctor Uorc.Core.Graph::Instruction.sequenceEqual 2 1) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (1 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8)) (cons (ctor Uorc.Core.Graph::Instruction.choose 3 2 1) (cons (ctor Uorc.Core.Graph::Instruction.singletonSequence 1) (nil Uorc.Core.Graph::Instruction)))))))), returnDistance := 1}) (nil Uorc.Core.Graph::Block)), entry := 0}) (nil Bytes) (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100})) 0)
+    | Result.ok v => (prim equal v (1 : UInt8) : Bool)
+    | Result.error e => false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: failureSteps,
+  parameters: [stepResult : Uorc.Core.StepMachine::StepResult],
+  result: (Option Nat),
+  body: (match stepResult
+    | Uorc.Core.StepMachine::StepResult.next machine => (ctor Option.none [Nat])
+    | Uorc.Core.StepMachine::StepResult.done execution => (ctor Option.none [Nat])
+    | Uorc.Core.StepMachine::StepResult.failed failure usage => (ctor Option.some [Nat] (project usage steps)))
+}
+
+definition{
+  name: initializationFailureSteps,
+  parameters: [
+    initialization : (Result Uorc.Core.StepMachine::Machine Uorc.Core.StepMachine::InitializationFailure)
+  ],
+  result: (Option Nat),
+  body: (match initialization
+    | Result.error initialFailure => (ctor Option.some [Nat] (project (project initialFailure usage) steps))
+    | Result.ok machine => (ctor Option.none [Nat]))
+}
+
+definition{
+  name: divisionFailureWithBudget,
+  parameters: [maxWork : Nat],
+  result: (Option Nat),
+  body: (match (Uorc.Core.Slots::fromValues (cons (ctor Uorc.Core.Types::Value.natural (5 : UInt64)) (cons (ctor Uorc.Core.Types::Value.natural (0 : UInt64)) (nil Uorc.Core.Types::Value))))
+    | Result.error fixtureError => (ctor Option.none [Nat])
+    | Result.ok fixtureSlots => (failureSteps (Uorc.Core.StepMachine::dispatch (record Uorc.Core.StepMachine::Context {graph := (record Uorc.Core.Graph::Graph {blocks := (nil Uorc.Core.Graph::Block), entry := 0}), basis := (nil Bytes), budget := (record Uorc.Core.Resources::Budget {maxSteps := maxWork, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100000}), checked := (ctor Option.none [Uorc.Core.Validation::CheckedGraph]), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])}) (record Uorc.Core.StepMachine::Frame {blockIndex := 0, remaining := (nil Uorc.Core.Graph::Instruction), slots := fixtureSlots, returnDistance := 1, nextInstruction := 0, releaseBuckets := (nil (List Nat)), pendingReleases := (nil Nat)}) (nil Uorc.Core.StepMachine::Continuation) (record Uorc.Core.Resources::Usage {steps := 7, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 0}) (ctor Uorc.Core.Graph::Instruction.naturalDivide 2 1)))),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: semantic_failure_retains_reserved_read_work,
+  parameters: [],
+  statement: ((divisionFailureWithBudget 100000) = (ctor Option.some [Nat] 327)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: resource_rejection_retains_previous_usage_only,
+  parameters: [],
+  statement: ((divisionFailureWithBudget 326) = (ctor Option.some [Nat] 7)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: initialization_invariant_failure_retains_entry_work,
+  parameters: [],
+  statement: ((initializationFailureSteps (Uorc.Core.StepMachine::initializeFromUsage (record Uorc.Core.StepMachine::Context {graph := (record Uorc.Core.Graph::Graph {blocks := (nil Uorc.Core.Graph::Block), entry := 0}), basis := (nil Bytes), budget := (record Uorc.Core.Resources::Budget {maxSteps := 100000, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100000}), checked := (ctor Option.none [Uorc.Core.Validation::CheckedGraph]), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])}) (record Uorc.Core.Resources::Usage {steps := 7, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 0}))) = (ctor Option.some [Nat] 264)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: initialization_budget_failure_charges_no_rejected_work,
+  parameters: [],
+  statement: ((initializationFailureSteps (Uorc.Core.StepMachine::initializeFromUsage (record Uorc.Core.StepMachine::Context {graph := (record Uorc.Core.Graph::Graph {blocks := (nil Uorc.Core.Graph::Block), entry := 0}), basis := (nil Bytes), budget := (record Uorc.Core.Resources::Budget {maxSteps := 263, maxLiveCells := 100000, maxOutputBytes := 100000, maxFrames := 100000}), checked := (ctor Option.none [Uorc.Core.Validation::CheckedGraph]), indexedBasis := (ctor Option.none [Uorc.Core.Basis::Table])}) (record Uorc.Core.Resources::Usage {steps := 7, liveCells := 0, peakCells := 0, outputBytes := 0, frames := 0}))) = (ctor Option.some [Nat] 7)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: observations,
+  parameters: [],
+  result: (List Observation),
+  body: (cons (record Observation {id := "Tests.partition_independent_machine_comparison", passed := (partition_independent_machine_comparison)}) (nil Observation)),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -1,0 +1,96 @@
+\begin{lexlean}{Uorc.Search.PrefixModels}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.ModelFit}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Core.Resources}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: choosing, fields: []},
+    {name: slicing, fields: [Uorc.Core.Bytes::Work]},
+    {name: fitting, fields: [Uorc.Search.ModelFit::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: target, type: Uorc.Core.Bytes::Rope},
+    {name: nextLength, type: Nat},
+    {name: budget, type: Uorc.Core.Resources::Budget},
+    {name: phase, type: Phase},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: coordinateOverflow, fields: []},
+    {name: invalidState, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Cursor]},
+    {name: finished, fields: []},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: generator,
+  parameters: [pattern : Uorc.Core.Bytes::Rope, period : UInt64],
+  result: Uorc.Core.Graph::Block,
+  body: (record Uorc.Core.Graph::Block {parameters := (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)), result := (ctor Uorc.Core.Types::ValueType.byte), instructions := (cons (ctor Uorc.Core.Graph::Instruction.naturalConstant period) (cons (ctor Uorc.Core.Graph::Instruction.naturalRemainder 2 1) (cons (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant pattern) (cons (ctor Uorc.Core.Graph::Instruction.sequenceIndex 1 2) (nil Uorc.Core.Graph::Instruction))))), returnDistance := 1})
+}
+
+definition{
+  name: start,
+  parameters: [target : Uorc.Core.Bytes::Rope, budget : Uorc.Core.Resources::Budget],
+  result: Cursor,
+  body: (record Cursor {target := target, nextLength := 1, budget := budget, phase := (ctor Phase.choosing), completedEvents := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.choosing => (if ((project cursor nextLength) <=? (Uorc.Core.Bytes::length (project cursor target))) then (match (Uorc.Core.Bytes::startSlice (project cursor target) 0 (project cursor nextLength))
+      | Result.error error => (ctor Step.failed (ctor Error.rope error))
+      | Result.ok sliceWork => (ctor Step.pending (record Cursor {target := (project cursor target), nextLength := (project cursor nextLength), budget := (project cursor budget), phase := (ctor Phase.slicing sliceWork), completedEvents := ((project cursor completedEvents) + 1)}))) else (ctor Step.finished))
+    | Phase.slicing sliceWork => (match (Uorc.Core.Bytes::workStep sliceWork)
+      | Uorc.Core.Bytes::WorkEvent.advanced next => (ctor Step.pending (record Cursor {target := (project cursor target), nextLength := (project cursor nextLength), budget := (project cursor budget), phase := (ctor Phase.slicing next), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Core.Bytes::WorkEvent.sequenceDone pattern => (match (Uorc.Search.Effort::checkedU64 (project cursor nextLength))
+        | Result.error error => (ctor Step.failed (ctor Error.coordinateOverflow))
+        | Result.ok period => (match (Uorc.Search.ModelFit::start (project cursor target) (generator pattern period) (project cursor budget))
+          | Uorc.Search.ModelFit::Step.pending fitCursor => (ctor Step.pending (record Cursor {target := (project cursor target), nextLength := (project cursor nextLength), budget := (project cursor budget), phase := (ctor Phase.fitting fitCursor), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Search.ModelFit::Step.proposal proposal events => (ctor Step.proposal proposal (record Cursor {target := (project cursor target), nextLength := ((project cursor nextLength) + 1), budget := (project cursor budget), phase := (ctor Phase.choosing), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Search.ModelFit::Step.rejected fitError => (ctor Step.pending (record Cursor {target := (project cursor target), nextLength := ((project cursor nextLength) + 1), budget := (project cursor budget), phase := (ctor Phase.choosing), completedEvents := ((project cursor completedEvents) + 1)}))))
+      | Uorc.Core.Bytes::WorkEvent.byteDone unexpected => (ctor Step.failed (ctor Error.invalidState))
+      | Uorc.Core.Bytes::WorkEvent.failed error => (ctor Step.failed (ctor Error.rope error)))
+    | Phase.fitting fitCursor => (match (Uorc.Search.ModelFit::step fitCursor)
+      | Uorc.Search.ModelFit::Step.pending next => (ctor Step.pending (record Cursor {target := (project cursor target), nextLength := (project cursor nextLength), budget := (project cursor budget), phase := (ctor Phase.fitting next), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.ModelFit::Step.proposal proposal events => (ctor Step.proposal proposal (record Cursor {target := (project cursor target), nextLength := ((project cursor nextLength) + 1), budget := (project cursor budget), phase := (ctor Phase.choosing), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.ModelFit::Step.rejected fitError => (ctor Step.pending (record Cursor {target := (project cursor target), nextLength := ((project cursor nextLength) + 1), budget := (project cursor budget), phase := (ctor Phase.choosing), completedEvents := ((project cursor completedEvents) + 1)})))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

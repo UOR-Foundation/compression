@@ -1,0 +1,131 @@
+\begin{lexlean}{Uorc.Search.Grammar}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Arguments,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: a, type: Nat},
+    {name: b, type: Nat},
+    {name: c, type: Nat},
+    {name: d, type: Nat},
+    {name: e, type: Nat},
+    {name: f, type: Nat},
+    {name: references, type: (List Nat)},
+    {name: otherReferences, type: (List Nat)},
+    {name: naturalValue, type: UInt64},
+    {name: byteValue, type: UInt8},
+    {name: predicateValue, type: Bool},
+    {name: payload, type: Bytes},
+    {name: ropePayload, type: Uorc.Core.Bytes::Rope}
+  ]
+}
+
+structure{
+  name: TypedProposal,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: instruction, type: Uorc.Core.Graph::Instruction},
+    {name: resultType, type: Uorc.Core.Types::ValueType}
+  ]
+}
+
+structure{
+  name: Fragment,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: prior, type: (List Uorc.Core.Graph::Block)},
+    {name: parameters, type: (List Uorc.Core.Types::ValueType)},
+    {name: instructions, type: (List Uorc.Core.Graph::Instruction)},
+    {name: slots, type: (List Uorc.Core.Types::ValueType)}
+  ]
+}
+
+definition{
+  name: instructionChoice,
+  parameters: [ordinal : Nat, arguments : Arguments],
+  result: (Option Uorc.Core.Graph::Instruction),
+  body: (if (ordinal =? 0) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalConstant (project arguments naturalValue))) else (if (ordinal =? 1) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.byteConstant (project arguments byteValue))) else (if (ordinal =? 2) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.predicateConstant (project arguments predicateValue))) else (if (ordinal =? 3) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.sequenceConstant (project arguments payload))) else (if (ordinal =? 4) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalAdd (project arguments a) (project arguments b))) else (if (ordinal =? 5) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalSubtract (project arguments a) (project arguments b))) else (if (ordinal =? 6) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalMultiply (project arguments a) (project arguments b))) else (if (ordinal =? 7) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalDivide (project arguments a) (project arguments b))) else (if (ordinal =? 8) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalRemainder (project arguments a) (project arguments b))) else (if (ordinal =? 9) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalAnd (project arguments a) (project arguments b))) else (if (ordinal =? 10) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalOr (project arguments a) (project arguments b))) else (if (ordinal =? 11) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalXor (project arguments a) (project arguments b))) else (if (ordinal =? 12) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalNot (project arguments a))) else (if (ordinal =? 13) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalShiftLeft (project arguments a) (project arguments b))) else (if (ordinal =? 14) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalShiftRight (project arguments a) (project arguments b))) else (if (ordinal =? 15) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalEqual (project arguments a) (project arguments b))) else (if (ordinal =? 16) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalLess (project arguments a) (project arguments b))) else (if (ordinal =? 17) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.byteEqual (project arguments a) (project arguments b))) else (if (ordinal =? 18) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.byteLess (project arguments a) (project arguments b))) else (if (ordinal =? 19) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalToByte (project arguments a))) else (if (ordinal =? 20) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.byteToNatural (project arguments a))) else (if (ordinal =? 21) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.predicateNot (project arguments a))) else (if (ordinal =? 22) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.predicateAnd (project arguments a) (project arguments b))) else (if (ordinal =? 23) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.predicateOr (project arguments a) (project arguments b))) else (if (ordinal =? 24) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.sequenceLength (project arguments a))) else (if (ordinal =? 25) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.sequenceIndex (project arguments a) (project arguments b))) else (if (ordinal =? 26) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.sequenceSlice (project arguments a) (project arguments b) (project arguments c))) else (if (ordinal =? 27) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.sequenceConcat (project arguments a) (project arguments b))) else (if (ordinal =? 28) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.sequenceEqual (project arguments a) (project arguments b))) else (if (ordinal =? 29) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.singletonSequence (project arguments a))) else (if (ordinal =? 30) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.basisGet (project arguments a))) else (if (ordinal =? 31) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.storeNew (project arguments a))) else (if (ordinal =? 32) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.storeRead (project arguments a) (project arguments b))) else (if (ordinal =? 33) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.storeWrite (project arguments a) (project arguments b) (project arguments c))) else (if (ordinal =? 34) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.choose (project arguments a) (project arguments b) (project arguments c))) else (if (ordinal =? 35) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.apply (project arguments a) (project arguments references))) else (if (ordinal =? 36) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.tabulate (project arguments a) (project arguments b) (project arguments references))) else (if (ordinal =? 37) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.fold (project arguments a) (project arguments b) (project arguments c) (project arguments references))) else (if (ordinal =? 38) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.scan (project arguments a) (project arguments b) (project arguments c) (project arguments references) (project arguments d) (project arguments otherReferences))) else (if (ordinal =? 39) then (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.sequenceRopeConstant (project arguments ropePayload))) else (ctor Option.none [Uorc.Core.Graph::Instruction])))))))))))))))))))))))))))))))))))))))))
+}
+
+definition{name: instructionChoiceCount, parameters: [], result: Nat, body: 40}
+
+definition{
+  name: checkChoice,
+  parameters: [
+    prior : (List Uorc.Core.Graph::Block),
+    slots : (List Uorc.Core.Types::ValueType),
+    ordinal : Nat,
+    arguments : Arguments
+  ],
+  result: (Result TypedProposal Uorc.Core.Types::StaticError),
+  body: (match (instructionChoice ordinal arguments)
+    | Option.none => (ctor Result.error [TypedProposal, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.undefinedOpcode))
+    | Option.some instruction => (match (Uorc.Core.Graph::inferInstruction prior slots instruction)
+      | Result.error typingError => (ctor Result.error [TypedProposal, Uorc.Core.Types::StaticError] typingError)
+      | Result.ok resultType => (ctor Result.ok [TypedProposal, Uorc.Core.Types::StaticError] (record TypedProposal {instruction := instruction, resultType := resultType}))))
+}
+
+definition{
+  name: beginFragment,
+  parameters: [
+    prior : (List Uorc.Core.Graph::Block),
+    parameters : (List Uorc.Core.Types::ValueType)
+  ],
+  result: Fragment,
+  body: (record Fragment {prior := prior, parameters := parameters, instructions := (nil Uorc.Core.Graph::Instruction), slots := parameters})
+}
+
+definition{
+  name: extend,
+  parameters: [fragment : Fragment, ordinal : Nat, arguments : Arguments],
+  result: (Result Fragment Uorc.Core.Types::StaticError),
+  body: (match (checkChoice (project fragment prior) (project fragment slots) ordinal arguments)
+    | Result.error typingError => (ctor Result.error [Fragment, Uorc.Core.Types::StaticError] typingError)
+    | Result.ok proposal => (ctor Result.ok [Fragment, Uorc.Core.Types::StaticError] (record Fragment {prior := (project fragment prior), parameters := (project fragment parameters), instructions := (prim append (project fragment instructions) (cons (project proposal instruction) (nil Uorc.Core.Graph::Instruction)) : (List Uorc.Core.Graph::Instruction)), slots := (prim append (project fragment slots) (cons (project proposal resultType) (nil Uorc.Core.Types::ValueType)) : (List Uorc.Core.Types::ValueType))})))
+}
+
+definition{
+  name: finishFragment,
+  parameters: [fragment : Fragment, output : Uorc.Core.Types::ValueType, returnDistance : Nat],
+  result: (Result Uorc.Core.Graph::Block Uorc.Core.Types::StaticError),
+  body: (match (Uorc.Core.Graph::validateBlock (project fragment prior) (record Uorc.Core.Graph::Block {parameters := (project fragment parameters), result := output, instructions := (project fragment instructions), returnDistance := returnDistance}))
+    | Result.error typingError => (ctor Result.error [Uorc.Core.Graph::Block, Uorc.Core.Types::StaticError] typingError)
+    | Result.ok unitResult => (ctor Result.ok [Uorc.Core.Graph::Block, Uorc.Core.Types::StaticError] (record Uorc.Core.Graph::Block {parameters := (project fragment parameters), result := output, instructions := (project fragment instructions), returnDistance := returnDistance})))
+}
+
+theorem{
+  name: ordinary_natural_choice,
+  parameters: [],
+  statement: ((instructionChoice 0 (record Arguments {a := 1, b := 1, c := 1, d := 1, e := 1, f := 1, references := (nil Nat), otherReferences := (nil Nat), naturalValue := (13 : UInt64), byteValue := (7 : UInt8), predicateValue := true, payload := 0x00ff, ropePayload := (Uorc.Core.Bytes::fromBytes 0x00ff)})) = (ctor Option.some [Uorc.Core.Graph::Instruction] (ctor Uorc.Core.Graph::Instruction.naturalConstant (13 : UInt64)))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: typed_operand_mismatch_rejected,
+  parameters: [],
+  statement: ((checkChoice (nil Uorc.Core.Graph::Block) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType)) 4 (record Arguments {a := 1, b := 1, c := 1, d := 1, e := 1, f := 1, references := (nil Nat), otherReferences := (nil Nat), naturalValue := (13 : UInt64), byteValue := (7 : UInt8), predicateValue := true, payload := 0x00ff, ropePayload := (Uorc.Core.Bytes::fromBytes 0x00ff)})) = (ctor Result.error [TypedProposal, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.typeMismatch))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: all_five_value_types_are_in_grammar,
+  parameters: [],
+  statement: ((instructionChoiceCount) = 40),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: invalid_choice_is_typed_error,
+  parameters: [],
+  statement: ((checkChoice (nil Uorc.Core.Graph::Block) (nil Uorc.Core.Types::ValueType) 40 (record Arguments {a := 1, b := 1, c := 1, d := 1, e := 1, f := 1, references := (nil Nat), otherReferences := (nil Nat), naturalValue := (13 : UInt64), byteValue := (7 : UInt8), predicateValue := true, payload := 0x00ff, ropePayload := (Uorc.Core.Bytes::fromBytes 0x00ff)})) = (ctor Result.error [TypedProposal, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.undefinedOpcode))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

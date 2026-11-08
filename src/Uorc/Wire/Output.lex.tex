@@ -1,0 +1,84 @@
+\begin{lexlean}{Uorc.Wire.Output}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Mode,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: measure, fields: []}, {name: stream, fields: []}]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: byte, fields: [UInt8]},
+    {name: borrowedSpan, fields: [Uorc.Core.RuntimeValue::Handle, UInt64, UInt64]},
+    {name: end, fields: []}
+  ]
+}
+
+inductive{
+  name: Ack,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: consumed, fields: []}, {name: takeSpan, fields: []}]
+}
+
+structure{
+  name: Digit,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: byte, type: UInt8}, {name: remaining, type: UInt64}, {name: finished, type: Bool}]
+}
+
+definition{
+  name: byteWord,
+  parameters: [value : UInt8],
+  result: UInt64,
+  body: (match (prim checked_convert value : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some nLocal1 => nLocal1),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: digit,
+  parameters: [value : UInt64],
+  result: Digit,
+  body: (let lowLocal2 : UInt64 := (prim bit_and value (127 : UInt64) : UInt64); (let finishedLocal3 : Bool := (Uorc.Core.Heap::less value (128 : UInt64)); (record Digit {byte := (match (prim checked_convert (if finishedLocal3 then lowLocal2 else (Uorc.Core.Heap::wordAdd lowLocal2 (128 : UInt64))) : (Option UInt8))
+    | Option.none => (0 : UInt8)
+    | Option.some byteLocal4 => byteLocal4), remaining := (match (prim shift_right value (7 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some remainingLocal5 => remainingLocal5), finished := finishedLocal3}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: length,
+  parameters: [event : Event],
+  result: UInt64,
+  body: (match event
+    | Event.byte byteLocal6 => (1 : UInt64)
+    | Event.borrowedSpan imageLocal7 offsetLocal8 lengthLocal9 => lengthLocal9
+    | Event.end => (0 : UInt64)),
+  executable: true
+}
+
+definition{
+  name: spanImage,
+  parameters: [event : Event],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (match event
+    | Event.byte byteLocal10 => (Uorc.Core.RuntimeValue::nullHandle)
+    | Event.borrowedSpan imageLocal11 offsetLocal12 lengthLocal13 => imageLocal11
+    | Event.end => (Uorc.Core.RuntimeValue::nullHandle)),
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

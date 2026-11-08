@@ -1,0 +1,215 @@
+\begin{lexlean}{Uorc.Core.RuntimeAdmissionChecks}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Resources}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: LocalInfo,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: index, type: UInt64},
+    {name: valueType, type: Uorc.Core.RuntimeValue::RuntimeType}
+  ]
+}
+
+structure{
+  name: CaptureContract,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: body, type: Uorc.Core.RuntimeValue::Handle},
+    {name: parameters, type: Uorc.Core.RuntimeTable::Table},
+    {name: offset, type: UInt64},
+    {name: count, type: UInt64},
+    {name: resultType, type: Uorc.Core.RuntimeValue::RuntimeType}
+  ]
+}
+
+definition{
+  name: sameType,
+  parameters: [
+    expected : Uorc.Core.RuntimeValue::RuntimeType,
+    actual : Uorc.Core.RuntimeValue::RuntimeType
+  ],
+  result: Bool,
+  body: (prim equal (Uorc.Core.RuntimeProgram::typeCode expected) (Uorc.Core.RuntimeProgram::typeCode actual) : Bool),
+  executable: true
+}
+
+definition{
+  name: roleAccepts,
+  parameters: [
+    role : Uorc.Core.RuntimeOpcode::OperandRole,
+    actual : Uorc.Core.RuntimeValue::RuntimeType
+  ],
+  result: Bool,
+  body: (match role
+    | Uorc.Core.RuntimeOpcode::OperandRole.absent => false
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateNatural => false
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateByte => false
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediatePredicate => false
+    | Uorc.Core.RuntimeOpcode::OperandRole.localNatural => (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) actual)
+    | Uorc.Core.RuntimeOpcode::OperandRole.localByte => (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.byte) actual)
+    | Uorc.Core.RuntimeOpcode::OperandRole.localPredicate => (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.predicate) actual)
+    | Uorc.Core.RuntimeOpcode::OperandRole.localSequence => (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) actual)
+    | Uorc.Core.RuntimeOpcode::OperandRole.localStore => (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.store) actual)
+    | Uorc.Core.RuntimeOpcode::OperandRole.localAny => true
+    | Uorc.Core.RuntimeOpcode::OperandRole.blockReference => false),
+  executable: true
+}
+
+definition{
+  name: local,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    localTypes : Uorc.Core.RuntimeTable::Table,
+    slotCount : UInt64,
+    distance : UInt64,
+    role : Uorc.Core.RuntimeOpcode::OperandRole
+  ],
+  result: (Result LocalInfo Uorc.Core.RuntimeProgram::Failure),
+  body: (match (Uorc.Core.RuntimeProgram::localIndex slotCount distance)
+    | Result.error indexError => (ctor Result.error [LocalInfo, Uorc.Core.RuntimeProgram::Failure] indexError)
+    | Result.ok absoluteIndex => (match (Uorc.Core.RuntimeProgram::typeAt arena localTypes absoluteIndex)
+      | Result.error typeError => (ctor Result.error [LocalInfo, Uorc.Core.RuntimeProgram::Failure] typeError)
+      | Result.ok actualType => (if (roleAccepts role actualType) then (ctor Result.ok [LocalInfo, Uorc.Core.RuntimeProgram::Failure] (record LocalInfo {index := absoluteIndex, valueType := actualType})) else (ctor Result.error [LocalInfo, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: immediate,
+  parameters: [role : Uorc.Core.RuntimeOpcode::OperandRole, value : UInt64],
+  result: (Result Unit Uorc.Core.RuntimeProgram::Failure),
+  body: (match role
+    | Uorc.Core.RuntimeOpcode::OperandRole.absent => (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateNatural => (ctor Result.ok [Unit, Uorc.Core.RuntimeProgram::Failure] ())
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediateByte => (if (Uorc.Core.Heap::less value (256 : UInt64)) then (ctor Result.ok [Unit, Uorc.Core.RuntimeProgram::Failure] ()) else (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.invalidTypeTag))))
+    | Uorc.Core.RuntimeOpcode::OperandRole.immediatePredicate => (if (Uorc.Core.Heap::less value (2 : UInt64)) then (ctor Result.ok [Unit, Uorc.Core.RuntimeProgram::Failure] ()) else (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.invalidTypeTag))))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localNatural => (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localByte => (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localPredicate => (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localSequence => (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localStore => (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+    | Uorc.Core.RuntimeOpcode::OperandRole.localAny => (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+    | Uorc.Core.RuntimeOpcode::OperandRole.blockReference => (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: callee,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    body : Uorc.Core.RuntimeProgram::BorrowedBlock,
+    callRule : Uorc.Core.RuntimeOpcode::CallRule,
+    lane : Uorc.Core.RuntimeProgram::CaptureLane,
+    stateType : Uorc.Core.RuntimeValue::RuntimeType
+  ],
+  result: (Result CaptureContract Uorc.Core.RuntimeProgram::Failure),
+  body: (match callRule
+    | Uorc.Core.RuntimeOpcode::CallRule.none => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.invalidBlockReference)))
+    | Uorc.Core.RuntimeOpcode::CallRule.apply => (match lane
+      | Uorc.Core.RuntimeProgram::CaptureLane.first => (match (prim checked_subtract (project body parameterCount) (0 : UInt64) : (Option UInt64))
+        | Option.none => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+        | Option.some captureCount => (ctor Result.ok [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (record CaptureContract {body := (project body record), parameters := (project body parameters), offset := (0 : UInt64), count := captureCount, resultType := (project body resultType)})))
+      | Uorc.Core.RuntimeProgram::CaptureLane.second => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))))
+    | Uorc.Core.RuntimeOpcode::CallRule.tabulate => (match lane
+      | Uorc.Core.RuntimeProgram::CaptureLane.first => (if (Uorc.Core.Heap::less (project body parameterCount) (1 : UInt64)) then (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))) else (if (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.byte) (project body resultType)) then (match (Uorc.Core.RuntimeProgram::typeAt arena (project body parameters) (0 : UInt64))
+        | Result.error prefixError0 => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] prefixError0)
+        | Result.ok prefixType0 => (if (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) prefixType0) then (match (prim checked_subtract (project body parameterCount) (1 : UInt64) : (Option UInt64))
+          | Option.none => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+          | Option.some captureCount => (ctor Result.ok [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (record CaptureContract {body := (project body record), parameters := (project body parameters), offset := (1 : UInt64), count := captureCount, resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence)}))) else (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))) else (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.returnMismatch)))))
+      | Uorc.Core.RuntimeProgram::CaptureLane.second => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))))
+    | Uorc.Core.RuntimeOpcode::CallRule.fold => (match lane
+      | Uorc.Core.RuntimeProgram::CaptureLane.first => (if (Uorc.Core.Heap::less (project body parameterCount) (2 : UInt64)) then (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))) else (if (sameType stateType (project body resultType)) then (match (Uorc.Core.RuntimeProgram::typeAt arena (project body parameters) (0 : UInt64))
+        | Result.error prefixError0 => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] prefixError0)
+        | Result.ok prefixType0 => (if (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) prefixType0) then (match (Uorc.Core.RuntimeProgram::typeAt arena (project body parameters) (1 : UInt64))
+          | Result.error prefixError1 => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] prefixError1)
+          | Result.ok prefixType1 => (if (sameType stateType prefixType1) then (match (prim checked_subtract (project body parameterCount) (2 : UInt64) : (Option UInt64))
+            | Option.none => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+            | Option.some captureCount => (ctor Result.ok [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (record CaptureContract {body := (project body record), parameters := (project body parameters), offset := (2 : UInt64), count := captureCount, resultType := stateType}))) else (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))) else (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))) else (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.returnMismatch)))))
+      | Uorc.Core.RuntimeProgram::CaptureLane.second => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))))
+    | Uorc.Core.RuntimeOpcode::CallRule.scan => (if (Uorc.Core.Heap::less (project body parameterCount) (2 : UInt64)) then (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch))) else (if (sameType (match lane
+      | Uorc.Core.RuntimeProgram::CaptureLane.first => (ctor Uorc.Core.RuntimeValue::RuntimeType.byte)
+      | Uorc.Core.RuntimeProgram::CaptureLane.second => stateType) (project body resultType)) then (match (Uorc.Core.RuntimeProgram::typeAt arena (project body parameters) (0 : UInt64))
+      | Result.error prefixError0 => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] prefixError0)
+      | Result.ok prefixType0 => (if (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) prefixType0) then (match (Uorc.Core.RuntimeProgram::typeAt arena (project body parameters) (1 : UInt64))
+        | Result.error prefixError1 => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] prefixError1)
+        | Result.ok prefixType1 => (if (sameType stateType prefixType1) then (match (prim checked_subtract (project body parameterCount) (2 : UInt64) : (Option UInt64))
+          | Option.none => (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+          | Option.some captureCount => (ctor Result.ok [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (record CaptureContract {body := (project body record), parameters := (project body parameters), offset := (2 : UInt64), count := captureCount, resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence)}))) else (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))) else (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))) else (ctor Result.error [CaptureContract, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.returnMismatch)))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: capture,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    localTypes : Uorc.Core.RuntimeTable::Table,
+    slotCount : UInt64,
+    distance : UInt64,
+    contract : CaptureContract,
+    captureIndex : UInt64
+  ],
+  result: (Result UInt64 Uorc.Core.RuntimeProgram::Failure),
+  body: (if (Uorc.Core.Heap::less captureIndex (project contract count)) then (match (local arena localTypes slotCount distance (ctor Uorc.Core.RuntimeOpcode::OperandRole.localAny))
+    | Result.error localError => (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] localError)
+    | Result.ok localInfo => (match (prim checked_add (project contract offset) captureIndex : (Option UInt64))
+      | Option.none => (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.operational (ctor Uorc.Core.Resources::OperationalError.addressSpaceExhausted)))
+      | Option.some parameterIndex => (match (Uorc.Core.RuntimeProgram::typeAt arena (project contract parameters) parameterIndex)
+        | Result.error typeError => (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] typeError)
+        | Result.ok expectedType => (if (sameType expectedType (project localInfo valueType)) then (ctor Result.ok [UInt64, Uorc.Core.RuntimeProgram::Failure] (project localInfo index)) else (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.typeMismatch))))))) else (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.arityMismatch)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: priorBlockIndex,
+  parameters: [blockIndex : UInt64, distance : UInt64],
+  result: (Result UInt64 Uorc.Core.RuntimeProgram::Failure),
+  body: (Uorc.Core.RuntimeProgram::priorBlockIndex blockIndex distance),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: returnSlot,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    localTypes : Uorc.Core.RuntimeTable::Table,
+    slotCount : UInt64,
+    distance : UInt64,
+    expectedType : Uorc.Core.RuntimeValue::RuntimeType
+  ],
+  result: (Result UInt64 Uorc.Core.RuntimeProgram::Failure),
+  body: (match (local arena localTypes slotCount distance (ctor Uorc.Core.RuntimeOpcode::OperandRole.localAny))
+    | Result.error localError => (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] localError)
+    | Result.ok info => (if (sameType expectedType (project info valueType)) then (ctor Result.ok [UInt64, Uorc.Core.RuntimeProgram::Failure] (project info index)) else (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.returnMismatch))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: entry,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    program : Uorc.Core.RuntimeProgram::Program,
+    index : UInt64
+  ],
+  result: (Result Unit Uorc.Core.RuntimeProgram::Failure),
+  body: (match (Uorc.Core.RuntimeProgram::blockAt arena program index)
+    | Result.error blockError => (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] blockError)
+    | Result.ok entryBlock => (if ((prim equal (project entryBlock parameterCount) (0 : UInt64) : Bool) && (sameType (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence) (project entryBlock resultType))) then (ctor Result.ok [Unit, Uorc.Core.RuntimeProgram::Failure] ()) else (ctor Result.error [Unit, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.static (ctor Uorc.Core.Types::StaticError.entrySignatureMismatch))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

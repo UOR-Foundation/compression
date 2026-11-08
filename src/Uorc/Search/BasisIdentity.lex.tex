@@ -1,0 +1,140 @@
+\begin{lexlean}{Uorc.Search.BasisIdentity}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Basis}
+\importmodule{Uorc.Wire.GraphEmit}
+\importmodule{Uorc.Integrity.BoundedChain}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: After,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: count, fields: []}, {name: object, fields: []}]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: emitting,
+      fields: [Uorc.Wire.GraphEmit::State, Uorc.Integrity.BoundedChain::State, After]
+    },
+    {
+      name: updating,
+      fields: [Uorc.Integrity.BoundedChain::Update, Uorc.Wire.GraphEmit::State, After]
+    },
+    {name: objects, fields: [Uorc.Integrity.BoundedChain::State]},
+    {name: finalizing, fields: [Uorc.Integrity.BoundedChain::State]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: basis, type: Uorc.Core.Basis::Table},
+    {name: objectIndex, type: Nat},
+    {name: phase, type: Phase},
+    {name: preimageBytes, type: Nat},
+    {name: completedEvents, type: Nat},
+    {name: eventCredit, type: Nat},
+    {name: logicalWork, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: table, fields: [Uorc.Core.Basis::TableError]},
+    {name: emit, fields: [Uorc.Wire.GraphEmit::EmitError]},
+    {name: integrity, fields: [Uorc.Integrity.BoundedChain::Error]},
+    {name: digestLength, fields: []},
+    {name: invalidState, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [Bytes, Nat, Nat]},
+    {name: failed, fields: [Error, Nat]}
+  ]
+}
+
+definition{
+  name: eventWork,
+  parameters: [cursor : Cursor],
+  result: Nat,
+  body: (match (project cursor phase)
+    | Phase.emitting emitter hash after => 1
+    | Phase.updating hashUpdate emitter after => 1
+    | Phase.objects hash => (if ((project cursor objectIndex) <? (project (project cursor basis) length)) then 129 else 1)
+    | Phase.finalizing hash => 1)
+}
+
+definition{
+  name: start,
+  parameters: [basis : Uorc.Core.Basis::Table],
+  result: Step,
+  body: (match (Uorc.Integrity.BoundedChain::init)
+    | Result.ok hash => (ctor Step.pending (record Cursor {basis := basis, objectIndex := 0, phase := (ctor Phase.emitting (record Uorc.Wire.GraphEmit::State {pending := (cons (ctor Uorc.Wire.GraphEmit::Task.rope (Uorc.Core.Bytes::cursor (Uorc.Core.Bytes::fromBytes 0x554f52432d42415349532d563100)) 14) (cons (ctor Uorc.Wire.GraphEmit::Task.number (project basis length)) (nil Uorc.Wire.GraphEmit::Task))), position := 0, work := 0}) hash (ctor After.count)), preimageBytes := 0, completedEvents := 0, eventCredit := 0, logicalWork := 0}))
+    | Result.error error => (ctor Step.failed (ctor Error.integrity error) 0)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: perform,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.emitting emitter hash after => (match (Uorc.Wire.GraphEmit::step emitter 1)
+      | Uorc.Wire.GraphEmit::Event.advanced nextEmitter => (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := (project cursor objectIndex), phase := (ctor Phase.emitting nextEmitter hash after), preimageBytes := (project cursor preimageBytes), completedEvents := ((project cursor completedEvents) + 1), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor))}))
+      | Uorc.Wire.GraphEmit::Event.produced chunk nextEmitter => (match (Uorc.Integrity.BoundedChain::beginUpdate hash chunk)
+        | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor logicalWork) + (eventWork cursor)))
+        | Result.ok update => (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := (project cursor objectIndex), phase := (ctor Phase.updating update nextEmitter after), preimageBytes := ((project cursor preimageBytes) + (prim length chunk : Nat)), completedEvents := ((project cursor completedEvents) + 1), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor))})))
+      | Uorc.Wire.GraphEmit::Event.complete size work => (match after
+        | After.count => (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := (project cursor objectIndex), phase := (ctor Phase.objects hash), preimageBytes := (project cursor preimageBytes), completedEvents := ((project cursor completedEvents) + 1), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor))}))
+        | After.object => (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := ((project cursor objectIndex) + 1), phase := (ctor Phase.objects hash), preimageBytes := (project cursor preimageBytes), completedEvents := ((project cursor completedEvents) + 1), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor))})))
+      | Uorc.Wire.GraphEmit::Event.failed error position work => (ctor Step.failed (ctor Error.emit error) ((project cursor logicalWork) + (eventWork cursor))))
+    | Phase.updating hashUpdate emitter after => (match (Uorc.Integrity.BoundedChain::updateStep hashUpdate)
+      | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor logicalWork) + (eventWork cursor)))
+      | Result.ok event => (match event
+        | Uorc.Integrity.BoundedChain::UpdateEvent.advanced next => (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := (project cursor objectIndex), phase := (ctor Phase.updating next emitter after), preimageBytes := (project cursor preimageBytes), completedEvents := ((project cursor completedEvents) + 1), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor))}))
+        | Uorc.Integrity.BoundedChain::UpdateEvent.done hash => (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := (project cursor objectIndex), phase := (ctor Phase.emitting emitter hash after), preimageBytes := (project cursor preimageBytes), completedEvents := ((project cursor completedEvents) + 1), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor))}))))
+    | Phase.objects hash => (if ((project cursor objectIndex) <? (project (project cursor basis) length)) then (match (Uorc.Core.Basis::atIndex (project cursor basis) (project cursor objectIndex))
+      | Result.error error => (ctor Step.failed (ctor Error.table error) ((project cursor logicalWork) + (eventWork cursor)))
+      | Result.ok root => (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := (project cursor objectIndex), phase := (ctor Phase.emitting (record Uorc.Wire.GraphEmit::State {pending := (cons (ctor Uorc.Wire.GraphEmit::Task.number (Uorc.Core.Bytes::length root)) (cons (ctor Uorc.Wire.GraphEmit::Task.rope (Uorc.Core.Bytes::cursor root) (Uorc.Core.Bytes::length root)) (nil Uorc.Wire.GraphEmit::Task))), position := 0, work := 0}) hash (ctor After.object)), preimageBytes := (project cursor preimageBytes), completedEvents := ((project cursor completedEvents) + 1), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor))}))) else (match (Uorc.Integrity.BoundedChain::finalize hash)
+      | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor logicalWork) + (eventWork cursor)))
+      | Result.ok nextHash => (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := (project cursor objectIndex), phase := (ctor Phase.finalizing nextHash), preimageBytes := (project cursor preimageBytes), completedEvents := ((project cursor completedEvents) + 1), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor))}))))
+    | Phase.finalizing hash => (match (Uorc.Integrity.BoundedChain::digest hash)
+      | Result.ok digestBytes => (if ((prim length digestBytes : Nat) =? 32) then (ctor Step.complete digestBytes (project cursor preimageBytes) ((project cursor logicalWork) + (eventWork cursor))) else (ctor Step.failed (ctor Error.digestLength) ((project cursor logicalWork) + (eventWork cursor))))
+      | Result.error notReady => (match (Uorc.Integrity.BoundedChain::step hash)
+        | Result.error error => (ctor Step.failed (ctor Error.integrity error) ((project cursor logicalWork) + (eventWork cursor)))
+        | Result.ok nextHash => (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := (project cursor objectIndex), phase := (ctor Phase.finalizing nextHash), preimageBytes := (project cursor preimageBytes), completedEvents := ((project cursor completedEvents) + 1), eventCredit := 0, logicalWork := ((project cursor logicalWork) + (eventWork cursor))}))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encodingIdentity,
+  parameters: [],
+  result: String,
+  body: "UORC-BASIS-V1 + NUL; shortest Nat ULEB count; ordered shortest Nat ULEB lengths and exact bytes; unshipped domain pending integrity freeze"
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (if ((project cursor eventCredit) <? (eventWork cursor)) then (if (((project cursor eventCredit) + 1) <? (eventWork cursor)) then (ctor Step.pending (record Cursor {basis := (project cursor basis), objectIndex := (project cursor objectIndex), phase := (project cursor phase), preimageBytes := (project cursor preimageBytes), completedEvents := (project cursor completedEvents), eventCredit := ((project cursor eventCredit) + 1), logicalWork := (project cursor logicalWork)})) else (perform cursor)) else (ctor Step.failed (ctor Error.invalidState) (project cursor logicalWork))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

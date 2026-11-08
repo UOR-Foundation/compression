@@ -1,0 +1,326 @@
+\begin{lexlean}{Uorc.Product.StreamProtocol}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: working, fields: []},
+    {name: awaitingInput, fields: []},
+    {name: complete, fields: []},
+    {name: cancelled, fields: []},
+    {name: failed, fields: []}
+  ]
+}
+
+inductive{
+  name: Publication,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: staged, fields: []},
+    {name: published, fields: []},
+    {name: notPublished, fields: []},
+    {name: unknown, fields: []}
+  ]
+}
+
+inductive{
+  name: ProtocolError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: inputNotRequested, fields: []},
+    {name: endAlreadySeen, fields: []},
+    {name: notWorking, fields: []},
+    {name: notReady, fields: []},
+    {name: outputLimit, fields: []}
+  ]
+}
+
+inductive{
+  name: Input,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: tick, fields: []},
+    {name: chunk, fields: []},
+    {name: endOfInput, fields: []},
+    {name: cancel, fields: []}
+  ]
+}
+
+inductive{
+  name: InputAction,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: run, fields: []},
+    {name: admitChunk, fields: []},
+    {name: sealInput, fields: []},
+    {name: cancel, fields: []},
+    {name: ignoreTerminal, fields: []}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: phase, type: Phase},
+    {name: ended, type: Bool},
+    {name: producedBytes, type: Nat},
+    {name: verified, type: Bool},
+    {name: publication, type: Publication}
+  ]
+}
+
+inductive{
+  name: Decision,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: accepted, fields: [InputAction, State]},
+    {name: rejected, fields: [ProtocolError]}
+  ]
+}
+
+definition{
+  name: initial,
+  parameters: [],
+  result: State,
+  body: (record State {phase := (ctor Phase.working), ended := false, producedBytes := 0, verified := false, publication := (ctor Publication.staged)}),
+  executable: true
+}
+
+definition{
+  name: acceptInput,
+  parameters: [s : State, input : Input],
+  result: Decision,
+  body: (match input
+    | Input.tick => (match (project s phase)
+      | Phase.working => (ctor Decision.accepted (ctor InputAction.run) s)
+      | Phase.awaitingInput => (ctor Decision.rejected (ctor ProtocolError.notWorking))
+      | Phase.complete => (ctor Decision.rejected (ctor ProtocolError.notWorking))
+      | Phase.cancelled => (ctor Decision.rejected (ctor ProtocolError.notWorking))
+      | Phase.failed => (ctor Decision.rejected (ctor ProtocolError.notWorking)))
+    | Input.chunk => (match (project s phase)
+      | Phase.working => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.awaitingInput => (if (project s ended) then (ctor Decision.rejected (ctor ProtocolError.endAlreadySeen)) else (ctor Decision.accepted (ctor InputAction.admitChunk) (record State {phase := (ctor Phase.working), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (project s publication)})))
+      | Phase.complete => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.cancelled => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.failed => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested)))
+    | Input.endOfInput => (match (project s phase)
+      | Phase.working => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.awaitingInput => (if (project s ended) then (ctor Decision.rejected (ctor ProtocolError.endAlreadySeen)) else (ctor Decision.accepted (ctor InputAction.sealInput) (record State {phase := (ctor Phase.working), ended := true, producedBytes := (project s producedBytes), verified := (project s verified), publication := (project s publication)})))
+      | Phase.complete => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.cancelled => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))
+      | Phase.failed => (ctor Decision.rejected (ctor ProtocolError.inputNotRequested)))
+    | Input.cancel => (match (project s phase)
+      | Phase.working => (ctor Decision.accepted (ctor InputAction.cancel) (record State {phase := (ctor Phase.cancelled), ended := (project s ended), producedBytes := (project s producedBytes), verified := false, publication := (ctor Publication.notPublished)}))
+      | Phase.awaitingInput => (ctor Decision.accepted (ctor InputAction.cancel) (record State {phase := (ctor Phase.cancelled), ended := (project s ended), producedBytes := (project s producedBytes), verified := false, publication := (ctor Publication.notPublished)}))
+      | Phase.complete => (ctor Decision.accepted (ctor InputAction.ignoreTerminal) s)
+      | Phase.cancelled => (ctor Decision.accepted (ctor InputAction.ignoreTerminal) s)
+      | Phase.failed => (ctor Decision.accepted (ctor InputAction.ignoreTerminal) s))),
+  executable: true
+}
+
+definition{
+  name: requestInput,
+  parameters: [s : State],
+  result: (Result State ProtocolError),
+  body: (match (project s phase)
+    | Phase.working => (if (project s ended) then (ctor Result.error [State, ProtocolError] (ctor ProtocolError.endAlreadySeen)) else (ctor Result.ok [State, ProtocolError] (record State {phase := (ctor Phase.awaitingInput), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (project s publication)})))
+    | Phase.awaitingInput => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.complete => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.cancelled => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.failed => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))),
+  executable: true
+}
+
+definition{
+  name: stageOutput,
+  parameters: [s : State, bytesProduced : Nat, limit : Nat],
+  result: (Result State ProtocolError),
+  body: (match (project s phase)
+    | Phase.working => (if (((project s producedBytes) <=? limit) && ((bytesProduced <=? (prim subtract limit (project s producedBytes) : Nat)) && true)) then (ctor Result.ok [State, ProtocolError] (record State {phase := (project s phase), ended := (project s ended), producedBytes := ((project s producedBytes) + bytesProduced), verified := (project s verified), publication := (project s publication)})) else (ctor Result.error [State, ProtocolError] (ctor ProtocolError.outputLimit)))
+    | Phase.awaitingInput => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.complete => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.cancelled => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.failed => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))),
+  executable: true
+}
+
+definition{
+  name: completeVerified,
+  parameters: [s : State],
+  result: (Result State ProtocolError),
+  body: (match (project s phase)
+    | Phase.working => (if (project s ended) then (ctor Result.ok [State, ProtocolError] (record State {phase := (ctor Phase.complete), ended := (project s ended), producedBytes := (project s producedBytes), verified := true, publication := (project s publication)})) else (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady)))
+    | Phase.awaitingInput => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.complete => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.cancelled => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))
+    | Phase.failed => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notWorking))),
+  executable: true
+}
+
+definition{
+  name: canCommit,
+  parameters: [s : State],
+  result: Bool,
+  body: (match (project s phase)
+    | Phase.working => false
+    | Phase.awaitingInput => false
+    | Phase.complete => ((project s verified) && ((match (project s publication)
+      | Publication.staged => true
+      | Publication.published => false
+      | Publication.notPublished => false
+      | Publication.unknown => false) && true))
+    | Phase.cancelled => false
+    | Phase.failed => false),
+  executable: true
+}
+
+definition{
+  name: recordPublication,
+  parameters: [s : State, outcome : Publication],
+  result: (Result State ProtocolError),
+  body: (if (canCommit s) then (match outcome
+    | Publication.staged => (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady))
+    | Publication.published => (ctor Result.ok [State, ProtocolError] (record State {phase := (project s phase), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (ctor Publication.published)}))
+    | Publication.notPublished => (ctor Result.ok [State, ProtocolError] (record State {phase := (project s phase), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (ctor Publication.notPublished)}))
+    | Publication.unknown => (ctor Result.ok [State, ProtocolError] (record State {phase := (project s phase), ended := (project s ended), producedBytes := (project s producedBytes), verified := (project s verified), publication := (ctor Publication.unknown)}))) else (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady))),
+  executable: true
+}
+
+definition{
+  name: fail,
+  parameters: [s : State, outcome : Publication],
+  result: State,
+  body: (record State {phase := (ctor Phase.failed), ended := (project s ended), producedBytes := (project s producedBytes), verified := false, publication := outcome}),
+  executable: true
+}
+
+theorem{
+  name: initial_cannot_commit,
+  parameters: [],
+  statement: ((canCommit (initial)) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: chunk_needs_demand,
+  parameters: [],
+  statement: ((acceptInput (initial) (ctor Input.chunk)) = (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: eof_needs_demand,
+  parameters: [],
+  statement: ((acceptInput (initial) (ctor Input.endOfInput)) = (ctor Decision.rejected (ctor ProtocolError.inputNotRequested))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: request_admits_chunk,
+  parameters: [],
+  statement: ((acceptInput (record State {phase := (ctor Phase.awaitingInput), ended := false, producedBytes := 0, verified := false, publication := (ctor Publication.staged)}) (ctor Input.chunk)) = (ctor Decision.accepted (ctor InputAction.admitChunk) (initial))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: seal_is_once,
+  parameters: [],
+  statement: ((requestInput (record State {phase := (ctor Phase.working), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.staged)})) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.endAlreadySeen))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: cannot_complete_before_eof,
+  parameters: [],
+  statement: ((completeVerified (initial)) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: verified_complete_can_commit,
+  parameters: [],
+  statement: ((canCommit (record State {phase := (ctor Phase.complete), ended := true, producedBytes := 7, verified := true, publication := (ctor Publication.staged)})) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: completion_preserves_staging,
+  parameters: [],
+  statement: ((completeVerified (record State {phase := (ctor Phase.working), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.staged)})) = (ctor Result.ok [State, ProtocolError] (record State {phase := (ctor Phase.complete), ended := true, producedBytes := 7, verified := true, publication := (ctor Publication.staged)}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: cancellation_never_commits,
+  parameters: [],
+  statement: ((canCommit (record State {phase := (ctor Phase.cancelled), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.notPublished)})) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: late_cancel_ignored,
+  parameters: [],
+  statement: ((acceptInput (record State {phase := (ctor Phase.complete), ended := true, producedBytes := 7, verified := true, publication := (ctor Publication.staged)}) (ctor Input.cancel)) = (ctor Decision.accepted (ctor InputAction.ignoreTerminal) (record State {phase := (ctor Phase.complete), ended := true, producedBytes := 7, verified := true, publication := (ctor Publication.staged)}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: staged_output_is_not_publication,
+  parameters: [],
+  statement: ((stageOutput (initial) 7 7) = (ctor Result.ok [State, ProtocolError] (record State {phase := (ctor Phase.working), ended := false, producedBytes := 7, verified := false, publication := (ctor Publication.staged)}))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: output_over_limit_rejected,
+  parameters: [],
+  statement: ((stageOutput (record State {phase := (ctor Phase.working), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.staged)}) 1 7) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.outputLimit))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: max_counter_rejected_before_add,
+  parameters: [],
+  statement: ((stageOutput (record State {phase := (ctor Phase.working), ended := false, producedBytes := 18446744073709551615, verified := false, publication := (ctor Publication.staged)}) 1 18446744073709551615) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.outputLimit))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: early_publication_rejected,
+  parameters: [],
+  statement: ((recordPublication (record State {phase := (ctor Phase.working), ended := true, producedBytes := 7, verified := false, publication := (ctor Publication.staged)}) (ctor Publication.published)) = (ctor Result.error [State, ProtocolError] (ctor ProtocolError.notReady))),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "The source controller uses this protocol around its actual operation state. An input chunk is accepted only on demand; EOF is one-shot; output remains staged until a verified completed operation permits host publication. completeVerified is called only by the independently verified operation path, never by an untrusted request flag. Atomic no-replace file publication, stdout partial-write risk, cancellation cleanup, and host outcome unknown remain distinct adapter obligations. This protocol does not itself verify archive content or prove host filesystem behavior.",
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

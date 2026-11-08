@@ -1,0 +1,156 @@
+\begin{lexlean}{Uorc.Search.ResidualRope}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Residual}
+\importmodule{Uorc.Search.Effort}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Reader,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: state, fields: [Uorc.Core.Bytes::Cursor, (Option UInt8), Bool]}]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: target, type: Reader},
+    {name: prediction, type: Reader},
+    {name: coordinate, type: Nat},
+    {name: exceptionsReversed, type: (List Uorc.Search.Residual::Exception)},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: lengthMismatch, fields: []},
+    {name: invalidCursor, fields: []},
+    {name: coordinateOverflow, fields: []},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: complete, fields: [(List Uorc.Search.Residual::Exception), Nat, Nat]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [target : Uorc.Core.Bytes::Rope, prediction : Uorc.Core.Bytes::Rope],
+  result: Cursor,
+  body: (record Cursor {target := (ctor Reader.state (Uorc.Core.Bytes::cursor target) (ctor Option.none [UInt8]) false), prediction := (ctor Reader.state (Uorc.Core.Bytes::cursor prediction) (ctor Option.none [UInt8]) false), coordinate := 0, exceptionsReversed := (nil Uorc.Search.Residual::Exception), completedEvents := 0})
+}
+
+definition{
+  name: readTarget,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor target)
+    | Reader.state targetSource targetCached targetEnded => (match (Uorc.Core.Bytes::nextChunk targetSource 1)
+      | Result.error ropeError => (ctor Step.rejected (ctor Error.rope ropeError))
+      | Result.ok event => (match event
+        | Uorc.Core.Bytes::CursorEvent.advanced next => (ctor Step.pending (record Cursor {target := (ctor Reader.state next targetCached targetEnded), prediction := (project cursor prediction), coordinate := (project cursor coordinate), exceptionsReversed := (project cursor exceptionsReversed), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Core.Bytes::CursorEvent.produced chunk next => (if ((prim length chunk : Nat) =? 1) then (match (prim index chunk 0 : (Option UInt8))
+          | Option.none => (ctor Step.rejected (ctor Error.invalidCursor))
+          | Option.some byte => (ctor Step.pending (record Cursor {target := (ctor Reader.state next (ctor Option.some [UInt8] byte) targetEnded), prediction := (project cursor prediction), coordinate := (project cursor coordinate), exceptionsReversed := (project cursor exceptionsReversed), completedEvents := ((project cursor completedEvents) + 1)}))) else (ctor Step.rejected (ctor Error.invalidCursor)))
+        | Uorc.Core.Bytes::CursorEvent.done => (ctor Step.pending (record Cursor {target := (ctor Reader.state targetSource targetCached true), prediction := (project cursor prediction), coordinate := (project cursor coordinate), exceptionsReversed := (project cursor exceptionsReversed), completedEvents := ((project cursor completedEvents) + 1)})))))
+}
+
+definition{
+  name: readPrediction,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor prediction)
+    | Reader.state predictionSource predictionCached predictionEnded => (match (Uorc.Core.Bytes::nextChunk predictionSource 1)
+      | Result.error ropeError => (ctor Step.rejected (ctor Error.rope ropeError))
+      | Result.ok event => (match event
+        | Uorc.Core.Bytes::CursorEvent.advanced next => (ctor Step.pending (record Cursor {target := (project cursor target), prediction := (ctor Reader.state next predictionCached predictionEnded), coordinate := (project cursor coordinate), exceptionsReversed := (project cursor exceptionsReversed), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Core.Bytes::CursorEvent.produced chunk next => (if ((prim length chunk : Nat) =? 1) then (match (prim index chunk 0 : (Option UInt8))
+          | Option.none => (ctor Step.rejected (ctor Error.invalidCursor))
+          | Option.some byte => (ctor Step.pending (record Cursor {target := (project cursor target), prediction := (ctor Reader.state next (ctor Option.some [UInt8] byte) predictionEnded), coordinate := (project cursor coordinate), exceptionsReversed := (project cursor exceptionsReversed), completedEvents := ((project cursor completedEvents) + 1)}))) else (ctor Step.rejected (ctor Error.invalidCursor)))
+        | Uorc.Core.Bytes::CursorEvent.done => (ctor Step.pending (record Cursor {target := (project cursor target), prediction := (ctor Reader.state predictionSource predictionCached true), coordinate := (project cursor coordinate), exceptionsReversed := (project cursor exceptionsReversed), completedEvents := ((project cursor completedEvents) + 1)})))))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor target)
+    | Reader.state targetSource targetCached targetEnded => (match (project cursor prediction)
+      | Reader.state predictionSource predictionCached predictionEnded => (match targetCached
+        | Option.none => (if targetEnded then (match predictionCached
+          | Option.none => (if predictionEnded then (ctor Step.complete (project cursor exceptionsReversed) (project cursor coordinate) ((project cursor completedEvents) + 1)) else (readPrediction cursor))
+          | Option.some unusedByte => (ctor Step.rejected (ctor Error.lengthMismatch))) else (readTarget cursor))
+        | Option.some targetByte => (match predictionCached
+          | Option.none => (if predictionEnded then (ctor Step.rejected (ctor Error.lengthMismatch)) else (readPrediction cursor))
+          | Option.some predictionByte => (if (prim equal targetByte predictionByte : Bool) then (ctor Step.pending (record Cursor {target := (ctor Reader.state targetSource (ctor Option.none [UInt8]) targetEnded), prediction := (ctor Reader.state predictionSource (ctor Option.none [UInt8]) predictionEnded), coordinate := ((project cursor coordinate) + 1), exceptionsReversed := (project cursor exceptionsReversed), completedEvents := ((project cursor completedEvents) + 1)})) else (match (Uorc.Search.Effort::checkedU64 (project cursor coordinate))
+            | Result.error unusedError => (ctor Step.rejected (ctor Error.coordinateOverflow))
+            | Result.ok coordinate => (ctor Step.pending (record Cursor {target := (ctor Reader.state targetSource (ctor Option.none [UInt8]) targetEnded), prediction := (ctor Reader.state predictionSource (ctor Option.none [UInt8]) predictionEnded), coordinate := ((project cursor coordinate) + 1), exceptionsReversed := (cons (record Uorc.Search.Residual::Exception {coordinate := coordinate, value := targetByte}) (project cursor exceptionsReversed)), completedEvents := ((project cursor completedEvents) + 1)})))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runCursor,
+  parameters: [fuel : Nat, cursor : Cursor],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => (ctor Step.pending cursor)
+    | Nat.succ remainingFuel => (match (step cursor)
+      | Step.pending nextCursor => (runCursor remainingFuel nextCursor)
+      | Step.complete exceptionsValue count events => (ctor Step.complete exceptionsValue count events)
+      | Step.rejected error => (ctor Step.rejected error))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match state
+    | Step.pending cursor => (runCursor fuel cursor)
+    | Step.complete exceptionsValue count events => (ctor Step.complete exceptionsValue count events)
+    | Step.rejected error => (ctor Step.rejected error)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: exceptions,
+  parameters: [state : Step],
+  result: (Option (List Uorc.Search.Residual::Exception)),
+  body: (match state
+    | Step.pending cursor => (ctor Option.none [(List Uorc.Search.Residual::Exception)])
+    | Step.complete exceptionsValue count events => (ctor Option.some [(List Uorc.Search.Residual::Exception)] exceptionsValue)
+    | Step.rejected error => (ctor Option.none [(List Uorc.Search.Residual::Exception)]))
+}
+
+theorem{
+  name: full_rope_fit_preserves_zero_and_ff_residuals,
+  parameters: [],
+  statement: ((exceptions (run 100 (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x00ff0200) (Uorc.Core.Bytes::fromBytes 0x00010203))))) = (ctor Option.some [(List Uorc.Search.Residual::Exception)] (cons (record Uorc.Search.Residual::Exception {coordinate := (3 : UInt64), value := (0 : UInt8)}) (cons (record Uorc.Search.Residual::Exception {coordinate := (1 : UInt64), value := (255 : UInt8)}) (nil Uorc.Search.Residual::Exception))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: residual_fit_ignores_transport_partition,
+  parameters: [],
+  statement: ((exceptions (run 100 (ctor Step.pending (start (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00ff) (Uorc.Core.Bytes::fromBytes 0x0200)) (Uorc.Core.Bytes::fromBytes 0x00010203))))) = (exceptions (run 100 (ctor Step.pending (start (Uorc.Core.Bytes::fromBytes 0x00ff0200) (Uorc.Core.Bytes::fromBytes 0x00010203)))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

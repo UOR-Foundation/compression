@@ -1,0 +1,174 @@
+\begin{lexlean}{Uorc.Search.OrderRope}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.VerifyRope}
+\importmodule{Uorc.Search.Order}
+\importmodule{Uorc.Search.Verify}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: incumbent, type: Uorc.Search.VerifyRope::CheckedArchive},
+    {name: challenger, type: Uorc.Search.VerifyRope::CheckedArchive},
+    {name: comparison, type: Uorc.Search.VerifyRope::Cursor}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: selected, fields: [Uorc.Search.VerifyRope::CheckedArchive]},
+    {name: invalidCursor, fields: []},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    incumbent : Uorc.Search.VerifyRope::CheckedArchive,
+    challenger : Uorc.Search.VerifyRope::CheckedArchive
+  ],
+  result: Step,
+  body: (if ((Uorc.Core.Bytes::length (project challenger wire)) <? (Uorc.Core.Bytes::length (project incumbent wire))) then (ctor Step.selected challenger) else (if ((Uorc.Core.Bytes::length (project incumbent wire)) <? (Uorc.Core.Bytes::length (project challenger wire))) then (ctor Step.selected incumbent) else (ctor Step.pending (record Cursor {incumbent := incumbent, challenger := challenger, comparison := (Uorc.Search.VerifyRope::start (cons (project incumbent wire) (nil Uorc.Core.Bytes::Rope)) (cons (project challenger wire) (nil Uorc.Core.Bytes::Rope)))}))))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (Uorc.Search.VerifyRope::step (project cursor comparison))
+    | Uorc.Search.VerifyRope::Step.pending next => (ctor Step.pending (record Cursor {incumbent := (project cursor incumbent), challenger := (project cursor challenger), comparison := next}))
+    | Uorc.Search.VerifyRope::Step.matched compared boundaries => (ctor Step.selected (project cursor incumbent))
+    | Uorc.Search.VerifyRope::Step.mismatch mismatch => (match (project mismatch kind)
+      | Uorc.Search.Verify::MismatchKind.objectCount => (ctor Step.invalidCursor)
+      | Uorc.Search.Verify::MismatchKind.objectLength => (ctor Step.invalidCursor)
+      | Uorc.Search.Verify::MismatchKind.byteValue => (match (project (project cursor comparison) expectedByte)
+        | Option.none => (ctor Step.invalidCursor)
+        | Option.some oldByte => (match (project (project cursor comparison) actualByte)
+          | Option.none => (ctor Step.invalidCursor)
+          | Option.some newByte => (if (Uorc.Search.Order::byteLess newByte oldByte) then (ctor Step.selected (project cursor challenger)) else (ctor Step.selected (project cursor incumbent)))))
+      | Uorc.Search.Verify::MismatchKind.invalidCursor => (ctor Step.invalidCursor))
+    | Uorc.Search.VerifyRope::Step.ropeFailure ropeError => (ctor Step.ropeFailure ropeError)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ restFuel => match{
+      branches: [
+        {body: (run restFuel (step cursor)), binders: [cursor], constructor: Step.pending},
+        {
+          body: (ctor Step.selected var{name: checked}),
+          binders: [checked],
+          constructor: Step.selected
+        },
+        {body: (ctor Step.invalidCursor), binders: [], constructor: Step.invalidCursor},
+        {
+          body: (ctor Step.ropeFailure ropeError),
+          binders: [ropeError],
+          constructor: Step.ropeFailure
+        }
+      ],
+      scrutinee: state
+    }),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+theorem{
+  name: segmented_full_archive_lex,
+  parameters: [],
+  statement: ((run 150 (start (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x0102) (Uorc.Core.Bytes::fromBytes 0x03ff)), bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::fromBytes 0x01020380), bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::fromBytes 0x01020380), bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: same_wire_different_partitions_keeps_incumbent,
+  parameters: [],
+  statement: ((run 150 (start (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0xff)), bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::fromBytes 0x00ff), bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0xff)), bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: shorter_wire_without_flattening,
+  parameters: [],
+  statement: ((start (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x0102) (Uorc.Core.Bytes::fromBytes 0x03ff)), bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::fromBytes 0xff), bytesCompared := 4, boundariesChecked := 1})) = (ctor Step.selected (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::fromBytes 0xff), bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{}
+}
+
+inductive{
+  name: Decision,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: keepIncumbent, fields: []}, {name: replaceIncumbent, fields: []}]
+}
+
+inductive{
+  name: DecisionStep,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: selected, fields: [Decision]},
+    {name: invalidCursor, fields: []},
+    {name: ropeFailure, fields: [Uorc.Core.Bytes::RopeError]}
+  ]
+}
+
+definition{
+  name: beginDecision,
+  parameters: [
+    incumbent : Uorc.Search.VerifyRope::CheckedArchive,
+    challenger : Uorc.Search.VerifyRope::CheckedArchive
+  ],
+  result: DecisionStep,
+  body: (if ((Uorc.Core.Bytes::length (project challenger wire)) <? (Uorc.Core.Bytes::length (project incumbent wire))) then (ctor DecisionStep.selected (ctor Decision.replaceIncumbent)) else (if ((Uorc.Core.Bytes::length (project incumbent wire)) <? (Uorc.Core.Bytes::length (project challenger wire))) then (ctor DecisionStep.selected (ctor Decision.keepIncumbent)) else (ctor DecisionStep.pending (record Cursor {incumbent := incumbent, challenger := challenger, comparison := (Uorc.Search.VerifyRope::start (cons (project incumbent wire) (nil Uorc.Core.Bytes::Rope)) (cons (project challenger wire) (nil Uorc.Core.Bytes::Rope)))}))))
+}
+
+definition{
+  name: decisionStep,
+  parameters: [cursor : Cursor],
+  result: DecisionStep,
+  body: (match (Uorc.Search.VerifyRope::step (project cursor comparison))
+    | Uorc.Search.VerifyRope::Step.pending next => (ctor DecisionStep.pending (record Cursor {incumbent := (project cursor incumbent), challenger := (project cursor challenger), comparison := next}))
+    | Uorc.Search.VerifyRope::Step.matched compared boundaries => (ctor DecisionStep.selected (ctor Decision.keepIncumbent))
+    | Uorc.Search.VerifyRope::Step.mismatch mismatch => (match (project mismatch kind)
+      | Uorc.Search.Verify::MismatchKind.objectCount => (ctor DecisionStep.invalidCursor)
+      | Uorc.Search.Verify::MismatchKind.objectLength => (ctor DecisionStep.invalidCursor)
+      | Uorc.Search.Verify::MismatchKind.byteValue => (match (project (project cursor comparison) expectedByte)
+        | Option.none => (ctor DecisionStep.invalidCursor)
+        | Option.some oldByte => (match (project (project cursor comparison) actualByte)
+          | Option.none => (ctor DecisionStep.invalidCursor)
+          | Option.some newByte => (if (Uorc.Search.Order::byteLess newByte oldByte) then (ctor DecisionStep.selected (ctor Decision.replaceIncumbent)) else (ctor DecisionStep.selected (ctor Decision.keepIncumbent)))))
+      | Uorc.Search.Verify::MismatchKind.invalidCursor => (ctor DecisionStep.invalidCursor))
+    | Uorc.Search.VerifyRope::Step.ropeFailure ropeError => (ctor DecisionStep.ropeFailure ropeError)),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: shorter_archive_has_explicit_replace_decision,
+  parameters: [],
+  statement: ((beginDecision (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x0102) (Uorc.Core.Bytes::fromBytes 0x03ff)), bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::fromBytes 0xff), bytesCompared := 4, boundariesChecked := 1})) = (ctor DecisionStep.selected (ctor Decision.replaceIncumbent))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: longer_archive_has_explicit_keep_decision,
+  parameters: [],
+  statement: ((beginDecision (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::fromBytes 0xff), bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.VerifyRope::CheckedArchive {wire := (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x0102) (Uorc.Core.Bytes::fromBytes 0x03ff)), bytesCompared := 4, boundariesChecked := 1})) = (ctor DecisionStep.selected (ctor Decision.keepIncumbent))),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

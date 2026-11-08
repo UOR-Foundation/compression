@@ -1,0 +1,691 @@
+\begin{lexlean}{Uorc.Claims}
+\useglossary{lexlean.std.bool@1.2.0}
+\title{Boolean}
+\begin{semanticmodule}
+inductive{
+  name: EvidenceKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: none, fields: []},
+    {name: imported_fact, fields: []},
+    {name: build_evidence, fields: []},
+    {name: kernel_theorem, fields: []},
+    {name: fixture_result, fields: []},
+    {name: scoped_minimum_certificate, fields: []},
+    {name: benchmark_target_unmet, fields: []},
+    {name: benchmark_target_met, fields: []},
+    {name: external_record_acceptance, fields: []},
+    {name: version_metadata, fields: []}
+  ]
+}
+
+inductive{
+  name: ClaimKind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: open_claim, fields: []},
+    {name: imported_fact, fields: []},
+    {name: build_evidence, fields: []},
+    {name: kernel_theorem, fields: []},
+    {name: reconstruction_checked, fields: []},
+    {name: minimum_certified, fields: []},
+    {name: benchmark_result, fields: []},
+    {name: record_validated, fields: []}
+  ]
+}
+
+inductive{
+  name: ResearchDisposition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: not_measured, fields: []},
+    {name: measured_target_unmet, fields: []},
+    {name: measured_target_met, fields: []},
+    {name: externally_accepted_record, fields: []}
+  ]
+}
+
+structure{
+  name: EvidenceRule,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: evidence, type: EvidenceKind},
+    {name: claim, type: ClaimKind},
+    {name: level, type: String},
+    {name: disposition, type: ResearchDisposition},
+    {name: implementationEvidence, type: Bool}
+  ]
+}
+
+definition{
+  name: rule_none,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.none), claim := (ctor ClaimKind.open_claim), level := "open", disposition := (ctor ResearchDisposition.not_measured), implementationEvidence := false})
+}
+
+definition{
+  name: rule_imported_fact,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.imported_fact), claim := (ctor ClaimKind.imported_fact), level := "some-true", disposition := (ctor ResearchDisposition.not_measured), implementationEvidence := true})
+}
+
+definition{
+  name: rule_build_evidence,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.build_evidence), claim := (ctor ClaimKind.build_evidence), level := "build", disposition := (ctor ResearchDisposition.not_measured), implementationEvidence := true})
+}
+
+definition{
+  name: rule_kernel_theorem,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.kernel_theorem), claim := (ctor ClaimKind.kernel_theorem), level := "build", disposition := (ctor ResearchDisposition.not_measured), implementationEvidence := true})
+}
+
+definition{
+  name: rule_fixture_result,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.fixture_result), claim := (ctor ClaimKind.reconstruction_checked), level := "build", disposition := (ctor ResearchDisposition.not_measured), implementationEvidence := true})
+}
+
+definition{
+  name: rule_scoped_minimum_certificate,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.scoped_minimum_certificate), claim := (ctor ClaimKind.minimum_certified), level := "build", disposition := (ctor ResearchDisposition.not_measured), implementationEvidence := true})
+}
+
+definition{
+  name: rule_benchmark_target_unmet,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.benchmark_target_unmet), claim := (ctor ClaimKind.benchmark_result), level := "open", disposition := (ctor ResearchDisposition.measured_target_unmet), implementationEvidence := false})
+}
+
+definition{
+  name: rule_benchmark_target_met,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.benchmark_target_met), claim := (ctor ClaimKind.benchmark_result), level := "open", disposition := (ctor ResearchDisposition.measured_target_met), implementationEvidence := false})
+}
+
+definition{
+  name: rule_external_record_acceptance,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.external_record_acceptance), claim := (ctor ClaimKind.record_validated), level := "open", disposition := (ctor ResearchDisposition.externally_accepted_record), implementationEvidence := false})
+}
+
+definition{
+  name: rule_version_metadata,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.version_metadata), claim := (ctor ClaimKind.open_claim), level := "open", disposition := (ctor ResearchDisposition.not_measured), implementationEvidence := false})
+}
+
+definition{
+  name: claimForEvidence,
+  parameters: [evidence : EvidenceKind],
+  result: ClaimKind,
+  body: (match evidence
+    | EvidenceKind.none => (project (rule_none) claim)
+    | EvidenceKind.imported_fact => (project (rule_imported_fact) claim)
+    | EvidenceKind.build_evidence => (project (rule_build_evidence) claim)
+    | EvidenceKind.kernel_theorem => (project (rule_kernel_theorem) claim)
+    | EvidenceKind.fixture_result => (project (rule_fixture_result) claim)
+    | EvidenceKind.scoped_minimum_certificate => (project (rule_scoped_minimum_certificate) claim)
+    | EvidenceKind.benchmark_target_unmet => (project (rule_benchmark_target_unmet) claim)
+    | EvidenceKind.benchmark_target_met => (project (rule_benchmark_target_met) claim)
+    | EvidenceKind.external_record_acceptance => (project (rule_external_record_acceptance) claim)
+    | EvidenceKind.version_metadata => (project (rule_version_metadata) claim))
+}
+
+definition{
+  name: researchDisposition,
+  parameters: [evidence : EvidenceKind],
+  result: ResearchDisposition,
+  body: (match evidence
+    | EvidenceKind.none => (project (rule_none) disposition)
+    | EvidenceKind.imported_fact => (project (rule_imported_fact) disposition)
+    | EvidenceKind.build_evidence => (project (rule_build_evidence) disposition)
+    | EvidenceKind.kernel_theorem => (project (rule_kernel_theorem) disposition)
+    | EvidenceKind.fixture_result => (project (rule_fixture_result) disposition)
+    | EvidenceKind.scoped_minimum_certificate => (project (rule_scoped_minimum_certificate) disposition)
+    | EvidenceKind.benchmark_target_unmet => (project (rule_benchmark_target_unmet) disposition)
+    | EvidenceKind.benchmark_target_met => (project (rule_benchmark_target_met) disposition)
+    | EvidenceKind.external_record_acceptance => (project (rule_external_record_acceptance) disposition)
+    | EvidenceKind.version_metadata => (project (rule_version_metadata) disposition))
+}
+
+definition{
+  name: implementationEvidence,
+  parameters: [evidence : EvidenceKind],
+  result: Bool,
+  body: (match evidence
+    | EvidenceKind.none => (project (rule_none) implementationEvidence)
+    | EvidenceKind.imported_fact => (project (rule_imported_fact) implementationEvidence)
+    | EvidenceKind.build_evidence => (project (rule_build_evidence) implementationEvidence)
+    | EvidenceKind.kernel_theorem => (project (rule_kernel_theorem) implementationEvidence)
+    | EvidenceKind.fixture_result => (project (rule_fixture_result) implementationEvidence)
+    | EvidenceKind.scoped_minimum_certificate => (project (rule_scoped_minimum_certificate) implementationEvidence)
+    | EvidenceKind.benchmark_target_unmet => (project (rule_benchmark_target_unmet) implementationEvidence)
+    | EvidenceKind.benchmark_target_met => (project (rule_benchmark_target_met) implementationEvidence)
+    | EvidenceKind.external_record_acceptance => (project (rule_external_record_acceptance) implementationEvidence)
+    | EvidenceKind.version_metadata => (project (rule_version_metadata) implementationEvidence))
+}
+
+theorem{
+  name: claimForEvidence_none,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.none)) = (ctor ClaimKind.open_claim)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_none,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.none)) = (ctor ResearchDisposition.not_measured)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_none,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.none)) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: claimForEvidence_imported_fact,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.imported_fact)) = (ctor ClaimKind.imported_fact)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_imported_fact,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.imported_fact)) = (ctor ResearchDisposition.not_measured)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_imported_fact,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.imported_fact)) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: claimForEvidence_build_evidence,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.build_evidence)) = (ctor ClaimKind.build_evidence)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_build_evidence,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.build_evidence)) = (ctor ResearchDisposition.not_measured)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_build_evidence,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.build_evidence)) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: claimForEvidence_kernel_theorem,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.kernel_theorem)) = (ctor ClaimKind.kernel_theorem)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_kernel_theorem,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.kernel_theorem)) = (ctor ResearchDisposition.not_measured)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_kernel_theorem,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.kernel_theorem)) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: claimForEvidence_fixture_result,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.fixture_result)) = (ctor ClaimKind.reconstruction_checked)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_fixture_result,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.fixture_result)) = (ctor ResearchDisposition.not_measured)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_fixture_result,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.fixture_result)) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: claimForEvidence_scoped_minimum_certificate,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.scoped_minimum_certificate)) = (ctor ClaimKind.minimum_certified)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_scoped_minimum_certificate,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.scoped_minimum_certificate)) = (ctor ResearchDisposition.not_measured)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_scoped_minimum_certificate,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.scoped_minimum_certificate)) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: claimForEvidence_benchmark_target_unmet,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.benchmark_target_unmet)) = (ctor ClaimKind.benchmark_result)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_benchmark_target_unmet,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.benchmark_target_unmet)) = (ctor ResearchDisposition.measured_target_unmet)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_benchmark_target_unmet,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.benchmark_target_unmet)) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: claimForEvidence_benchmark_target_met,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.benchmark_target_met)) = (ctor ClaimKind.benchmark_result)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_benchmark_target_met,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.benchmark_target_met)) = (ctor ResearchDisposition.measured_target_met)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_benchmark_target_met,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.benchmark_target_met)) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: claimForEvidence_external_record_acceptance,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.external_record_acceptance)) = (ctor ClaimKind.record_validated)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_external_record_acceptance,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.external_record_acceptance)) = (ctor ResearchDisposition.externally_accepted_record)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_external_record_acceptance,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.external_record_acceptance)) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: claimForEvidence_version_metadata,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.version_metadata)) = (ctor ClaimKind.open_claim)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_version_metadata,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.version_metadata)) = (ctor ResearchDisposition.not_measured)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_version_metadata,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.version_metadata)) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: measurementComplete,
+  parameters: [evidence : EvidenceKind],
+  result: Bool,
+  body: (match evidence
+    | EvidenceKind.none => false
+    | EvidenceKind.imported_fact => false
+    | EvidenceKind.build_evidence => false
+    | EvidenceKind.kernel_theorem => false
+    | EvidenceKind.fixture_result => false
+    | EvidenceKind.scoped_minimum_certificate => false
+    | EvidenceKind.benchmark_target_unmet => true
+    | EvidenceKind.benchmark_target_met => true
+    | EvidenceKind.external_record_acceptance => true
+    | EvidenceKind.version_metadata => false)
+}
+
+theorem{
+  name: valid_measurement_benchmark_target_unmet,
+  parameters: [],
+  statement: ((measurementComplete (ctor EvidenceKind.benchmark_target_unmet)) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: valid_measurement_benchmark_target_met,
+  parameters: [],
+  statement: ((measurementComplete (ctor EvidenceKind.benchmark_target_met)) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
+structure{
+  name: OpenClaim,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: level, type: String},
+    {name: evidence, type: String},
+    {name: disposition, type: String}
+  ]
+}
+
+definition{
+  name: performance,
+  parameters: [],
+  result: OpenClaim,
+  body: (record OpenClaim {id := "UC-PERF-01", level := "open", evidence := "none", disposition := "not_measured"})
+}
+
+definition{
+  name: record,
+  parameters: [],
+  result: OpenClaim,
+  body: (record OpenClaim {id := "UC-REC-01", level := "open", evidence := "none", disposition := "not_measured"})
+}
+
+definition{
+  name: honestyLevel,
+  parameters: [evidence : EvidenceKind],
+  result: String,
+  body: (match evidence
+    | EvidenceKind.none => (project (rule_none) level)
+    | EvidenceKind.imported_fact => (project (rule_imported_fact) level)
+    | EvidenceKind.build_evidence => (project (rule_build_evidence) level)
+    | EvidenceKind.kernel_theorem => (project (rule_kernel_theorem) level)
+    | EvidenceKind.fixture_result => (project (rule_fixture_result) level)
+    | EvidenceKind.scoped_minimum_certificate => (project (rule_scoped_minimum_certificate) level)
+    | EvidenceKind.benchmark_target_unmet => (project (rule_benchmark_target_unmet) level)
+    | EvidenceKind.benchmark_target_met => (project (rule_benchmark_target_met) level)
+    | EvidenceKind.external_record_acceptance => (project (rule_external_record_acceptance) level)
+    | EvidenceKind.version_metadata => (project (rule_version_metadata) level))
+}
+
+theorem{
+  name: honestyLevel_none,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.none)) = "open"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: honestyLevel_imported_fact,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.imported_fact)) = "some-true"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: honestyLevel_build_evidence,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.build_evidence)) = "build"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: honestyLevel_kernel_theorem,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.kernel_theorem)) = "build"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: honestyLevel_fixture_result,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.fixture_result)) = "build"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: honestyLevel_scoped_minimum_certificate,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.scoped_minimum_certificate)) = "build"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: honestyLevel_benchmark_target_unmet,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.benchmark_target_unmet)) = "open"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: honestyLevel_benchmark_target_met,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.benchmark_target_met)) = "open"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: honestyLevel_external_record_acceptance,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.external_record_acceptance)) = "open"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: honestyLevel_version_metadata,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.version_metadata)) = "open"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: performance_level_unpromoted,
+  parameters: [],
+  statement: ((project (performance) level) = "open"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: performance_evidence_unpromoted,
+  parameters: [],
+  statement: ((project (performance) evidence) = "none"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: performance_disposition_unpromoted,
+  parameters: [],
+  statement: ((project (performance) disposition) = "not_measured"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: record_level_unpromoted,
+  parameters: [],
+  statement: ((project call{arguments: [], function: record} level) = "open"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: record_evidence_unpromoted,
+  parameters: [],
+  statement: ((project call{arguments: [], function: record} evidence) = "none"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: record_disposition_unpromoted,
+  parameters: [],
+  statement: ((project call{arguments: [], function: record} disposition) = "not_measured"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+structure{
+  name: ClaimMutation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: id, type: String},
+    {name: definition, type: String},
+    {name: field, type: String},
+    {name: replacement, type: String},
+    {name: owner, type: String}
+  ]
+}
+
+definition{
+  name: mutation_fixture_as_proof,
+  parameters: [],
+  result: ClaimMutation,
+  body: (record ClaimMutation {id := "fixture_as_proof", definition := "rule_fixture_result", field := "claim", replacement := "kernel_theorem", owner := "claimForEvidence_fixture_result"})
+}
+
+definition{
+  name: mutation_certificate_as_record,
+  parameters: [],
+  result: ClaimMutation,
+  body: (record ClaimMutation {id := "certificate_as_record", definition := "rule_scoped_minimum_certificate", field := "claim", replacement := "record_validated", owner := "claimForEvidence_scoped_minimum_certificate"})
+}
+
+definition{
+  name: mutation_version_as_proof,
+  parameters: [],
+  result: ClaimMutation,
+  body: (record ClaimMutation {id := "version_as_proof", definition := "rule_version_metadata", field := "claim", replacement := "kernel_theorem", owner := "claimForEvidence_version_metadata"})
+}
+
+definition{
+  name: mutation_unmet_as_met,
+  parameters: [],
+  result: ClaimMutation,
+  body: (record ClaimMutation {id := "unmet_as_met", definition := "rule_benchmark_target_unmet", field := "disposition", replacement := "measured_target_met", owner := "researchDisposition_benchmark_target_unmet"})
+}
+
+definition{
+  name: mutation_open_as_build,
+  parameters: [],
+  result: ClaimMutation,
+  body: (record ClaimMutation {id := "open_as_build", definition := "performance", field := "level", replacement := "build", owner := "performance_level_unpromoted"})
+}
+
+definition{
+  name: mutation_benchmark_as_proof,
+  parameters: [],
+  result: ClaimMutation,
+  body: (record ClaimMutation {id := "benchmark_as_proof", definition := "rule_benchmark_target_met", field := "claim", replacement := "kernel_theorem", owner := "claimForEvidence_benchmark_target_met"})
+}
+
+definition{
+  name: policySummary,
+  parameters: [],
+  result: String,
+  body: "This table classifies evidence within its verified scope. It does not validate an evidence artifact or set whole-release acceptance. Registered ledger entries are obligations, not current-build execution receipts."
+}
+\end{semanticmodule}
+\end{lexlean}

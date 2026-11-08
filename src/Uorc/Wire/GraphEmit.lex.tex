@@ -1,0 +1,682 @@
+\begin{lexlean}{Uorc.Wire.GraphEmit}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: EmitError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: invalidQuantum, fields: []},
+    {name: invalidByte, fields: []},
+    {name: invalidRope, fields: []}
+  ]
+}
+
+inductive{
+  name: Task,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: byte, fields: [Nat]},
+    {name: number, fields: [Nat]},
+    {name: rope, fields: [Uorc.Core.Bytes::Cursor, Nat]},
+    {name: types, fields: [(List Uorc.Core.Types::ValueType)]},
+    {
+      name: countTypes,
+      fields: [(List Uorc.Core.Types::ValueType), (List Uorc.Core.Types::ValueType), Nat]
+    },
+    {name: references, fields: [(List Nat)]},
+    {name: countReferences, fields: [(List Nat), (List Nat), Nat]},
+    {name: instructions, fields: [(List Uorc.Core.Graph::Instruction)]},
+    {
+      name: countInstructions,
+      fields: [(List Uorc.Core.Graph::Instruction), (List Uorc.Core.Graph::Instruction), Nat]
+    },
+    {name: blocks, fields: [(List Uorc.Core.Graph::Block)]},
+    {
+      name: countBlocks,
+      fields: [(List Uorc.Core.Graph::Block), (List Uorc.Core.Graph::Block), Nat]
+    },
+    {name: instruction, fields: [Uorc.Core.Graph::Instruction]},
+    {name: block, fields: [Uorc.Core.Graph::Block]}
+  ]
+}
+
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: pending, type: (List Task)}, {name: position, type: Nat}, {name: work, type: Nat}]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [State]},
+    {name: produced, fields: [Bytes, State]},
+    {name: complete, fields: [Nat, Nat]},
+    {name: failed, fields: [EmitError, Nat, Nat]}
+  ]
+}
+
+definition{
+  name: typeCode,
+  parameters: [value : Uorc.Core.Types::ValueType],
+  result: Nat,
+  body: (match value
+    | Uorc.Core.Types::ValueType.natural => 0
+    | Uorc.Core.Types::ValueType.byte => 1
+    | Uorc.Core.Types::ValueType.predicate => 2
+    | Uorc.Core.Types::ValueType.sequence => 3
+    | Uorc.Core.Types::ValueType.store => 4)
+}
+
+definition{
+  name: instructionTasks,
+  parameters: [value : Uorc.Core.Graph::Instruction],
+  result: (List Task),
+  body: (match value
+    | Uorc.Core.Graph::Instruction.naturalConstant x0 => (cons (ctor Task.byte 0) (cons (ctor Task.number (Uorc.Core.Types::wordToNat x0)) (nil Task)))
+    | Uorc.Core.Graph::Instruction.byteConstant x0 => (cons (ctor Task.byte 1) (cons (ctor Task.byte (prim to_nat x0 : Nat)) (nil Task)))
+    | Uorc.Core.Graph::Instruction.predicateConstant x0 => (cons (ctor Task.byte 2) (cons (ctor Task.byte (if x0 then 1 else 0)) (nil Task)))
+    | Uorc.Core.Graph::Instruction.sequenceConstant x0 => (cons (ctor Task.byte 3) (cons (ctor Task.number (Uorc.Core.Bytes::length (Uorc.Core.Bytes::fromBytes x0))) (cons (ctor Task.rope (Uorc.Core.Bytes::cursor (Uorc.Core.Bytes::fromBytes x0)) (Uorc.Core.Bytes::length (Uorc.Core.Bytes::fromBytes x0))) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalAdd x0 x1 => (cons (ctor Task.byte 4) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalSubtract x0 x1 => (cons (ctor Task.byte 5) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalMultiply x0 x1 => (cons (ctor Task.byte 6) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalDivide x0 x1 => (cons (ctor Task.byte 7) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalRemainder x0 x1 => (cons (ctor Task.byte 8) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalAnd x0 x1 => (cons (ctor Task.byte 9) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalOr x0 x1 => (cons (ctor Task.byte 10) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalXor x0 x1 => (cons (ctor Task.byte 11) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalNot x0 => (cons (ctor Task.byte 12) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft x0 x1 => (cons (ctor Task.byte 13) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalShiftRight x0 x1 => (cons (ctor Task.byte 14) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalEqual x0 x1 => (cons (ctor Task.byte 15) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalLess x0 x1 => (cons (ctor Task.byte 16) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.byteEqual x0 x1 => (cons (ctor Task.byte 17) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.byteLess x0 x1 => (cons (ctor Task.byte 18) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.naturalToByte x0 => (cons (ctor Task.byte 19) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.byteToNatural x0 => (cons (ctor Task.byte 20) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.predicateNot x0 => (cons (ctor Task.byte 21) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.predicateAnd x0 x1 => (cons (ctor Task.byte 22) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.predicateOr x0 x1 => (cons (ctor Task.byte 23) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.sequenceLength x0 => (cons (ctor Task.byte 24) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.sequenceIndex x0 x1 => (cons (ctor Task.byte 25) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.sequenceSlice x0 x1 x2 => (cons (ctor Task.byte 26) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (nil Task)))))
+    | Uorc.Core.Graph::Instruction.sequenceConcat x0 x1 => (cons (ctor Task.byte 27) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.sequenceEqual x0 x1 => (cons (ctor Task.byte 28) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.singletonSequence x0 => (cons (ctor Task.byte 29) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.basisGet x0 => (cons (ctor Task.byte 30) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.storeNew x0 => (cons (ctor Task.byte 31) (cons (ctor Task.number x0) (nil Task)))
+    | Uorc.Core.Graph::Instruction.storeRead x0 x1 => (cons (ctor Task.byte 32) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (nil Task))))
+    | Uorc.Core.Graph::Instruction.storeWrite x0 x1 x2 => (cons (ctor Task.byte 33) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (nil Task)))))
+    | Uorc.Core.Graph::Instruction.choose x0 x1 x2 => (cons (ctor Task.byte 34) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (nil Task)))))
+    | Uorc.Core.Graph::Instruction.apply x0 x1 => (cons (ctor Task.byte 35) (cons (ctor Task.number x0) (cons (ctor Task.countReferences x1 x1 0) (nil Task))))
+    | Uorc.Core.Graph::Instruction.tabulate x0 x1 x2 => (cons (ctor Task.byte 36) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.countReferences x2 x2 0) (nil Task)))))
+    | Uorc.Core.Graph::Instruction.fold x0 x1 x2 x3 => (cons (ctor Task.byte 37) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (cons (ctor Task.countReferences x3 x3 0) (nil Task))))))
+    | Uorc.Core.Graph::Instruction.scan x0 x1 x2 x3 x4 x5 => (cons (ctor Task.byte 38) (cons (ctor Task.number x0) (cons (ctor Task.number x1) (cons (ctor Task.number x2) (cons (ctor Task.countReferences x3 x3 0) (cons (ctor Task.number x4) (cons (ctor Task.countReferences x5 x5 0) (nil Task))))))))
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant x0 => (cons (ctor Task.byte 3) (cons (ctor Task.number (Uorc.Core.Bytes::length x0)) (cons (ctor Task.rope (Uorc.Core.Bytes::cursor x0) (Uorc.Core.Bytes::length x0)) (nil Task))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: opcode,
+  parameters: [value : Uorc.Core.Graph::Instruction],
+  result: Nat,
+  body: (match value
+    | Uorc.Core.Graph::Instruction.naturalConstant ignored0 => 0
+    | Uorc.Core.Graph::Instruction.byteConstant ignored0 => 1
+    | Uorc.Core.Graph::Instruction.predicateConstant ignored0 => 2
+    | Uorc.Core.Graph::Instruction.sequenceConstant ignored0 => 3
+    | Uorc.Core.Graph::Instruction.naturalAdd ignored0 ignored1 => 4
+    | Uorc.Core.Graph::Instruction.naturalSubtract ignored0 ignored1 => 5
+    | Uorc.Core.Graph::Instruction.naturalMultiply ignored0 ignored1 => 6
+    | Uorc.Core.Graph::Instruction.naturalDivide ignored0 ignored1 => 7
+    | Uorc.Core.Graph::Instruction.naturalRemainder ignored0 ignored1 => 8
+    | Uorc.Core.Graph::Instruction.naturalAnd ignored0 ignored1 => 9
+    | Uorc.Core.Graph::Instruction.naturalOr ignored0 ignored1 => 10
+    | Uorc.Core.Graph::Instruction.naturalXor ignored0 ignored1 => 11
+    | Uorc.Core.Graph::Instruction.naturalNot ignored0 => 12
+    | Uorc.Core.Graph::Instruction.naturalShiftLeft ignored0 ignored1 => 13
+    | Uorc.Core.Graph::Instruction.naturalShiftRight ignored0 ignored1 => 14
+    | Uorc.Core.Graph::Instruction.naturalEqual ignored0 ignored1 => 15
+    | Uorc.Core.Graph::Instruction.naturalLess ignored0 ignored1 => 16
+    | Uorc.Core.Graph::Instruction.byteEqual ignored0 ignored1 => 17
+    | Uorc.Core.Graph::Instruction.byteLess ignored0 ignored1 => 18
+    | Uorc.Core.Graph::Instruction.naturalToByte ignored0 => 19
+    | Uorc.Core.Graph::Instruction.byteToNatural ignored0 => 20
+    | Uorc.Core.Graph::Instruction.predicateNot ignored0 => 21
+    | Uorc.Core.Graph::Instruction.predicateAnd ignored0 ignored1 => 22
+    | Uorc.Core.Graph::Instruction.predicateOr ignored0 ignored1 => 23
+    | Uorc.Core.Graph::Instruction.sequenceLength ignored0 => 24
+    | Uorc.Core.Graph::Instruction.sequenceIndex ignored0 ignored1 => 25
+    | Uorc.Core.Graph::Instruction.sequenceSlice ignored0 ignored1 ignored2 => 26
+    | Uorc.Core.Graph::Instruction.sequenceConcat ignored0 ignored1 => 27
+    | Uorc.Core.Graph::Instruction.sequenceEqual ignored0 ignored1 => 28
+    | Uorc.Core.Graph::Instruction.singletonSequence ignored0 => 29
+    | Uorc.Core.Graph::Instruction.basisGet ignored0 => 30
+    | Uorc.Core.Graph::Instruction.storeNew ignored0 => 31
+    | Uorc.Core.Graph::Instruction.storeRead ignored0 ignored1 => 32
+    | Uorc.Core.Graph::Instruction.storeWrite ignored0 ignored1 ignored2 => 33
+    | Uorc.Core.Graph::Instruction.choose ignored0 ignored1 ignored2 => 34
+    | Uorc.Core.Graph::Instruction.apply ignored0 ignored1 => 35
+    | Uorc.Core.Graph::Instruction.tabulate ignored0 ignored1 ignored2 => 36
+    | Uorc.Core.Graph::Instruction.fold ignored0 ignored1 ignored2 ignored3 => 37
+    | Uorc.Core.Graph::Instruction.scan ignored0 ignored1 ignored2 ignored3 ignored4 ignored5 => 38
+    | Uorc.Core.Graph::Instruction.sequenceRopeConstant ignored0 => 3)
+}
+
+definition{
+  name: start,
+  parameters: [graph : Uorc.Core.Graph::Graph],
+  result: State,
+  body: (record State {pending := (cons (ctor Task.countBlocks (project graph blocks) (project graph blocks) 0) (cons (ctor Task.number (project graph entry)) (nil Task))), position := 0, work := 0})
+}
+
+definition{
+  name: step,
+  parameters: [s : State, quantum : Nat],
+  result: Event,
+  body: (if (quantum =? 0) then (ctor Event.failed (ctor EmitError.invalidQuantum) (project s position) ((project s work) + 1)) else (match (project s pending)
+    | List.nil => (ctor Event.complete (project s position) (project s work))
+    | List.cons head tail => (match head
+      | Task.byte value => (match (Uorc.Core.Types::wordOfNatAux 8 value)
+        | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+        | Option.some byteWord => (match (prim checked_convert byteWord : (Option UInt8))
+          | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+          | Option.some byteValue => (ctor Event.produced (Uorc.Core.Types::singletonSequence byteValue) (record State {pending := tail, position := ((project s position) + 1), work := ((project s work) + 1)}))))
+      | Task.number value => (if (value <? 128) then (match (Uorc.Core.Types::wordOfNatAux 8 value)
+        | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+        | Option.some byteWord => (match (prim checked_convert byteWord : (Option UInt8))
+          | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+          | Option.some byteValue => (ctor Event.produced (Uorc.Core.Types::singletonSequence byteValue) (record State {pending := tail, position := ((project s position) + 1), work := ((project s work) + 1)})))) else (match (Uorc.Core.Types::wordOfNatAux 8 ((prim remainder value 128 0 : Nat) + 128))
+        | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+        | Option.some byteWord => (match (prim checked_convert byteWord : (Option UInt8))
+          | Option.none => (ctor Event.failed (ctor EmitError.invalidByte) (project s position) ((project s work) + 1))
+          | Option.some byteValue => (ctor Event.produced (Uorc.Core.Types::singletonSequence byteValue) (record State {pending := (cons (ctor Task.number (prim quotient value 128 0 : Nat)) tail), position := ((project s position) + 1), work := ((project s work) + 1)})))))
+      | Task.rope value remaining => (match (Uorc.Core.Bytes::nextChunk value quantum)
+        | Result.error ignored => (ctor Event.failed (ctor EmitError.invalidRope) (project s position) ((project s work) + 1))
+        | Result.ok ropeEvent => (match ropeEvent
+          | Uorc.Core.Bytes::CursorEvent.advanced next => (ctor Event.advanced (record State {pending := (cons (ctor Task.rope next remaining) tail), position := (project s position), work := ((project s work) + 1)}))
+          | Uorc.Core.Bytes::CursorEvent.produced chunk next => (ctor Event.produced chunk (record State {pending := (cons (ctor Task.rope next (prim subtract remaining (prim length chunk : Nat) : Nat)) tail), position := ((project s position) + (prim length chunk : Nat)), work := ((project s work) + 1)}))
+          | Uorc.Core.Bytes::CursorEvent.done => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))))
+      | Task.countTypes remaining original count => (match remaining
+        | List.nil => (ctor Event.advanced (record State {pending := (cons (ctor Task.number count) (cons (ctor Task.types original) tail)), position := (project s position), work := ((project s work) + 1)}))
+        | List.cons ignoredItemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.countTypes rest original (count + 1)) tail), position := (project s position), work := ((project s work) + 1)})))
+      | Task.types values => (match values
+        | List.nil => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))
+        | List.cons itemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.byte (typeCode itemHead)) (cons (ctor Task.types rest) tail)), position := (project s position), work := ((project s work) + 1)})))
+      | Task.countReferences remaining original count => (match remaining
+        | List.nil => (ctor Event.advanced (record State {pending := (cons (ctor Task.number count) (cons (ctor Task.references original) tail)), position := (project s position), work := ((project s work) + 1)}))
+        | List.cons ignoredItemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.countReferences rest original (count + 1)) tail), position := (project s position), work := ((project s work) + 1)})))
+      | Task.references values => (match values
+        | List.nil => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))
+        | List.cons itemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.number itemHead) (cons (ctor Task.references rest) tail)), position := (project s position), work := ((project s work) + 1)})))
+      | Task.countInstructions remaining original count => (match remaining
+        | List.nil => (ctor Event.advanced (record State {pending := (cons (ctor Task.number count) (cons (ctor Task.instructions original) tail)), position := (project s position), work := ((project s work) + 1)}))
+        | List.cons ignoredItemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.countInstructions rest original (count + 1)) tail), position := (project s position), work := ((project s work) + 1)})))
+      | Task.instructions values => (match values
+        | List.nil => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))
+        | List.cons itemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.instruction itemHead) (cons (ctor Task.instructions rest) tail)), position := (project s position), work := ((project s work) + 1)})))
+      | Task.countBlocks remaining original count => (match remaining
+        | List.nil => (ctor Event.advanced (record State {pending := (cons (ctor Task.number count) (cons (ctor Task.blocks original) tail)), position := (project s position), work := ((project s work) + 1)}))
+        | List.cons ignoredItemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.countBlocks rest original (count + 1)) tail), position := (project s position), work := ((project s work) + 1)})))
+      | Task.blocks values => (match values
+        | List.nil => (ctor Event.advanced (record State {pending := tail, position := (project s position), work := ((project s work) + 1)}))
+        | List.cons itemHead rest => (ctor Event.advanced (record State {pending := (cons (ctor Task.block itemHead) (cons (ctor Task.blocks rest) tail)), position := (project s position), work := ((project s work) + 1)})))
+      | Task.instruction value => (ctor Event.advanced (record State {pending := (prim append (instructionTasks value) tail : (List Task)), position := (project s position), work := ((project s work) + 1)}))
+      | Task.block value => (ctor Event.advanced (record State {pending := (cons (ctor Task.countTypes (project value parameters) (project value parameters) 0) (cons (ctor Task.byte (typeCode (project value result))) (cons (ctor Task.countInstructions (project value instructions) (project value instructions) 0) (cons (ctor Task.number (project value returnDistance)) tail)))), position := (project s position), work := ((project s work) + 1)}))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: measureStep,
+  parameters: [s : State],
+  result: Event,
+  body: (match (project s pending)
+    | List.nil => (ctor Event.complete (project s position) (project s work))
+    | List.cons head tail => (match head
+      | Task.byte ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.number ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.rope ignoredCursor remainingBytes => (ctor Event.advanced (record State {pending := tail, position := ((project s position) + remainingBytes), work := ((project s work) + 1)}))
+      | Task.types ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.countTypes ignored0 ignored1 ignored2 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.references ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.countReferences ignored0 ignored1 ignored2 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.instructions ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.countInstructions ignored0 ignored1 ignored2 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.blocks ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.countBlocks ignored0 ignored1 ignored2 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.instruction ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events))
+      | Task.block ignored0 => (match (step s 1)
+        | Event.advanced next => (ctor Event.advanced next)
+        | Event.produced ignoredBytes next => (ctor Event.advanced next)
+        | Event.complete count events => (ctor Event.complete count events)
+        | Event.failed error offset events => (ctor Event.failed error offset events)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: collectFixture,
+  parameters: [fuel : Nat, s : State, acc : Bytes],
+  result: (Option Bytes),
+  body: (match fuel
+    | Nat.zero => (ctor Option.none [Bytes])
+    | Nat.succ remaining => (match (step s 16)
+      | Event.complete size work => (ctor Option.some [Bytes] acc)
+      | Event.failed reason position work => (ctor Option.none [Bytes])
+      | Event.advanced next => (collectFixture remaining next acc)
+      | Event.produced chunk next => (collectFixture remaining next (prim append acc chunk : Bytes)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+theorem{
+  name: literal_empty,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x)) 0x) = (ctor Option.some [Bytes] 0x0100030103000100)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_00,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x00)) 0x) = (ctor Option.some [Bytes] 0x010003010301000100)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_00ff80,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x00ff80)) 0x) = (ctor Option.some [Bytes] 0x01000301030300ff800100)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: literal_00017f80ff,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalGraph 0x00017f80ff)) 0x) = (ctor Option.some [Bytes] 0x01000301030500017f80ff0100)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: partition_independent_literal,
+  parameters: [],
+  statement: ((collectFixture 1000 (start (Uorc.Core.Graph::literalRopeGraph (Uorc.Core.Bytes::join (Uorc.Core.Bytes::fromBytes 0x00) (Uorc.Core.Bytes::fromBytes 0xff80)))) 0x) = (ctor Option.some [Bytes] 0x01000301030300ff800100)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: opcode_naturalConstant,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalConstant (0 : UInt64))) = 0),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_byteConstant,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.byteConstant (0 : UInt8))) = 1),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_predicateConstant,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.predicateConstant false)) = 2),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceConstant,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceConstant 0x)) = 3),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalAdd,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalAdd 0 0)) = 4),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalSubtract,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalSubtract 0 0)) = 5),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalMultiply,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalMultiply 0 0)) = 6),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalDivide,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalDivide 0 0)) = 7),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalRemainder,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalRemainder 0 0)) = 8),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalAnd,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalAnd 0 0)) = 9),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalOr,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalOr 0 0)) = 10),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalXor,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalXor 0 0)) = 11),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalNot,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalNot 0)) = 12),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalShiftLeft,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalShiftLeft 0 0)) = 13),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalShiftRight,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalShiftRight 0 0)) = 14),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalEqual,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalEqual 0 0)) = 15),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalLess,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalLess 0 0)) = 16),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_byteEqual,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.byteEqual 0 0)) = 17),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_byteLess,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.byteLess 0 0)) = 18),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_naturalToByte,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.naturalToByte 0)) = 19),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_byteToNatural,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.byteToNatural 0)) = 20),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_predicateNot,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.predicateNot 0)) = 21),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_predicateAnd,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.predicateAnd 0 0)) = 22),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_predicateOr,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.predicateOr 0 0)) = 23),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceLength,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceLength 0)) = 24),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceIndex,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceIndex 0 0)) = 25),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceSlice,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceSlice 0 0 0)) = 26),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceConcat,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceConcat 0 0)) = 27),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_sequenceEqual,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.sequenceEqual 0 0)) = 28),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_singletonSequence,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.singletonSequence 0)) = 29),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_basisGet,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.basisGet 0)) = 30),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_storeNew,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.storeNew 0)) = 31),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_storeRead,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.storeRead 0 0)) = 32),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_storeWrite,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.storeWrite 0 0 0)) = 33),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_choose,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.choose 0 0 0)) = 34),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_apply,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.apply 0 (nil Nat))) = 35),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_tabulate,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.tabulate 0 0 (nil Nat))) = 36),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_fold,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.fold 0 0 0 (nil Nat))) = 37),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: opcode_scan,
+  parameters: [],
+  statement: ((opcode (ctor Uorc.Core.Graph::Instruction.scan 0 0 0 (nil Nat) 0 (nil Nat))) = 38),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: profileBoundary,
+  parameters: [],
+  result: String,
+  body: "This source assigns new explicit graph opcode and type tags. It does not assert compatibility with unavailable draft01 or draft02 graph vectors. Numeric structural fields use shortest unsigned base128 naturals; naturalConstant is additionally checked UInt64. Byte literals serialize by logical bytes independent of rope shape. Entry is a zero-based block index; local and called-block references retain validated backward-distance semantics. Production start/step emits bounded chunks and never accumulates the entire wire output."
+}
+\end{semanticmodule}
+\end{lexlean}

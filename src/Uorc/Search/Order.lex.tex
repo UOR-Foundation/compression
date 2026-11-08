@@ -1,0 +1,137 @@
+\begin{lexlean}{Uorc.Search.Order}
+\importmodule{Uorc.Search.Verify}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: incumbent, type: Uorc.Search.Verify::CheckedArchive},
+    {name: challenger, type: Uorc.Search.Verify::CheckedArchive},
+    {name: offset, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: selected, fields: [Uorc.Search.Verify::CheckedArchive]},
+    {name: invalidCursor, fields: []}
+  ]
+}
+
+definition{
+  name: byteLess,
+  parameters: [left : UInt8, right : UInt8],
+  result: Bool,
+  body: (match (prim checked_subtract left right : (Option UInt8))
+    | Option.none => true
+    | Option.some difference => false),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: start,
+  parameters: [
+    incumbent : Uorc.Search.Verify::CheckedArchive,
+    challenger : Uorc.Search.Verify::CheckedArchive
+  ],
+  result: Step,
+  body: (if ((prim length (project challenger wire) : Nat) <? (prim length (project incumbent wire) : Nat)) then (ctor Step.selected challenger) else (if ((prim length (project incumbent wire) : Nat) <? (prim length (project challenger wire) : Nat)) then (ctor Step.selected incumbent) else (ctor Step.pending (record Cursor {incumbent := incumbent, challenger := challenger, offset := 0}))))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (if (prim equal (prim length (project (project cursor incumbent) wire) : Nat) (prim length (project (project cursor challenger) wire) : Nat) : Bool) then (if ((project cursor offset) <? (prim length (project (project cursor incumbent) wire) : Nat)) then (match (prim index (project (project cursor incumbent) wire) (project cursor offset) : (Option UInt8))
+    | Option.none => (ctor Step.invalidCursor)
+    | Option.some oldByte => (match (prim index (project (project cursor challenger) wire) (project cursor offset) : (Option UInt8))
+      | Option.none => (ctor Step.invalidCursor)
+      | Option.some newByte => (if (prim equal oldByte newByte : Bool) then (ctor Step.pending (record Cursor {incumbent := (project cursor incumbent), challenger := (project cursor challenger), offset := ((project cursor offset) + 1)})) else (if (byteLess newByte oldByte) then (ctor Step.selected (project cursor challenger)) else (ctor Step.selected (project cursor incumbent)))))) else (if ((project cursor offset) =? (prim length (project (project cursor incumbent) wire) : Nat)) then (ctor Step.selected (project cursor incumbent)) else (ctor Step.invalidCursor))) else (ctor Step.invalidCursor)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: run,
+  parameters: [fuel : Nat, state : Step],
+  result: Step,
+  body: (match fuel
+    | Nat.zero => state
+    | Nat.succ restFuel => match{
+      branches: [
+        {body: (run restFuel (step cursor)), binders: [cursor], constructor: Step.pending},
+        {
+          body: (ctor Step.selected var{name: checked}),
+          binders: [checked],
+          constructor: Step.selected
+        },
+        {body: (ctor Step.invalidCursor), binders: [], constructor: Step.invalidCursor}
+      ],
+      scrutinee: state
+    }),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+theorem{
+  name: shorter_wins,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0x0000, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0xff, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0xff, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: longer_never_wins,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0x00, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0x0000, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0x00, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: unsigned_full_archive_lex_tie,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0xff00, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0x80ff, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0x80ff, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: lex_later_byte,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0x01020304, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0x010202ff, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0x010202ff, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: identical_keeps_incumbent,
+  parameters: [],
+  statement: ((run 20 (start (record Uorc.Search.Verify::CheckedArchive {wire := 0x0102, bytesCompared := 4, boundariesChecked := 1}) (record Uorc.Search.Verify::CheckedArchive {wire := 0x0102, bytesCompared := 4, boundariesChecked := 1}))) = (ctor Step.selected (record Uorc.Search.Verify::CheckedArchive {wire := 0x0102, bytesCompared := 4, boundariesChecked := 1}))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: byte_00_lt_ff,
+  parameters: [],
+  statement: ((byteLess (0 : UInt8) (255 : UInt8)) = true),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: byte_ff_not_lt_00,
+  parameters: [],
+  statement: ((byteLess (255 : UInt8) (0 : UInt8)) = false),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

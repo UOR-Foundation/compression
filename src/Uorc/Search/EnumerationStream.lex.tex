@@ -1,0 +1,617 @@
+\begin{lexlean}{Uorc.Search.EnumerationStream}
+\importmodule{Uorc.Search.OwnedEnumeration}
+\importmodule{Uorc.Search.EnumerationFunding}
+\importmodule{Uorc.Wire.OwnedRead}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Core.RuntimeResources}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: allocateControl, fields: []},
+    {name: beginRead, fields: []},
+    {name: read, fields: []},
+    {name: retainSpan, fields: []},
+    {name: offered, fields: []},
+    {name: releaseSpan, fields: []},
+    {name: drainSpan, fields: []},
+    {name: releaseControl, fields: []},
+    {name: drainControl, fields: []},
+    {name: cancelSelect, fields: []},
+    {name: complete, fields: []},
+    {name: cancelled, fields: []}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: reader, fields: [Uorc.Wire.OwnedRead::Failure]},
+    {name: resource, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: invalidSource, fields: []},
+    {name: invalidSpan, fields: []},
+    {name: invalidOffer, fields: []},
+    {name: invalidFunding, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+structure{
+  name: Offer,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: source, type: Uorc.Search.OwnedEnumeration::Ticket},
+    {name: owner, type: Uorc.Core.RuntimeValue::Handle},
+    {name: position, type: UInt64},
+    {name: span, type: Uorc.Core.RuntimeSequence::Span}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: source, type: Uorc.Search.OwnedEnumeration::Ticket},
+    {name: phase, type: Phase},
+    {name: control, type: Uorc.Core.RuntimeValue::Handle},
+    {name: reader, type: Uorc.Wire.OwnedRead::Cursor},
+    {name: span, type: Uorc.Core.RuntimeSequence::Span},
+    {name: spanOwned, type: Bool},
+    {name: offeredPosition, type: UInt64},
+    {name: cancelling, type: Bool},
+    {name: paid, type: UInt64}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: offered, fields: [Offer]},
+    {name: complete, fields: []},
+    {name: cancelled, fields: []},
+    {name: unresolved, fields: [Error]}
+  ]
+}
+
+inductive{
+  name: Request,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advance, fields: []},
+    {name: acknowledge, fields: [Offer]},
+    {name: cancel, fields: []}
+  ]
+}
+
+structure{
+  name: RawTransition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: cursor, type: Cursor},
+    {name: delta, type: Uorc.Core.Heap::Delta},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: cursor, type: Cursor},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: remainingCredits, type: UInt64},
+    {name: chargedWork, type: UInt64},
+    {name: delta, type: Uorc.Core.Heap::Delta},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+definition{
+  name: controlBytes,
+  parameters: [],
+  result: UInt64,
+  body: (2048 : UInt64),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: emptySpan,
+  parameters: [],
+  result: Uorc.Core.RuntimeSequence::Span,
+  body: (record Uorc.Core.RuntimeSequence::Span {image := (Uorc.Core.RuntimeValue::nullHandle), offset := (0 : UInt64), length := (0 : UInt64)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: emptyReader,
+  parameters: [],
+  result: Uorc.Wire.OwnedRead::Cursor,
+  body: (record Uorc.Wire.OwnedRead::Cursor {root := (Uorc.Core.RuntimeValue::nullHandle), length := (0 : UInt64), offset := (0 : UInt64), current := (Uorc.Core.RuntimeValue::nullHandle), index := (0 : UInt64), walking := false}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: start,
+  parameters: [
+    enumeration : Uorc.Search.OwnedEnumeration::Cursor,
+    ticket : Uorc.Search.OwnedEnumeration::Ticket
+  ],
+  result: (Result Cursor Error),
+  body: (if (Uorc.Search.OwnedEnumeration::ticketMatches enumeration ticket) then (ctor Result.ok [Cursor, Error] (record Cursor {source := ticket, phase := (ctor Phase.allocateControl), control := (Uorc.Core.RuntimeValue::nullHandle), reader := (emptyReader), span := (emptySpan), spanOwned := false, offeredPosition := (0 : UInt64), cancelling := false, paid := (0 : UInt64)})) else (ctor Result.error [Cursor, Error] (ctor Error.invalidSource))),
+  executable: true
+}
+
+definition{
+  name: offer,
+  parameters: [cursor : Cursor],
+  result: Offer,
+  body: (record Offer {source := (project cursor source), owner := (project cursor control), position := (project cursor offeredPosition), span := (project cursor span)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: sameTicket,
+  parameters: [
+    first : Uorc.Search.OwnedEnumeration::Ticket,
+    second : Uorc.Search.OwnedEnumeration::Ticket
+  ],
+  result: Bool,
+  body: ((Uorc.Core.RuntimeValue::sameHandle (project var{
+    name: first
+  } owner) (project var{
+    name: second
+  } owner)) && ((Uorc.Core.RuntimeValue::sameHandle (project var{
+    name: first
+  } sequence) (project var{
+    name: second
+  } sequence)) && (prim equal (project var{
+    name: first
+  } length) (project var{name: second} length) : Bool))),
+  executable: true
+}
+
+definition{
+  name: offerMatches,
+  parameters: [cursor : Cursor, offered : Offer],
+  result: Bool,
+  body: ((match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.beginRead => false
+    | Phase.read => false
+    | Phase.retainSpan => false
+    | Phase.offered => true
+    | Phase.releaseSpan => false
+    | Phase.drainSpan => false
+    | Phase.releaseControl => false
+    | Phase.drainControl => false
+    | Phase.cancelSelect => false
+    | Phase.complete => false
+    | Phase.cancelled => false) && ((project cursor spanOwned) && ((not (project cursor cancelling)) && ((Uorc.Core.RuntimeValue::sameHandle (project cursor control) (project offered owner)) && ((sameTicket (project cursor source) (project offered source)) && ((prim equal (project cursor offeredPosition) (project offered position) : Bool) && ((Uorc.Core.RuntimeValue::sameHandle (project (project cursor span) image) (project (project offered span) image)) && ((prim equal (project (project cursor span) offset) (project (project offered span) offset) : Bool) && (prim equal (project (project cursor span) length) (project (project offered span) length) : Bool))))))))),
+  executable: true
+}
+
+definition{
+  name: viewOutcome,
+  parameters: [cursor : Cursor],
+  result: Outcome,
+  body: (if (match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.beginRead => false
+    | Phase.read => false
+    | Phase.retainSpan => false
+    | Phase.offered => true
+    | Phase.releaseSpan => false
+    | Phase.drainSpan => false
+    | Phase.releaseControl => false
+    | Phase.drainControl => false
+    | Phase.cancelSelect => false
+    | Phase.complete => false
+    | Phase.cancelled => false) then (ctor Outcome.offered (offer cursor)) else (if (match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.beginRead => false
+    | Phase.read => false
+    | Phase.retainSpan => false
+    | Phase.offered => false
+    | Phase.releaseSpan => false
+    | Phase.drainSpan => false
+    | Phase.releaseControl => false
+    | Phase.drainControl => false
+    | Phase.cancelSelect => false
+    | Phase.complete => true
+    | Phase.cancelled => false) then (ctor Outcome.complete) else (if (match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.beginRead => false
+    | Phase.read => false
+    | Phase.retainSpan => false
+    | Phase.offered => false
+    | Phase.releaseSpan => false
+    | Phase.drainSpan => false
+    | Phase.releaseControl => false
+    | Phase.drainControl => false
+    | Phase.cancelSelect => false
+    | Phase.complete => false
+    | Phase.cancelled => true) then (ctor Outcome.cancelled) else (ctor Outcome.pending)))),
+  executable: true
+}
+
+definition{
+  name: rootInventory,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Core.RuntimeSequence::addRoot (project cursor control) (Uorc.Core.RuntimeSequence::addRoot (if (project cursor spanOwned) then (project (project cursor span) image) else (Uorc.Core.RuntimeValue::nullHandle)) (nil Uorc.Core.RuntimeValue::Handle))),
+  executable: true
+}
+
+definition{
+  name: quiescent,
+  parameters: [cursor : Cursor],
+  result: Bool,
+  body: (((match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.beginRead => false
+    | Phase.read => false
+    | Phase.retainSpan => false
+    | Phase.offered => false
+    | Phase.releaseSpan => false
+    | Phase.drainSpan => false
+    | Phase.releaseControl => false
+    | Phase.drainControl => false
+    | Phase.cancelSelect => false
+    | Phase.complete => true
+    | Phase.cancelled => false) || (match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.beginRead => false
+    | Phase.read => false
+    | Phase.retainSpan => false
+    | Phase.offered => false
+    | Phase.releaseSpan => false
+    | Phase.drainSpan => false
+    | Phase.releaseControl => false
+    | Phase.drainControl => false
+    | Phase.cancelSelect => false
+    | Phase.complete => false
+    | Phase.cancelled => true)) && ((Uorc.Core.RuntimeValue::isNull (project cursor control)) && ((not (project cursor spanOwned)) && (prim equal (project cursor paid) (0 : UInt64) : Bool)))),
+  executable: true
+}
+
+definition{
+  name: requiredWork,
+  parameters: [cursor : Cursor],
+  result: UInt64,
+  body: (match (project cursor phase)
+    | Phase.allocateControl => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate))
+    | Phase.beginRead => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceBegin))
+    | Phase.read => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceStep))
+    | Phase.retainSpan => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRetain))
+    | Phase.offered => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.idle))
+    | Phase.releaseSpan => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease))
+    | Phase.drainSpan => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep))
+    | Phase.releaseControl => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease))
+    | Phase.drainControl => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep))
+    | Phase.cancelSelect => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control))
+    | Phase.complete => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.idle))
+    | Phase.cancelled => (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.idle))),
+  executable: true
+}
+
+definition{
+  name: beginRead,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: RawTransition,
+  body: (match (Uorc.Wire.OwnedRead::begin arena (project (project cursor source) sequence))
+    | Result.error failure => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.reader failure))})
+    | Result.ok reader => (if ((Uorc.Core.RuntimeValue::sameHandle (project reader root) (project (project cursor source) sequence)) && (prim equal (project reader length) (project (project cursor source) length) : Bool)) then (record RawTransition {arena := arena, cursor := (record Cursor {source := (project cursor source), phase := (ctor Phase.read), control := (project cursor control), reader := reader, span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.invalidSource))}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: borrowedSpan,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    count : UInt64,
+    following : Uorc.Wire.OwnedRead::Cursor
+  ],
+  result: RawTransition,
+  body: (match (prim checked_add (project (project cursor reader) offset) count : (Option UInt64))
+    | Option.none => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.addressSpaceExhausted))})
+    | Option.some followingOffset => (if ((not (Uorc.Core.RuntimeValue::isNull image)) && ((not (prim equal count (0 : UInt64) : Bool)) && ((prim equal followingOffset (project following offset) : Bool) && ((not (Uorc.Core.Heap::less (project (project cursor source) length) followingOffset)) && ((Uorc.Core.RuntimeValue::sameHandle (project following root) (project (project cursor source) sequence)) && (prim equal (project following length) (project (project cursor source) length) : Bool)))))) then (record RawTransition {arena := arena, cursor := (record Cursor {source := (project cursor source), phase := (ctor Phase.retainSpan), control := (project cursor control), reader := following, span := (record Uorc.Core.RuntimeSequence::Span {image := image, offset := offset, length := count}), spanOwned := (project cursor spanOwned), offeredPosition := (project (project cursor reader) offset), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.invalidSpan))}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: read,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: RawTransition,
+  body: (match (Uorc.Wire.OwnedRead::step arena (project cursor reader))
+    | Uorc.Wire.OwnedRead::Step.advanced following => (record RawTransition {arena := arena, cursor := (record Cursor {source := (project cursor source), phase := (project cursor phase), control := (project cursor control), reader := following, span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})
+    | Uorc.Wire.OwnedRead::Step.borrowedSpan image offset count following => (borrowedSpan arena cursor image offset count following)
+    | Uorc.Wire.OwnedRead::Step.complete => (if (prim equal (project (project cursor reader) offset) (project (project cursor source) length) : Bool) then (record RawTransition {arena := arena, cursor := (record Cursor {source := (project cursor source), phase := (ctor Phase.releaseControl), control := (project cursor control), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.invalidSpan))}))
+    | Uorc.Wire.OwnedRead::Step.failed failure => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.reader failure))})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: retainSpan,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: RawTransition,
+  body: (match (Uorc.Core.Heap::retain arena (project (project cursor span) image))
+    | Result.error failure => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap failure))})
+    | Result.ok change => (let offered : Cursor := (record Cursor {source := (project cursor source), phase := (ctor Phase.offered), control := (project cursor control), reader := (project cursor reader), span := (project cursor span), spanOwned := true, offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}); (record RawTransition {arena := (project change arena), cursor := offered, delta := (project change delta), outcome := (ctor Outcome.offered (offer offered))}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: acknowledge,
+  parameters: [cursor : Cursor, offered : Offer],
+  result: (Result Cursor Error),
+  body: (if (offerMatches cursor offered) then (ctor Result.ok [Cursor, Error] (record Cursor {source := (project cursor source), phase := (ctor Phase.releaseSpan), control := (project cursor control), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)})) else (ctor Result.error [Cursor, Error] (ctor Error.invalidOffer))),
+  executable: true
+}
+
+definition{
+  name: cancel,
+  parameters: [cursor : Cursor],
+  result: Cursor,
+  body: (if ((project cursor cancelling) || (match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.beginRead => false
+    | Phase.read => false
+    | Phase.retainSpan => false
+    | Phase.offered => false
+    | Phase.releaseSpan => false
+    | Phase.drainSpan => false
+    | Phase.releaseControl => false
+    | Phase.drainControl => false
+    | Phase.cancelSelect => false
+    | Phase.complete => false
+    | Phase.cancelled => true)) then cursor else (record Cursor {source := (project cursor source), phase := (if (match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.beginRead => false
+    | Phase.read => false
+    | Phase.retainSpan => false
+    | Phase.offered => false
+    | Phase.releaseSpan => false
+    | Phase.drainSpan => true
+    | Phase.releaseControl => false
+    | Phase.drainControl => false
+    | Phase.cancelSelect => false
+    | Phase.complete => false
+    | Phase.cancelled => false) then (ctor Phase.drainSpan) else (if (match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.beginRead => false
+    | Phase.read => false
+    | Phase.retainSpan => false
+    | Phase.offered => false
+    | Phase.releaseSpan => false
+    | Phase.drainSpan => false
+    | Phase.releaseControl => false
+    | Phase.drainControl => true
+    | Phase.cancelSelect => false
+    | Phase.complete => false
+    | Phase.cancelled => false) then (ctor Phase.drainControl) else (ctor Phase.cancelSelect))), control := (project cursor control), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := true, paid := (0 : UInt64)})),
+  executable: true
+}
+
+definition{
+  name: cancelSelect,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: RawTransition,
+  body: (record RawTransition {arena := arena, cursor := (record Cursor {source := (project cursor source), phase := (if (project cursor spanOwned) then (ctor Phase.releaseSpan) else (if (Uorc.Core.RuntimeValue::isNull (project cursor control)) then (ctor Phase.cancelled) else (ctor Phase.releaseControl))), control := (project cursor control), reader := (project cursor reader), span := (if (project cursor spanOwned) then (project cursor span) else (emptySpan)), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}),
+  executable: true
+}
+
+definition{
+  name: releaseSpan,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: RawTransition,
+  body: (match (Uorc.Core.Heap::release arena (project (project cursor span) image))
+    | Result.error failure => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap failure))})
+    | Result.ok change => (record RawTransition {arena := (project change arena), cursor := (record Cursor {source := (project cursor source), phase := (if (project change complete) then (if (project cursor cancelling) then (ctor Phase.cancelSelect) else (ctor Phase.read)) else (ctor Phase.drainSpan)), control := (project cursor control), reader := (project cursor reader), span := (emptySpan), spanOwned := false, offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project change delta), outcome := (ctor Outcome.pending)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainSpan,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: RawTransition,
+  body: (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error failure => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap failure))})
+    | Result.ok change => (record RawTransition {arena := (project change arena), cursor := (record Cursor {source := (project cursor source), phase := (if (project change complete) then (if (project cursor cancelling) then (ctor Phase.cancelSelect) else (ctor Phase.read)) else (ctor Phase.drainSpan)), control := (project cursor control), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project change delta), outcome := (ctor Outcome.pending)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: releaseControl,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: RawTransition,
+  body: (match (Uorc.Core.Heap::release arena (project cursor control))
+    | Result.error failure => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap failure))})
+    | Result.ok change => (record RawTransition {arena := (project change arena), cursor := (record Cursor {source := (project cursor source), phase := (if (project change complete) then (if (project cursor cancelling) then (ctor Phase.cancelled) else (ctor Phase.complete)) else (ctor Phase.drainControl)), control := (Uorc.Core.RuntimeValue::nullHandle), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project change delta), outcome := (ctor Outcome.pending)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainControl,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: RawTransition,
+  body: (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error failure => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap failure))})
+    | Result.ok change => (record RawTransition {arena := (project change arena), cursor := (record Cursor {source := (project cursor source), phase := (if (project change complete) then (if (project cursor cancelling) then (ctor Phase.cancelled) else (ctor Phase.complete)) else (ctor Phase.drainControl)), control := (project cursor control), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project change delta), outcome := (ctor Outcome.pending)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: perform,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: RawTransition,
+  body: (match (project cursor phase)
+    | Phase.allocateControl => (match (Uorc.Core.Heap::allocateControl arena (controlBytes))
+      | Result.error failure => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap failure))})
+      | Result.ok allocation => (record RawTransition {arena := (project allocation arena), cursor := (record Cursor {source := (project cursor source), phase := (ctor Phase.beginRead), control := (project allocation handle), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project allocation delta), outcome := (ctor Outcome.pending)}))
+    | Phase.beginRead => (beginRead arena cursor)
+    | Phase.read => (read arena cursor)
+    | Phase.retainSpan => (retainSpan arena cursor)
+    | Phase.offered => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.offered (offer cursor))})
+    | Phase.releaseSpan => (releaseSpan arena cursor)
+    | Phase.drainSpan => (drainSpan arena cursor)
+    | Phase.releaseControl => (releaseControl arena cursor)
+    | Phase.drainControl => (drainControl arena cursor)
+    | Phase.cancelSelect => (cancelSelect arena cursor)
+    | Phase.complete => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.complete)})
+    | Phase.cancelled => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.cancelled)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: execute,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor, request : Request],
+  result: RawTransition,
+  body: (match request
+    | Request.advance => (perform arena cursor)
+    | Request.acknowledge offered => (match (acknowledge cursor offered)
+      | Result.error failure => (record RawTransition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved failure)})
+      | Result.ok acknowledged => (record RawTransition {arena := arena, cursor := acknowledged, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}))
+    | Request.cancel => (perform arena (cancel cursor))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: observeResult,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    raw : RawTransition,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    remaining : UInt64,
+    spent : UInt64
+  ],
+  result: Transition,
+  body: (match (Uorc.Search.EnumerationFunding::achievedUsage (project raw arena) usage)
+    | Result.error failure => (record Transition {arena := (project raw arena), cursor := (project raw cursor), usage := usage, remainingCredits := remaining, chargedWork := spent, delta := (project raw delta), outcome := (ctor Outcome.unresolved (ctor Error.heap failure))})
+    | Result.ok achieved => (match (Uorc.Core.RuntimeResources::observeArena budget achieved (project raw arena))
+      | Result.error failure => (record Transition {arena := (project raw arena), cursor := (project raw cursor), usage := achieved, remainingCredits := remaining, chargedWork := spent, delta := (project raw delta), outcome := (ctor Outcome.unresolved (ctor Error.resource failure))})
+      | Result.ok observed => (record Transition {arena := (project raw arena), cursor := (project raw cursor), usage := observed, remainingCredits := remaining, chargedWork := spent, delta := (project raw delta), outcome := (project raw outcome)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: pay,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    cursor : Cursor,
+    request : Request,
+    available : UInt64,
+    fee : UInt64
+  ],
+  result: Transition,
+  body: (if (Uorc.Core.Heap::less fee (project cursor paid)) then (record Transition {arena := arena, cursor := cursor, usage := usage, remainingCredits := available, chargedWork := (0 : UInt64), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.invalidFunding))}) else (let taken : UInt64 := (if (Uorc.Core.Heap::less available (Uorc.Core.Heap::wordSub fee (project cursor paid))) then available else (Uorc.Core.Heap::wordSub fee (project cursor paid))); (match (Uorc.Core.RuntimeResources::charge budget usage (record Uorc.Core.RuntimeResources::Event {work := taken, emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+    | Result.error failure => (record Transition {arena := arena, cursor := cursor, usage := usage, remainingCredits := available, chargedWork := (0 : UInt64), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.resource failure))})
+    | Result.ok charged => (let paidCursor : Cursor := (record Cursor {source := (project cursor source), phase := (project cursor phase), control := (project cursor control), reader := (project cursor reader), span := (project cursor span), spanOwned := (project cursor spanOwned), offeredPosition := (project cursor offeredPosition), cancelling := (project cursor cancelling), paid := (Uorc.Core.Heap::wordAdd (project cursor paid) taken)}); (if (prim equal (Uorc.Core.Heap::wordAdd (project cursor paid) taken) fee : Bool) then (observeResult budget (execute arena (record Cursor {source := (project paidCursor source), phase := (project paidCursor phase), control := (project paidCursor control), reader := (project paidCursor reader), span := (project paidCursor span), spanOwned := (project paidCursor spanOwned), offeredPosition := (project paidCursor offeredPosition), cancelling := (project paidCursor cancelling), paid := (0 : UInt64)}) request) charged (Uorc.Core.Heap::wordSub available taken) taken) else (record Transition {arena := arena, cursor := paidCursor, usage := charged, remainingCredits := (Uorc.Core.Heap::wordSub available taken), chargedWork := taken, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (viewOutcome paidCursor)})))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: advanceFund,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    cursor : Cursor,
+    available : UInt64
+  ],
+  result: Transition,
+  body: (let fee : UInt64 := (requiredWork cursor); (if (prim equal fee (0 : UInt64) : Bool) then (record Transition {arena := arena, cursor := cursor, usage := usage, remainingCredits := available, chargedWork := (0 : UInt64), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (viewOutcome cursor)}) else (pay arena budget usage cursor (ctor Request.advance) available fee))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: fundObserved,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    enumeration : Uorc.Search.OwnedEnumeration::Cursor,
+    cursor : Cursor,
+    request : Request,
+    available : UInt64
+  ],
+  result: Transition,
+  body: (match request
+    | Request.advance => (if ((project cursor cancelling) || (Uorc.Search.OwnedEnumeration::ticketMatches enumeration (project cursor source))) then (advanceFund arena budget usage cursor available) else (record Transition {arena := arena, cursor := cursor, usage := usage, remainingCredits := available, chargedWork := (0 : UInt64), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.invalidSource))}))
+    | Request.acknowledge offered => (if (Uorc.Search.OwnedEnumeration::ticketMatches enumeration (project cursor source)) then (if (offerMatches cursor offered) then (pay arena budget usage cursor request available (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.acknowledgment))) else (record Transition {arena := arena, cursor := cursor, usage := usage, remainingCredits := available, chargedWork := (0 : UInt64), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.invalidOffer))})) else (record Transition {arena := arena, cursor := cursor, usage := usage, remainingCredits := available, chargedWork := (0 : UInt64), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.invalidSource))}))
+    | Request.cancel => (advanceFund arena budget usage (cancel cursor) available)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: fund,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    budget : Uorc.Core.RuntimeResources::Budget,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    enumeration : Uorc.Search.OwnedEnumeration::Cursor,
+    cursor : Cursor,
+    request : Request,
+    available : UInt64
+  ],
+  result: Transition,
+  body: (match (Uorc.Search.EnumerationFunding::achievedUsage arena usage)
+    | Result.error failure => (record Transition {arena := arena, cursor := cursor, usage := usage, remainingCredits := available, chargedWork := (0 : UInt64), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap failure))})
+    | Result.ok achieved => (match (Uorc.Core.RuntimeResources::observeArena budget achieved arena)
+      | Result.error failure => (record Transition {arena := arena, cursor := cursor, usage := achieved, remainingCredits := available, chargedWork := (0 : UInt64), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.resource failure))})
+      | Result.ok observed => (fundObserved arena budget observed enumeration cursor request available))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "A Search-owned prepaid correlation and explicit image-lease adapter over the exact shared Wire.OwnedRead, not an independent traversal or archive controller. start and every non-cancellation funded event require the exact outstanding OwnedEnumeration owner/sequence/length ticket. A fresh charged adapter control owner distinguishes stream generations. OwnedRead yields borrowed spans and owns no ticket; this adapter retains exactly one image ticket before offering it, records that root separately, and releases it only after exact adapter-owner/source-ticket/logical-position/span acknowledgment and consumer detachment. Zero-fee replay retains no additional root. Fixed cursor fields hold no Arena, Bytes, Graph, Rope or list backing. The producer current-sequence root remains separately pinned for the whole trial; rootInventory lists only actual adapter control and retained image custody. Every event is prepaid through shared RuntimeWork and actual RuntimeResources accounting; refusal preserves its exact source/lease prefix, and post-effect errors retain achieved Arena/Usage/Delta. Cancellation abandons unused prepayment without refund, drains pending releases and adapter roots, and leaves the producer ticket outstanding. EOF, span acknowledgment, quiescence and cancellation establish custody only: no source function here acknowledges the enumerator or decides archive parsing, integrity, admission, execution, ordered output, full-byte equality, membership, exclusion, predecessor coverage or minimum certification. A real independent archive trial must bind those decisions under the exact SemanticScope while retaining unresolved predecessors; fair discovery and ordinary best-known output remain independent of exhaustive certificate search. General ownership/refinement, official compiler/native/kernel and full pinned-SDK qualification remain separate obligations.",
+  axioms: [],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

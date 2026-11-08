@@ -1,0 +1,107 @@
+\begin{lexlean}{Uorc.Search.InputModels}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Search.Charts}
+\importmodule{Uorc.Search.State}
+\importmodule{Uorc.Search.GeneralFit}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Resources}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Kind,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: affine, fields: []}, {name: state, fields: []}]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: observing, fields: [Uorc.Core.Bytes::Cursor, Bytes]},
+    {name: choosing, fields: [Bytes, Nat]},
+    {name: fitting, fields: [Uorc.Search.GeneralFit::Cursor, Bytes, Nat]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: target, type: Uorc.Core.Bytes::Rope},
+    {name: budget, type: Uorc.Core.Resources::Budget},
+    {name: kind, type: Kind},
+    {name: phase, type: Phase},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: invalidObservation, fields: []},
+    {name: coordinateOverflow, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Cursor]},
+    {name: finished, fields: []},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [target : Uorc.Core.Bytes::Rope, budget : Uorc.Core.Resources::Budget, kind : Kind],
+  result: Cursor,
+  body: (record Cursor {target := target, budget := budget, kind := kind, phase := (ctor Phase.observing (Uorc.Core.Bytes::cursor target) 0x), completedEvents := 0})
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.observing reader observations => (if (2 <=? (prim length observations : Nat)) then (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations 0), completedEvents := ((project cursor completedEvents) + 1)})) else (match (Uorc.Core.Bytes::nextChunk reader 1)
+      | Result.error error => (ctor Step.failed (ctor Error.rope error))
+      | Result.ok readEvent => (match readEvent
+        | Uorc.Core.Bytes::CursorEvent.advanced next => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.observing next observations), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Core.Bytes::CursorEvent.produced chunk next => (if ((prim length chunk : Nat) =? 1) then (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.observing next (prim append observations chunk : Bytes)), completedEvents := ((project cursor completedEvents) + 1)})) else (ctor Step.failed (ctor Error.invalidObservation)))
+        | Uorc.Core.Bytes::CursorEvent.done => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations 0), completedEvents := ((project cursor completedEvents) + 1)})))))
+    | Phase.choosing observations nextState => (match (Uorc.Search.Effort::checkedU64 (Uorc.Core.Bytes::length (project cursor target)))
+      | Result.error error => (ctor Step.failed (ctor Error.coordinateOverflow))
+      | Result.ok count => (match (project cursor kind)
+        | Kind.affine => (if (nextState =? 0) then (match (Uorc.Search.Charts::infer observations)
+          | Result.error error => (ctor Step.finished)
+          | Result.ok parameters => (match (Uorc.Search.GeneralFit::start (project cursor target) (Uorc.Search.Charts::affineGraph parameters count) (project cursor budget))
+            | Uorc.Search.GeneralFit::Step.pending fitCursor => (ctor Step.proposal (Uorc.Search.Charts::affineGraph parameters count) (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.fitting fitCursor observations (nextState + 1)), completedEvents := ((project cursor completedEvents) + 1)}))
+            | Uorc.Search.GeneralFit::Step.proposal graph events => (ctor Step.proposal graph (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations (nextState + 1)), completedEvents := ((project cursor completedEvents) + 1)}))
+            | Uorc.Search.GeneralFit::Step.rejected error => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations (nextState + 1)), completedEvents := ((project cursor completedEvents) + 1)})))) else (ctor Step.finished))
+        | Kind.state => (if (nextState <? 256) then (match (Uorc.Search.Effort::checkedU64 nextState)
+          | Result.error error => (ctor Step.failed (ctor Error.coordinateOverflow))
+          | Result.ok multiplier => (match (Uorc.Search.State::infer observations multiplier)
+            | Result.error error => (ctor Step.finished)
+            | Result.ok parameters => (match (Uorc.Search.GeneralFit::start (project cursor target) (Uorc.Search.State::stateGraph parameters count) (project cursor budget))
+              | Uorc.Search.GeneralFit::Step.pending fitCursor => (ctor Step.proposal (Uorc.Search.State::stateGraph parameters count) (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.fitting fitCursor observations (nextState + 1)), completedEvents := ((project cursor completedEvents) + 1)}))
+              | Uorc.Search.GeneralFit::Step.proposal graph events => (ctor Step.proposal graph (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations (nextState + 1)), completedEvents := ((project cursor completedEvents) + 1)}))
+              | Uorc.Search.GeneralFit::Step.rejected error => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations (nextState + 1)), completedEvents := ((project cursor completedEvents) + 1)}))))) else (ctor Step.finished))))
+    | Phase.fitting fitCursor observations nextState => (match (Uorc.Search.GeneralFit::step fitCursor)
+      | Uorc.Search.GeneralFit::Step.pending next => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.fitting next observations nextState), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.GeneralFit::Step.proposal graph events => (ctor Step.proposal graph (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations nextState), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.GeneralFit::Step.rejected error => (ctor Step.pending (record Cursor {target := (project cursor target), budget := (project cursor budget), kind := (project cursor kind), phase := (ctor Phase.choosing observations nextState), completedEvents := ((project cursor completedEvents) + 1)})))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

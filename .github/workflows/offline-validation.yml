@@ -1,0 +1,159 @@
+name: SDK offline reproducibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    name: review-only generated projections
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject known source-format incompatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B tests/sdk-preflight/run.py
+          python3 -B scripts/sdk-source-format-preflight.py
+      - name: Produce review candidates with the exact SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=$(node -p 'JSON.parse(require("fs").readFileSync("prismpm.lock")).sdk_image')
+          [[ "$image" =~ ^[a-z0-9.-]+(:[0-9]{1,5})?/[a-z0-9./_-]+@sha256:[0-9a-f]{64}$ ]]
+          docker pull "$image"
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --volume "$PWD:$PWD" --workdir "$PWD" \
+            --env PRISMPM_EPHEMERAL_HOME=1 \
+            --tmpfs /tmp:rw,exec,nosuid,size=4g \
+            "$image" bash -euc 'prismpm lock check; lexlean fmt --check --all; just model-write; node scripts/offline-validation.mjs export-projections .prism/projection-candidates'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: generated-projection-candidates
+          path: .prism/projection-candidates
+          if-no-files-found: error
+          include-hidden-files: true
+  offline-setup:
+    name: offline formal construction / dependency setup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject known source-format incompatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B tests/sdk-preflight/run.py
+          python3 -B scripts/sdk-source-format-preflight.py
+      - name: Seal one dependency acquisition and reject setup negatives
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=$(node -p 'JSON.parse(require("fs").readFileSync("prismpm.lock")).sdk_image')
+          [[ "$image" =~ ^[a-z0-9.-]+(:[0-9]{1,5})?/[a-z0-9./_-]+@sha256:[0-9a-f]{64}$ ]]
+          docker pull "$image"
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --group-add "$(stat -c '%g' /var/run/docker.sock)" \
+            --volume "$PWD:$PWD" --workdir "$PWD" \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            --env PRISMPM_EPHEMERAL_HOME=1 \
+            --tmpfs /tmp:rw,exec,nosuid,size=4g \
+            "$image" node scripts/offline-validation.mjs acquire .tmp/offline-acquisition
+          # A tarball keeps the sealed cache byte for byte (modes, empty directories).
+          tar -C .tmp -cf .prism/uorc/offline-acquisition.tar offline-acquisition
+      - name: Preserve setup logs, evidence and the sealed acquisition
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: offline-setup
+          path: .prism/uorc
+          if-no-files-found: warn
+          include-hidden-files: true
+  offline:
+    name: offline formal construction / ${{ matrix.root }}
+    needs: offline-setup
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two distinct roots, each a full no-network build and verify, in
+        # parallel: one verify fills most of a job's hour.
+        root: [first, second-distinct-root]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject known source-format incompatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B tests/sdk-preflight/run.py
+          python3 -B scripts/sdk-source-format-preflight.py
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: offline-setup
+          path: .prism/offline-setup
+      - name: Run one no-network SDK formal construction over the sealed acquisition
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .tmp && tar -C .tmp -xf .prism/offline-setup/offline-acquisition.tar && rm -rf .prism/offline-setup
+          image=$(node -p 'JSON.parse(require("fs").readFileSync("prismpm.lock")).sdk_image')
+          [[ "$image" =~ ^[a-z0-9.-]+(:[0-9]{1,5})?/[a-z0-9./_-]+@sha256:[0-9a-f]{64}$ ]]
+          docker pull "$image"
+          # Only orchestration sees the daemon. The verifier containers have
+          # no socket, credentials, parent checkout mount, or network interface.
+          docker run --rm --user "$(id -u):$(id -g)" \
+            --group-add "$(stat -c '%g' /var/run/docker.sock)" \
+            --volume "$PWD:$PWD" --workdir "$PWD" \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            --env PRISMPM_EPHEMERAL_HOME=1 \
+            --tmpfs /tmp:rw,exec,nosuid,size=4g \
+            "$image" node scripts/offline-validation.mjs isolated "${{ matrix.root }}" .tmp/offline-acquisition
+      - name: Preserve actual logs and evidence, including partial failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: offline-evidence-${{ matrix.root }}
+          path: .prism/uorc
+          if-no-files-found: warn
+          include-hidden-files: true
+  offline-compare:
+    name: offline formal construction / two-root comparison
+    needs: offline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: offline-evidence-*
+          path: .prism/offline
+          merge-multiple: true
+      - name: Compare the two roots byte for byte
+        shell: bash
+        run: node scripts/offline-validation.mjs compare-offline .prism/offline/first .prism/offline/second-distinct-root
+      - name: Preserve the two-root comparison receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: offline-comparison
+          path: .prism/uorc/offline-comparison.json
+          if-no-files-found: error

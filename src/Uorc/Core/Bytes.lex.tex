@@ -1,0 +1,704 @@
+\begin{lexlean}{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Resources}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Rope,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: empty, fields: []},
+    {name: leaf, fields: [Bytes]},
+    {name: branch, fields: [Nat, Nat, Rope, Rope]},
+    {name: view, fields: [Bytes, Nat, Nat]}
+  ]
+}
+
+inductive{
+  name: RopeError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: zeroChunkSize, fields: []},
+    {name: invalidCursor, fields: []},
+    {name: indexOutOfBounds, fields: []},
+    {name: sliceOutOfBounds, fields: []},
+    {name: comparisonFuelExhausted, fields: []}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: pending, type: (List Rope)},
+    {name: current, type: (Option Bytes)},
+    {name: offset, type: Nat},
+    {name: end, type: Nat}
+  ]
+}
+
+inductive{
+  name: CursorEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [Cursor]},
+    {name: produced, fields: [Bytes, Cursor]},
+    {name: done, fields: []}
+  ]
+}
+
+definition{
+  name: length,
+  parameters: [rope : Rope],
+  result: Nat,
+  body: (match rope
+    | Rope.empty => 0
+    | Rope.leaf chunk => (prim length chunk : Nat)
+    | Rope.branch cachedLength cachedHeight leftNode rightNode => cachedLength
+    | Rope.view backing viewOffset viewLength => viewLength),
+  executable: true
+}
+
+definition{
+  name: height,
+  parameters: [rope : Rope],
+  result: Nat,
+  body: (match rope
+    | Rope.empty => 0
+    | Rope.leaf chunk => 1
+    | Rope.branch cachedLength cachedHeight leftNode rightNode => cachedHeight
+    | Rope.view backing viewOffset viewLength => 1)
+}
+
+definition{
+  name: fromBytes,
+  parameters: [chunk : Bytes],
+  result: Rope,
+  body: (if ((prim length chunk : Nat) =? 0) then (ctor Rope.empty) else (ctor Rope.leaf chunk))
+}
+
+definition{
+  name: node,
+  parameters: [leftNode : Rope, rightNode : Rope],
+  result: Rope,
+  body: (if ((length leftNode) =? 0) then rightNode else (if ((length rightNode) =? 0) then leftNode else (ctor Rope.branch ((length leftNode) + (length rightNode)) (1 + (if ((height leftNode) <=? (height rightNode)) then (height rightNode) else (height leftNode))) leftNode rightNode)))
+}
+
+definition{
+  name: left,
+  parameters: [rope : Rope],
+  result: Rope,
+  body: (match rope
+    | Rope.empty => (ctor Rope.empty)
+    | Rope.leaf chunk => (ctor Rope.empty)
+    | Rope.branch cachedLength cachedHeight leftTree rightTree => leftTree
+    | Rope.view backing viewOffset viewLength => (ctor Rope.empty))
+}
+
+definition{
+  name: right,
+  parameters: [rope : Rope],
+  result: Rope,
+  body: (match rope
+    | Rope.empty => (ctor Rope.empty)
+    | Rope.leaf chunk => (ctor Rope.empty)
+    | Rope.branch cachedLength cachedHeight leftTree rightTree => rightTree
+    | Rope.view backing viewOffset viewLength => (ctor Rope.empty))
+}
+
+definition{
+  name: balance,
+  parameters: [leftTree : Rope, rightTree : Rope],
+  result: Rope,
+  body: (if (((height rightTree) + 1) <? (height leftTree)) then (if ((height (right leftTree)) <=? (height (left leftTree))) then (node (left leftTree) (node (right leftTree) rightTree)) else (node (node (left leftTree) (left (right leftTree))) (node (right (right leftTree)) rightTree))) else (if (((height leftTree) + 1) <? (height rightTree)) then (if ((height (left rightTree)) <=? (height (right rightTree))) then (node (node leftTree (left rightTree)) (right rightTree)) else (node (node leftTree (left (left rightTree))) (node (right (left rightTree)) (right rightTree)))) else (node leftTree rightTree)))
+}
+
+definition{
+  name: joinFuel,
+  parameters: [fuel : Nat, leftTree : Rope, rightTree : Rope],
+  result: Rope,
+  body: (match fuel
+    | Nat.zero => (node leftTree rightTree)
+    | Nat.succ remaining => (if (((height rightTree) + 1) <? (height leftTree)) then (balance (left leftTree) (joinFuel remaining (right leftTree) rightTree)) else (if (((height leftTree) + 1) <? (height rightTree)) then (balance (joinFuel remaining leftTree (left rightTree)) (right rightTree)) else (node leftTree rightTree)))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: join,
+  parameters: [leftTree : Rope, rightTree : Rope],
+  result: Rope,
+  body: (if ((length leftTree) =? 0) then rightTree else (if ((length rightTree) =? 0) then leftTree else (joinFuel (((height leftTree) + (height rightTree)) + 1) leftTree rightTree)))
+}
+
+inductive{
+  name: NodeStatus,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: valid, fields: []},
+    {name: invalid, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+definition{
+  name: validNode,
+  parameters: [rope : Rope],
+  result: Bool,
+  body: (match rope
+    | Rope.empty => true
+    | Rope.leaf chunk => (0 <? (prim length chunk : Nat))
+    | Rope.branch cachedLength cachedHeight leftNode rightNode => (((0 <? (length leftNode)) && (0 <? (length rightNode))) && (((cachedLength =? ((length leftNode) + (length rightNode))) && (cachedHeight =? (1 + (if ((height leftNode) <=? (height rightNode)) then (height rightNode) else (height leftNode))))) && (((prim subtract (height leftNode) (height rightNode) : Nat) <=? 1) && ((prim subtract (height rightNode) (height leftNode) : Nat) <=? 1))))
+    | Rope.view backing viewOffset viewLength => ((0 <? viewLength) && ((viewOffset <=? (prim length backing : Nat)) && (viewLength <=? (prim subtract (prim length backing : Nat) viewOffset : Nat)))))
+}
+
+definition{
+  name: checkNode,
+  parameters: [rope : Rope],
+  result: NodeStatus,
+  body: (match rope
+    | Rope.empty => (if (validNode rope) then (ctor NodeStatus.valid) else (ctor NodeStatus.invalid))
+    | Rope.leaf chunk => (if (validNode rope) then (ctor NodeStatus.valid) else (ctor NodeStatus.invalid))
+    | Rope.branch cachedLength cachedHeight leftNode rightNode => (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 (length leftNode) (length rightNode)) then (if (Uorc.Core.Resources::fitsAddition 18446744073709551615 (if ((height leftNode) <=? (height rightNode)) then (height rightNode) else (height leftNode)) 1) then (if (validNode rope) then (ctor NodeStatus.valid) else (ctor NodeStatus.invalid)) else (ctor NodeStatus.addressSpaceExhausted)) else (ctor NodeStatus.addressSpaceExhausted))
+    | Rope.view backing viewOffset viewLength => (if (validNode rope) then (ctor NodeStatus.valid) else (ctor NodeStatus.invalid)))
+}
+
+definition{
+  name: valid,
+  parameters: [rope : Rope],
+  result: Bool,
+  body: (match rope
+    | Rope.empty => true
+    | Rope.leaf chunk => (validNode (ctor Rope.leaf chunk))
+    | Rope.branch cachedLength cachedHeight leftNode rightNode => ((validNode (ctor Rope.branch cachedLength cachedHeight leftNode rightNode)) && ((valid leftNode) && (valid rightNode)))
+    | Rope.view backing viewOffset viewLength => (validNode (ctor Rope.view backing viewOffset viewLength))),
+  recursive_argument: rope
+}
+
+definition{
+  name: cursor,
+  parameters: [rope : Rope],
+  result: Cursor,
+  body: (record Cursor {pending := (cons rope (nil Rope)), current := (ctor Option.none [Bytes]), offset := 0, end := 0})
+}
+
+definition{
+  name: advancePending,
+  parameters: [pending : (List Rope)],
+  result: CursorEvent,
+  body: (match pending
+    | List.nil => (ctor CursorEvent.done)
+    | List.cons headRope restRopes => (match headRope
+      | Rope.empty => (ctor CursorEvent.advanced (record Cursor {pending := restRopes, current := (ctor Option.none [Bytes]), offset := 0, end := 0}))
+      | Rope.leaf chunk => (ctor CursorEvent.advanced (record Cursor {pending := restRopes, current := (ctor Option.some [Bytes] chunk), offset := 0, end := (prim length chunk : Nat)}))
+      | Rope.branch cachedLength cachedHeight leftTree rightTree => (ctor CursorEvent.advanced (record Cursor {pending := (cons leftTree (cons rightTree restRopes)), current := (ctor Option.none [Bytes]), offset := 0, end := 0}))
+      | Rope.view backing viewOffset viewLength => (ctor CursorEvent.advanced (record Cursor {pending := restRopes, current := (ctor Option.some [Bytes] backing), offset := viewOffset, end := (viewOffset + viewLength)}))))
+}
+
+definition{
+  name: emitCurrent,
+  parameters: [cursorValue : Cursor, chunk : Bytes, count : Nat],
+  result: (Result CursorEvent RopeError),
+  body: (match (prim slice chunk (project cursorValue offset) count : (Option Bytes))
+    | Option.none => (ctor Result.error [CursorEvent, RopeError] (ctor RopeError.invalidCursor))
+    | Option.some produced => (ctor Result.ok [CursorEvent, RopeError] (ctor CursorEvent.produced produced (record Cursor {pending := (project cursorValue pending), current := (ctor Option.some [Bytes] chunk), offset := ((project cursorValue offset) + count), end := (project cursorValue end)}))))
+}
+
+definition{
+  name: nextChunk,
+  parameters: [cursorValue : Cursor, maxChunk : Nat],
+  result: (Result CursorEvent RopeError),
+  body: (if (maxChunk =? 0) then (ctor Result.error [CursorEvent, RopeError] (ctor RopeError.zeroChunkSize)) else (match (project cursorValue current)
+    | Option.none => (ctor Result.ok [CursorEvent, RopeError] (advancePending (project cursorValue pending)))
+    | Option.some chunk => (if (((prim length chunk : Nat) <? (project cursorValue end)) || ((project cursorValue end) <? (project cursorValue offset))) then (ctor Result.error [CursorEvent, RopeError] (ctor RopeError.invalidCursor)) else (if ((project cursorValue end) =? (project cursorValue offset)) then (ctor Result.ok [CursorEvent, RopeError] (ctor CursorEvent.advanced (record Cursor {pending := (project cursorValue pending), current := (ctor Option.none [Bytes]), offset := 0, end := 0}))) else (emitCurrent cursorValue chunk (if (maxChunk <=? (prim subtract (project cursorValue end) (project cursorValue offset) : Nat)) then maxChunk else (prim subtract (project cursorValue end) (project cursorValue offset) : Nat)))))))
+}
+
+definition{
+  name: atUnchecked,
+  parameters: [rope : Rope, index : Nat],
+  result: (Option UInt8),
+  body: (match rope
+    | Rope.empty => (ctor Option.none [UInt8])
+    | Rope.leaf chunk => (prim index chunk index : (Option UInt8))
+    | Rope.branch cachedLength cachedHeight leftTree rightTree => (if (index <? (length leftTree)) then (atUnchecked leftTree index) else (atUnchecked rightTree (prim subtract index (length leftTree) : Nat)))
+    | Rope.view backing viewOffset viewLength => (prim index backing (viewOffset + index) : (Option UInt8))),
+  recursive_argument: rope
+}
+
+definition{
+  name: at,
+  parameters: [rope : Rope, index : Nat],
+  result: (Result UInt8 RopeError),
+  body: (if (index <? (length rope)) then (match (atUnchecked rope index)
+    | Option.none => (ctor Result.error [UInt8, RopeError] (ctor RopeError.invalidCursor))
+    | Option.some selected => (ctor Result.ok [UInt8, RopeError] selected)) else (ctor Result.error [UInt8, RopeError] (ctor RopeError.indexOutOfBounds)))
+}
+
+definition{
+  name: viewRange,
+  parameters: [backing : Bytes, start : Nat, count : Nat],
+  result: (Result Rope RopeError),
+  body: (if ((start <=? (prim length backing : Nat)) && (count <=? (prim subtract (prim length backing : Nat) start : Nat))) then (ctor Result.ok [Rope, RopeError] (if (count =? 0) then (ctor Rope.empty) else (ctor Rope.view backing start count))) else (ctor Result.error [Rope, RopeError] (ctor RopeError.sliceOutOfBounds)))
+}
+
+definition{
+  name: sliceUnchecked,
+  parameters: [rope : Rope, start : Nat, count : Nat],
+  result: Rope,
+  body: (match rope
+    | Rope.empty => (if (count =? 0) then (ctor Rope.empty) else (if ((start =? 0) && (count =? (length (ctor Rope.empty)))) then (ctor Rope.empty) else (ctor Rope.empty)))
+    | Rope.leaf chunk => (if (count =? 0) then (ctor Rope.empty) else (if ((start =? 0) && (count =? (length (ctor Rope.leaf chunk)))) then (ctor Rope.leaf chunk) else (if (count =? 0) then (ctor Rope.empty) else (ctor Rope.view chunk start count))))
+    | Rope.branch cachedLength cachedHeight leftTree rightTree => (if (count =? 0) then (ctor Rope.empty) else (if ((start =? 0) && (count =? (length (ctor Rope.branch cachedLength cachedHeight leftTree rightTree)))) then (ctor Rope.branch cachedLength cachedHeight leftTree rightTree) else (if (start <? (length leftTree)) then (join (sliceUnchecked leftTree start (if (count <=? (prim subtract (length leftTree) start : Nat)) then count else (prim subtract (length leftTree) start : Nat))) (sliceUnchecked rightTree 0 (prim subtract count (prim subtract (length leftTree) start : Nat) : Nat))) else (sliceUnchecked rightTree (prim subtract start (length leftTree) : Nat) count))))
+    | Rope.view backing viewOffset viewLength => (if (count =? 0) then (ctor Rope.empty) else (if ((start =? 0) && (count =? (length (ctor Rope.view backing viewOffset viewLength)))) then (ctor Rope.view backing viewOffset viewLength) else (if (count =? 0) then (ctor Rope.empty) else (ctor Rope.view backing (viewOffset + start) count))))),
+  recursive_argument: rope
+}
+
+definition{
+  name: slice,
+  parameters: [rope : Rope, start : Nat, count : Nat],
+  result: (Result Rope RopeError),
+  body: (if ((start <=? (length rope)) && (count <=? (prim subtract (length rope) start : Nat))) then (ctor Result.ok [Rope, RopeError] (sliceUnchecked rope start count)) else (ctor Result.error [Rope, RopeError] (ctor RopeError.sliceOutOfBounds)))
+}
+
+theorem{
+  name: rope_join_length,
+  parameters: [],
+  statement: ((length (join (fromBytes 0x00ff) (fromBytes 0x1020))) = 4),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: rope_join_valid,
+  parameters: [],
+  statement: ((valid (join (fromBytes 0x00ff) (fromBytes 0x1020))) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: rope_index_cross_chunk,
+  parameters: [],
+  statement: ((at (join (fromBytes 0x00ff) (fromBytes 0x1020)) 2) = (ctor Result.ok [UInt8, RopeError] (16 : UInt8))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: rope_index_end,
+  parameters: [],
+  statement: ((at (join (fromBytes 0x00ff) (fromBytes 0x1020)) 4) = (ctor Result.error [UInt8, RopeError] (ctor RopeError.indexOutOfBounds))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: rope_slice_cross_chunk_length,
+  parameters: [],
+  statement: ((length (sliceUnchecked (join (fromBytes 0x00ff) (fromBytes 0x1020)) 1 2)) = 2),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: rope_zero_chunk_rejected,
+  parameters: [],
+  statement: ((nextChunk (cursor (join (fromBytes 0x00ff) (fromBytes 0x1020))) 0) = (ctor Result.error [CursorEvent, RopeError] (ctor RopeError.zeroChunkSize))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_join_left,
+  parameters: [rope : Rope],
+  statement: ((join (ctor Rope.empty) rope) = rope),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_cursor_done,
+  parameters: [],
+  statement: ((advancePending (nil Rope)) = (ctor CursorEvent.done)),
+  proof: reflexivity{}
+}
+
+structure{
+  name: Comparison,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: leftCursor, type: Cursor},
+    {name: rightCursor, type: Cursor},
+    {name: leftByte, type: (Option UInt8)},
+    {name: rightByte, type: (Option UInt8)},
+    {name: leftDone, type: Bool},
+    {name: rightDone, type: Bool}
+  ]
+}
+
+inductive{
+  name: ComparisonStep,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [Comparison]},
+    {name: equal, fields: []},
+    {name: different, fields: []},
+    {name: failed, fields: [RopeError]}
+  ]
+}
+
+definition{
+  name: startComparison,
+  parameters: [leftRope : Rope, rightRope : Rope],
+  result: Comparison,
+  body: (record Comparison {leftCursor := (cursor leftRope), rightCursor := (cursor rightRope), leftByte := (ctor Option.none [UInt8]), rightByte := (ctor Option.none [UInt8]), leftDone := false, rightDone := false})
+}
+
+definition{
+  name: readLeftComparison,
+  parameters: [comparison : Comparison],
+  result: ComparisonStep,
+  body: (match (nextChunk (project comparison leftCursor) 1)
+    | Result.error error => (ctor ComparisonStep.failed error)
+    | Result.ok event => (match event
+      | CursorEvent.advanced nextCursor => (ctor ComparisonStep.advanced (record Comparison {leftCursor := nextCursor, rightCursor := (project comparison rightCursor), leftByte := (project comparison leftByte), rightByte := (project comparison rightByte), leftDone := (project comparison leftDone), rightDone := (project comparison rightDone)}))
+      | CursorEvent.produced chunk nextCursor => (match (prim index chunk 0 : (Option UInt8))
+        | Option.none => (ctor ComparisonStep.failed (ctor RopeError.invalidCursor))
+        | Option.some selected => (ctor ComparisonStep.advanced (record Comparison {leftCursor := nextCursor, rightCursor := (project comparison rightCursor), leftByte := (ctor Option.some [UInt8] selected), rightByte := (project comparison rightByte), leftDone := (project comparison leftDone), rightDone := (project comparison rightDone)})))
+      | CursorEvent.done => (ctor ComparisonStep.advanced (record Comparison {leftCursor := (project comparison leftCursor), rightCursor := (project comparison rightCursor), leftByte := (project comparison leftByte), rightByte := (project comparison rightByte), leftDone := true, rightDone := (project comparison rightDone)}))))
+}
+
+definition{
+  name: readRightComparison,
+  parameters: [comparison : Comparison],
+  result: ComparisonStep,
+  body: (match (nextChunk (project comparison rightCursor) 1)
+    | Result.error error => (ctor ComparisonStep.failed error)
+    | Result.ok event => (match event
+      | CursorEvent.advanced nextCursor => (ctor ComparisonStep.advanced (record Comparison {leftCursor := (project comparison leftCursor), rightCursor := nextCursor, leftByte := (project comparison leftByte), rightByte := (project comparison rightByte), leftDone := (project comparison leftDone), rightDone := (project comparison rightDone)}))
+      | CursorEvent.produced chunk nextCursor => (match (prim index chunk 0 : (Option UInt8))
+        | Option.none => (ctor ComparisonStep.failed (ctor RopeError.invalidCursor))
+        | Option.some selected => (ctor ComparisonStep.advanced (record Comparison {leftCursor := (project comparison leftCursor), rightCursor := nextCursor, leftByte := (project comparison leftByte), rightByte := (ctor Option.some [UInt8] selected), leftDone := (project comparison leftDone), rightDone := (project comparison rightDone)})))
+      | CursorEvent.done => (ctor ComparisonStep.advanced (record Comparison {leftCursor := (project comparison leftCursor), rightCursor := (project comparison rightCursor), leftByte := (project comparison leftByte), rightByte := (project comparison rightByte), leftDone := (project comparison leftDone), rightDone := true}))))
+}
+
+definition{
+  name: compareStep,
+  parameters: [comparison : Comparison],
+  result: ComparisonStep,
+  body: (match (project comparison leftByte)
+    | Option.none => (if (project comparison leftDone) then (match (project comparison rightByte)
+      | Option.none => (if (project comparison rightDone) then (ctor ComparisonStep.equal) else (readRightComparison comparison))
+      | Option.some rightByteValue => (ctor ComparisonStep.different)) else (readLeftComparison comparison))
+    | Option.some leftByteValue => (match (project comparison rightByte)
+      | Option.none => (if (project comparison rightDone) then (ctor ComparisonStep.different) else (readRightComparison comparison))
+      | Option.some rightByteValue => (if (prim equal leftByteValue rightByteValue : Bool) then (ctor ComparisonStep.advanced (record Comparison {leftCursor := (project comparison leftCursor), rightCursor := (project comparison rightCursor), leftByte := (ctor Option.none [UInt8]), rightByte := (ctor Option.none [UInt8]), leftDone := (project comparison leftDone), rightDone := (project comparison rightDone)})) else (ctor ComparisonStep.different))))
+}
+
+definition{
+  name: nodeCount,
+  parameters: [rope : Rope],
+  result: Nat,
+  body: (match rope
+    | Rope.empty => 1
+    | Rope.leaf chunk => 1
+    | Rope.branch cachedLength cachedHeight leftTree rightTree => (1 + ((nodeCount leftTree) + (nodeCount rightTree)))
+    | Rope.view backing viewOffset viewLength => 1),
+  recursive_argument: rope
+}
+
+definition{
+  name: compareRun,
+  parameters: [fuel : Nat, comparison : Comparison],
+  result: (Result Bool RopeError),
+  body: (match fuel
+    | Nat.zero => (ctor Result.error [Bool, RopeError] (ctor RopeError.comparisonFuelExhausted))
+    | Nat.succ remaining => (match (compareStep comparison)
+      | ComparisonStep.advanced nextComparison => (compareRun remaining nextComparison)
+      | ComparisonStep.equal => (ctor Result.ok [Bool, RopeError] true)
+      | ComparisonStep.different => (ctor Result.ok [Bool, RopeError] false)
+      | ComparisonStep.failed error => (ctor Result.error [Bool, RopeError] error))),
+  recursive_argument: fuel
+}
+
+definition{
+  name: equal,
+  parameters: [leftRope : Rope, rightRope : Rope],
+  result: (Result Bool RopeError),
+  body: (compareRun (10 + ((prim multiply 4 ((length leftRope) + (length rightRope)) : Nat) + (prim multiply 3 ((nodeCount leftRope) + (nodeCount rightRope)) : Nat))) (startComparison leftRope rightRope))
+}
+
+definition{
+  name: partitionEqualityFixture,
+  parameters: [firstPair : Bytes],
+  result: (Result Bool RopeError),
+  body: (equal (join (fromBytes 0x00) (fromBytes 0xff10)) (join (fromBytes firstPair) (fromBytes 0x10)))
+}
+
+definition{
+  name: partition_independent_equality_vector,
+  parameters: [],
+  result: Bool,
+  body: (match (partitionEqualityFixture 0x00ff)
+    | Result.error comparisonError => false
+    | Result.ok equalResult => equalResult)
+}
+
+definition{
+  name: planted_byte_mutation_is_detected,
+  parameters: [],
+  result: Bool,
+  body: (match (partitionEqualityFixture 0x00fe)
+    | Result.error comparisonError => false
+    | Result.ok equalResult => (not equalResult))
+}
+
+theorem{
+  name: view_reports_logical_length,
+  parameters: [],
+  statement: ((length (ctor Rope.view 0x0011223344 1 3)) = 3),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: view_indexes_offset_without_copy,
+  parameters: [],
+  statement: ((at (ctor Rope.view 0x0011223344 1 3) 0) = (ctor Result.ok [UInt8, RopeError] (17 : UInt8))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: view_rejects_index_past_range,
+  parameters: [],
+  statement: ((at (ctor Rope.view 0x0011223344 1 3) 3) = (ctor Result.error [UInt8, RopeError] (ctor RopeError.indexOutOfBounds))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: view_rejects_backing_overrun,
+  parameters: [],
+  statement: ((viewRange 0x0011 1 2) = (ctor Result.error [Rope, RopeError] (ctor RopeError.sliceOutOfBounds))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: view_overflow_guard_precedes_addition,
+  parameters: [],
+  statement: ((viewRange 0x0011 18446744073709551615 2) = (ctor Result.error [Rope, RopeError] (ctor RopeError.sliceOutOfBounds))),
+  proof: reflexivity{}
+}
+
+inductive{
+  name: WorkTask,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: joining, fields: [Rope, Rope]},
+    {name: slicing, fields: [Rope, Nat, Nat]},
+    {name: indexing, fields: [Rope, Nat]},
+    {name: returning, fields: [Rope]}
+  ]
+}
+
+inductive{
+  name: WorkContinuation,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: balanceRight, fields: [Rope]},
+    {name: balanceLeft, fields: [Rope]},
+    {name: sliceSecond, fields: [Rope, Nat]},
+    {name: joinFirst, fields: [Rope]}
+  ]
+}
+
+structure{
+  name: Work,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: task, type: WorkTask}, {name: continuations, type: (List WorkContinuation)}]
+}
+
+inductive{
+  name: WorkEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [Work]},
+    {name: sequenceDone, fields: [Rope]},
+    {name: byteDone, fields: [UInt8]},
+    {name: failed, fields: [RopeError]}
+  ]
+}
+
+definition{
+  name: startJoin,
+  parameters: [leftRope : Rope, rightRope : Rope],
+  result: Work,
+  body: (record Work {task := (ctor WorkTask.joining leftRope rightRope), continuations := (nil WorkContinuation)})
+}
+
+definition{
+  name: startSlice,
+  parameters: [rope : Rope, start : Nat, count : Nat],
+  result: (Result Work RopeError),
+  body: (if ((start <=? (length rope)) && (count <=? (prim subtract (length rope) start : Nat))) then (ctor Result.ok [Work, RopeError] (record Work {task := (ctor WorkTask.slicing rope start count), continuations := (nil WorkContinuation)})) else (ctor Result.error [Work, RopeError] (ctor RopeError.sliceOutOfBounds)))
+}
+
+definition{
+  name: startIndex,
+  parameters: [rope : Rope, index : Nat],
+  result: (Result Work RopeError),
+  body: (if (index <? (length rope)) then (ctor Result.ok [Work, RopeError] (record Work {task := (ctor WorkTask.indexing rope index), continuations := (nil WorkContinuation)})) else (ctor Result.error [Work, RopeError] (ctor RopeError.indexOutOfBounds)))
+}
+
+inductive{
+  name: LeafByteRead,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: missing, fields: []}, {name: found, fields: [UInt8]}]
+}
+
+definition{
+  name: readLeafByte,
+  parameters: [chunk : Bytes, index : Nat],
+  result: LeafByteRead,
+  body: (match (prim index chunk index : (Option UInt8))
+    | Option.none => (ctor LeafByteRead.missing)
+    | Option.some selectedByte => (ctor LeafByteRead.found selectedByte))
+}
+
+definition{
+  name: workStep,
+  parameters: [workValue : Work],
+  result: WorkEvent,
+  body: (match (project workValue task)
+    | WorkTask.joining leftRope rightRope => (if ((length leftRope) =? 0) then (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.returning rightRope), continuations := (project workValue continuations)})) else (if ((length rightRope) =? 0) then (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.returning leftRope), continuations := (project workValue continuations)})) else (if (((height rightRope) + 1) <? (height leftRope)) then (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.joining (right leftRope) rightRope), continuations := (cons (ctor WorkContinuation.balanceRight (left leftRope)) (project workValue continuations))})) else (if (((height leftRope) + 1) <? (height rightRope)) then (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.joining leftRope (left rightRope)), continuations := (cons (ctor WorkContinuation.balanceLeft (right rightRope)) (project workValue continuations))})) else (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.returning (node leftRope rightRope)), continuations := (project workValue continuations)}))))))
+    | WorkTask.slicing sourceRope start count => (if (count =? 0) then (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.returning (ctor Rope.empty)), continuations := (project workValue continuations)})) else (if ((start =? 0) && (count =? (length sourceRope))) then (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.returning sourceRope), continuations := (project workValue continuations)})) else (match sourceRope
+      | Rope.empty => (ctor WorkEvent.failed (ctor RopeError.invalidCursor))
+      | Rope.leaf chunk => (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.returning (ctor Rope.view chunk start count)), continuations := (project workValue continuations)}))
+      | Rope.branch cachedLength cachedHeight leftNode rightNode => (if (start <? (length leftNode)) then (if (count <=? (prim subtract (length leftNode) start : Nat)) then (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.slicing leftNode start count), continuations := (project workValue continuations)})) else (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.slicing leftNode start (prim subtract (length leftNode) start : Nat)), continuations := (cons (ctor WorkContinuation.sliceSecond rightNode (prim subtract count (prim subtract (length leftNode) start : Nat) : Nat)) (project workValue continuations))}))) else (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.slicing rightNode (prim subtract start (length leftNode) : Nat) count), continuations := (project workValue continuations)})))
+      | Rope.view backing viewOffset viewLength => (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.returning (ctor Rope.view backing (viewOffset + start) count)), continuations := (project workValue continuations)})))))
+    | WorkTask.indexing sourceRope index => (match sourceRope
+      | Rope.empty => (ctor WorkEvent.failed (ctor RopeError.invalidCursor))
+      | Rope.leaf chunk => (match (readLeafByte chunk index)
+        | LeafByteRead.missing => (ctor WorkEvent.failed (ctor RopeError.invalidCursor))
+        | LeafByteRead.found selectedByte => (ctor WorkEvent.byteDone selectedByte))
+      | Rope.branch cachedLength cachedHeight leftNode rightNode => (if (index <? (length leftNode)) then (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.indexing leftNode index), continuations := (project workValue continuations)})) else (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.indexing rightNode (prim subtract index (length leftNode) : Nat)), continuations := (project workValue continuations)})))
+      | Rope.view backing viewOffset viewLength => (match (prim index backing (viewOffset + index) : (Option UInt8))
+        | Option.none => (ctor WorkEvent.failed (ctor RopeError.invalidCursor))
+        | Option.some selectedByte => (ctor WorkEvent.byteDone selectedByte)))
+    | WorkTask.returning returnedRope => (match (project workValue continuations)
+      | List.nil => (ctor WorkEvent.sequenceDone returnedRope)
+      | List.cons continuation restContinuations => (match continuation
+        | WorkContinuation.balanceRight leftRope => (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.returning (balance leftRope returnedRope)), continuations := restContinuations}))
+        | WorkContinuation.balanceLeft rightRope => (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.returning (balance returnedRope rightRope)), continuations := restContinuations}))
+        | WorkContinuation.sliceSecond rightRope rightCount => (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.slicing rightRope 0 rightCount), continuations := (cons (ctor WorkContinuation.joinFirst returnedRope) restContinuations)}))
+        | WorkContinuation.joinFirst leftRope => (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.joining leftRope returnedRope), continuations := restContinuations})))))
+}
+
+definition{
+  name: runWorkEvents,
+  parameters: [fuel : Nat, workValue : Work],
+  result: WorkEvent,
+  body: (match fuel
+    | Nat.zero => (ctor WorkEvent.advanced workValue)
+    | Nat.succ remaining => (match (workStep workValue)
+      | WorkEvent.advanced nextWork => (runWorkEvents remaining nextWork)
+      | WorkEvent.sequenceDone resultRope => (ctor WorkEvent.sequenceDone resultRope)
+      | WorkEvent.byteDone resultByte => (ctor WorkEvent.byteDone resultByte)
+      | WorkEvent.failed error => (ctor WorkEvent.failed error))),
+  recursive_argument: fuel
+}
+
+theorem{
+  name: zero_rope_work_preserves_cursor,
+  parameters: [workValue : Work],
+  statement: ((runWorkEvents 0 workValue) = (ctor WorkEvent.advanced workValue)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: view_index_is_single_bounded_work_event,
+  parameters: [],
+  statement: ((workStep (record Work {task := (ctor WorkTask.indexing (ctor Rope.view 0x00112233 1 2) 1), continuations := (nil WorkContinuation)})) = (ctor WorkEvent.byteDone (34 : UInt8))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: slice_returns_backing_view_without_copy,
+  parameters: [],
+  statement: ((runWorkEvents 2 (record Work {task := (ctor WorkTask.slicing (ctor Rope.leaf 0x00112233) 1 2), continuations := (nil WorkContinuation)})) = (ctor WorkEvent.sequenceDone (ctor Rope.view 0x00112233 1 2))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: malformed_rope_length_overflow_is_invalid,
+  parameters: [],
+  statement: ((validNode (ctor Rope.branch 0 2 (ctor Rope.branch 18446744073709551615 1 (ctor Rope.empty) (ctor Rope.empty)) (ctor Rope.leaf 0x00))) = false),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: native_rope_count_exhaustion_is_not_static_invalidity,
+  parameters: [],
+  statement: ((checkNode (ctor Rope.branch 0 2 (ctor Rope.branch 18446744073709551615 1 (ctor Rope.empty) (ctor Rope.empty)) (ctor Rope.leaf 0x00))) = (ctor NodeStatus.addressSpaceExhausted)),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: native_small_bad_cache_is_invalid,
+  parameters: [],
+  statement: ((checkNode (ctor Rope.branch 999 2 (ctor Rope.leaf 0x00) (ctor Rope.leaf 0x11))) = (ctor NodeStatus.invalid)),
+  proof: reflexivity{}
+}
+
+definition{
+  name: select_work_event,
+  parameters: [selectedGuard : Bool, selectedEvent : WorkEvent, otherEvent : WorkEvent],
+  result: WorkEvent,
+  body: (if selectedGuard then selectedEvent else otherEvent)
+}
+
+theorem{
+  name: true_guard_selects_work_event,
+  parameters: [selectedGuard : Bool, selectedEvent : WorkEvent, otherEvent : WorkEvent],
+  statement: (((selectedGuard = true) -> ((select_work_event selectedGuard selectedEvent otherEvent) = selectedEvent)) <-> (0 = 0)),
+  proof: constructor{
+    branches: [
+      linear_arithmetic{definitions: [select_work_event]},
+      linear_arithmetic{definitions: [select_work_event]}
+    ]
+  },
+  axioms: [propext]
+}
+
+theorem{
+  name: guard_selector_expansion,
+  parameters: [selectedGuard : Bool, selectedEvent : WorkEvent, otherEvent : WorkEvent],
+  statement: ((if selectedGuard then selectedEvent else otherEvent) = (select_work_event selectedGuard selectedEvent otherEvent)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: index_left_branch_is_one_bounded_descent,
+  parameters: [
+    cachedLength : Nat,
+    cachedHeight : Nat,
+    leftRope : Rope,
+    rightRope : Rope,
+    index : Nat,
+    continuations : (List WorkContinuation)
+  ],
+  statement: (((index <? (length leftRope)) = true) -> ((workStep (record Work {task := (ctor WorkTask.indexing (ctor Rope.branch cachedLength cachedHeight leftRope rightRope) index), continuations := continuations})) = (ctor WorkEvent.advanced (record Work {task := (ctor WorkTask.indexing leftRope index), continuations := continuations})))),
+  proof: simplify{definitions: [guard_selector_expansion, true_guard_selects_work_event, workStep]},
+  axioms: [propext]
+}
+
+theorem{
+  name: returning_rope_with_no_continuations_finishes_exactly,
+  parameters: [resultRope : Rope],
+  statement: ((workStep (record Work {task := (ctor WorkTask.returning resultRope), continuations := (nil WorkContinuation)})) = (ctor WorkEvent.sequenceDone resultRope)),
+  proof: reflexivity{}
+}
+\end{semanticmodule}
+\end{lexlean}

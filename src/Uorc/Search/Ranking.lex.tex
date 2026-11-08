@@ -1,0 +1,224 @@
+\begin{lexlean}{Uorc.Search.Ranking}
+\importmodule{Uorc.Search.RopeQueue}
+\importmodule{Uorc.Search.Schedule}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Flags,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: typedGeneration, type: Bool},
+    {name: addressCharts, type: Bool},
+    {name: antiUnification, type: Bool},
+    {name: sharingLayout, type: Bool},
+    {name: stateGenerators, type: Bool},
+    {name: completeEnumeration, type: Bool}
+  ]
+}
+
+inductive{
+  name: Mode,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: idle, fields: []},
+    {
+      name: reversing,
+      fields: [(List Uorc.Search.RopeQueue::Task), (List Uorc.Search.RopeQueue::Task)]
+    },
+    {name: inserting, fields: [Uorc.Search.RopeQueue::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: queue, type: (List Uorc.Search.RopeQueue::Task)},
+    {name: waitingReversed, type: (List Uorc.Search.RopeQueue::Task)},
+    {name: waitingForward, type: (List Uorc.Search.RopeQueue::Task)},
+    {name: occupied, type: Flags},
+    {name: mode, type: Mode},
+    {name: pendingCount, type: Nat},
+    {name: completedWork, type: Nat}
+  ]
+}
+
+inductive{
+  name: OfferError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: phaseBusy, fields: []}]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: queueState, fields: []},
+    {name: rope, fields: [Uorc.Core.Bytes::RopeError]},
+    {name: invalidState, fields: []}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: [Cursor]},
+    {name: ready, fields: [Cursor]},
+    {name: failed, fields: [Error, Cursor]}
+  ]
+}
+
+inductive{
+  name: Take,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: busy, fields: [Cursor]},
+    {name: empty, fields: [Cursor]},
+    {name: taken, fields: [Uorc.Search.RopeQueue::Task, Cursor]}
+  ]
+}
+
+definition{
+  name: empty,
+  parameters: [],
+  result: Cursor,
+  body: (record Cursor {queue := (nil Uorc.Search.RopeQueue::Task), waitingReversed := (nil Uorc.Search.RopeQueue::Task), waitingForward := (nil Uorc.Search.RopeQueue::Task), occupied := (record Flags {typedGeneration := false, addressCharts := false, antiUnification := false, sharingLayout := false, stateGenerators := false, completeEnumeration := false}), mode := (ctor Mode.idle), pendingCount := 0, completedWork := 0})
+}
+
+definition{
+  name: phaseKey,
+  parameters: [phase : Uorc.Search.Schedule::Phase],
+  result: Bytes,
+  body: (match phase
+    | Uorc.Search.Schedule::Phase.typedGeneration => 0x00
+    | Uorc.Search.Schedule::Phase.addressCharts => 0x01
+    | Uorc.Search.Schedule::Phase.antiUnification => 0x02
+    | Uorc.Search.Schedule::Phase.sharingLayout => 0x03
+    | Uorc.Search.Schedule::Phase.stateGenerators => 0x04
+    | Uorc.Search.Schedule::Phase.completeEnumeration => 0x05)
+}
+
+definition{
+  name: offer,
+  parameters: [
+    cursor : Cursor,
+    phase : Uorc.Search.Schedule::Phase,
+    round : Nat,
+    wire : Uorc.Core.Bytes::Rope
+  ],
+  result: (Result Cursor OfferError),
+  body: (if (match phase
+    | Uorc.Search.Schedule::Phase.typedGeneration => (project (project cursor occupied) typedGeneration)
+    | Uorc.Search.Schedule::Phase.addressCharts => (project (project cursor occupied) addressCharts)
+    | Uorc.Search.Schedule::Phase.antiUnification => (project (project cursor occupied) antiUnification)
+    | Uorc.Search.Schedule::Phase.sharingLayout => (project (project cursor occupied) sharingLayout)
+    | Uorc.Search.Schedule::Phase.stateGenerators => (project (project cursor occupied) stateGenerators)
+    | Uorc.Search.Schedule::Phase.completeEnumeration => (project (project cursor occupied) completeEnumeration)) then (ctor Result.error [Cursor, OfferError] (ctor OfferError.phaseBusy)) else (ctor Result.ok [Cursor, OfferError] (record Cursor {queue := (project cursor queue), waitingReversed := (cons (record Uorc.Search.RopeQueue::Task {phase := phase, round := round, wire := wire, canonicalTask := (phaseKey phase)}) (project cursor waitingReversed)), waitingForward := (project cursor waitingForward), occupied := (match phase
+    | Uorc.Search.Schedule::Phase.typedGeneration => (record Flags {typedGeneration := true, addressCharts := (project (project cursor occupied) addressCharts), antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+    | Uorc.Search.Schedule::Phase.addressCharts => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := true, antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+    | Uorc.Search.Schedule::Phase.antiUnification => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := (project (project cursor occupied) addressCharts), antiUnification := true, sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+    | Uorc.Search.Schedule::Phase.sharingLayout => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := (project (project cursor occupied) addressCharts), antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := true, stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+    | Uorc.Search.Schedule::Phase.stateGenerators => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := (project (project cursor occupied) addressCharts), antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := true, completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+    | Uorc.Search.Schedule::Phase.completeEnumeration => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := (project (project cursor occupied) addressCharts), antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := true})), mode := (project cursor mode), pendingCount := ((project cursor pendingCount) + 1), completedWork := (project cursor completedWork)})))
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor mode)
+    | Mode.idle => (match (project cursor waitingForward)
+      | List.cons head remaining => (ctor Step.advanced (record Cursor {queue := (project cursor queue), waitingReversed := (project cursor waitingReversed), waitingForward := remaining, occupied := (project cursor occupied), mode := (ctor Mode.inserting (Uorc.Search.RopeQueue::beginInsert head (project cursor queue))), pendingCount := (project cursor pendingCount), completedWork := ((project cursor completedWork) + 1)}))
+      | List.nil => (match (project cursor waitingReversed)
+        | List.nil => (ctor Step.ready cursor)
+        | List.cons head remaining => (ctor Step.advanced (record Cursor {queue := (project cursor queue), waitingReversed := (nil Uorc.Search.RopeQueue::Task), waitingForward := (project cursor waitingForward), occupied := (project cursor occupied), mode := (ctor Mode.reversing (project cursor waitingReversed) (nil Uorc.Search.RopeQueue::Task)), pendingCount := (project cursor pendingCount), completedWork := ((project cursor completedWork) + 1)}))))
+    | Mode.reversing remaining forward => (match remaining
+      | List.nil => (ctor Step.advanced (record Cursor {queue := (project cursor queue), waitingReversed := (project cursor waitingReversed), waitingForward := forward, occupied := (project cursor occupied), mode := (ctor Mode.idle), pendingCount := (project cursor pendingCount), completedWork := ((project cursor completedWork) + 1)}))
+      | List.cons head rest => (ctor Step.advanced (record Cursor {queue := (project cursor queue), waitingReversed := (project cursor waitingReversed), waitingForward := (project cursor waitingForward), occupied := (project cursor occupied), mode := (ctor Mode.reversing rest (cons head forward)), pendingCount := (project cursor pendingCount), completedWork := ((project cursor completedWork) + 1)})))
+    | Mode.inserting insertion => (match (Uorc.Search.RopeQueue::step insertion)
+      | Uorc.Search.RopeQueue::Step.pending next => (ctor Step.advanced (record Cursor {queue := (project cursor queue), waitingReversed := (project cursor waitingReversed), waitingForward := (project cursor waitingForward), occupied := (project cursor occupied), mode := (ctor Mode.inserting next), pendingCount := (project cursor pendingCount), completedWork := ((project cursor completedWork) + 1)}))
+      | Uorc.Search.RopeQueue::Step.done queue => (ctor Step.advanced (record Cursor {queue := queue, waitingReversed := (project cursor waitingReversed), waitingForward := (project cursor waitingForward), occupied := (project cursor occupied), mode := (ctor Mode.idle), pendingCount := (project cursor pendingCount), completedWork := ((project cursor completedWork) + 1)}))
+      | Uorc.Search.RopeQueue::Step.invalidCursor => (ctor Step.failed (ctor Error.queueState) cursor)
+      | Uorc.Search.RopeQueue::Step.ropeFailure failure => (ctor Step.failed (ctor Error.rope failure) cursor))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: take,
+  parameters: [cursor : Cursor],
+  result: Take,
+  body: (match (project cursor mode)
+    | Mode.idle => (match (project cursor waitingForward)
+      | List.nil => (match (project cursor waitingReversed)
+        | List.nil => (match (project cursor queue)
+          | List.nil => (ctor Take.empty cursor)
+          | List.cons task remaining => (ctor Take.taken task (record Cursor {queue := remaining, waitingReversed := (project cursor waitingReversed), waitingForward := (project cursor waitingForward), occupied := (match (project task phase)
+            | Uorc.Search.Schedule::Phase.typedGeneration => (record Flags {typedGeneration := false, addressCharts := (project (project cursor occupied) addressCharts), antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+            | Uorc.Search.Schedule::Phase.addressCharts => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := false, antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+            | Uorc.Search.Schedule::Phase.antiUnification => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := (project (project cursor occupied) addressCharts), antiUnification := false, sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+            | Uorc.Search.Schedule::Phase.sharingLayout => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := (project (project cursor occupied) addressCharts), antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := false, stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+            | Uorc.Search.Schedule::Phase.stateGenerators => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := (project (project cursor occupied) addressCharts), antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := false, completeEnumeration := (project (project cursor occupied) completeEnumeration)})
+            | Uorc.Search.Schedule::Phase.completeEnumeration => (record Flags {typedGeneration := (project (project cursor occupied) typedGeneration), addressCharts := (project (project cursor occupied) addressCharts), antiUnification := (project (project cursor occupied) antiUnification), sharingLayout := (project (project cursor occupied) sharingLayout), stateGenerators := (project (project cursor occupied) stateGenerators), completeEnumeration := false})), mode := (project cursor mode), pendingCount := (prim subtract (project cursor pendingCount) 1 : Nat), completedWork := (project cursor completedWork)})))
+        | List.cons ignoredHead ignoredTail => (ctor Take.busy cursor))
+      | List.cons ignoredHead ignoredTail => (ctor Take.busy cursor))
+    | Mode.reversing ignoredRest ignoredForward => (ctor Take.busy cursor)
+    | Mode.inserting ignoredInsertion => (ctor Take.busy cursor))
+}
+
+definition{
+  name: hasPending,
+  parameters: [cursor : Cursor],
+  result: Bool,
+  body: (0 <? (project cursor pendingCount))
+}
+
+definition{
+  name: runWork,
+  parameters: [work : Nat, state : Step],
+  result: Step,
+  body: (match work
+    | Nat.zero => state
+    | Nat.succ remainingWork => (match state
+      | Step.advanced cursor => (runWork remainingWork (step cursor))
+      | Step.ready cursor => (ctor Step.ready cursor)
+      | Step.failed failure cursor => (ctor Step.failed failure cursor))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+theorem{
+  name: same_phase_backpressure_keeps_all_pending_jobs,
+  parameters: [],
+  statement: ((match (offer (empty) (ctor Uorc.Search.Schedule::Phase.typedGeneration) 0 (Uorc.Core.Bytes::fromBytes 0x00))
+    | Result.error failure => false
+    | Result.ok cursor => (match (offer cursor (ctor Uorc.Search.Schedule::Phase.typedGeneration) 1 (Uorc.Core.Bytes::fromBytes 0xff))
+      | Result.error failure => true
+      | Result.ok next => false)) = true),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_ranking_has_no_candidate,
+  parameters: [],
+  statement: ((take (empty)) = (ctor Take.empty (empty))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_ranking_work_is_exact,
+  parameters: [state : Step],
+  statement: ((runWork 0 state) = state),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

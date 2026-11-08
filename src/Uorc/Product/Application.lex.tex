@@ -1,0 +1,270 @@
+\begin{lexlean}{Uorc.Product.Application}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Product.Api}
+\importmodule{Uorc.Product.Control}
+\importmodule{Uorc.Product.Presentation}
+\importmodule{Uorc.Product.Selection}
+\importmodule{Uorc.Product.Workspace}
+\title{Boolean}
+\begin{semanticmodule}
+inductive{
+  name: Authority,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: factory, fields: []},
+    {name: user, fields: []},
+    {name: resource, fields: []},
+    {name: runtime, fields: []},
+    {name: observation, fields: []},
+    {name: publisher, fields: []}
+  ]
+}
+
+inductive{
+  name: Disposition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: applied, fields: []},
+    {name: stale, fields: []},
+    {name: updated, fields: []},
+    {name: observed, fields: []},
+    {name: accepted, fields: []},
+    {name: rejected, fields: []},
+    {name: permitted, fields: []}
+  ]
+}
+
+inductive{
+  name: ResourceNotice,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {
+      name: selected,
+      fields: [
+        Uorc.Product.Workspace::Slot,
+        Uorc.Product.Api::Run,
+        Nat,
+        Uorc.Product.Api::ResourceRef,
+        (List Uorc.Product.Selection::Item)
+      ]
+    },
+    {
+      name: collectionEdited,
+      fields: [
+        Uorc.Product.Api::Run,
+        Nat,
+        Uorc.Product.Api::ResourceRef,
+        (List Uorc.Product.Selection::Item)
+      ]
+    },
+    {name: collectionEditFailed, fields: [Uorc.Product.Api::Run, Nat, String]}
+  ]
+}
+
+inductive{
+  name: Command,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: create, fields: [Nat]},
+    {name: user, fields: [Uorc.Product.Workspace::State, Uorc.Product.Workspace::BoundUserIntent]},
+    {name: resource, fields: [Uorc.Product.Workspace::State, ResourceNotice]},
+    {name: runtime, fields: [Uorc.Product.Workspace::State, Uorc.Product.Workspace::RuntimeNotice]},
+    {
+      name: number,
+      fields: [Uorc.Product.Workspace::State, Uorc.Product.Workspace::BoundLimit, String]
+    },
+    {name: present, fields: [Uorc.Product.Workspace::State]},
+    {
+      name: permit,
+      fields: [Uorc.Product.Workspace::State, Uorc.Product.Api::Run, Uorc.Product.Api::ResourceRef]
+    }
+  ]
+}
+
+structure{
+  name: Frame,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: state, type: Uorc.Product.Workspace::State},
+    {name: view, type: Uorc.Product.Presentation::View},
+    {name: effects, type: (List Uorc.Product.Workspace::Effect)},
+    {name: disposition, type: Disposition},
+    {name: message, type: String},
+    {name: focusId, type: String},
+    {name: retirement, type: Uorc.Product.Api::ReleaseDisposition},
+    {name: publicationPermit, type: (Option Bool)}
+  ]
+}
+
+definition{
+  name: resourceIntent,
+  parameters: [notice : ResourceNotice],
+  result: Uorc.Product.Workspace::Intent,
+  body: (match notice
+    | ResourceNotice.selected slot argRun serial resource items => (ctor Uorc.Product.Workspace::Intent.selected slot argRun serial resource items)
+    | ResourceNotice.collectionEdited argRun serial resource items => (ctor Uorc.Product.Workspace::Intent.collectionEdited argRun serial resource items)
+    | ResourceNotice.collectionEditFailed argRun serial message => (ctor Uorc.Product.Workspace::Intent.collectionEditFailed argRun serial message))
+}
+
+definition{
+  name: authority,
+  parameters: [command : Command],
+  result: Authority,
+  body: (match command
+    | Command.create instance => (ctor Authority.factory)
+    | Command.user s intent => (ctor Authority.user)
+    | Command.resource s notice => (ctor Authority.resource)
+    | Command.runtime s notice => (ctor Authority.runtime)
+    | Command.number s bound text => (ctor Authority.user)
+    | Command.present s => (ctor Authority.observation)
+    | Command.permit s argRun destination => (ctor Authority.publisher))
+}
+
+definition{
+  name: frame,
+  parameters: [
+    argState : Uorc.Product.Workspace::State,
+    argEffects : (List Uorc.Product.Workspace::Effect),
+    argDisposition : Disposition,
+    argMessage : String,
+    argPermit : (Option Bool)
+  ],
+  result: Frame,
+  body: (record Frame {state := argState, view := (Uorc.Product.Presentation::present argState), effects := argEffects, disposition := argDisposition, message := argMessage, focusId := (Uorc.Product.Presentation::focusId (project (project argState focusRequest) target)), retirement := (Uorc.Product.Workspace::releaseDisposition argState), publicationPermit := argPermit}),
+  axioms: [propext]
+}
+
+definition{
+  name: render,
+  parameters: [argState : Uorc.Product.Workspace::State],
+  result: Frame,
+  body: (frame argState (nil Uorc.Product.Workspace::Effect) (ctor Disposition.observed) "" (ctor Option.none [Bool])),
+  axioms: [propext]
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "One source-owned closed application root shares the generated Workspace, View, action, callback and effect constructor closure in a single package. This avoids passing package-local ADTs between independent frontend exports. Generic host code retains typed state under opaque instance identity, authorizes Command through its source Authority, and renders only generated View and BoundUserIntent values. Resource/runtime/publisher variants are trusted internal calls, never arbitrary browser JSON or caller state snapshots. Frame.retirement covers this Workspace and unconsumed effects only; actual child arenas, I/O, leases, achieved storage and publication owners remain independently retained. This facade does not prove generated outer ComputeError retains state, does not clone or reconstruct an Arena, and does not qualify operational root ABI, browser execution or compression completion."
+}
+
+theorem{
+  name: render_preserves_state,
+  parameters: [argState : Uorc.Product.Workspace::State],
+  statement: ((project (render argState) state) = argState),
+  proof: reflexivity{},
+  axioms: [propext]
+}
+
+theorem{
+  name: user_authority_is_explicit,
+  parameters: [
+    argState : Uorc.Product.Workspace::State,
+    intent : Uorc.Product.Workspace::BoundUserIntent
+  ],
+  statement: ((authority (ctor Command.user argState intent)) = (ctor Authority.user)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: runtime_authority_is_explicit,
+  parameters: [
+    argState : Uorc.Product.Workspace::State,
+    notice : Uorc.Product.Workspace::RuntimeNotice
+  ],
+  statement: ((authority (ctor Command.runtime argState notice)) = (ctor Authority.runtime)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+structure{
+  name: UpdateFrame,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: state, type: Uorc.Product.Workspace::State},
+    {name: effects, type: (List Uorc.Product.Workspace::Effect)},
+    {name: disposition, type: Disposition},
+    {name: message, type: String},
+    {name: publicationPermit, type: (Option Bool)}
+  ]
+}
+
+definition{
+  name: updateFrame,
+  parameters: [
+    argState : Uorc.Product.Workspace::State,
+    argEffects : (List Uorc.Product.Workspace::Effect),
+    argDisposition : Disposition,
+    argMessage : String,
+    argPermit : (Option Bool)
+  ],
+  result: UpdateFrame,
+  body: (record UpdateFrame {state := argState, effects := argEffects, disposition := argDisposition, message := argMessage, publicationPermit := argPermit})
+}
+
+definition{
+  name: fromUpdate,
+  parameters: [update : Uorc.Product.Workspace::Update],
+  result: UpdateFrame,
+  body: (updateFrame (project update state) (project update effects) (ctor Disposition.updated) "" (ctor Option.none [Bool])),
+  axioms: []
+}
+
+definition{
+  name: fromInvocation,
+  parameters: [invocation : Uorc.Product.Workspace::Invocation],
+  result: UpdateFrame,
+  body: (updateFrame (project (project invocation update) state) (project (project invocation update) effects) (match (project invocation disposition)
+    | Uorc.Product.Workspace::InvocationDisposition.applied => (ctor Disposition.applied)
+    | Uorc.Product.Workspace::InvocationDisposition.stale => (ctor Disposition.stale)) (project invocation message) (ctor Option.none [Bool])),
+  axioms: []
+}
+
+definition{
+  name: fromNumber,
+  parameters: [edit : Uorc.Product.Workspace::NumberEdit],
+  result: UpdateFrame,
+  body: (updateFrame (project (project edit update) state) (project (project edit update) effects) (if (project edit accepted) then (ctor Disposition.accepted) else (ctor Disposition.rejected)) (project edit message) (ctor Option.none [Bool])),
+  axioms: []
+}
+
+definition{
+  name: finish,
+  parameters: [value : UpdateFrame],
+  result: Frame,
+  body: (frame (project value state) (project value effects) (project value disposition) (project value message) (project value publicationPermit)),
+  axioms: [propext]
+}
+
+definition{
+  name: dispatchCommand,
+  parameters: [command : Command],
+  result: UpdateFrame,
+  body: (match command
+    | Command.create instance => (updateFrame (Uorc.Product.Workspace::initial instance) (nil Uorc.Product.Workspace::Effect) (ctor Disposition.observed) "" (ctor Option.none [Bool]))
+    | Command.user s intent => (fromInvocation (Uorc.Product.Workspace::invokeUser s intent))
+    | Command.resource s notice => (fromUpdate (Uorc.Product.Workspace::dispatch s (resourceIntent notice)))
+    | Command.runtime s notice => (fromUpdate (Uorc.Product.Workspace::receiveRuntime s notice))
+    | Command.number s bound text => (fromNumber (Uorc.Product.Workspace::editLimitText s bound text))
+    | Command.present s => (updateFrame s (nil Uorc.Product.Workspace::Effect) (ctor Disposition.observed) "" (ctor Option.none [Bool]))
+    | Command.permit s argRun destination => (updateFrame s (nil Uorc.Product.Workspace::Effect) (ctor Disposition.permitted) "" (ctor Option.some [Bool] (Uorc.Product.Control::authorizePublication (project s control) argRun destination)))),
+  axioms: []
+}
+
+definition{
+  name: run,
+  parameters: [command : Command],
+  result: Frame,
+  body: (finish (dispatchCommand command)),
+  axioms: [propext]
+}
+\end{semanticmodule}
+\end{lexlean}

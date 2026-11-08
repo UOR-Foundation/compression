@@ -1,0 +1,386 @@
+\begin{lexlean}{Uorc.Core.RuntimeAdmissionTests}
+\importmodule{Uorc.Core.RuntimeAdmissionChecks}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.RuntimeFixtures}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: ScenarioError,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: failed, fields: []}]
+}
+
+definition{
+  name: stateSignatures,
+  parameters: [
+    firstType : Uorc.Core.RuntimeValue::RuntimeType,
+    secondType : Uorc.Core.RuntimeValue::RuntimeType
+  ],
+  result: Bool,
+  body: (match (prim checked_convert (Uorc.Core.RuntimeProgram::typeCode firstType) : (Option UInt8))
+    | Option.none => false
+    | Option.some firstCode => (match (prim checked_convert (Uorc.Core.RuntimeProgram::typeCode secondType) : (Option UInt8))
+      | Option.none => false
+      | Option.some secondCode => match{
+        branches: [
+          {body: false, binders: [heapErrorA], constructor: Result.error},
+          {
+            body: match{
+              branches: [
+                {body: false, binders: [heapErrorB], constructor: Result.error},
+                {
+                  body: (let types : Uorc.Core.RuntimeTable::Table := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache)), root := (project var{
+                    name: second
+                  } handle)}); ((match (Uorc.Core.RuntimeAdmissionChecks::callee (project var{
+                      name: second
+                    } arena) (record Uorc.Core.RuntimeProgram::BorrowedBlock {record := (Uorc.Core.RuntimeValue::nullHandle), parameterCount := (2 : UInt64), resultType := secondType, instructionCount := (0 : UInt64), returnDistance := (0 : UInt64), parameters := types, instructions := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (2 : UInt64))), lifetimes := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (4 : UInt64))), initialReleaseRoot := (Uorc.Core.RuntimeValue::nullHandle)}) (ctor Uorc.Core.RuntimeOpcode::CallRule.fold) (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) secondType)
+                    | Result.error error => false
+                    | Result.ok value => true) && ((match (Uorc.Core.RuntimeAdmissionChecks::callee (project var{
+                      name: second
+                    } arena) (record Uorc.Core.RuntimeProgram::BorrowedBlock {record := (Uorc.Core.RuntimeValue::nullHandle), parameterCount := (2 : UInt64), resultType := secondType, instructionCount := (0 : UInt64), returnDistance := (0 : UInt64), parameters := types, instructions := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (2 : UInt64))), lifetimes := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (4 : UInt64))), initialReleaseRoot := (Uorc.Core.RuntimeValue::nullHandle)}) (ctor Uorc.Core.RuntimeOpcode::CallRule.scan) (ctor Uorc.Core.RuntimeProgram::CaptureLane.second) secondType)
+                    | Result.error error => false
+                    | Result.ok value => true) && (match (Uorc.Core.RuntimeAdmissionChecks::callee (project var{
+                      name: second
+                    } arena) (record Uorc.Core.RuntimeProgram::BorrowedBlock {record := (Uorc.Core.RuntimeValue::nullHandle), parameterCount := (2 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.byte), instructionCount := (0 : UInt64), returnDistance := (0 : UInt64), parameters := types, instructions := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (2 : UInt64))), lifetimes := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (4 : UInt64))), initialReleaseRoot := (Uorc.Core.RuntimeValue::nullHandle)}) (ctor Uorc.Core.RuntimeOpcode::CallRule.scan) (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) secondType)
+                    | Result.error error => false
+                    | Result.ok value => true)))),
+                  binders: [second],
+                  constructor: Result.ok
+                }
+              ],
+              scrutinee: (Uorc.Core.RuntimeFixtures::put (project var{
+                name: first
+              } arena) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache)), root := (project var{
+                name: first
+              } handle)}) (1 : UInt64) (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.typeCache) (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte secondCode)))
+            },
+            binders: [first],
+            constructor: Result.ok
+          }
+        ],
+        scrutinee: (Uorc.Core.RuntimeFixtures::put (Uorc.Core.Heap::emptyArena (100000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache))) (0 : UInt64) (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.typeCache) (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte firstCode)))
+      })),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: rejectsWrongIndexPrefix,
+  parameters: [],
+  result: Bool,
+  body: (let firstType : Uorc.Core.RuntimeValue::RuntimeType := (ctor Uorc.Core.RuntimeValue::RuntimeType.predicate); (let secondType : Uorc.Core.RuntimeValue::RuntimeType := (ctor Uorc.Core.RuntimeValue::RuntimeType.store); (match (prim checked_convert (Uorc.Core.RuntimeProgram::typeCode firstType) : (Option UInt8))
+    | Option.none => false
+    | Option.some firstCode => (match (prim checked_convert (Uorc.Core.RuntimeProgram::typeCode secondType) : (Option UInt8))
+      | Option.none => false
+      | Option.some secondCode => match{
+        branches: [
+          {body: false, binders: [heapErrorA], constructor: Result.error},
+          {
+            body: match{
+              branches: [
+                {body: false, binders: [heapErrorB], constructor: Result.error},
+                {
+                  body: (let types : Uorc.Core.RuntimeTable::Table := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache)), root := (project var{
+                    name: second
+                  } handle)}); (match (Uorc.Core.RuntimeAdmissionChecks::callee (project var{
+                      name: second
+                    } arena) (record Uorc.Core.RuntimeProgram::BorrowedBlock {record := (Uorc.Core.RuntimeValue::nullHandle), parameterCount := (2 : UInt64), resultType := secondType, instructionCount := (0 : UInt64), returnDistance := (0 : UInt64), parameters := types, instructions := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (2 : UInt64))), lifetimes := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (4 : UInt64))), initialReleaseRoot := (Uorc.Core.RuntimeValue::nullHandle)}) (ctor Uorc.Core.RuntimeOpcode::CallRule.fold) (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) secondType)
+                    | Result.error error => (match error
+                      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+                        | Uorc.Core.Types::StaticError.invalidLocalReference => false
+                        | Uorc.Core.Types::StaticError.invalidBlockReference => false
+                        | Uorc.Core.Types::StaticError.typeMismatch => true
+                        | Uorc.Core.Types::StaticError.arityMismatch => false
+                        | Uorc.Core.Types::StaticError.returnMismatch => false
+                        | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+                        | Uorc.Core.Types::StaticError.emptyGraph => false
+                        | Uorc.Core.Types::StaticError.invalidTypeTag => false
+                        | Uorc.Core.Types::StaticError.undefinedOpcode => false
+                        | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+                        | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+                        | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+                      | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+                    | Result.ok value => false)),
+                  binders: [second],
+                  constructor: Result.ok
+                }
+              ],
+              scrutinee: (Uorc.Core.RuntimeFixtures::put (project var{
+                name: first
+              } arena) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache)), root := (project var{
+                name: first
+              } handle)}) (1 : UInt64) (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.typeCache) (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte secondCode)))
+            },
+            binders: [first],
+            constructor: Result.ok
+          }
+        ],
+        scrutinee: (Uorc.Core.RuntimeFixtures::put (Uorc.Core.Heap::emptyArena (100000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache))) (0 : UInt64) (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.typeCache) (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte firstCode)))
+      })))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: rejectsMissingLoopPrefix,
+  parameters: [],
+  result: Bool,
+  body: ((match (Uorc.Core.RuntimeAdmissionChecks::callee (Uorc.Core.Heap::emptyArena (0 : UInt64)) (record Uorc.Core.RuntimeProgram::BorrowedBlock {record := (Uorc.Core.RuntimeValue::nullHandle), parameterCount := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.byte), instructionCount := (0 : UInt64), returnDistance := (0 : UInt64), parameters := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache))), instructions := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (2 : UInt64))), lifetimes := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (4 : UInt64))), initialReleaseRoot := (Uorc.Core.RuntimeValue::nullHandle)}) (ctor Uorc.Core.RuntimeOpcode::CallRule.tabulate) (ctor Uorc.Core.RuntimeProgram::CaptureLane.first) (ctor Uorc.Core.RuntimeValue::RuntimeType.natural))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+      | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+        | Uorc.Core.Types::StaticError.invalidLocalReference => false
+        | Uorc.Core.Types::StaticError.invalidBlockReference => false
+        | Uorc.Core.Types::StaticError.typeMismatch => false
+        | Uorc.Core.Types::StaticError.arityMismatch => true
+        | Uorc.Core.Types::StaticError.returnMismatch => false
+        | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+        | Uorc.Core.Types::StaticError.emptyGraph => false
+        | Uorc.Core.Types::StaticError.invalidTypeTag => false
+        | Uorc.Core.Types::StaticError.undefinedOpcode => false
+        | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+        | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+        | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+      | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+    | Result.ok value => false) && (match (Uorc.Core.RuntimeAdmissionChecks::callee (Uorc.Core.Heap::emptyArena (0 : UInt64)) (record Uorc.Core.RuntimeProgram::BorrowedBlock {record := (Uorc.Core.RuntimeValue::nullHandle), parameterCount := (0 : UInt64), resultType := (ctor Uorc.Core.RuntimeValue::RuntimeType.byte), instructionCount := (0 : UInt64), returnDistance := (0 : UInt64), parameters := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache))), instructions := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (2 : UInt64))), lifetimes := (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.metadata (4 : UInt64))), initialReleaseRoot := (Uorc.Core.RuntimeValue::nullHandle)}) (ctor Uorc.Core.RuntimeOpcode::CallRule.scan) (ctor Uorc.Core.RuntimeProgram::CaptureLane.second) (ctor Uorc.Core.RuntimeValue::RuntimeType.natural))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+      | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+        | Uorc.Core.Types::StaticError.invalidLocalReference => false
+        | Uorc.Core.Types::StaticError.invalidBlockReference => false
+        | Uorc.Core.Types::StaticError.typeMismatch => false
+        | Uorc.Core.Types::StaticError.arityMismatch => true
+        | Uorc.Core.Types::StaticError.returnMismatch => false
+        | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+        | Uorc.Core.Types::StaticError.emptyGraph => false
+        | Uorc.Core.Types::StaticError.invalidTypeTag => false
+        | Uorc.Core.Types::StaticError.undefinedOpcode => false
+        | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+        | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+        | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+      | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+    | Result.ok value => false)),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: localReferencesPreserveDistanceAndType,
+  parameters: [],
+  result: Bool,
+  body: (let firstType : Uorc.Core.RuntimeValue::RuntimeType := (ctor Uorc.Core.RuntimeValue::RuntimeType.natural); (let secondType : Uorc.Core.RuntimeValue::RuntimeType := (ctor Uorc.Core.RuntimeValue::RuntimeType.store); (match (prim checked_convert (Uorc.Core.RuntimeProgram::typeCode firstType) : (Option UInt8))
+    | Option.none => false
+    | Option.some firstCode => (match (prim checked_convert (Uorc.Core.RuntimeProgram::typeCode secondType) : (Option UInt8))
+      | Option.none => false
+      | Option.some secondCode => match{
+        branches: [
+          {body: false, binders: [heapErrorA], constructor: Result.error},
+          {
+            body: match{
+              branches: [
+                {body: false, binders: [heapErrorB], constructor: Result.error},
+                {
+                  body: (let types : Uorc.Core.RuntimeTable::Table := (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache)), root := (project var{
+                    name: second
+                  } handle)}); ((match (Uorc.Core.RuntimeAdmissionChecks::local (project var{
+                      name: second
+                    } arena) types (2 : UInt64) (1 : UInt64) (ctor Uorc.Core.RuntimeOpcode::OperandRole.localStore))
+                    | Result.error error => false
+                    | Result.ok value => ((prim equal (project value index) (1 : UInt64) : Bool) && (Uorc.Core.RuntimeAdmissionChecks::sameType (project value valueType) (ctor Uorc.Core.RuntimeValue::RuntimeType.store)))) && ((match (Uorc.Core.RuntimeAdmissionChecks::local (project var{
+                      name: second
+                    } arena) types (2 : UInt64) (1 : UInt64) (ctor Uorc.Core.RuntimeOpcode::OperandRole.localByte))
+                    | Result.error error => (match error
+                      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+                        | Uorc.Core.Types::StaticError.invalidLocalReference => false
+                        | Uorc.Core.Types::StaticError.invalidBlockReference => false
+                        | Uorc.Core.Types::StaticError.typeMismatch => true
+                        | Uorc.Core.Types::StaticError.arityMismatch => false
+                        | Uorc.Core.Types::StaticError.returnMismatch => false
+                        | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+                        | Uorc.Core.Types::StaticError.emptyGraph => false
+                        | Uorc.Core.Types::StaticError.invalidTypeTag => false
+                        | Uorc.Core.Types::StaticError.undefinedOpcode => false
+                        | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+                        | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+                        | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+                      | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+                    | Result.ok value => false) && (match (Uorc.Core.RuntimeAdmissionChecks::local (project var{
+                      name: second
+                    } arena) types (2 : UInt64) (3 : UInt64) (ctor Uorc.Core.RuntimeOpcode::OperandRole.localAny))
+                    | Result.error error => (match error
+                      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+                        | Uorc.Core.Types::StaticError.invalidLocalReference => true
+                        | Uorc.Core.Types::StaticError.invalidBlockReference => false
+                        | Uorc.Core.Types::StaticError.typeMismatch => false
+                        | Uorc.Core.Types::StaticError.arityMismatch => false
+                        | Uorc.Core.Types::StaticError.returnMismatch => false
+                        | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+                        | Uorc.Core.Types::StaticError.emptyGraph => false
+                        | Uorc.Core.Types::StaticError.invalidTypeTag => false
+                        | Uorc.Core.Types::StaticError.undefinedOpcode => false
+                        | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+                        | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+                        | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+                      | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+                      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+                    | Result.ok value => false)))),
+                  binders: [second],
+                  constructor: Result.ok
+                }
+              ],
+              scrutinee: (Uorc.Core.RuntimeFixtures::put (project var{
+                name: first
+              } arena) (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache)), root := (project var{
+                name: first
+              } handle)}) (1 : UInt64) (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.typeCache) (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte secondCode)))
+            },
+            binders: [first],
+            constructor: Result.ok
+          }
+        ],
+        scrutinee: (Uorc.Core.RuntimeFixtures::put (Uorc.Core.Heap::emptyArena (100000 : UInt64)) (Uorc.Core.RuntimeTable::emptyTable (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.typeCache))) (0 : UInt64) (ctor Uorc.Core.Heap::Node.slot (ctor Uorc.Core.RuntimeValue::RootRole.typeCache) (ctor Uorc.Core.RuntimeValue::RuntimeValue.byte firstCode)))
+      })))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: immediateBounds,
+  parameters: [],
+  result: Bool,
+  body: ((match (Uorc.Core.RuntimeAdmissionChecks::immediate (ctor Uorc.Core.RuntimeOpcode::OperandRole.immediateNatural) (18446744073709551615 : UInt64))
+    | Result.error error => false
+    | Result.ok value => true) && ((match (Uorc.Core.RuntimeAdmissionChecks::immediate (ctor Uorc.Core.RuntimeOpcode::OperandRole.immediateByte) (255 : UInt64))
+    | Result.error error => false
+    | Result.ok value => true) && ((match (Uorc.Core.RuntimeAdmissionChecks::immediate (ctor Uorc.Core.RuntimeOpcode::OperandRole.immediateByte) (256 : UInt64))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+      | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+        | Uorc.Core.Types::StaticError.invalidLocalReference => false
+        | Uorc.Core.Types::StaticError.invalidBlockReference => false
+        | Uorc.Core.Types::StaticError.typeMismatch => false
+        | Uorc.Core.Types::StaticError.arityMismatch => false
+        | Uorc.Core.Types::StaticError.returnMismatch => false
+        | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+        | Uorc.Core.Types::StaticError.emptyGraph => false
+        | Uorc.Core.Types::StaticError.invalidTypeTag => true
+        | Uorc.Core.Types::StaticError.undefinedOpcode => false
+        | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+        | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+        | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+      | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+    | Result.ok value => false) && ((match (Uorc.Core.RuntimeAdmissionChecks::immediate (ctor Uorc.Core.RuntimeOpcode::OperandRole.immediatePredicate) (1 : UInt64))
+    | Result.error error => false
+    | Result.ok value => true) && (match (Uorc.Core.RuntimeAdmissionChecks::immediate (ctor Uorc.Core.RuntimeOpcode::OperandRole.immediatePredicate) (2 : UInt64))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+      | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+        | Uorc.Core.Types::StaticError.invalidLocalReference => false
+        | Uorc.Core.Types::StaticError.invalidBlockReference => false
+        | Uorc.Core.Types::StaticError.typeMismatch => false
+        | Uorc.Core.Types::StaticError.arityMismatch => false
+        | Uorc.Core.Types::StaticError.returnMismatch => false
+        | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+        | Uorc.Core.Types::StaticError.emptyGraph => false
+        | Uorc.Core.Types::StaticError.invalidTypeTag => true
+        | Uorc.Core.Types::StaticError.undefinedOpcode => false
+        | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+        | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+        | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+      | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+    | Result.ok value => false))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: backwardBlockBounds,
+  parameters: [],
+  result: Bool,
+  body: ((match (Uorc.Core.RuntimeAdmissionChecks::priorBlockIndex (18446744073709551615 : UInt64) (18446744073709551615 : UInt64))
+    | Result.error error => false
+    | Result.ok value => (prim equal value (0 : UInt64) : Bool)) && ((match (Uorc.Core.RuntimeAdmissionChecks::priorBlockIndex (0 : UInt64) (0 : UInt64))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+      | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+        | Uorc.Core.Types::StaticError.invalidLocalReference => false
+        | Uorc.Core.Types::StaticError.invalidBlockReference => true
+        | Uorc.Core.Types::StaticError.typeMismatch => false
+        | Uorc.Core.Types::StaticError.arityMismatch => false
+        | Uorc.Core.Types::StaticError.returnMismatch => false
+        | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+        | Uorc.Core.Types::StaticError.emptyGraph => false
+        | Uorc.Core.Types::StaticError.invalidTypeTag => false
+        | Uorc.Core.Types::StaticError.undefinedOpcode => false
+        | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+        | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+        | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+      | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+    | Result.ok value => false) && (match (Uorc.Core.RuntimeAdmissionChecks::priorBlockIndex (1 : UInt64) (0 : UInt64))
+    | Result.error error => (match error
+      | Uorc.Core.RuntimeProgram::Failure.heap inside => false
+      | Uorc.Core.RuntimeProgram::Failure.metadata inside => false
+      | Uorc.Core.RuntimeProgram::Failure.static inside => (match inside
+        | Uorc.Core.Types::StaticError.invalidLocalReference => false
+        | Uorc.Core.Types::StaticError.invalidBlockReference => true
+        | Uorc.Core.Types::StaticError.typeMismatch => false
+        | Uorc.Core.Types::StaticError.arityMismatch => false
+        | Uorc.Core.Types::StaticError.returnMismatch => false
+        | Uorc.Core.Types::StaticError.entrySignatureMismatch => false
+        | Uorc.Core.Types::StaticError.emptyGraph => false
+        | Uorc.Core.Types::StaticError.invalidTypeTag => false
+        | Uorc.Core.Types::StaticError.undefinedOpcode => false
+        | Uorc.Core.Types::StaticError.unresolvedWireProfile => false
+        | Uorc.Core.Types::StaticError.invalidSequenceRope => false
+        | Uorc.Core.Types::StaticError.addressSpaceExhausted => false)
+      | Uorc.Core.RuntimeProgram::Failure.operational inside => false
+      | Uorc.Core.RuntimeProgram::Failure.resource inside => false
+      | Uorc.Core.RuntimeProgram::Failure.releasedSlot slotIndex => false)
+    | Result.ok value => false))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: run,
+  parameters: [],
+  result: (Result Unit ScenarioError),
+  body: (if ((immediateBounds) && ((backwardBlockBounds) && ((rejectsMissingLoopPrefix) && ((rejectsWrongIndexPrefix) && ((localReferencesPreserveDistanceAndType) && ((stateSignatures (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) (ctor Uorc.Core.RuntimeValue::RuntimeType.natural)) && ((stateSignatures (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) (ctor Uorc.Core.RuntimeValue::RuntimeType.byte)) && ((stateSignatures (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) (ctor Uorc.Core.RuntimeValue::RuntimeType.predicate)) && ((stateSignatures (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) (ctor Uorc.Core.RuntimeValue::RuntimeType.sequence)) && ((stateSignatures (ctor Uorc.Core.RuntimeValue::RuntimeType.natural) (ctor Uorc.Core.RuntimeValue::RuntimeType.store)) && true)))))))))) then (ctor Result.ok [Unit, ScenarioError] ()) else (ctor Result.error [Unit, ScenarioError] (ctor ScenarioError.failed))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

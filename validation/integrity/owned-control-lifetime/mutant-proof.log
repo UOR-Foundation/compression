@@ -1,0 +1,63 @@
+$DIAGNOSTIC/owned-control-lifetime/mutant-model/Uorc/Uorc/Integrity/OwnedControlLifetime.lean:916:0: error: native core declaration 'Uorc.Uorc.Integrity.OwnedControlLifetime.start_control_allocation':
+  (kernel) application type mismatch
+    Eq.mp
+      (congrFun'
+        (congrArg Eq
+          (congrArg Uorc.Uorc.Integrity.OwnedHash.ChargedTransition.result
+            (congrArg
+              (fun x =>
+                match x with
+                | Except.error heapFailure =>
+                  Uorc.Uorc.Integrity.OwnedHash.chargeTransition (Uorc.Uorc.Core.Heap.wordAdd 1 0)
+                    (Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.heap heapFailure))
+                | Except.ok allocated =>
+                  have heapPrefix2 := Uorc.Uorc.Core.Heap.wordAdd 0 allocated.delta.work;
+                  match Uorc.Uorc.Integrity.Profile.init kind with
+                  | Except.error hashFailure =>
+                    Uorc.Uorc.Integrity.OwnedHash.chargeTransition (Uorc.Uorc.Core.Heap.wordAdd 1 heapPrefix2)
+                      (Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.integrity hashFailure))
+                  | Except.ok hashState =>
+                    match
+                      Uorc.Uorc.Integrity.Profile.beginUpdate hashState
+                        (Uorc.Uorc.Integrity.Profile.prefix kind purpose) with
+                    | Except.error hashFailure =>
+                      Uorc.Uorc.Integrity.OwnedHash.chargeTransition (Uorc.Uorc.Core.Heap.wordAdd 1 heapPrefix2)
+                        (Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.integrity hashFailure))
+                    | Except.ok prefixJob =>
+                      Uorc.Uorc.Integrity.OwnedHash.chargeTransition (Uorc.Uorc.Core.Heap.wordAdd 1 heapPrefix2)
+                        (Uorc.Uorc.Integrity.OwnedHash.report allocated.arena
+                          { profile := kind, purpose := purpose, control := allocated.handle, input := none,
+                            position := 0, checkedPrefix := 0, output := Uorc.Uorc.Core.RuntimeValue.nullHandle,
+                            phase := Uorc.Uorc.Integrity.OwnedHash.Phase.prefix prefixJob }
+                          allocated.delta 1 0 0 0 Uorc.Uorc.Integrity.OwnedHash.Outcome.pending))
+              allocated)))
+        (Except.ok next))
+      success
+  argument has type
+    (Uorc.Uorc.Integrity.OwnedHash.startCharged arena kind purpose).result = Except.ok next
+  but function has type
+    (match Uorc.Uorc.Core.Heap.allocateControl arena (Uorc.Uorc.Integrity.OwnedHash.controlBytes kind) with
+          | Except.error heapFailure =>
+            Uorc.Uorc.Integrity.OwnedHash.chargeTransition (Uorc.Uorc.Core.Heap.wordAdd 1 0)
+              (Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.heap heapFailure))
+          | Except.ok allocated =>
+            have heapPrefix2 := Uorc.Uorc.Core.Heap.wordAdd 0 allocated.delta.work;
+            match Uorc.Uorc.Integrity.Profile.init kind with
+            | Except.error hashFailure =>
+              Uorc.Uorc.Integrity.OwnedHash.chargeTransition (Uorc.Uorc.Core.Heap.wordAdd 1 heapPrefix2)
+                (Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.integrity hashFailure))
+            | Except.ok hashState =>
+              match
+                Uorc.Uorc.Integrity.Profile.beginUpdate hashState (Uorc.Uorc.Integrity.Profile.prefix kind purpose) with
+              | Except.error hashFailure =>
+                Uorc.Uorc.Integrity.OwnedHash.chargeTransition (Uorc.Uorc.Core.Heap.wordAdd 1 heapPrefix2)
+                  (Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.integrity hashFailure))
+              | Except.ok prefixJob =>
+                Uorc.Uorc.Integrity.OwnedHash.chargeTransition (Uorc.Uorc.Core.Heap.wordAdd 1 heapPrefix2)
+                  (Uorc.Uorc.Integrity.OwnedHash.report allocated.arena
+                    { profile := kind, purpose := purpose, control := allocated.handle, input := none, position := 0,
+                      checkedPrefix := 0, output := Uorc.Uorc.Core.RuntimeValue.nullHandle,
+                      phase := Uorc.Uorc.Integrity.OwnedHash.Phase.prefix prefixJob }
+                    allocated.delta 1 0 0 0 Uorc.Uorc.Integrity.OwnedHash.Outcome.pending)).result =
+        Except.ok next →
+      Except.error (Uorc.Uorc.Integrity.OwnedHash.Error.heap cause) = Except.ok next

@@ -1,0 +1,369 @@
+\begin{lexlean}{Uorc.Core.CanonicalActionCompositionTests}
+\importmodule{Uorc.Core.CanonicalActionComposition}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: advanceEvents,
+  parameters: [
+    usage : Uorc.Core.CanonicalCost::Usage,
+    events : (List Uorc.Core.CanonicalCost::SemanticEvent)
+  ],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (match events
+    | List.nil => usage
+    | List.cons event rest => (advanceEvents (Uorc.Core.CanonicalCost::advance usage event) rest)),
+  axioms: [],
+  executable: false,
+  recursive_argument: events
+}
+
+definition{
+  name: budgetForEvents,
+  parameters: [events : (List Uorc.Core.CanonicalCost::SemanticEvent)],
+  result: Uorc.Core.CanonicalCost::Budget,
+  body: (record Uorc.Core.CanonicalCost::Budget {maxSemanticWork := (Uorc.Core.CanonicalCost::workOf (Uorc.Core.CanonicalCost::appendEvents (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits 1) (nil Uorc.Core.CanonicalCost::SemanticEvent)) events)), storage := (ctor Uorc.Core.CanonicalCost::StorageScope.unconstrained)}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: wideBudget,
+  parameters: [],
+  result: Uorc.Core.CanonicalCost::Budget,
+  body: (record Uorc.Core.CanonicalCost::Budget {maxSemanticWork := 1000, storage := (ctor Uorc.Core.CanonicalCost::StorageScope.unconstrained)}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: storageOneBudget,
+  parameters: [],
+  result: Uorc.Core.CanonicalCost::Budget,
+  body: (record Uorc.Core.CanonicalCost::Budget {maxSemanticWork := 1000, storage := (ctor Uorc.Core.CanonicalCost::StorageScope.liveBindingPayloadUnits 1)}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: seedUsage,
+  parameters: [],
+  result: Uorc.Core.CanonicalCost::Usage,
+  body: (Uorc.Core.CanonicalCost::advance (Uorc.Core.CanonicalCost::zeroUsage) (ctor Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits 1)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: deadBindings,
+  parameters: [],
+  result: (List Uorc.Core.CanonicalBindings::Binding),
+  body: (cons (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 9)}) (nil Uorc.Core.CanonicalBindings::Binding)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: emptySequence,
+  parameters: [],
+  result: Uorc.Core.ReferenceSemantics::Sequence,
+  body: (Uorc.Core.ReferenceSemantics::sequenceFromBytes 0x),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: goodSequence,
+  parameters: [],
+  result: Uorc.Core.ReferenceSemantics::Sequence,
+  body: (record Uorc.Core.ReferenceSemantics::Sequence {length := 1, read := (fun (i : Nat) => (if (i =? 0) then (ctor Option.some [Nat] 7) else (ctor Option.none [Nat])))}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: malformedSequence,
+  parameters: [],
+  result: Uorc.Core.ReferenceSemantics::Sequence,
+  body: (record Uorc.Core.ReferenceSemantics::Sequence {length := 1, read := (fun (i : Nat) => (ctor Option.none [Nat]))}),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: referenceErrorIs,
+  parameters: [
+    result : (Result Uorc.Core.ReferenceSemantics::Value Uorc.Core.ReferenceSemantics::Failure),
+    code : Nat
+  ],
+  result: Bool,
+  body: (match result
+    | Result.ok value => false
+    | Result.error failure => (match failure
+      | Uorc.Core.ReferenceSemantics::Failure.static e => false
+      | Uorc.Core.ReferenceSemantics::Failure.semantic e => (match e
+        | Uorc.Core.ReferenceSemantics::SemanticError.divisionByZero => (code =? 0)
+        | Uorc.Core.ReferenceSemantics::SemanticError.arithmeticOverflow => (code =? 0)
+        | Uorc.Core.ReferenceSemantics::SemanticError.negativeDifference => (code =? 0)
+        | Uorc.Core.ReferenceSemantics::SemanticError.byteOutOfRange => (code =? 0)
+        | Uorc.Core.ReferenceSemantics::SemanticError.shiftOutOfRange => (code =? 0)
+        | Uorc.Core.ReferenceSemantics::SemanticError.indexOutOfBounds => (code =? 1)
+        | Uorc.Core.ReferenceSemantics::SemanticError.sliceOutOfBounds => (code =? 0)
+        | Uorc.Core.ReferenceSemantics::SemanticError.basisOutOfBounds => (code =? 2)
+        | Uorc.Core.ReferenceSemantics::SemanticError.sequenceLengthOverflow => (code =? 0)
+        | Uorc.Core.ReferenceSemantics::SemanticError.outputMismatch => (code =? 0)))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: byteResultIs,
+  parameters: [
+    result : (Result Uorc.Core.ReferenceSemantics::Value Uorc.Core.ReferenceSemantics::Failure),
+    expected : Nat
+  ],
+  result: Bool,
+  body: (match result
+    | Result.error e => false
+    | Result.ok value => (match value
+      | Uorc.Core.ReferenceSemantics::Value.natural v => false
+      | Uorc.Core.ReferenceSemantics::Value.byte v => (v =? expected)
+      | Uorc.Core.ReferenceSemantics::Value.predicate v => false
+      | Uorc.Core.ReferenceSemantics::Value.sequence v => false
+      | Uorc.Core.ReferenceSemantics::Value.store v => false)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: eventTag,
+  parameters: [event : Uorc.Core.CanonicalCost::SemanticEvent],
+  result: Nat,
+  body: (match event
+    | Uorc.Core.CanonicalCost::SemanticEvent.instruction v => 0
+    | Uorc.Core.CanonicalCost::SemanticEvent.parameterBind => 1
+    | Uorc.Core.CanonicalCost::SemanticEvent.referenceRead => 2
+    | Uorc.Core.CanonicalCost::SemanticEvent.blockEnter => 3
+    | Uorc.Core.CanonicalCost::SemanticEvent.blockLeave => 4
+    | Uorc.Core.CanonicalCost::SemanticEvent.loopObserve => 5
+    | Uorc.Core.CanonicalCost::SemanticEvent.loopUpdate => 6
+    | Uorc.Core.CanonicalCost::SemanticEvent.byteRead => 7
+    | Uorc.Core.CanonicalCost::SemanticEvent.byteWrite => 8
+    | Uorc.Core.CanonicalCost::SemanticEvent.byteComparison => 9
+    | Uorc.Core.CanonicalCost::SemanticEvent.outputBoundary => 10
+    | Uorc.Core.CanonicalCost::SemanticEvent.outputByte => 11
+    | Uorc.Core.CanonicalCost::SemanticEvent.basisBoundary => 12
+    | Uorc.Core.CanonicalCost::SemanticEvent.canonicalEof => 13
+    | Uorc.Core.CanonicalCost::SemanticEvent.allocateValueUnits v => 14
+    | Uorc.Core.CanonicalCost::SemanticEvent.releaseValueUnits v => 15),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: pendingKindsAre,
+  parameters: [events : (List Uorc.Core.CanonicalCost::SemanticEvent), kinds : (List Nat)],
+  result: Bool,
+  body: (match events
+    | List.nil => (match kinds | List.nil => true | List.cons k ks => false)
+    | List.cons event rest => (match kinds
+      | List.nil => false
+      | List.cons kind remaining => (((eventTag event) =? kind) && ((pendingKindsAre rest remaining) && true)))),
+  axioms: [],
+  executable: false,
+  recursive_argument: events
+}
+
+definition{
+  name: stageTag,
+  parameters: [stage : Uorc.Core.CanonicalActionComposition::Stage],
+  result: Nat,
+  body: (match stage
+    | Uorc.Core.CanonicalActionComposition::Stage.indexOperands slots s i => 0
+    | Uorc.Core.CanonicalActionComposition::Stage.basisOperand basis slots i => 1
+    | Uorc.Core.CanonicalActionComposition::Stage.indexAttempt sequence i => 2
+    | Uorc.Core.CanonicalActionComposition::Stage.basisAttempt basis i => 3
+    | Uorc.Core.CanonicalActionComposition::Stage.returning value => 4),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: costErrorIs,
+  parameters: [failure : Uorc.Core.CanonicalCost::Error, code : Nat],
+  result: Bool,
+  body: (match failure
+    | Uorc.Core.CanonicalCost::Error.invalidUsage => (code =? 0)
+    | Uorc.Core.CanonicalCost::Error.workLimit => (code =? 1)
+    | Uorc.Core.CanonicalCost::Error.storageLimit => (code =? 2)
+    | Uorc.Core.CanonicalCost::Error.storageUnderflow => (code =? 0)
+    | Uorc.Core.CanonicalCost::Error.frameUnderflow => (code =? 0)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: emptyIndexFailsAfterFullPrefix,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (wideBudget) (Uorc.Core.CanonicalActionComposition::startIndex (cons (ctor Uorc.Core.ReferenceSemantics::Value.sequence (emptySequence)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value))) 2 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => ((referenceErrorIs meaning 1) && ((((project usage semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) semanticWork)) && (((project usage semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) semanticStorageUnits)) && (((project usage peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) peakSemanticStorageUnits)) && (((project usage outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) outputBytes)) && (((project usage activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) activeFrames)) && (((project usage peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) peakFrames)) && (((project usage acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) acceptedArchives)) && (((project usage basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) basisObjects)) && true)))))))) && true))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: hugeIndexDoesNotObserve,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (wideBudget) (Uorc.Core.CanonicalActionComposition::startIndex (cons (ctor Uorc.Core.ReferenceSemantics::Value.sequence (goodSequence)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 18446744073709551615) (nil Uorc.Core.ReferenceSemantics::Value))) 2 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => ((referenceErrorIs meaning 1) && ((((project usage semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) semanticWork)) && (((project usage semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) semanticStorageUnits)) && (((project usage peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) peakSemanticStorageUnits)) && (((project usage outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) outputBytes)) && (((project usage activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) activeFrames)) && (((project usage peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) peakFrames)) && (((project usage acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) acceptedArchives)) && (((project usage basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) basisObjects)) && true)))))))) && true))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: malformedInRangePaysByteAttempt,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (wideBudget) (Uorc.Core.CanonicalActionComposition::startIndex (cons (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value))) 2 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => ((referenceErrorIs meaning 1) && ((((project usage semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) semanticWork)) && (((project usage semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) semanticStorageUnits)) && (((project usage peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) peakSemanticStorageUnits)) && (((project usage outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) outputBytes)) && (((project usage activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) activeFrames)) && (((project usage peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) peakFrames)) && (((project usage acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) acceptedArchives)) && (((project usage basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) basisObjects)) && true)))))))) && true))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: missingBasisPaysLookupAttempt,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (wideBudget) (Uorc.Core.CanonicalActionComposition::startBasis (nil Uorc.Core.ReferenceSemantics::Sequence) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value)) 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => ((referenceErrorIs meaning 2) && ((((project usage semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents))) semanticWork)) && (((project usage semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents))) semanticStorageUnits)) && (((project usage peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents))) peakSemanticStorageUnits)) && (((project usage outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents))) outputBytes)) && (((project usage activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents))) activeFrames)) && (((project usage peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents))) peakFrames)) && (((project usage acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents))) acceptedArchives)) && (((project usage basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents))) basisObjects)) && true)))))))) && true))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: indexAttemptRefusalKeepsUnobservedStage,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (budgetForEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) (Uorc.Core.CanonicalActionComposition::startIndex (cons (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value))) 2 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => ((costErrorIs e 1) && (((stageTag (project c stage)) =? 2) && ((pendingKindsAre (project c pending) (cons 7 (nil Nat))) && ((((project (project c usage) semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) semanticWork)) && (((project (project c usage) semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) semanticStorageUnits)) && (((project (project c usage) peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) peakSemanticStorageUnits)) && (((project (project c usage) outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) outputBytes)) && (((project (project c usage) activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) activeFrames)) && (((project (project c usage) peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) peakFrames)) && (((project (project c usage) acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) acceptedArchives)) && (((project (project c usage) basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex))) basisObjects)) && true)))))))) && true))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: basisAttemptRefusalKeepsUnobservedStage,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (budgetForEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet))) (Uorc.Core.CanonicalActionComposition::startBasis (nil Uorc.Core.ReferenceSemantics::Sequence) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value)) 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => ((costErrorIs e 1) && (((stageTag (project c stage)) =? 3) && ((pendingKindsAre (project c pending) (cons 2 (nil Nat))) && ((((project (project c usage) semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet))) semanticWork)) && (((project (project c usage) semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet))) semanticStorageUnits)) && (((project (project c usage) peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet))) peakSemanticStorageUnits)) && (((project (project c usage) outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet))) outputBytes)) && (((project (project c usage) activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet))) activeFrames)) && (((project (project c usage) peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet))) peakFrames)) && (((project (project c usage) acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet))) acceptedArchives)) && (((project (project c usage) basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet))) basisObjects)) && true)))))))) && true))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: prefixRefusalPrecedesOperandObservation,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (budgetForEvents (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) (Uorc.Core.CanonicalActionComposition::startIndex (cons (ctor Uorc.Core.ReferenceSemantics::Value.sequence (emptySequence)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value))) 2 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => ((costErrorIs e 1) && (((stageTag (project c stage)) =? 0) && ((pendingKindsAre (project c pending) (cons 2 (nil Nat))) && ((((project (project c usage) semanticWork) =? (project (advanceEvents (seedUsage) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) semanticWork)) && (((project (project c usage) semanticStorageUnits) =? (project (advanceEvents (seedUsage) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) semanticStorageUnits)) && (((project (project c usage) peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) peakSemanticStorageUnits)) && (((project (project c usage) outputBytes) =? (project (advanceEvents (seedUsage) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) outputBytes)) && (((project (project c usage) activeFrames) =? (project (advanceEvents (seedUsage) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) activeFrames)) && (((project (project c usage) peakFrames) =? (project (advanceEvents (seedUsage) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) peakFrames)) && (((project (project c usage) acceptedArchives) =? (project (advanceEvents (seedUsage) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) acceptedArchives)) && (((project (project c usage) basisObjects) =? (project (advanceEvents (seedUsage) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.instruction (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (cons (ctor Uorc.Core.CanonicalCost::SemanticEvent.referenceRead) (nil Uorc.Core.CanonicalCost::SemanticEvent)))) basisObjects)) && true)))))))) && true))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: successAllocatesThenReleasesDeadBinding,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (wideBudget) (Uorc.Core.CanonicalActionComposition::startIndex (cons (ctor Uorc.Core.ReferenceSemantics::Value.sequence (goodSequence)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value))) 2 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => ((byteResultIs meaning 7) && ((((project usage semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) semanticWork)) && (((project usage semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) semanticStorageUnits)) && (((project usage peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) peakSemanticStorageUnits)) && (((project usage outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) outputBytes)) && (((project usage activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) activeFrames)) && (((project usage peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) peakFrames)) && (((project usage acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) acceptedArchives)) && (((project usage basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) basisObjects)) && true)))))))) && true))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: allocationRefusalRetainsCompletedValueAndDeadRelease,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (storageOneBudget) (Uorc.Core.CanonicalActionComposition::startIndex (cons (ctor Uorc.Core.ReferenceSemantics::Value.sequence (goodSequence)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value))) 2 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => ((costErrorIs e 2) && (((stageTag (project c stage)) =? 4) && ((pendingKindsAre (project c pending) (cons 14 (cons 15 (nil Nat)))) && ((((project (project c usage) semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) semanticWork)) && (((project (project c usage) semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) semanticStorageUnits)) && (((project (project c usage) peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) peakSemanticStorageUnits)) && (((project (project c usage) outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) outputBytes)) && (((project (project c usage) activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) activeFrames)) && (((project (project c usage) peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) peakFrames)) && (((project (project c usage) acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) acceptedArchives)) && (((project (project c usage) basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation))) basisObjects)) && true)))))))) && true))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: budgetExtensionDoesNotRepeatPaidByteRead,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (storageOneBudget) (Uorc.Core.CanonicalActionComposition::startIndex (cons (ctor Uorc.Core.ReferenceSemantics::Value.sequence (goodSequence)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value))) 2 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending preCursor => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed preMeaning preUsage => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused preError retained => (match (Uorc.Core.CanonicalActionComposition::run 30 (wideBudget) retained)
+      | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+      | Uorc.Core.CanonicalActionComposition::Step.refused e c => false
+      | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => ((byteResultIs meaning 7) && ((((project usage semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) semanticWork)) && (((project usage semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) semanticStorageUnits)) && (((project usage peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) peakSemanticStorageUnits)) && (((project usage outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) outputBytes)) && (((project usage activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) activeFrames)) && (((project usage peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) peakFrames)) && (((project usage acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) acceptedArchives)) && (((project usage basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.sequenceIndex)) (Uorc.Core.CanonicalSchedule::indexObservation)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (deadBindings)))) basisObjects)) && true)))))))) && true)))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: basisSuccessDoesNotReadSequencePayload,
+  parameters: [],
+  result: Bool,
+  body: (match (Uorc.Core.CanonicalActionComposition::run 30 (wideBudget) (Uorc.Core.CanonicalActionComposition::startBasis (cons (malformedSequence) (nil Uorc.Core.ReferenceSemantics::Sequence)) (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 0) (nil Uorc.Core.ReferenceSemantics::Value)) 1 (seedUsage) (deadBindings)))
+    | Uorc.Core.CanonicalActionComposition::Step.pending c => false
+    | Uorc.Core.CanonicalActionComposition::Step.refused e c => false
+    | Uorc.Core.CanonicalActionComposition::Step.completed meaning usage => (match meaning
+      | Result.error e => false
+      | Result.ok value => ((((project usage semanticWork) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence))}) (deadBindings)))) semanticWork)) && (((project usage semanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence))}) (deadBindings)))) semanticStorageUnits)) && (((project usage peakSemanticStorageUnits) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence))}) (deadBindings)))) peakSemanticStorageUnits)) && (((project usage outputBytes) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence))}) (deadBindings)))) outputBytes)) && (((project usage activeFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence))}) (deadBindings)))) activeFrames)) && (((project usage peakFrames) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence))}) (deadBindings)))) peakFrames)) && (((project usage acceptedArchives) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence))}) (deadBindings)))) acceptedArchives)) && (((project usage basisObjects) =? (project (advanceEvents (seedUsage) (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalCost::appendEvents (Uorc.Core.CanonicalSchedule::instructionPrefix (ctor Uorc.Core.RuntimeOpcode::Opcode.basisGet)) (Uorc.Core.CanonicalSchedule::basisLookupEvents)) (Uorc.Core.CanonicalSchedule::completedResult (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.sequence (malformedSequence))}) (deadBindings)))) basisObjects)) && true)))))))) && ((match value
+        | Uorc.Core.ReferenceSemantics::Value.natural v => false
+        | Uorc.Core.ReferenceSemantics::Value.byte v => false
+        | Uorc.Core.ReferenceSemantics::Value.predicate v => false
+        | Uorc.Core.ReferenceSemantics::Value.sequence v => ((project v length) =? 1)
+        | Uorc.Core.ReferenceSemantics::Value.store v => false) && true)))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: scenarioNames,
+  parameters: [],
+  result: (List String),
+  body: (cons "core.CanonicalActionComposition.emptyIndexFailsAfterFullPrefix" (cons "core.CanonicalActionComposition.hugeIndexDoesNotObserve" (cons "core.CanonicalActionComposition.malformedInRangePaysByteAttempt" (cons "core.CanonicalActionComposition.missingBasisPaysLookupAttempt" (cons "core.CanonicalActionComposition.indexAttemptRefusalKeepsUnobservedStage" (cons "core.CanonicalActionComposition.basisAttemptRefusalKeepsUnobservedStage" (cons "core.CanonicalActionComposition.prefixRefusalPrecedesOperandObservation" (cons "core.CanonicalActionComposition.successAllocatesThenReleasesDeadBinding" (cons "core.CanonicalActionComposition.allocationRefusalRetainsCompletedValueAndDeadRelease" (cons "core.CanonicalActionComposition.budgetExtensionDoesNotRepeatPaidByteRead" (cons "core.CanonicalActionComposition.basisSuccessDoesNotReadSequencePayload" (nil String)))))))))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: suite,
+  parameters: [],
+  result: Bool,
+  body: ((emptyIndexFailsAfterFullPrefix) && ((hugeIndexDoesNotObserve) && ((malformedInRangePaysByteAttempt) && ((missingBasisPaysLookupAttempt) && ((indexAttemptRefusalKeepsUnobservedStage) && ((basisAttemptRefusalKeepsUnobservedStage) && ((prefixRefusalPrecedesOperandObservation) && ((successAllocatesThenReleasesDeadBinding) && ((allocationRefusalRetainsCompletedValueAndDeadRelease) && ((budgetExtensionDoesNotRepeatPaidByteRead) && ((basisSuccessDoesNotReadSequencePayload) && true))))))))))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

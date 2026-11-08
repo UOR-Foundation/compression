@@ -1,0 +1,636 @@
+/home/user/compression/.tmp/consumer-reader-6UoJXC/mutant-model/Uorc/Uorc/Integrity/OwnedReadCoverageLaws.lean:754:0: error: native core declaration 'Uorc.Uorc.Integrity.OwnedReadCoverageLaws.step_complete_offset':
+  (kernel) application type mismatch
+    Eq.mp (congrFun' (congrArg Eq (if_neg x✝¹)) x✝⁴) x✝²
+  argument has type
+    Uorc.Uorc.Wire.OwnedRead.step x✝⁶ x✝⁵ = x✝⁴
+  but function has type
+    (if LexLeanRuntime.equal x✝⁵.offset x✝⁵.length = true then Uorc.Uorc.Wire.OwnedRead.Step.complete
+        else
+          if Uorc.Uorc.Core.Heap.less x✝⁵.length x✝⁵.offset = true then
+            Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+          else
+            if x✝⁵.walking = true then
+              match Uorc.Uorc.Core.Heap.lookup x✝⁶ x✝⁵.current with
+              | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+              | Except.ok x =>
+                match x.node with
+                | Uorc.Uorc.Core.Heap.Node.sequenceLeaf x x_1 x_2 =>
+                  if Uorc.Uorc.Core.Heap.less x✝⁵.index x_2 = true then
+                    have x_3 :=
+                      if
+                          Uorc.Uorc.Core.Heap.less (Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index)
+                              (Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset) =
+                            true then
+                        Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index
+                      else Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset;
+                    match LexLeanRuntime.checkedAdd x_1 x✝⁵.index with
+                    | none =>
+                      Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                    | some x_4 =>
+                      match Uorc.Uorc.Core.RuntimeImage.validateSpan x✝⁶ x x_4 x_3 with
+                      | Except.error x =>
+                        match x with
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.heap x =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.invalidShape =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.range =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.lengthOverflow =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                      | Except.ok x =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.borrowedSpan x.image x.offset x.length
+                          { root := x✝⁵.root, length := x✝⁵.length,
+                            offset := Uorc.Uorc.Core.Heap.wordAdd x✝⁵.offset x.length, current := x✝⁵.current,
+                            index := x✝⁵.index, walking := false }
+                  else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                | Uorc.Uorc.Core.Heap.Node.sequenceBranch x x_1 x_2 x_3 =>
+                  match Uorc.Uorc.Core.Heap.sequenceInfo x✝⁶ x_2 with
+                  | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                  | Except.ok x =>
+                    have x_4 := if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x_2 else x_3;
+                    if Uorc.Uorc.Core.Heap.less x_4.id x✝⁵.current.id = true then
+                      Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                        { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x_4,
+                          index :=
+                            if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x✝⁵.index
+                            else Uorc.Uorc.Core.Heap.wordSub x✝⁵.index x.length,
+                          walking := x✝⁵.walking }
+                    else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.image x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.storeLeaf x =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.storeBranch x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.slot x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.rootBranch x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataWord x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataLink x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataBranch x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.ownerRoot x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.imageReservation x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+            else
+              Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x✝⁵.root,
+                  index := x✝⁵.offset, walking := true }) =
+        x✝⁴ →
+      (if Uorc.Uorc.Core.Heap.less x✝⁵.length x✝⁵.offset = true then
+          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+        else
+          if x✝⁵.walking = true then
+            match Uorc.Uorc.Core.Heap.lookup x✝⁶ x✝⁵.current with
+            | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+            | Except.ok x =>
+              match x.node with
+              | Uorc.Uorc.Core.Heap.Node.sequenceLeaf x x_1 x_2 =>
+                if Uorc.Uorc.Core.Heap.less x✝⁵.index x_2 = true then
+                  have x_3 :=
+                    if
+                        Uorc.Uorc.Core.Heap.less (Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index)
+                            (Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset) =
+                          true then
+                      Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index
+                    else Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset;
+                  match LexLeanRuntime.checkedAdd x_1 x✝⁵.index with
+                  | none => Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                  | some x_4 =>
+                    match Uorc.Uorc.Core.RuntimeImage.validateSpan x✝⁶ x x_4 x_3 with
+                    | Except.error x =>
+                      match x with
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.heap x =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.invalidShape =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.range =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.lengthOverflow =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                    | Except.ok x =>
+                      Uorc.Uorc.Wire.OwnedRead.Step.borrowedSpan x.image x.offset x.length
+                        { root := x✝⁵.root, length := x✝⁵.length,
+                          offset := Uorc.Uorc.Core.Heap.wordAdd x✝⁵.offset x.length, current := x✝⁵.current,
+                          index := x✝⁵.index, walking := false }
+                else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+              | Uorc.Uorc.Core.Heap.Node.sequenceBranch x x_1 x_2 x_3 =>
+                match Uorc.Uorc.Core.Heap.sequenceInfo x✝⁶ x_2 with
+                | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                | Except.ok x =>
+                  have x_4 := if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x_2 else x_3;
+                  if Uorc.Uorc.Core.Heap.less x_4.id x✝⁵.current.id = true then
+                    Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                      { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x_4,
+                        index :=
+                          if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x✝⁵.index
+                          else Uorc.Uorc.Core.Heap.wordSub x✝⁵.index x.length,
+                        walking := x✝⁵.walking }
+                  else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.image x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.storeLeaf x =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.storeBranch x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.slot x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.rootBranch x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataWord x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataLink x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataBranch x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.ownerRoot x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.imageReservation x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+          else
+            Uorc.Uorc.Wire.OwnedRead.Step.advanced
+              { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x✝⁵.root, index := x✝⁵.offset,
+                walking := true }) =
+        x✝⁴
+/home/user/compression/.tmp/consumer-reader-6UoJXC/mutant-model/Uorc/Uorc/Integrity/OwnedReadCoverageLaws.lean:830:0: error: native core declaration 'Uorc.Uorc.Integrity.OwnedReadCoverageLaws.borrowed_span_positive':
+  (kernel) application type mismatch
+    Eq.mp (congrFun' (congrArg Eq (if_neg x✝¹)) x✝⁴) x✝²
+  argument has type
+    Uorc.Uorc.Wire.OwnedRead.step x✝⁶ x✝⁵ = x✝⁴
+  but function has type
+    (if LexLeanRuntime.equal x✝⁵.offset x✝⁵.length = true then Uorc.Uorc.Wire.OwnedRead.Step.complete
+        else
+          if Uorc.Uorc.Core.Heap.less x✝⁵.length x✝⁵.offset = true then
+            Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+          else
+            if x✝⁵.walking = true then
+              match Uorc.Uorc.Core.Heap.lookup x✝⁶ x✝⁵.current with
+              | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+              | Except.ok x =>
+                match x.node with
+                | Uorc.Uorc.Core.Heap.Node.sequenceLeaf x x_1 x_2 =>
+                  if Uorc.Uorc.Core.Heap.less x✝⁵.index x_2 = true then
+                    have x_3 :=
+                      if
+                          Uorc.Uorc.Core.Heap.less (Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index)
+                              (Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset) =
+                            true then
+                        Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index
+                      else Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset;
+                    match LexLeanRuntime.checkedAdd x_1 x✝⁵.index with
+                    | none =>
+                      Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                    | some x_4 =>
+                      match Uorc.Uorc.Core.RuntimeImage.validateSpan x✝⁶ x x_4 x_3 with
+                      | Except.error x =>
+                        match x with
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.heap x =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.invalidShape =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.range =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.lengthOverflow =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                      | Except.ok x =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.borrowedSpan x.image x.offset x.length
+                          { root := x✝⁵.root, length := x✝⁵.length,
+                            offset := Uorc.Uorc.Core.Heap.wordAdd x✝⁵.offset x.length, current := x✝⁵.current,
+                            index := x✝⁵.index, walking := false }
+                  else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                | Uorc.Uorc.Core.Heap.Node.sequenceBranch x x_1 x_2 x_3 =>
+                  match Uorc.Uorc.Core.Heap.sequenceInfo x✝⁶ x_2 with
+                  | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                  | Except.ok x =>
+                    have x_4 := if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x_2 else x_3;
+                    if Uorc.Uorc.Core.Heap.less x_4.id x✝⁵.current.id = true then
+                      Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                        { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x_4,
+                          index :=
+                            if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x✝⁵.index
+                            else Uorc.Uorc.Core.Heap.wordSub x✝⁵.index x.length,
+                          walking := x✝⁵.walking }
+                    else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.image x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.storeLeaf x =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.storeBranch x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.slot x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.rootBranch x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataWord x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataLink x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataBranch x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.ownerRoot x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.imageReservation x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+            else
+              Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x✝⁵.root,
+                  index := x✝⁵.offset, walking := true }) =
+        x✝⁴ →
+      (if Uorc.Uorc.Core.Heap.less x✝⁵.length x✝⁵.offset = true then
+          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+        else
+          if x✝⁵.walking = true then
+            match Uorc.Uorc.Core.Heap.lookup x✝⁶ x✝⁵.current with
+            | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+            | Except.ok x =>
+              match x.node with
+              | Uorc.Uorc.Core.Heap.Node.sequenceLeaf x x_1 x_2 =>
+                if Uorc.Uorc.Core.Heap.less x✝⁵.index x_2 = true then
+                  have x_3 :=
+                    if
+                        Uorc.Uorc.Core.Heap.less (Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index)
+                            (Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset) =
+                          true then
+                      Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index
+                    else Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset;
+                  match LexLeanRuntime.checkedAdd x_1 x✝⁵.index with
+                  | none => Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                  | some x_4 =>
+                    match Uorc.Uorc.Core.RuntimeImage.validateSpan x✝⁶ x x_4 x_3 with
+                    | Except.error x =>
+                      match x with
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.heap x =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.invalidShape =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.range =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.lengthOverflow =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                    | Except.ok x =>
+                      Uorc.Uorc.Wire.OwnedRead.Step.borrowedSpan x.image x.offset x.length
+                        { root := x✝⁵.root, length := x✝⁵.length,
+                          offset := Uorc.Uorc.Core.Heap.wordAdd x✝⁵.offset x.length, current := x✝⁵.current,
+                          index := x✝⁵.index, walking := false }
+                else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+              | Uorc.Uorc.Core.Heap.Node.sequenceBranch x x_1 x_2 x_3 =>
+                match Uorc.Uorc.Core.Heap.sequenceInfo x✝⁶ x_2 with
+                | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                | Except.ok x =>
+                  have x_4 := if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x_2 else x_3;
+                  if Uorc.Uorc.Core.Heap.less x_4.id x✝⁵.current.id = true then
+                    Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                      { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x_4,
+                        index :=
+                          if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x✝⁵.index
+                          else Uorc.Uorc.Core.Heap.wordSub x✝⁵.index x.length,
+                        walking := x✝⁵.walking }
+                  else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.image x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.storeLeaf x =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.storeBranch x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.slot x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.rootBranch x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataWord x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataLink x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataBranch x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.ownerRoot x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.imageReservation x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+          else
+            Uorc.Uorc.Wire.OwnedRead.Step.advanced
+              { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x✝⁵.root, index := x✝⁵.offset,
+                walking := true }) =
+        x✝⁴
+/home/user/compression/.tmp/consumer-reader-6UoJXC/mutant-model/Uorc/Uorc/Integrity/OwnedReadCoverageLaws.lean:901:0: error: native core declaration 'Uorc.Uorc.Integrity.OwnedReadCoverageLaws.selected_advanced':
+  (kernel) application type mismatch
+    Eq.mp (congrFun' (congrArg Eq (if_neg x✝¹)) x✝⁴) x✝²
+  argument has type
+    Uorc.Uorc.Wire.OwnedRead.step x✝⁶ x✝⁵ = x✝⁴
+  but function has type
+    (if LexLeanRuntime.equal x✝⁵.offset x✝⁵.length = true then Uorc.Uorc.Wire.OwnedRead.Step.complete
+        else
+          if Uorc.Uorc.Core.Heap.less x✝⁵.length x✝⁵.offset = true then
+            Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+          else
+            if x✝⁵.walking = true then
+              match Uorc.Uorc.Core.Heap.lookup x✝⁶ x✝⁵.current with
+              | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+              | Except.ok x =>
+                match x.node with
+                | Uorc.Uorc.Core.Heap.Node.sequenceLeaf x x_1 x_2 =>
+                  if Uorc.Uorc.Core.Heap.less x✝⁵.index x_2 = true then
+                    have x_3 :=
+                      if
+                          Uorc.Uorc.Core.Heap.less (Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index)
+                              (Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset) =
+                            true then
+                        Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index
+                      else Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset;
+                    match LexLeanRuntime.checkedAdd x_1 x✝⁵.index with
+                    | none =>
+                      Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                    | some x_4 =>
+                      match Uorc.Uorc.Core.RuntimeImage.validateSpan x✝⁶ x x_4 x_3 with
+                      | Except.error x =>
+                        match x with
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.heap x =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.invalidShape =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.range =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.lengthOverflow =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                      | Except.ok x =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.borrowedSpan x.image x.offset x.length
+                          { root := x✝⁵.root, length := x✝⁵.length,
+                            offset := Uorc.Uorc.Core.Heap.wordAdd x✝⁵.offset x.length, current := x✝⁵.current,
+                            index := x✝⁵.index, walking := false }
+                  else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                | Uorc.Uorc.Core.Heap.Node.sequenceBranch x x_1 x_2 x_3 =>
+                  match Uorc.Uorc.Core.Heap.sequenceInfo x✝⁶ x_2 with
+                  | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                  | Except.ok x =>
+                    have x_4 := if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x_2 else x_3;
+                    if Uorc.Uorc.Core.Heap.less x_4.id x✝⁵.current.id = true then
+                      Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                        { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x_4,
+                          index :=
+                            if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x✝⁵.index
+                            else Uorc.Uorc.Core.Heap.wordSub x✝⁵.index x.length,
+                          walking := x✝⁵.walking }
+                    else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.image x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.storeLeaf x =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.storeBranch x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.slot x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.rootBranch x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataWord x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataLink x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataBranch x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.ownerRoot x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.imageReservation x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+            else
+              Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x✝⁵.root,
+                  index := x✝⁵.offset, walking := true }) =
+        x✝⁴ →
+      (if Uorc.Uorc.Core.Heap.less x✝⁵.length x✝⁵.offset = true then
+          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+        else
+          if x✝⁵.walking = true then
+            match Uorc.Uorc.Core.Heap.lookup x✝⁶ x✝⁵.current with
+            | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+            | Except.ok x =>
+              match x.node with
+              | Uorc.Uorc.Core.Heap.Node.sequenceLeaf x x_1 x_2 =>
+                if Uorc.Uorc.Core.Heap.less x✝⁵.index x_2 = true then
+                  have x_3 :=
+                    if
+                        Uorc.Uorc.Core.Heap.less (Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index)
+                            (Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset) =
+                          true then
+                      Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index
+                    else Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset;
+                  match LexLeanRuntime.checkedAdd x_1 x✝⁵.index with
+                  | none => Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                  | some x_4 =>
+                    match Uorc.Uorc.Core.RuntimeImage.validateSpan x✝⁶ x x_4 x_3 with
+                    | Except.error x =>
+                      match x with
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.heap x =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.invalidShape =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.range =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.lengthOverflow =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                    | Except.ok x =>
+                      Uorc.Uorc.Wire.OwnedRead.Step.borrowedSpan x.image x.offset x.length
+                        { root := x✝⁵.root, length := x✝⁵.length,
+                          offset := Uorc.Uorc.Core.Heap.wordAdd x✝⁵.offset x.length, current := x✝⁵.current,
+                          index := x✝⁵.index, walking := false }
+                else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+              | Uorc.Uorc.Core.Heap.Node.sequenceBranch x x_1 x_2 x_3 =>
+                match Uorc.Uorc.Core.Heap.sequenceInfo x✝⁶ x_2 with
+                | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                | Except.ok x =>
+                  have x_4 := if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x_2 else x_3;
+                  if Uorc.Uorc.Core.Heap.less x_4.id x✝⁵.current.id = true then
+                    Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                      { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x_4,
+                        index :=
+                          if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x✝⁵.index
+                          else Uorc.Uorc.Core.Heap.wordSub x✝⁵.index x.length,
+                        walking := x✝⁵.walking }
+                  else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.image x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.storeLeaf x =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.storeBranch x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.slot x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.rootBranch x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataWord x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataLink x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataBranch x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.ownerRoot x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.imageReservation x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+          else
+            Uorc.Uorc.Wire.OwnedRead.Step.advanced
+              { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x✝⁵.root, index := x✝⁵.offset,
+                walking := true }) =
+        x✝⁴
+/home/user/compression/.tmp/consumer-reader-6UoJXC/mutant-model/Uorc/Uorc/Integrity/OwnedReadCoverageLaws.lean:987:0: error: native core declaration 'Uorc.Uorc.Integrity.OwnedReadCoverageLaws.selected_borrowed':
+  (kernel) application type mismatch
+    Eq.mp (congrFun' (congrArg Eq (if_neg x✝¹)) x✝⁴) x✝²
+  argument has type
+    Uorc.Uorc.Wire.OwnedRead.step x✝⁶ x✝⁵ = x✝⁴
+  but function has type
+    (if LexLeanRuntime.equal x✝⁵.offset x✝⁵.length = true then Uorc.Uorc.Wire.OwnedRead.Step.complete
+        else
+          if Uorc.Uorc.Core.Heap.less x✝⁵.length x✝⁵.offset = true then
+            Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+          else
+            if x✝⁵.walking = true then
+              match Uorc.Uorc.Core.Heap.lookup x✝⁶ x✝⁵.current with
+              | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+              | Except.ok x =>
+                match x.node with
+                | Uorc.Uorc.Core.Heap.Node.sequenceLeaf x x_1 x_2 =>
+                  if Uorc.Uorc.Core.Heap.less x✝⁵.index x_2 = true then
+                    have x_3 :=
+                      if
+                          Uorc.Uorc.Core.Heap.less (Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index)
+                              (Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset) =
+                            true then
+                        Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index
+                      else Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset;
+                    match LexLeanRuntime.checkedAdd x_1 x✝⁵.index with
+                    | none =>
+                      Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                    | some x_4 =>
+                      match Uorc.Uorc.Core.RuntimeImage.validateSpan x✝⁶ x x_4 x_3 with
+                      | Except.error x =>
+                        match x with
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.heap x =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.invalidShape =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.range =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                        | Uorc.Uorc.Core.RuntimeImage.ImageFailure.lengthOverflow =>
+                          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                      | Except.ok x =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.borrowedSpan x.image x.offset x.length
+                          { root := x✝⁵.root, length := x✝⁵.length,
+                            offset := Uorc.Uorc.Core.Heap.wordAdd x✝⁵.offset x.length, current := x✝⁵.current,
+                            index := x✝⁵.index, walking := false }
+                  else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                | Uorc.Uorc.Core.Heap.Node.sequenceBranch x x_1 x_2 x_3 =>
+                  match Uorc.Uorc.Core.Heap.sequenceInfo x✝⁶ x_2 with
+                  | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                  | Except.ok x =>
+                    have x_4 := if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x_2 else x_3;
+                    if Uorc.Uorc.Core.Heap.less x_4.id x✝⁵.current.id = true then
+                      Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                        { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x_4,
+                          index :=
+                            if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x✝⁵.index
+                            else Uorc.Uorc.Core.Heap.wordSub x✝⁵.index x.length,
+                          walking := x✝⁵.walking }
+                    else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.image x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.storeLeaf x =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.storeBranch x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.slot x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.rootBranch x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataWord x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataLink x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.metadataBranch x x_1 x_2 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.ownerRoot x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                | Uorc.Uorc.Core.Heap.Node.imageReservation x x_1 =>
+                  Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+            else
+              Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x✝⁵.root,
+                  index := x✝⁵.offset, walking := true }) =
+        x✝⁴ →
+      (if Uorc.Uorc.Core.Heap.less x✝⁵.length x✝⁵.offset = true then
+          Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+        else
+          if x✝⁵.walking = true then
+            match Uorc.Uorc.Core.Heap.lookup x✝⁶ x✝⁵.current with
+            | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+            | Except.ok x =>
+              match x.node with
+              | Uorc.Uorc.Core.Heap.Node.sequenceLeaf x x_1 x_2 =>
+                if Uorc.Uorc.Core.Heap.less x✝⁵.index x_2 = true then
+                  have x_3 :=
+                    if
+                        Uorc.Uorc.Core.Heap.less (Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index)
+                            (Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset) =
+                          true then
+                      Uorc.Uorc.Core.Heap.wordSub x_2 x✝⁵.index
+                    else Uorc.Uorc.Core.Heap.wordSub x✝⁵.length x✝⁵.offset;
+                  match LexLeanRuntime.checkedAdd x_1 x✝⁵.index with
+                  | none => Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                  | some x_4 =>
+                    match Uorc.Uorc.Core.RuntimeImage.validateSpan x✝⁶ x x_4 x_3 with
+                    | Except.error x =>
+                      match x with
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.heap x =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.invalidShape =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.range =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+                      | Uorc.Uorc.Core.RuntimeImage.ImageFailure.lengthOverflow =>
+                        Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.addressSpaceExhausted
+                    | Except.ok x =>
+                      Uorc.Uorc.Wire.OwnedRead.Step.borrowedSpan x.image x.offset x.length
+                        { root := x✝⁵.root, length := x✝⁵.length,
+                          offset := Uorc.Uorc.Core.Heap.wordAdd x✝⁵.offset x.length, current := x✝⁵.current,
+                          index := x✝⁵.index, walking := false }
+                else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.range
+              | Uorc.Uorc.Core.Heap.Node.sequenceBranch x x_1 x_2 x_3 =>
+                match Uorc.Uorc.Core.Heap.sequenceInfo x✝⁶ x_2 with
+                | Except.error x => Uorc.Uorc.Wire.OwnedRead.Step.failed (Uorc.Uorc.Wire.OwnedRead.Failure.heap x)
+                | Except.ok x =>
+                  have x_4 := if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x_2 else x_3;
+                  if Uorc.Uorc.Core.Heap.less x_4.id x✝⁵.current.id = true then
+                    Uorc.Uorc.Wire.OwnedRead.Step.advanced
+                      { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x_4,
+                        index :=
+                          if Uorc.Uorc.Core.Heap.less x✝⁵.index x.length = true then x✝⁵.index
+                          else Uorc.Uorc.Core.Heap.wordSub x✝⁵.index x.length,
+                        walking := x✝⁵.walking }
+                  else Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.image x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.storeLeaf x =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.storeBranch x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.slot x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.rootBranch x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataWord x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataLink x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.metadataBranch x x_1 x_2 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.ownerRoot x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+              | Uorc.Uorc.Core.Heap.Node.imageReservation x x_1 =>
+                Uorc.Uorc.Wire.OwnedRead.Step.failed Uorc.Uorc.Wire.OwnedRead.Failure.invalidShape
+          else
+            Uorc.Uorc.Wire.OwnedRead.Step.advanced
+              { root := x✝⁵.root, length := x✝⁵.length, offset := x✝⁵.offset, current := x✝⁵.root, index := x✝⁵.offset,
+                walking := true }) =
+        x✝⁴

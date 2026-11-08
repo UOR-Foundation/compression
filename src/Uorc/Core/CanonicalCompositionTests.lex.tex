@@ -1,0 +1,100 @@
+\begin{lexlean}{Uorc.Core.CanonicalCompositionTests}
+\importmodule{Uorc.Core.CanonicalComposition}
+\importmodule{Uorc.Core.CanonicalCallCompositionTests}
+\importmodule{Uorc.Core.CanonicalBindings}
+\importmodule{Uorc.Core.CanonicalCost}
+\importmodule{Uorc.Core.CanonicalSchedule}
+\importmodule{Uorc.Core.ReferenceSemantics}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: tabulate_capture_then_empty_output,
+  parameters: [],
+  result: Bool,
+  body: (Uorc.Core.CanonicalCallCompositionTests::eventsAre (Uorc.Core.CanonicalComposition::tabulateStart 2) (cons 1 (cons 3 (cons 3 (cons 3 (cons 3 (cons 1000 (nil Nat)))))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: fold_capture_then_state,
+  parameters: [],
+  result: Bool,
+  body: (Uorc.Core.CanonicalCallCompositionTests::eventsAre (Uorc.Core.CanonicalComposition::foldStart 1 (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.natural 9)})) (cons 1 (cons 3 (cons 3 (cons 3 (cons 3 (cons 1008 (nil Nat)))))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: scan_both_captures_then_output_state,
+  parameters: [],
+  result: Bool,
+  body: (Uorc.Core.CanonicalCallCompositionTests::eventsAre (Uorc.Core.CanonicalComposition::scanStart 1 2 (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.natural 9)})) (cons 1 (cons 3 (cons 3 (cons 3 (cons 3 (cons 3 (cons 3 (cons 3 (cons 1000 (cons 1008 (nil Nat)))))))))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: apply_capture_before_entry,
+  parameters: [],
+  result: Bool,
+  body: (Uorc.Core.CanonicalCallCompositionTests::eventsAre (Uorc.Core.CanonicalComposition::applyEntry (cons (ctor Uorc.Core.ReferenceSemantics::Value.natural 5) (nil Uorc.Core.ReferenceSemantics::Value))) (cons 1 (cons 3 (cons 3 (cons 4 (cons 2 (cons 1008 (nil Nat)))))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: tabulate_finish_moves_existing_output,
+  parameters: [],
+  result: Bool,
+  body: (Uorc.Core.CanonicalCallCompositionTests::eventsAre (project (Uorc.Core.CanonicalComposition::finishTabulate (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (cons (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (nil Uorc.Core.CanonicalBindings::Binding))) events) (cons 2001 (nil Nat))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: fold_finish_moves_existing_state,
+  parameters: [],
+  result: Bool,
+  body: (Uorc.Core.CanonicalCallCompositionTests::eventsAre (project (Uorc.Core.CanonicalComposition::finishFold (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.natural 9)}) (cons (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (nil Uorc.Core.CanonicalBindings::Binding))) events) (cons 2001 (nil Nat))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: scan_finish_releases_state_then_dead,
+  parameters: [],
+  result: Bool,
+  body: (Uorc.Core.CanonicalCallCompositionTests::eventsAre (project (Uorc.Core.CanonicalComposition::finishScan (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.natural 9)}) (cons (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (nil Uorc.Core.CanonicalBindings::Binding))) events) (cons 2008 (cons 2001 (nil Nat)))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: empty_dead_finish_has_no_allocation,
+  parameters: [],
+  result: Bool,
+  body: (Uorc.Core.CanonicalCallCompositionTests::eventsAre (project (Uorc.Core.CanonicalComposition::finishTabulate (record Uorc.Core.CanonicalBindings::Binding {role := (ctor Uorc.Core.CanonicalBindings::Role.instruction), value := (ctor Uorc.Core.ReferenceSemantics::Value.byte 7)}) (nil Uorc.Core.CanonicalBindings::Binding)) events) (nil Nat)),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: scenarioNames,
+  parameters: [],
+  result: (List String),
+  body: (cons "core.canonical-composition.tabulate_capture_then_empty_output" (cons "core.canonical-composition.fold_capture_then_state" (cons "core.canonical-composition.scan_both_captures_then_output_state" (cons "core.canonical-composition.apply_capture_before_entry" (cons "core.canonical-composition.tabulate_finish_moves_existing_output" (cons "core.canonical-composition.fold_finish_moves_existing_state" (cons "core.canonical-composition.scan_finish_releases_state_then_dead" (cons "core.canonical-composition.empty_dead_finish_has_no_allocation" (nil String))))))))),
+  axioms: [],
+  executable: false
+}
+
+definition{
+  name: suite,
+  parameters: [],
+  result: Bool,
+  body: (if (tabulate_capture_then_empty_output) then (if (fold_capture_then_state) then (if (scan_both_captures_then_output_state) then (if (apply_capture_before_entry) then (if (tabulate_finish_moves_existing_output) then (if (fold_finish_moves_existing_state) then (if (scan_finish_releases_state_then_dead) then (if (empty_dead_finish_has_no_allocation) then true else false) else false) else false) else false) else false) else false) else false) else false),
+  axioms: [],
+  executable: false
+}
+\end{semanticmodule}
+\end{lexlean}

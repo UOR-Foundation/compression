@@ -1,0 +1,265 @@
+\begin{lexlean}{Uorc.Wire.ProgramAdmission}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Wire.ProgramParse}
+\importmodule{Uorc.Core.RuntimeAdmissionCredit}
+\importmodule{Uorc.Core.RuntimeAdmissionCreditBoundary}
+\importmodule{Uorc.Core.RuntimeAdmissionBoundary}
+\importmodule{Uorc.Core.RuntimeAdmission}
+\importmodule{Uorc.Wire.ArchiveContract}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: protocol, fields: []},
+    {name: cancelled, fields: []},
+    {name: parser, fields: [Uorc.Wire.ProgramParse::Failure]},
+    {name: credit, fields: [Uorc.Core.RuntimeAdmissionCredit::Error]},
+    {name: boundary, fields: [Uorc.Core.RuntimeAdmissionCreditBoundary::Error]},
+    {name: admission, fields: [Uorc.Core.RuntimeAdmission::Error]}
+  ]
+}
+
+structure{
+  name: Control,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: parser, type: Uorc.Wire.ProgramParse::State},
+    {name: budget, type: Uorc.Core.RuntimeResources::Budget},
+    {name: ackDue, type: Bool},
+    {name: failure, type: (Option Failure)}
+  ]
+}
+
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: admission, fields: [Uorc.Core.RuntimeAdmissionCredit::Cursor]},
+    {name: producer, fields: [Uorc.Core.RuntimeAdmissionCreditBoundary::Taken]},
+    {name: returning, fields: [Uorc.Core.RuntimeAdmissionCreditBoundary::Returning]},
+    {
+      name: accepted,
+      fields: [Uorc.Core.RuntimeProgram::Ready, Uorc.Core.RuntimeAdmissionCredit::Ledger]
+    },
+    {
+      name: failedAdmission,
+      fields: [Uorc.Core.RuntimeAdmission::Cursor, Uorc.Core.RuntimeAdmissionCredit::Ledger]
+    }
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: control, type: Control}, {name: phase, type: Phase}]
+}
+
+inductive{
+  name: Signal,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: advanced, fields: []},
+    {name: needInput, fields: []},
+    {name: ready, fields: []},
+    {name: failed, fields: []},
+    {name: paused, fields: [Uorc.Core.RuntimeResources::Error]}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: cursor, type: Cursor},
+    {name: signal, type: Signal},
+    {name: remainingCredits, type: UInt64}
+  ]
+}
+
+definition{
+  name: begin,
+  parameters: [
+    budget : Uorc.Core.RuntimeResources::Budget,
+    arena : Uorc.Core.Heap::Arena,
+    usage : Uorc.Core.RuntimeResources::Usage,
+    basis : Uorc.Core.RuntimeTable::Table,
+    caller : Uorc.Core.RuntimeProgram::CallerRoots
+  ],
+  result: Cursor,
+  body: (record Cursor {control := (record Control {parser := (Uorc.Wire.ProgramParse::initialState), budget := budget, ackDue := false, failure := (ctor Option.none [Failure])}), phase := (ctor Phase.admission (Uorc.Core.RuntimeAdmissionCredit::start budget arena basis caller usage))}),
+  executable: true
+}
+
+definition{
+  name: takeAwaiting,
+  parameters: [x : Cursor, core : Uorc.Core.RuntimeAdmissionCredit::Cursor, credits : UInt64],
+  result: Transition,
+  body: (let controlLocal1 : Control := (project x control); (match (Uorc.Core.RuntimeAdmissionCreditBoundary::take core (ctor Uorc.Core.RuntimeAdmissionBoundary::ProducerRole.wire))
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent.taken loanLocal2 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (ctor Phase.producer loanLocal2)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent.failed reasonLocal3 retainedLocal4 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal1 parser), budget := (project controlLocal1 budget), ackDue := (project controlLocal1 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.boundary reasonLocal3))}), phase := (ctor Phase.admission retainedLocal4)}), signal := (ctor Signal.failed), remainingCredits := credits})
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::TakeEvent.retainedFailure reasonLocal5 loanLocal6 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal1 parser), budget := (project controlLocal1 budget), ackDue := (project controlLocal1 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.boundary reasonLocal5))}), phase := (ctor Phase.producer loanLocal6)}), signal := (ctor Signal.failed), remainingCredits := credits}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: offerRestored,
+  parameters: [x : Cursor, core : Uorc.Core.RuntimeAdmissionCredit::Cursor, credits : UInt64],
+  result: Transition,
+  body: (let controlLocal7 : Control := (project x control); (match (project (project controlLocal7 parser) pending)
+    | Option.none => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal7 parser), budget := (project controlLocal7 budget), ackDue := (project controlLocal7 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := credits})
+    | Option.some eventLocal8 => (match (Uorc.Core.RuntimeAdmissionCredit::offer core eventLocal8)
+      | Result.error reasonLocal9 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal7 parser), budget := (project controlLocal7 budget), ackDue := (project controlLocal7 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.credit reasonLocal9))}), phase := (ctor Phase.admission core)}), signal := (ctor Signal.failed), remainingCredits := credits})
+      | Result.ok offeredLocal10 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal7 parser), budget := (project controlLocal7 budget), ackDue := true, failure := (project controlLocal7 failure)}), phase := (ctor Phase.admission offeredLocal10)}), signal := (ctor Signal.advanced), remainingCredits := credits})))),
+  executable: true
+}
+
+definition{
+  name: returned,
+  parameters: [
+    x : Cursor,
+    event : Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent,
+    credits : UInt64
+  ],
+  result: Transition,
+  body: (let controlLocal11 : Control := (project x control); (match event
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.pending retainedLocal12 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (ctor Phase.returning retainedLocal12)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.failed reasonLocal13 retainedLocal14 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal11 parser), budget := (project controlLocal11 budget), ackDue := (project controlLocal11 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.boundary reasonLocal13))}), phase := (ctor Phase.returning retainedLocal14)}), signal := (ctor Signal.failed), remainingCredits := credits})
+    | Uorc.Core.RuntimeAdmissionCreditBoundary::ReturnEvent.restored coreLocal15 => (offerRestored x coreLocal15 credits))),
+  executable: true
+}
+
+definition{
+  name: fundAdmission,
+  parameters: [x : Cursor, core : Uorc.Core.RuntimeAdmissionCredit::Cursor, credits : UInt64],
+  result: Transition,
+  body: (let controlLocal16 : Control := (project x control); (let fundedLocal17 : Uorc.Core.RuntimeAdmissionCredit::Funded := (Uorc.Core.RuntimeAdmissionCredit::fund core credits); (let creditsLocal18 : UInt64 := (project fundedLocal17 remainingCredits); (match (project fundedLocal17 event)
+    | Uorc.Core.RuntimeAdmissionCredit::Event.pending retainedLocal19 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (ctor Phase.admission retainedLocal19)}), signal := (ctor Signal.advanced), remainingCredits := creditsLocal18})
+    | Uorc.Core.RuntimeAdmissionCredit::Event.awaiting retainedLocal20 => (takeAwaiting x retainedLocal20 creditsLocal18)
+    | Uorc.Core.RuntimeAdmissionCredit::Event.ready readyLocal21 ledgerLocal22 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (ctor Phase.accepted readyLocal21 ledgerLocal22)}), signal := (ctor Signal.ready), remainingCredits := creditsLocal18})
+    | Uorc.Core.RuntimeAdmissionCredit::Event.failed reasonLocal23 retainedLocal24 ledgerLocal25 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal16 parser), budget := (project controlLocal16 budget), ackDue := (project controlLocal16 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.admission reasonLocal23))}), phase := (ctor Phase.failedAdmission retainedLocal24 ledgerLocal25)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal18})
+    | Uorc.Core.RuntimeAdmissionCredit::Event.rejected reasonLocal26 retainedLocal27 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal16 parser), budget := (project controlLocal16 budget), ackDue := (project controlLocal16 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.credit reasonLocal26))}), phase := (ctor Phase.admission retainedLocal27)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal18}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: advance,
+  parameters: [x : Cursor, credits : UInt64],
+  result: Transition,
+  body: (let controlLocal28 : Control := (project x control); (match (project controlLocal28 failure)
+    | Option.some reasonLocal29 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := credits})
+    | Option.none => (match (project x phase)
+      | Phase.admission coreLocal30 => (fundAdmission x coreLocal30 credits)
+      | Phase.producer loanLocal31 => (if (project controlLocal28 ackDue) then (let tLocal32 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::acknowledgeCopied (project controlLocal28 budget) (record Uorc.Wire.ProgramParse::Session {state := (project controlLocal28 parser), arena := (project loanLocal31 arena), usage := (project loanLocal31 usage)}) (project (project loanLocal31 caller) wire)); (let mLocal33 : Transition := (let sessionLocal34 : Uorc.Wire.ProgramParse::Session := (project tLocal32 session); (let nextControlLocal35 : Control := (record Control {parser := (project sessionLocal34 state), budget := (project controlLocal28 budget), ackDue := (project controlLocal28 ackDue), failure := (project controlLocal28 failure)}); (let nextLoanLocal36 : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken := (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project sessionLocal34 arena), usage := (project sessionLocal34 usage), caller := (project loanLocal31 caller), session := (project loanLocal31 session)}); (match (project tLocal32 signal)
+        | Uorc.Wire.ProgramParse::Signal.advanced => (record Transition {cursor := (record Cursor {control := nextControlLocal35, phase := (ctor Phase.producer nextLoanLocal36)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+        | Uorc.Wire.ProgramParse::Signal.pending => (record Transition {cursor := (record Cursor {control := nextControlLocal35, phase := (ctor Phase.producer nextLoanLocal36)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+        | Uorc.Wire.ProgramParse::Signal.complete => (record Transition {cursor := (record Cursor {control := nextControlLocal35, phase := (ctor Phase.producer nextLoanLocal36)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+        | Uorc.Wire.ProgramParse::Signal.clean => (record Transition {cursor := (record Cursor {control := nextControlLocal35, phase := (ctor Phase.producer nextLoanLocal36)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+        | Uorc.Wire.ProgramParse::Signal.needInput => (record Transition {cursor := (record Cursor {control := nextControlLocal35, phase := (ctor Phase.producer nextLoanLocal36)}), signal := (ctor Signal.needInput), remainingCredits := credits})
+        | Uorc.Wire.ProgramParse::Signal.failed => (record Transition {cursor := (record Cursor {control := nextControlLocal35, phase := (ctor Phase.producer nextLoanLocal36)}), signal := (ctor Signal.failed), remainingCredits := credits})
+        | Uorc.Wire.ProgramParse::Signal.paused reasonLocal37 => (record Transition {cursor := (record Cursor {control := nextControlLocal35, phase := (ctor Phase.producer nextLoanLocal36)}), signal := (ctor Signal.paused reasonLocal37), remainingCredits := credits})
+        | Uorc.Wire.ProgramParse::Signal.transferred imageLocal38 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal28 parser), budget := (project controlLocal28 budget), ackDue := (project controlLocal28 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (ctor Phase.producer nextLoanLocal36)}), signal := (ctor Signal.failed), remainingCredits := credits}))))); (record Transition {cursor := (record Cursor {control := (record Control {parser := (project (project tLocal32 session) state), budget := (project controlLocal28 budget), ackDue := false, failure := (project controlLocal28 failure)}), phase := (project (project mLocal33 cursor) phase)}), signal := (project mLocal33 signal), remainingCredits := credits}))) else (match (project (project controlLocal28 parser) failure)
+        | Option.some reasonLocal39 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal28 parser), budget := (project controlLocal28 budget), ackDue := (project controlLocal28 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.parser reasonLocal39))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := credits})
+        | Option.none => (match (project (project controlLocal28 parser) pending)
+          | Option.some eventLocal40 => (returned x (Uorc.Core.RuntimeAdmissionCreditBoundary::reattach (project loanLocal31 session) (ctor Uorc.Core.RuntimeAdmissionBoundary::ProducerRole.wire) (project loanLocal31 arena) (project loanLocal31 usage) (project loanLocal31 caller)) credits)
+          | Option.none => (let sharedParserTransition1 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::advance (project controlLocal28 budget) (record Uorc.Wire.ProgramParse::Session {state := (project controlLocal28 parser), arena := (project loanLocal31 arena), usage := (project loanLocal31 usage)})); (let sessionLocal41 : Uorc.Wire.ProgramParse::Session := (project sharedParserTransition1 session); (let nextControlLocal42 : Control := (record Control {parser := (project sessionLocal41 state), budget := (project controlLocal28 budget), ackDue := (project controlLocal28 ackDue), failure := (project controlLocal28 failure)}); (let nextLoanLocal43 : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken := (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project sessionLocal41 arena), usage := (project sessionLocal41 usage), caller := (project loanLocal31 caller), session := (project loanLocal31 session)}); (match (project sharedParserTransition1 signal)
+            | Uorc.Wire.ProgramParse::Signal.advanced => (record Transition {cursor := (record Cursor {control := nextControlLocal42, phase := (ctor Phase.producer nextLoanLocal43)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+            | Uorc.Wire.ProgramParse::Signal.pending => (record Transition {cursor := (record Cursor {control := nextControlLocal42, phase := (ctor Phase.producer nextLoanLocal43)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+            | Uorc.Wire.ProgramParse::Signal.complete => (record Transition {cursor := (record Cursor {control := nextControlLocal42, phase := (ctor Phase.producer nextLoanLocal43)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+            | Uorc.Wire.ProgramParse::Signal.clean => (record Transition {cursor := (record Cursor {control := nextControlLocal42, phase := (ctor Phase.producer nextLoanLocal43)}), signal := (ctor Signal.advanced), remainingCredits := credits})
+            | Uorc.Wire.ProgramParse::Signal.needInput => (record Transition {cursor := (record Cursor {control := nextControlLocal42, phase := (ctor Phase.producer nextLoanLocal43)}), signal := (ctor Signal.needInput), remainingCredits := credits})
+            | Uorc.Wire.ProgramParse::Signal.failed => (record Transition {cursor := (record Cursor {control := nextControlLocal42, phase := (ctor Phase.producer nextLoanLocal43)}), signal := (ctor Signal.failed), remainingCredits := credits})
+            | Uorc.Wire.ProgramParse::Signal.paused reasonLocal44 => (record Transition {cursor := (record Cursor {control := nextControlLocal42, phase := (ctor Phase.producer nextLoanLocal43)}), signal := (ctor Signal.paused reasonLocal44), remainingCredits := credits})
+            | Uorc.Wire.ProgramParse::Signal.transferred imageLocal45 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal28 parser), budget := (project controlLocal28 budget), ackDue := (project controlLocal28 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (ctor Phase.producer nextLoanLocal43)}), signal := (ctor Signal.failed), remainingCredits := credits})))))))))
+      | Phase.returning retainedLocal46 => (returned x (Uorc.Core.RuntimeAdmissionCreditBoundary::returnStep retainedLocal46) credits)
+      | Phase.accepted readyLocal47 ledgerLocal48 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (project x phase)}), signal := (ctor Signal.ready), remainingCredits := credits})
+      | Phase.failedAdmission retainedLocal49 ledgerLocal50 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := credits})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: feedBorrowed,
+  parameters: [
+    x : Cursor,
+    image : Uorc.Core.RuntimeValue::Handle,
+    offset : UInt64,
+    length : UInt64
+  ],
+  result: Transition,
+  body: (let creditsLocal51 : UInt64 := (0 : UInt64); (let controlLocal52 : Control := (project x control); (match (project controlLocal52 failure)
+    | Option.some reasonLocal53 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal51})
+    | Option.none => (match (project x phase)
+      | Phase.producer loanLocal54 => (if (project controlLocal52 ackDue) then (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal52 parser), budget := (project controlLocal52 budget), ackDue := (project controlLocal52 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal51}) else (let sharedParserTransition2 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::feedBorrowed (project controlLocal52 budget) (record Uorc.Wire.ProgramParse::Session {state := (project controlLocal52 parser), arena := (project loanLocal54 arena), usage := (project loanLocal54 usage)}) image offset length (project (project loanLocal54 caller) wire)); (let sessionLocal55 : Uorc.Wire.ProgramParse::Session := (project sharedParserTransition2 session); (let nextControlLocal56 : Control := (record Control {parser := (project sessionLocal55 state), budget := (project controlLocal52 budget), ackDue := (project controlLocal52 ackDue), failure := (project controlLocal52 failure)}); (let nextLoanLocal57 : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken := (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project sessionLocal55 arena), usage := (project sessionLocal55 usage), caller := (project loanLocal54 caller), session := (project loanLocal54 session)}); (match (project sharedParserTransition2 signal)
+        | Uorc.Wire.ProgramParse::Signal.advanced => (record Transition {cursor := (record Cursor {control := nextControlLocal56, phase := (ctor Phase.producer nextLoanLocal57)}), signal := (ctor Signal.advanced), remainingCredits := creditsLocal51})
+        | Uorc.Wire.ProgramParse::Signal.pending => (record Transition {cursor := (record Cursor {control := nextControlLocal56, phase := (ctor Phase.producer nextLoanLocal57)}), signal := (ctor Signal.advanced), remainingCredits := creditsLocal51})
+        | Uorc.Wire.ProgramParse::Signal.complete => (record Transition {cursor := (record Cursor {control := nextControlLocal56, phase := (ctor Phase.producer nextLoanLocal57)}), signal := (ctor Signal.advanced), remainingCredits := creditsLocal51})
+        | Uorc.Wire.ProgramParse::Signal.clean => (record Transition {cursor := (record Cursor {control := nextControlLocal56, phase := (ctor Phase.producer nextLoanLocal57)}), signal := (ctor Signal.advanced), remainingCredits := creditsLocal51})
+        | Uorc.Wire.ProgramParse::Signal.needInput => (record Transition {cursor := (record Cursor {control := nextControlLocal56, phase := (ctor Phase.producer nextLoanLocal57)}), signal := (ctor Signal.needInput), remainingCredits := creditsLocal51})
+        | Uorc.Wire.ProgramParse::Signal.failed => (record Transition {cursor := (record Cursor {control := nextControlLocal56, phase := (ctor Phase.producer nextLoanLocal57)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal51})
+        | Uorc.Wire.ProgramParse::Signal.paused reasonLocal58 => (record Transition {cursor := (record Cursor {control := nextControlLocal56, phase := (ctor Phase.producer nextLoanLocal57)}), signal := (ctor Signal.paused reasonLocal58), remainingCredits := creditsLocal51})
+        | Uorc.Wire.ProgramParse::Signal.transferred imageLocal59 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal52 parser), budget := (project controlLocal52 budget), ackDue := (project controlLocal52 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (ctor Phase.producer nextLoanLocal57)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal51})))))))
+      | Phase.admission coreLocal60 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal52 parser), budget := (project controlLocal52 budget), ackDue := (project controlLocal52 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal51})
+      | Phase.returning retainedLocal61 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal52 parser), budget := (project controlLocal52 budget), ackDue := (project controlLocal52 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal51})
+      | Phase.accepted readyLocal62 ledgerLocal63 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal52 parser), budget := (project controlLocal52 budget), ackDue := (project controlLocal52 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal51})
+      | Phase.failedAdmission retainedLocal64 ledgerLocal65 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal52 parser), budget := (project controlLocal52 budget), ackDue := (project controlLocal52 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal51}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finishInput,
+  parameters: [x : Cursor],
+  result: Transition,
+  body: (let creditsLocal66 : UInt64 := (0 : UInt64); (let controlLocal67 : Control := (project x control); (match (project controlLocal67 failure)
+    | Option.some reasonLocal68 => (record Transition {cursor := (record Cursor {control := (project x control), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal66})
+    | Option.none => (match (project x phase)
+      | Phase.producer loanLocal69 => (if (project controlLocal67 ackDue) then (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal67 parser), budget := (project controlLocal67 budget), ackDue := (project controlLocal67 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal66}) else (let sharedParserTransition3 : Uorc.Wire.ProgramParse::Transition := (Uorc.Wire.ProgramParse::finishInput (project controlLocal67 budget) (record Uorc.Wire.ProgramParse::Session {state := (project controlLocal67 parser), arena := (project loanLocal69 arena), usage := (project loanLocal69 usage)})); (let sessionLocal70 : Uorc.Wire.ProgramParse::Session := (project sharedParserTransition3 session); (let nextControlLocal71 : Control := (record Control {parser := (project sessionLocal70 state), budget := (project controlLocal67 budget), ackDue := (project controlLocal67 ackDue), failure := (project controlLocal67 failure)}); (let nextLoanLocal72 : Uorc.Core.RuntimeAdmissionCreditBoundary::Taken := (record Uorc.Core.RuntimeAdmissionCreditBoundary::Taken {arena := (project sessionLocal70 arena), usage := (project sessionLocal70 usage), caller := (project loanLocal69 caller), session := (project loanLocal69 session)}); (match (project sharedParserTransition3 signal)
+        | Uorc.Wire.ProgramParse::Signal.advanced => (record Transition {cursor := (record Cursor {control := nextControlLocal71, phase := (ctor Phase.producer nextLoanLocal72)}), signal := (ctor Signal.advanced), remainingCredits := creditsLocal66})
+        | Uorc.Wire.ProgramParse::Signal.pending => (record Transition {cursor := (record Cursor {control := nextControlLocal71, phase := (ctor Phase.producer nextLoanLocal72)}), signal := (ctor Signal.advanced), remainingCredits := creditsLocal66})
+        | Uorc.Wire.ProgramParse::Signal.complete => (record Transition {cursor := (record Cursor {control := nextControlLocal71, phase := (ctor Phase.producer nextLoanLocal72)}), signal := (ctor Signal.advanced), remainingCredits := creditsLocal66})
+        | Uorc.Wire.ProgramParse::Signal.clean => (record Transition {cursor := (record Cursor {control := nextControlLocal71, phase := (ctor Phase.producer nextLoanLocal72)}), signal := (ctor Signal.advanced), remainingCredits := creditsLocal66})
+        | Uorc.Wire.ProgramParse::Signal.needInput => (record Transition {cursor := (record Cursor {control := nextControlLocal71, phase := (ctor Phase.producer nextLoanLocal72)}), signal := (ctor Signal.needInput), remainingCredits := creditsLocal66})
+        | Uorc.Wire.ProgramParse::Signal.failed => (record Transition {cursor := (record Cursor {control := nextControlLocal71, phase := (ctor Phase.producer nextLoanLocal72)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal66})
+        | Uorc.Wire.ProgramParse::Signal.paused reasonLocal73 => (record Transition {cursor := (record Cursor {control := nextControlLocal71, phase := (ctor Phase.producer nextLoanLocal72)}), signal := (ctor Signal.paused reasonLocal73), remainingCredits := creditsLocal66})
+        | Uorc.Wire.ProgramParse::Signal.transferred imageLocal74 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal67 parser), budget := (project controlLocal67 budget), ackDue := (project controlLocal67 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (ctor Phase.producer nextLoanLocal72)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal66})))))))
+      | Phase.admission coreLocal75 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal67 parser), budget := (project controlLocal67 budget), ackDue := (project controlLocal67 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal66})
+      | Phase.returning retainedLocal76 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal67 parser), budget := (project controlLocal67 budget), ackDue := (project controlLocal67 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal66})
+      | Phase.accepted readyLocal77 ledgerLocal78 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal67 parser), budget := (project controlLocal67 budget), ackDue := (project controlLocal67 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal66})
+      | Phase.failedAdmission retainedLocal79 ledgerLocal80 => (record Transition {cursor := (record Cursor {control := (record Control {parser := (project controlLocal67 parser), budget := (project controlLocal67 budget), ackDue := (project controlLocal67 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.protocol))}), phase := (project x phase)}), signal := (ctor Signal.failed), remainingCredits := creditsLocal66}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancel,
+  parameters: [x : Cursor],
+  result: Cursor,
+  body: (let controlLocal81 : Control := (project x control); (match (project controlLocal81 failure)
+    | Option.some priorLocal82 => x
+    | Option.none => (record Cursor {control := (record Control {parser := (project controlLocal81 parser), budget := (project controlLocal81 budget), ackDue := (project controlLocal81 ackDue), failure := (ctor Option.some [Failure] (ctor Failure.cancelled))}), phase := (project x phase)}))),
+  executable: true
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "ProgramAdmission drives the exact ProgramParse.Event algebra through RuntimeAdmissionCredit and its boundary-only Taken/Returning controls. Each Phase carries exactly one achieved Arena via the actual Core object; Control carries only fixed parser state and budget. CallerRoots.wire inventories the shared live input owner. feedBorrowed makes no second retain. Each pending event survives reattach, credit funding and the complete Core operation; acknowledgeCopied runs only after actual awaiting. Literal bytes are copied by Core while the owner stays live. Only actual Event.ready transfers Ready. Failures and cancellation retain the exact phase including every cleanup root and ledger; they do not release pending owners or invent readiness. Cancellation stops advancement; the enclosing controller must hand the retained actual Core phase to its source-owned cancellation owner before dropping caller roots. Parsed wire distances are unchanged. Logical move discipline is explicit; immutable host copies are not claimed physically freed.",
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

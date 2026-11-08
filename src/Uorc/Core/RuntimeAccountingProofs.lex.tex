@@ -1,0 +1,123 @@
+\begin{lexlean}{Uorc.Core.RuntimeAccountingProofs}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.HeapAudit}
+\importmodule{Uorc.Core.RuntimeAuditProofs}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: rowWeightsInvariant,
+  parameters: [row : Uorc.Core.HeapAudit::Row],
+  result: Prop,
+  body: ((Uorc.Core.HeapAudit::wordToNat (project (project row entry) weight)) = (Uorc.Core.HeapAudit::referenceWeight (project (project row entry) node))),
+  axioms: [Quot.sound, propext],
+  executable: false
+}
+
+definition{
+  name: WeightsInvariant,
+  parameters: [rows : (List Uorc.Core.HeapAudit::Row)],
+  result: Prop,
+  body: (match rows
+    | List.nil => (0 = 0)
+    | List.cons head tail => ((rowWeightsInvariant head) /\ (WeightsInvariant tail))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: rows
+}
+
+definition{
+  name: sumReferenceWeights,
+  parameters: [rows : (List Uorc.Core.HeapAudit::Row)],
+  result: Nat,
+  body: (match rows
+    | List.nil => 0
+    | List.cons head tail => ((Uorc.Core.HeapAudit::referenceWeight (project (project head entry) node)) + (sumReferenceWeights tail))),
+  axioms: [Quot.sound, propext],
+  executable: false,
+  recursive_argument: rows
+}
+
+theorem{
+  name: weightsCons_boolean,
+  parameters: [
+    head : Uorc.Core.HeapAudit::Row,
+    tail : (List Uorc.Core.HeapAudit::Row),
+    all : (List Uorc.Core.HeapAudit::Row),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  statement: (((Uorc.Core.HeapAudit::weightsRows (cons head tail) all arena) = true) <-> ((((Uorc.Core.HeapAudit::wordToNat (project (project head entry) weight)) =? (Uorc.Core.HeapAudit::referenceWeight (project (project head entry) node))) = true) /\ ((Uorc.Core.HeapAudit::weightsRows tail all arena) = true))),
+  proof: apply{
+    arguments: [
+      ((Uorc.Core.HeapAudit::wordToNat (project (project head entry) weight)) =? (Uorc.Core.HeapAudit::referenceWeight (project (project head entry) node))),
+      (Uorc.Core.HeapAudit::weightsRows tail all arena)
+    ],
+    theorem: Uorc.Core.RuntimeAuditProofs::boolGuard_reflect
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: weightsCons_reflect,
+  parameters: [
+    head : Uorc.Core.HeapAudit::Row,
+    tail : (List Uorc.Core.HeapAudit::Row),
+    all : (List Uorc.Core.HeapAudit::Row),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  statement: (((Uorc.Core.HeapAudit::weightsRows (cons head tail) all arena) = true) <-> ((rowWeightsInvariant head) /\ ((Uorc.Core.HeapAudit::weightsRows tail all arena) = true))),
+  proof: simplify{
+    definitions: [
+      rowWeightsInvariant,
+      weightsCons_boolean,
+      Uorc.Core.RuntimeAuditProofs::naturalEquality_reflect
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: weightsRows_reflect,
+  parameters: [
+    rows : (List Uorc.Core.HeapAudit::Row),
+    all : (List Uorc.Core.HeapAudit::Row),
+    arena : Uorc.Core.Heap::Arena
+  ],
+  statement: (((Uorc.Core.HeapAudit::weightsRows rows all arena) = true) <-> (WeightsInvariant rows)),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [Uorc.Core.HeapAudit::weightsRows, WeightsInvariant]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: simplify{definitions: [WeightsInvariant, ih, weightsCons_reflect]},
+        binders: [head, tail, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: rows
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: cons_sum_from_tail,
+  parameters: [head : Uorc.Core.HeapAudit::Row, tail : (List Uorc.Core.HeapAudit::Row)],
+  statement: (((rowWeightsInvariant head) /\ ((Uorc.Core.HeapAudit::sumWeights tail) = (sumReferenceWeights tail))) -> ((Uorc.Core.HeapAudit::sumWeights (cons head tail)) = (sumReferenceWeights (cons head tail)))),
+  proof: linear_arithmetic{
+    definitions: [Uorc.Core.HeapAudit::sumWeights, rowWeightsInvariant, sumReferenceWeights]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: reference_sum_cons,
+  parameters: [head : Uorc.Core.HeapAudit::Row, tail : (List Uorc.Core.HeapAudit::Row)],
+  statement: ((sumReferenceWeights (cons head tail)) = ((Uorc.Core.HeapAudit::referenceWeight (project (project head entry) node)) + (sumReferenceWeights tail))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

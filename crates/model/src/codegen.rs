@@ -30,6 +30,21 @@ pub fn render_all(graph: &AuthorityGraph) -> Vec<(String, String)> {
         (IDS_PATH.to_string(), render_ids(&model)),
         (AUTHORITIES_PATH.to_string(), render_authorities(&model)),
         (LEDGER_PATH.to_string(), render_ledger(&model)),
+        (
+            "model/varint.toml".to_string(),
+            format!(
+                "# @generated from the UORC LexLean varint graph; do not edit.\n{}",
+                toml::to_string_pretty(&graph.varint).expect("serializable varint contract")
+            ),
+        ),
+        ("UORC-VARINT.md".to_string(), render_varint(graph)),
+        (
+            "model/claim-policy.toml".to_string(),
+            format!(
+                "# @generated from src/Uorc/Claims.lex.tex; do not edit.\n{}",
+                toml::to_string_pretty(&model.claim_policy).expect("serializable claim policy")
+            ),
+        ),
         (CONFORMANCE_PATH.to_string(), render_conformance(&model)),
         (README_PATH.to_string(), render_readme(graph)),
         (
@@ -38,6 +53,36 @@ pub fn render_all(graph: &AuthorityGraph) -> Vec<(String, String)> {
         ),
     ];
     out.extend(render_feature_suites(graph));
+    out
+}
+
+fn render_varint(graph: &AuthorityGraph) -> String {
+    let mut out = String::from(
+        "<!-- @generated from the UORC LexLean authority graph. -->\n# UORC ULEB128 contract\n\n",
+    );
+    for (name, text) in &graph.varint.contract {
+        let _ = writeln!(out, "## {name}\n\n{text}\n");
+    }
+    let _ = writeln!(
+        out,
+        "## Typed failures\n\n| Variant | Meaning | Negative family |\n| --- | --- | --- |"
+    );
+    for row in &graph.varint.failure {
+        let _ = writeln!(
+            out,
+            "| `{}` | {} | `{}` |",
+            row["variant"], row["meaning"], row["negativeFamily"]
+        );
+    }
+    let _ = writeln!(out, "\n## General kernel roots\n");
+    for name in &graph.varint.theorem {
+        let _ = writeln!(out, "- `{name}`");
+    }
+    let _ = writeln!(
+        out,
+        "\n{} closed vector theorems are inventoried in `model/varint.toml`.",
+        graph.varint.vector.len()
+    );
     out
 }
 
@@ -150,7 +195,7 @@ pub fn render_ledger(model: &Model) -> String {
     );
     let _ = writeln!(
         out,
-        "# Do not edit: this is the generated non-ID claim projection for the current LexLean authority slice."
+        "# Do not edit: this is the generated claim-disposition projection for the current LexLean authority slice."
     );
     let _ = writeln!(out);
     let _ = writeln!(out, "spec = \"template/1\"");
@@ -165,6 +210,12 @@ pub fn render_ledger(model: &Model) -> String {
         let _ = writeln!(out, "id = {}", quoted(&row.id));
         let _ = writeln!(out, "level = {}", quoted(row.level.as_str()));
         let _ = writeln!(out, "statement = {}", quoted(&row.statement));
+        let _ = writeln!(out, "evidence_kind = {}", quoted(&row.evidence_kind));
+        let _ = writeln!(
+            out,
+            "research_disposition = {}",
+            quoted(&row.research_disposition)
+        );
         if let Some(feature) = &row.feature {
             let _ = writeln!(out, "feature = {}", quoted(feature));
         }
@@ -270,16 +321,21 @@ pub fn render_conformance(model: &Model) -> String {
     }
 
     let _ = writeln!(w);
-    let _ = writeln!(w, "## Claims that are not conformance IDs");
+    let _ = writeln!(w, "## Registered claim dispositions");
     let _ = writeln!(w);
-    let _ = writeln!(w, "| ID | Level | Claim |");
-    let _ = writeln!(w, "| --- | --- | --- |");
+    let _ = writeln!(
+        w,
+        "| ID | Level | Evidence class | Research disposition | Claim |"
+    );
+    let _ = writeln!(w, "| --- | --- | --- | --- | --- |");
     for row in &model.ledger.claim {
         let _ = writeln!(
             w,
-            "| `{}` | `{}` | {} |",
+            "| `{}` | `{}` | `{}` | `{}` | {} |",
             row.id,
             row.level.as_str(),
+            row.evidence_kind,
+            row.research_disposition,
             markdown_cell(&row.statement)
         );
     }
@@ -326,6 +382,8 @@ pub fn render_readme(graph: &AuthorityGraph) -> String {
     let _ = writeln!(out, "{}", c.non_scope);
 
     render_claim_table(&mut out, graph);
+    render_dispositions(&mut out, graph);
+    let _ = writeln!(out, "\nThe source-owned bounded ULEB128 codec, errors, and proof inventory are projected in [UORC-VARINT.md](UORC-VARINT.md).\n");
     render_evidence_table(&mut out, graph);
 
     let r = &graph.research_position;
@@ -394,6 +452,8 @@ pub fn render_project_verification(graph: &AuthorityGraph) -> String {
     let _ = writeln!(out, "{}", graph.charter.implementation_status);
 
     render_claim_table(&mut out, graph);
+    render_dispositions(&mut out, graph);
+    let _ = writeln!(out, "\nThe source-owned bounded ULEB128 codec, errors, and proof inventory are projected in [UORC-VARINT.md](UORC-VARINT.md).\n");
     render_evidence_table(&mut out, graph);
 
     let _ = writeln!(out);
@@ -429,6 +489,27 @@ pub fn render_project_verification(graph: &AuthorityGraph) -> String {
     );
 
     out
+}
+
+fn render_dispositions(out: &mut String, graph: &AuthorityGraph) {
+    let _ = writeln!(out, "\n## Evidence classification\n");
+    let _ = writeln!(out, "{}\n", graph.claim_policy.summary);
+    let _ = writeln!(out, "| Evidence | Supported claim | Level | Research disposition | Implementation evidence eligible |\n| --- | --- | --- | --- | --- |");
+    for row in &graph.claim_policy.evidence {
+        let _ = writeln!(
+            out,
+            "| `{}` | `{}` | `{}` | `{}` | {} |",
+            row.kind, row.claim, row.level, row.disposition, row.implementation_evidence
+        );
+    }
+    let _ = writeln!(out, "\n## Current research dispositions\n");
+    for row in &graph.claim_policy.open_claim {
+        let _ = writeln!(
+            out,
+            "- `{}`: `{}`; evidence `{}`; honesty level `{}`.",
+            row.id, row.disposition, row.evidence, row.level
+        );
+    }
 }
 
 fn render_claim_table(out: &mut String, graph: &AuthorityGraph) {
@@ -481,6 +562,23 @@ fn markdown_cell(value: &str) -> String {
 mod tests {
     use super::*;
     use crate::{AuthorityGraph, Level};
+
+    #[test]
+    fn conformance_uc_hon_02() {
+        let graph = AuthorityGraph::load(&crate::repo_root()).expect("authority graph loads");
+        assert_eq!(graph.ledger.claim.len(), graph.ids.id.len());
+        for id in ["UC-PERF-01", "UC-REC-01"] {
+            let mut model = graph.model();
+            model
+                .ids
+                .id
+                .iter_mut()
+                .find(|row| row.id == id)
+                .unwrap()
+                .level = Level::Build;
+            assert!(model.check().is_err(), "promoted {id} was accepted");
+        }
+    }
 
     #[test]
     fn generated_projections_are_exact_uc_chr_01() {

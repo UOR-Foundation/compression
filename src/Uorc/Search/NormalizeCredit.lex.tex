@@ -1,0 +1,145 @@
+\begin{lexlean}{Uorc.Search.NormalizeCredit}
+\importmodule{Uorc.Search.Normalize}
+\importmodule{Uorc.Core.ByteBuilder}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: normalization, type: Uorc.Search.Normalize::Cursor},
+    {name: eventCredit, type: Nat},
+    {name: consumedCredits, type: Nat}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: done, fields: [Uorc.Search.Normalize::Normalized, Nat, Nat]},
+    {
+      name: rejected,
+      fields: [Uorc.Search.Normalize::Error, Uorc.Search.Normalize::WorkPrefix, Nat]
+    },
+    {
+      name: ropeFailure,
+      fields: [Uorc.Core.Bytes::RopeError, Uorc.Search.Normalize::WorkPrefix, Nat]
+    }
+  ]
+}
+
+structure{
+  name: Cancellation,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: completed, type: Uorc.Search.Normalize::WorkPrefix},
+    {name: paidForNextEvent, type: Nat},
+    {name: consumedCredits, type: Nat}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [normalization : Uorc.Search.Normalize::Cursor],
+  result: Cursor,
+  body: (record Cursor {normalization := normalization, eventCredit := 0, consumedCredits := 0})
+}
+
+definition{
+  name: eventWork,
+  parameters: [normalization : Uorc.Search.Normalize::Cursor],
+  result: Nat,
+  body: (match normalization
+    | Uorc.Search.Normalize::Cursor.reversing workState => 1
+    | Uorc.Search.Normalize::Cursor.building workState => 1
+    | Uorc.Search.Normalize::Cursor.initial workState => 1
+    | Uorc.Search.Normalize::Cursor.blockReading workState => 1
+    | Uorc.Search.Normalize::Cursor.blockAppending workState => (match workState
+      | Uorc.Search.Normalize::BlockAppend.state b0 work b2 b3 b4 => (Uorc.Core.ByteBuilder::eventWork work))
+    | Uorc.Search.Normalize::Cursor.blockFinishing workState => (match workState
+      | Uorc.Search.Normalize::BlockAppend.state b0 work b2 b3 b4 => (Uorc.Core.ByteBuilder::eventWork work)))
+}
+
+definition{
+  name: tick,
+  parameters: [policy : Uorc.Search.Normalize::Policy, cursor : Cursor],
+  result: Step,
+  body: (if (((project cursor eventCredit) + 1) <? (eventWork (project cursor normalization))) then (ctor Step.pending (record Cursor {normalization := (project cursor normalization), eventCredit := ((project cursor eventCredit) + 1), consumedCredits := ((project cursor consumedCredits) + 1)})) else (let observation : Uorc.Search.Normalize::Observation := (Uorc.Search.Normalize::observe policy (project cursor normalization)); (match (project observation result)
+    | Uorc.Search.Normalize::Step.pending next => (ctor Step.pending (record Cursor {normalization := next, eventCredit := 0, consumedCredits := ((project cursor consumedCredits) + 1)}))
+    | Uorc.Search.Normalize::Step.done normalized physical => (ctor Step.done normalized physical ((project cursor consumedCredits) + 1))
+    | Uorc.Search.Normalize::Step.rejected failure => (ctor Step.rejected failure (project observation prefix) ((project cursor consumedCredits) + 1))
+    | Uorc.Search.Normalize::Step.ropeFailure failure => (ctor Step.ropeFailure failure (project observation prefix) ((project cursor consumedCredits) + 1))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: cancel,
+  parameters: [cursor : Cursor],
+  result: Cancellation,
+  body: (record Cancellation {completed := (Uorc.Search.Normalize::workPrefix (project cursor normalization)), paidForNextEvent := (project cursor eventCredit), consumedCredits := (project cursor consumedCredits)})
+}
+
+definition{
+  name: runCursor,
+  parameters: [
+    work : Nat,
+    policy : Uorc.Search.Normalize::Policy,
+    normalization : Uorc.Search.Normalize::Cursor,
+    eventCredit : Nat,
+    consumedCredits : Nat
+  ],
+  result: Step,
+  body: (match work
+    | Nat.zero => (ctor Step.pending (record Cursor {normalization := normalization, eventCredit := eventCredit, consumedCredits := consumedCredits}))
+    | Nat.succ remainingWork => (if ((eventCredit + 1) <? (eventWork normalization)) then (runCursor remainingWork policy normalization (eventCredit + 1) (consumedCredits + 1)) else (let observation : Uorc.Search.Normalize::Observation := (Uorc.Search.Normalize::observe policy normalization); (match (project observation result)
+      | Uorc.Search.Normalize::Step.pending next => (runCursor remainingWork policy next 0 (consumedCredits + 1))
+      | Uorc.Search.Normalize::Step.done normalized physical => (ctor Step.done normalized physical (consumedCredits + 1))
+      | Uorc.Search.Normalize::Step.rejected failure => (ctor Step.rejected failure (project observation prefix) (consumedCredits + 1))
+      | Uorc.Search.Normalize::Step.ropeFailure failure => (ctor Step.ropeFailure failure (project observation prefix) (consumedCredits + 1)))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: work
+}
+
+definition{
+  name: runWork,
+  parameters: [work : Nat, policy : Uorc.Search.Normalize::Policy, state : Step],
+  result: Step,
+  body: (match state
+    | Step.pending cursor => (runCursor work policy (project cursor normalization) (project cursor eventCredit) (project cursor consumedCredits))
+    | Step.done normalized physical credits => (ctor Step.done normalized physical credits)
+    | Step.rejected failure prefix credits => (ctor Step.rejected failure prefix credits)
+    | Step.ropeFailure failure prefix credits => (ctor Step.ropeFailure failure prefix credits)),
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: copy_credit_resume_is_exact,
+  parameters: [],
+  statement: ((runWork 17 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (runWork 13 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Search.Normalize::start (Uorc.Core.Bytes::fromBytes 0x0001ff80)))))) = (runWork 30 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Search.Normalize::start (Uorc.Core.Bytes::fromBytes 0x0001ff80)))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: zero_normalization_credit_never_completes,
+  parameters: [],
+  statement: ((runWork 0 (record Uorc.Search.Normalize::Policy {blockBytes := 2}) (ctor Step.pending (start (Uorc.Search.Normalize::start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))) = (ctor Step.pending (start (Uorc.Search.Normalize::start (Uorc.Core.Bytes::fromBytes 0x0001ff80))))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: every_positive_copy_event_has_credit,
+  parameters: [normalization : Uorc.Search.Normalize::Cursor],
+  statement: ((1 <=? (eventWork normalization)) = true),
+  proof: linear_arithmetic{definitions: [Uorc.Core.ByteBuilder::eventWork, eventWork]},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

@@ -1,0 +1,507 @@
+\begin{lexlean}{Uorc.Search.OwnedEnumeration}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeByteBuilder}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeImage}
+\importmodule{Uorc.Core.RuntimeWork}
+\importmodule{Uorc.Core.RuntimeResources}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: allocateControl, fields: []},
+    {name: offer, fields: []},
+    {name: waiting, fields: []},
+    {name: scanStart, fields: []},
+    {name: scanRead, fields: []},
+    {name: buildBegin, fields: []},
+    {name: buildNext, fields: []},
+    {name: buildRead, fields: []},
+    {name: appendBegin, fields: []},
+    {name: builderStep, fields: []},
+    {name: finishBegin, fields: []},
+    {name: release, fields: []},
+    {name: drain, fields: []},
+    {name: install, fields: []},
+    {name: cancelSelect, fields: []},
+    {name: cancelBuilder, fields: []},
+    {name: cancelBuilderStep, fields: []},
+    {name: cancelled, fields: []}
+  ]
+}
+
+inductive{
+  name: Slot,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: ticket, fields: []},
+    {name: current, fields: []},
+    {name: next, fields: []},
+    {name: control, fields: []}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: builder, fields: [Uorc.Core.RuntimeByteBuilder::BuilderFailure]},
+    {name: image, fields: [Uorc.Core.RuntimeImage::ImageFailure]},
+    {name: resource, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: addressSpaceExhausted, fields: []},
+    {name: invalidShape, fields: []},
+    {name: invalidTicket, fields: []},
+    {name: invalidPhase, fields: []},
+    {name: invalidFunding, fields: []}
+  ]
+}
+
+structure{
+  name: Ticket,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: owner, type: Uorc.Core.RuntimeValue::Handle},
+    {name: sequence, type: Uorc.Core.RuntimeValue::Handle},
+    {name: length, type: UInt64}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: phase, type: Phase},
+    {name: resume, type: Phase},
+    {name: releaseSlot, type: Slot},
+    {name: control, type: Uorc.Core.RuntimeValue::Handle},
+    {name: current, type: Uorc.Core.RuntimeValue::Handle},
+    {name: next, type: Uorc.Core.RuntimeValue::Handle},
+    {name: ticketOwned, type: Bool},
+    {name: length, type: UInt64},
+    {name: nextLength, type: UInt64},
+    {name: position, type: UInt64},
+    {name: pivot, type: UInt64},
+    {name: pivotValue, type: UInt8},
+    {name: pivotFound, type: Bool},
+    {name: walking, type: Uorc.Core.RuntimeValue::Handle},
+    {name: index, type: UInt64},
+    {name: byteValue, type: UInt8},
+    {name: builder, type: Uorc.Core.RuntimeByteBuilder::Builder},
+    {name: builderCursor, type: Uorc.Core.RuntimeByteBuilder::Cursor},
+    {name: builderHeld, type: Bool},
+    {name: builderActive, type: Bool},
+    {name: cancelling, type: Bool},
+    {name: paid, type: UInt64}
+  ]
+}
+
+inductive{
+  name: Outcome,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: []},
+    {name: produced, fields: [Ticket]},
+    {name: waiting, fields: []},
+    {name: cancelled, fields: []},
+    {name: unresolved, fields: [Error]}
+  ]
+}
+
+structure{
+  name: Transition,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: cursor, type: Cursor},
+    {name: delta, type: Uorc.Core.Heap::Delta},
+    {name: outcome, type: Outcome}
+  ]
+}
+
+definition{
+  name: controlBytes,
+  parameters: [],
+  result: UInt64,
+  body: (2048 : UInt64),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: start,
+  parameters: [],
+  result: Cursor,
+  body: (record Cursor {phase := (ctor Phase.allocateControl), resume := (ctor Phase.cancelSelect), releaseSlot := (ctor Slot.ticket), control := (Uorc.Core.RuntimeValue::nullHandle), current := (Uorc.Core.RuntimeValue::nullHandle), next := (Uorc.Core.RuntimeValue::nullHandle), ticketOwned := false, length := (0 : UInt64), nextLength := (0 : UInt64), position := (0 : UInt64), pivot := (0 : UInt64), pivotValue := (0 : UInt8), pivotFound := false, walking := (Uorc.Core.RuntimeValue::nullHandle), index := (0 : UInt64), byteValue := (0 : UInt8), builder := (Uorc.Core.RuntimeByteBuilder::emptyBuilder), builderCursor := (Uorc.Core.RuntimeByteBuilder::emptyCursor), builderHeld := false, builderActive := false, cancelling := false, paid := (0 : UInt64)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: ticket,
+  parameters: [cursor : Cursor],
+  result: Ticket,
+  body: (record Ticket {owner := (project cursor control), sequence := (project cursor current), length := (project cursor length)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: ticketMatches,
+  parameters: [cursor : Cursor, presentedTicket : Ticket],
+  result: Bool,
+  body: ((match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.offer => false
+    | Phase.waiting => true
+    | Phase.scanStart => false
+    | Phase.scanRead => false
+    | Phase.buildBegin => false
+    | Phase.buildNext => false
+    | Phase.buildRead => false
+    | Phase.appendBegin => false
+    | Phase.builderStep => false
+    | Phase.finishBegin => false
+    | Phase.release => false
+    | Phase.drain => false
+    | Phase.install => false
+    | Phase.cancelSelect => false
+    | Phase.cancelBuilder => false
+    | Phase.cancelBuilderStep => false
+    | Phase.cancelled => false) && ((project cursor ticketOwned) && ((Uorc.Core.RuntimeValue::sameHandle (project cursor control) (project presentedTicket owner)) && ((Uorc.Core.RuntimeValue::sameHandle (project cursor current) (project presentedTicket sequence)) && (prim equal (project cursor length) (project presentedTicket length) : Bool))))),
+  axioms: [],
+  executable: true
+}
+
+inductive{
+  name: Read,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: descend, fields: [Uorc.Core.RuntimeValue::Handle, UInt64]},
+    {name: byte, fields: [UInt8]},
+    {name: failed, fields: [Error]}
+  ]
+}
+
+definition{
+  name: readStep,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    walking : Uorc.Core.RuntimeValue::Handle,
+    index : UInt64
+  ],
+  result: Read,
+  body: (match (Uorc.Core.Heap::lookup arena walking)
+    | Result.error error => (ctor Read.failed (ctor Error.heap error))
+    | Result.ok entry => (match (project entry node)
+      | Uorc.Core.Heap::Node.image field0 field1 => (ctor Read.failed (ctor Error.invalidShape))
+      | Uorc.Core.Heap::Node.sequenceLeaf field0 field1 field2 => (if (Uorc.Core.Heap::less index field2) then (match (prim checked_add field1 index : (Option UInt64))
+        | Option.none => (ctor Read.failed (ctor Error.addressSpaceExhausted))
+        | Option.some absolute => (match (Uorc.Core.RuntimeImage::readByte arena field0 absolute)
+          | Result.error error => (ctor Read.failed (ctor Error.image error))
+          | Result.ok value => (ctor Read.byte value))) else (ctor Read.failed (ctor Error.invalidShape)))
+      | Uorc.Core.Heap::Node.sequenceBranch field0 field1 field2 field3 => (match (Uorc.Core.Heap::sequenceInfo arena field2)
+        | Result.error error => (ctor Read.failed (ctor Error.heap error))
+        | Result.ok info => (if (Uorc.Core.Heap::less (project (if (Uorc.Core.Heap::less index (project info length)) then field2 else field3) id) (project walking id)) then (ctor Read.descend (if (Uorc.Core.Heap::less index (project info length)) then field2 else field3) (if (Uorc.Core.Heap::less index (project info length)) then index else (Uorc.Core.Heap::wordSub index (project info length)))) else (ctor Read.failed (ctor Error.invalidShape))))
+      | Uorc.Core.Heap::Node.storeLeaf field0 => (ctor Read.failed (ctor Error.invalidShape))
+      | Uorc.Core.Heap::Node.storeBranch field0 field1 => (ctor Read.failed (ctor Error.invalidShape))
+      | Uorc.Core.Heap::Node.slot field0 field1 => (ctor Read.failed (ctor Error.invalidShape))
+      | Uorc.Core.Heap::Node.rootBranch field0 field1 field2 => (ctor Read.failed (ctor Error.invalidShape))
+      | Uorc.Core.Heap::Node.metadataWord field0 field1 field2 => (ctor Read.failed (ctor Error.invalidShape))
+      | Uorc.Core.Heap::Node.metadataLink field0 field1 field2 => (ctor Read.failed (ctor Error.invalidShape))
+      | Uorc.Core.Heap::Node.metadataBranch field0 field1 field2 => (ctor Read.failed (ctor Error.invalidShape))
+      | Uorc.Core.Heap::Node.ownerRoot field0 field1 => (ctor Read.failed (ctor Error.invalidShape))
+      | Uorc.Core.Heap::Node.imageReservation field0 field1 => (ctor Read.failed (ctor Error.invalidShape)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: preservePredecessor,
+  parameters: [cursor : Cursor, transition : Transition],
+  result: Transition,
+  body: (record Transition {arena := (project transition arena), cursor := (record Cursor {phase := (project (project transition cursor) phase), resume := (project (project transition cursor) resume), releaseSlot := (project (project transition cursor) releaseSlot), control := (project (project transition cursor) control), current := (project cursor current), next := (project (project transition cursor) next), ticketOwned := (project (project transition cursor) ticketOwned), length := (project cursor length), nextLength := (project (project transition cursor) nextLength), position := (project (project transition cursor) position), pivot := (project (project transition cursor) pivot), pivotValue := (project (project transition cursor) pivotValue), pivotFound := (project (project transition cursor) pivotFound), walking := (project (project transition cursor) walking), index := (project (project transition cursor) index), byteValue := (project (project transition cursor) byteValue), builder := (project (project transition cursor) builder), builderCursor := (project (project transition cursor) builderCursor), builderHeld := (project (project transition cursor) builderHeld), builderActive := (project (project transition cursor) builderActive), cancelling := (project (project transition cursor) cancelling), paid := (project (project transition cursor) paid)}), delta := (project transition delta), outcome := (project transition outcome)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: builderResult,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    cursor : Cursor,
+    result : (Result Uorc.Core.RuntimeByteBuilder::BuilderTransition Uorc.Core.RuntimeByteBuilder::BuilderFailure)
+  ],
+  result: Transition,
+  body: (preservePredecessor cursor (match result
+    | Result.error error => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.builder error))})
+    | Result.ok built => (match (project built outcome)
+      | Uorc.Core.RuntimeByteBuilder::Outcome.pending => (record Transition {arena := (project built arena), cursor := (record Cursor {phase := (project cursor phase), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project built cursor), builderHeld := false, builderActive := true, cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project built delta), outcome := (ctor Outcome.pending)})
+      | Uorc.Core.RuntimeByteBuilder::Outcome.builder builder => (record Transition {arena := (project built arena), cursor := (record Cursor {phase := (ctor Phase.buildNext), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := builder, builderCursor := (Uorc.Core.RuntimeByteBuilder::emptyCursor), builderHeld := true, builderActive := false, cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project built delta), outcome := (ctor Outcome.pending)})
+      | Uorc.Core.RuntimeByteBuilder::Outcome.sequence root => (record Transition {arena := (project built arena), cursor := (record Cursor {phase := (ctor Phase.release), resume := (ctor Phase.install), releaseSlot := (ctor Slot.current), control := (project cursor control), current := (project cursor current), next := root, ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (Uorc.Core.RuntimeByteBuilder::emptyBuilder), builderCursor := (Uorc.Core.RuntimeByteBuilder::emptyCursor), builderHeld := false, builderActive := false, cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project built delta), outcome := (ctor Outcome.pending)})
+      | Uorc.Core.RuntimeByteBuilder::Outcome.cancelled => (record Transition {arena := (project built arena), cursor := (record Cursor {phase := (ctor Phase.cancelSelect), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (Uorc.Core.RuntimeByteBuilder::emptyBuilder), builderCursor := (Uorc.Core.RuntimeByteBuilder::emptyCursor), builderHeld := false, builderActive := false, cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project built delta), outcome := (ctor Outcome.pending)})))),
+  executable: true
+}
+
+definition{
+  name: releaseRoot,
+  parameters: [cursor : Cursor],
+  result: Uorc.Core.RuntimeValue::Handle,
+  body: (match (project cursor releaseSlot)
+    | Slot.ticket => (project cursor current)
+    | Slot.current => (project cursor current)
+    | Slot.next => (project cursor next)
+    | Slot.control => (project cursor control)),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: clearReleased,
+  parameters: [cursor : Cursor],
+  result: Cursor,
+  body: (match (project cursor releaseSlot)
+    | Slot.ticket => (record Cursor {phase := (project cursor phase), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := false, length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)})
+    | Slot.current => (record Cursor {phase := (project cursor phase), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (Uorc.Core.RuntimeValue::nullHandle), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)})
+    | Slot.next => (record Cursor {phase := (project cursor phase), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (Uorc.Core.RuntimeValue::nullHandle), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)})
+    | Slot.control => (record Cursor {phase := (project cursor phase), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (Uorc.Core.RuntimeValue::nullHandle), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)})),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: releaseStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (match (Uorc.Core.Heap::release arena (releaseRoot cursor))
+    | Result.error error => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap error))})
+    | Result.ok transition => (let cleared : Cursor := (clearReleased cursor); (record Transition {arena := (project transition arena), cursor := (record Cursor {phase := (if (project transition complete) then (if (project cursor cancelling) then (ctor Phase.cancelSelect) else (project cursor resume)) else (ctor Phase.drain)), resume := (project cleared resume), releaseSlot := (project cleared releaseSlot), control := (project cleared control), current := (project cleared current), next := (project cleared next), ticketOwned := (project cleared ticketOwned), length := (project cleared length), nextLength := (project cleared nextLength), position := (project cleared position), pivot := (project cleared pivot), pivotValue := (project cleared pivotValue), pivotFound := (project cleared pivotFound), walking := (project cleared walking), index := (project cleared index), byteValue := (project cleared byteValue), builder := (project cleared builder), builderCursor := (project cleared builderCursor), builderHeld := (project cleared builderHeld), builderActive := (project cleared builderActive), cancelling := (project cleared cancelling), paid := (project cleared paid)}), delta := (project transition delta), outcome := (ctor Outcome.pending)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: drainStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (match (Uorc.Core.Heap::releaseStep arena)
+    | Result.error error => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap error))})
+    | Result.ok transition => (record Transition {arena := (project transition arena), cursor := (record Cursor {phase := (if (project transition complete) then (if (project cursor cancelling) then (ctor Phase.cancelSelect) else (project cursor resume)) else (ctor Phase.drain)), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project transition delta), outcome := (ctor Outcome.pending)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: scanStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (preservePredecessor cursor (if (prim equal (project cursor position) (project cursor length) : Bool) then (if (project cursor pivotFound) then (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.buildBegin), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor length), position := (0 : UInt64), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (match (prim checked_add (project cursor length) (1 : UInt64) : (Option UInt64))
+    | Option.none => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.addressSpaceExhausted))})
+    | Option.some grown => (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.buildBegin), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := grown, position := (0 : UInt64), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}))) else (match (readStep arena (project cursor walking) (project cursor index))
+    | Read.failed error => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved error)})
+    | Read.descend root index => (record Transition {arena := arena, cursor := (record Cursor {phase := (project cursor phase), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := root, index := index, byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})
+    | Read.byte value => (record Transition {arena := arena, cursor := (record Cursor {phase := (project cursor phase), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (Uorc.Core.Heap::wordAdd (project cursor position) (1 : UInt64)), pivot := (if (prim equal value (255 : UInt8) : Bool) then (project cursor pivot) else (project cursor position)), pivotValue := (if (prim equal value (255 : UInt8) : Bool) then (project cursor pivotValue) else value), pivotFound := (if (prim equal value (255 : UInt8) : Bool) then (project cursor pivotFound) else true), walking := (project cursor current), index := (Uorc.Core.Heap::wordAdd (project cursor position) (1 : UInt64)), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: buildReadStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (preservePredecessor cursor (match (readStep arena (project cursor walking) (project cursor index))
+    | Read.failed error => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved error)})
+    | Read.descend root index => (record Transition {arena := arena, cursor := (record Cursor {phase := (project cursor phase), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := root, index := index, byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})
+    | Read.byte value => (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.appendBegin), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := value, builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: buildNextStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (preservePredecessor cursor (if (prim equal (project cursor position) (project cursor nextLength) : Bool) then (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.finishBegin), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (if (project cursor pivotFound) then (if (Uorc.Core.Heap::less (project cursor position) (project cursor pivot)) then (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.buildRead), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor current), index := (project cursor position), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (if (prim equal (project cursor position) (project cursor pivot) : Bool) then (match (prim checked_add (project cursor pivotValue) (1 : UInt8) : (Option UInt8))
+    | Option.none => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.addressSpaceExhausted))})
+    | Option.some value => (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.appendBegin), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := value, builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})) else (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.appendBegin), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (0 : UInt8), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}))) else (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.appendBegin), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (0 : UInt8), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: cancelSelectStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (if (project cursor builderActive) then (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.cancelBuilder), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (if (project cursor builderHeld) then (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.cancelBuilder), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (if (project cursor ticketOwned) then (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.release), resume := (ctor Phase.cancelSelect), releaseSlot := (ctor Slot.ticket), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (if (Uorc.Core.RuntimeValue::isNull (project cursor current)) then (if (Uorc.Core.RuntimeValue::isNull (project cursor next)) then (if (Uorc.Core.RuntimeValue::isNull (project cursor control)) then (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.cancelled), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}) else (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.release), resume := (ctor Phase.cancelSelect), releaseSlot := (ctor Slot.control), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})) else (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.release), resume := (ctor Phase.cancelSelect), releaseSlot := (ctor Slot.next), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})) else (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.release), resume := (ctor Phase.cancelSelect), releaseSlot := (ctor Slot.current), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)}))))),
+  executable: true
+}
+
+definition{
+  name: cancelBuilderStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (builderResult arena (record Cursor {phase := (ctor Phase.cancelBuilderStep), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}) (Uorc.Core.RuntimeByteBuilder::cancel arena (if (project cursor builderActive) then (project cursor builderCursor) else (record Uorc.Core.RuntimeByteBuilder::Cursor {phase := (11 : UInt64), mode := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) mode), builder := (project cursor builder), carry := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) carry), oldLeft := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) oldLeft), oldRight := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) oldRight), reservation := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) reservation), leaf := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) leaf), ncapture := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) ncapture), ngarbage := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) ngarbage), nfresh := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) nfresh), nresult := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) nresult), level := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) level), length := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) length), resume := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) resume), cleanup := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) cleanup), byteValue := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) byteValue), nested := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) nested), active := (project (Uorc.Core.RuntimeByteBuilder::emptyCursor) active)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: appendStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (preservePredecessor cursor (match (Uorc.Core.RuntimeByteBuilder::beginAppendOwned arena (project cursor builder) (project cursor byteValue))
+    | Result.error error => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.builder error))})
+    | Result.ok built => (builderResult arena (record Cursor {phase := (ctor Phase.builderStep), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (Uorc.Core.Heap::wordAdd (project cursor position) (1 : UInt64)), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}) (ctor Result.ok [Uorc.Core.RuntimeByteBuilder::BuilderTransition, Uorc.Core.RuntimeByteBuilder::BuilderFailure] built)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: finishStep,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (preservePredecessor cursor (match (Uorc.Core.RuntimeByteBuilder::beginFinishOwned arena (project cursor builder))
+    | Result.error error => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.builder error))})
+    | Result.ok built => (builderResult arena (record Cursor {phase := (ctor Phase.builderStep), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}) (ctor Result.ok [Uorc.Core.RuntimeByteBuilder::BuilderTransition, Uorc.Core.RuntimeByteBuilder::BuilderFailure] built)))),
+  executable: true
+}
+
+definition{
+  name: perform,
+  parameters: [arena : Uorc.Core.Heap::Arena, cursor : Cursor],
+  result: Transition,
+  body: (match (project cursor phase)
+    | Phase.allocateControl => (match (Uorc.Core.Heap::allocateControl arena (controlBytes))
+      | Result.error error => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap error))})
+      | Result.ok allocation => (record Transition {arena := (project allocation arena), cursor := (record Cursor {phase := (ctor Phase.offer), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project allocation handle), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (project allocation delta), outcome := (ctor Outcome.pending)}))
+    | Phase.offer => (match (Uorc.Core.Heap::retain arena (project cursor current))
+      | Result.error error => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.unresolved (ctor Error.heap error))})
+      | Result.ok transition => (let offered : Cursor := (record Cursor {phase := (ctor Phase.waiting), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := true, length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}); (record Transition {arena := (project transition arena), cursor := offered, delta := (project transition delta), outcome := (ctor Outcome.produced (ticket offered))})))
+    | Phase.waiting => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.waiting)})
+    | Phase.scanStart => (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.scanRead), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (0 : UInt64), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := false, walking := (project cursor current), index := (0 : UInt64), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})
+    | Phase.scanRead => (scanStep arena cursor)
+    | Phase.buildBegin => (builderResult arena cursor (Uorc.Core.RuntimeByteBuilder::begin arena))
+    | Phase.buildNext => (buildNextStep arena cursor)
+    | Phase.buildRead => (buildReadStep arena cursor)
+    | Phase.appendBegin => (appendStep arena cursor)
+    | Phase.builderStep => (builderResult arena cursor (Uorc.Core.RuntimeByteBuilder::step arena (project cursor builderCursor)))
+    | Phase.finishBegin => (finishStep arena cursor)
+    | Phase.release => (releaseStep arena cursor)
+    | Phase.drain => (drainStep arena cursor)
+    | Phase.install => (record Transition {arena := arena, cursor := (record Cursor {phase := (ctor Phase.offer), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor next), next := (Uorc.Core.RuntimeValue::nullHandle), ticketOwned := (project cursor ticketOwned), length := (project cursor nextLength), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)}), delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.pending)})
+    | Phase.cancelSelect => (cancelSelectStep arena cursor)
+    | Phase.cancelBuilder => (cancelBuilderStep arena cursor)
+    | Phase.cancelBuilderStep => (builderResult arena cursor (Uorc.Core.RuntimeByteBuilder::step arena (project cursor builderCursor)))
+    | Phase.cancelled => (record Transition {arena := arena, cursor := cursor, delta := (Uorc.Core.RuntimeSequence::zeroDelta), outcome := (ctor Outcome.cancelled)})),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: requiredWork,
+  parameters: [cursor : Cursor],
+  result: (Option UInt64),
+  body: (match (project cursor phase)
+    | Phase.allocateControl => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.controlAllocate)))
+    | Phase.offer => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRetain)))
+    | Phase.waiting => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.idle)))
+    | Phase.scanStart => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control)))
+    | Phase.scanRead => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceStep)))
+    | Phase.buildBegin => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.builderControl)))
+    | Phase.buildNext => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control)))
+    | Phase.buildRead => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.sequenceStep)))
+    | Phase.appendBegin => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.builderControl)))
+    | Phase.builderStep => (Uorc.Core.RuntimeWork::builderStepFee (project cursor builderCursor))
+    | Phase.finishBegin => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.builderControl)))
+    | Phase.release => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapRelease)))
+    | Phase.drain => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)))
+    | Phase.install => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control)))
+    | Phase.cancelSelect => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.control)))
+    | Phase.cancelBuilder => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.builderBoundedStep)))
+    | Phase.cancelBuilderStep => (Uorc.Core.RuntimeWork::builderStepFee (project cursor builderCursor))
+    | Phase.cancelled => (ctor Option.some [UInt64] (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.idle)))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: acknowledge,
+  parameters: [cursor : Cursor, presentedTicket : Ticket],
+  result: (Result Cursor Error),
+  body: (if (ticketMatches cursor presentedTicket) then (ctor Result.ok [Cursor, Error] (record Cursor {phase := (ctor Phase.release), resume := (ctor Phase.scanStart), releaseSlot := (ctor Slot.ticket), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := (project cursor cancelling), paid := (project cursor paid)})) else (ctor Result.error [Cursor, Error] (ctor Error.invalidTicket))),
+  executable: true
+}
+
+definition{
+  name: cancel,
+  parameters: [cursor : Cursor],
+  result: Cursor,
+  body: (if (project cursor cancelling) then cursor else (if (match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.offer => false
+    | Phase.waiting => false
+    | Phase.scanStart => false
+    | Phase.scanRead => false
+    | Phase.buildBegin => false
+    | Phase.buildNext => false
+    | Phase.buildRead => false
+    | Phase.appendBegin => false
+    | Phase.builderStep => false
+    | Phase.finishBegin => false
+    | Phase.release => false
+    | Phase.drain => false
+    | Phase.install => false
+    | Phase.cancelSelect => false
+    | Phase.cancelBuilder => false
+    | Phase.cancelBuilderStep => false
+    | Phase.cancelled => true) then cursor else (record Cursor {phase := (if (match (project cursor phase)
+    | Phase.allocateControl => false
+    | Phase.offer => false
+    | Phase.waiting => false
+    | Phase.scanStart => false
+    | Phase.scanRead => false
+    | Phase.buildBegin => false
+    | Phase.buildNext => false
+    | Phase.buildRead => false
+    | Phase.appendBegin => false
+    | Phase.builderStep => false
+    | Phase.finishBegin => false
+    | Phase.release => false
+    | Phase.drain => true
+    | Phase.install => false
+    | Phase.cancelSelect => false
+    | Phase.cancelBuilder => false
+    | Phase.cancelBuilderStep => false
+    | Phase.cancelled => false) then (ctor Phase.drain) else (if (project cursor builderActive) then (ctor Phase.cancelBuilder) else (ctor Phase.cancelSelect))), resume := (project cursor resume), releaseSlot := (project cursor releaseSlot), control := (project cursor control), current := (project cursor current), next := (project cursor next), ticketOwned := (project cursor ticketOwned), length := (project cursor length), nextLength := (project cursor nextLength), position := (project cursor position), pivot := (project cursor pivot), pivotValue := (project cursor pivotValue), pivotFound := (project cursor pivotFound), walking := (project cursor walking), index := (project cursor index), byteValue := (project cursor byteValue), builder := (project cursor builder), builderCursor := (project cursor builderCursor), builderHeld := (project cursor builderHeld), builderActive := (project cursor builderActive), cancelling := true, paid := (0 : UInt64)}))),
+  executable: true
+}
+
+definition{
+  name: rootInventory,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (Uorc.Core.RuntimeByteBuilder::addRoot (project cursor control) (Uorc.Core.RuntimeByteBuilder::addRoot (if (project cursor ticketOwned) then (project cursor current) else (Uorc.Core.RuntimeValue::nullHandle)) (Uorc.Core.RuntimeByteBuilder::addRoot (project cursor current) (Uorc.Core.RuntimeByteBuilder::addRoot (project cursor next) (if (project cursor builderActive) then (Uorc.Core.RuntimeByteBuilder::ownedRoots (project cursor builderCursor)) else (if (project cursor builderHeld) then (Uorc.Core.RuntimeByteBuilder::builderRoots (project cursor builder) (nil Uorc.Core.RuntimeValue::Handle)) else (nil Uorc.Core.RuntimeValue::Handle))))))),
+  executable: true
+}
+
+definition{
+  name: contract,
+  parameters: [],
+  result: String,
+  body: "A source-owned all-byte shortlex producer, including the empty word and all 256 byte values, with no candidate-count or format length limit. The actual immutable predecessor sequence stays pinned while its latest non-255 pivot is scanned and its successor is built. A single external Arena and explicit Usage are authoritative; Cursor has fixed-width fields and RuntimeByteBuilder storage only. Every produced ticket has an actual additional retained root and is borrowed by the consumer until exact outstanding owner/root/length acknowledgment. Root inventory includes duplicate ticket multiplicity. Acknowledgment is custody only, never admission, archive verification, semantic exclusion or completed coverage. Operational failures and address overflow preserve the unresolved predecessor and exact in-progress owner prefix. Cancellation requires the consumer to have returned the shared Arena and detached its borrowed ticket, and drains active primitives and roots. Canonical scope is SemanticScope.Query logicalReferenceScope1 with logicalReferenceEvents1; RuntimeWork fees are separate operational realization. General shortlex/refinement and controller qualification remain explicit obligations, not inferred from finite diagnostics.",
+  axioms: [],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

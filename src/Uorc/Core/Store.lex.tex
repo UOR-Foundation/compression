@@ -1,0 +1,441 @@
+\begin{lexlean}{Uorc.Core.Store}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Trie,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: empty, fields: []},
+    {name: leaf, fields: [UInt8]},
+    {name: branch, fields: [Trie, Trie]}
+  ]
+}
+
+structure{
+  name: Store,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: defaultByte, type: UInt8}, {name: root, type: Trie}]
+}
+
+structure{
+  name: ReferenceException,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: key, type: UInt64}, {name: value, type: UInt8}]
+}
+
+structure{
+  name: ReferenceStore,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: defaultByte, type: UInt8}, {name: exceptions, type: (List ReferenceException)}]
+}
+
+definition{
+  name: lowBit,
+  parameters: [key : UInt64],
+  result: Bool,
+  body: (prim equal (prim bit_and key (1 : UInt64) : UInt64) (1 : UInt64) : Bool),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: nextKey,
+  parameters: [key : UInt64],
+  result: UInt64,
+  body: (match (prim shift_right key (1 : UInt32) : (Option UInt64))
+    | Option.none => (0 : UInt64)
+    | Option.some shifted => shifted),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: trieEmpty,
+  parameters: [tree : Trie],
+  result: Bool,
+  body: (match tree
+    | Trie.empty => true
+    | Trie.leaf leafByte => false
+    | Trie.branch left right => false)
+}
+
+definition{
+  name: compactBranch,
+  parameters: [left : Trie, right : Trie],
+  result: Trie,
+  body: (if ((trieEmpty left) && (trieEmpty right)) then (ctor Trie.empty) else (ctor Trie.branch left right))
+}
+
+definition{
+  name: leftChild,
+  parameters: [tree : Trie],
+  result: Trie,
+  body: (match tree
+    | Trie.empty => (ctor Trie.empty)
+    | Trie.leaf leafByte => (ctor Trie.empty)
+    | Trie.branch left right => left)
+}
+
+definition{
+  name: rightChild,
+  parameters: [tree : Trie],
+  result: Trie,
+  body: (match tree
+    | Trie.empty => (ctor Trie.empty)
+    | Trie.leaf leafByte => (ctor Trie.empty)
+    | Trie.branch left right => right)
+}
+
+definition{
+  name: readTrie,
+  parameters: [depth : Nat, tree : Trie, key : UInt64, defaultByte : UInt8],
+  result: UInt8,
+  body: (match depth
+    | Nat.zero => (match tree
+      | Trie.empty => defaultByte
+      | Trie.leaf leafByte => leafByte
+      | Trie.branch left right => defaultByte)
+    | Nat.succ remaining => (match tree
+      | Trie.empty => defaultByte
+      | Trie.leaf leafByte => defaultByte
+      | Trie.branch left right => (readTrie remaining (if (lowBit key) then right else left) (nextKey key) defaultByte))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: depth
+}
+
+definition{
+  name: writeTrie,
+  parameters: [depth : Nat, tree : Trie, key : UInt64, value : UInt8, defaultByte : UInt8],
+  result: Trie,
+  body: (match depth
+    | Nat.zero => (if (prim equal value defaultByte : Bool) then (ctor Trie.empty) else (ctor Trie.leaf value))
+    | Nat.succ remaining => (if (lowBit key) then (compactBranch (leftChild tree) (writeTrie remaining (rightChild tree) (nextKey key) value defaultByte)) else (compactBranch (writeTrie remaining (leftChild tree) (nextKey key) value defaultByte) (rightChild tree)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: depth
+}
+
+definition{
+  name: validTrie,
+  parameters: [depth : Nat, tree : Trie, defaultByte : UInt8],
+  result: Bool,
+  body: (match depth
+    | Nat.zero => (match tree
+      | Trie.empty => true
+      | Trie.leaf leafByte => (not (prim equal leafByte defaultByte : Bool))
+      | Trie.branch left right => false)
+    | Nat.succ remaining => (match tree
+      | Trie.empty => true
+      | Trie.leaf leafByte => false
+      | Trie.branch left right => ((not ((trieEmpty left) && (trieEmpty right))) && ((validTrie remaining left defaultByte) && (validTrie remaining right defaultByte))))),
+  recursive_argument: depth
+}
+
+definition{
+  name: newStore,
+  parameters: [defaultByte : UInt8],
+  result: Store,
+  body: (record Store {defaultByte := defaultByte, root := (ctor Trie.empty)})
+}
+
+definition{
+  name: readStore,
+  parameters: [store : Store, key : UInt64],
+  result: UInt8,
+  body: (readTrie 64 (project store root) key (project store defaultByte)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: writeStore,
+  parameters: [store : Store, key : UInt64, value : UInt8],
+  result: Store,
+  body: (if (prim equal (readStore store key) value : Bool) then store else (record Store {defaultByte := (project store defaultByte), root := (writeTrie 64 (project store root) key value (project store defaultByte))})),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: readExceptions,
+  parameters: [exceptions : (List ReferenceException), key : UInt64, defaultByte : UInt8],
+  result: UInt8,
+  body: (match exceptions
+    | List.nil => defaultByte
+    | List.cons entry rest => (if (prim equal (project entry key) key : Bool) then (project entry value) else (readExceptions rest key defaultByte))),
+  recursive_argument: exceptions
+}
+
+definition{
+  name: eraseException,
+  parameters: [exceptions : (List ReferenceException), key : UInt64],
+  result: (List ReferenceException),
+  body: (match exceptions
+    | List.nil => (nil ReferenceException)
+    | List.cons entry rest => (if (prim equal (project entry key) key : Bool) then (eraseException rest key) else (cons entry (eraseException rest key)))),
+  recursive_argument: exceptions
+}
+
+definition{
+  name: newReferenceStore,
+  parameters: [defaultByte : UInt8],
+  result: ReferenceStore,
+  body: (record ReferenceStore {defaultByte := defaultByte, exceptions := (nil ReferenceException)})
+}
+
+definition{
+  name: readReferenceStore,
+  parameters: [store : ReferenceStore, key : UInt64],
+  result: UInt8,
+  body: (readExceptions (project store exceptions) key (project store defaultByte))
+}
+
+definition{
+  name: writeReferenceStore,
+  parameters: [store : ReferenceStore, key : UInt64, value : UInt8],
+  result: ReferenceStore,
+  body: (record ReferenceStore {defaultByte := (project store defaultByte), exceptions := (if (prim equal value (project store defaultByte) : Bool) then (eraseException (project store exceptions) key) else (cons (record ReferenceException {key := key, value := value}) (eraseException (project store exceptions) key)))})
+}
+
+theorem{
+  name: store_read_written_0,
+  parameters: [],
+  statement: ((readStore (writeStore (newStore (7 : UInt8)) (0 : UInt64) (13 : UInt8)) (0 : UInt64)) = (13 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_remove_default_0,
+  parameters: [],
+  statement: ((writeStore (writeStore (newStore (7 : UInt8)) (0 : UInt64) (13 : UInt8)) (0 : UInt64) (7 : UInt8)) = (newStore (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_preserve_alias_0,
+  parameters: [],
+  statement: ((readStore (newStore (7 : UInt8)) (0 : UInt64)) = (7 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_read_written_1,
+  parameters: [],
+  statement: ((readStore (writeStore (newStore (7 : UInt8)) (1 : UInt64) (13 : UInt8)) (1 : UInt64)) = (13 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_remove_default_1,
+  parameters: [],
+  statement: ((writeStore (writeStore (newStore (7 : UInt8)) (1 : UInt64) (13 : UInt8)) (1 : UInt64) (7 : UInt8)) = (newStore (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_preserve_alias_1,
+  parameters: [],
+  statement: ((readStore (newStore (7 : UInt8)) (1 : UInt64)) = (7 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_read_written_2,
+  parameters: [],
+  statement: ((readStore (writeStore (newStore (7 : UInt8)) (2 : UInt64) (13 : UInt8)) (2 : UInt64)) = (13 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_remove_default_2,
+  parameters: [],
+  statement: ((writeStore (writeStore (newStore (7 : UInt8)) (2 : UInt64) (13 : UInt8)) (2 : UInt64) (7 : UInt8)) = (newStore (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_preserve_alias_2,
+  parameters: [],
+  statement: ((readStore (newStore (7 : UInt8)) (2 : UInt64)) = (7 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_read_written_255,
+  parameters: [],
+  statement: ((readStore (writeStore (newStore (7 : UInt8)) (255 : UInt64) (13 : UInt8)) (255 : UInt64)) = (13 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_remove_default_255,
+  parameters: [],
+  statement: ((writeStore (writeStore (newStore (7 : UInt8)) (255 : UInt64) (13 : UInt8)) (255 : UInt64) (7 : UInt8)) = (newStore (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_preserve_alias_255,
+  parameters: [],
+  statement: ((readStore (newStore (7 : UInt8)) (255 : UInt64)) = (7 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_read_written_256,
+  parameters: [],
+  statement: ((readStore (writeStore (newStore (7 : UInt8)) (256 : UInt64) (13 : UInt8)) (256 : UInt64)) = (13 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_remove_default_256,
+  parameters: [],
+  statement: ((writeStore (writeStore (newStore (7 : UInt8)) (256 : UInt64) (13 : UInt8)) (256 : UInt64) (7 : UInt8)) = (newStore (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_preserve_alias_256,
+  parameters: [],
+  statement: ((readStore (newStore (7 : UInt8)) (256 : UInt64)) = (7 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_read_written_4096,
+  parameters: [],
+  statement: ((readStore (writeStore (newStore (7 : UInt8)) (4096 : UInt64) (13 : UInt8)) (4096 : UInt64)) = (13 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_remove_default_4096,
+  parameters: [],
+  statement: ((writeStore (writeStore (newStore (7 : UInt8)) (4096 : UInt64) (13 : UInt8)) (4096 : UInt64) (7 : UInt8)) = (newStore (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_preserve_alias_4096,
+  parameters: [],
+  statement: ((readStore (newStore (7 : UInt8)) (4096 : UInt64)) = (7 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_read_written_65536,
+  parameters: [],
+  statement: ((readStore (writeStore (newStore (7 : UInt8)) (65536 : UInt64) (13 : UInt8)) (65536 : UInt64)) = (13 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_remove_default_65536,
+  parameters: [],
+  statement: ((writeStore (writeStore (newStore (7 : UInt8)) (65536 : UInt64) (13 : UInt8)) (65536 : UInt64) (7 : UInt8)) = (newStore (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_preserve_alias_65536,
+  parameters: [],
+  statement: ((readStore (newStore (7 : UInt8)) (65536 : UInt64)) = (7 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_read_written_9223372036854775808,
+  parameters: [],
+  statement: ((readStore (writeStore (newStore (7 : UInt8)) (9223372036854775808 : UInt64) (13 : UInt8)) (9223372036854775808 : UInt64)) = (13 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_remove_default_9223372036854775808,
+  parameters: [],
+  statement: ((writeStore (writeStore (newStore (7 : UInt8)) (9223372036854775808 : UInt64) (13 : UInt8)) (9223372036854775808 : UInt64) (7 : UInt8)) = (newStore (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_preserve_alias_9223372036854775808,
+  parameters: [],
+  statement: ((readStore (newStore (7 : UInt8)) (9223372036854775808 : UInt64)) = (7 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_read_written_18446744073709551615,
+  parameters: [],
+  statement: ((readStore (writeStore (newStore (7 : UInt8)) (18446744073709551615 : UInt64) (13 : UInt8)) (18446744073709551615 : UInt64)) = (13 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_remove_default_18446744073709551615,
+  parameters: [],
+  statement: ((writeStore (writeStore (newStore (7 : UInt8)) (18446744073709551615 : UInt64) (13 : UInt8)) (18446744073709551615 : UInt64) (7 : UInt8)) = (newStore (7 : UInt8))),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_preserve_alias_18446744073709551615,
+  parameters: [],
+  statement: ((readStore (newStore (7 : UInt8)) (18446744073709551615 : UInt64)) = (7 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_new_default,
+  parameters: [defaultByte : UInt8, key : UInt64],
+  statement: ((readStore (newStore defaultByte) key) = defaultByte),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_unchanged_write,
+  parameters: [store : Store, key : UInt64],
+  statement: ((writeStore store key (readStore store key)) = store),
+  proof: linear_arithmetic{definitions: [writeStore]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: store_noninterference_vector,
+  parameters: [],
+  statement: ((readStore (writeStore (writeStore (newStore (0 : UInt8)) (1 : UInt64) (17 : UInt8)) (2 : UInt64) (23 : UInt8)) (1 : UInt64)) = (17 : UInt8)),
+  proof: reflexivity{},
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

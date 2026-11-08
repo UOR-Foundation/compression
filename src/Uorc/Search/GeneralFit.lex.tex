@@ -1,0 +1,137 @@
+\begin{lexlean}{Uorc.Search.GeneralFit}
+\importmodule{Uorc.Core.Bytes}
+\importmodule{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Validation}
+\importmodule{Uorc.Core.StepMachine}
+\importmodule{Uorc.Core.Resources}
+\importmodule{Uorc.Core.ExecutionCredit}
+\importmodule{Uorc.Search.ResidualRope}
+\importmodule{Uorc.Search.Overlay}
+\importmodule{Uorc.Search.Effort}
+\importmodule{Uorc.Core.Basis}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Phase,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: validating, fields: [Uorc.Core.Validation::Cursor]},
+    {
+      name: executing,
+      fields: [Uorc.Core.Validation::CheckedGraph, Uorc.Core.ExecutionCredit::Cursor]
+    },
+    {name: fitting, fields: [Uorc.Core.Validation::CheckedGraph, Uorc.Search.ResidualRope::Cursor]},
+    {name: building, fields: [Uorc.Search.Overlay::Cursor]}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: target, type: Uorc.Core.Bytes::Rope},
+    {name: count, type: UInt64},
+    {name: budget, type: Uorc.Core.Resources::Budget},
+    {name: phase, type: Phase},
+    {name: completedEvents, type: Nat}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: coordinateOverflow, fields: []},
+    {name: static, fields: [Uorc.Core.Types::StaticError]},
+    {name: table, fields: [Uorc.Core.Validation::TableError]},
+    {name: execution, fields: [Uorc.Core.StepMachine::Failure]},
+    {name: machine, fields: [Uorc.Core.StepMachine::Failure, Uorc.Core.Resources::Usage]},
+    {name: credit, fields: [Uorc.Core.ExecutionCredit::CreditError]},
+    {name: outputType, fields: []},
+    {name: residual, fields: [Uorc.Search.ResidualRope::Error]},
+    {name: invalidBase, fields: []},
+    {
+      name: machineAccounted,
+      fields: [
+        Uorc.Core.StepMachine::Failure,
+        Uorc.Core.Resources::Usage,
+        Uorc.Core.ExecutionCredit::Ledger
+      ]
+    },
+    {
+      name: creditAccounted,
+      fields: [Uorc.Core.ExecutionCredit::CreditError, Uorc.Core.ExecutionCredit::Ledger]
+    },
+    {name: outputTypeAccounted, fields: [Uorc.Core.ExecutionCredit::Ledger]}
+  ]
+}
+
+inductive{
+  name: Step,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: proposal, fields: [Uorc.Core.Graph::Graph, Nat]},
+    {name: rejected, fields: [Error]}
+  ]
+}
+
+definition{
+  name: start,
+  parameters: [
+    target : Uorc.Core.Bytes::Rope,
+    base : Uorc.Core.Graph::Graph,
+    budget : Uorc.Core.Resources::Budget
+  ],
+  result: Step,
+  body: (match (Uorc.Search.Effort::checkedU64 (Uorc.Core.Bytes::length target))
+    | Result.error error => (ctor Step.rejected (ctor Error.coordinateOverflow))
+    | Result.ok count => (ctor Step.pending (record Cursor {target := target, count := count, budget := budget, phase := (ctor Phase.validating (Uorc.Core.Validation::start base)), completedEvents := 0}))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: step,
+  parameters: [cursor : Cursor],
+  result: Step,
+  body: (match (project cursor phase)
+    | Phase.validating validation => (match (Uorc.Core.Validation::tick validation)
+      | Uorc.Core.Validation::Step.pending next => (ctor Step.pending (record Cursor {target := (project cursor target), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.validating next), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Core.Validation::Step.validated checkedGraph => (ctor Step.pending (record Cursor {target := (project cursor target), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.executing checkedGraph (Uorc.Core.ExecutionCredit::startInitialization checkedGraph (Uorc.Core.Basis::empty) (project cursor budget) (Uorc.Core.Resources::zeroUsage))), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Core.Validation::Step.rejected error events visits => (ctor Step.rejected (ctor Error.static error))
+      | Uorc.Core.Validation::Step.tableFailure error events visits => (ctor Step.rejected (ctor Error.table error)))
+    | Phase.executing checkedGraph executionCredit => (match (Uorc.Core.ExecutionCredit::tick (Uorc.Core.StepMachine::contextForChecked checkedGraph (nil Bytes) (project cursor budget)) executionCredit)
+      | Uorc.Core.ExecutionCredit::Tick.pending nextCredit => (ctor Step.pending (record Cursor {target := (project cursor target), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.executing checkedGraph nextCredit), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Core.ExecutionCredit::Tick.done execution executionLedger => (match (project execution value)
+        | Uorc.Core.Types::Value.sequence bytes => (ctor Step.pending (record Cursor {target := (project cursor target), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.fitting checkedGraph (Uorc.Search.ResidualRope::start (project cursor target) (Uorc.Core.Bytes::fromBytes bytes))), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Core.Types::Value.segmentedSequence rope => (ctor Step.pending (record Cursor {target := (project cursor target), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.fitting checkedGraph (Uorc.Search.ResidualRope::start (project cursor target) rope)), completedEvents := ((project cursor completedEvents) + 1)}))
+        | Uorc.Core.Types::Value.natural payload => (ctor Step.rejected (ctor Error.outputTypeAccounted executionLedger))
+        | Uorc.Core.Types::Value.byte payload => (ctor Step.rejected (ctor Error.outputTypeAccounted executionLedger))
+        | Uorc.Core.Types::Value.predicate payload => (ctor Step.rejected (ctor Error.outputTypeAccounted executionLedger))
+        | Uorc.Core.Types::Value.store payload => (ctor Step.rejected (ctor Error.outputTypeAccounted executionLedger)))
+      | Uorc.Core.ExecutionCredit::Tick.failed error usage executionLedger => (ctor Step.rejected (ctor Error.machineAccounted error usage executionLedger))
+      | Uorc.Core.ExecutionCredit::Tick.rejected error executionLedger => (ctor Step.rejected (ctor Error.creditAccounted error executionLedger)))
+    | Phase.fitting checkedGraph fitCursor => (match (Uorc.Search.ResidualRope::step fitCursor)
+      | Uorc.Search.ResidualRope::Step.pending next => (ctor Step.pending (record Cursor {target := (project cursor target), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.fitting checkedGraph next), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.ResidualRope::Step.complete exceptions count events => (match exceptions
+        | List.nil => (ctor Step.proposal (project checkedGraph graph) ((project cursor completedEvents) + 1))
+        | List.cons firstException remainingExceptions => (match (Uorc.Search.Overlay::start checkedGraph (project cursor count) exceptions)
+          | Uorc.Search.Overlay::Step.pending overlayCursor => (ctor Step.pending (record Cursor {target := (project cursor target), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.building overlayCursor), completedEvents := ((project cursor completedEvents) + 1)}))
+          | Uorc.Search.Overlay::Step.proposal graph overlayEvents => (ctor Step.proposal graph ((project cursor completedEvents) + 1))
+          | Uorc.Search.Overlay::Step.invalidBase => (ctor Step.rejected (ctor Error.invalidBase))
+          | Uorc.Search.Overlay::Step.addressSpaceExhausted => (ctor Step.rejected (ctor Error.coordinateOverflow))))
+      | Uorc.Search.ResidualRope::Step.rejected error => (ctor Step.rejected (ctor Error.residual error)))
+    | Phase.building overlayCursor => (match (Uorc.Search.Overlay::step overlayCursor)
+      | Uorc.Search.Overlay::Step.pending next => (ctor Step.pending (record Cursor {target := (project cursor target), count := (project cursor count), budget := (project cursor budget), phase := (ctor Phase.building next), completedEvents := ((project cursor completedEvents) + 1)}))
+      | Uorc.Search.Overlay::Step.proposal graph overlayEvents => (ctor Step.proposal graph ((project cursor completedEvents) + 1))
+      | Uorc.Search.Overlay::Step.invalidBase => (ctor Step.rejected (ctor Error.invalidBase))
+      | Uorc.Search.Overlay::Step.addressSpaceExhausted => (ctor Step.rejected (ctor Error.coordinateOverflow)))),
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

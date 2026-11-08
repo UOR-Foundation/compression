@@ -1,0 +1,461 @@
+\begin{lexlean}{Uorc.Core.Graph}
+\importmodule{Uorc.Core.Types}
+\importmodule{Uorc.Core.Bytes}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Instruction,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: naturalConstant, fields: [UInt64]},
+    {name: byteConstant, fields: [UInt8]},
+    {name: predicateConstant, fields: [Bool]},
+    {name: sequenceConstant, fields: [Bytes]},
+    {name: naturalAdd, fields: [Nat, Nat]},
+    {name: naturalSubtract, fields: [Nat, Nat]},
+    {name: naturalMultiply, fields: [Nat, Nat]},
+    {name: naturalDivide, fields: [Nat, Nat]},
+    {name: naturalRemainder, fields: [Nat, Nat]},
+    {name: naturalAnd, fields: [Nat, Nat]},
+    {name: naturalOr, fields: [Nat, Nat]},
+    {name: naturalXor, fields: [Nat, Nat]},
+    {name: naturalNot, fields: [Nat]},
+    {name: naturalShiftLeft, fields: [Nat, Nat]},
+    {name: naturalShiftRight, fields: [Nat, Nat]},
+    {name: naturalEqual, fields: [Nat, Nat]},
+    {name: naturalLess, fields: [Nat, Nat]},
+    {name: byteEqual, fields: [Nat, Nat]},
+    {name: byteLess, fields: [Nat, Nat]},
+    {name: naturalToByte, fields: [Nat]},
+    {name: byteToNatural, fields: [Nat]},
+    {name: predicateNot, fields: [Nat]},
+    {name: predicateAnd, fields: [Nat, Nat]},
+    {name: predicateOr, fields: [Nat, Nat]},
+    {name: sequenceLength, fields: [Nat]},
+    {name: sequenceIndex, fields: [Nat, Nat]},
+    {name: sequenceSlice, fields: [Nat, Nat, Nat]},
+    {name: sequenceConcat, fields: [Nat, Nat]},
+    {name: sequenceEqual, fields: [Nat, Nat]},
+    {name: singletonSequence, fields: [Nat]},
+    {name: basisGet, fields: [Nat]},
+    {name: storeNew, fields: [Nat]},
+    {name: storeRead, fields: [Nat, Nat]},
+    {name: storeWrite, fields: [Nat, Nat, Nat]},
+    {name: choose, fields: [Nat, Nat, Nat]},
+    {name: apply, fields: [Nat, (List Nat)]},
+    {name: tabulate, fields: [Nat, Nat, (List Nat)]},
+    {name: fold, fields: [Nat, Nat, Nat, (List Nat)]},
+    {name: scan, fields: [Nat, Nat, Nat, (List Nat), Nat, (List Nat)]},
+    {name: sequenceRopeConstant, fields: [Uorc.Core.Bytes::Rope]}
+  ]
+}
+
+structure{
+  name: Block,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: parameters, type: (List Uorc.Core.Types::ValueType)},
+    {name: result, type: Uorc.Core.Types::ValueType},
+    {name: instructions, type: (List Instruction)},
+    {name: returnDistance, type: Nat}
+  ]
+}
+
+structure{
+  name: Graph,
+  type_parameters: [],
+  parameters: [],
+  fields: [{name: blocks, type: (List Block)}, {name: entry, type: Nat}]
+}
+
+definition{
+  name: sameTypes,
+  parameters: [left : (List Uorc.Core.Types::ValueType), right : (List Uorc.Core.Types::ValueType)],
+  result: Bool,
+  body: (match left
+    | List.nil => (match right | List.nil => true | List.cons rightHead rightTail => false)
+    | List.cons leftHead leftTail => (match right
+      | List.nil => false
+      | List.cons rightHead rightTail => ((Uorc.Core.Types::sameType leftHead rightHead) && (sameTypes leftTail rightTail)))),
+  recursive_argument: left
+}
+
+definition{
+  name: expectType,
+  parameters: [actual : Uorc.Core.Types::ValueType, expected : Uorc.Core.Types::ValueType],
+  result: (Result Unit Uorc.Core.Types::StaticError),
+  body: (if (Uorc.Core.Types::sameType actual expected) then (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ()) else (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+}
+
+definition{
+  name: localType,
+  parameters: [slots : (List Uorc.Core.Types::ValueType), distance : Nat],
+  result: (Result Uorc.Core.Types::ValueType Uorc.Core.Types::StaticError),
+  body: (if (distance =? 0) then (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference)) else (if ((prim length slots : Nat) <? distance) then (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference)) else (match (prim index slots (prim subtract (prim length slots : Nat) distance : Nat) : (Option Uorc.Core.Types::ValueType))
+    | Option.none => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference))
+    | Option.some selected => (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] selected))))
+}
+
+definition{
+  name: priorBlock,
+  parameters: [prior : (List Block), distance : Nat],
+  result: (Result Block Uorc.Core.Types::StaticError),
+  body: (if (distance =? 0) then (ctor Result.error [Block, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidBlockReference)) else (if ((prim length prior : Nat) <? distance) then (ctor Result.error [Block, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidBlockReference)) else (match (prim index prior (prim subtract (prim length prior : Nat) distance : Nat) : (Option Block))
+    | Option.none => (ctor Result.error [Block, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidBlockReference))
+    | Option.some selected => (ctor Result.ok [Block, Uorc.Core.Types::StaticError] selected))))
+}
+
+definition{
+  name: checkReferences,
+  parameters: [
+    references : (List Nat),
+    slots : (List Uorc.Core.Types::ValueType),
+    expected : (List Uorc.Core.Types::ValueType)
+  ],
+  result: (Result Unit Uorc.Core.Types::StaticError),
+  body: (match references
+    | List.nil => (match expected
+      | List.nil => (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ())
+      | List.cons expectedHead expectedTail => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.arityMismatch)))
+    | List.cons reference rest => (match expected
+      | List.nil => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.arityMismatch))
+      | List.cons expectedHead expectedTail => (match (localType slots reference)
+        | Result.error referenceError => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] referenceError)
+        | Result.ok actualType => (match (expectType actualType expectedHead)
+          | Result.error typeError => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] typeError)
+          | Result.ok unitResult => (checkReferences rest slots expectedTail))))),
+  recursive_argument: references
+}
+
+definition{
+  name: inferReferences,
+  parameters: [references : (List Nat), slots : (List Uorc.Core.Types::ValueType)],
+  result: (Result (List Uorc.Core.Types::ValueType) Uorc.Core.Types::StaticError),
+  body: (match references
+    | List.nil => (ctor Result.ok [(List Uorc.Core.Types::ValueType), Uorc.Core.Types::StaticError] (nil Uorc.Core.Types::ValueType))
+    | List.cons reference rest => (match (localType slots reference)
+      | Result.error referenceError => (ctor Result.error [(List Uorc.Core.Types::ValueType), Uorc.Core.Types::StaticError] referenceError)
+      | Result.ok actualType => (match (inferReferences rest slots)
+        | Result.error tailError => (ctor Result.error [(List Uorc.Core.Types::ValueType), Uorc.Core.Types::StaticError] tailError)
+        | Result.ok tailTypes => (ctor Result.ok [(List Uorc.Core.Types::ValueType), Uorc.Core.Types::StaticError] (cons actualType tailTypes))))),
+  recursive_argument: references
+}
+
+definition{
+  name: inferFixed,
+  parameters: [
+    references : (List Nat),
+    slots : (List Uorc.Core.Types::ValueType),
+    expected : (List Uorc.Core.Types::ValueType),
+    output : Uorc.Core.Types::ValueType
+  ],
+  result: (Result Uorc.Core.Types::ValueType Uorc.Core.Types::StaticError),
+  body: (match (checkReferences references slots expected)
+    | Result.error error => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] error)
+    | Result.ok unitResult => (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] output))
+}
+
+definition{
+  name: inferApply,
+  parameters: [
+    prior : (List Block),
+    slots : (List Uorc.Core.Types::ValueType),
+    distance : Nat,
+    arguments : (List Nat)
+  ],
+  result: (Result Uorc.Core.Types::ValueType Uorc.Core.Types::StaticError),
+  body: (match (priorBlock prior distance)
+    | Result.error error => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] error)
+    | Result.ok called => (match (checkReferences arguments slots (project called parameters))
+      | Result.error argumentError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] argumentError)
+      | Result.ok unitResult => (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (project called result))))
+}
+
+definition{
+  name: checkSignature,
+  parameters: [
+    block : Block,
+    parameters : (List Uorc.Core.Types::ValueType),
+    output : Uorc.Core.Types::ValueType
+  ],
+  result: (Result Unit Uorc.Core.Types::StaticError),
+  body: (if ((sameTypes (project block parameters) parameters) && (Uorc.Core.Types::sameType (project block result) output)) then (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ()) else (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.typeMismatch)))
+}
+
+definition{
+  name: inferIterator,
+  parameters: [
+    prior : (List Block),
+    slots : (List Uorc.Core.Types::ValueType),
+    distance : Nat,
+    captures : (List Nat),
+    prefix : (List Uorc.Core.Types::ValueType),
+    blockResult : Uorc.Core.Types::ValueType,
+    output : Uorc.Core.Types::ValueType
+  ],
+  result: (Result Uorc.Core.Types::ValueType Uorc.Core.Types::StaticError),
+  body: (match (priorBlock prior distance)
+    | Result.error blockError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] blockError)
+    | Result.ok called => (match (inferReferences captures slots)
+      | Result.error captureError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] captureError)
+      | Result.ok captureTypes => (match (checkSignature called (prim append prefix captureTypes : (List Uorc.Core.Types::ValueType)) blockResult)
+        | Result.error signatureError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] signatureError)
+        | Result.ok unitResult => (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] output))))
+}
+
+definition{
+  name: inferTabulate,
+  parameters: [
+    prior : (List Block),
+    slots : (List Uorc.Core.Types::ValueType),
+    count : Nat,
+    distance : Nat,
+    captures : (List Nat)
+  ],
+  result: (Result Uorc.Core.Types::ValueType Uorc.Core.Types::StaticError),
+  body: (match (checkReferences (cons count (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)))
+    | Result.error error => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] error)
+    | Result.ok unitResult => (inferIterator prior slots distance captures (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)) (ctor Uorc.Core.Types::ValueType.byte) (ctor Uorc.Core.Types::ValueType.sequence)))
+}
+
+definition{
+  name: inferFold,
+  parameters: [
+    prior : (List Block),
+    slots : (List Uorc.Core.Types::ValueType),
+    count : Nat,
+    initial : Nat,
+    distance : Nat,
+    captures : (List Nat)
+  ],
+  result: (Result Uorc.Core.Types::ValueType Uorc.Core.Types::StaticError),
+  body: (match (checkReferences (cons count (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)))
+    | Result.error countError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] countError)
+    | Result.ok unitResult => (match (localType slots initial)
+      | Result.error initialError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] initialError)
+      | Result.ok stateType => (inferIterator prior slots distance captures (cons (ctor Uorc.Core.Types::ValueType.natural) (cons stateType (nil Uorc.Core.Types::ValueType))) stateType stateType)))
+}
+
+definition{
+  name: inferScan,
+  parameters: [
+    prior : (List Block),
+    slots : (List Uorc.Core.Types::ValueType),
+    count : Nat,
+    initial : Nat,
+    observer : Nat,
+    observerCaptures : (List Nat),
+    updater : Nat,
+    updaterCaptures : (List Nat)
+  ],
+  result: (Result Uorc.Core.Types::ValueType Uorc.Core.Types::StaticError),
+  body: (match (checkReferences (cons count (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)))
+    | Result.error countError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] countError)
+    | Result.ok unitResult => (match (localType slots initial)
+      | Result.error initialError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] initialError)
+      | Result.ok stateType => (match (inferIterator prior slots observer observerCaptures (cons (ctor Uorc.Core.Types::ValueType.natural) (cons stateType (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.byte) (ctor Uorc.Core.Types::ValueType.sequence))
+        | Result.error observerError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] observerError)
+        | Result.ok observerType => (inferIterator prior slots updater updaterCaptures (cons (ctor Uorc.Core.Types::ValueType.natural) (cons stateType (nil Uorc.Core.Types::ValueType))) stateType (ctor Uorc.Core.Types::ValueType.sequence)))))
+}
+
+definition{
+  name: inferChoose,
+  parameters: [
+    slots : (List Uorc.Core.Types::ValueType),
+    condition : Nat,
+    whenTrue : Nat,
+    whenFalse : Nat
+  ],
+  result: (Result Uorc.Core.Types::ValueType Uorc.Core.Types::StaticError),
+  body: (match (checkReferences (cons condition (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.predicate) (nil Uorc.Core.Types::ValueType)))
+    | Result.error conditionError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] conditionError)
+    | Result.ok conditionUnit => (match (localType slots whenTrue)
+      | Result.error trueError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] trueError)
+      | Result.ok trueType => (match (localType slots whenFalse)
+        | Result.error falseError => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] falseError)
+        | Result.ok falseType => (match (expectType falseType trueType)
+          | Result.error mismatch => (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] mismatch)
+          | Result.ok unitResult => (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] trueType)))))
+}
+
+definition{
+  name: inferInstruction,
+  parameters: [
+    prior : (List Block),
+    slots : (List Uorc.Core.Types::ValueType),
+    instruction : Instruction
+  ],
+  result: (Result Uorc.Core.Types::ValueType Uorc.Core.Types::StaticError),
+  body: (match instruction
+    | Instruction.naturalConstant literal => (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.byteConstant literal => (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::ValueType.byte))
+    | Instruction.predicateConstant literal => (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::ValueType.predicate))
+    | Instruction.sequenceConstant literal => (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::ValueType.sequence))
+    | Instruction.naturalAdd operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalSubtract operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalMultiply operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalDivide operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalRemainder operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalAnd operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalOr operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalXor operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalNot operand0 => (inferFixed (cons operand0 (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalShiftLeft operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalShiftRight operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.naturalEqual operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.predicate))
+    | Instruction.naturalLess operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.predicate))
+    | Instruction.byteEqual operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.byte) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.predicate))
+    | Instruction.byteLess operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.byte) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.predicate))
+    | Instruction.naturalToByte operand0 => (inferFixed (cons operand0 (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)) (ctor Uorc.Core.Types::ValueType.byte))
+    | Instruction.byteToNatural operand0 => (inferFixed (cons operand0 (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType)) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.predicateNot operand0 => (inferFixed (cons operand0 (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.predicate) (nil Uorc.Core.Types::ValueType)) (ctor Uorc.Core.Types::ValueType.predicate))
+    | Instruction.predicateAnd operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.predicate) (cons (ctor Uorc.Core.Types::ValueType.predicate) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.predicate))
+    | Instruction.predicateOr operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.predicate) (cons (ctor Uorc.Core.Types::ValueType.predicate) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.predicate))
+    | Instruction.sequenceLength operand0 => (inferFixed (cons operand0 (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.sequence) (nil Uorc.Core.Types::ValueType)) (ctor Uorc.Core.Types::ValueType.natural))
+    | Instruction.sequenceIndex operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.sequence) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.byte))
+    | Instruction.sequenceSlice operand0 operand1 operand2 => (inferFixed (cons operand0 (cons operand1 (cons operand2 (nil Nat)))) slots (cons (ctor Uorc.Core.Types::ValueType.sequence) (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)))) (ctor Uorc.Core.Types::ValueType.sequence))
+    | Instruction.sequenceConcat operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.sequence) (cons (ctor Uorc.Core.Types::ValueType.sequence) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.sequence))
+    | Instruction.sequenceEqual operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.sequence) (cons (ctor Uorc.Core.Types::ValueType.sequence) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.predicate))
+    | Instruction.singletonSequence operand0 => (inferFixed (cons operand0 (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType)) (ctor Uorc.Core.Types::ValueType.sequence))
+    | Instruction.basisGet operand0 => (inferFixed (cons operand0 (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)) (ctor Uorc.Core.Types::ValueType.sequence))
+    | Instruction.storeNew operand0 => (inferFixed (cons operand0 (nil Nat)) slots (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType)) (ctor Uorc.Core.Types::ValueType.store))
+    | Instruction.storeRead operand0 operand1 => (inferFixed (cons operand0 (cons operand1 (nil Nat))) slots (cons (ctor Uorc.Core.Types::ValueType.store) (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType))) (ctor Uorc.Core.Types::ValueType.byte))
+    | Instruction.storeWrite operand0 operand1 operand2 => (inferFixed (cons operand0 (cons operand1 (cons operand2 (nil Nat)))) slots (cons (ctor Uorc.Core.Types::ValueType.store) (cons (ctor Uorc.Core.Types::ValueType.natural) (cons (ctor Uorc.Core.Types::ValueType.byte) (nil Uorc.Core.Types::ValueType)))) (ctor Uorc.Core.Types::ValueType.store))
+    | Instruction.choose condition whenTrue whenFalse => (inferChoose slots condition whenTrue whenFalse)
+    | Instruction.apply distance arguments => (inferApply prior slots distance arguments)
+    | Instruction.tabulate count distance captures => (inferTabulate prior slots count distance captures)
+    | Instruction.fold count initial distance captures => (inferFold prior slots count initial distance captures)
+    | Instruction.scan count initial observer observerCaptures updater updaterCaptures => (inferScan prior slots count initial observer observerCaptures updater updaterCaptures)
+    | Instruction.sequenceRopeConstant literal => (if (Uorc.Core.Bytes::valid literal) then (ctor Result.ok [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::ValueType.sequence)) else (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidSequenceRope))))
+}
+
+definition{
+  name: validateInstructions,
+  parameters: [
+    instructions : (List Instruction),
+    prior : (List Block),
+    slots : (List Uorc.Core.Types::ValueType)
+  ],
+  result: (Result (List Uorc.Core.Types::ValueType) Uorc.Core.Types::StaticError),
+  body: (match instructions
+    | List.nil => (ctor Result.ok [(List Uorc.Core.Types::ValueType), Uorc.Core.Types::StaticError] slots)
+    | List.cons instruction rest => (match (inferInstruction prior slots instruction)
+      | Result.error error => (ctor Result.error [(List Uorc.Core.Types::ValueType), Uorc.Core.Types::StaticError] error)
+      | Result.ok inferredType => (validateInstructions rest prior (prim append slots (cons inferredType (nil Uorc.Core.Types::ValueType)) : (List Uorc.Core.Types::ValueType))))),
+  recursive_argument: instructions
+}
+
+definition{
+  name: validateBlock,
+  parameters: [prior : (List Block), block : Block],
+  result: (Result Unit Uorc.Core.Types::StaticError),
+  body: (match (validateInstructions (project block instructions) prior (project block parameters))
+    | Result.error instructionError => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] instructionError)
+    | Result.ok slots => (match (localType slots (project block returnDistance))
+      | Result.error returnError => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] returnError)
+      | Result.ok returnedType => (if (Uorc.Core.Types::sameType returnedType (project block result)) then (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ()) else (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.returnMismatch)))))
+}
+
+definition{
+  name: validateBlocks,
+  parameters: [blocks : (List Block), prior : (List Block)],
+  result: (Result Unit Uorc.Core.Types::StaticError),
+  body: (match blocks
+    | List.nil => (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ())
+    | List.cons block rest => (match (validateBlock prior block)
+      | Result.error error => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] error)
+      | Result.ok unitResult => (validateBlocks rest (prim append prior (cons block (nil Block)) : (List Block))))),
+  recursive_argument: blocks
+}
+
+definition{
+  name: validateEntry,
+  parameters: [graph : Graph],
+  result: (Result Unit Uorc.Core.Types::StaticError),
+  body: (match (prim index (project graph blocks) (project graph entry) : (Option Block))
+    | Option.none => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidBlockReference))
+    | Option.some entryBlock => (if (((prim length (project entryBlock parameters) : Nat) =? 0) && (Uorc.Core.Types::sameType (project entryBlock result) (ctor Uorc.Core.Types::ValueType.sequence))) then (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ()) else (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.entrySignatureMismatch))))
+}
+
+definition{
+  name: validateGraph,
+  parameters: [graph : Graph],
+  result: (Result Unit Uorc.Core.Types::StaticError),
+  body: (if ((prim length (project graph blocks) : Nat) =? 0) then (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.emptyGraph)) else (match (validateBlocks (project graph blocks) (nil Block))
+    | Result.error error => (ctor Result.error [Unit, Uorc.Core.Types::StaticError] error)
+    | Result.ok unitResult => (validateEntry graph)))
+}
+
+definition{
+  name: literalGraph,
+  parameters: [bytes : Bytes],
+  result: Graph,
+  body: (record Graph {blocks := (cons (record Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Instruction.sequenceConstant bytes) (nil Instruction)), returnDistance := 1}) (nil Block)), entry := 0})
+}
+
+theorem{
+  name: literal_graph_valid,
+  parameters: [bytes : Bytes],
+  statement: ((validateGraph (literalGraph bytes)) = (ctor Result.ok [Unit, Uorc.Core.Types::StaticError] ())),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: empty_graph_rejected,
+  parameters: [],
+  statement: ((validateGraph (record Graph {blocks := (nil Block), entry := 0})) = (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.emptyGraph))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_local_distance_rejected,
+  parameters: [],
+  statement: ((localType (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)) 0) = (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: forward_local_distance_rejected,
+  parameters: [],
+  statement: ((localType (cons (ctor Uorc.Core.Types::ValueType.natural) (nil Uorc.Core.Types::ValueType)) 2) = (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: local_distance_before_type,
+  parameters: [],
+  statement: ((inferInstruction (nil Block) (cons (ctor Uorc.Core.Types::ValueType.sequence) (nil Uorc.Core.Types::ValueType)) (ctor Instruction.naturalAdd 2 1)) = (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: first_type_before_later_distance,
+  parameters: [],
+  statement: ((inferInstruction (nil Block) (cons (ctor Uorc.Core.Types::ValueType.sequence) (nil Uorc.Core.Types::ValueType)) (ctor Instruction.naturalAdd 1 2)) = (ctor Result.error [Uorc.Core.Types::ValueType, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.typeMismatch))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: zero_block_distance_rejected,
+  parameters: [],
+  statement: ((priorBlock (cons (record Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Instruction.sequenceConstant 0x00ff) (nil Instruction)), returnDistance := 1}) (nil Block)) 0) = (ctor Result.error [Block, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidBlockReference))),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: unreachable_invalid_block_rejected,
+  parameters: [],
+  statement: ((validateGraph (record Graph {blocks := (cons (record Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Instruction.sequenceConstant 0x00ff) (nil Instruction)), returnDistance := 1}) (cons (record Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (nil Instruction), returnDistance := 1}) (nil Block))), entry := 0})) = (ctor Result.error [Unit, Uorc.Core.Types::StaticError] (ctor Uorc.Core.Types::StaticError.invalidLocalReference))),
+  proof: reflexivity{}
+}
+
+definition{
+  name: literalRopeGraph,
+  parameters: [rope : Uorc.Core.Bytes::Rope],
+  result: Graph,
+  body: (record Graph {blocks := (cons (record Block {parameters := (nil Uorc.Core.Types::ValueType), result := (ctor Uorc.Core.Types::ValueType.sequence), instructions := (cons (ctor Instruction.sequenceRopeConstant rope) (nil Instruction)), returnDistance := 1}) (nil Block)), entry := 0})
+}
+\end{semanticmodule}
+\end{lexlean}

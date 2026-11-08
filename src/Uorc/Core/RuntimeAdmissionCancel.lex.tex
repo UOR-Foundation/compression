@@ -1,0 +1,204 @@
+\begin{lexlean}{Uorc.Core.RuntimeAdmissionCancel}
+\importmodule{Uorc.Core.RuntimeAdmission}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeResources}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.RuntimeSequence}
+\importmodule{Uorc.Core.RuntimeRecordBuilder}
+\importmodule{Uorc.Core.RuntimeAdmissionOrder}
+\importmodule{Uorc.Core.RuntimeInstructionCheck}
+\importmodule{Uorc.Core.RuntimeOpcode}
+\importmodule{Uorc.Core.RuntimeLifetime}
+\importmodule{Uorc.Core.RuntimeByteBuilder}
+\importmodule{Uorc.Core.RuntimeWork}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: heap, fields: [Uorc.Core.Heap::HeapError]},
+    {name: resource, fields: [Uorc.Core.RuntimeResources::Error]},
+    {name: invalidCursor, fields: []}
+  ]
+}
+
+structure{
+  name: Cursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: state, type: Uorc.Core.RuntimeAdmission::Cursor},
+    {name: remaining, type: (List Uorc.Core.RuntimeValue::Handle)},
+    {name: detached, type: Bool},
+    {name: draining, type: Bool},
+    {name: finished, type: Bool}
+  ]
+}
+
+structure{
+  name: Cancelled,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: arena, type: Uorc.Core.Heap::Arena},
+    {name: usage, type: Uorc.Core.RuntimeResources::Usage},
+    {name: basis, type: Uorc.Core.RuntimeTable::Table},
+    {name: caller, type: Uorc.Core.RuntimeProgram::CallerRoots}
+  ]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: pending, fields: [Cursor]},
+    {name: cancelled, fields: [Cancelled]},
+    {name: failed, fields: [Error, Cursor]}
+  ]
+}
+
+definition{
+  name: sessionRoots,
+  parameters: [state : Uorc.Core.RuntimeAdmission::Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: match{
+    branches: [
+      {
+        body: (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state parameterTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state localTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state instructions) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lastUses) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lifetimes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesA) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesB) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state bucketSlots) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state initialRelease) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state blockRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state instructionRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state bucketRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state literal) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxFirst) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxSecond) (Uorc.Core.RuntimeByteBuilder::builderRoots (project state literalBuilder) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project (project state program) blocks) root) (nil Uorc.Core.RuntimeValue::Handle)))))))))))))))))),
+        binders: [stage],
+        constructor: Uorc.Core.RuntimeAdmission::Task.stage
+      },
+      {
+        body: (prim append (Uorc.Core.RuntimeTable::ownedRoots (Uorc.Core.RuntimeAdmission::tableTransition (project state arena) progress)) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state parameterTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state localTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state instructions) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lastUses) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lifetimes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesA) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesB) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state bucketSlots) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state initialRelease) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state blockRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state instructionRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state bucketRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state literal) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxFirst) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxSecond) (Uorc.Core.RuntimeByteBuilder::builderRoots (project state literalBuilder) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project (project state program) blocks) root) (nil Uorc.Core.RuntimeValue::Handle)))))))))))))))))) : (List Uorc.Core.RuntimeValue::Handle)),
+        binders: [progress, slot, after],
+        constructor: Uorc.Core.RuntimeAdmission::Task.table
+      },
+      {
+        body: (prim append (Uorc.Core.RuntimeRecordBuilder::rootInventory var{
+          name: record
+        }) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state parameterTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state localTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state instructions) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lastUses) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lifetimes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesA) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesB) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state bucketSlots) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state initialRelease) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state blockRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state instructionRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state bucketRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state literal) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxFirst) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxSecond) (Uorc.Core.RuntimeByteBuilder::builderRoots (project state literalBuilder) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project (project state program) blocks) root) (nil Uorc.Core.RuntimeValue::Handle)))))))))))))))))) : (List Uorc.Core.RuntimeValue::Handle)),
+        binders: [record, slot, after],
+        constructor: Uorc.Core.RuntimeAdmission::Task.record
+      },
+      {
+        body: (Uorc.Core.RuntimeAdmission::addOwnedRoot old (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state parameterTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state localTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state instructions) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lastUses) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lifetimes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesA) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesB) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state bucketSlots) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state initialRelease) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state blockRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state instructionRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state bucketRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state literal) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxFirst) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxSecond) (Uorc.Core.RuntimeByteBuilder::builderRoots (project state literalBuilder) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project (project state program) blocks) root) (nil Uorc.Core.RuntimeValue::Handle))))))))))))))))))),
+        binders: [old, after],
+        constructor: Uorc.Core.RuntimeAdmission::Task.beginRelease
+      },
+      {
+        body: (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state parameterTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state localTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state instructions) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lastUses) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lifetimes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesA) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesB) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state bucketSlots) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state initialRelease) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state blockRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state instructionRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state bucketRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state literal) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxFirst) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxSecond) (Uorc.Core.RuntimeByteBuilder::builderRoots (project state literalBuilder) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project (project state program) blocks) root) (nil Uorc.Core.RuntimeValue::Handle)))))))))))))))))),
+        binders: [after],
+        constructor: Uorc.Core.RuntimeAdmission::Task.draining
+      },
+      {
+        body: (prim append (Uorc.Core.RuntimeSequence::ownedRoots sequence) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state parameterTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state localTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state instructions) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lastUses) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lifetimes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesA) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesB) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state bucketSlots) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state initialRelease) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state blockRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state instructionRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state bucketRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state literal) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxFirst) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxSecond) (Uorc.Core.RuntimeByteBuilder::builderRoots (project state literalBuilder) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project (project state program) blocks) root) (nil Uorc.Core.RuntimeValue::Handle)))))))))))))))))) : (List Uorc.Core.RuntimeValue::Handle)),
+        binders: [sequence, after],
+        constructor: Uorc.Core.RuntimeAdmission::Task.sequence
+      },
+      {
+        body: (prim append (Uorc.Core.RuntimeByteBuilder::ownedRoots builder) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state parameterTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state localTypes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state instructions) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lastUses) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state lifetimes) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesA) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state capturesB) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project state bucketSlots) root) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state initialRelease) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state blockRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state instructionRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state bucketRecord) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state literal) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxFirst) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project state auxSecond) (Uorc.Core.RuntimeByteBuilder::builderRoots (project state literalBuilder) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project (project state program) blocks) root) (nil Uorc.Core.RuntimeValue::Handle)))))))))))))))))) : (List Uorc.Core.RuntimeValue::Handle)),
+        binders: [builder, finishing, after],
+        constructor: Uorc.Core.RuntimeAdmission::Task.builder
+      }
+    ],
+    scrutinee: (project state task)
+  },
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: clearSessionOwners,
+  parameters: [state : Uorc.Core.RuntimeAdmission::Cursor],
+  result: Uorc.Core.RuntimeAdmission::Cursor,
+  body: (record Uorc.Core.RuntimeAdmission::Cursor {arena := (project state arena), usage := (project state usage), budget := (project state budget), caller := (project state caller), program := (record Uorc.Core.RuntimeProgram::Program {blocks := (record Uorc.Core.RuntimeTable::Table {kind := (project (project (project state program) blocks) kind), root := (Uorc.Core.RuntimeValue::nullHandle)}), basis := (project (project state program) basis), entry := (project (project state program) entry), blockCount := (project (project state program) blockCount)}), order := (project state order), pendingOrder := (ctor Option.none [Uorc.Core.RuntimeAdmissionOrder::State]), pendingEvent := (ctor Option.none [Uorc.Core.RuntimeProgram::Event]), instruction := (Uorc.Core.RuntimeInstructionCheck::start (ctor Uorc.Core.RuntimeOpcode::Opcode.naturalConstant)), parameterTypes := (record Uorc.Core.RuntimeTable::Table {kind := (project (project state parameterTypes) kind), root := (Uorc.Core.RuntimeValue::nullHandle)}), localTypes := (record Uorc.Core.RuntimeTable::Table {kind := (project (project state localTypes) kind), root := (Uorc.Core.RuntimeValue::nullHandle)}), instructions := (record Uorc.Core.RuntimeTable::Table {kind := (project (project state instructions) kind), root := (Uorc.Core.RuntimeValue::nullHandle)}), lastUses := (record Uorc.Core.RuntimeTable::Table {kind := (project (project state lastUses) kind), root := (Uorc.Core.RuntimeValue::nullHandle)}), lifetimes := (record Uorc.Core.RuntimeTable::Table {kind := (project (project state lifetimes) kind), root := (Uorc.Core.RuntimeValue::nullHandle)}), capturesA := (record Uorc.Core.RuntimeTable::Table {kind := (project (project state capturesA) kind), root := (Uorc.Core.RuntimeValue::nullHandle)}), capturesB := (record Uorc.Core.RuntimeTable::Table {kind := (project (project state capturesB) kind), root := (Uorc.Core.RuntimeValue::nullHandle)}), bucketSlots := (record Uorc.Core.RuntimeTable::Table {kind := (project (project state bucketSlots) kind), root := (Uorc.Core.RuntimeValue::nullHandle)}), initialRelease := (Uorc.Core.RuntimeValue::nullHandle), blockRecord := (Uorc.Core.RuntimeValue::nullHandle), instructionRecord := (Uorc.Core.RuntimeValue::nullHandle), bucketRecord := (Uorc.Core.RuntimeValue::nullHandle), literal := (Uorc.Core.RuntimeValue::nullHandle), auxFirst := (Uorc.Core.RuntimeValue::nullHandle), auxSecond := (Uorc.Core.RuntimeValue::nullHandle), control := (project state control), declaredResult := (project state declaredResult), returnSlot := (project state returnSlot), lifetimeCursor := (ctor Option.none [Uorc.Core.RuntimeLifetime::Cursor]), pendingSlot := (project state pendingSlot), bucketIndex := (project state bucketIndex), bucketCount := (project state bucketCount), bucketInitial := (project state bucketInitial), task := (ctor Uorc.Core.RuntimeAdmission::Task.stage (ctor Uorc.Core.RuntimeAdmission::Stage.awaiting)), failure := (ctor Option.none [Uorc.Core.RuntimeAdmission::Error]), literalBuilder := (Uorc.Core.RuntimeByteBuilder::emptyBuilder), literalOffset := (project state literalOffset), literalRemaining := (project state literalRemaining)}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: start,
+  parameters: [state : Uorc.Core.RuntimeAdmission::Cursor],
+  result: Cursor,
+  body: (record Cursor {state := state, remaining := (nil Uorc.Core.RuntimeValue::Handle), detached := false, draining := false, finished := false}),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: rootInventory,
+  parameters: [cursor : Cursor],
+  result: (List Uorc.Core.RuntimeValue::Handle),
+  body: (if (project cursor detached) then (prim append (project cursor remaining) (Uorc.Core.RuntimeAdmission::addOwnedRoot (project (project cursor state) control) (Uorc.Core.RuntimeProgram::rootInventory (project (project cursor state) program) (project (project cursor state) caller))) : (List Uorc.Core.RuntimeValue::Handle)) else (Uorc.Core.RuntimeAdmission::rootInventory (project cursor state))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: completed,
+  parameters: [cursor : Cursor],
+  result: Event,
+  body: (ctor Event.cancelled (record Cancelled {arena := (project (project cursor state) arena), usage := (project (project cursor state) usage), basis := (project (project (project cursor state) program) basis), caller := (project (project cursor state) caller)})),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: tickWork,
+  parameters: [cursor : Cursor],
+  result: UInt64,
+  body: (if (project cursor finished) then (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.idle)) else (if (project cursor detached) then (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)) else (if (Uorc.Core.Heap::isReleasing (project (project cursor state) arena)) then (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.heapReleaseStep)) else (Uorc.Core.RuntimeWork::fee (ctor Uorc.Core.RuntimeWork::Operation.cancelDetach))))),
+  axioms: [],
+  executable: true
+}
+
+definition{
+  name: observe,
+  parameters: [outcome : Event],
+  result: Event,
+  body: (match outcome
+    | Event.cancelled cancelled => (ctor Event.cancelled cancelled)
+    | Event.pending next => (match (Uorc.Core.RuntimeResources::observeArena (project (project next state) budget) (project (project next state) usage) (project (project next state) arena))
+      | Result.error resourceFailure => (ctor Event.failed (ctor Error.resource resourceFailure) next)
+      | Result.ok observed => (ctor Event.pending (record Cursor {state := (Uorc.Core.RuntimeAdmission::with_usage (project next state) observed), remaining := (project next remaining), detached := (project next detached), draining := (project next draining), finished := (project next finished)})))
+    | Event.failed error next => (match (Uorc.Core.RuntimeResources::observeArena (project (project next state) budget) (project (project next state) usage) (project (project next state) arena))
+      | Result.error resourceFailure => (ctor Event.failed (ctor Error.resource resourceFailure) next)
+      | Result.ok observed => (ctor Event.failed error (record Cursor {state := (Uorc.Core.RuntimeAdmission::with_usage (project next state) observed), remaining := (project next remaining), detached := (project next detached), draining := (project next draining), finished := (project next finished)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: advance,
+  parameters: [cursor : Cursor],
+  result: Event,
+  body: (if (Uorc.Core.Heap::isReleasing (project (project cursor state) arena)) then (match (Uorc.Core.Heap::releaseStep (project (project cursor state) arena))
+    | Result.error heapFailure => (ctor Event.failed (ctor Error.heap heapFailure) cursor)
+    | Result.ok transition => (ctor Event.pending (record Cursor {state := (Uorc.Core.RuntimeAdmission::with_usage (Uorc.Core.RuntimeAdmission::withArena (project cursor state) (project transition arena)) (project (project cursor state) usage)), remaining := (project cursor remaining), detached := (project cursor detached), draining := (not (project transition complete)), finished := (project cursor finished)}))) else (if (project cursor detached) then (match (project cursor remaining)
+    | List.nil => (if (Uorc.Core.RuntimeValue::isNull (project (project cursor state) control)) then (completed (record Cursor {state := (project cursor state), remaining := (project cursor remaining), detached := (project cursor detached), draining := (project cursor draining), finished := true})) else (match (Uorc.Core.Heap::release (project (project cursor state) arena) (project (project cursor state) control))
+      | Result.error heapFailure => (ctor Event.failed (ctor Error.heap heapFailure) cursor)
+      | Result.ok transition => (ctor Event.pending (record Cursor {state := (Uorc.Core.RuntimeAdmission::withArena (project (record Cursor {state := (Uorc.Core.RuntimeAdmission::withRoot (project cursor state) (ctor Uorc.Core.RuntimeAdmission::RootSlot.control) (Uorc.Core.RuntimeValue::nullHandle)), remaining := (project cursor remaining), detached := (project cursor detached), draining := (project cursor draining), finished := (project cursor finished)}) state) (project transition arena)), remaining := (project (record Cursor {state := (Uorc.Core.RuntimeAdmission::withRoot (project cursor state) (ctor Uorc.Core.RuntimeAdmission::RootSlot.control) (Uorc.Core.RuntimeValue::nullHandle)), remaining := (project cursor remaining), detached := (project cursor detached), draining := (project cursor draining), finished := (project cursor finished)}) remaining), detached := (project (record Cursor {state := (Uorc.Core.RuntimeAdmission::withRoot (project cursor state) (ctor Uorc.Core.RuntimeAdmission::RootSlot.control) (Uorc.Core.RuntimeValue::nullHandle)), remaining := (project cursor remaining), detached := (project cursor detached), draining := (project cursor draining), finished := (project cursor finished)}) detached), draining := (not (project transition complete)), finished := (project (record Cursor {state := (Uorc.Core.RuntimeAdmission::withRoot (project cursor state) (ctor Uorc.Core.RuntimeAdmission::RootSlot.control) (Uorc.Core.RuntimeValue::nullHandle)), remaining := (project cursor remaining), detached := (project cursor detached), draining := (project cursor draining), finished := (project cursor finished)}) finished)}))))
+    | List.cons head tail => (match (Uorc.Core.Heap::release (project (project cursor state) arena) head)
+      | Result.error heapFailure => (ctor Event.failed (ctor Error.heap heapFailure) cursor)
+      | Result.ok transition => (ctor Event.pending (record Cursor {state := (Uorc.Core.RuntimeAdmission::withArena (project (record Cursor {state := (project cursor state), remaining := tail, detached := (project cursor detached), draining := (project cursor draining), finished := (project cursor finished)}) state) (project transition arena)), remaining := (project (record Cursor {state := (project cursor state), remaining := tail, detached := (project cursor detached), draining := (project cursor draining), finished := (project cursor finished)}) remaining), detached := (project (record Cursor {state := (project cursor state), remaining := tail, detached := (project cursor detached), draining := (project cursor draining), finished := (project cursor finished)}) detached), draining := (not (project transition complete)), finished := (project (record Cursor {state := (project cursor state), remaining := tail, detached := (project cursor detached), draining := (project cursor draining), finished := (project cursor finished)}) finished)})))) else (ctor Event.pending (record Cursor {state := (clearSessionOwners (project cursor state)), remaining := (sessionRoots (project cursor state)), detached := true, draining := false, finished := (project cursor finished)})))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: tick,
+  parameters: [cursor : Cursor],
+  result: Event,
+  body: (if (project cursor finished) then (completed cursor) else (match (Uorc.Core.RuntimeResources::charge (project (project cursor state) budget) (project (project cursor state) usage) (record Uorc.Core.RuntimeResources::Event {work := (tickWork cursor), emittedBytes := (0 : UInt64), enteredFrames := (0 : UInt64), exitedFrames := (0 : UInt64)}))
+    | Result.error resourceFailure => (ctor Event.failed (ctor Error.resource resourceFailure) cursor)
+    | Result.ok chargedUsage => (observe (advance (record Cursor {state := (Uorc.Core.RuntimeAdmission::with_usage (project cursor state) chargedUsage), remaining := (project cursor remaining), detached := (project cursor detached), draining := (project cursor draining), finished := (project cursor finished)}))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

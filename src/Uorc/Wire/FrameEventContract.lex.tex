@@ -1,0 +1,204 @@
+\begin{lexlean}{Uorc.Wire.FrameEventContract}
+\importmodule{Uorc.Core.RuntimeValue}
+\importmodule{Uorc.Core.RuntimeTable}
+\importmodule{Uorc.Core.Heap}
+\importmodule{Uorc.Core.RuntimeProgram}
+\importmodule{Uorc.Core.RuntimeMetadata}
+\importmodule{Uorc.Integrity.Profile}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: FormatDisposition,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: diagnosticReference, fields: []},
+    {name: awaitingIntegrityBinding, fields: []},
+    {name: unsupported, fields: []},
+    {name: selected, fields: [Uorc.Integrity.Profile::Kind]}
+  ]
+}
+
+inductive{
+  name: Representation,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: raw, fields: []}, {name: program, fields: []}]
+}
+
+inductive{
+  name: Scope,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: selfContained, fields: []}, {name: conditional, fields: []}]
+}
+
+inductive{
+  name: Event,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: beginArchive, fields: [UInt8, UInt8, Scope, Representation]},
+    {name: beginObjects, fields: [UInt64]},
+    {name: objectLength, fields: [UInt64, UInt64]},
+    {name: beginBody, fields: [UInt64]},
+    {name: basisIdentitySpan, fields: [Uorc.Core.RuntimeValue::Handle, UInt64, UInt64]},
+    {name: bodySpan, fields: [Uorc.Core.RuntimeValue::Handle, UInt64, UInt64]},
+    {name: integritySpan, fields: [Uorc.Core.RuntimeValue::Handle, UInt64, UInt64]},
+    {name: endArchive, fields: []}
+  ]
+}
+
+structure{
+  name: OwnedLengths,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: table, type: Uorc.Core.RuntimeTable::Table},
+    {name: count, type: UInt64},
+    {name: totalOutputBytes, type: UInt64}
+  ]
+}
+
+structure{
+  name: ObjectCursor,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: lengths, type: OwnedLengths},
+    {name: index, type: UInt64},
+    {name: offset, type: UInt64},
+    {name: remaining, type: UInt64},
+    {name: opened, type: Bool}
+  ]
+}
+
+inductive{
+  name: ObjectEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: beginObject, fields: [UInt64, UInt64]},
+    {name: bytes, fields: [UInt64, Uorc.Core.RuntimeValue::Handle, UInt64, UInt64]},
+    {name: endObject, fields: [UInt64]},
+    {name: seal, fields: [UInt64]}
+  ]
+}
+
+inductive{
+  name: Failure,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: unsupportedFormat, fields: []},
+    {name: integrityBindingUnavailable, fields: []},
+    {name: invalidHeaderOrder, fields: []},
+    {name: lengthIndexMismatch, fields: []},
+    {name: lengthCountMismatch, fields: []},
+    {name: outputLengthOverflow, fields: []},
+    {name: bodyLengthMismatch, fields: []},
+    {name: unexpectedEOF, fields: []},
+    {name: duplicateEOF, fields: []},
+    {name: trailingBytes, fields: []},
+    {name: cancelled, fields: []},
+    {name: ticketNotTransferred, fields: []},
+    {name: addressSpaceExhausted, fields: []}
+  ]
+}
+
+definition{
+  name: diagnosticFormat,
+  parameters: [],
+  result: UInt8,
+  body: (2 : UInt8),
+  executable: true
+}
+
+definition{
+  name: streamingFormat,
+  parameters: [],
+  result: UInt8,
+  body: (3 : UInt8),
+  executable: true
+}
+
+definition{name: machineProfile, parameters: [], result: UInt8, body: (1 : UInt8), executable: true}
+
+definition{
+  name: dispatch,
+  parameters: [format : UInt8],
+  result: FormatDisposition,
+  body: (match (Uorc.Integrity.Profile::select (prim to_nat format : Nat) (prim to_nat (machineProfile) : Nat))
+    | Result.error causeLocal1 => (ctor FormatDisposition.unsupported)
+    | Result.ok kindLocal2 => (ctor FormatDisposition.selected kindLocal2)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lengthsMetadataKind,
+  parameters: [],
+  result: UInt64,
+  body: (1464422981 : UInt64),
+  executable: true
+}
+
+definition{
+  name: protocol,
+  parameters: [],
+  result: String,
+  body: "ArchiveParse is the bounded production frame syntax owner; FrameParse remains the independent format2 diagnostic reference. Profile.select is the sole format/machine integrity authority. dispatch returns selected(Profile.Kind) data for implemented format2/CHAIN and format3/STREAM-MAX, never an archive-acceptance token. Exact EOF, source-owned integrity, admission, execution and ordered reconstruction remain separate checks. Each objectLength requires an acknowledged actual charged indexed write, including zeros; OwnedLengths never stores a length List. Operational U64 refusal does not narrow finite mathematical archives.",
+  executable: true
+}
+
+definition{
+  name: ownership,
+  parameters: [],
+  result: String,
+  body: "All span events refer to charged immutable image handles with checked offset/length. Each pending span owns a retained ticket before exposure; acknowledgement moves that ticket to its next owner, or the recipient first retains a charged edge before the sender releases its ticket. ProgramParse.feed returns with a charged wire owner edge before the frame owner may acknowledge and release its span ticket. Cleanup retains sender ownership after cancellation/failure. No feed is inferred from a pure immutable state replacement. A bounded driver owns the frame, program, admission and integrity sessions and all pending tickets, carries their exact arenas/usages across work pauses, and never releases a ticket still referenced by another stage. The frame body length gates the program parser stream: program EOF occurs exactly at the body boundary and cannot consume integrity bytes. The parser seal remains provisional until admission, integrity, execution and ordered-object verification finish.",
+  executable: true
+}
+
+definition{
+  name: objects,
+  parameters: [],
+  result: String,
+  body: "ObjectCursor reads each next length by index from the charged OwnedLengths table through the runtime owner; no new table cursor is implemented here. Emit beginObject(index,length), exactly length bytes in retained span events, then endObject(index), including distinct begin/end events for every empty object. Advance the index only after acknowledgement of endObject. A source-free demultiplexer cannot replace the table with an uncharged List Nat. EOF after precisely count objects permits ObjectEvent.seal; premature/trailing bytes and index/count/aggregate mismatches are retained typed failures. Every emitted boundary, lookup, span handoff and failed/pending prefix is prepaid; cleanup roots and achieved usage survive cancellation and budget pauses.",
+  executable: true
+}
+
+definition{
+  name: lengthAt,
+  parameters: [
+    arena : Uorc.Core.Heap::Arena,
+    table : Uorc.Core.RuntimeTable::Table,
+    index : UInt64
+  ],
+  result: (Result UInt64 Uorc.Core.RuntimeProgram::Failure),
+  body: (match (project table kind)
+    | Uorc.Core.RuntimeTable::TableKind.slots roleLocal3 => (if (prim equal (Uorc.Core.RuntimeValue::roleTag roleLocal3) (Uorc.Core.RuntimeValue::roleTag (ctor Uorc.Core.RuntimeValue::RootRole.wire)) : Bool) then (Uorc.Core.RuntimeProgram::referenceAt arena table index) else (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.metadata (ctor Uorc.Core.RuntimeMetadata::Error.invalidRecord))))
+    | Uorc.Core.RuntimeTable::TableKind.metadata kindLocal4 => (if (prim equal kindLocal4 (lengthsMetadataKind) : Bool) then (match (Uorc.Core.RuntimeProgram::indexTarget arena table (lengthsMetadataKind) index)
+      | Result.error causeLocal5 => (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] causeLocal5)
+      | Result.ok recordLocal6 => (match (Uorc.Core.RuntimeMetadata::wordAt arena recordLocal6 (lengthsMetadataKind) (0 : UInt64))
+        | Result.error causeLocal7 => (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.metadata causeLocal7))
+        | Result.ok lengthLocal8 => (ctor Result.ok [UInt64, Uorc.Core.RuntimeProgram::Failure] lengthLocal8))) else (ctor Result.error [UInt64, Uorc.Core.RuntimeProgram::Failure] (ctor Uorc.Core.RuntimeProgram::Failure.metadata (ctor Uorc.Core.RuntimeMetadata::Error.invalidRecord))))),
+  axioms: [Quot.sound, propext],
+  executable: true
+}
+
+definition{
+  name: emptyLengthsTable,
+  parameters: [],
+  result: Uorc.Core.RuntimeTable::Table,
+  body: (record Uorc.Core.RuntimeTable::Table {kind := (ctor Uorc.Core.RuntimeTable::TableKind.slots (ctor Uorc.Core.RuntimeValue::RootRole.wire)), root := (Uorc.Core.RuntimeValue::nullHandle)}),
+  executable: true
+}
+
+definition{
+  name: lengthCarrierContract,
+  parameters: [],
+  result: String,
+  body: "OwnedLengths uses an explicitly tagged RuntimeTable. The production LengthStore writes TableKind.slots(wire) with natural-value leaves through the Core reserved cursor. lengthAt also reads the earlier TableKind.metadata(lengthsMetadataKind) carrier with indexed links to canonical word-at-key0 records. This is declared internal metadata representation dispatch, not a wire parser fallback; both emit the same ordered shortest-natural lengths, including zeros. No writer/traversal is duplicated from Core and no uncharged metadata WriteCursor List is retained by the wire length store.",
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}

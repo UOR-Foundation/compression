@@ -1,0 +1,71 @@
+\begin{lexlean}{Uorc.Product.InputModel}
+\useglossary{lexlean.std.bool@1.2.0}
+\importmodule{Uorc.Product.Api}
+\title{Boolean}
+\begin{semanticmodule}
+structure{
+  name: State,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: nextObject, type: Nat},
+    {name: inObject, type: Bool},
+    {name: ended, type: Bool},
+    {name: totalBytes, type: Nat}
+  ]
+}
+
+inductive{
+  name: Piece,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: beginObject, fields: [Nat]},
+    {name: chunk, fields: [Uorc.Product.Api::Span]},
+    {name: endObject, fields: [Nat]},
+    {name: endInput, fields: []}
+  ]
+}
+
+inductive{
+  name: Error,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: afterEnd, fields: []},
+    {name: objectAlreadyOpen, fields: []},
+    {name: noObject, fields: []},
+    {name: wrongObject, fields: []},
+    {name: objectStillOpen, fields: []}
+  ]
+}
+
+definition{
+  name: initial,
+  parameters: [],
+  result: State,
+  body: (record State {nextObject := 0, inObject := false, ended := false, totalBytes := 0}),
+  executable: true
+}
+
+definition{
+  name: accept,
+  parameters: [s : State, piece : Piece],
+  result: (Result State Error),
+  body: (if (project s ended) then (ctor Result.error [State, Error] (ctor Error.afterEnd)) else (match piece
+    | Piece.beginObject index => (if (project s inObject) then (ctor Result.error [State, Error] (ctor Error.objectAlreadyOpen)) else (if (index =? (project s nextObject)) then (ctor Result.ok [State, Error] (record State {nextObject := (project s nextObject), inObject := true, ended := (project s ended), totalBytes := (project s totalBytes)})) else (ctor Result.error [State, Error] (ctor Error.wrongObject))))
+    | Piece.chunk span => (if (project s inObject) then (ctor Result.ok [State, Error] (record State {nextObject := (project s nextObject), inObject := (project s inObject), ended := (project s ended), totalBytes := ((project s totalBytes) + (project span length))})) else (ctor Result.error [State, Error] (ctor Error.noObject)))
+    | Piece.endObject index => (if (project s inObject) then (if (index =? (project s nextObject)) then (ctor Result.ok [State, Error] (record State {nextObject := ((project s nextObject) + 1), inObject := false, ended := (project s ended), totalBytes := (project s totalBytes)})) else (ctor Result.error [State, Error] (ctor Error.wrongObject))) else (ctor Result.error [State, Error] (ctor Error.noObject)))
+    | Piece.endInput => (if (project s inObject) then (ctor Result.error [State, Error] (ctor Error.objectStillOpen)) else (ctor Result.ok [State, Error] (record State {nextObject := (project s nextObject), inObject := (project s inObject), ended := true, totalBytes := (project s totalBytes)}))))),
+  executable: true
+}
+
+definition{
+  name: boundary,
+  parameters: [],
+  result: String,
+  body: "The adapter validates each charged span against the resource instance and backing extent before admission. InputModel checks ordered object boundaries, including empties, and explicit end-of-input. Lengths and identities are control metadata and do not prove any byte equality. No aggregate input-size or media-type limit is imposed here.",
+  executable: true
+}
+\end{semanticmodule}
+\end{lexlean}
