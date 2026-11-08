@@ -4,9 +4,9 @@ if(document.spec!=='lexlean/target-descriptors/1') throw Error('unexpected targe
 const target=document.targets.filter(t=>t.id==='rust-std');
 if(target.length!==1 || !/^[a-f0-9]{64}$/.test(target[0].digest)) throw Error('missing exact rust-std descriptor');
 // Atomic table writes and the old table/index controls are diagnostic only.
-const roots=['Heap.allocate','Heap.releaseStep','HeapTests.suite',
+// HeapTests.suite and RuntimeTableCursorTests.suite are closed test suites, not production roots.
+const roots=['Heap.allocate','Heap.releaseStep',
   'RuntimeTable.beginPut','RuntimeTable.beginErase','RuntimeTable.step','RuntimeTable.cancel',
-  'RuntimeTableCursorTests.suite',
   'RuntimeSequence.beginConcat','RuntimeSequence.beginSlice','RuntimeSequence.beginIndex',
   'RuntimeSequence.beginSpan','RuntimeSequence.step','RuntimeSequence.cancel',
   'RuntimeStore.step','RuntimeStore.cancel',

@@ -85,7 +85,7 @@ claim-dispositions:
     node scripts/claims-validation.mjs
 
 # Always executed, including in the two complete offline CI invocations.
-# This invokes model/build/verify in clean roots, never recursively `just vv`.
+# This invokes model/build in clean roots, never recursively `just vv`.
 reproducibility:
     node scripts/offline-validation.mjs reproduce
 

@@ -3,7 +3,7 @@
 
 This document describes the validation procedure and the exact-revision results
 recorded below. Actual results come from the `SDK offline reproducibility`
-workflow and its uploaded `offline-evidence-*` artifacts. A candidate projection artifact is
+workflow and its uploaded `offline-setup`, `offline-evidence-*` and `offline-comparison` artifacts. A candidate projection artifact is
 review material only; the acceptance job never installs it to make a check pass.
 
 ## Declared pipeline
@@ -19,27 +19,34 @@ own lock/template validators.
 
 `just reproducibility` is part of every `just vv`. It creates two distinct clean
 absolute roots, copies source without proof/build/acquisition outputs, and runs
-model generation plus LexLean lock/format/check/build/verify in each. It compares
+model generation plus LexLean lock/format/check/build in each. It compares
 every renderer-declared projection against the committed original and compares
-every file in the returned build and verified artifact trees. It rejects extra
+every file in the returned build artifact trees. It rejects extra
 content-addressed result trees, missing/wrong artifact paths, symlinked artifact
 or projection parents, empty/duplicate projection inventories, differing bytes,
-and embedded checkout paths. It does not invoke `just vv` recursively.
+and embedded checkout paths. It does not invoke `just vv` recursively. The full
+`lexlean verify` runs once per push in the bootstrap `artifacts` leg; two-root
+identity of the verified trees is established by the offline workflow below.
 
-The read-only CI job invokes `node scripts/offline-validation.mjs isolated`
-inside the exact image from `prismpm.lock`. That orchestrator:
+The offline workflow runs inside the exact image from `prismpm.lock`, in three
+stages:
 
-1. Uses explicit online acquisition (`cargo fetch --locked` and `cargo deny
-   --locked --all-features fetch`) with the SDK's binaries. It seals source,
-   actual SDK inventory, and every acquisition-cache file into `setup.json`.
-2. Creates two more distinct clean roots and runs the complete `just vv` in each
-   with `--network=none`, no Docker socket, no credentials or adjacent-checkout
-   mount, and independently copied caches and application/proof output paths.
-3. Checks the sealed setup before compilation and verifies that only the
-   loopback interface is visible. The SDK validates its own PATH and lock.
-4. Compares complete current-build canonical inventories and execution identity.
-   Reusing dependencies never replaces proof construction or replay.
-5. Executes missing/stale/damaged setup negatives in no-network SDK containers.
+1. `offline-setup` runs `node scripts/offline-validation.mjs acquire`: explicit
+   online acquisition (`cargo fetch --locked` and `cargo deny --locked
+   --all-features fetch`) with the SDK's binaries, sealing source, actual SDK
+   inventory, and every acquisition-cache file into `setup.json`. It executes
+   the missing/stale/damaged setup negatives in no-network SDK containers. The
+   sealed acquisition is handed on as one tarball, because `cargo deny fetch`
+   follows the live advisory database and two separate setups need not match.
+2. Two parallel `offline` jobs (`first`, `second-distinct-root`) each run
+   `isolated <root> <acquisition>`: check the sealed setup, then build and
+   verify a distinct clean root with `--network=none`, no Docker socket, no
+   credentials or adjacent-checkout mount, and its own application/proof output
+   paths, verifying that only the loopback interface is visible.
+3. `offline-compare` compares the two complete current-build canonical
+   inventories (build and verified trees) and execution identity byte for byte,
+   and uploads `offline-comparison.json`. Reusing dependencies never replaces
+   proof construction or replay.
 
 The orchestrator alone sees a Docker daemon for launching containers. Online
 universal bootstrap remains supported; it runs the same always-on reproduction

@@ -20,6 +20,16 @@ for (const [component, rows] of [['reader', 107], ['calls', 44], ['trace', 20]])
     assert.equal(receipt.mutation.restoredLeancheckerExit, 0);
     assert.equal(receipt.mutation.restoredBuildIdentical, true);
     assert.ok(receipt.mutation.rejectedDeclarations.length > 0);
+    // The kept mutant is exactly the planted source the receipt names.
+    const mutant = JSON.parse(evidenceFile('.', `validation/integrity/consumer/${component}/mutant-source.json`));
+    assert.equal(mutant.source_path, receipt.mutation.sourcePath);
+    assert.equal(sha(mutant.notation), receipt.mutation.mutantSourceSha256);
+    // The rejecting module is named, and its kernel exit is the recorded one.
+    const law = `Uorc.Uorc.Integrity.${{reader: 'OwnedReadCoverageLaws', calls: 'ClosedArchiveCallLaws', trace: 'ArchiveIntegrityTraceLaws'}[component]}`;
+    assert.equal(receipt.mutation.rejectingModule, component === 'trace' ? 'Uorc.Uorc.Integrity.ClosedArchiveCallLaws' : law);
+    const exits = JSON.parse(evidenceFile('.', `validation/integrity/consumer/${component}/mutant-compile.json`));
+    assert.deepEqual(exits.at(-1), {module: receipt.mutation.rejectingModule, exit_code: 1});
+    if (receipt.mutation.rejectingModule !== law) assert.ok(!exits.some(e => e.module === law), `${law} must not be reported as compiled`);
     assert.equal(receipt.original_pinned_sdk_acceptance, false);
     assert.equal(receipt.full_product_acceptance, false);
   });
