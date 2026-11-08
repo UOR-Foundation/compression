@@ -18,10 +18,10 @@ mod tests {
     }
 
     fn digest(path: &Path) -> String {
-        format!(
-            "{:x}",
-            Sha256::digest(std::fs::read(path).expect("bound file exists"))
-        )
+        Sha256::digest(std::fs::read(path).expect("bound file exists"))
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
     }
 
     fn list_length(term: &Value) -> u64 {
