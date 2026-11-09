@@ -9,12 +9,24 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+# A newer push to a pull request supersedes its older run.
+concurrency:
+  group: bootstrap-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # `just vv` runs here as independent legs, each from its own clean checkout,
   # at once. Together the legs run every recipe of `vv` exactly once on the
   # normative x86-64 host; the arm host runs the host-dependent `rest` leg.
   # Wall time is the slowest leg, not the sum.
+  #
+  # Every leg but `rest` is a formal obligation: it runs once per content
+  # identity κ of its inputs (scripts/ci-receipt.sh) and uploads a receipt when
+  # it passes. A later run with the same κ (a product-only change, a rerun, the
+  # merge of an up-to-date pull request) finds the receipt and does not repeat
+  # the work. `rest` checks the product and runs on every revision.
   template-gate:
     name: acceptance / ${{ matrix.leg }} / ${{ matrix.runner }}
     strategy:
@@ -24,7 +36,7 @@ jobs:
           - { leg: rest, runner: ubuntu-24.04, recipes: "lexlean-authority template-check fmt-check model lint test features bdd deny" }
           - { leg: rest, runner: ubuntu-24.04-arm, recipes: "lexlean-authority template-check fmt-check model lint test features bdd deny" }
           - { leg: artifacts, runner: ubuntu-24.04, recipes: "lexlean-artifacts" }
-          - { leg: claims, runner: ubuntu-24.04, recipes: "claim-dispositions" }
+          - { leg: claims, runner: ubuntu-24.04, recipes: "claim-dispositions formal-tests" }
           - { leg: varint, runner: ubuntu-24.04, recipes: "varint-proofs" }
           - { leg: reproducibility, runner: ubuntu-24.04, recipes: "reproducibility" }
           - { leg: integrity, runner: ubuntu-24.04, recipes: "integrity" }
@@ -39,7 +51,16 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Look up a receipt for this leg's inputs
+        id: receipt
+        if: matrix.leg != 'rest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OBLIGATION: ${{ matrix.leg }}-${{ matrix.runner }}
+        run: scripts/ci-receipt.sh lookup "$OBLIGATION" >> "$GITHUB_OUTPUT"
       - name: Run this leg of the template gate through the locked SDK
+        if: steps.receipt.outputs.proved != 'true'
         shell: bash
         env:
           LEG_RECIPES: ${{ matrix.recipes }}
@@ -82,6 +103,20 @@ jobs:
               devcontainer --version
               exec just $LEG_RECIPES
             '
+      - name: Record the receipt for this leg's inputs
+        if: steps.receipt.outputs.proved == 'false'
+        shell: bash
+        env:
+          OBLIGATION: ${{ matrix.leg }}-${{ matrix.runner }}
+          KAPPA: ${{ steps.receipt.outputs.kappa }}
+        run: scripts/ci-receipt.sh record "$OBLIGATION" "$KAPPA"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: steps.receipt.outputs.proved == 'false'
+        with:
+          name: receipt-${{ matrix.leg }}-${{ matrix.runner }}-${{ steps.receipt.outputs.kappa }}
+          path: .tmp/receipt/receipt.json
+          if-no-files-found: error
+          retention-days: 90
 
   # The single required signal per host: it passes only when every leg passed.
   acceptance:
