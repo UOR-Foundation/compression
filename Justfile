@@ -11,7 +11,7 @@ export LEXLEAN_VERIFY_HINTS := env_var_or_default("LEXLEAN_VERIFY_HINTS", justfi
 default: vv
 
 # The whole gate.
-vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts claim-dispositions varint-proofs reproducibility integrity
+vv: lexlean-authority template-check fmt-check model lint test features bdd deny lexlean-artifacts claim-dispositions varint-proofs reproducibility integrity formal-tests
     @echo "vv: the acceptance gate passed"
 
 # The UORC authority files are real LexLean source, not merely files with a
@@ -52,8 +52,14 @@ fmt-check:
 lint:
     cargo clippy --locked --workspace --all-targets -- -D warnings
 
+# The product and repository crates. The xtask suite drives the formal
+# runtimes (tens of minutes) and is its own recipe, `formal-tests`.
 test:
-    cargo test --locked --workspace
+    cargo test --locked --workspace --exclude xtask
+
+# The xtask suite: product-runtime, integrity, claims and offline harnesses.
+formal-tests:
+    cargo test --locked -p xtask
 
 # A feature only its author has built is a feature that does not work: nothing
 # else in the gate compiles a crate at anything but its default features, so a
