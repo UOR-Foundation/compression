@@ -1,22 +1,24 @@
 //! `uorc`: the command-line client.
 
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
 const USAGE: &str = "usage:
-  uorc compress   [--steps N] [--force] [--stats] <input|-> [-o <output|->]
+  uorc compress   [--steps N] [--threads N] [--force] [--stats] <input|-> [-o <output|->]
   uorc compress   [--steps N] [--force] [--stats] <file|dir>... -o <archive>
-  uorc decompress [--work N]  [--force|--resume] [--stats] <input|-> [-o <output|->]
+  uorc decompress [--work N]  [--threads N] [--force|--resume] [--stats] <input|-> [-o <output|->]
   uorc inspect    [--json] <archive|->
   uorc verify     [--work N] [--json] <archive|-> [original]
   uorc --version
 
 Compress writes the smaller of the ulz kernel archive and the raw archive;
 --steps N also runs the program search for N steps and keeps the smallest.
-Without -o, compress writes <input>.uorc and decompress strips a .uorc suffix
+Input of any size streams through 8 MiB frames, --threads N at a time
+(default: every core); each frame is one self-contained archive, written
+back to back. Without -o, compress writes <input>.uorc and decompress strips a .uorc suffix
 (or writes <input>.out). '-' reads stdin or writes stdout.
 
 Given a directory or several paths, compress stores them as one archive of
@@ -84,6 +86,7 @@ struct Options {
     force: bool,
     resume: bool,
     json: bool,
+    threads: Option<usize>,
     paths: Vec<String>,
     output: Option<String>,
 }
@@ -103,6 +106,16 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, Failure> {
                     value
                         .parse::<u64>()
                         .map_err(|_| usage(format!("{arg}: not a number: {value}")))?,
+                );
+            }
+            "--threads" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| usage("--threads needs a number"))?;
+                options.threads = Some(
+                    value
+                        .parse::<usize>()
+                        .map_err(|_| usage(format!("--threads: not a number: {value}")))?,
                 );
             }
             "--stats" => options.stats = true,
@@ -159,11 +172,19 @@ impl Pending {
         }
         unreachable!("the attempt loop returns")
     }
+}
 
-    fn write_all(&mut self, bytes: &[u8]) -> io::Result<()> {
-        self.file.as_mut().expect("open").write_all(bytes)
+impl Write for Pending {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.file.as_mut().expect("open").write(bytes)
     }
 
+    fn flush(&mut self) -> io::Result<()> {
+        self.file.as_mut().expect("open").flush()
+    }
+}
+
+impl Pending {
     /// Flush to disk and move into place: atomically, and without replacing
     /// an existing `dest` unless `force`.
     fn commit(mut self, dest: &Path, force: bool) -> io::Result<()> {
@@ -388,6 +409,61 @@ fn restore(
     Ok(written)
 }
 
+fn open_input(path: &str) -> Result<Box<dyn Read>, Failure> {
+    Ok(if path == "-" {
+        Box::new(io::stdin().lock())
+    } else {
+        Box::new(BufReader::with_capacity(
+            1 << 20,
+            File::open(path).map_err(|e| io_failure(path, e))?,
+        ))
+    })
+}
+
+/// Read enough of a stream to see its first archive header, and whether that
+/// archive holds several objects (a tree). The bytes read are handed back in
+/// front of the rest of the stream.
+fn peek_tree(mut input: Box<dyn Read>) -> io::Result<(bool, Box<dyn Read>)> {
+    let mut prefix = Vec::new();
+    let mut want = uorc::HEADER_HINT;
+    loop {
+        (&mut input)
+            .take((want - prefix.len()) as u64)
+            .read_to_end(&mut prefix)?;
+        match uorc::frame_length(&prefix) {
+            Ok(None) if prefix.len() == want => want *= 2,
+            _ => break,
+        }
+    }
+    let tree = uorc::object_lengths(&prefix).is_ok_and(|lengths| lengths.len() != 1);
+    Ok((tree, Box::new(io::Cursor::new(prefix).chain(input))))
+}
+
+fn decompress_tree(options: &Options, mut input: Box<dyn Read>, path: &str) -> Result<(), Failure> {
+    if path == "-" {
+        return Err(usage(
+            "a multi-object archive restores to a directory; give -o <dir>",
+        ));
+    }
+    let mut stream = Vec::new();
+    input
+        .read_to_end(&mut stream)
+        .map_err(|e| io_failure(&options.paths[0], e))?;
+    let started = Instant::now();
+    let entries =
+        uorc::decompress_tree(&stream, options.budget.unwrap_or(uorc::DEFAULT_DECODE_WORK))?;
+    let written = restore(&entries, Path::new(path), options)?;
+    if options.stats {
+        eprintln!(
+            "{{\"command\":\"decompress\",\"entries\":{},\"written\":{written},\"input_bytes\":{},\"seconds\":{:.6}}}",
+            entries.len(),
+            stream.len(),
+            started.elapsed().as_secs_f64()
+        );
+    }
+    Ok(())
+}
+
 fn transform(options: &Options) -> Result<(), Failure> {
     let compress = options.command == "compress";
     if compress && is_tree_request(options) {
@@ -402,43 +478,51 @@ fn transform(options: &Options) -> Result<(), Failure> {
             .strip_suffix(".uorc")
             .map_or_else(|| format!("{input_path}.out"), str::to_owned),
     };
-    let input = read(input_path)?;
-    if !compress && uorc::inspect(&input).is_ok_and(|info| info.object_lengths.len() != 1) {
-        if path == "-" {
-            return Err(usage(
-                "a multi-object archive restores to a directory; give -o <dir>",
-            ));
+    let mut input = open_input(input_path)?;
+    if !compress {
+        let (tree, rest) = peek_tree(input).map_err(|e| io_failure(input_path, e))?;
+        if tree {
+            return decompress_tree(options, rest, &path);
         }
-        let started = Instant::now();
-        let entries =
-            uorc::decompress_tree(&input, options.budget.unwrap_or(uorc::DEFAULT_DECODE_WORK))?;
-        let written = restore(&entries, Path::new(&path), options)?;
-        if options.stats {
-            eprintln!(
-                "{{\"command\":\"decompress\",\"entries\":{},\"written\":{written},\"input_bytes\":{},\"seconds\":{:.6}}}",
-                entries.len(),
-                input.len(),
-                started.elapsed().as_secs_f64()
-            );
-        }
-        return Ok(());
+        input = rest;
     }
     check_free(&path, options.force)?;
-    let started = Instant::now();
-    let output = if compress {
-        uorc::compress(&input, options.budget.unwrap_or(uorc::DEFAULT_STEPS))?
-    } else {
-        uorc::decompress(&input, options.budget.unwrap_or(uorc::DEFAULT_DECODE_WORK))?
+    let threads = options.threads.unwrap_or_else(uorc::default_threads);
+    let run = |output: &mut dyn Write| {
+        if compress {
+            let steps = options.budget.unwrap_or(uorc::DEFAULT_STEPS);
+            uorc::compress_stream(input, output, steps, threads)
+        } else {
+            let work = options.budget.unwrap_or(uorc::DEFAULT_DECODE_WORK);
+            uorc::decompress_stream(input, output, work, threads)
+        }
     };
-    let elapsed = started.elapsed();
-    write(&path, &output, options.force)?;
+    let failed = |e: io::Error| match uorc::Error::of(&e) {
+        Some(error) => Failure::from(error),
+        None => io_failure(&format!("{input_path} -> {path}"), e),
+    };
+    let started = Instant::now();
+    let totals = if path == "-" {
+        run(&mut BufWriter::with_capacity(1 << 20, io::stdout().lock())).map_err(failed)?
+    } else {
+        let dest = Path::new(&path);
+        let mut pending = Pending::create(dest).map_err(|e| io_failure(&path, e))?;
+        let mut output = BufWriter::with_capacity(1 << 20, &mut pending);
+        let totals = run(&mut output).map_err(failed)?;
+        drop(output);
+        pending
+            .commit(dest, options.force)
+            .map_err(|e| io_failure(&path, e))?;
+        totals
+    };
     if options.stats {
         eprintln!(
-            "{{\"command\":\"{}\",\"input_bytes\":{},\"output_bytes\":{},\"seconds\":{:.6}}}",
+            "{{\"command\":\"{}\",\"input_bytes\":{},\"output_bytes\":{},\"frames\":{},\"seconds\":{:.6}}}",
             options.command,
-            input.len(),
-            output.len(),
-            elapsed.as_secs_f64()
+            totals.read,
+            totals.written,
+            totals.frames,
+            started.elapsed().as_secs_f64()
         );
     }
     Ok(())

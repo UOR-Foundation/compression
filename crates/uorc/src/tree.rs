@@ -2,7 +2,7 @@
 //!
 //! A tree of `n > 0` entries is stored as the objects
 //! `[manifest, file₁, …, fileₖ]`, one object per regular file in manifest
-//! order. An empty tree is the archive of zero objects. A one-object archive is
+//! order; a tree of directories only is `[manifest, empty]`. An empty tree is the archive of zero objects. A one-object archive is
 //! always a single plain byte stream, never a tree, so the two never collide.
 //!
 //! The manifest is:
@@ -106,6 +106,11 @@ pub fn to_objects(entries: &[Entry]) -> Result<Vec<Vec<u8>>, Error> {
         }
     }
     objects[0] = manifest;
+    if objects.len() == 1 {
+        // A tree of directories only: an empty end object keeps it from
+        // reading as a one-object plain stream.
+        objects.push(Vec::new());
+    }
     Ok(objects)
 }
 
@@ -144,6 +149,11 @@ pub fn from_objects(mut objects: Vec<Vec<u8>>) -> Result<Vec<Entry>, Error> {
             files.next().ok_or(Error::Decode)?
         };
         entries.push(Entry { path, kind, data });
+    }
+    let mut files = files.peekable();
+    if !entries.iter().any(|e| e.kind != Kind::Directory) && files.peek().is_some_and(Vec::is_empty)
+    {
+        files.next();
     }
     if at != rest.len() || files.next().is_some() {
         return Err(Error::Decode);
@@ -196,6 +206,14 @@ mod tests {
         assert_eq!(objects.len(), 3);
         assert_eq!(from_objects(objects).unwrap(), entries);
         assert!(to_objects(&[]).unwrap().is_empty());
+        let dirs = vec![Entry {
+            path: "d".into(),
+            kind: Kind::Directory,
+            data: vec![],
+        }];
+        let objects = to_objects(&dirs).unwrap();
+        assert_eq!(objects.len(), 2);
+        assert_eq!(from_objects(objects).unwrap(), dirs);
         assert!(from_objects(vec![]).unwrap().is_empty());
     }
 
