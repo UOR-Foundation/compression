@@ -17,8 +17,9 @@ SLOT, SPEC, ALIGN, LENL, LENR, LIT = 6216, 6472, 6587, 6603, 7149, 72
 W = {RANGE: 4, CODE: 4, POS: 8, SIZE: 8, TOTAL: 8, STATE: 1, KM: 2, KACC: 8, KW: 8, KVAL: 8, KLEN: 8, KDIST: 8}
 for r in REP: W[r] = 8
 
-def build(payload):
-    g = Graph()
+def build(payload, g=None):
+    """The kernel graph with `payload` as its constant; with None, the library whose last block is run(payload)."""
+    g = g or Graph()
     # get: acc*256 + store[key+i]
     b = g.block('getStep', [N, N, T, N], N)
     i, acc, st, key = (b.arg(k) for k in range(4))
@@ -348,8 +349,13 @@ def build(payload):
     b.returns(b.sread(st, b.add(OUT, i)))
     OUTB = b
 
-    b = g.block('entry', [], S)
-    pl = b.seq(payload)
+    if payload is None:
+        # the linked library form: the entry's work as a block of the payload
+        b = g.block('run', [S], S)
+        pl = b.arg(0)
+    else:
+        b = g.block('entry', [], S)
+        pl = b.seq(payload)
     st = b.fold(b.slen(pl), b.snew(b.byte(0)), PAYB, [pl])
     total = b.fold(8, b.nat(0), LENB, [st])
     code = b.nat(0)
@@ -359,3 +365,7 @@ def build(payload):
     st = b.fold(b.add(total, 1), st, STEP, [])
     b.returns(b.tabulate(get(b, st, SIZE), OUTB, [st]))
     return g, b
+
+
+def library(g=None):
+    return build(None, g)

@@ -10,8 +10,8 @@
 //! memory is bounded by the frame size and the worker count, never by the input.
 //!
 //! The hot paths are native Rust ports of the model: the ulz codec
-//! ([`ulz`]), the archive layout and the UORC-SHA256-CHAIN-v1 seal
-//! ([`archive`]). They write byte-identical archives, and the decoder only
+//! ([`ulz`]), the ncm context-mixing codec ([`ncm`]), the archive layout and
+//! the UORC-SHA256-CHAIN-v1 seal ([`archive`]). They write byte-identical archives, and the decoder only
 //! accepts what it can vouch for. Everything else (archives the native path
 //! declines, and the program search behind `steps > 0`) runs the certified
 //! Rust that `lexlean production build` exports from the model
@@ -21,15 +21,39 @@ use std::fmt;
 use std::io::{self, Read, Write};
 
 pub mod archive;
+pub mod ncm;
 pub mod ulz;
 
 /// Input bytes per frame. Each frame becomes one self-contained archive.
 pub const FRAME: usize = 8 << 20;
 
 /// Search steps spent by [`compress`] when the caller names no budget. With
-/// none, compress takes the smaller of the ulz kernel archive and the raw one;
-/// a positive budget also runs the program search and keeps the smallest.
+/// none, compress takes the smallest of the linked archives its [`Level`]
+/// allows and the raw one; a positive budget also runs the program search and
+/// keeps the smallest.
 pub const DEFAULT_STEPS: u64 = 0;
+
+/// Which coders compress tries. Archives name their decoder in the built-in
+/// standard basis, so decompress needs no level.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Level {
+    /// Raw or ulz (LZ + range coder): fast both ways.
+    #[default]
+    Fast,
+    /// Also the ncm context-mixing coder, kept when smaller: the best ratio,
+    /// at well under 1 MB/s per core each way.
+    Best,
+}
+
+impl Level {
+    /// The model's `level` argument.
+    fn model(self) -> u64 {
+        match self {
+            Level::Fast => 0,
+            Level::Best => 1,
+        }
+    }
+}
 
 /// Decoder work allowed per archive the reference decoder reconstructs.
 pub const DEFAULT_DECODE_WORK: u64 = 1 << 40;
@@ -92,39 +116,51 @@ pub fn default_threads() -> usize {
     std::thread::available_parallelism().map_or(1, usize::from)
 }
 
-/// Compress one frame into its archive: the smaller of the ulz kernel archive
-/// and the raw archive, exactly as the model's `compress input 0`; with
-/// `steps > 0`, the exported model also searches and keeps the smallest.
-pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
+/// Compress one frame into its archive exactly as the model's
+/// `compress input steps level`: the smallest of the linked ulz archive, with
+/// [`Level::Best`] the linked ncm archive, and the raw archive (earlier wins a
+/// tie); with `steps > 0` the exported model also searches and keeps the smallest.
+pub fn compress_frame(frame: &[u8], steps: u64, level: Level) -> Result<Vec<u8>, Error> {
     if steps > 0 {
-        return on_reference_stack(|| reference_compress(frame, steps));
+        return on_reference_stack(|| reference_compress(frame, steps, level));
     }
     let n = frame.len() as u64;
+    let mut best: Option<Vec<u8>> = None;
     let payload = ulz::encode(frame);
     // The model writes the coder output into a table of the next power of two
-    // at or above 2n + 64 bytes and falls back to raw if it would not fit.
+    // at or above 2n + 64 bytes; a payload that would not fit is no candidate.
     let fits = (payload.len() as u64 - 8) <= (2 * n + 64).next_power_of_two();
     if fits && ulz::decode(&payload, n).as_deref() == Some(frame) {
-        let kernel = archive::program_archive(n, &payload);
-        if (kernel.len() as u64) < archive::raw_length(n) {
-            return Ok(kernel);
+        best = Some(archive::linked_archive(archive::Codec::Ulz, n, &payload));
+    }
+    if level == Level::Best {
+        if let Some(payload) = ncm::encode(frame) {
+            let len = archive::linked_length(archive::Codec::Ncm, n, payload.len() as u64);
+            let smaller = best.as_ref().map_or(true, |b| len < b.len() as u64);
+            if smaller && ncm::decode(&payload, n).as_deref() == Some(frame) {
+                best = Some(archive::linked_archive(archive::Codec::Ncm, n, &payload));
+            }
         }
     }
-    Ok(archive::raw_archive(frame))
+    match best {
+        Some(linked) if (linked.len() as u64) < archive::raw_length(n) => Ok(linked),
+        _ => Ok(archive::raw_archive(frame)),
+    }
 }
 
-fn reference_compress(input: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-    match uorc_compress::run(uorc_compress::Bytes::lit(input), steps) {
+fn reference_compress(input: &[u8], steps: u64, level: Level) -> Result<Vec<u8>, Error> {
+    match uorc_compress::run(uorc_compress::Bytes::lit(input), steps, level.model()) {
         Ok(Some(archive)) => Ok(archive.octets().to_vec()),
         Ok(None) => Err(Error::Budget),
         Err(_) => Err(Error::Overflow),
     }
 }
 
-/// Reconstruct the bytes of one self-contained archive. Archives the native
-/// path vouches for (raw, and ulz kernel archives this client writes) decode
-/// natively; every other archive is reconstructed by the exported reference
-/// decoder within `work`.
+/// Reconstruct the bytes of one archive. Archives the native path vouches for
+/// (raw, ulz kernel archives, and the linked ulz and ncm archives this client
+/// writes) decode natively; every other archive (a linked one after linking the
+/// standard basis) is reconstructed by the exported reference decoder within
+/// `work`.
 pub fn decompress_frame(archive: &[u8], work: u64) -> Result<Vec<u8>, Error> {
     if let Some(output) = archive::fast_decode(archive) {
         return Ok(output);
@@ -165,14 +201,14 @@ fn parallel<T: Sync, U: Send>(items: &[T], threads: usize, f: impl Fn(&T) -> U +
 
 /// Compress `input` into a uorc stream (one archive per [`FRAME`] bytes),
 /// using every available core.
-pub fn compress(input: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
+pub fn compress(input: &[u8], steps: u64, level: Level) -> Result<Vec<u8>, Error> {
     let frames: Vec<&[u8]> = if input.is_empty() {
         vec![input]
     } else {
         input.chunks(FRAME).collect()
     };
     let mut out = Vec::new();
-    for archive in parallel(&frames, default_threads(), |f| compress_frame(f, steps)) {
+    for archive in parallel(&frames, default_threads(), |f| compress_frame(f, steps, level)) {
         out.extend_from_slice(&archive?);
     }
     Ok(out)
@@ -233,6 +269,7 @@ pub fn compress_stream(
     mut reader: impl Read,
     mut writer: impl Write,
     steps: u64,
+    level: Level,
     threads: usize,
 ) -> io::Result<Totals> {
     let threads = threads.max(1);
@@ -251,7 +288,7 @@ pub fn compress_stream(
         }
         for (frame, archive) in batch
             .iter()
-            .zip(parallel(&batch, threads, |f| compress_frame(f, steps)))
+            .zip(parallel(&batch, threads, |f| compress_frame(f, steps, level)))
         {
             let archive = archive?;
             writer.write_all(&archive)?;
@@ -342,7 +379,7 @@ mod tests {
 
     #[test]
     fn empty_round_trip() {
-        let archive = compress(b"", 100_000).expect("empty input has a raw archive");
+        let archive = compress(b"", 100_000, Level::Fast).expect("empty input has a raw archive");
         assert_eq!(
             decompress(&archive, DEFAULT_DECODE_WORK).expect("decodes"),
             b""
@@ -352,7 +389,7 @@ mod tests {
     #[test]
     fn arbitrary_bytes_round_trip() {
         let input: Vec<u8> = (0..=255u8).chain([0, 255, 0]).collect();
-        let archive = compress(&input, 40_000).expect("archive");
+        let archive = compress(&input, 40_000, Level::Fast).expect("archive");
         assert_eq!(
             decompress(&archive, DEFAULT_DECODE_WORK).expect("decodes"),
             input
@@ -370,7 +407,7 @@ mod tests {
 
     #[test]
     fn zero_budget_still_archives() {
-        let archive = compress(b"abc", 0).expect("raw archive");
+        let archive = compress(b"abc", 0, Level::Fast).expect("raw archive");
         assert_eq!(
             decompress(&archive, DEFAULT_DECODE_WORK).expect("decodes"),
             b"abc"
@@ -385,7 +422,7 @@ mod tests {
             .cycle()
             .take(20_000)
             .collect();
-        let archive = compress(&input, DEFAULT_STEPS).expect("archive");
+        let archive = compress(&input, DEFAULT_STEPS, Level::Fast).expect("archive");
         assert!(archive.len() < 4_000, "{} bytes", archive.len());
         assert_eq!(
             decompress(&archive, DEFAULT_DECODE_WORK).expect("decodes"),
@@ -462,8 +499,8 @@ mod tests {
         inputs.extend([(64, 1), (777, 2), (4096, 3), (20_000, 4)].map(|(n, s)| text(n, s)));
         inputs.push((0..=255u8).cycle().take(5000).collect());
         for input in inputs {
-            let native = compress_frame(&input, 0).expect("native");
-            let model = on_reference_stack(|| reference_compress(&input, 0)).expect("model");
+            let native = compress_frame(&input, 0, Level::Fast).expect("native");
+            let model = on_reference_stack(|| reference_compress(&input, 0, Level::Fast)).expect("model");
             assert_eq!(native, model, "{} bytes", input.len());
             assert_eq!(archive::fast_decode(&native), Some(input));
         }
@@ -515,11 +552,11 @@ mod tests {
     fn streams_are_frames_end_to_end() {
         let input = text(2 * FRAME + 12_345, 5);
         let mut stream = Vec::new();
-        let totals = compress_stream(&input[..], &mut stream, 0, 3).expect("compress");
+        let totals = compress_stream(&input[..], &mut stream, 0, Level::Fast, 3).expect("compress");
         assert_eq!(totals.frames, 3);
         assert_eq!(totals.read, input.len() as u64);
         assert_eq!(frames(&stream).expect("frames").len(), 3);
-        assert_eq!(stream, compress(&input, 0).expect("in memory"));
+        assert_eq!(stream, compress(&input, 0, Level::Fast).expect("in memory"));
         let mut back = Vec::new();
         let totals =
             decompress_stream(&stream[..], &mut back, DEFAULT_DECODE_WORK, 2).expect("decompress");
@@ -531,13 +568,13 @@ mod tests {
     #[test]
     fn empty_and_exact_frame_streams() {
         let mut stream = Vec::new();
-        compress_stream(&b""[..], &mut stream, 0, 4).expect("empty");
+        compress_stream(&b""[..], &mut stream, 0, Level::Fast, 4).expect("empty");
         assert_eq!(frames(&stream).expect("one").len(), 1);
         assert_eq!(decompress(&stream, DEFAULT_DECODE_WORK), Ok(Vec::new()));
         let input = vec![7u8; FRAME];
         let mut stream = Vec::new();
         assert_eq!(
-            compress_stream(&input[..], &mut stream, 0, 1)
+            compress_stream(&input[..], &mut stream, 0, Level::Fast, 1)
                 .expect("one frame")
                 .frames,
             1

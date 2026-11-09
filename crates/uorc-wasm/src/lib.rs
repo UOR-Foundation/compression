@@ -59,10 +59,19 @@ fn finish(result: Result<Vec<u8>, uorc::Error>) -> i32 {
     code
 }
 
-/// Compress the input buffer with a search budget of `steps`.
+/// Compress the input buffer with a search budget of `steps`; `best` (nonzero)
+/// also tries the context-mixing coder.
 #[no_mangle]
-pub extern "C" fn compress(steps: u64) -> i32 {
-    finish(INPUT.with(|input| uorc::compress(&input.borrow(), steps)))
+pub extern "C" fn compress(steps: u64, best: u32) -> i32 {
+    finish(INPUT.with(|input| uorc::compress(&input.borrow(), steps, level(best))))
+}
+
+fn level(best: u32) -> uorc::Level {
+    if best == 0 {
+        uorc::Level::Fast
+    } else {
+        uorc::Level::Best
+    }
 }
 
 /// Decompress the input buffer.
@@ -73,8 +82,8 @@ pub extern "C" fn decompress() -> i32 {
 
 /// Compress the input buffer as a single frame (at most [`frame_size`] bytes).
 #[no_mangle]
-pub extern "C" fn compress_frame(steps: u64) -> i32 {
-    finish(INPUT.with(|input| uorc::compress_frame(&input.borrow(), steps)))
+pub extern "C" fn compress_frame(steps: u64, best: u32) -> i32 {
+    finish(INPUT.with(|input| uorc::compress_frame(&input.borrow(), steps, level(best))))
 }
 
 /// Decompress the input buffer as a single archive.

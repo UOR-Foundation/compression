@@ -17,15 +17,15 @@ export async function load(url) {
   const header = Number(x.header_size());
   const bytesOf = async (blob) => new Uint8Array(await blob.arrayBuffer());
   return {
-    compress: (bytes, steps = 0n) => call(bytes, () => x.compress(BigInt(steps))),
+    compress: (bytes, steps = 0n, best = false) => call(bytes, () => x.compress(BigInt(steps), best ? 1 : 0)),
     decompress: (archive) => call(archive, () => x.decompress()),
     // Stream a File or Blob of any size through frames, one in wasm memory at
     // a time; the result is a Blob of the concatenated outputs.
-    async compressBlob(blob, steps = 0n, progress = () => {}) {
+    async compressBlob(blob, steps = 0n, progress = () => {}, best = false) {
       const parts = [];
       for (let at = 0; at < blob.size || at === 0; at += frame) {
         const piece = await bytesOf(blob.slice(at, at + frame));
-        parts.push(call(piece, () => x.compress_frame(BigInt(steps))));
+        parts.push(call(piece, () => x.compress_frame(BigInt(steps), best ? 1 : 0)));
         progress(Math.min(at + frame, blob.size), blob.size);
         if (blob.size === 0) break;
       }

@@ -18,6 +18,7 @@ function offer(blob, name) {
 }
 
 const steps = () => BigInt(Math.max(0, Math.floor(Number($("steps").value) || 0)));
+const best = () => $("best").checked;
 const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 try {
@@ -36,7 +37,7 @@ try {
       const started = performance.now();
       const progress = (done, total) => { status.textContent = `${verb} ${file.name}: ${done} of ${total} bytes…`; };
       try {
-        const output = id === "compress" ? await uorc.compressBlob(file, steps(), progress) : await uorc.decompressBlob(file, progress);
+        const output = id === "compress" ? await uorc.compressBlob(file, steps(), progress, best()) : await uorc.decompressBlob(file, progress);
         const seconds = ((performance.now() - started) / 1000).toFixed(2);
         status.textContent = `${file.size} → ${output.size} bytes in ${seconds} s.`;
         offer(output, id === "compress" ? `${file.name}.uorc` : file.name.replace(/\.uorc$/, "") || "output");
@@ -60,7 +61,7 @@ try {
       const started = performance.now();
       const row = document.createElement("tr");
       try {
-        const archive = uorc.compress(input, steps());
+        const archive = uorc.compress(input, steps(), best());
         const back = uorc.decompress(archive);
         const same = back.length === input.length && back.every((b, i) => b === input[i]);
         const cells = [label, input.length, archive.length, same ? "identical" : "MISMATCH", `${((performance.now() - started) / 1000).toFixed(2)} s`];

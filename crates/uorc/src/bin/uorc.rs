@@ -6,12 +6,14 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 const USAGE: &str = "usage:
-  uorc compress   [--steps N] [--threads N] [--stats] <input|-> [-o <output|->]
+  uorc compress   [--best] [--steps N] [--threads N] [--stats] <input|-> [-o <output|->]
   uorc decompress [--work N]  [--threads N] [--stats] <input|-> [-o <output|->]
   uorc --version
 
-Compress writes the smaller of the ulz kernel archive and the raw archive;
---steps N also runs the program search for N steps and keeps the smallest.
+Compress writes the smaller of the ulz archive and the raw archive; --best
+also tries the context-mixing coder (ncm: smaller, slower to decode), and
+--steps N also runs the program search for N steps; the smallest is kept.
+Archives name the built-in decoder basis by identity, so they carry no kernel.
 Input of any size streams through 8 MiB frames, --threads N at a time
 (default: every core); each frame is one self-contained archive.
 Without -o, compress writes <input>.uorc and decompress strips a .uorc suffix
@@ -20,6 +22,7 @@ Without -o, compress writes <input>.uorc and decompress strips a .uorc suffix
 struct Options {
     command: String,
     budget: Option<u64>,
+    level: uorc::Level,
     threads: Option<usize>,
     stats: bool,
     input: String,
@@ -30,6 +33,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
     let command = args.next().ok_or("missing command")?;
     let (mut budget, mut threads, mut stats, mut input, mut output) =
         (None, None, false, None, None);
+    let mut level = uorc::Level::Fast;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--steps" | "--work" => {
@@ -49,6 +53,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
                 );
             }
             "--stats" => stats = true,
+            "--best" => level = uorc::Level::Best,
             "-o" => output = Some(args.next().ok_or("-o needs a path")?),
             _ if input.is_none() => input = Some(arg),
             _ => return Err(format!("unexpected argument: {arg}")),
@@ -57,6 +62,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
     Ok(Options {
         command,
         budget,
+        level,
         threads,
         stats,
         input: input.ok_or("missing input")?,
@@ -100,7 +106,7 @@ fn run(options: Options) -> Result<(), String> {
     let started = Instant::now();
     let totals = if options.command == "compress" {
         let steps = options.budget.unwrap_or(uorc::DEFAULT_STEPS);
-        uorc::compress_stream(input, output, steps, threads)
+        uorc::compress_stream(input, output, steps, options.level, threads)
     } else {
         let work = options.budget.unwrap_or(uorc::DEFAULT_DECODE_WORK);
         uorc::decompress_stream(input, output, work, threads)
