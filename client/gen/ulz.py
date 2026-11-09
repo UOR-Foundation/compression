@@ -129,6 +129,10 @@ def lit_dec(d,m,prev,s,mb):
     while sym<0x100: sym=(sym<<1)|d.bit(p,base+sym)
     return sym-0x100
 def compress(data, depth=48, nice=64):
+    return compress_with(b'', data, depth, nice)
+def compress_with(hist, data, depth=48, nice=64):
+    # encode `data` against the window `hist`: matches may reach into it; only `data` is emitted
+    hl=len(hist); m_in=len(data); data=bytes(hist)+bytes(data)
     e=Enc(); m=model(); L=lenmodel(); R=lenmodel()
     n=len(data); HB=16; head=[-1]*(1<<HB); chain=[-1]*n
     def h(i): return ((data[i]<<16|data[i+1]<<8|data[i+2])*2654435761>>(32-HB))&((1<<HB)-1)
@@ -149,7 +153,8 @@ def compress(data, depth=48, nice=64):
                 if l>=nice: break
             j=chain[j]; c-=1
         return best,bd
-    s=0; reps=[0,0,0,0]; i=0
+    for j in range(hl): ins(j)
+    s=0; reps=[0,0,0,0]; i=hl
     while i<n:
         lim=min(MAXM,n-i)
         # reps
@@ -188,7 +193,7 @@ def compress(data, depth=48, nice=64):
         e.bit(m['isMatch'],s,0)
         mb=data[i-reps[0]-1] if i-reps[0]-1>=0 else 0
         lit_enc(e,m,prev,s,data[i],mb); s=st_lit(s); i+=1
-    return n.to_bytes(8,'little')+e.finish()
+    return m_in.to_bytes(8,'little')+e.finish()
 def decompress(blob):
     n=int.from_bytes(blob[:8],'little'); d=Dec(blob[8:]); m=model(); L=lenmodel(); R=lenmodel()
     out=bytearray(); s=0; reps=[0,0,0,0]

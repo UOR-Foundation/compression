@@ -312,10 +312,21 @@ definition{
 }
 
 definition{
-  name: start,
-  parameters: [input : Bytes],
+  name: startWith,
+  parameters: [history : Bytes, input : Bytes],
   result: (Bytes * DecS),
-  body: (let total : Nat := (readLength input 8 0 0); (let code : Nat := ((prim multiply 256 ((prim multiply 256 ((prim multiply 256 (byteAt input 9) : Nat) + (byteAt input 10)) : Nat) + (byteAt input 11)) : Nat) + (byteAt input 12)); ((prim append (Uorc.Codec.Table::fill 2 13 1024) (Uorc.Codec.Table::fill 1 (depthFor 64 total 0) 0) : Bytes), (record DecS {input := input, pos := 13, range := 4294967295, code := code, size := 0, total := total, state := 0, rep0 := 0, rep1 := 0, rep2 := 0, rep3 := 0})))),
+  body: (let h : Nat := (prim length history : Nat); (let total : Nat := (readLength input 8 0 0); (let code : Nat := ((prim multiply 256 ((prim multiply 256 ((prim multiply 256 (byteAt input 9) : Nat) + (byteAt input 10)) : Nat) + (byteAt input 11)) : Nat) + (byteAt input 12)); ((prim append (prim append (Uorc.Codec.Table::fill 2 13 1024) history : Bytes) (Uorc.Codec.Table::fill 1 (depthFor 64 total 0) 0) : Bytes), (record DecS {input := input, pos := 13, range := 4294967295, code := code, size := h, total := (h + total), state := 0, rep0 := 0, rep1 := 0, rep2 := 0, rep3 := 0}))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: decodeWith,
+  parameters: [history : Bytes, input : Bytes],
+  result: Bytes,
+  body: (let h : Nat := (prim length history : Nat); (let d : (Bytes * DecS) := (startWith history input); (let steps : Nat := ((prim subtract (project (second d) total) h : Nat) + 1); (let f : (Bytes * DecS) := (decodeLoop steps d); (let size : Nat := (project (second f) size); (match (prim slice (first f) (16384 + h) (prim subtract size h : Nat) : (Option Bytes))
+    | Option.none => 0x
+    | Option.some b => b)))))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
@@ -324,9 +335,7 @@ definition{
   name: decode,
   parameters: [input : Bytes],
   result: Bytes,
-  body: (let d : (Bytes * DecS) := (start input); (let steps : Nat := ((project (second d) total) + 1); (let f : (Bytes * DecS) := (decodeLoop steps d); (let size : Nat := (project (second f) size); (match (prim slice (first f) 16384 size : (Option Bytes))
-    | Option.none => 0x
-    | Option.some b => b))))),
+  body: (decodeWith 0x input),
   executable: true,
   axioms: [Quot.sound, propext]
 }

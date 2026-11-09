@@ -95,10 +95,15 @@ start = (f"(let n : Nat := (prim length data : Nat); (let od : Nat := ({DEC}::de
          + L.make({'mem': f"(prim append (prim append (prim append ({T}::fill 2 13 1024) ({T}::fill 4 16 0) : Bytes) ({T}::fill 4 cd 0) : Bytes) ({T}::fill 1 od 0) : Bytes)"},
                   dict(data='data', n='n', low='0', rng='4294967295', cache='0', csize='1', outSize='0', state='0', rep0='0', rep1='0', rep2='0', rep3='0', at='0', outBase=f'(278528 + (4 * {pow2(chr(99)+chr(100))}))')) + ")))")
 D('start', ['data : Bytes'], 'Enc', start)
-enc = (f"(let n : Nat := (prim length data : Nat); (let e : Enc := (start data); "
-       f"(let f : Enc := (shiftLow (shiftLow (shiftLow (shiftLow (shiftLow (encodeLoop (n + 1) e)))))); (let size : Nat := {P('f','outSize')}; "
-       f"(prim append (header 8 n) (match (prim slice {P('f','mem')} {P('f','outBase')} size : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b) : Bytes)))))")
-D('encode', ['data : Bytes'], 'Bytes', enc)
+# encode `input` against the window `history`: the match finder starts holding every history position,
+# the coder starts at the first input byte, and only the input is emitted
+D('startWith', ['history : Bytes', 'input : Bytes'], 'Enc',
+  f"(let e : Enc := (start (prim append history input : Bytes)); (let h : Nat := (prim length history : Nat); (insertRange h {upd('e', at='h')} 0)))")
+encW = (f"(let n : Nat := (prim length input : Nat); (let e : Enc := (startWith history input); "
+        f"(let f : Enc := (shiftLow (shiftLow (shiftLow (shiftLow (shiftLow (encodeLoop (n + 1) e)))))); (let size : Nat := {P('f','outSize')}; "
+        f"(prim append (header 8 n) (match (prim slice {P('f','mem')} {P('f','outBase')} size : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b) : Bytes)))))")
+D('encodeWith', ['history : Bytes', 'input : Bytes'], 'Bytes', encW)
+D('encode', ['data : Bytes'], 'Bytes', "(encodeWith 0x data)")
 src = ("\\begin{lexlean}{Uorc.Codec.LzEncode}\n\\importmodule{Uorc.Codec.Table}\n\\importmodule{Uorc.Codec.LzDecode}\n\\title{Parameters}\n\\begin{semanticmodule}\n"
        + L.structure() + "\n" + "\n".join(defs) + "\\end{semanticmodule}\n\\end{lexlean}\n")
 open(os.path.join(HERE, '..', 'src', 'Uorc', 'Codec', 'LzEncode.lex.tex'), 'w').write(src)

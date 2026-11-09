@@ -28,16 +28,22 @@ pub enum Representation {
     Raw,
     /// The body is the ulz decoder kernel graph with an LZ + range-coded payload.
     UlzKernel,
+    /// The body applies the standard basis's ulz decoder to an LZ + range-coded payload.
+    Ulz,
+    /// The body applies the standard basis's ncm (context-mixing) decoder to its payload.
+    Ncm,
     /// The body is any other UORC program graph (for example a search result).
     Program,
 }
 
 impl Representation {
-    /// A short lowercase name: `raw`, `ulz-kernel` or `program`.
+    /// A short lowercase name: `raw`, `ulz`, `ncm`, `ulz-kernel` or `program`.
     pub fn name(self) -> &'static str {
         match self {
             Representation::Raw => "raw",
             Representation::UlzKernel => "ulz-kernel",
+            Representation::Ulz => "ulz",
+            Representation::Ncm => "ncm",
             Representation::Program => "program",
         }
     }
@@ -267,6 +273,12 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
         Representation::Raw
     } else if body.starts_with(KERNEL_PREFIX) {
         Representation::UlzKernel
+    } else if h.basis == Some(crate::archive::BASIS_ID) {
+        match crate::archive::linked_codec(body) {
+            Some(crate::archive::Codec::Ulz) => Representation::Ulz,
+            Some(crate::archive::Codec::Ncm) => Representation::Ncm,
+            None => Representation::Program,
+        }
     } else {
         Representation::Program
     };
