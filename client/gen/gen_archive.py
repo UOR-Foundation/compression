@@ -47,11 +47,16 @@ D('lengthAt', ['data : Bytes'], '(Option (Nat * Nat))',
   "(match (readUleb 10 data 9 1 0)\n    | Option.none => (ctor Option.none [(Nat * Nat)])\n    | Option.some n => (match (readUleb 10 data (second n) 1 0)\n      | Option.none => (ctor Option.none [(Nat * Nat)])\n      | Option.some b => (ctor Option.some [(Nat * Nat)] ((first n), ((second b) + (prim length (kernelPrefix) : Nat))))))")
 D('kernelPayload', ['data : Bytes'], '(Option (Nat * Bytes))',
   "(match (lengthAt data)\n    | Option.none => (ctor Option.none [(Nat * Bytes)])\n    | Option.some np => (match (payloadAt data (second np))\n      | Option.none => (ctor Option.none [(Nat * Bytes)])\n      | Option.some payload => (match (programArchive (first np) payload)\n        | Option.none => (ctor Option.none [(Nat * Bytes)])\n        | Option.some rebuilt => (if (prim equal rebuilt data : Bool) then (ctor Option.some [(Nat * Bytes)] ((first np), payload)) else (ctor Option.none [(Nat * Bytes)])))))")
+# A raw archive's body is its one object; the rebuilt archive confirms the frame and the trailer.
+D('rawPayload', ['data : Bytes'], '(Option Bytes)',
+  "(match (readUleb 10 data 9 1 0)\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some n => (match (readUleb 10 data (second n) 1 0)\n      | Option.none => (ctor Option.none [Bytes])\n      | Option.some b => (match (prim slice data (second b) (first n) : (Option Bytes))\n        | Option.none => (ctor Option.none [Bytes])\n        | Option.some payload => (match (rawArchive payload)\n          | Option.none => (ctor Option.none [Bytes])\n          | Option.some rebuilt => (if (prim equal rebuilt data : Bool) then (ctor Option.some [Bytes] payload) else (ctor Option.none [Bytes]))))))")
 # The kernel graph's meaning on a payload the encoder wrote is what the certified decoder computes; a payload
 # the encoder would not write (re-encoding differs) is left to the reference path.
-D('fastDecode', ['data : Bytes'], '(Option Bytes)',
+D('kernelDecode', ['data : Bytes'], '(Option Bytes)',
   f"(match (kernelPayload data)\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some np => (let payload : Bytes := (second np); (let out : Bytes := ({DEC}::decode payload); "
   f"(if (((prim length out : Nat) =? (first np)) && (prim equal ({ENC}::encode out) payload : Bool)) then (ctor Option.some [Bytes] out) else (ctor Option.none [Bytes])))))")
+D('fastDecode', ['data : Bytes'], '(Option Bytes)',
+  "(match (prim index data 7 : (Option UInt8))\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some kind => (if ((prim to_nat kind : Nat) =? 0) then (rawPayload data) else (kernelDecode data)))")
 src = ("\\begin{lexlean}{Uorc.Codec.Archive}\n\\importmodule{Uorc.Codec.LzDecode}\n\\importmodule{Uorc.Codec.LzEncode}\n\\importmodule{Uorc.Integrity.Sha256}\n\\title{Parameters}\n\\begin{semanticmodule}\n"
        + "\n".join(defs) + "\\end{semanticmodule}\n\\end{lexlean}\n")
 open(os.path.join(HERE, '..', 'src', 'Uorc', 'Codec', 'Archive.lex.tex'), 'w').write(src)
