@@ -22,8 +22,6 @@ mod offline;
 mod open_claims;
 mod product_execution;
 #[cfg(test)]
-mod product_receipts;
-#[cfg(test)]
 mod varint;
 
 fn main() -> ExitCode {

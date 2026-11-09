@@ -65,3 +65,28 @@ pub extern "C" fn compress(steps: u64) -> i32 {
 pub extern "C" fn decompress() -> i32 {
     finish(INPUT.with(|input| uorc::decompress(&input.borrow(), uorc::DEFAULT_DECODE_WORK)))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run(input: &[u8], op: impl FnOnce() -> i32) -> (i32, Vec<u8>) {
+        INPUT.with(|buffer| *buffer.borrow_mut() = input.to_vec());
+        let code = op();
+        (code, OUTPUT.with(|output| output.borrow().clone()))
+    }
+
+    /// The page's exports run the library's compress and decompress unchanged.
+    #[test]
+    fn wasm_exports_match_the_library_uc_api_01() {
+        let input = [0u8, 0xff, 0xc3, 0x28, b'a', b'b', b'a', b'b', 0];
+        let (code, archive) = run(&input, || compress(0));
+        assert_eq!(code, OK);
+        assert_eq!(archive, uorc::compress(&input, 0).expect("library archive"));
+        assert_eq!(run(&archive, || decompress()), (OK, input.to_vec()));
+        assert_eq!(
+            run(b"not an archive", || decompress()),
+            (DECODE, Vec::new())
+        );
+    }
+}

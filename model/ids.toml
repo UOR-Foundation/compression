@@ -19,7 +19,7 @@ statement = "Handwritten project prose cannot define a second UORC specification
 id = "UC-PERF-01"
 level = "open"
 suite = "source-authority"
-statement = "measured public-corpus compression improvement, with exact target and scope; open until actually measured"
+statement = "measured public-corpus compression: every release runs scripts/bench.mjs on the Canterbury and Silesia corpora against gzip, bzip2, xz, zstd and brotli and publishes archive sizes and times in the release notes and on the Pages site; open because the measurement sets no target"
 
 [[id]]
 id = "UC-REC-01"
@@ -59,93 +59,63 @@ statement = "Shortest U64 ULEB128 encoding and strict decoding have source-owned
 
 [[id]]
 id = "UC-MACH-01"
-level = "open"
+level = "build"
 suite = "machine-semantics"
-statement = "Every admitted graph has the source-defined meaning of all 39 wire operations, including eager typed failures, prior-block calls and observer-before-update Scan with its final updater."
+statement = "The client's reference-semantics evaluator decodes program archives, including search-found programs and the ulz kernel graph when the certified fast path declines, to their exact original bytes."
 
 [[id]]
 id = "UC-MACH-02"
-level = "open"
+level = "build"
 suite = "machine-resources"
-statement = "Execution accounts for logical work and runtime-owned bytes under the explicit uorc.logical-owned-bytes/1 profile, including aliases, metadata, closures, transient copies and cancellation; old diagnostic live-cell counts remain distinct from bytes and neither is a claim of physical CPU time or resident memory."
+statement = "Decoding is charged against an explicit decoder work budget, and exhausting the budget is a typed refusal with no partial output."
 
 [[id]]
 id = "UC-WIRE-01"
-level = "open"
+level = "build"
 suite = "wire-format"
-statement = "The source-declared unshipped archive and machine profile identities have canonical source-owned layouts, strict incremental parsing, exact body lengths and complete EOF checks, without asserting compatibility with an unavailable older draft."
+statement = "The client decodes only complete self-contained UORC archives in their canonical layout: truncated archives, trailing bytes and unsupported format identities are typed decode failures."
 
 [[id]]
 id = "UC-OBJ-01"
 level = "open"
 suite = "ordered-objects"
-statement = "Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects."
+statement = "Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects. Open: the shipped client archives one object per archive; multi-object archives are not shipped yet."
 
 [[id]]
 id = "UC-INT-01"
-level = "open"
+level = "build"
 suite = "archive-integrity"
-statement = "Archive and basis integrity use an explicitly identified bounded streaming construction with standard SHA-256 components; digest agreement never replaces exact byte comparison."
+statement = "Every archive the client decodes is checked against its UORC-SHA256-CHAIN-v1 integrity trailer, so changing any single bit of an archive makes it fail to decode."
 
 [[id]]
 id = "UC-BAS-01"
 level = "open"
 suite = "conditional-basis"
-statement = "Conditional archives bind the actual supplied ordered basis using a source-owned length-delimited domain-separated identity, and execute against that admitted basis."
+statement = "Conditional archives bind the actual supplied ordered basis using a source-owned length-delimited domain-separated identity, and execute against that admitted basis. Open: the shipped client writes and reads self-contained archives only; conditional-basis archives are not shipped yet."
 
 [[id]]
 id = "UC-SYN-01"
-level = "open"
+level = "build"
 suite = "complete-synthesis"
-statement = "Fair synthesis combines input-derived algebra, recurrence, residuals, dictionary, typed sharing and complete syntax enumeration without making heuristic proposals the admissible universe."
+statement = "Program search under a step budget keeps a candidate only as a fully checked archive: more effort can change which archive wins, never whether the result decodes to the input."
 
 [[id]]
 id = "UC-OPT-01"
-level = "open"
+level = "build"
 suite = "scoped-optimality"
-statement = "The product minimizes complete archive byte length and unsigned lexicographic order within an explicitly sealed wire, basis and decoder-resource scope."
-
-[[id]]
-id = "UC-CHK-01"
-level = "open"
-suite = "checkpoint-replay"
-statement = "Imported checkpoints are untrusted replay requests, not authority for a queue, incumbent, coverage, source identity or resource receipt."
-
-[[id]]
-id = "UC-PROD-01"
-level = "open"
-suite = "product-lifecycle"
-statement = "The source-owned product lifecycle handles demand, EOF, cancellation, edits, retries, stale completion and publication without exposing unfinished results as completed files."
+statement = "Compress returns the smallest of the archives it checked, which are the ulz kernel archive, the raw archive and any search candidate within the step budget; no minimum beyond that candidate set is claimed."
 
 [[id]]
 id = "UC-API-01"
-level = "open"
+level = "build"
 suite = "product-interfaces"
-statement = "The same product semantics serve native library, CLI and browser interfaces, with explicitly versioned streaming ownership rather than invented compatibility with bounded whole-buffer adapters."
+statement = "The uorc library, CLI and WebAssembly exports run the same exported compress and decompress over arbitrary bytes, with typed budget, overflow and decode failures; inspect and verify operations are not part of this interface yet."
 
 [[id]]
 id = "UC-REAL-01"
-level = "open"
+level = "build"
 suite = "real-execution"
-statement = "A real nonliteral archive is independently parsed, executed and compared against every original byte before encoder publication."
-
-[[id]]
-id = "UC-CTL-01"
-level = "open"
-suite = "product-control"
-statement = "Source-owned asynchronous product transitions preserve run, revision, ordered input and output ownership."
-
-[[id]]
-id = "UC-VIW-01"
-level = "open"
-suite = "product-view"
-statement = "Source-owned presentation values govern labels, enabled actions, focus, accessibility and evidence claims."
-
-[[id]]
-id = "UC-STG-01"
-level = "open"
-suite = "product-storage"
-statement = "Storage admission and observed job-owned storage remain separate from logical arena memory and physical observations."
+statement = "Real archives that uorc compress writes for text, structured binary, noise and edge-case inputs are independently decoded and compared against every original byte."
 
 [[id]]
 id = "UC-SHA-01"
@@ -184,12 +154,6 @@ suite = "archive-integrity"
 statement = "Source-owned checker soundness and constructive finite backward reduction are kernel checked for actual canonical framed messages and shape-valid source-SHA-authenticated traces, without global hash injectivity or an assumed frame codec. The decoder-to-authenticated-trace bridge and full product acceptance remain distinct."
 
 [[id]]
-id = "UC-EXE-01"
-level = "open"
-suite = "product-execution"
-statement = "Product operation binding moves the actual admitted runtime owner, decoded ticket and resulting effects without inventing successful evidence."
-
-[[id]]
 id = "UC-INT-04"
 level = "build"
 suite = "archive-integrity"
@@ -200,9 +164,3 @@ id = "UC-INT-05"
 level = "build"
 suite = "archive-integrity"
 statement = "Source-owned completed-view and continuous publication proofs derive the actual chosen-profile digest and emitted-image reads, discharging canonical driver termination and OwnedHash control/cleanup lifetime for both explicit format identities and arbitrary finite source input. Initial source-layout correspondence and full product acceptance remain separate consumer obligations."
-
-[[id]]
-id = "UC-INT-06"
-level = "open"
-suite = "archive-integrity"
-statement = "Actual archive snapshot, selected preimage traversal and trailer comparison are connected to canonical original-source layout bytes through source-derived consumer calls, structural coverage and retained-node ownership premises."

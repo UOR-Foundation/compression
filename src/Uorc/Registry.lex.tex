@@ -38,7 +38,7 @@ definition{
   name: ucPerf01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-PERF-01", level := "open", suite := "source-authority", statement := "measured public-corpus compression improvement, with exact target and scope; open until actually measured", given := "the registered public-corpus performance claim", when := "the honesty gate reads its disposition before any sealed benchmark result has established the target", expected := "the claim remains open rather than becoming implementation evidence", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-PERF-01", level := "open", suite := "source-authority", statement := "measured public-corpus compression: every release runs scripts/bench.mjs on the Canterbury and Silesia corpora against gzip, bzip2, xz, zstd and brotli and publishes archive sizes and times in the release notes and on the Pages site; open because the measurement sets no target", given := "the registered public-corpus performance claim", when := "the honesty gate reads its disposition", expected := "the claim remains open with its measurements reported, rather than becoming implementation evidence", evidenceKind := "none", researchDisposition := "not_measured"})
 }
 
 definition{
@@ -87,106 +87,76 @@ definition{
   name: uc_mach_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-MACH-01", level := "open", suite := "machine-semantics", statement := "Every admitted graph has the source-defined meaning of all 39 wire operations, including eager typed failures, prior-block calls and observer-before-update Scan with its final updater.", given := "typed admitted graphs and an independent mathematical reference semantics", when := "the source machine executes and its simulation obligations and distinguishing examples are checked", expected := "values and failures agree with the reference; unreachable code is still validated and no unsupported opcode or hidden literal shortcut is accepted", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-MACH-01", level := "build", suite := "machine-semantics", statement := "The client's reference-semantics evaluator decodes program archives, including search-found programs and the ulz kernel graph when the certified fast path declines, to their exact original bytes.", given := "a 64-byte program archive found by the exported search and a ulz kernel archive whose padded payload the fast path declines", when := "uorc decompress evaluates each program graph by the reference semantics", expected := "the output equals the original bytes exactly", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
   name: uc_mach_02,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-MACH-02", level := "open", suite := "machine-resources", statement := "Execution accounts for logical work and runtime-owned bytes under the explicit uorc.logical-owned-bytes/1 profile, including aliases, metadata, closures, transient copies and cancellation; old diagnostic live-cell counts remain distinct from bytes and neither is a claim of physical CPU time or resident memory.", given := "checked source runtime states, resource budgets, immutable backing identities and release cursors", when := "the checked machine takes one transition or ownership release step", expected := "attempts, decoder work, peak live ownership and failures preserve exact accounting; native addressability refusal is operational rather than a restriction of mathematical sequence meaning", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-MACH-02", level := "build", suite := "machine-resources", statement := "Decoding is charged against an explicit decoder work budget, and exhausting the budget is a typed refusal with no partial output.", given := "a program archive and decoder work budgets below and above its cost", when := "uorc decompress runs under each budget", expected := "the small budget returns a decode failure and no bytes, and the sufficient budget returns the exact original", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
   name: uc_wire_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-WIRE-01", level := "open", suite := "wire-format", statement := "The source-declared unshipped archive and machine profile identities have canonical source-owned layouts, strict incremental parsing, exact body lengths and complete EOF checks, without asserting compatibility with an unavailable older draft.", given := "self-contained and conditional raw/program archives, every opcode, malformed fields and all small transport partitions", when := "Frame and GraphEmit serialize and the independent FrameParse and GraphParse paths parse the bytes", expected := "accepted bytes have the specified canonical meaning; truncation, trailing bytes, non-shortest numbers, invalid graphs and unsupported identities reach typed failures", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-WIRE-01", level := "build", suite := "wire-format", statement := "The client decodes only complete self-contained UORC archives in their canonical layout: truncated archives, trailing bytes and unsupported format identities are typed decode failures.", given := "program and ulz kernel archives, each truncated at several points, extended with trailing bytes, and with an altered format identity", when := "uorc decompress parses them", expected := "the intact archives decode and every altered one returns a decode failure", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
   name: uc_obj_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-OBJ-01", level := "open", suite := "ordered-objects", statement := "Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects.", given := "ObjectSplit lengths with binary data, internal empty objects, partial input, excess bytes and empty transport chunks", when := "the demultiplexer consumes only demanded input and emits bounded byte spans until one-shot EOF", expected := "ordered bytes and empty boundaries are preserved; early EOF and trailing bytes fail; emitted pieces remain staged rather than implicitly published", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-OBJ-01", level := "open", suite := "ordered-objects", statement := "Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects. Open: the shipped client archives one object per archive; multi-object archives are not shipped yet.", given := "ObjectSplit lengths with binary data, internal empty objects, partial input, excess bytes and empty transport chunks", when := "the demultiplexer consumes only demanded input and emits bounded byte spans until one-shot EOF", expected := "ordered bytes and empty boundaries are preserved; early EOF and trailing bytes fail; emitted pieces remain staged rather than implicitly published", evidenceKind := "none", researchDisposition := "not_measured"})
 }
 
 definition{
   name: uc_int_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-INT-01", level := "open", suite := "archive-integrity", statement := "Archive and basis integrity use an explicitly identified bounded streaming construction with standard SHA-256 components; digest agreement never replaces exact byte comparison.", given := "source-owned integrity identities, locked independent vectors, split updates, finalization and a planted arithmetic defect", when := "the actual source checks the vectors and the archive path hashes the received preimage", expected := "standard-domain boundaries and any separately named composition are explicit; invalid protocols fail, mutations are caught, and no cryptographic assumption is reported as a kernel theorem", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-INT-01", level := "build", suite := "archive-integrity", statement := "Every archive the client decodes is checked against its UORC-SHA256-CHAIN-v1 integrity trailer, so changing any single bit of an archive makes it fail to decode.", given := "a program archive and a raw archive, each with every byte altered in its low and in its high bit", when := "uorc decompress reads each altered archive", expected := "every altered archive returns a decode failure and none yields output", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
   name: uc_bas_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-BAS-01", level := "open", suite := "conditional-basis", statement := "Conditional archives bind the actual supplied ordered basis using a source-owned length-delimited domain-separated identity, and execute against that admitted basis.", given := "actual immutable basis roots, altered bytes, reordered roots and inserted empty objects", when := "basis admission derives its identity and conditional archive validation checks the stored identifier", expected := "identity is never accepted merely because a caller supplies a matching tag; reconstruction is relative to the actual supplied basis and cryptographic binding assumptions remain explicit", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-BAS-01", level := "open", suite := "conditional-basis", statement := "Conditional archives bind the actual supplied ordered basis using a source-owned length-delimited domain-separated identity, and execute against that admitted basis. Open: the shipped client writes and reads self-contained archives only; conditional-basis archives are not shipped yet.", given := "actual immutable basis roots, altered bytes, reordered roots and inserted empty objects", when := "basis admission derives its identity and conditional archive validation checks the stored identifier", expected := "identity is never accepted merely because a caller supplies a matching tag; reconstruction is relative to the actual supplied basis and cryptographic binding assumptions remain explicit", evidenceKind := "none", researchDisposition := "not_measured"})
 }
 
 definition{
   name: uc_syn_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-SYN-01", level := "open", suite := "complete-synthesis", statement := "Fair synthesis combines input-derived algebra, recurrence, residuals, dictionary, typed sharing and complete syntax enumeration without making heuristic proposals the admissible universe.", given := "arbitrary input bytes, canonical input normalization, fair phase schedules and exact typed graph lowering", when := "the source scheduler advances proposals under explicit effort and each proposal passes independent archive validation", expected := "only fully charged executable candidates become incumbents; effort changes search progress rather than admissibility and transport partitions do not choose a different canonical search prefix", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-SYN-01", level := "build", suite := "complete-synthesis", statement := "Program search under a step budget keeps a candidate only as a fully checked archive: more effort can change which archive wins, never whether the result decodes to the input.", given := "an input and search budgets of 0, 10000 and 200000 steps", when := "uorc compress runs the search at each budget and each archive is decoded", expected := "every archive decodes to the exact input and a larger budget never yields a larger archive", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
   name: uc_opt_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-OPT-01", level := "open", suite := "scoped-optimality", statement := "The product minimizes complete archive byte length and unsigned lexicographic order within an explicitly sealed wire, basis and decoder-resource scope.", given := "a checked incumbent and the complete finite set of earlier canonical archives in the sealed scope", when := "the independent verifier replays every required predecessor or a proved equivalent canonical framing factorization", expected := "a minimum certificate is accepted only after complete coverage; interrupted or exhausted verification remains incomplete and no unrestricted global minimum is claimed", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-OPT-01", level := "build", suite := "scoped-optimality", statement := "Compress returns the smallest of the archives it checked, which are the ulz kernel archive, the raw archive and any search candidate within the step budget; no minimum beyond that candidate set is claimed.", given := "empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs", when := "uorc compress chooses its archive", expected := "the archive is never larger than the raw archive of the same length, and compressible text takes a strictly smaller archive", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
-definition{
-  name: uc_chk_01,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-CHK-01", level := "open", suite := "checkpoint-replay", statement := "Imported checkpoints are untrusted replay requests, not authority for a queue, incumbent, coverage, source identity or resource receipt.", given := "a saved checkpoint plus current full-byte source, basis, model and policy snapshots", when := "source-owned checkpoint validation compares actual data and reconstructs the admissible replay", expected := "mismatches fail or require fresh work; stale digests and serialized coverage cannot manufacture verification or a minimum certificate", evidenceKind := "none", researchDisposition := "not_measured"})
-}
 
-definition{
-  name: uc_prod_01,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-PROD-01", level := "open", suite := "product-lifecycle", statement := "The source-owned product lifecycle handles demand, EOF, cancellation, edits, retries, stale completion and publication without exposing unfinished results as completed files.", given := "live sessions, staged outputs, delayed responses, failures after output and host publication outcomes", when := "the controller applies the actual operation result and records the adapter outcome", expected := "only the current verified result may publish; cancellation cleans owned resources, late responses do not replace new input, and partial or unknown publication is reported honestly", evidenceKind := "none", researchDisposition := "not_measured"})
-}
 
 definition{
   name: uc_api_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-API-01", level := "open", suite := "product-interfaces", statement := "The same product semantics serve native library, CLI and browser interfaces, with explicitly versioned streaming ownership rather than invented compatibility with bounded whole-buffer adapters.", given := "binary input including NUL and invalid UTF-8, large streams, resource handles and repeated browser actions", when := "the generated native and Wasm interfaces execute compress, decompress, inspect, verify, resume, basis, frontier and comparison operations", expected := "arbitrary byte input has no media or UI-sized format gate; modeled errors, generated computation failures, resource refusal and fatal host outcomes remain distinct", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-API-01", level := "build", suite := "product-interfaces", statement := "The uorc library, CLI and WebAssembly exports run the same exported compress and decompress over arbitrary bytes, with typed budget, overflow and decode failures; inspect and verify operations are not part of this interface yet.", given := "binary input including NUL and invalid UTF-8, passed in memory and on stdin", when := "the library, the uorc binary and the Wasm exports compress and decompress it", expected := "all three produce the same archive and the exact original bytes, and a non-archive is a decode failure in each", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
   name: uc_real_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-REAL-01", level := "open", suite := "real-execution", statement := "A real nonliteral archive is independently parsed, executed and compared against every original byte before encoder publication.", given := "generated production executables, structured and unstructured binary corpora, exact source/SDK identities and baseline commands", when := "compression produces the complete archive and an independent decode reconstructs all ordered objects", expected := "byte equality and archive sizes are recorded from actual execution; finite fixtures, source simulation, performance measurements and mathematical proofs remain separate evidence", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-REAL-01", level := "build", suite := "real-execution", statement := "Real archives that uorc compress writes for text, structured binary, noise and edge-case inputs are independently decoded and compared against every original byte.", given := "the shipped client and empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs", when := "uorc compress writes each archive and uorc decompress reconstructs it", expected := "every reconstruction equals its original byte for byte, and compressible text takes a program archive under a quarter of its size", evidenceKind := "fixture_result", researchDisposition := "not_measured"})
 }
 
-definition{
-  name: uc_ctl_01,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-CTL-01", level := "open", suite := "product-control", statement := "Source-owned asynchronous product transitions preserve run, revision, ordered input and output ownership.", given := "typed positive and negative control scenarios covering repeated edits, start, cancel, navigation, checkpoint, retry, publication and shutdown", when := "the generated control runtime executes every registered scenario and a planted stale-completion defect", expected := "obsolete completions have no publication effect; checked output is downloadable only under current ownership and cleanup is explicit", evidenceKind := "none", researchDisposition := "not_measured"})
-}
 
-definition{
-  name: uc_viw_01,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-VIW-01", level := "open", suite := "product-view", statement := "Source-owned presentation values govern labels, enabled actions, focus, accessibility and evidence claims.", given := "source-owned presentation values, bound user actions and a closed typed application root for persistent state, effects, numeric edits, trusted callbacks, focus and retirement", when := "actual generated application and presentation controls run with repeated edits, stale actions, start/cancel, navigation, close and planted dispatch defects", expected := "checked results remain checked, scoped evidence carries its scope, transport size remains separate and no browser qualification is inferred from source controls", evidenceKind := "none", researchDisposition := "not_measured"})
-}
 
-definition{
-  name: uc_stg_01,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-STG-01", level := "open", suite := "product-storage", statement := "Storage admission and observed job-owned storage remain separate from logical arena memory and physical observations.", given := "typed storage reservations, achieved partial writes, bounded immutable input/output leases, prepaid image admission/extraction, frozen accounting work prefixes, scoped I/O totals and actual release/publication receipts under explicit requested quotas", when := "the generated storage, payload-image and output reporting owners execute quota/refusal, retained-prefix resume, cancellation, attachment identity, partial failed writes, stale settlement, unknown publication, cleanup and one-time transfer controls and reject planted defects", expected := "reserved and achieved storage remain separate from logical arena memory; input/output materialization is prepaid and bounded, failure retains achieved owners and actual publication, and settlement alone cannot claim verified archive success", evidenceKind := "none", researchDisposition := "not_measured"})
-}
 
 definition{
   name: streamingIntegrity,
@@ -230,12 +200,6 @@ definition{
   body: (record ConformanceRow {id := "UC-INT-03", level := "build", suite := "archive-integrity", statement := "Source-owned checker soundness and constructive finite backward reduction are kernel checked for actual canonical framed messages and shape-valid source-SHA-authenticated traces, without global hash injectivity or an assumed frame codec. The decoder-to-authenticated-trace bridge and full product acceptance remain distinct.", given := "the byte equality bridge, actual candidate checker, canonical framing and finite source-SHA-authenticated reverse traces", when := "the saved official component compiler verifies and replays the scoped proof source, then digest-guard, returned-witness and counter defects are planted and restored", expected := "the scoped proofs and exact axiom policies pass; actual false checksum/witness/counter behavior rejects at new proof owners; restored attestations agree without promoting this to original pinned product acceptance", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
-definition{
-  name: uc_exe_01,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-EXE-01", level := "open", suite := "product-execution", statement := "Product operation binding moves the actual admitted runtime owner, decoded ticket and resulting effects without inventing successful evidence.", given := "typed runtime-engine, producer/admission, semantic ReadyTransfer and noArena IO exchange, a charged immutable ordered-target descriptor, range-aware fresh decoded comparison, actual framing-to-inspection reports and resource-pause/cancellation/terminal-handoff scenarios", when := "the generated product execution owner drives concrete source roots and rejects planted stale, lost-ticket, target-alias, changed-boundary, truncated-range, duplicate-transfer, semantic-ledger-reset, inspection-as-execution, unpaid-getter or uncharged-initialization defects", expected := "one actual arena and every outside root ticket remain inventoried with accepted semantic budget/ledger; target equality requires every ordered length, actual byte and scoped EOF, while failed or cancelled cleanup retains achieved usage and receipts and engine completion alone cannot establish verified archive success", evidenceKind := "none", researchDisposition := "not_measured"})
-}
 
 definition{
   name: orderedIntegrityTranscript,
@@ -249,13 +213,6 @@ definition{
   parameters: [],
   result: ConformanceRow,
   body: (record ConformanceRow {id := "UC-INT-05", level := "build", suite := "archive-integrity", statement := "Source-owned completed-view and continuous publication proofs derive the actual chosen-profile digest and emitted-image reads, discharging canonical driver termination and OwnedHash control/cleanup lifetime for both explicit format identities and arbitrary finite source input. Initial source-layout correspondence and full product acceptance remain separate consumer obligations.", given := "actual completed ordered views, continuous actual finish/publication transitions and source-derived profile progress and lifetime laws", when := "the composed source theorem, all-declaration audits, exact source mutations and restored generated-model controls are replayed", expected := "canonical digest equality and emitted-image reads follow without caller-supplied hash success or preservation flags; source-layout and full byte reconstruction claims require their own consumer proofs", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
-}
-
-definition{
-  name: closedArchiveConsumerBridge,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-INT-06", level := "open", suite := "archive-integrity", statement := "Actual archive snapshot, selected preimage traversal and trailer comparison are connected to canonical original-source layout bytes through source-derived consumer calls, structural coverage and retained-node ownership premises.", given := "the exact compatible Core and Wire source, actual archive ownership and independently specified structural source layout", when := "the consumer bridge derives source-selected reader coverage and actual snapshot, retain/feed, trailer comparison and EOF transitions", expected := "only canonical digest equality for the actual retained preimage and exactly32 stored trailer bytes can establish main archive integrity; source lifetime and layout are not inferred from live roots or lengths", evidenceKind := "none", researchDisposition := "not_measured"})
 }
 \end{semanticmodule}
 \end{lexlean}
