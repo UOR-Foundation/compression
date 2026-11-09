@@ -309,15 +309,34 @@ impl Finder<'_> {
 
 /// The ulz payload of `data`, byte for byte `Uorc.Codec.LzEncode::encode data`.
 pub fn encode(data: &[u8]) -> Vec<u8> {
+    encode_with(&[], data)
+}
+
+/// The ulz payload of `input` against a `history` window it may copy from:
+/// the encoder runs over `history ++ input` with the match finder already
+/// holding every history position, and emits only `input`. With an empty
+/// history this is [`encode`].
+pub fn encode_with(history: &[u8], input: &[u8]) -> Vec<u8> {
+    let joined;
+    let data: &[u8] = if history.is_empty() {
+        input
+    } else {
+        joined = [history, input].concat();
+        &joined
+    };
     let n = data.len();
-    let mut rc = RangeEncoder::new(n / 2 + 64);
+    let start = history.len();
+    let mut rc = RangeEncoder::new(input.len() / 2 + 64);
     let mut probs = vec![1024u16; PROBS];
     let mut f = Finder {
         data,
         head: vec![0; 1 << HASH_BITS],
         chain: vec![0; n],
     };
-    let (mut state, mut reps, mut i) = (0usize, [0usize; 4], 0usize);
+    for j in 0..start {
+        f.insert(j);
+    }
+    let (mut state, mut reps, mut i) = (0usize, [0usize; 4], start);
     while i < n {
         let limit = (n - i).min(MAX_MATCH);
         let (mut rl, mut ri) = (0usize, 0usize);
@@ -398,7 +417,7 @@ pub fn encode(data: &[u8]) -> Vec<u8> {
     }
     let body = rc.finish();
     let mut payload = Vec::with_capacity(8 + body.len());
-    payload.extend_from_slice(&(n as u64).to_le_bytes());
+    payload.extend_from_slice(&(input.len() as u64).to_le_bytes());
     payload.extend_from_slice(&body);
     payload
 }
@@ -520,6 +539,13 @@ impl RangeDecoder<'_> {
 /// means the payload is invalid under the model, only that the native decoder
 /// does not vouch for it.
 pub fn decode(payload: &[u8], expected: u64) -> Option<Vec<u8>> {
+    decode_with(&[], payload, expected)
+}
+
+/// [`decode`] against the `history` window the payload was encoded with
+/// ([`encode_with`]): the output starts as `history`, matches may reach into
+/// it, and only the bytes after it are returned.
+pub fn decode_with(history: &[u8], payload: &[u8], expected: u64) -> Option<Vec<u8>> {
     if payload.len() < 13 {
         return None;
     }
@@ -527,7 +553,8 @@ pub fn decode(payload: &[u8], expected: u64) -> Option<Vec<u8>> {
     if total != expected {
         return None;
     }
-    let total = usize::try_from(total).ok()?;
+    let h = history.len();
+    let total = usize::try_from(total).ok()?.checked_add(h)?;
     let code = u32::from_be_bytes(payload[9..13].try_into().ok()?);
     if code == u32::MAX {
         return None;
@@ -541,7 +568,8 @@ pub fn decode(payload: &[u8], expected: u64) -> Option<Vec<u8>> {
     let mut probs: Box<Probs> = Box::new([1024u16; PROBS]);
     // A hostile header cannot make this allocate more than the payload could
     // possibly describe up front; the vector grows as output is produced.
-    let mut out: Vec<u8> = Vec::with_capacity(total.min(payload.len().saturating_mul(64)));
+    let mut out: Vec<u8> = Vec::with_capacity(total.min(h + payload.len().saturating_mul(64)));
+    out.extend_from_slice(history);
     let (mut state, mut reps) = (0usize, [0u64; 4]);
     while out.len() < total {
         let s = state;
@@ -624,7 +652,11 @@ pub fn decode(payload: &[u8], expected: u64) -> Option<Vec<u8>> {
             }
         }
     }
-    (rc.pos == payload.len()).then_some(out)
+    if rc.pos != payload.len() {
+        return None;
+    }
+    out.drain(..h);
+    Some(out)
 }
 
 #[cfg(test)]
@@ -668,6 +700,19 @@ mod tests {
         assert_eq!(decode(&encode(&zeros), 100_000), Some(zeros));
         let all: Vec<u8> = (0..=255u8).cycle().take(70_000).collect();
         assert_eq!(decode(&encode(&all), 70_000), Some(all));
+    }
+
+    #[test]
+    fn history_window_round_trips_and_helps() {
+        let history = sample(50_000, 21);
+        let mut input = history[10_000..30_000].to_vec();
+        input.extend(sample(5_000, 22));
+        let alone = encode(&input);
+        let with = encode_with(&history, &input);
+        assert!(with.len() * 3 < alone.len(), "{} vs {}", with.len(), alone.len());
+        assert_eq!(decode_with(&history, &with, input.len() as u64), Some(input.clone()));
+        assert_eq!(encode_with(&[], &input), alone);
+        assert_eq!(decode_with(&[], &alone, input.len() as u64), Some(input));
     }
 
     #[test]
