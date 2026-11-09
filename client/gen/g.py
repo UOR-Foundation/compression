@@ -77,6 +77,7 @@ class Block:
     def sslice(self, s, a, c): return self._emit('sequenceSlice', S, s, self._n(a), self._n(c))
     def sconcat(self, a, b): return self._emit('sequenceConcat', S, a, b)
     def single(self, b): return self._emit('singletonSequence', S, b)
+    def basis(self, i): return self._emit('basisGet', S, self._n(i))
     def snew(self, b): return self._emit('storeNew', T, b)
     def sread(self, st, k): return self._emit('storeRead', Y, st, self._n(k))
     def swrite(self, st, k, v): return self._emit('storeWrite', T, st, self._n(k), v)
@@ -201,6 +202,9 @@ def run_block(g, blk, args, counter):
             r = s[a:a + c]
         elif op == 'sequenceConcat': r = v(ops[0]) + v(ops[1])
         elif op == 'singletonSequence': r = bytes([v(ops[0])])
+        elif op == 'basisGet':
+            if v(ops[0]) >= len(BASIS): raise Fail('basis')
+            r = bytes(BASIS[v(ops[0])])
         elif op == 'storeNew': r = Store(v(ops[0]))
         elif op == 'storeRead':
             st = v(ops[0]); st.live(); r = st.m.get(v(ops[1]), st.default)
@@ -221,6 +225,10 @@ def run_block(g, blk, args, counter):
         slots.append(r)
     return slots[blk.ret.i]
 
-def evaluate(g, entry, counter=None):
+BASIS = []  # the basis roots basisGet reads during evaluate
+
+
+def evaluate(g, entry, counter=None, basis=()):
     counter = counter if counter is not None else [0]
+    BASIS[:] = list(basis)
     return run_block(g, entry, [], counter)

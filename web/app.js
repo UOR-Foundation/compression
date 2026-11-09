@@ -18,6 +18,7 @@ function offer(blob, name) {
 }
 
 const steps = () => BigInt(Math.max(0, Math.floor(Number($("steps").value) || 0)));
+const best = () => $("best").checked;
 const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 try {
@@ -54,7 +55,7 @@ try {
       if (!tree) {
         const file = files[0];
         const progress = (done, total) => { status.textContent = `Compressing ${file.name}: ${done} of ${total} bytes…`; };
-        const output = await uorc.compressBlob(file, steps(), progress);
+        const output = await uorc.compressBlob(file, steps(), progress, best());
         offer(output, `${file.name}.uorc`);
         return `${file.size} → ${output.size} bytes`;
       }
@@ -67,7 +68,7 @@ try {
         entries.push({ path, data: await bytesOf(file) });
       }
       const all = [...[...dirs].sort().map((path) => ({ path, kind: "directory" })), ...entries];
-      const output = uorc.compressFiles(all, steps());
+      const output = uorc.compressFiles(all, steps(), best());
       const root = files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "files";
       offer(new Blob([output]), `${root}.uorc`);
       return `${entries.length} files, ${entries.reduce((n, e) => n + e.data.length, 0)} → ${output.length} bytes`;
@@ -141,7 +142,7 @@ try {
       const started = performance.now();
       const row = document.createElement("tr");
       try {
-        const archive = uorc.compress(input, steps());
+        const archive = uorc.compress(input, steps(), best());
         const back = uorc.decompress(archive);
         const same = back.length === input.length && back.every((b, i) => b === input[i]);
         const cells = [label, input.length, archive.length, same ? "identical" : "MISMATCH", `${((performance.now() - started) / 1000).toFixed(2)} s`];
