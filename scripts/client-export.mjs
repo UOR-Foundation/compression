@@ -1,5 +1,10 @@
-// Export the uorc client roots (src/Uorc/Client.lex.tex) to certified Rust packages
+// Export the uorc client roots (client/src/Uorc/Client.lex.tex) to certified Rust packages
 // through `lexlean production build`, into generated/rust/.
+//
+// The client's own modules live under client/src, outside the authority project:
+// the codec (client/src/Uorc/Codec) writes its tables with the in-place byte
+// update primitive, which only the pinned LexLean below has. The export stages
+// client/src over a copy of src, so the client imports authority modules freely.
 //
 // The authority graph marks only proof-relevant definitions executable, so the
 // export runs on a staged copy where two mechanical, meaning-preserving
@@ -28,7 +33,7 @@ import {dataForm, notation} from './semantic-source.mjs';
 
 const root = process.cwd();
 const out = path.join(root, 'generated/rust');
-const entry = 'src/Uorc/Client.lex.tex';
+const entry = 'src/Uorc/Client.lex.tex'; // staged path
 const roots = [['uorc_compress', 'Uorc.Uorc.Client.compress'], ['uorc_decompress', 'Uorc.Uorc.Client.decompress']];
 const LEXLEAN_REPO = 'https://github.com/UOR-Foundation/LexLean';
 const LEXLEAN_REV = '4c41d395286826faf568817f46e181c22b09cba1';
@@ -130,6 +135,7 @@ const lexlean = lexleanBinary();
 const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'uorc-client-export-'));
 try {
   for (const f of ['src', 'lexlean.toml', 'lakefile.toml', 'lake-manifest.json', 'lean-toolchain']) fs.cpSync(path.join(root, f), path.join(stage, f), {recursive: true});
+  fs.cpSync(path.join(root, 'client/src'), path.join(stage, 'src'), {recursive: true});
   const config = path.join(stage, 'lexlean.toml');
   fs.writeFileSync(config, fs.readFileSync(config, 'utf8').replace(/^entrypoints = .*$/m, `entrypoints = ["${entry}"]`));
   const modules = closure(stage);

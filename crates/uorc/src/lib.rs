@@ -1,13 +1,15 @@
 //! The uorc client library.
 //!
 //! Every operation here is the certified Rust that `lexlean production build`
-//! exports from `src/Uorc/Client.lex.tex` (see `scripts/client-export.mjs`).
+//! exports from `client/src/Uorc/Client.lex.tex` (see `scripts/client-export.mjs`).
 //! This crate only moves bytes across that boundary and names its failures.
 
 use std::fmt;
 
-/// Search steps spent by [`compress`] when the caller names no budget.
-pub const DEFAULT_STEPS: u64 = 10_000_000;
+/// Search steps spent by [`compress`] when the caller names no budget. With
+/// none, compress takes the smaller of the ulz kernel archive and the raw one;
+/// a positive budget also runs the program search and keeps the smallest.
+pub const DEFAULT_STEPS: u64 = 0;
 
 /// Decoder work allowed by [`decompress`]; decoding stops on its own when done.
 pub const DEFAULT_DECODE_WORK: u64 = 1 << 40;
@@ -59,8 +61,10 @@ fn on_stack<T>(work: impl FnOnce() -> T) -> T {
     work()
 }
 
-/// Compress `input` into the smallest checked archive found within `steps`
-/// search steps. The archive is verified against `input` before it is returned.
+/// Compress `input` into the smallest checked archive: the ulz kernel archive
+/// (an LZ/range-coder decoder program plus its payload), the raw archive, and,
+/// when `steps` is positive, the best archive the search finds within `steps`.
+/// Every candidate is verified against `input` before it is returned.
 pub fn compress(input: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
     on_stack(|| compress_here(input, steps))
 }
@@ -73,7 +77,10 @@ fn compress_here(input: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
     }
 }
 
-/// Reconstruct the original bytes of a self-contained archive.
+/// Reconstruct the original bytes of a self-contained archive. An archive
+/// whose program is the ulz kernel, with a payload the ulz encoder writes,
+/// runs the certified decoder directly; every other archive is reconstructed
+/// by the reference semantics.
 pub fn decompress(archive: &[u8], work: u64) -> Result<Vec<u8>, Error> {
     on_stack(|| decompress_here(archive, work))
 }
@@ -130,8 +137,44 @@ mod tests {
     }
 
     #[test]
-    fn zero_budget_is_a_budget_error() {
-        assert_eq!(compress(b"abc", 0), Err(Error::Budget));
+    fn zero_budget_still_archives() {
+        let archive = compress(b"abc", 0).expect("raw archive");
+        assert_eq!(
+            decompress(&archive, DEFAULT_DECODE_WORK).expect("decodes"),
+            b"abc"
+        );
+    }
+
+    #[test]
+    fn text_takes_the_kernel_archive() {
+        let input: Vec<u8> = b"the quick brown fox jumps over the lazy dog. "
+            .iter()
+            .copied()
+            .cycle()
+            .take(20_000)
+            .collect();
+        let archive = compress(&input, DEFAULT_STEPS).expect("archive");
+        assert!(archive.len() < 4_000, "{} bytes", archive.len());
+        assert_eq!(
+            decompress(&archive, DEFAULT_DECODE_WORK).expect("decodes"),
+            input
+        );
+    }
+
+    /// The ulz kernel archive of the empty input with one extra payload byte the
+    /// encoder would not write: the fast path declines it, so this decodes the
+    /// kernel graph by the reference semantics.
+    #[test]
+    fn kernel_graph_decodes_by_the_reference_semantics() {
+        let archive = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/kernel-empty-padded.uorc"
+        ))
+        .expect("fixture");
+        assert_eq!(
+            decompress(&archive, DEFAULT_DECODE_WORK).expect("decodes"),
+            b""
+        );
     }
 
     #[test]

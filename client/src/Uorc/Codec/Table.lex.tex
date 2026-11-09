@@ -1,0 +1,109 @@
+\begin{lexlean}{Uorc.Codec.Table}
+\title{Parameters}
+\begin{semanticmodule}
+definition{
+  name: byteOf,
+  parameters: [v : Nat],
+  result: UInt8,
+  body: (let r : Nat := (prim remainder v 256 0 : Nat); (prim bit_or (prim bit_or (prim bit_or (prim bit_or (prim bit_or (prim bit_or (prim bit_or (if ((prim remainder (prim quotient r 1 0 : Nat) 2 0 : Nat) =? 1) then (1 : UInt8) else (0 : UInt8)) (if ((prim remainder (prim quotient r 2 0 : Nat) 2 0 : Nat) =? 1) then (2 : UInt8) else (0 : UInt8)) : UInt8) (if ((prim remainder (prim quotient r 4 0 : Nat) 2 0 : Nat) =? 1) then (4 : UInt8) else (0 : UInt8)) : UInt8) (if ((prim remainder (prim quotient r 8 0 : Nat) 2 0 : Nat) =? 1) then (8 : UInt8) else (0 : UInt8)) : UInt8) (if ((prim remainder (prim quotient r 16 0 : Nat) 2 0 : Nat) =? 1) then (16 : UInt8) else (0 : UInt8)) : UInt8) (if ((prim remainder (prim quotient r 32 0 : Nat) 2 0 : Nat) =? 1) then (32 : UInt8) else (0 : UInt8)) : UInt8) (if ((prim remainder (prim quotient r 64 0 : Nat) 2 0 : Nat) =? 1) then (64 : UInt8) else (0 : UInt8)) : UInt8) (if ((prim remainder (prim quotient r 128 0 : Nat) 2 0 : Nat) =? 1) then (128 : UInt8) else (0 : UInt8)) : UInt8)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: readByte,
+  parameters: [t : Bytes, at : Nat],
+  result: Nat,
+  body: (match (prim index t at : (Option UInt8))
+    | Option.none => 0
+    | Option.some b => (prim to_nat b : Nat)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: writeByte,
+  parameters: [t : Bytes, at : Nat, v : Nat],
+  result: Bytes,
+  body: (match (prim update t at (byteOf v) : (Option Bytes))
+    | Option.none => 0x
+    | Option.some u => u),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: getLoop,
+  parameters: [fuel : Nat, t : Bytes, at : Nat, acc : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => acc
+    | Nat.succ k => (let b : Nat := (readByte t at); (getLoop k t (at + 1) ((prim multiply 256 acc : Nat) + b)))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: get,
+  parameters: [width : Nat, t : Bytes, key : Nat],
+  result: Nat,
+  body: (getLoop width t (prim multiply width key : Nat) 0),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: setLoop,
+  parameters: [fuel : Nat, t : Bytes, at : Nat, v : Nat],
+  result: Bytes,
+  body: (match fuel
+    | Nat.zero => t
+    | Nat.succ k => (setLoop k (writeByte t at (prim remainder v 256 0 : Nat)) (prim subtract at 1 : Nat) (prim quotient v 256 0 : Nat))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: set,
+  parameters: [width : Nat, t : Bytes, key : Nat, v : Nat],
+  result: Bytes,
+  body: (setLoop width t (prim subtract ((prim multiply width key : Nat) + width) 1 : Nat) v),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: double,
+  parameters: [fuel : Nat, b : Bytes],
+  result: Bytes,
+  body: (match fuel
+    | Nat.zero => b
+    | Nat.succ k => (double k (prim append b b : Bytes))),
+  executable: true,
+  axioms: [],
+  recursive_argument: fuel
+}
+
+definition{
+  name: zeros,
+  parameters: [width : Nat],
+  result: Bytes,
+  body: (match (prim slice 0x00000000 0 width : (Option Bytes))
+    | Option.none => 0x
+    | Option.some z => z),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: fill,
+  parameters: [width : Nat, depth : Nat, value : Nat],
+  result: Bytes,
+  body: (double depth (set width (zeros width) 0 value)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

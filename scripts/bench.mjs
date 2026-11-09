@@ -11,7 +11,7 @@ import {spawnSync} from 'node:child_process';
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) => (a.startsWith('--') ? [...acc, [a.slice(2), all[i + 1]]] : acc), []));
 const uorc = path.resolve(args.uorc ?? 'target/release/uorc');
 const corpus = path.resolve(args.corpus ?? fail('--corpus is required'));
-const steps = String(args.steps ?? 10_000_000);
+const steps = String(args.steps ?? 0);
 const out = path.resolve(args.out ?? 'bench-results');
 function fail(message) { console.error(message); process.exit(2); }
 

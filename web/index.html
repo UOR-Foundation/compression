@@ -23,8 +23,8 @@
     <input id="file" type="file">
   </div>
   <div class="row">
-    <label for="steps">Search steps (compress)</label>
-    <input id="steps" type="number" min="0" step="1000000" value="10000000" inputmode="numeric">
+    <label for="steps">Extra program-search steps (compress, 0 = none)</label>
+    <input id="steps" type="number" min="0" step="1000000" value="0" inputmode="numeric">
   </div>
   <div class="row buttons">
     <button id="compress" type="button" disabled>Compress</button>
@@ -48,7 +48,7 @@
 <section aria-labelledby="use">
   <h2 id="use">Use it</h2>
   <h3>Command line</h3>
-<pre><code>uorc compress --steps 10000000 --stats notes.txt      # writes notes.txt.uorc
+<pre><code>uorc compress --stats notes.txt      # writes notes.txt.uorc
 uorc decompress notes.txt.uorc -o notes.restored.txt
 cat data.bin | uorc compress - &gt; data.uorc</code></pre>
   <h3>Rust library</h3>
@@ -58,7 +58,7 @@ assert_eq!(original, bytes);</code></pre>
   <h3>JavaScript (this page's module)</h3>
 <pre><code>import { load } from "./uorc.js";
 const uorc = await load("./uorc.wasm");
-const archive = uorc.compress(new TextEncoder().encode("hello hello hello"), 10_000_000n);
+const archive = uorc.compress(new TextEncoder().encode("hello hello hello"));
 const original = uorc.decompress(archive);</code></pre>
   <p>Binaries, the library source bundle and this WebAssembly module are attached to each
   <a href="https://github.com/UOR-Foundation/compression/releases">GitHub release</a>.
