@@ -261,7 +261,7 @@ mod tests {
         let (code, json) = run(&archive, || inspect());
         assert_eq!(code, OK);
         let info = uorc::inspect(&archive).expect("library inspect");
-        assert_eq!(json, info.to_json().into_bytes());
+        assert_eq!(json, format!("[{}]", info.to_json()).into_bytes());
         ORIGINAL.with(|original| *original.borrow_mut() = input.to_vec());
         let (code, json) = run(&archive, || verify(1));
         assert_eq!(
