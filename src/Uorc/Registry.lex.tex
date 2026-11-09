@@ -101,7 +101,7 @@ definition{
   name: uc_wire_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-WIRE-01", level := "build", suite := "wire-format", statement := "The client decodes only complete self-contained UORC archives in their canonical layout: truncated archives, trailing bytes and unsupported format identities are typed decode failures.", given := "program and ulz kernel archives, each truncated at several points, extended with trailing bytes, and with an altered format identity", when := "uorc decompress parses them", expected := "the intact archives decode and every altered one returns a decode failure", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-WIRE-01", level := "build", suite := "wire-format", statement := "The client decodes only complete UORC archives in their canonical layout, self-contained or over the standard basis: truncated archives, trailing bytes and unsupported format identities are typed decode failures.", given := "a program archive and a coded archive over the standard basis, each truncated at several points, extended with trailing bytes, and with an altered format identity", when := "uorc decompress parses them", expected := "the intact archives decode and every altered one returns a decode failure", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
@@ -122,7 +122,7 @@ definition{
   name: uc_bas_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-BAS-01", level := "open", suite := "conditional-basis", statement := "Conditional archives bind the actual supplied ordered basis using a source-owned length-delimited domain-separated identity, and execute against that admitted basis. Open: the shipped client writes and reads self-contained archives only; conditional-basis archives are not shipped yet.", given := "actual immutable basis roots, altered bytes, reordered roots and inserted empty objects", when := "basis admission derives its identity and conditional archive validation checks the stored identifier", expected := "identity is never accepted merely because a caller supplies a matching tag; reconstruction is relative to the actual supplied basis and cryptographic binding assumptions remain explicit", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-BAS-01", level := "build", suite := "conditional-basis", statement := "Conditional archives name the client's standard basis, the ulz and ncm decoder libraries, by its UORC-BASIS-V1 identity and decode only against that actual basis.", given := "archives written at the default and best levels, and the same archives with their basis identity altered and resealed", when := "uorc inspects and decompresses them", expected := "the intact archives name the standard basis identity and decode to the input; an archive naming any other basis is a decode failure even though its header and seal are well formed", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
@@ -136,7 +136,7 @@ definition{
   name: uc_opt_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-OPT-01", level := "build", suite := "scoped-optimality", statement := "Compress returns the smallest of the archives it checked, which are the ulz kernel archive, the raw archive and any search candidate within the step budget; no minimum beyond that candidate set is claimed.", given := "empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs", when := "uorc compress chooses its archive", expected := "the archive is never larger than the raw archive of the same length, and compressible text takes a strictly smaller archive", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-OPT-01", level := "build", suite := "scoped-optimality", statement := "Compress returns the smallest of the archives it checked, which are the raw archive, the ulz archive, the ncm archive at the best level and any search candidate within the step budget; no minimum beyond that candidate set is claimed.", given := "empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs", when := "uorc compress chooses its archive", expected := "the archive is never larger than the raw archive of the same length, compressible text takes a strictly smaller archive, and the best level is never larger than the default", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{

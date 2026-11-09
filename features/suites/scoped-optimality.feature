@@ -2,7 +2,7 @@
 Feature: scoped-optimality
 
   @UC-OPT-01 @build
-  Scenario: Compress returns the smallest of the archives it checked, which are the ulz kernel archive, the raw archive and any search candidate within the step budget; no minimum beyond that candidate set is claimed.
+  Scenario: Compress returns the smallest of the archives it checked, which are the raw archive, the ulz archive, the ncm archive at the best level and any search candidate within the step budget; no minimum beyond that candidate set is claimed.
     Given empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs
     When uorc compress chooses its archive
-    Then the archive is never larger than the raw archive of the same length, and compressible text takes a strictly smaller archive
+    Then the archive is never larger than the raw archive of the same length, compressible text takes a strictly smaller archive, and the best level is never larger than the default

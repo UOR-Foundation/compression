@@ -259,9 +259,13 @@ mod tests {
     #[test]
     fn wasm_exports_match_the_library_uc_api_01() {
         let input = [0u8, 0xff, 0xc3, 0x28, b'a', b'b', b'a', b'b', 0];
-        let (code, archive) = run(&input, || compress(0));
-        assert_eq!(code, OK);
-        assert_eq!(archive, uorc::compress(&input, 0).expect("library archive"));
+        for (best, level) in [(1, uorc::Level::Best), (0, uorc::Level::Fast)] {
+            let (code, archive) = run(&input, || compress(0, best));
+            assert_eq!(code, OK);
+            let library = uorc::compress(&input, 0, level).expect("library archive");
+            assert_eq!(archive, library, "{level:?}");
+        }
+        let (_, archive) = run(&input, || compress(0, 0));
         assert_eq!(run(&archive, || decompress()), (OK, input.to_vec()));
         assert_eq!(
             run(b"not an archive", || decompress()),

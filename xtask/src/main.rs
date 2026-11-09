@@ -18,8 +18,6 @@ mod claims;
 mod integrity;
 #[cfg(test)]
 mod offline;
-#[cfg(test)]
-mod open_claims;
 mod product_execution;
 #[cfg(test)]
 mod varint;

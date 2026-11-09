@@ -7,10 +7,19 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use uorc::archive::{chain, BASIS_ID};
 use uorc::{
-    compress, compress_objects, decompress, decompress_objects, inspect, verify, Error,
-    Representation, DEFAULT_DECODE_WORK, DEFAULT_STEPS,
+    compress_objects as compress_objects_at, decompress, decompress_objects, inspect, verify,
+    Error, Level, Representation, DEFAULT_DECODE_WORK, DEFAULT_STEPS,
 };
+
+fn compress(input: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
+    uorc::compress(input, steps, Level::Fast)
+}
+
+fn compress_objects(objects: &[Vec<u8>], steps: u64) -> Result<Vec<u8>, Error> {
+    compress_objects_at(objects, steps, Level::Fast)
+}
 
 /// 200 zero bytes as a 64-byte program archive found by the exported search.
 /// Its program is not the ulz kernel, so it decodes by the reference semantics.
@@ -102,8 +111,14 @@ fn real_archives_decode_to_every_original_byte_uc_real_01() {
         let archive = compress(&input, DEFAULT_STEPS).expect(name);
         let back = decompress(&archive, DEFAULT_DECODE_WORK).expect(name);
         assert_eq!(back, input, "{name}");
+        let best = uorc::compress(&input, DEFAULT_STEPS, Level::Best).expect(name);
+        assert_eq!(
+            decompress(&best, DEFAULT_DECODE_WORK).expect(name),
+            input,
+            "{name} --best"
+        );
     }
-    // Text and records take the kernel archive: a real program, not a copy.
+    // Text takes a coded archive: a real program over the basis, not a copy.
     let (_, text) = &corpus()[2];
     assert!(compress(text, DEFAULT_STEPS).expect("text").len() < text.len() / 4);
 }
@@ -130,7 +145,7 @@ fn library_and_cli_share_one_semantics_uc_api_01() {
     let archive = compress(text, DEFAULT_STEPS).expect("text");
     let info = inspect(&archive).expect("inspect");
     assert_eq!(info.output_len, text.len() as u64);
-    assert_eq!(info.representation, Representation::UlzKernel);
+    assert_ne!(info.representation, Representation::Raw);
     assert!(info.integrity_ok);
     assert_eq!(
         verify(&archive, Some(text), DEFAULT_DECODE_WORK),
@@ -144,7 +159,11 @@ fn library_and_cli_share_one_semantics_uc_api_01() {
     );
     let (ok, json) = cli(&["inspect", "-"], &archive);
     assert!(ok, "cli inspect");
-    assert!(String::from_utf8_lossy(&json).contains("ulz-kernel"));
+    assert!(String::from_utf8_lossy(&json).contains(info_name(&archive)));
+}
+
+fn info_name(archive: &[u8]) -> &'static str {
+    inspect(archive).expect("inspect").representation.name()
 }
 
 #[test]
@@ -183,7 +202,7 @@ fn only_complete_canonical_archives_decode_uc_wire_01() {
     let (_, text) = &corpus()[2];
     for archive in [
         hex(ZEROS_200),
-        compress(text, DEFAULT_STEPS).expect("kernel archive"),
+        compress(text, DEFAULT_STEPS).expect("coded archive"),
     ] {
         assert!(decompress(&archive, DEFAULT_DECODE_WORK).is_ok());
         for cut in [0, 1, 4, archive.len() / 2, archive.len() - 1] {
@@ -273,5 +292,46 @@ fn compress_returns_the_smallest_checked_candidate_uc_opt_01() {
         );
     }
     let (_, text) = &corpus()[2];
-    assert!(compress(text, DEFAULT_STEPS).expect("text").len() < raw_size(text.len()));
+    let fast = compress(text, DEFAULT_STEPS).expect("text");
+    assert!(fast.len() < raw_size(text.len()));
+    // --best also tries ncm and keeps it only when smaller.
+    let best = uorc::compress(text, DEFAULT_STEPS, Level::Best).expect("text");
+    assert!(best.len() <= fast.len());
+}
+
+/// Offset of the basis identity inside a conditional archive's header.
+fn basis_at(archive: &[u8]) -> usize {
+    archive
+        .windows(BASIS_ID.len())
+        .position(|w| w == BASIS_ID)
+        .expect("the archive names the standard basis")
+}
+
+#[test]
+fn conditional_archives_bind_the_actual_basis_uc_bas_01() {
+    let (_, text) = &corpus()[2];
+    for level in [Level::Fast, Level::Best] {
+        let archive = uorc::compress(text, DEFAULT_STEPS, level).expect("archive");
+        let info = inspect(&archive).expect("header");
+        assert_eq!(info.basis, Some(BASIS_ID), "{level:?}");
+        assert_eq!(decompress(&archive, DEFAULT_DECODE_WORK).as_ref(), Ok(text));
+        // Another basis identity, resealed so only the identity differs: the
+        // archive is not accepted because a tag happens to be well formed.
+        let at = basis_at(&archive);
+        let mut other = archive.clone();
+        other[at] ^= 1;
+        let end = other.len() - 32;
+        let seal = chain(&other[..end]);
+        other[end..].copy_from_slice(&seal);
+        assert!(
+            inspect(&other)
+                .expect("still a well-formed header")
+                .integrity_ok
+        );
+        assert_eq!(
+            decompress(&other, DEFAULT_DECODE_WORK),
+            Err(Error::Decode),
+            "{level:?}"
+        );
+    }
 }
