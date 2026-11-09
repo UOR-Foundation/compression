@@ -9,11 +9,11 @@ const examples = [
   ["Empty input", () => new Uint8Array(0)],
 ];
 
-function offer(bytes, name) {
+function offer(blob, name) {
   const link = document.createElement("a");
-  link.href = URL.createObjectURL(new Blob([bytes]));
+  link.href = URL.createObjectURL(blob);
   link.download = name;
-  link.textContent = `Download ${name} (${bytes.length} bytes)`;
+  link.textContent = `Download ${name} (${blob.size} bytes)`;
   $("download").replaceChildren(link);
 }
 
@@ -52,10 +52,11 @@ try {
     const tree = files.length > 1 || $("folder").files.length > 0;
     await timed(`Compressing ${files.length} file(s)`, async () => {
       if (!tree) {
-        const input = await bytesOf(files[0]);
-        const output = uorc.compress(input, steps());
-        offer(output, `${files[0].name}.uorc`);
-        return `${input.length} → ${output.length} bytes`;
+        const file = files[0];
+        const progress = (done, total) => { status.textContent = `Compressing ${file.name}: ${done} of ${total} bytes…`; };
+        const output = await uorc.compressBlob(file, steps(), progress);
+        offer(output, `${file.name}.uorc`);
+        return `${file.size} → ${output.size} bytes`;
       }
       const entries = [];
       const dirs = new Set();
@@ -68,7 +69,7 @@ try {
       const all = [...[...dirs].sort().map((path) => ({ path, kind: "directory" })), ...entries];
       const output = uorc.compressFiles(all, steps());
       const root = files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "files";
-      offer(output, `${root}.uorc`);
+      offer(new Blob([output]), `${root}.uorc`);
       return `${entries.length} files, ${entries.reduce((n, e) => n + e.data.length, 0)} → ${output.length} bytes`;
     });
   });
@@ -77,12 +78,16 @@ try {
     const file = $("file").files[0];
     if (!file) { status.textContent = "Choose an archive first."; return; }
     await timed(`Decompressing ${file.name}`, async () => {
-      const archive = await bytesOf(file);
-      if (uorc.inspect(archive).objects === 1) {
-        const output = uorc.decompress(archive);
+      // A tree's first archive holds several objects; a plain stream's hold one.
+      const first = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+      const objects = first.length > 8 ? first[8] : 1;
+      if (objects === 1) {
+        const progress = (done, total) => { status.textContent = `Decompressing ${file.name}: ${done} of ${total} bytes…`; };
+        const output = await uorc.decompressBlob(file, progress);
         offer(output, file.name.replace(/\.uorc$/, "") || "output");
-        return `${archive.length} → ${output.length} bytes`;
+        return `${file.size} → ${output.size} bytes`;
       }
+      const archive = await bytesOf(file);
       const entries = uorc.decompressFiles(archive);
       const links = entries.filter((e) => e.kind !== "directory").map((e) => {
         const link = document.createElement("a");
@@ -104,9 +109,10 @@ try {
     const file = $("file").files[0];
     if (!file) { status.textContent = "Choose an archive first."; return; }
     await timed(`Inspecting ${file.name}`, async () => {
-      const info = uorc.inspect(await bytesOf(file));
-      report(JSON.stringify(info, null, 2));
-      return info.integrity_ok ? "Header read, integrity ok" : "Header read, integrity MISMATCH";
+      const infos = uorc.inspect(await bytesOf(file));
+      report(JSON.stringify(infos, null, 2));
+      const ok = infos.every((info) => info.integrity_ok);
+      return `${infos.length} archive(s) read, integrity ${ok ? "ok" : "MISMATCH"}`;
     });
   });
 
