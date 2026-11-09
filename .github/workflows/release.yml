@@ -115,9 +115,16 @@ jobs:
           name: wasm-src
           path: dist/*
           if-no-files-found: error
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
+      # The Pages artifact is packed here rather than by actions/upload-pages-artifact,
+      # which calls an unpinned upload-artifact that the organization's action policy rejects.
+      - name: Pack the Pages site
+        run: tar --dereference --hard-dereference -C site -cf "$RUNNER_TEMP/artifact.tar" .
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          path: site
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
 
   publish:
     name: publish release
