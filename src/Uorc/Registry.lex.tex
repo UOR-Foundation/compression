@@ -108,7 +108,7 @@ definition{
   name: uc_obj_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-OBJ-01", level := "open", suite := "ordered-objects", statement := "Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects. Open: the shipped client archives one object per archive; multi-object archives are not shipped yet.", given := "ObjectSplit lengths with binary data, internal empty objects, partial input, excess bytes and empty transport chunks", when := "the demultiplexer consumes only demanded input and emits bounded byte spans until one-shot EOF", expected := "ordered bytes and empty boundaries are preserved; early EOF and trailing bytes fail; emitted pieces remain staged rather than implicitly published", evidenceKind := "none", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-OBJ-01", level := "build", suite := "ordered-objects", statement := "Archives of ordered objects preserve the exact object boundary vector, including zero objects and distinct zero-length objects.", given := "object vectors with binary data, internal and repeated empty objects, zero objects, and archives truncated or extended by one byte", when := "uorc compresses each vector as one archive and decompresses its objects", expected := "the header records every object length, the decoded objects equal the originals in order with every empty boundary preserved, and truncated or extended archives fail", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
@@ -143,7 +143,7 @@ definition{
   name: uc_api_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-API-01", level := "build", suite := "product-interfaces", statement := "The uorc library, CLI and WebAssembly exports run the same exported compress and decompress over arbitrary bytes, with typed budget, overflow and decode failures; inspect and verify operations are not part of this interface yet.", given := "binary input including NUL and invalid UTF-8, passed in memory and on stdin", when := "the library, the uorc binary and the Wasm exports compress and decompress it", expected := "all three produce the same archive and the exact original bytes, and a non-archive is a decode failure in each", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-API-01", level := "build", suite := "product-interfaces", statement := "The uorc library, CLI and WebAssembly exports run the same compress, decompress, inspect and verify operations over arbitrary bytes, with typed budget, overflow, decode and mismatch failures.", given := "binary input including NUL and invalid UTF-8, passed in memory and on stdin, and an original altered in one bit", when := "the library, the uorc binary and the Wasm exports compress, decompress, inspect and verify it", expected := "all three produce the same archive, the exact original bytes and the same header description; a non-archive is a decode failure and an altered original is a mismatch", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{

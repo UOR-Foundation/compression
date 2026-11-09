@@ -23,27 +23,103 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
 try {
   const uorc = await load("./uorc.wasm");
   fetch("version.txt").then((r) => r.ok ? r.text() : "").then((v) => { if (v) $("version").textContent = `Release ${v.trim()}`; });
-  $("compress").disabled = $("decompress").disabled = false;
+  for (const id of ["compress", "decompress", "inspect", "verify"]) $(id).disabled = false;
   status.textContent = "Ready. Choose a file, or run an example below.";
 
-  for (const id of ["compress", "decompress"]) {
-    $(id).addEventListener("click", async () => {
-      const file = $("file").files[0];
-      if (!file) { status.textContent = "Choose a file first."; return; }
-      const input = new Uint8Array(await file.arrayBuffer());
-      status.textContent = `${id === "compress" ? "Compressing" : "Decompressing"} ${file.name}…`;
-      await tick();
-      const started = performance.now();
-      try {
-        const output = id === "compress" ? uorc.compress(input, steps()) : uorc.decompress(input);
-        const seconds = ((performance.now() - started) / 1000).toFixed(2);
-        status.textContent = `${input.length} → ${output.length} bytes in ${seconds} s.`;
-        offer(output, id === "compress" ? `${file.name}.uorc` : file.name.replace(/\.uorc$/, "") || "output");
-      } catch (error) {
-        status.textContent = `Failed: ${error.message}.`;
+  const bytesOf = async (file) => new Uint8Array(await file.arrayBuffer());
+  const report = (text) => { $("report").hidden = !text; $("report").textContent = text ?? ""; };
+  const picked = () => {
+    const folder = [...$("folder").files];
+    return folder.length ? folder : [...$("file").files];
+  };
+  const timed = async (label, work) => {
+    status.textContent = `${label}…`;
+    report();
+    $("download").replaceChildren();
+    await tick();
+    const started = performance.now();
+    try {
+      const said = await work();
+      status.textContent = `${said} in ${((performance.now() - started) / 1000).toFixed(2)} s.`;
+    } catch (error) {
+      status.textContent = `Failed: ${error.message}.`;
+    }
+  };
+
+  $("compress").addEventListener("click", async () => {
+    const files = picked();
+    if (!files.length) { status.textContent = "Choose files or a folder first."; return; }
+    const tree = files.length > 1 || $("folder").files.length > 0;
+    await timed(`Compressing ${files.length} file(s)`, async () => {
+      if (!tree) {
+        const input = await bytesOf(files[0]);
+        const output = uorc.compress(input, steps());
+        offer(output, `${files[0].name}.uorc`);
+        return `${input.length} → ${output.length} bytes`;
       }
+      const entries = [];
+      const dirs = new Set();
+      for (const file of files) {
+        const path = file.webkitRelativePath || file.name;
+        const parts = path.split("/");
+        for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join("/"));
+        entries.push({ path, data: await bytesOf(file) });
+      }
+      const all = [...[...dirs].sort().map((path) => ({ path, kind: "directory" })), ...entries];
+      const output = uorc.compressFiles(all, steps());
+      const root = files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "files";
+      offer(output, `${root}.uorc`);
+      return `${entries.length} files, ${entries.reduce((n, e) => n + e.data.length, 0)} → ${output.length} bytes`;
     });
-  }
+  });
+
+  $("decompress").addEventListener("click", async () => {
+    const file = $("file").files[0];
+    if (!file) { status.textContent = "Choose an archive first."; return; }
+    await timed(`Decompressing ${file.name}`, async () => {
+      const archive = await bytesOf(file);
+      if (uorc.inspect(archive).objects === 1) {
+        const output = uorc.decompress(archive);
+        offer(output, file.name.replace(/\.uorc$/, "") || "output");
+        return `${archive.length} → ${output.length} bytes`;
+      }
+      const entries = uorc.decompressFiles(archive);
+      const links = entries.filter((e) => e.kind !== "directory").map((e) => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([e.data]));
+        link.download = e.path.split("/").pop();
+        link.textContent = `${e.path} (${e.data.length} bytes)`;
+        const item = document.createElement("li");
+        item.append(link);
+        return item;
+      });
+      const list = document.createElement("ul");
+      list.append(...links);
+      $("download").replaceChildren(list);
+      return `${entries.length} entries restored`;
+    });
+  });
+
+  $("inspect").addEventListener("click", async () => {
+    const file = $("file").files[0];
+    if (!file) { status.textContent = "Choose an archive first."; return; }
+    await timed(`Inspecting ${file.name}`, async () => {
+      const info = uorc.inspect(await bytesOf(file));
+      report(JSON.stringify(info, null, 2));
+      return info.integrity_ok ? "Header read, integrity ok" : "Header read, integrity MISMATCH";
+    });
+  });
+
+  $("verify").addEventListener("click", async () => {
+    const file = $("file").files[0];
+    if (!file) { status.textContent = "Choose an archive first."; return; }
+    const original = $("original").files[0];
+    await timed(`Verifying ${file.name}`, async () => {
+      const infos = uorc.verify(await bytesOf(file), original ? await bytesOf(original) : undefined);
+      report(JSON.stringify(infos, null, 2));
+      return original ? `Verified: identical to ${original.name}` : "Verified: decodes and integrity holds";
+    });
+  });
 
   const body = $("example-results").querySelector("tbody");
   for (const [label, make] of examples) {

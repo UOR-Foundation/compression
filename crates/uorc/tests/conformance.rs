@@ -7,7 +7,10 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use uorc::{compress, decompress, Error, DEFAULT_DECODE_WORK, DEFAULT_STEPS};
+use uorc::{
+    compress, compress_objects, decompress, decompress_objects, inspect, verify, Error,
+    Representation, DEFAULT_DECODE_WORK, DEFAULT_STEPS,
+};
 
 /// 200 zero bytes as a 64-byte program archive found by the exported search.
 /// Its program is not the ulz kernel, so it decodes by the reference semantics.
@@ -121,6 +124,58 @@ fn library_and_cli_share_one_semantics_uc_api_01() {
     }
     let (ok, _) = cli(&["decompress", "-", "-o", "-"], b"not an archive");
     assert!(!ok, "a decode failure is a failed exit");
+
+    // inspect reads the header without decoding; verify decodes and compares.
+    let (_, text) = &corpus()[2];
+    let archive = compress(text, DEFAULT_STEPS).expect("text");
+    let info = inspect(&archive).expect("inspect");
+    assert_eq!(info.output_len, text.len() as u64);
+    assert_eq!(info.representation, Representation::UlzKernel);
+    assert!(info.integrity_ok);
+    assert_eq!(
+        verify(&archive, Some(text), DEFAULT_DECODE_WORK),
+        Ok(vec![info])
+    );
+    let mut other = text.clone();
+    other[0] ^= 1;
+    assert_eq!(
+        verify(&archive, Some(&other), DEFAULT_DECODE_WORK),
+        Err(Error::Mismatch)
+    );
+    let (ok, json) = cli(&["inspect", "-"], &archive);
+    assert!(ok, "cli inspect");
+    assert!(String::from_utf8_lossy(&json).contains("ulz-kernel"));
+}
+
+#[test]
+fn ordered_objects_keep_every_boundary_uc_obj_01() {
+    let vectors: Vec<Vec<Vec<u8>>> = vec![
+        vec![],
+        vec![Vec::new()],
+        vec![Vec::new(), Vec::new(), Vec::new()],
+        vec![b"alpha".to_vec(), Vec::new(), vec![0, 0xff, 0], Vec::new()],
+        vec![
+            noise(3_000, 11),
+            noise(3_000, 11),
+            Vec::new(),
+            b"tail".to_vec(),
+        ],
+    ];
+    for objects in vectors {
+        let archive = compress_objects(&objects, DEFAULT_STEPS).expect("archive");
+        let lengths: Vec<u64> = objects.iter().map(|o| o.len() as u64).collect();
+        if objects.len() != 1 {
+            assert_eq!(inspect(&archive).expect("header").object_lengths, lengths);
+        }
+        assert_eq!(
+            decompress_objects(&archive, DEFAULT_DECODE_WORK),
+            Ok(objects.clone())
+        );
+        let mut longer = archive.clone();
+        longer.push(0);
+        assert!(decompress_objects(&longer, DEFAULT_DECODE_WORK).is_err());
+        assert!(decompress_objects(&archive[..archive.len() - 1], DEFAULT_DECODE_WORK).is_err());
+    }
 }
 
 #[test]

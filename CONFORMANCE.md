@@ -68,13 +68,13 @@ The three honesty levels (R2):
 
 | ID | Level | Statement |
 | --- | --- | --- |
-| `UC-OBJ-01` | `open` | Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects. Open: the shipped client archives one object per archive; multi-object archives are not shipped yet. |
+| `UC-OBJ-01` | `build` | Archives of ordered objects preserve the exact object boundary vector, including zero objects and distinct zero-length objects. |
 
 ## product-interfaces
 
 | ID | Level | Statement |
 | --- | --- | --- |
-| `UC-API-01` | `build` | The uorc library, CLI and WebAssembly exports run the same exported compress and decompress over arbitrary bytes, with typed budget, overflow and decode failures; inspect and verify operations are not part of this interface yet. |
+| `UC-API-01` | `build` | The uorc library, CLI and WebAssembly exports run the same compress, decompress, inspect and verify operations over arbitrary bytes, with typed budget, overflow, decode and mismatch failures. |
 
 ## real-execution
 
@@ -139,12 +139,12 @@ The three honesty levels (R2):
 | `UC-MACH-01` | `build` | `build_evidence` | `not_measured` | The client's reference-semantics evaluator decodes program archives, including search-found programs and the ulz kernel graph when the certified fast path declines, to their exact original bytes. |
 | `UC-MACH-02` | `build` | `build_evidence` | `not_measured` | Decoding is charged against an explicit decoder work budget, and exhausting the budget is a typed refusal with no partial output. |
 | `UC-WIRE-01` | `build` | `build_evidence` | `not_measured` | The client decodes only complete self-contained UORC archives in their canonical layout: truncated archives, trailing bytes and unsupported format identities are typed decode failures. |
-| `UC-OBJ-01` | `open` | `none` | `not_measured` | Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects. Open: the shipped client archives one object per archive; multi-object archives are not shipped yet. |
+| `UC-OBJ-01` | `build` | `build_evidence` | `not_measured` | Archives of ordered objects preserve the exact object boundary vector, including zero objects and distinct zero-length objects. |
 | `UC-INT-01` | `build` | `build_evidence` | `not_measured` | Every archive the client decodes is checked against its UORC-SHA256-CHAIN-v1 integrity trailer, so changing any single bit of an archive makes it fail to decode. |
 | `UC-BAS-01` | `open` | `none` | `not_measured` | Conditional archives bind the actual supplied ordered basis using a source-owned length-delimited domain-separated identity, and execute against that admitted basis. Open: the shipped client writes and reads self-contained archives only; conditional-basis archives are not shipped yet. |
 | `UC-SYN-01` | `build` | `build_evidence` | `not_measured` | Program search under a step budget keeps a candidate only as a fully checked archive: more effort can change which archive wins, never whether the result decodes to the input. |
 | `UC-OPT-01` | `build` | `build_evidence` | `not_measured` | Compress returns the smallest of the archives it checked, which are the ulz kernel archive, the raw archive and any search candidate within the step budget; no minimum beyond that candidate set is claimed. |
-| `UC-API-01` | `build` | `build_evidence` | `not_measured` | The uorc library, CLI and WebAssembly exports run the same exported compress and decompress over arbitrary bytes, with typed budget, overflow and decode failures; inspect and verify operations are not part of this interface yet. |
+| `UC-API-01` | `build` | `build_evidence` | `not_measured` | The uorc library, CLI and WebAssembly exports run the same compress, decompress, inspect and verify operations over arbitrary bytes, with typed budget, overflow, decode and mismatch failures. |
 | `UC-REAL-01` | `build` | `fixture_result` | `not_measured` | Real archives that uorc compress writes for text, structured binary, noise and edge-case inputs are independently decoded and compared against every original byte. |
 | `UC-SHA-01` | `build` | `fixture_result` | `not_measured` | Incremental SHA-256 and the separately named bounded chain have source-owned streaming semantics, typed failures and independently locked byte-oriented CAVP oracle evidence. |
 | `AUTH-NIST-SHA256-SHORT` | `some-true` | `imported_fact` | `not_measured` | The locked NIST CAVP SHA-256 short byte-oriented response data supplies 65 independent expected digests, reproduced as finite oracle checks. |

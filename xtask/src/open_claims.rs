@@ -28,11 +28,6 @@ fn assert_unmeasured_open(id: &str) {
 }
 
 #[test]
-fn object_boundaries_is_open_uc_obj_01() {
-    assert_unmeasured_open("UC-OBJ-01");
-}
-
-#[test]
 fn conditional_basis_is_open_uc_bas_01() {
     assert_unmeasured_open("UC-BAS-01");
 }

@@ -1,8 +1,8 @@
 # @generated from src/Uorc/Registry.lex.tex by `cargo xtask check-model --write`.
 Feature: ordered-objects
 
-  @UC-OBJ-01 @open
-  Scenario: Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects. Open: the shipped client archives one object per archive; multi-object archives are not shipped yet.
-    Given ObjectSplit lengths with binary data, internal empty objects, partial input, excess bytes and empty transport chunks
-    When the demultiplexer consumes only demanded input and emits bounded byte spans until one-shot EOF
-    Then ordered bytes and empty boundaries are preserved; early EOF and trailing bytes fail; emitted pieces remain staged rather than implicitly published
+  @UC-OBJ-01 @build
+  Scenario: Archives of ordered objects preserve the exact object boundary vector, including zero objects and distinct zero-length objects.
+    Given object vectors with binary data, internal and repeated empty objects, zero objects, and archives truncated or extended by one byte
+    When uorc compresses each vector as one archive and decompresses its objects
+    Then the header records every object length, the decoded objects equal the originals in order with every empty boundary preserved, and truncated or extended archives fail
