@@ -530,7 +530,7 @@ definition{
   name: windowPreimage,
   parameters: [identity : Bytes, n : Nat, body : Bytes],
   result: Bytes,
-  body: (cat (cat (cat (cat (cat (cat 0x554f524302010101 (number 1)) (number n)) (number (prim length body : Nat))) identity) body)),
+  body: (cat (cat (cat (cat (cat 0x554f524302010101 (number 1)) (number n)) (number (prim length body : Nat))) identity) body),
   executable: true,
   axioms: []
 }
@@ -605,7 +605,7 @@ definition{
               | Option.none => (ctor Option.none [Bytes])
               | Option.some expected => (if ((prim equal resealed data : Bool) && (prim equal identity expected : Bool)) then (match (linkedBody body)
                 | Option.none => (ctor Option.none [Bytes])
-                | Option.some whole => (seal (windowPreimage identity (first h) whole))) else (ctor Option.none [Bytes]))))))))))) else (ctor Option.none [Bytes])),
+                | Option.some whole => (seal (windowPreimage identity (first h) whole))) else (ctor Option.none [Bytes])))))))))) else (ctor Option.none [Bytes])),
   executable: true,
   axioms: [Quot.sound, propext]
 }
