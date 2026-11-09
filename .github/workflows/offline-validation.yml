@@ -8,10 +8,39 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+# A newer push to a pull request supersedes its older run.
+concurrency:
+  group: offline-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The whole workflow is one formal obligation: it runs once per content
+  # identity κ of its inputs (scripts/ci-receipt.sh). When an earlier run with
+  # the same κ passed, every job below is skipped.
+  route:
+    name: offline formal construction / receipt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      proved: ${{ steps.receipt.outputs.proved }}
+      kappa: ${{ steps.receipt.outputs.kappa }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Look up a receipt for this workflow's inputs
+        id: receipt
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci-receipt.sh lookup offline >> "$GITHUB_OUTPUT"
   regenerate:
     name: review-only generated projections
+    needs: route
+    if: needs.route.outputs.proved != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -45,6 +74,8 @@ jobs:
           include-hidden-files: true
   offline-setup:
     name: offline formal construction / dependency setup
+    needs: route
+    if: needs.route.outputs.proved != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -135,7 +166,7 @@ jobs:
           include-hidden-files: true
   offline-compare:
     name: offline formal construction / two-root comparison
-    needs: offline
+    needs: [route, regenerate, offline]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -157,3 +188,14 @@ jobs:
           name: offline-comparison
           path: .prism/uorc/offline-comparison.json
           if-no-files-found: error
+      - name: Record the receipt for this workflow's inputs
+        shell: bash
+        env:
+          KAPPA: ${{ needs.route.outputs.kappa }}
+        run: scripts/ci-receipt.sh record offline "$KAPPA"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: receipt-offline-${{ needs.route.outputs.kappa }}
+          path: .tmp/receipt/receipt.json
+          if-no-files-found: error
+          retention-days: 90
