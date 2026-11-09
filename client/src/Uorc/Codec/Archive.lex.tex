@@ -175,12 +175,40 @@ definition{
 }
 
 definition{
-  name: fastDecode,
+  name: rawPayload,
+  parameters: [data : Bytes],
+  result: (Option Bytes),
+  body: (match (readUleb 10 data 9 1 0)
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some n => (match (readUleb 10 data (second n) 1 0)
+      | Option.none => (ctor Option.none [Bytes])
+      | Option.some b => (match (prim slice data (second b) (first n) : (Option Bytes))
+        | Option.none => (ctor Option.none [Bytes])
+        | Option.some payload => (match (rawArchive payload)
+          | Option.none => (ctor Option.none [Bytes])
+          | Option.some rebuilt => (if (prim equal rebuilt data : Bool) then (ctor Option.some [Bytes] payload) else (ctor Option.none [Bytes])))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: kernelDecode,
   parameters: [data : Bytes],
   result: (Option Bytes),
   body: (match (kernelPayload data)
     | Option.none => (ctor Option.none [Bytes])
     | Option.some np => (let payload : Bytes := (second np); (let out : Bytes := (Uorc.Codec.LzDecode::decode payload); (if (((prim length out : Nat) =? (first np)) && (prim equal (Uorc.Codec.LzEncode::encode out) payload : Bool)) then (ctor Option.some [Bytes] out) else (ctor Option.none [Bytes]))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: fastDecode,
+  parameters: [data : Bytes],
+  result: (Option Bytes),
+  body: (match (prim index data 7 : (Option UInt8))
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some kind => (if ((prim to_nat kind : Nat) =? 0) then (rawPayload data) else (kernelDecode data))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
