@@ -3,6 +3,11 @@
 //! The page asks for an input buffer of a given size, writes the bytes into
 //! wasm memory at the returned offset, calls an operation, then reads the
 //! result back through `output_ptr`/`output_len`.
+//!
+//! Large files stream through the frame operations: the page slices the file
+//! into [`frame_size`] pieces (or, to decompress, into the archives that
+//! [`frame_length`] delimits) and converts one at a time, so wasm memory stays
+//! bounded by one frame whatever the file size.
 
 use std::cell::RefCell;
 
@@ -64,4 +69,35 @@ pub extern "C" fn compress(steps: u64) -> i32 {
 #[no_mangle]
 pub extern "C" fn decompress() -> i32 {
     finish(INPUT.with(|input| uorc::decompress(&input.borrow(), uorc::DEFAULT_DECODE_WORK)))
+}
+
+/// Compress the input buffer as a single frame (at most [`frame_size`] bytes).
+#[no_mangle]
+pub extern "C" fn compress_frame(steps: u64) -> i32 {
+    finish(INPUT.with(|input| uorc::compress_frame(&input.borrow(), steps)))
+}
+
+/// Decompress the input buffer as a single archive.
+#[no_mangle]
+pub extern "C" fn decompress_frame() -> i32 {
+    finish(INPUT.with(|input| uorc::decompress_frame(&input.borrow(), uorc::DEFAULT_DECODE_WORK)))
+}
+
+/// Input bytes per frame.
+#[no_mangle]
+pub extern "C" fn frame_size() -> usize {
+    uorc::FRAME
+}
+
+/// Bytes of header the page should read before [`frame_length`].
+#[no_mangle]
+pub extern "C" fn header_size() -> usize {
+    uorc::archive::HEADER_MAX
+}
+
+/// Total length of the archive whose first bytes are in the input buffer, or
+/// -1 when they are not a UORC archive header.
+#[no_mangle]
+pub extern "C" fn frame_length() -> f64 {
+    INPUT.with(|input| uorc::archive::frame_length(&input.borrow()).map_or(-1.0, |n| n as f64))
 }

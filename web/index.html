@@ -50,16 +50,21 @@
   <h3>Command line</h3>
 <pre><code>uorc compress --stats notes.txt      # writes notes.txt.uorc
 uorc decompress notes.txt.uorc -o notes.restored.txt
-cat data.bin | uorc compress - &gt; data.uorc</code></pre>
+cat data.bin | uorc compress - &gt; data.uorc   # any size: streams through 8 MiB frames
+uorc compress --threads 4 big.tar          # frames compress in parallel</code></pre>
   <h3>Rust library</h3>
 <pre><code>let archive = uorc::compress(&amp;bytes, uorc::DEFAULT_STEPS)?;
 let original = uorc::decompress(&amp;archive, uorc::DEFAULT_DECODE_WORK)?;
-assert_eq!(original, bytes);</code></pre>
+assert_eq!(original, bytes);
+// Or stream between any reader and writer, with bounded memory:
+uorc::compress_stream(reader, writer, uorc::DEFAULT_STEPS, uorc::default_threads())?;</code></pre>
   <h3>JavaScript (this page's module)</h3>
 <pre><code>import { load } from "./uorc.js";
 const uorc = await load("./uorc.wasm");
 const archive = uorc.compress(new TextEncoder().encode("hello hello hello"));
-const original = uorc.decompress(archive);</code></pre>
+const original = uorc.decompress(archive);
+// Files of any size, one frame in memory at a time:
+const blob = await uorc.compressBlob(file);</code></pre>
   <p>Binaries, the library source bundle and this WebAssembly module are attached to each
   <a href="https://github.com/UOR-Foundation/compression/releases">GitHub release</a>.
   Benchmark results for the release are on the <a href="bench.html">benchmarks page</a>.</p>

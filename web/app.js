@@ -9,11 +9,11 @@ const examples = [
   ["Empty input", () => new Uint8Array(0)],
 ];
 
-function offer(bytes, name) {
+function offer(blob, name) {
   const link = document.createElement("a");
-  link.href = URL.createObjectURL(new Blob([bytes]));
+  link.href = URL.createObjectURL(blob);
   link.download = name;
-  link.textContent = `Download ${name} (${bytes.length} bytes)`;
+  link.textContent = `Download ${name} (${blob.size} bytes)`;
   $("download").replaceChildren(link);
 }
 
@@ -30,14 +30,15 @@ try {
     $(id).addEventListener("click", async () => {
       const file = $("file").files[0];
       if (!file) { status.textContent = "Choose a file first."; return; }
-      const input = new Uint8Array(await file.arrayBuffer());
-      status.textContent = `${id === "compress" ? "Compressing" : "Decompressing"} ${file.name}…`;
+      const verb = id === "compress" ? "Compressing" : "Decompressing";
+      status.textContent = `${verb} ${file.name}…`;
       await tick();
       const started = performance.now();
+      const progress = (done, total) => { status.textContent = `${verb} ${file.name}: ${done} of ${total} bytes…`; };
       try {
-        const output = id === "compress" ? uorc.compress(input, steps()) : uorc.decompress(input);
+        const output = id === "compress" ? await uorc.compressBlob(file, steps(), progress) : await uorc.decompressBlob(file, progress);
         const seconds = ((performance.now() - started) / 1000).toFixed(2);
-        status.textContent = `${input.length} → ${output.length} bytes in ${seconds} s.`;
+        status.textContent = `${file.size} → ${output.size} bytes in ${seconds} s.`;
         offer(output, id === "compress" ? `${file.name}.uorc` : file.name.replace(/\.uorc$/, "") || "output");
       } catch (error) {
         status.textContent = `Failed: ${error.message}.`;
