@@ -13,16 +13,13 @@
 //!
 //! Numbers are shortest-form ULEB128. A raw body's length equals the sum of
 //! the object lengths. This module only reads that framing; the body is
-//! decoded and checked by the certified decoder in [`crate::decompress`].
+//! decoded and checked in [`crate::decompress_frame`].
 
-use sha2::{Digest, Sha256};
-
+use crate::archive::{chain, push_uleb, KERNEL_PREFIX, SEAL as DIGEST_LEN};
 use crate::Error;
 
 const MAGIC: &[u8; 4] = b"UORC";
-const DIGEST_LEN: usize = 32;
 const BASIS_LEN: usize = 32;
-const CHAIN_TAG: &[u8] = b"UORC-SHA256-CHAIN-v1\0";
 
 /// How an archive's body produces its output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -113,18 +110,34 @@ fn hex(bytes: &[u8]) -> String {
 struct Reader<'a> {
     data: &'a [u8],
     at: usize,
+    /// Set when a read ran past the end of `data`: more bytes might parse.
+    short: bool,
 }
 
 impl<'a> Reader<'a> {
+    fn new(data: &'a [u8]) -> Self {
+        Reader {
+            data,
+            at: 0,
+            short: false,
+        }
+    }
+
     fn byte(&mut self) -> Result<u8, Error> {
-        let b = *self.data.get(self.at).ok_or(Error::Decode)?;
+        let Some(&b) = self.data.get(self.at) else {
+            self.short = true;
+            return Err(Error::Decode);
+        };
         self.at += 1;
         Ok(b)
     }
 
     fn take(&mut self, n: usize) -> Result<&'a [u8], Error> {
         let end = self.at.checked_add(n).ok_or(Error::Decode)?;
-        let s = self.data.get(self.at..end).ok_or(Error::Decode)?;
+        let Some(s) = self.data.get(self.at..end) else {
+            self.short = true;
+            return Err(Error::Decode);
+        };
         self.at = end;
         Ok(s)
     }
@@ -150,59 +163,6 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// The ulz kernel graph's bytes before its payload length, taken from the
-/// codec source so this check follows any regeneration of the kernel.
-fn kernel_prefix() -> &'static [u8] {
-    use std::sync::OnceLock;
-    static PREFIX: OnceLock<Vec<u8>> = OnceLock::new();
-    PREFIX.get_or_init(|| {
-        let source = include_str!("../../../client/src/Uorc/Codec/Archive.lex.tex");
-        let def = source
-            .split("name: kernelPrefix,")
-            .nth(1)
-            .expect("kernelPrefix in Archive.lex.tex");
-        let text = def
-            .split("body: 0x")
-            .nth(1)
-            .expect("kernelPrefix body")
-            .split(|c: char| !c.is_ascii_hexdigit())
-            .next()
-            .expect("hex literal");
-        (0..text.len())
-            .step_by(2)
-            .map(|i| u8::from_str_radix(&text[i..i + 2], 16).expect("hex"))
-            .collect()
-    })
-}
-
-/// The UORC-SHA256-CHAIN-v1 digest of `preimage`.
-pub(crate) fn chain_digest(preimage: &[u8]) -> [u8; DIGEST_LEN] {
-    let mut c: [u8; DIGEST_LEN] = Sha256::new()
-        .chain_update(CHAIN_TAG)
-        .chain_update([0u8])
-        .finalize()
-        .into();
-    let mut blocks = preimage.chunks_exact(64);
-    for block in &mut blocks {
-        c = Sha256::new()
-            .chain_update(CHAIN_TAG)
-            .chain_update([1u8])
-            .chain_update(c)
-            .chain_update(block)
-            .finalize()
-            .into();
-    }
-    let tail = blocks.remainder();
-    Sha256::new()
-        .chain_update(CHAIN_TAG)
-        .chain_update([2u8])
-        .chain_update(c)
-        .chain_update([tail.len() as u8])
-        .chain_update(tail)
-        .finalize()
-        .into()
-}
-
 /// Where an archive's fields sit, from [`parse`].
 pub(crate) struct Layout {
     /// Offset of the body-length field (just after the object lengths).
@@ -213,9 +173,19 @@ pub(crate) struct Layout {
     end: usize,
 }
 
-/// Parse one archive at the start of `data`, which may continue past it.
-fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
-    let mut r = Reader { data, at: 0 };
+/// An archive header: everything before the body.
+struct Head {
+    format: u8,
+    profile: u8,
+    program: bool,
+    basis: Option<[u8; BASIS_LEN]>,
+    object_lengths: Vec<u64>,
+    output_len: u64,
+    body_len_at: usize,
+    body_len: u64,
+}
+
+fn head(r: &mut Reader<'_>) -> Result<Head, Error> {
     if r.take(4)? != MAGIC {
         return Err(Error::Decode);
     }
@@ -233,7 +203,8 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
     };
     let count = r.uleb()?;
     // Each length takes at least one byte, which bounds the allocation.
-    if count > data.len() as u64 {
+    if count > (r.data.len() - r.at) as u64 {
+        r.short = true;
         return Err(Error::Decode);
     }
     let mut object_lengths = Vec::with_capacity(count as usize);
@@ -253,37 +224,77 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
     } else {
         None
     };
-    let body = r.take(usize::try_from(body_len).map_err(|_| Error::Decode)?)?;
+    Ok(Head {
+        format,
+        profile,
+        program,
+        basis,
+        object_lengths,
+        output_len,
+        body_len_at,
+        body_len,
+    })
+}
+
+/// Total length of the archive that starts at `data[0]`, read from its header
+/// alone: `Ok(None)` when `data` ends before the header does.
+pub fn frame_length(data: &[u8]) -> Result<Option<usize>, Error> {
+    let mut r = Reader::new(data);
+    match head(&mut r) {
+        Ok(h) => usize::try_from(h.body_len)
+            .ok()
+            .and_then(|b| r.at.checked_add(b)?.checked_add(DIGEST_LEN))
+            .map(Some)
+            .ok_or(Error::Decode),
+        Err(_) if r.short => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// Bytes of header worth reading before a first [`frame_length`] attempt: a
+/// one-object header always fits.
+pub const HEADER_HINT: usize = 8 + 10 * 3;
+
+/// Parse one archive at the start of `data`, which may continue past it.
+fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
+    let mut r = Reader::new(data);
+    let h = head(&mut r)?;
+    let body = r.take(usize::try_from(h.body_len).map_err(|_| Error::Decode)?)?;
     let sealed = r.at;
     let digest: [u8; DIGEST_LEN] = r.take(DIGEST_LEN)?.try_into().expect("32 bytes");
     let end = r.at;
-    let representation = if !program {
+    let representation = if !h.program {
         Representation::Raw
-    } else if body.starts_with(kernel_prefix()) {
+    } else if body.starts_with(KERNEL_PREFIX) {
         Representation::UlzKernel
     } else {
         Representation::Program
     };
     let info = Info {
-        format,
-        profile,
-        basis,
+        format: h.format,
+        profile: h.profile,
+        basis: h.basis,
         representation,
-        object_lengths,
-        output_len,
-        body_len,
+        object_lengths: h.object_lengths,
+        output_len: h.output_len,
+        body_len: h.body_len,
         archive_len: end as u64,
         digest,
-        integrity_ok: chain_digest(&data[..sealed]) == digest,
+        integrity_ok: chain(&data[..sealed]) == digest,
     };
     Ok((
         info,
         Layout {
-            body_len_at,
+            body_len_at: h.body_len_at,
             sealed,
             end,
         },
     ))
+}
+
+/// The object lengths an archive's header declares, from the header alone.
+pub fn object_lengths(archive: &[u8]) -> Result<Vec<u64>, Error> {
+    Ok(head(&mut Reader::new(archive))?.object_lengths)
 }
 
 /// Read one archive's frame header and check its integrity seal, without
@@ -302,8 +313,10 @@ pub fn frames(stream: &[u8]) -> Result<Vec<&[u8]>, Error> {
     let mut out = Vec::new();
     let mut rest = stream;
     while !rest.is_empty() {
-        let (_, layout) = parse(rest)?;
-        let (frame, tail) = rest.split_at(layout.end);
+        let end = frame_length(rest)?
+            .filter(|&end| end <= rest.len())
+            .ok_or(Error::Decode)?;
+        let (frame, tail) = rest.split_at(end);
         out.push(frame);
         rest = tail;
     }
@@ -329,19 +342,7 @@ pub(crate) fn relabel(archive: &[u8], lengths: &[u64]) -> Result<Vec<u8>, Error>
         push_uleb(&mut out, n);
     }
     out.extend_from_slice(&archive[layout.body_len_at..layout.sealed]);
-    let digest = chain_digest(&out);
+    let digest = chain(&out);
     out.extend_from_slice(&digest);
     Ok(out)
-}
-
-fn push_uleb(out: &mut Vec<u8>, mut n: u64) {
-    loop {
-        let byte = (n & 0x7f) as u8;
-        n >>= 7;
-        if n == 0 {
-            out.push(byte);
-            return;
-        }
-        out.push(byte | 0x80);
-    }
 }

@@ -43,3 +43,16 @@ codegen-units = 1
 # the compiler crate alone exceed it.
 [profile.dev.package."*"]
 debug = false
+
+# The client's native codec is exercised on multi-MiB frames in `cargo test`;
+# unoptimized it costs minutes of the acceptance budget.
+[profile.dev.package.uorc]
+opt-level = 3
+
+# The exported reference code is what the differential tests run; unoptimized
+# it is ~6x slower than at opt-level 1, which costs more than it compiles.
+[profile.dev.package.uorc_compress]
+opt-level = 1
+
+[profile.dev.package.uorc_decompress]
+opt-level = 1

@@ -3,6 +3,11 @@
 //! The page asks for an input buffer of a given size, writes the bytes into
 //! wasm memory at the returned offset, calls an operation, then reads the
 //! result back through `output_ptr`/`output_len`.
+//!
+//! Large files stream through the frame operations: the page slices the file
+//! into [`frame_size`] pieces (or, to decompress, into the archives that
+//! [`frame_length`] delimits) and converts one at a time, so wasm memory stays
+//! bounded by one frame whatever the file size.
 
 use std::cell::RefCell;
 
@@ -79,13 +84,57 @@ pub extern "C" fn decompress() -> i32 {
     finish(INPUT.with(|input| uorc::decompress(&input.borrow(), uorc::DEFAULT_DECODE_WORK)))
 }
 
-/// Read the input archive's frame header and integrity seal without decoding;
-/// the output is the description as JSON.
+/// Compress the input buffer as a single frame (at most [`frame_size`] bytes).
+#[no_mangle]
+pub extern "C" fn compress_frame(steps: u64) -> i32 {
+    finish(INPUT.with(|input| uorc::compress_frame(&input.borrow(), steps)))
+}
+
+/// Decompress the input buffer as a single archive.
+#[no_mangle]
+pub extern "C" fn decompress_frame() -> i32 {
+    finish(INPUT.with(|input| uorc::decompress_frame(&input.borrow(), uorc::DEFAULT_DECODE_WORK)))
+}
+
+/// Input bytes per frame.
+#[no_mangle]
+pub extern "C" fn frame_size() -> usize {
+    uorc::FRAME
+}
+
+/// Bytes of header the page should read before a first [`frame_length`].
+#[no_mangle]
+pub extern "C" fn header_size() -> usize {
+    uorc::HEADER_HINT
+}
+
+/// Total length of the archive whose first bytes are in the input buffer;
+/// -2 when more bytes are needed to see its header, -1 when they are not a
+/// UORC archive header.
+#[no_mangle]
+pub extern "C" fn frame_length() -> f64 {
+    INPUT.with(|input| match uorc::frame_length(&input.borrow()) {
+        Ok(Some(n)) => n as f64,
+        Ok(None) => -2.0,
+        Err(_) => -1.0,
+    })
+}
+
+/// Read the frame header and integrity seal of every archive in the input
+/// stream without decoding; the output is a JSON array of descriptions.
 #[no_mangle]
 pub extern "C" fn inspect() -> i32 {
-    finish(
-        INPUT.with(|input| uorc::inspect(&input.borrow()).map(|info| info.to_json().into_bytes())),
-    )
+    finish(INPUT.with(|input| {
+        let input = input.borrow();
+        let all = uorc::frames(&input)?
+            .into_iter()
+            .map(|a| uorc::inspect(a).map(|info| info.to_json()))
+            .collect::<Result<Vec<_>, _>>()?;
+        if all.is_empty() {
+            return Err(uorc::Error::Decode);
+        }
+        Ok(format!("[{}]", all.join(",")).into_bytes())
+    }))
 }
 
 /// Decode the input (one archive or several back to back) in memory and check

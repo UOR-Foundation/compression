@@ -1,6 +1,6 @@
 // Thin loader for the uorc WebAssembly client (crates/uorc-wasm).
 const ERRORS = ["", "no checked archive was found within the step budget",
-  "a natural-number operation overflowed 64 bits", "input is not a decodable self-contained UORC archive",
+  "a natural-number operation overflowed 64 bits", "input is not a decodable stream of self-contained UORC archives",
   "the archive does not decode to the given original"];
 const KINDS = ["file", "executable", "directory"];
 
@@ -54,11 +54,46 @@ export async function load(url) {
     return new Uint8Array(x.memory.buffer, x.output_ptr(), x.output_len()).slice();
   };
   const json = (bytes) => JSON.parse(new TextDecoder().decode(bytes));
+  const frame = Number(x.frame_size());
+  const bytesOf = async (blob) => new Uint8Array(await blob.arrayBuffer());
+  // Length of the archive starting at `at` in `blob`, read from its header.
+  const archiveLength = async (blob, at) => {
+    for (let want = Number(x.header_size()); ; want *= 2) {
+      const head = await bytesOf(blob.slice(at, at + want));
+      put(x.input_buffer, head);
+      const length = x.frame_length();
+      if (length >= 0 && at + length <= blob.size) return length;
+      if (length === -1 || head.length < want) throw new Error(ERRORS[3]);
+    }
+  };
   return {
     compress: (bytes, steps = 0n) => call(bytes, () => x.compress(BigInt(steps))),
     decompress: (archive) => call(archive, () => x.decompress()),
-    // Frame header and integrity seal of one archive, without decoding.
+    // Frame header and integrity seal of every archive in a stream, without
+    // decoding: one description per archive.
     inspect: (archive) => json(call(archive, () => x.inspect())),
+    // Stream a File or Blob of any size through frames, one in wasm memory at
+    // a time; the result is a Blob of the concatenated outputs.
+    async compressBlob(blob, steps = 0n, progress = () => {}) {
+      const parts = [];
+      for (let at = 0; at < blob.size || at === 0; at += frame) {
+        const piece = await bytesOf(blob.slice(at, at + frame));
+        parts.push(call(piece, () => x.compress_frame(BigInt(steps))));
+        progress(Math.min(at + frame, blob.size), blob.size);
+        if (blob.size === 0) break;
+      }
+      return new Blob(parts);
+    },
+    async decompressBlob(blob, progress = () => {}) {
+      const parts = [];
+      for (let at = 0; at < blob.size || parts.length === 0;) {
+        const length = await archiveLength(blob, at);
+        parts.push(call(await bytesOf(blob.slice(at, at + length)), () => x.decompress_frame()));
+        at += length;
+        progress(at, blob.size);
+      }
+      return new Blob(parts);
+    },
     // Decode in memory and check; with an original, also compare. Returns one
     // description per archive in the stream; throws on any failure.
     verify: (archive, original) => json(call(archive, () => {
