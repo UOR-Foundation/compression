@@ -709,8 +709,16 @@ mod tests {
         input.extend(sample(5_000, 22));
         let alone = encode(&input);
         let with = encode_with(&history, &input);
-        assert!(with.len() * 3 < alone.len(), "{} vs {}", with.len(), alone.len());
-        assert_eq!(decode_with(&history, &with, input.len() as u64), Some(input.clone()));
+        assert!(
+            with.len() * 3 < alone.len(),
+            "{} vs {}",
+            with.len(),
+            alone.len()
+        );
+        assert_eq!(
+            decode_with(&history, &with, input.len() as u64),
+            Some(input.clone())
+        );
         assert_eq!(encode_with(&[], &input), alone);
         assert_eq!(decode_with(&[], &alone, input.len() as u64), Some(input));
     }
