@@ -23,8 +23,14 @@ class Lex:
         self.p = prog
         self.module = module
         self.big = list(big_tables)
-        self.tables = ['mem'] + self.big
-        scal = [f'{input_field}:Bytes'] + [f'{g}:Nat' for g in prog.globals] + list(extra_scalars)
+        self.tables = ['glob', 'mem'] + self.big
+        # The IR's globals live in a small table `glob` at the graph's key offsets (as in irgraph), so a
+        # scalar update is one table write rather than a rebuilt record: the record holds only the input.
+        scal = [f'{input_field}:Bytes'] + list(extra_scalars)
+        self.gkey, k = {}, 0
+        for g, w in prog.globals.items():
+            self.gkey[g] = k; k += w
+        assert k <= min(prog.tables.values()), 'globals overlap the first table'
         self.L = Layout(module[:4] + 'St', self.tables, scal, {})
         self.St = self.L.name
         self.input = input_field
@@ -44,6 +50,12 @@ class Lex:
             self.function(name)
         for e in entry_names:
             post(e)
+
+    def writer(self, t):
+        return 'put' + t[0].upper() + t[1:]
+
+    def gread(self, s, g):
+        return f"(getAt {self.p.globals[g]} {self.L.P(s, 'glob')} {self.gkey[g]})"
 
     def fresh(self, base='s'):
         self.n += 1
@@ -74,6 +86,10 @@ class Lex:
                          f"(let a{j} : Nat := (prim remainder (m{j} + (prim quotient m{j} {1 << s} 0 : Nat)) 4294967296 0 : Nat); ")
             body = f'a{j}'
         D('hash', ['a : Nat'], 'Nat', ''.join(steps) + body + ')' * (2 * len(ir.HK)))
+        # one writer per table: moves the table out of the state, writes it in place, rebuilds the state
+        for t in self.tables:
+            D(self.writer(t), [f's : {self.St}', 'w : Nat', 'k : Nat', 'v : Nat'], self.St,
+              self.L.upd('s', **{t: f"(putAt w {self.L.P('s', t)} k v)"}))
 
     # ---- expressions: (text, type) ----
     def nat(self, r):
@@ -101,7 +117,7 @@ class Lex:
         if k == 'v':
             return env[e[1]]
         if k == 'g':
-            return (self.L.P(s, e[1]), 'Nat')
+            return (self.gread(s, e[1]), 'Nat')
         if k == 'ld':
             t = e[1] if e[1] in self.big else 'mem'
             return (f"(getAt {e[2]} {self.L.P(s, t)} {self.addr(e[1], e[2], self.nat(self.ex(e[3], env, s)))})", 'Nat')
@@ -151,7 +167,7 @@ class Lex:
     # A long statement list is cut into functions of at most CHUNK statements, each ending in a call
     # of the next with the locals it still reads: Lean's compiler (which the rust-std preservation
     # certificate runs on every exported function) is superlinear in the size of one function.
-    CHUNK = 2
+    CHUNK = 6
 
     def block(self, ss, env, s, name):
         if len(ss) <= self.CHUNK:
@@ -180,13 +196,14 @@ class Lex:
         if k == 'set':
             t = self.nat(self.ex(st[2], env, s))
             v = self.fresh('t'); s2 = self.fresh('s')
-            return f"(let {v} : Nat := {t}; (let {s2} : {self.St} := {self.L.upd(s, **{st[1]: v})}; {self.stmts(rest, env, s2, name)}))"
+            upd = f"({self.writer('glob')} {s} {self.p.globals[st[1]]} {self.gkey[st[1]]} {v})"
+            return f"(let {v} : Nat := {t}; (let {s2} : {self.St} := {upd}; {self.stmts(rest, env, s2, name)}))"
         if k == 'store':
             tab = st[1] if st[1] in self.big else 'mem'
             key = self.addr(st[1], st[2], self.nat(self.ex(st[3], env, s)))
             val = self.nat(self.ex(st[4], env, s))
             kv, vv, s2 = self.fresh('k'), self.fresh('t'), self.fresh('s')
-            upd = self.L.upd(s, **{tab: f"(putAt {st[2]} {self.L.P(s, tab)} {kv} {vv})"})
+            upd = f"({self.writer(tab)} {s} {st[2]} {kv} {vv})"
             return f"(let {kv} : Nat := {key}; (let {vv} : Nat := {val}; (let {s2} : {self.St} := {upd}; {self.stmts(rest, env, s2, name)})))"
         if k == 'if':
             c = self.boo(self.ex(st[1], env, s))
@@ -203,6 +220,10 @@ class Lex:
                 caps = list(dict.fromkeys(caps + ir.free_vars([('let', '_', st[2])])))
             fn = self.loop_fn(name, body, ivar, caps, env, st[2] if k == 'loopw' else None)
             count = self.nat(self.ex(st[1], env, s))
+            if isinstance(st[1], int):
+                # a literal trip count would let the certificate kernel unroll the loop over a state it
+                # cannot see; naming the state (times 0) keeps the count opaque to it
+                count = f"({count} + (prim multiply 0 (getAt 1 {self.L.P(s, 'glob')} 0) : Nat))"
             s2 = self.fresh('s')
             args = ' '.join(env[x][0] for x in caps)
             return f"(let {s2} : {self.St} := ({fn} {count} 0 {s} {args}); {self.stmts(rest, env, s2, name)})"

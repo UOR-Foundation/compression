@@ -21,8 +21,9 @@ def sizing(D):
 
 
 def tables(L, n, extra):
-    # the mem depth names n so the certificate kernel does not build the 2 MiB table as a closed term
-    t = {'mem': f'(zeros (21 + (prim multiply 0 {n} : Nat)))', 'T': f'({TB}::fill 3 (tbFor {n}) 0)', 'MT': f'({TB}::fill 4 (mbFor (tbFor {n})) 0)',
+    # Every table's depth names n: the certificate kernel evaluates whatever is closed, and a closed state
+    # would have it run the model's whole setup (thousands of table writes) at check time.
+    t = {'glob': f'(zeros (8 + (prim multiply 0 {n} : Nat)))', 'mem': f'(zeros (21 + (prim multiply 0 {n} : Nat)))', 'T': f'({TB}::fill 3 (tbFor {n}) 0)', 'MT': f'({TB}::fill 4 (mbFor (tbFor {n})) 0)',
          'H': f'(zeros (depthFor 40 {n} 0))'}
     t.update(extra)
     return t
@@ -45,13 +46,14 @@ open(os.path.join(OUTDIR, 'NcmDecode.lex.tex'), 'w').write(dec.source([TB]))
 # encoder
 enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encode'], ['T', 'H', 'MT', 'OUT'])
 sizing(enc.D)
-cap = "(prim multiply 2 n : Nat) + 64"
-body = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := (" + cap + "); "
-        f"(let s0 : {enc.St} := {enc.L.make(tables(enc.L, 'n', {'OUT': '(zeros (depthFor 40 cap 0))'}), scalars(enc.L, 'input'))}; "
-        f"(let s1 : {enc.St} := (encode s0 n cap); "
-        f"(if (0 <? {enc.L.P('s1', 'ovf')}) then 0x else (let head : Bytes := (putAt 4 (zeros 2) 0 n); "
-        f"(match (prim slice {enc.L.P('s1', 'OUT')} 0 {enc.L.P('s1', 'op')} : (Option Bytes))\n    | Option.none => 0x\n"
-        f"    | Option.some b => (prim append head b : Bytes))))))))")
+enc.D('start', ['input : Bytes', 'n : Nat', 'cap : Nat'], enc.St,
+      enc.L.make(tables(enc.L, 'n', {'OUT': '(zeros (depthFor 40 cap 0))'}), scalars(enc.L, 'input')))
+enc.D('finish', ['s1 : ' + enc.St, 'n : Nat'], 'Bytes',
+      f"(if (0 <? {enc.gread('s1', 'ovf')}) then 0x else (let head : Bytes := (putAt 4 (zeros 2) 0 n); "
+      f"(match (prim slice {enc.L.P('s1', 'OUT')} 0 {enc.gread('s1', 'op')} : (Option Bytes))\n    | Option.none => 0x\n"
+      f"    | Option.some b => (prim append head b : Bytes))))")
+body = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim multiply 2 n : Nat) + 64); "
+        "(finish (encode (start input n cap) n cap) n)))")
 enc.D('run', ['input : Bytes'], 'Bytes', f"(if ((prim length input : Nat) <? 4294967296) then {body} else 0x)")
 open(os.path.join(OUTDIR, 'NcmEncode.lex.tex'), 'w').write(enc.source([TB]))
 print('ok')
