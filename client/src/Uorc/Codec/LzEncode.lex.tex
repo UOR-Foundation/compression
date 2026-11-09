@@ -1,0 +1,351 @@
+\begin{lexlean}{Uorc.Codec.LzEncode}
+\importmodule{Uorc.Codec.Table}
+\importmodule{Uorc.Codec.LzDecode}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: EncS,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: data, type: Bytes},
+    {name: n, type: Nat},
+    {name: low, type: Nat},
+    {name: rng, type: Nat},
+    {name: cache, type: Nat},
+    {name: csize, type: Nat},
+    {name: outSize, type: Nat},
+    {name: state, type: Nat},
+    {name: rep0, type: Nat},
+    {name: rep1, type: Nat},
+    {name: rep2, type: Nat},
+    {name: rep3, type: Nat},
+    {name: at, type: Nat},
+    {name: outBase, type: Nat}
+  ]
+}
+
+definition{
+  name: emitByte,
+  parameters: [e : (Bytes * EncS), value : Nat],
+  result: (Bytes * EncS),
+  body: (let mem1 : Bytes := (first e); (let r1_0 : EncS := (second e); (let sc1 : EncS := r1_0; (let nmem1 : Bytes := (Uorc.Codec.Table::set 1 mem1 ((project sc1 outBase) + (project sc1 outSize)) value); (nmem1, (record EncS {data := (project sc1 data), n := (project sc1 n), low := (project sc1 low), rng := (project sc1 rng), cache := (project sc1 cache), csize := (project sc1 csize), outSize := ((project sc1 outSize) + 1), state := (project sc1 state), rep0 := (project sc1 rep0), rep1 := (project sc1 rep1), rep2 := (project sc1 rep2), rep3 := (project sc1 rep3), at := (project sc1 at), outBase := (project sc1 outBase)})))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emitRun,
+  parameters: [fuel : Nat, e : (Bytes * EncS), value : Nat],
+  result: (Bytes * EncS),
+  body: (match fuel
+    | Nat.zero => e
+    | Nat.succ k => (emitRun k (emitByte e value) value)),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: shiftLow,
+  parameters: [e : (Bytes * EncS)],
+  result: (Bytes * EncS),
+  body: (let low : Nat := (project (second e) low); (let cache : Nat := (project (second e) cache); (let csize : Nat := (project (second e) csize); (if ((low <? 4278190080) || (4294967296 <=? low)) then (let carry : Nat := (prim quotient low 4294967296 0 : Nat); (let a : (Bytes * EncS) := (emitByte e (prim remainder (cache + carry) 256 0 : Nat)); (let b : (Bytes * EncS) := (emitRun (prim subtract csize 1 : Nat) a (prim remainder (255 + carry) 256 0 : Nat)); (let mem2 : Bytes := (first b); (let r2_0 : EncS := (second b); (let sc2 : EncS := r2_0; (mem2, (record EncS {data := (project sc2 data), n := (project sc2 n), low := (prim multiply 256 (prim remainder low 16777216 0 : Nat) : Nat), rng := (project sc2 rng), cache := (prim remainder (prim quotient low 16777216 0 : Nat) 256 0 : Nat), csize := 1, outSize := (project sc2 outSize), state := (project sc2 state), rep0 := (project sc2 rep0), rep1 := (project sc2 rep1), rep2 := (project sc2 rep2), rep3 := (project sc2 rep3), at := (project sc2 at), outBase := (project sc2 outBase)})))))))) else (let mem3 : Bytes := (first e); (let r3_0 : EncS := (second e); (let sc3 : EncS := r3_0; (mem3, (record EncS {data := (project sc3 data), n := (project sc3 n), low := (prim multiply 256 (prim remainder low 16777216 0 : Nat) : Nat), rng := (project sc3 rng), cache := (project sc3 cache), csize := (csize + 1), outSize := (project sc3 outSize), state := (project sc3 state), rep0 := (project sc3 rep0), rep1 := (project sc3 rep1), rep2 := (project sc3 rep2), rep3 := (project sc3 rep3), at := (project sc3 at), outBase := (project sc3 outBase)}))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: norm,
+  parameters: [e : (Bytes * EncS)],
+  result: (Bytes * EncS),
+  body: (if ((project (second e) rng) <? 16777216) then (shiftLow (let mem4 : Bytes := (first e); (let r4_0 : EncS := (second e); (let sc4 : EncS := r4_0; (mem4, (record EncS {data := (project sc4 data), n := (project sc4 n), low := (project sc4 low), rng := (prim multiply 256 (project sc4 rng) : Nat), cache := (project sc4 cache), csize := (project sc4 csize), outSize := (project sc4 outSize), state := (project sc4 state), rep0 := (project sc4 rep0), rep1 := (project sc4 rep1), rep2 := (project sc4 rep2), rep3 := (project sc4 rep3), at := (project sc4 at), outBase := (project sc4 outBase)})))))) else e),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encodeBit,
+  parameters: [e : (Bytes * EncS), at : Nat, bit : Nat],
+  result: (Bytes * EncS),
+  body: (let v : Nat := (Uorc.Codec.Table::get 2 (first e) at); (let bound : Nat := (prim multiply (prim quotient (project (second e) rng) 2048 0 : Nat) v : Nat); (if (bit =? 0) then (norm (let mem5 : Bytes := (first e); (let r5_0 : EncS := (second e); (let sc5 : EncS := r5_0; (let nmem5 : Bytes := (Uorc.Codec.Table::set 2 mem5 at (v + (prim quotient (prim subtract 2048 v : Nat) 32 0 : Nat))); (nmem5, (record EncS {data := (project sc5 data), n := (project sc5 n), low := (project sc5 low), rng := bound, cache := (project sc5 cache), csize := (project sc5 csize), outSize := (project sc5 outSize), state := (project sc5 state), rep0 := (project sc5 rep0), rep1 := (project sc5 rep1), rep2 := (project sc5 rep2), rep3 := (project sc5 rep3), at := (project sc5 at), outBase := (project sc5 outBase)}))))))) else (norm (let mem6 : Bytes := (first e); (let r6_0 : EncS := (second e); (let sc6 : EncS := r6_0; (let nmem6 : Bytes := (Uorc.Codec.Table::set 2 mem6 at (prim subtract v (prim quotient v 32 0 : Nat) : Nat)); (nmem6, (record EncS {data := (project sc6 data), n := (project sc6 n), low := ((project sc6 low) + bound), rng := (prim subtract (project sc6 rng) bound : Nat), cache := (project sc6 cache), csize := (project sc6 csize), outSize := (project sc6 outSize), state := (project sc6 state), rep0 := (project sc6 rep0), rep1 := (project sc6 rep1), rep2 := (project sc6 rep2), rep3 := (project sc6 rep3), at := (project sc6 at), outBase := (project sc6 outBase)})))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: bitOf,
+  parameters: [v : Nat, k : Nat],
+  result: Nat,
+  body: (prim remainder (prim quotient v (Uorc.Codec.LzDecode::pow2 k) 0 : Nat) 2 0 : Nat),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: directEnc,
+  parameters: [fuel : Nat, e : (Bytes * EncS), v : Nat],
+  result: (Bytes * EncS),
+  body: (match fuel
+    | Nat.zero => e
+    | Nat.succ k => (let half : Nat := (prim quotient (project (second e) rng) 2 0 : Nat); (directEnc k (norm (if ((bitOf v k) =? 1) then (let mem7 : Bytes := (first e); (let r7_0 : EncS := (second e); (let sc7 : EncS := r7_0; (mem7, (record EncS {data := (project sc7 data), n := (project sc7 n), low := ((project sc7 low) + half), rng := half, cache := (project sc7 cache), csize := (project sc7 csize), outSize := (project sc7 outSize), state := (project sc7 state), rep0 := (project sc7 rep0), rep1 := (project sc7 rep1), rep2 := (project sc7 rep2), rep3 := (project sc7 rep3), at := (project sc7 at), outBase := (project sc7 outBase)}))))) else (let mem8 : Bytes := (first e); (let r8_0 : EncS := (second e); (let sc8 : EncS := r8_0; (mem8, (record EncS {data := (project sc8 data), n := (project sc8 n), low := (project sc8 low), rng := half, cache := (project sc8 cache), csize := (project sc8 csize), outSize := (project sc8 outSize), state := (project sc8 state), rep0 := (project sc8 rep0), rep1 := (project sc8 rep1), rep2 := (project sc8 rep2), rep3 := (project sc8 rep3), at := (project sc8 at), outBase := (project sc8 outBase)}))))))) v))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: treeEnc,
+  parameters: [fuel : Nat, e : (Bytes * EncS), base : Nat, m : Nat, v : Nat],
+  result: (Bytes * EncS),
+  body: (match fuel
+    | Nat.zero => e
+    | Nat.succ k => (let b : Nat := (bitOf v k); (treeEnc k (encodeBit e (base + m) b) base ((prim multiply 2 m : Nat) + b) v))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: revEnc,
+  parameters: [fuel : Nat, e : (Bytes * EncS), base : Nat, m : Nat, v : Nat],
+  result: (Bytes * EncS),
+  body: (match fuel
+    | Nat.zero => e
+    | Nat.succ k => (let b : Nat := (prim remainder v 2 0 : Nat); (revEnc k (encodeBit e (base + m) b) base ((prim multiply 2 m : Nat) + b) (prim quotient v 2 0 : Nat)))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: litMatched,
+  parameters: [fuel : Nat, e : (Bytes * EncS), base : Nat, value : Nat, matchByte : Nat, sym : Nat],
+  result: (Bytes * EncS),
+  body: (match fuel
+    | Nat.zero => e
+    | Nat.succ k => (let mbit : Nat := (bitOf matchByte k); (let b : Nat := (bitOf value k); (let next : (Bytes * EncS) := (encodeBit e ((base + (prim multiply 256 (1 + mbit) : Nat)) + sym) b); (if (b =? mbit) then (litMatched k next base value matchByte ((prim multiply 2 sym : Nat) + b)) else (let rest : (Bytes * EncS) := (treeEnc k next base ((prim multiply 2 sym : Nat) + b) value); rest)))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: lenEnc,
+  parameters: [e : (Bytes * EncS), base : Nat, v : Nat],
+  result: (Bytes * EncS),
+  body: (if (v <? 8) then (treeEnc 3 (encodeBit e base 0) (base + 2) 1 v) else (if (v <? 16) then (treeEnc 3 (encodeBit (encodeBit e base 1) (base + 1) 0) (base + 18) 1 (prim subtract v 8 : Nat)) else (treeEnc 8 (encodeBit (encodeBit e base 1) (base + 1) 1) (base + 34) 1 (prim subtract v 16 : Nat)))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: log2Loop,
+  parameters: [fuel : Nat, v : Nat, acc : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => acc
+    | Nat.succ k => (if (v <? 2) then acc else (log2Loop k (prim quotient v 2 0 : Nat) (acc + 1)))),
+  executable: true,
+  axioms: [],
+  recursive_argument: fuel
+}
+
+definition{
+  name: slotOf,
+  parameters: [dist : Nat],
+  result: Nat,
+  body: (if (dist <? 4) then dist else (let top : Nat := (log2Loop 64 dist 0); ((prim multiply 2 top : Nat) + (bitOf dist (prim subtract top 1 : Nat))))),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: distEnc,
+  parameters: [e : (Bytes * EncS), dist : Nat, lenCode : Nat],
+  result: (Bytes * EncS),
+  body: (let ls : Nat := (if (lenCode <? 3) then lenCode else 3); (let slot : Nat := (slotOf dist); (let a : (Bytes * EncS) := (treeEnc 6 e (6216 + (prim multiply 64 ls : Nat)) 1 slot); (if (slot <? 4) then a else (let fb : Nat := (prim subtract (prim quotient slot 2 0 : Nat) 1 : Nat); (let base : Nat := (prim multiply (2 + (prim remainder slot 2 0 : Nat)) (Uorc.Codec.LzDecode::pow2 fb) : Nat); (let reduced : Nat := (prim subtract dist base : Nat); (if (slot <? 14) then (revEnc fb a (prim subtract (6472 + base) slot : Nat) 1 reduced) else (revEnc 4 (directEnc (prim subtract fb 4 : Nat) a (prim quotient reduced 16 0 : Nat)) 6587 1 (prim remainder reduced 16 0 : Nat)))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: hashAt,
+  parameters: [data : Bytes, i : Nat],
+  result: Nat,
+  body: (let x : Nat := (((prim multiply 65536 (Uorc.Codec.Table::readByte data i) : Nat) + (prim multiply 256 (Uorc.Codec.Table::readByte data (i + 1)) : Nat)) + (Uorc.Codec.Table::readByte data (i + 2))); (prim remainder (prim quotient (prim multiply 2654435761 x : Nat) 65536 0 : Nat) 65536 0 : Nat)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: insert,
+  parameters: [e : (Bytes * EncS), i : Nat],
+  result: (Bytes * EncS),
+  body: (if ((i + 2) <? (project (second e) n)) then (let k : Nat := (hashAt (project (second e) data) i); (let hv : Nat := (Uorc.Codec.Table::get 4 (first e) (4096 + k)); (let mem9 : Bytes := (first e); (let r9_0 : EncS := (second e); (let sc9 : EncS := r9_0; (let nmem9 : Bytes := (Uorc.Codec.Table::set 4 (Uorc.Codec.Table::set 4 mem9 (69632 + i) hv) (4096 + k) (i + 1)); (nmem9, (record EncS {data := (project sc9 data), n := (project sc9 n), low := (project sc9 low), rng := (project sc9 rng), cache := (project sc9 cache), csize := (project sc9 csize), outSize := (project sc9 outSize), state := (project sc9 state), rep0 := (project sc9 rep0), rep1 := (project sc9 rep1), rep2 := (project sc9 rep2), rep3 := (project sc9 rep3), at := (project sc9 at), outBase := (project sc9 outBase)})))))))) else e),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: insertRange,
+  parameters: [fuel : Nat, e : (Bytes * EncS), i : Nat],
+  result: (Bytes * EncS),
+  body: (match fuel
+    | Nat.zero => e
+    | Nat.succ k => (insertRange k (insert e i) (i + 1))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: matchLen,
+  parameters: [fuel : Nat, data : Bytes, a : Nat, b : Nat, l : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => l
+    | Nat.succ k => (if ((Uorc.Codec.Table::readByte data (a + l)) =? (Uorc.Codec.Table::readByte data (b + l))) then (matchLen k data a b (l + 1)) else l)),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: findLoop,
+  parameters: [fuel : Nat, data : Bytes, chain : Bytes, i : Nat, lim : Nat, candidate : Nat, best : Nat, dist : Nat],
+  result: (Nat * Nat),
+  body: (match fuel
+    | Nat.zero => (best, dist)
+    | Nat.succ k => (if (candidate =? 0) then (best, dist) else (let j : Nat := (prim subtract candidate 1 : Nat); (let next : Nat := (Uorc.Codec.Table::get 4 chain (69632 + j)); (if ((Uorc.Codec.Table::readByte data (j + best)) =? (Uorc.Codec.Table::readByte data (i + best))) then (let l : Nat := (matchLen lim data j i 0); (let nb : Nat := (if (best <? l) then l else best); (let nd : Nat := (if (best <? l) then (prim subtract i (j + 1) : Nat) else dist); (if (64 <=? l) then (nb, nd) else (findLoop k data chain i lim next nb nd))))) else (findLoop k data chain i lim next best dist)))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: limitAt,
+  parameters: [n : Nat, i : Nat],
+  result: Nat,
+  body: (let left : Nat := (prim subtract n i : Nat); (if (left <? 273) then left else 273)),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: find,
+  parameters: [e : (Bytes * EncS), i : Nat],
+  result: (Nat * Nat),
+  body: (let n : Nat := (project (second e) n); (if (n <=? (i + 2)) then (0, 0) else (let data : Bytes := (project (second e) data); (let h : Nat := (Uorc.Codec.Table::get 4 (first e) (4096 + (hashAt data i))); (findLoop 48 data (first e) i (limitAt n i) h 0 0))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: repLen,
+  parameters: [data : Bytes, i : Nat, lim : Nat, r : Nat],
+  result: Nat,
+  body: (if (i <? (r + 1)) then 0 else (matchLen lim data (prim subtract i (r + 1) : Nat) i 0)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: bestRep,
+  parameters: [e : (Bytes * EncS), i : Nat, lim : Nat],
+  result: (Nat * Nat),
+  body: (let data : Bytes := (project (second e) data); (let l0 : Nat := (repLen data i lim (project (second e) rep0)); (let l1 : Nat := (repLen data i lim (project (second e) rep1)); (let l2 : Nat := (repLen data i lim (project (second e) rep2)); (let l3 : Nat := (repLen data i lim (project (second e) rep3)); (let a : (Nat * Nat) := (if (l0 <? l1) then (l1, 1) else (l0, 0)); (let b : (Nat * Nat) := (if ((first a) <? l2) then (l2, 2) else a); (if ((first b) <? l3) then (l3, 3) else b)))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: afterLiteral,
+  parameters: [s : Nat],
+  result: Nat,
+  body: (Uorc.Codec.LzDecode::afterLiteral s),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: emitRep,
+  parameters: [e : (Bytes * EncS), ri : Nat, len : Nat],
+  result: (Bytes * EncS),
+  body: (let s : Nat := (project (second e) state); (let at0 : Nat := (project (second e) at); (let a : (Bytes * EncS) := (encodeBit (encodeBit e s 1) (12 + s) 1); (let b : (Bytes * EncS) := (if (ri =? 0) then (encodeBit (encodeBit a (24 + s) 0) (60 + s) 1) else (let g : (Bytes * EncS) := (encodeBit a (24 + s) 1); (if (ri =? 1) then (encodeBit g (36 + s) 0) else (encodeBit (encodeBit g (36 + s) 1) (48 + s) (prim subtract ri 2 : Nat))))); (let c : (Bytes * EncS) := (lenEnc b 7149 (prim subtract len 2 : Nat)); (let r : (Bytes * EncS) := (if (ri =? 0) then c else (if (ri =? 1) then (let mem10 : Bytes := (first c); (let r10_0 : EncS := (second c); (let sc10 : EncS := r10_0; (mem10, (record EncS {data := (project sc10 data), n := (project sc10 n), low := (project sc10 low), rng := (project sc10 rng), cache := (project sc10 cache), csize := (project sc10 csize), outSize := (project sc10 outSize), state := (project sc10 state), rep0 := (project sc10 rep1), rep1 := (project sc10 rep0), rep2 := (project sc10 rep2), rep3 := (project sc10 rep3), at := (project sc10 at), outBase := (project sc10 outBase)}))))) else (if (ri =? 2) then (let mem11 : Bytes := (first c); (let r11_0 : EncS := (second c); (let sc11 : EncS := r11_0; (mem11, (record EncS {data := (project sc11 data), n := (project sc11 n), low := (project sc11 low), rng := (project sc11 rng), cache := (project sc11 cache), csize := (project sc11 csize), outSize := (project sc11 outSize), state := (project sc11 state), rep0 := (project sc11 rep2), rep1 := (project sc11 rep0), rep2 := (project sc11 rep1), rep3 := (project sc11 rep3), at := (project sc11 at), outBase := (project sc11 outBase)}))))) else (let mem12 : Bytes := (first c); (let r12_0 : EncS := (second c); (let sc12 : EncS := r12_0; (mem12, (record EncS {data := (project sc12 data), n := (project sc12 n), low := (project sc12 low), rng := (project sc12 rng), cache := (project sc12 cache), csize := (project sc12 csize), outSize := (project sc12 outSize), state := (project sc12 state), rep0 := (project sc12 rep3), rep1 := (project sc12 rep0), rep2 := (project sc12 rep1), rep3 := (project sc12 rep2), at := (project sc12 at), outBase := (project sc12 outBase)})))))))); (let f : (Bytes * EncS) := (insertRange (prim subtract len 1 : Nat) r (at0 + 1)); (let mem13 : Bytes := (first f); (let r13_0 : EncS := (second f); (let sc13 : EncS := r13_0; (mem13, (record EncS {data := (project sc13 data), n := (project sc13 n), low := (project sc13 low), rng := (project sc13 rng), cache := (project sc13 cache), csize := (project sc13 csize), outSize := (project sc13 outSize), state := (Uorc.Codec.LzDecode::afterRep s), rep0 := (project sc13 rep0), rep1 := (project sc13 rep1), rep2 := (project sc13 rep2), rep3 := (project sc13 rep3), at := (at0 + len), outBase := (project sc13 outBase)})))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emitMatch,
+  parameters: [e : (Bytes * EncS), len : Nat, dist : Nat],
+  result: (Bytes * EncS),
+  body: (let s : Nat := (project (second e) state); (let at0 : Nat := (project (second e) at); (let a : (Bytes * EncS) := (encodeBit (encodeBit e s 1) (12 + s) 0); (let b : (Bytes * EncS) := (distEnc (lenEnc a 6603 (prim subtract len 2 : Nat)) dist (prim subtract len 2 : Nat)); (let f : (Bytes * EncS) := (insertRange (prim subtract len 1 : Nat) b (at0 + 1)); (let mem14 : Bytes := (first f); (let r14_0 : EncS := (second f); (let sc14 : EncS := r14_0; (mem14, (record EncS {data := (project sc14 data), n := (project sc14 n), low := (project sc14 low), rng := (project sc14 rng), cache := (project sc14 cache), csize := (project sc14 csize), outSize := (project sc14 outSize), state := (Uorc.Codec.LzDecode::afterMatch s), rep0 := dist, rep1 := (project sc14 rep0), rep2 := (project sc14 rep1), rep3 := (project sc14 rep2), at := (at0 + len), outBase := (project sc14 outBase)})))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emitLiteral,
+  parameters: [e : (Bytes * EncS)],
+  result: (Bytes * EncS),
+  body: (let s : Nat := (project (second e) state); (let i : Nat := (project (second e) at); (let data : Bytes := (project (second e) data); (let r0 : Nat := (project (second e) rep0); (let prev : Nat := (if (i =? 0) then 0 else (Uorc.Codec.Table::readByte data (prim subtract i 1 : Nat))); (let base : Nat := (72 + (prim multiply 768 (prim quotient prev 32 0 : Nat) : Nat)); (let cur : Nat := (Uorc.Codec.Table::readByte data i); (let mb : Nat := (if (i <? (r0 + 1)) then 0 else (Uorc.Codec.Table::readByte data (prim subtract i (r0 + 1) : Nat))); (let a : (Bytes * EncS) := (encodeBit e s 0); (let b : (Bytes * EncS) := (if (s <? 7) then (treeEnc 8 a base 1 cur) else (litMatched 8 a base cur mb 1)); (let mem15 : Bytes := (first b); (let r15_0 : EncS := (second b); (let sc15 : EncS := r15_0; (mem15, (record EncS {data := (project sc15 data), n := (project sc15 n), low := (project sc15 low), rng := (project sc15 rng), cache := (project sc15 cache), csize := (project sc15 csize), outSize := (project sc15 outSize), state := (afterLiteral s), rep0 := (project sc15 rep0), rep1 := (project sc15 rep1), rep2 := (project sc15 rep2), rep3 := (project sc15 rep3), at := (i + 1), outBase := (project sc15 outBase)}))))))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: step,
+  parameters: [e : (Bytes * EncS)],
+  result: (Bytes * EncS),
+  body: (let i : Nat := (project (second e) at); (let n : Nat := (project (second e) n); (let lim : Nat := (limitAt n i); (let r : (Nat * Nat) := (bestRep e i lim); (let rl : Nat := (first r); (let ri : Nat := (second r); (let f : (Nat * Nat) := (find e i); (let fl : Nat := (first f); (let fd : Nat := (second f); (let ml1 : Nat := (if ((fl =? 2) && (128 <=? fd)) then 0 else fl); (let e1 : (Bytes * EncS) := (insert e i); (let ml : Nat := (if (((2 <=? ml1) && ((rl + 1) <? ml1)) && ((i + 1) <? n)) then (let g : (Nat * Nat) := (find e1 (i + 1)); (let gl : Nat := (first g); (let gd : Nat := (second g); (if (((ml1 + 1) <? gl) || ((gl =? (ml1 + 1)) && (gd <? (prim multiply 4 fd : Nat)))) then 0 else ml1)))) else ml1); (if ((2 <=? rl) && (ml <=? (rl + 1))) then (emitRep e1 ri rl) else (if (2 <=? ml) then (emitMatch e1 ml fd) else (emitLiteral e1))))))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encodeLoop,
+  parameters: [fuel : Nat, e : (Bytes * EncS)],
+  result: (Bytes * EncS),
+  body: (match fuel
+    | Nat.zero => e
+    | Nat.succ k => (let i : Nat := (project (second e) at); (let n : Nat := (project (second e) n); (if (n <=? i) then e else (encodeLoop k (step e)))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: header,
+  parameters: [fuel : Nat, v : Nat],
+  result: Bytes,
+  body: (match fuel
+    | Nat.zero => 0x
+    | Nat.succ k => (prim append (Uorc.Codec.LzDecode::singleton (prim remainder v 256 0 : Nat)) (header k (prim quotient v 256 0 : Nat)) : Bytes)),
+  executable: true,
+  axioms: [],
+  recursive_argument: fuel
+}
+
+definition{
+  name: start,
+  parameters: [data : Bytes],
+  result: (Bytes * EncS),
+  body: (let n : Nat := (prim length data : Nat); (let od : Nat := (Uorc.Codec.LzDecode::depthFor 64 ((prim multiply 2 n : Nat) + 64) 0); (let cd : Nat := (Uorc.Codec.LzDecode::depthFor 64 (n + 1) 0); ((prim append (prim append (prim append (Uorc.Codec.Table::fill 2 13 1024) (Uorc.Codec.Table::fill 4 16 0) : Bytes) (Uorc.Codec.Table::fill 4 cd 0) : Bytes) (Uorc.Codec.Table::fill 1 od 0) : Bytes), (record EncS {data := data, n := n, low := 0, rng := 4294967295, cache := 0, csize := 1, outSize := 0, state := 0, rep0 := 0, rep1 := 0, rep2 := 0, rep3 := 0, at := 0, outBase := (278528 + (prim multiply 4 (Uorc.Codec.LzDecode::pow2 cd) : Nat))}))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encode,
+  parameters: [data : Bytes],
+  result: Bytes,
+  body: (let n : Nat := (prim length data : Nat); (let e : (Bytes * EncS) := (start data); (let f : (Bytes * EncS) := (shiftLow (shiftLow (shiftLow (shiftLow (shiftLow (encodeLoop (n + 1) e)))))); (let size : Nat := (project (second f) outSize); (prim append (header 8 n) (match (prim slice (first f) (project (second f) outBase) size : (Option Bytes))
+    | Option.none => 0x
+    | Option.some b => b) : Bytes))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

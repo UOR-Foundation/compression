@@ -11,6 +11,9 @@
 \importmodule{Uorc.Search.SharingJob}
 \importmodule{Uorc.Search.VerifyRope}
 \importmodule{Uorc.Wire.FrameParse}
+\importmodule{Uorc.Codec.Archive}
+\importmodule{Uorc.Codec.LzDecode}
+\importmodule{Uorc.Codec.LzEncode}
 \title{Parameters}
 \begin{semanticmodule}
 definition{
@@ -76,10 +79,48 @@ definition{
 }
 
 definition{
-  name: compress,
+  name: search,
   parameters: [input : Bytes, steps : Nat],
   result: (Option Bytes),
   body: (drive steps (ctor Uorc.Search.Engine::Step.advanced (Uorc.Search.Engine::start (query input) (policy) (allowances steps) (Uorc.Search.Synthesis::emptyInventory) (nil Uorc.Search.SharingJob::Spec))) (ctor Option.none [Bytes])),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: smaller,
+  parameters: [left : (Option Bytes), right : (Option Bytes)],
+  result: (Option Bytes),
+  body: (match left
+    | Option.none => right
+    | Option.some l => (match right
+      | Option.none => left
+      | Option.some r => (if ((prim length r : Nat) <? (prim length l : Nat)) then right else left))),
+  axioms: []
+}
+
+definition{
+  name: rawLength,
+  parameters: [n : Nat],
+  result: Nat,
+  body: ((prim multiply 2 (prim length (Uorc.Codec.Archive::number n) : Nat) : Nat) + (n + 41)),
+  axioms: []
+}
+
+definition{
+  name: kernelArchive,
+  parameters: [input : Bytes],
+  result: (Option Bytes),
+  body: (let payload : Bytes := (Uorc.Codec.LzEncode::encode input); (if (prim equal (Uorc.Codec.LzDecode::decode payload) input : Bool) then (Uorc.Codec.Archive::programArchive (prim length input : Nat) payload) else (ctor Option.none [Bytes]))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: compress,
+  parameters: [input : Bytes, steps : Nat],
+  result: (Option Bytes),
+  body: (let quick : (Option Bytes) := (match (kernelArchive input)
+    | Option.none => (Uorc.Codec.Archive::rawArchive input)
+    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))),
   axioms: [Quot.sound, propext]
 }
 
@@ -147,9 +188,11 @@ definition{
   name: decompress,
   parameters: [archive : Bytes, work : Nat],
   result: (Option Bytes),
-  body: (match (parsedLengths work (decodeStart archive (nil Nat)))
-    | Option.none => (ctor Option.none [Bytes])
-    | Option.some lengths => (decodedOutput work (decodeStart archive lengths))),
+  body: (match (Uorc.Codec.Archive::fastDecode archive)
+    | Option.some output => (ctor Option.some [Bytes] output)
+    | Option.none => (match (parsedLengths work (decodeStart archive (nil Nat)))
+      | Option.none => (ctor Option.none [Bytes])
+      | Option.some lengths => (decodedOutput work (decodeStart archive lengths)))),
   axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}

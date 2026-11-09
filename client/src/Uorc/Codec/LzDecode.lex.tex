@@ -1,0 +1,334 @@
+\begin{lexlean}{Uorc.Codec.LzDecode}
+\importmodule{Uorc.Codec.Table}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: DecS,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: input, type: Bytes},
+    {name: pos, type: Nat},
+    {name: range, type: Nat},
+    {name: code, type: Nat},
+    {name: size, type: Nat},
+    {name: total, type: Nat},
+    {name: state, type: Nat},
+    {name: rep0, type: Nat},
+    {name: rep1, type: Nat},
+    {name: rep2, type: Nat},
+    {name: rep3, type: Nat}
+  ]
+}
+
+definition{
+  name: alphabet,
+  parameters: [],
+  result: Bytes,
+  body: 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: byteAt,
+  parameters: [data : Bytes, at : Nat],
+  result: Nat,
+  body: (Uorc.Codec.Table::readByte data at),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: singleton,
+  parameters: [value : Nat],
+  result: Bytes,
+  body: (match (prim slice (alphabet) value 1 : (Option Bytes))
+    | Option.none => 0x
+    | Option.some piece => piece),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: pow2,
+  parameters: [k : Nat],
+  result: Nat,
+  body: (match k
+    | Nat.zero => 1
+    | Nat.succ m => (prim multiply 2 (pow2 m) : Nat)),
+  executable: true,
+  axioms: [],
+  recursive_argument: k
+}
+
+definition{
+  name: depthFor,
+  parameters: [fuel : Nat, n : Nat, depth : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => depth
+    | Nat.succ m => (if (n <=? (pow2 depth)) then depth else (depthFor m n (depth + 1)))),
+  executable: true,
+  axioms: [],
+  recursive_argument: fuel
+}
+
+definition{
+  name: normalize,
+  parameters: [d : (Bytes * DecS)],
+  result: (Bytes * DecS),
+  body: (if ((project (second d) range) <? 16777216) then (let mem1 : Bytes := (first d); (let r1_0 : DecS := (second d); (let sc1 : DecS := r1_0; (mem1, (record DecS {input := (project sc1 input), pos := ((project sc1 pos) + 1), range := (prim multiply 256 (project sc1 range) : Nat), code := ((prim multiply 256 (project sc1 code) : Nat) + (Uorc.Codec.Table::readByte (project sc1 input) (project sc1 pos))), size := (project sc1 size), total := (project sc1 total), state := (project sc1 state), rep0 := (project sc1 rep0), rep1 := (project sc1 rep1), rep2 := (project sc1 rep2), rep3 := (project sc1 rep3)}))))) else d),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: prob,
+  parameters: [d : (Bytes * DecS), at : Nat],
+  result: Nat,
+  body: (Uorc.Codec.Table::get 2 (first d) at),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: decodeBit,
+  parameters: [d : (Bytes * DecS), at : Nat],
+  result: (Nat * (Bytes * DecS)),
+  body: (let v : Nat := (prob d at); (let bound : Nat := (prim multiply (prim quotient (project (second d) range) 2048 0 : Nat) v : Nat); (if ((project (second d) code) <? bound) then (0, (normalize (let mem2 : Bytes := (first d); (let r2_0 : DecS := (second d); (let sc2 : DecS := r2_0; (let nmem2 : Bytes := (Uorc.Codec.Table::set 2 mem2 at (v + (prim quotient (prim subtract 2048 v : Nat) 32 0 : Nat))); (nmem2, (record DecS {input := (project sc2 input), pos := (project sc2 pos), range := bound, code := (project sc2 code), size := (project sc2 size), total := (project sc2 total), state := (project sc2 state), rep0 := (project sc2 rep0), rep1 := (project sc2 rep1), rep2 := (project sc2 rep2), rep3 := (project sc2 rep3)})))))))) else (1, (normalize (let mem3 : Bytes := (first d); (let r3_0 : DecS := (second d); (let sc3 : DecS := r3_0; (let nmem3 : Bytes := (Uorc.Codec.Table::set 2 mem3 at (prim subtract v (prim quotient v 32 0 : Nat) : Nat)); (nmem3, (record DecS {input := (project sc3 input), pos := (project sc3 pos), range := (prim subtract (project sc3 range) bound : Nat), code := (prim subtract (project sc3 code) bound : Nat), size := (project sc3 size), total := (project sc3 total), state := (project sc3 state), rep0 := (project sc3 rep0), rep1 := (project sc3 rep1), rep2 := (project sc3 rep2), rep3 := (project sc3 rep3)}))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: directLoop,
+  parameters: [fuel : Nat, d : (Bytes * DecS), acc : Nat],
+  result: (Nat * (Bytes * DecS)),
+  body: (match fuel
+    | Nat.zero => (acc, d)
+    | Nat.succ m => (let half : Nat := (prim quotient (project (second d) range) 2 0 : Nat); (if ((project (second d) code) <? half) then (directLoop m (normalize (let mem4 : Bytes := (first d); (let r4_0 : DecS := (second d); (let sc4 : DecS := r4_0; (mem4, (record DecS {input := (project sc4 input), pos := (project sc4 pos), range := half, code := (project sc4 code), size := (project sc4 size), total := (project sc4 total), state := (project sc4 state), rep0 := (project sc4 rep0), rep1 := (project sc4 rep1), rep2 := (project sc4 rep2), rep3 := (project sc4 rep3)})))))) (prim multiply 2 acc : Nat)) else (directLoop m (normalize (let mem5 : Bytes := (first d); (let r5_0 : DecS := (second d); (let sc5 : DecS := r5_0; (mem5, (record DecS {input := (project sc5 input), pos := (project sc5 pos), range := half, code := (prim subtract (project sc5 code) half : Nat), size := (project sc5 size), total := (project sc5 total), state := (project sc5 state), rep0 := (project sc5 rep0), rep1 := (project sc5 rep1), rep2 := (project sc5 rep2), rep3 := (project sc5 rep3)})))))) ((prim multiply 2 acc : Nat) + 1))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: treeLoop,
+  parameters: [fuel : Nat, d : (Bytes * DecS), base : Nat, m : Nat],
+  result: (Nat * (Bytes * DecS)),
+  body: (match fuel
+    | Nat.zero => (m, d)
+    | Nat.succ k => (let r : (Nat * (Bytes * DecS)) := (decodeBit d (base + m)); (let bit : Nat := (first r); (treeLoop k (second r) base ((prim multiply 2 m : Nat) + bit))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: tree,
+  parameters: [d : (Bytes * DecS), base : Nat, bits : Nat],
+  result: (Nat * (Bytes * DecS)),
+  body: (let r : (Nat * (Bytes * DecS)) := (treeLoop bits d base 1); (let v : Nat := (first r); ((prim subtract v (pow2 bits) : Nat), (second r)))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: reverseLoop,
+  parameters: [fuel : Nat, d : (Bytes * DecS), base : Nat, m : Nat, weight : Nat, acc : Nat],
+  result: (Nat * (Bytes * DecS)),
+  body: (match fuel
+    | Nat.zero => (acc, d)
+    | Nat.succ k => (let r : (Nat * (Bytes * DecS)) := (decodeBit d (base + m)); (let bit : Nat := (first r); (reverseLoop k (second r) base ((prim multiply 2 m : Nat) + bit) (prim multiply 2 weight : Nat) (acc + (prim multiply weight bit : Nat)))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: matchedLoop,
+  parameters: [fuel : Nat, d : (Bytes * DecS), base : Nat, matchByte : Nat, sym : Nat],
+  result: (Nat * (Bytes * DecS)),
+  body: (match fuel
+    | Nat.zero => (sym, d)
+    | Nat.succ k => (let mbit : Nat := (prim remainder (prim quotient matchByte (pow2 k) 0 : Nat) 2 0 : Nat); (let r : (Nat * (Bytes * DecS)) := (decodeBit d ((base + (prim multiply 256 (1 + mbit) : Nat)) + sym)); (let bit : Nat := (first r); (let next : Nat := ((prim multiply 2 sym : Nat) + bit); (if (bit =? mbit) then (matchedLoop k (second r) base matchByte next) else (let rest : (Nat * (Bytes * DecS)) := (treeLoop k (second r) base next); rest))))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: lengthCode,
+  parameters: [d : (Bytes * DecS), base : Nat],
+  result: (Nat * (Bytes * DecS)),
+  body: (let c : (Nat * (Bytes * DecS)) := (decodeBit d base); (let cb : Nat := (first c); (if (cb =? 0) then (tree (second c) (base + 2) 3) else (let c2 : (Nat * (Bytes * DecS)) := (decodeBit (second c) (base + 1)); (let cb2 : Nat := (first c2); (if (cb2 =? 0) then (let t : (Nat * (Bytes * DecS)) := (tree (second c2) (base + 18) 3); (let tv : Nat := (first t); ((8 + tv), (second t)))) else (let t : (Nat * (Bytes * DecS)) := (tree (second c2) (base + 34) 8); (let tv : Nat := (first t); ((16 + tv), (second t)))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: distance,
+  parameters: [d : (Bytes * DecS), lenCode : Nat],
+  result: (Nat * (Bytes * DecS)),
+  body: (let ls : Nat := (if (lenCode <? 3) then lenCode else 3); (let s : (Nat * (Bytes * DecS)) := (tree d (6216 + (prim multiply 64 ls : Nat)) 6); (let slot : Nat := (first s); (if (slot <? 4) then s else (let fb : Nat := (prim subtract (prim quotient slot 2 0 : Nat) 1 : Nat); (let base : Nat := (prim multiply (2 + (prim remainder slot 2 0 : Nat)) (pow2 fb) : Nat); (if (slot <? 14) then (let r : (Nat * (Bytes * DecS)) := (reverseLoop fb (second s) (prim subtract (6472 + base) slot : Nat) 1 1 0); (let rv : Nat := (first r); ((base + rv), (second r)))) else (let hi : (Nat * (Bytes * DecS)) := (directLoop (prim subtract fb 4 : Nat) (second s) 0); (let hv : Nat := (first hi); (let lo : (Nat * (Bytes * DecS)) := (reverseLoop 4 (second hi) 6587 1 1 0); (let lv : Nat := (first lo); (((base + (prim multiply 16 hv : Nat)) + lv), (second lo))))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: afterLiteral,
+  parameters: [s : Nat],
+  result: Nat,
+  body: (if (s <? 4) then 0 else (if (s <? 10) then (prim subtract s 3 : Nat) else (prim subtract s 6 : Nat))),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: afterMatch,
+  parameters: [s : Nat],
+  result: Nat,
+  body: (if (s <? 7) then 7 else 10),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: afterRep,
+  parameters: [s : Nat],
+  result: Nat,
+  body: (if (s <? 7) then 8 else 11),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: afterShort,
+  parameters: [s : Nat],
+  result: Nat,
+  body: (if (s <? 7) then 9 else 11),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: outAt,
+  parameters: [d : (Bytes * DecS), at : Nat],
+  result: Nat,
+  body: (Uorc.Codec.Table::get 1 (first d) (16384 + at)),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: emit,
+  parameters: [d : (Bytes * DecS), value : Nat],
+  result: (Bytes * DecS),
+  body: (let mem6 : Bytes := (first d); (let r6_0 : DecS := (second d); (let sc6 : DecS := r6_0; (let nmem6 : Bytes := (Uorc.Codec.Table::set 1 mem6 (16384 + (project sc6 size)) value); (nmem6, (record DecS {input := (project sc6 input), pos := (project sc6 pos), range := (project sc6 range), code := (project sc6 code), size := ((project sc6 size) + 1), total := (project sc6 total), state := (project sc6 state), rep0 := (project sc6 rep0), rep1 := (project sc6 rep1), rep2 := (project sc6 rep2), rep3 := (project sc6 rep3)})))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: copyLoop,
+  parameters: [fuel : Nat, d : (Bytes * DecS)],
+  result: (Bytes * DecS),
+  body: (match fuel
+    | Nat.zero => d
+    | Nat.succ k => (if ((project (second d) total) <=? (project (second d) size)) then d else (let b : Nat := (outAt d (prim subtract (project (second d) size) ((project (second d) rep0) + 1) : Nat)); (copyLoop k (emit d b))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: literal,
+  parameters: [d : (Bytes * DecS)],
+  result: (Bytes * DecS),
+  body: (let s0 : Nat := (project (second d) state); (let size0 : Nat := (project (second d) size); (let prev : Nat := (if (size0 =? 0) then 0 else (outAt d (prim subtract size0 1 : Nat))); (let base : Nat := (72 + (prim multiply 768 (prim quotient prev 32 0 : Nat) : Nat)); (let mb : Nat := (if ((project (second d) rep0) <? size0) then (outAt d (prim subtract (project (second d) size) ((project (second d) rep0) + 1) : Nat)) else 0); (let r : (Nat * (Bytes * DecS)) := (if (s0 <? 7) then (treeLoop 8 d base 1) else (matchedLoop 8 d base mb 1)); (let sym : Nat := (first r); (let e : (Bytes * DecS) := (emit (second r) (prim subtract sym 256 : Nat)); (let mem7 : Bytes := (first e); (let r7_0 : DecS := (second e); (let sc7 : DecS := r7_0; (mem7, (record DecS {input := (project sc7 input), pos := (project sc7 pos), range := (project sc7 range), code := (project sc7 code), size := (project sc7 size), total := (project sc7 total), state := (afterLiteral s0), rep0 := (project sc7 rep0), rep1 := (project sc7 rep1), rep2 := (project sc7 rep2), rep3 := (project sc7 rep3)}))))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: newMatch,
+  parameters: [d : (Bytes * DecS)],
+  result: (Bytes * DecS),
+  body: (let l : (Nat * (Bytes * DecS)) := (lengthCode d 6603); (let len : Nat := (first l); (let dist : (Nat * (Bytes * DecS)) := (distance (second l) len); (let dv : Nat := (first dist); (let e : (Bytes * DecS) := (second dist); (copyLoop (len + 2) (let mem8 : Bytes := (first e); (let r8_0 : DecS := (second e); (let sc8 : DecS := r8_0; (mem8, (record DecS {input := (project sc8 input), pos := (project sc8 pos), range := (project sc8 range), code := (project sc8 code), size := (project sc8 size), total := (project sc8 total), state := (afterMatch (project sc8 state)), rep0 := dv, rep1 := (project sc8 rep0), rep2 := (project sc8 rep1), rep3 := (project sc8 rep2)}))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: repMatch,
+  parameters: [d : (Bytes * DecS)],
+  result: (Bytes * DecS),
+  body: (let l : (Nat * (Bytes * DecS)) := (lengthCode d 7149); (let len : Nat := (first l); (let e : (Bytes * DecS) := (second l); (copyLoop (len + 2) (let mem9 : Bytes := (first e); (let r9_0 : DecS := (second e); (let sc9 : DecS := r9_0; (mem9, (record DecS {input := (project sc9 input), pos := (project sc9 pos), range := (project sc9 range), code := (project sc9 code), size := (project sc9 size), total := (project sc9 total), state := (afterRep (project sc9 state)), rep0 := (project sc9 rep0), rep1 := (project sc9 rep1), rep2 := (project sc9 rep2), rep3 := (project sc9 rep3)}))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: rep,
+  parameters: [d : (Bytes * DecS)],
+  result: (Bytes * DecS),
+  body: (let s : Nat := (project (second d) state); (let g0 : (Nat * (Bytes * DecS)) := (decodeBit d (24 + s)); (let g0b : Nat := (first g0); (let a : (Bytes * DecS) := (second g0); (if (g0b =? 0) then (let long : (Nat * (Bytes * DecS)) := (decodeBit a (60 + s)); (let lb : Nat := (first long); (let b : (Bytes * DecS) := (second long); (if (lb =? 0) then (let back : Nat := (outAt b (prim subtract (project (second b) size) ((project (second b) rep0) + 1) : Nat)); (let e : (Bytes * DecS) := (emit b back); (let mem10 : Bytes := (first e); (let r10_0 : DecS := (second e); (let sc10 : DecS := r10_0; (mem10, (record DecS {input := (project sc10 input), pos := (project sc10 pos), range := (project sc10 range), code := (project sc10 code), size := (project sc10 size), total := (project sc10 total), state := (afterShort s), rep0 := (project sc10 rep0), rep1 := (project sc10 rep1), rep2 := (project sc10 rep2), rep3 := (project sc10 rep3)}))))))) else (repMatch b))))) else (let g1 : (Nat * (Bytes * DecS)) := (decodeBit a (36 + s)); (let g1b : Nat := (first g1); (let b : (Bytes * DecS) := (second g1); (if (g1b =? 0) then (repMatch (let mem11 : Bytes := (first b); (let r11_0 : DecS := (second b); (let sc11 : DecS := r11_0; (mem11, (record DecS {input := (project sc11 input), pos := (project sc11 pos), range := (project sc11 range), code := (project sc11 code), size := (project sc11 size), total := (project sc11 total), state := (project sc11 state), rep0 := (project sc11 rep1), rep1 := (project sc11 rep0), rep2 := (project sc11 rep2), rep3 := (project sc11 rep3)})))))) else (let g2 : (Nat * (Bytes * DecS)) := (decodeBit b (48 + s)); (let g2b : Nat := (first g2); (let c : (Bytes * DecS) := (second g2); (if (g2b =? 0) then (repMatch (let mem12 : Bytes := (first c); (let r12_0 : DecS := (second c); (let sc12 : DecS := r12_0; (mem12, (record DecS {input := (project sc12 input), pos := (project sc12 pos), range := (project sc12 range), code := (project sc12 code), size := (project sc12 size), total := (project sc12 total), state := (project sc12 state), rep0 := (project sc12 rep2), rep1 := (project sc12 rep0), rep2 := (project sc12 rep1), rep3 := (project sc12 rep3)})))))) else (repMatch (let mem13 : Bytes := (first c); (let r13_0 : DecS := (second c); (let sc13 : DecS := r13_0; (mem13, (record DecS {input := (project sc13 input), pos := (project sc13 pos), range := (project sc13 range), code := (project sc13 code), size := (project sc13 size), total := (project sc13 total), state := (project sc13 state), rep0 := (project sc13 rep3), rep1 := (project sc13 rep0), rep2 := (project sc13 rep1), rep3 := (project sc13 rep2)}))))))))))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: step,
+  parameters: [d : (Bytes * DecS)],
+  result: (Bytes * DecS),
+  body: (let s : Nat := (project (second d) state); (let m : (Nat * (Bytes * DecS)) := (decodeBit d s); (let mb : Nat := (first m); (if (mb =? 0) then (literal (second m)) else (let r : (Nat * (Bytes * DecS)) := (decodeBit (second m) (12 + s)); (let rb : Nat := (first r); (if (rb =? 0) then (newMatch (second r)) else (rep (second r))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: decodeLoop,
+  parameters: [fuel : Nat, d : (Bytes * DecS)],
+  result: (Bytes * DecS),
+  body: (match fuel
+    | Nat.zero => d
+    | Nat.succ k => (let t : Nat := (project (second d) total); (let s : Nat := (project (second d) size); (if (t <=? s) then d else (decodeLoop k (step d)))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: readLength,
+  parameters: [data : Bytes, fuel : Nat, at : Nat, acc : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => acc
+    | Nat.succ k => (readLength data k at ((prim multiply 256 acc : Nat) + (byteAt data (at + k))))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: start,
+  parameters: [input : Bytes],
+  result: (Bytes * DecS),
+  body: (let total : Nat := (readLength input 8 0 0); (let code : Nat := ((prim multiply 256 ((prim multiply 256 ((prim multiply 256 (byteAt input 9) : Nat) + (byteAt input 10)) : Nat) + (byteAt input 11)) : Nat) + (byteAt input 12)); ((prim append (Uorc.Codec.Table::fill 2 13 1024) (Uorc.Codec.Table::fill 1 (depthFor 64 total 0) 0) : Bytes), (record DecS {input := input, pos := 13, range := 4294967295, code := code, size := 0, total := total, state := 0, rep0 := 0, rep1 := 0, rep2 := 0, rep3 := 0})))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: decode,
+  parameters: [input : Bytes],
+  result: Bytes,
+  body: (let d : (Bytes * DecS) := (start input); (let steps : Nat := ((project (second d) total) + 1); (let f : (Bytes * DecS) := (decodeLoop steps d); (let size : Nat := (project (second f) size); (match (prim slice (first f) 16384 size : (Option Bytes))
+    | Option.none => 0x
+    | Option.some b => b))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+\end{semanticmodule}
+\end{lexlean}

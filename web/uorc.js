@@ -14,7 +14,7 @@ export async function load(url) {
     return new Uint8Array(x.memory.buffer, x.output_ptr(), x.output_len()).slice();
   };
   return {
-    compress: (bytes, steps = 10_000_000n) => call(bytes, () => x.compress(BigInt(steps))),
+    compress: (bytes, steps = 0n) => call(bytes, () => x.compress(BigInt(steps))),
     decompress: (archive) => call(archive, () => x.decompress()),
   };
 }

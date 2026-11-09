@@ -9,6 +9,8 @@ const USAGE: &str = "usage:
   uorc decompress [--work N]  [--stats] <input|-> [-o <output|->]
   uorc --version
 
+Compress writes the smaller of the ulz kernel archive and the raw archive;
+--steps N also runs the program search for N steps and keeps the smallest.
 Without -o, compress writes <input>.uorc and decompress strips a .uorc suffix
 (or writes <input>.out). '-' reads stdin or writes stdout.";
 
