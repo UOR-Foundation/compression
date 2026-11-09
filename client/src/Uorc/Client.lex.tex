@@ -14,6 +14,8 @@
 \importmodule{Uorc.Codec.Archive}
 \importmodule{Uorc.Codec.LzDecode}
 \importmodule{Uorc.Codec.LzEncode}
+\importmodule{Uorc.Codec.NcmDecode}
+\importmodule{Uorc.Codec.NcmEncode}
 \title{Parameters}
 \begin{semanticmodule}
 definition{
@@ -107,36 +109,28 @@ definition{
 }
 
 definition{
-  name: kernelArchive,
-  parameters: [input : Bytes],
-  result: (Option Bytes),
-  body: (let payload : Bytes := (Uorc.Codec.LzEncode::encode input); (if (prim equal (Uorc.Codec.LzDecode::decode payload) input : Bool) then (Uorc.Codec.Archive::programArchive (prim length input : Nat) payload) else (ctor Option.none [Bytes]))),
-  axioms: [Quot.sound, propext]
-}
-
-definition{
   name: compress,
-  parameters: [input : Bytes, steps : Nat],
+  parameters: [input : Bytes, window : (List Bytes), steps : Nat, level : Nat],
   result: (Option Bytes),
-  body: (let quick : (Option Bytes) := (match (kernelArchive input)
+  body: (let linked : (Option Bytes) := (if (level =? 0) then (Uorc.Codec.Archive::ulzWindowArchive window input) else (smaller (Uorc.Codec.Archive::ulzWindowArchive window input) (Uorc.Codec.Archive::ncmLinkedArchive input))); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))),
+    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))),
   axioms: [Quot.sound, propext]
 }
 
 definition{
   name: decodeQuery,
-  parameters: [lengths : (List Nat)],
+  parameters: [lengths : (List Nat), scope : Uorc.Wire.Frame::Scope, basis : (List Uorc.Core.Bytes::Rope)],
   result: Uorc.Search.Identity::Snapshot,
-  body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := (ctor Uorc.Wire.Frame::Scope.selfContained), objectLengths := lengths, target := (ctor Uorc.Core.Bytes::Rope.empty), basis := (nil Uorc.Core.Bytes::Rope), budget := (record Uorc.Core.Resources::Budget {maxSteps := 1099511627776, maxLiveCells := 1099511627776, maxOutputBytes := 1099511627776, maxFrames := 1048576}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
+  body: (record Uorc.Search.Identity::Snapshot {archiveFormat := (Uorc.Wire.Frame::formatVersion), machineProfile := (Uorc.Wire.Frame::machineProfile), scope := scope, objectLengths := lengths, target := (ctor Uorc.Core.Bytes::Rope.empty), basis := basis, budget := (record Uorc.Core.Resources::Budget {maxSteps := 1099511627776, maxLiveCells := 1099511627776, maxOutputBytes := 1099511627776, maxFrames := 1048576}), objective := (ctor Uorc.Search.Identity::Objective.wireLengthThenUnsignedLex)}),
   axioms: []
 }
 
 definition{
   name: decodeStart,
-  parameters: [archive : Bytes, lengths : (List Nat)],
+  parameters: [archive : Bytes, lengths : (List Nat), scope : Uorc.Wire.Frame::Scope, basis : (List Uorc.Core.Bytes::Rope)],
   result: Uorc.Search.ArchiveTrial::Step,
-  body: (ctor Uorc.Search.ArchiveTrial::Step.pending (Uorc.Search.ArchiveTrial::startWire (decodeQuery lengths) (Uorc.Core.Resources::zeroUsage) (Uorc.Core.Bytes::fromBytes archive))),
+  body: (ctor Uorc.Search.ArchiveTrial::Step.pending (Uorc.Search.ArchiveTrial::startWire (decodeQuery lengths scope basis) (Uorc.Core.Resources::zeroUsage) (Uorc.Core.Bytes::fromBytes archive))),
   axioms: []
 }
 
@@ -185,14 +179,41 @@ definition{
 }
 
 definition{
-  name: decompress,
-  parameters: [archive : Bytes, work : Nat],
+  name: windowRopes,
+  parameters: [window : (List Bytes)],
+  result: (List Uorc.Core.Bytes::Rope),
+  body: (match window
+    | List.nil => (nil Uorc.Core.Bytes::Rope)
+    | List.cons root rest => (cons (Uorc.Core.Bytes::fromBytes root) (windowRopes rest))),
+  axioms: [],
+  recursive_argument: window
+}
+
+definition{
+  name: referenceDecode,
+  parameters: [whole : Bytes, scope : Uorc.Wire.Frame::Scope, basis : (List Uorc.Core.Bytes::Rope), work : Nat],
   result: (Option Bytes),
-  body: (match (Uorc.Codec.Archive::fastDecode archive)
+  body: (match (parsedLengths work (decodeStart whole (nil Nat) scope basis))
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some lengths => (decodedOutput work (decodeStart whole lengths scope basis))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: decompress,
+  parameters: [archive : Bytes, window : (List Bytes), work : Nat],
+  result: (Option Bytes),
+  body: (match (Uorc.Codec.Archive::fastDecodeWith archive window)
     | Option.some output => (ctor Option.some [Bytes] output)
-    | Option.none => (match (parsedLengths work (decodeStart archive (nil Nat)))
-      | Option.none => (ctor Option.none [Bytes])
-      | Option.some lengths => (decodedOutput work (decodeStart archive lengths)))),
+    | Option.none => (match window
+      | List.nil => (referenceDecode (match (Uorc.Codec.Archive::materialize archive)
+        | Option.none => archive
+        | Option.some linked => linked) (ctor Uorc.Wire.Frame::Scope.selfContained) (nil Uorc.Core.Bytes::Rope) work)
+      | List.cons oldest rest => (match (Uorc.Codec.Archive::windowMaterialize archive window)
+        | Option.none => (ctor Option.none [Bytes])
+        | Option.some whole => (match (Uorc.Codec.Archive::windowIdentity window)
+          | Option.none => (ctor Option.none [Bytes])
+          | Option.some identity => (referenceDecode whole (ctor Uorc.Wire.Frame::Scope.conditional identity) (cons (Uorc.Core.Bytes::fromBytes (Uorc.Codec.Archive::libraryRoot)) (windowRopes window)) work))))),
   axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}

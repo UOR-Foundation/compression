@@ -74,8 +74,17 @@ fn finish(result: Result<Vec<u8>, uorc::Error>) -> i32 {
 
 /// Compress the input buffer with a search budget of `steps`.
 #[no_mangle]
-pub extern "C" fn compress(steps: u64) -> i32 {
-    finish(INPUT.with(|input| uorc::compress(&input.borrow(), steps)))
+pub extern "C" fn compress(steps: u64, best: u32) -> i32 {
+    finish(INPUT.with(|input| uorc::compress(&input.borrow(), steps, level(best))))
+}
+
+/// `best` nonzero also tries the context-mixing coder.
+fn level(best: u32) -> uorc::Level {
+    if best == 0 {
+        uorc::Level::Fast
+    } else {
+        uorc::Level::Best
+    }
 }
 
 /// Decompress the input buffer.
@@ -86,8 +95,8 @@ pub extern "C" fn decompress() -> i32 {
 
 /// Compress the input buffer as a single frame (at most [`frame_size`] bytes).
 #[no_mangle]
-pub extern "C" fn compress_frame(steps: u64) -> i32 {
-    finish(INPUT.with(|input| uorc::compress_frame(&input.borrow(), steps)))
+pub extern "C" fn compress_frame(steps: u64, best: u32) -> i32 {
+    finish(INPUT.with(|input| uorc::compress_frame(&input.borrow(), steps, level(best))))
 }
 
 /// Decompress the input buffer as a single archive.
@@ -219,9 +228,10 @@ fn write_entries(entries: &[uorc::tree::Entry]) -> Vec<u8> {
 /// Compress the entries in the input buffer (see [`read_entries`]) into one
 /// archive of ordered objects.
 #[no_mangle]
-pub extern "C" fn compress_tree(steps: u64) -> i32 {
+pub extern "C" fn compress_tree(steps: u64, best: u32) -> i32 {
     finish(INPUT.with(|input| {
-        read_entries(&input.borrow()).and_then(|entries| uorc::compress_tree(&entries, steps))
+        read_entries(&input.borrow())
+            .and_then(|entries| uorc::compress_tree(&entries, steps, level(best)))
     }))
 }
 

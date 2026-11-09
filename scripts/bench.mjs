@@ -37,8 +37,9 @@ const failure = r => (r.error ? String(r.error.code ?? r.error) : `exit ${r.stat
 const firstLine = (cmd, argv) => { const r = spawnSync(cmd, argv, {encoding: 'utf8'}); return r.error ? null : `${r.stdout}${r.stderr}`.trim().split('\n')[0]; };
 
 const tools = baselines.map(b => ({...b, available: firstLine(b.tool, b.version)})).filter(b => b.available);
-const uorcName = `uorc (${steps} steps)`;
-const names = [uorcName, ...tools.map(t => t.name)];
+// The default level, and --best (the ncm context-mixing level).
+const levels = [[`uorc (${steps} steps)`, []], [`uorc --best (${steps} steps)`, ['--best']]];
+const names = [...levels.map(([label]) => label), ...tools.map(t => t.name)];
 fs.mkdirSync(out, {recursive: true});
 const work = fs.mkdtempSync(path.join(out, 'work-'));
 
@@ -46,14 +47,17 @@ function measure(file, input) {
   const row = {file, bytes: input.length, sha256: sha(input), results: []};
   const src = path.join(work, 'in'), arc = path.join(work, 'a.uorc'), back = path.join(work, 'back');
   fs.writeFileSync(src, input);
-  const c = timed(uorc, ['compress', '--steps', steps, src, '-o', arc]);
-  if (c.r.status === 0) {
-    const archive = fs.statSync(arc).size;
-    const d = timed(uorc, ['decompress', arc, '-o', back]);
-    const ok = d.r.status === 0 && Buffer.compare(fs.readFileSync(back), input) === 0;
-    row.results.push({compressor: uorcName, bytes: archive, compress_s: c.seconds, decompress_s: d.seconds, round_trip: ok, ...(d.r.status === 0 ? {} : {error: failure(d.r)})});
-  } else row.results.push({compressor: uorcName, error: failure(c.r)});
-  for (const f of [src, arc, back]) fs.rmSync(f, {force: true});
+  for (const [label, extra] of levels) {
+    const c = timed(uorc, ['compress', ...extra, '--steps', steps, src, '-o', arc]);
+    if (c.r.status === 0) {
+      const archive = fs.statSync(arc).size;
+      const d = timed(uorc, ['decompress', arc, '-o', back]);
+      const ok = d.r.status === 0 && Buffer.compare(fs.readFileSync(back), input) === 0;
+      row.results.push({compressor: label, bytes: archive, compress_s: c.seconds, decompress_s: d.seconds, round_trip: ok, ...(d.r.status === 0 ? {} : {error: failure(d.r)})});
+    } else row.results.push({compressor: label, error: failure(c.r)});
+    for (const f of [arc, back]) fs.rmSync(f, {force: true});
+  }
+  fs.rmSync(src, {force: true});
   for (const t of tools) {
     const cz = timed(t.tool, t.compress, input);
     if (cz.r.status !== 0) { row.results.push({compressor: t.name, error: failure(cz.r)}); continue; }
