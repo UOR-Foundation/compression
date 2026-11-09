@@ -82,13 +82,15 @@ D('decodeLoop', ['fuel : Nat', 'd : Dec'], 'Dec', f"(match fuel\n    | Nat.zero 
 # little-endian, read from the top byte down so that no weight passes 2^56
 D('readLength', ['data : Bytes', 'fuel : Nat', 'at : Nat', 'acc : Nat'], 'Nat',
   "(match fuel\n    | Nat.zero => acc\n    | Nat.succ k => (readLength data k at ((256 * acc) + (byteAt data (at + k)))))", 'fuel')
-start = ("(let total : Nat := (readLength input 8 0 0); (let code : Nat := ((256 * ((256 * ((256 * (byteAt input 9)) + (byteAt input 10))) + (byteAt input 11))) + (byteAt input 12)); "
-         + L.make({'mem': f"(prim append ({T}::fill 2 13 1024) ({T}::fill 1 (depthFor 64 total 0) 0) : Bytes)"},
-                  dict(input='input', pos='13', range='4294967295', code='code', size='0', total='total', state='0', rep0='0', rep1='0', rep2='0', rep3='0')) + "))")
-D('start', ['input : Bytes'], 'Dec', start)
-dec = (f"(let d : Dec := (start input); (let steps : Nat := ({P('d','total')} + 1); "
-       f"(let f : Dec := (decodeLoop steps d); (let size : Nat := {P('f','size')}; (match (prim slice {P('f','mem')} 16384 size : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b)))))")
-D('decode', ['input : Bytes'], 'Bytes', dec)
+# the output starts as `history` (h bytes); matches may reach into it and only the bytes after it are returned
+startW = ("(let h : Nat := (prim length history : Nat); (let total : Nat := (readLength input 8 0 0); (let code : Nat := ((256 * ((256 * ((256 * (byteAt input 9)) + (byteAt input 10))) + (byteAt input 11))) + (byteAt input 12)); "
+          + L.make({'mem': f"(prim append (prim append ({T}::fill 2 13 1024) history : Bytes) ({T}::fill 1 (depthFor 64 total 0) 0) : Bytes)"},
+                   dict(input='input', pos='13', range='4294967295', code='code', size='h', total='(h + total)', state='0', rep0='0', rep1='0', rep2='0', rep3='0')) + ")))")
+D('startWith', ['history : Bytes', 'input : Bytes'], 'Dec', startW)
+decW = (f"(let h : Nat := (prim length history : Nat); (let d : Dec := (startWith history input); (let steps : Nat := ((prim subtract {P('d','total')} h : Nat) + 1); "
+        f"(let f : Dec := (decodeLoop steps d); (let size : Nat := {P('f','size')}; (match (prim slice {P('f','mem')} (16384 + h) (prim subtract size h : Nat) : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b))))))")
+D('decodeWith', ['history : Bytes', 'input : Bytes'], 'Bytes', decW)
+D('decode', ['input : Bytes'], 'Bytes', "(decodeWith 0x input)")
 src = ("\\begin{lexlean}{Uorc.Codec.LzDecode}\n\\importmodule{Uorc.Codec.Table}\n\\title{Parameters}\n\\begin{semanticmodule}\n"
        + L.structure() + "\n" + "\n".join(defs) + "\\end{semanticmodule}\n\\end{lexlean}\n")
 open(os.path.join(HERE, '..', 'src', 'Uorc', 'Codec', 'LzDecode.lex.tex'), 'w').write(src)

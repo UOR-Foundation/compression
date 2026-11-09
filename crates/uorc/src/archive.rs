@@ -7,6 +7,11 @@
 //! number a shortest ULEB128. Because the body length is in the header, an
 //! archive is self-delimiting, so a stream of archives laid end to end needs no
 //! container: [`crate::frame_length`] finds where each one ends.
+//!
+//! The client writes linked archives: conditional archives (scope 1) over the
+//! built-in standard basis, the ulz and ncm decoder libraries bound by
+//! [`BASIS_ID`] (`client/gen/gen_basis.py`). Their body is one entry block that
+//! applies a library decoder to the payload, so a small file carries no kernel.
 
 use sha2::{Digest, Sha256};
 
@@ -19,9 +24,37 @@ pub const KERNEL_PREFIX: &[u8] = &PREFIX;
 /// The ulz decoder kernel program (`Archive.kernelSuffix`), after the payload.
 pub const KERNEL_SUFFIX: &[u8] = &SUFFIX;
 
+const BASIS_ID_HEX: &str = include_str!("basis-id.hex");
+const LINKED_PREFIX_HEX: &str = include_str!("linked-prefix.hex");
+const ULZ_SUFFIX_HEX: &str = include_str!("linked-ulz-suffix.hex");
+const NCM_SUFFIX_HEX: &str = include_str!("linked-ncm-suffix.hex");
+/// Identity of the built-in standard basis (`Archive.basisIdentity`): the
+/// UORC-BASIS-V1 chain over its one root, the ulz and ncm decoder libraries.
+pub const BASIS_ID: [u8; 32] = hex_literal(BASIS_ID_HEX);
+const LINKED_PREFIX: [u8; hex_len(LINKED_PREFIX_HEX)] = hex_literal(LINKED_PREFIX_HEX);
+const ULZ_SUFFIX: [u8; hex_len(ULZ_SUFFIX_HEX)] = hex_literal(ULZ_SUFFIX_HEX);
+const NCM_SUFFIX: [u8; hex_len(NCM_SUFFIX_HEX)] = hex_literal(NCM_SUFFIX_HEX);
+
+/// A decoder of the standard basis that a linked archive applies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Codec {
+    /// The LZ + range coder (`Uorc.Codec.LzDecode`).
+    Ulz,
+    /// The context-mixing coder (`Uorc.Codec.NcmDecode`).
+    Ncm,
+}
+
+impl Codec {
+    fn suffix(self) -> &'static [u8] {
+        match self {
+            Codec::Ulz => &ULZ_SUFFIX,
+            Codec::Ncm => &NCM_SUFFIX,
+        }
+    }
+}
+
 const CHAIN_TAG: &[u8] = b"UORC-SHA256-CHAIN-v1\0";
 const MAGIC: &[u8] = b"UORC\x02\x01";
-const MAGIC_SELF_CONTAINED: &[u8] = b"UORC\x02\x01\x00";
 /// Length of the integrity seal at the end of every archive.
 pub const SEAL: usize = 32;
 
@@ -182,12 +215,54 @@ pub fn program_archive(lengths: &[u64], payload: &[u8]) -> Vec<u8> {
     sealed(pre)
 }
 
+fn linked_header(lengths: &[u64], body_len: u64) -> Vec<u8> {
+    let mut out = header(1, lengths, body_len);
+    out[6] = 1;
+    out.extend_from_slice(&BASIS_ID);
+    out
+}
+
+fn linked_body_len(codec: Codec, p: u64) -> u64 {
+    LINKED_PREFIX.len() as u64 + uleb_len(p) as u64 + p + codec.suffix().len() as u64
+}
+
+/// `Archive.linkedArchive`: a conditional archive over the standard basis whose
+/// entry applies `codec`'s decoder to `payload`, reconstructing objects of
+/// `lengths` (one object in the model; several when the client relabels).
+pub fn linked_archive(codec: Codec, lengths: &[u64], payload: &[u8]) -> Vec<u8> {
+    let p = payload.len() as u64;
+    let body_len = linked_body_len(codec, p);
+    let mut pre = linked_header(lengths, body_len);
+    pre.reserve(body_len as usize + SEAL);
+    pre.extend_from_slice(&LINKED_PREFIX);
+    push_uleb(&mut pre, p);
+    pre.extend_from_slice(payload);
+    pre.extend_from_slice(codec.suffix());
+    sealed(pre)
+}
+
+/// Exact length of [`linked_archive`] for objects of `lengths` and a `p`-byte payload.
+pub fn linked_length(codec: Codec, lengths: &[u64], p: u64) -> u64 {
+    let body = linked_body_len(codec, p);
+    let fields: u64 = lengths.iter().map(|&l| uleb_len(l) as u64).sum();
+    8 + uleb_len(lengths.len() as u64) as u64
+        + fields
+        + uleb_len(body) as u64
+        + 32
+        + body
+        + SEAL as u64
+}
+
 /// `Archive.fastDecode`, natively: the output of an archive this client wrote
-/// (raw, or ulz kernel with a payload the native decoder vouches for), sealed
+/// (raw, ulz kernel, or linked ulz/ncm, with a payload the native decoder vouches for), sealed
 /// and laid out exactly as the client writes it, with any object lengths. `None` sends the archive to
 /// the exported reference decoder.
 pub fn fast_decode(data: &[u8]) -> Option<Vec<u8>> {
-    if data.len() < 8 + SEAL || data[..7] != MAGIC_SELF_CONTAINED[..] || data[7] > 1 {
+    if data.len() < 8 + SEAL || data[..6] != MAGIC[..] || data[6] > 1 || data[7] > 1 {
+        return None;
+    }
+    let linked = data[6] == 1;
+    if linked && data[7] != 1 {
         return None;
     }
     let (count, mut at) = read_uleb(data, 8)?;
@@ -204,15 +279,25 @@ pub fn fast_decode(data: &[u8]) -> Option<Vec<u8>> {
     let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
     let (body_len, at) = read_uleb(data, at)?;
     let body_len = usize::try_from(body_len).ok()?;
+    let at = if linked { at.checked_add(32)? } else { at };
     if data.len() != at.checked_add(body_len)?.checked_add(SEAL)? {
         return None;
     }
     let (pre, seal) = data.split_at(data.len() - SEAL);
-    // The header must be the shortest encoding the client writes.
-    if pre[..at] != header(data[7], &lengths, body_len as u64)[..] || seal != chain(pre) {
+    // The header (and for a linked archive, the basis identity) must be
+    // exactly what the client writes.
+    let expected = if linked {
+        linked_header(&lengths, body_len as u64)
+    } else {
+        header(data[7], &lengths, body_len as u64)
+    };
+    if pre[..at] != expected[..] || seal != chain(pre) {
         return None;
     }
     let body = &pre[at..];
+    if linked {
+        return linked_decode(body, n);
+    }
     if data[7] == 0 {
         return (n == body_len as u64).then(|| body.to_vec());
     }
@@ -227,6 +312,35 @@ pub fn fast_decode(data: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     crate::ulz::decode(payload, n)
+}
+
+/// The library decoder a body applies, when it is laid out exactly as
+/// [`linked_archive`] writes it.
+pub fn linked_codec(body: &[u8]) -> Option<Codec> {
+    let rest = body.strip_prefix(&LINKED_PREFIX[..])?;
+    let (p, after) = read_uleb(rest, 0)?;
+    let p = usize::try_from(p).ok()?;
+    if after != uleb_len(p as u64) || rest.len() < after.checked_add(p)? {
+        return None;
+    }
+    let suffix = &rest[after + p..];
+    [Codec::Ulz, Codec::Ncm]
+        .into_iter()
+        .find(|c| suffix == c.suffix())
+}
+
+/// The output of a linked archive's body, laid out exactly as
+/// [`linked_archive`] writes it, with the payload its encoder writes for that
+/// output (`Archive.linkedDecode`). `None` sends it to the reference decoder.
+fn linked_decode(body: &[u8], n: u64) -> Option<Vec<u8>> {
+    let codec = linked_codec(body)?;
+    let rest = &body[LINKED_PREFIX.len()..];
+    let (p, after) = read_uleb(rest, 0)?;
+    let payload = &rest[after..after + usize::try_from(p).ok()?];
+    match codec {
+        Codec::Ulz => crate::ulz::decode(payload, n),
+        Codec::Ncm => crate::ncm::decode_canonical(payload, n),
+    }
 }
 
 #[cfg(test)]
@@ -272,6 +386,55 @@ mod tests {
             raw_objects(&input, &lengths).len() as u64,
             raw_length(&lengths)
         );
+    }
+
+    #[test]
+    fn linked_archives_round_trip() {
+        let input =
+            b"the standard basis carries the kernels; archives name it by identity. ".repeat(3);
+        let n = input.len() as u64;
+        let u = linked_archive(Codec::Ulz, &[n], &crate::ulz::encode(&input));
+        let c = linked_archive(Codec::Ncm, &[n], &crate::ncm::encode(&input).expect("fits"));
+        // the model's archives for this text (client/gen/gen_basis.py, Archive.ulzLinkedArchive)
+        assert_eq!((u.len(), c.len()), (165, 140));
+        for a in [&u, &c] {
+            assert_eq!(crate::frame_length(a), Ok(Some(a.len())));
+            assert_eq!(fast_decode(a).as_deref(), Some(&input[..]));
+        }
+        let p = crate::ncm::encode(&input).expect("fits");
+        assert_eq!(
+            linked_length(Codec::Ncm, &[n], p.len() as u64),
+            c.len() as u64
+        );
+    }
+
+    #[test]
+    fn linked_archive_names_the_basis() {
+        let mut a = linked_archive(Codec::Ncm, &[3], &crate::ncm::encode(b"abc").expect("fits"));
+        assert_eq!(fast_decode(&a).as_deref(), Some(&b"abc"[..]));
+        // another basis identity, resealed so only the identity differs
+        a[12] ^= 1;
+        let end = a.len() - SEAL;
+        let digest = chain(&a[..end]);
+        a[end..].copy_from_slice(&digest);
+        assert_eq!(fast_decode(&a), None);
+    }
+
+    #[test]
+    fn basis_identity_binds_the_library() {
+        let lib = hex_bytes(include_str!("basis-library.hex"));
+        let mut pre = b"UORC-BASIS-V1\0".to_vec();
+        push_uleb(&mut pre, 1);
+        push_uleb(&mut pre, lib.len() as u64);
+        pre.extend_from_slice(&lib);
+        assert_eq!(chain(&pre), BASIS_ID);
+    }
+
+    fn hex_bytes(text: &str) -> Vec<u8> {
+        let t: Vec<u8> = text.bytes().filter(|&c| c != b'\n').collect();
+        t.chunks(2)
+            .map(|c| hex_value(c[0]) * 16 + hex_value(c[1]))
+            .collect()
     }
 
     #[test]

@@ -55,9 +55,89 @@ D('rawPayload', ['data : Bytes'], '(Option Bytes)',
 D('kernelDecode', ['data : Bytes'], '(Option Bytes)',
   f"(match (kernelPayload data)\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some np => (let payload : Bytes := (second np); (let out : Bytes := ({DEC}::decode payload); "
   f"(if (((prim length out : Nat) =? (first np)) && (prim equal ({ENC}::encode out) payload : Bool)) then (ctor Option.some [Bytes] out) else (ctor Option.none [Bytes])))))")
+
+# ---- the standard kernel basis (gen_basis.py): linked archives name the ulz + ncm libraries by identity ----
+import gen_basis as GB
+NDEC, NENC = 'Uorc.Codec.NcmDecode', 'Uorc.Codec.NcmEncode'
+LPRE = GB.TEMPLATES['ulz'][0]
+assert GB.TEMPLATES['ncm'][0] == LPRE
+D('basisIdentity', [], 'Bytes', '0x' + GB.STD_ID.hex())
+D('basisLibrary', [], 'Bytes', '0x' + GB.LIBB.hex())
+D('libraryBlocks', [], 'Nat', str(GB.L))
+D('linkedPrefix', [], 'Bytes', '0x' + LPRE.hex())
+D('ulzSuffix', [], 'Bytes', '0x' + GB.TEMPLATES['ulz'][1].hex())
+D('ncmSuffix', [], 'Bytes', '0x' + GB.TEMPLATES['ncm'][1].hex())
+# a conditional archive (scope 1, program body) over the standard basis
+D('linkedPreimage', ['n : Nat', 'body : Bytes'], 'Bytes',
+  "(cat (cat (cat (cat (cat 0x554f524302010101 (number 1)) (number n)) (number (prim length body : Nat))) (basisIdentity)) body)")
+D('linkedArchive', ['suffix : Bytes', 'n : Nat', 'payload : Bytes'], '(Option Bytes)',
+  "(seal (linkedPreimage n (cat (cat (cat (linkedPrefix) (number (prim length payload : Nat))) payload) suffix)))")
+D('byteAt', ['data : Bytes', 'at : Nat'], 'Nat',
+  "(match (prim index data at : (Option UInt8))\n    | Option.none => 256\n    | Option.some octet => (prim to_nat octet : Nat))")
+# (object length, offset of the basis identity) of a one-object archive whose body runs to its seal
+D('linkedHeader', ['data : Bytes'], '(Option (Nat * Nat))',
+  "(if ((byteAt data 8) =? 1) then (match (readUleb 10 data 9 1 0)\n    | Option.none => (ctor Option.none [(Nat * Nat)])\n    | Option.some n => (match (readUleb 10 data (second n) 1 0)\n      | Option.none => (ctor Option.none [(Nat * Nat)])\n      | Option.some b => (if ((((second b) + 64) + (first b)) =? (prim length data : Nat)) then (ctor Option.some [(Nat * Nat)] ((first n), (second b))) else (ctor Option.none [(Nat * Nat)])))) else (ctor Option.none [(Nat * Nat)]))")
+D('linkedUlz', ['data : Bytes', 'n : Nat', 'payload : Bytes'], '(Option Bytes)',
+  f"(match (linkedArchive (ulzSuffix) n payload)\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some rebuilt => (if (prim equal rebuilt data : Bool) then (let out : Bytes := ({DEC}::decode payload); "
+  f"(if (((prim length out : Nat) =? n) && (prim equal ({ENC}::encode out) payload : Bool)) then (ctor Option.some [Bytes] out) else (ctor Option.none [Bytes]))) else (ctor Option.none [Bytes])))")
+D('linkedNcm', ['data : Bytes', 'n : Nat', 'payload : Bytes'], '(Option Bytes)',
+  f"(match (linkedArchive (ncmSuffix) n payload)\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some rebuilt => (if (prim equal rebuilt data : Bool) then (let out : Bytes := ({NDEC}::run payload); "
+  f"(if (((prim length out : Nat) =? n) && (prim equal ({NENC}::run out) payload : Bool)) then (ctor Option.some [Bytes] out) else (ctor Option.none [Bytes]))) else (ctor Option.none [Bytes])))")
+# A linked archive this client writes: the rebuilt archive confirms the basis identity, the template and the
+# seal, and the payload must be the one the encoder writes for its output.
+D('linkedDecode', ['data : Bytes'], '(Option Bytes)',
+  "(match (linkedHeader data)\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some h => (match (payloadAt data (((second h) + 32) + (prim length (linkedPrefix) : Nat)))\n      | Option.none => (ctor Option.none [Bytes])\n      | Option.some payload => (match (linkedUlz data (first h) payload)\n        | Option.some out => (ctor Option.some [Bytes] out)\n        | Option.none => (linkedNcm data (first h) payload))))")
 D('fastDecode', ['data : Bytes'], '(Option Bytes)',
-  "(match (prim index data 7 : (Option UInt8))\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some kind => (if ((prim to_nat kind : Nat) =? 0) then (rawPayload data) else (kernelDecode data)))")
-src = ("\\begin{lexlean}{Uorc.Codec.Archive}\n\\importmodule{Uorc.Codec.LzDecode}\n\\importmodule{Uorc.Codec.LzEncode}\n\\importmodule{Uorc.Integrity.Sha256}\n\\title{Parameters}\n\\begin{semanticmodule}\n"
+  "(if ((byteAt data 6) =? 1) then (linkedDecode data) else (if ((byteAt data 7) =? 0) then (rawPayload data) else (kernelDecode data)))")
+# Linking: a sealed conditional archive over the standard basis whose body is `uleb(k) blocks.. e` (e < 128)
+# means the self-contained archive whose body is `uleb(L + k) library blocks.. uleb(L + e)`.
+D('linkedBody', ['body : Bytes'], '(Option Bytes)',
+  "(match (readUleb 10 body 0 1 0)\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some k => (let last : Nat := (prim subtract (prim length body : Nat) 1 : Nat); (let e : Nat := (byteAt body last); "
+  "(if (((second k) <=? last) && (e <? 128)) then (match (prim slice body (second k) (prim subtract last (second k) : Nat) : (Option Bytes))\n      | Option.none => (ctor Option.none [Bytes])\n      | Option.some blocks => (ctor Option.some [Bytes] (cat (cat (cat (number ((libraryBlocks) + (first k))) (basisLibrary)) blocks) (number ((libraryBlocks) + e))))) else (ctor Option.none [Bytes])))))")
+D('materialize', ['data : Bytes'], '(Option Bytes)',
+  "(if (((byteAt data 6) =? 1) && ((byteAt data 7) =? 1)) then (match (linkedHeader data)\n    | Option.none => (ctor Option.none [Bytes])\n    | Option.some h => (let at : Nat := ((second h) + 32); (let end : Nat := (prim subtract (prim length data : Nat) 32 : Nat); (match (prim slice data (second h) 32 : (Option Bytes))\n      | Option.none => (ctor Option.none [Bytes])\n      | Option.some identity => (match (prim slice data at (prim subtract end at : Nat) : (Option Bytes))\n        | Option.none => (ctor Option.none [Bytes])\n        | Option.some body => (match (prim slice data 0 end : (Option Bytes))\n          | Option.none => (ctor Option.none [Bytes])\n          | Option.some pre => (match (seal pre)\n            | Option.none => (ctor Option.none [Bytes])\n            | Option.some resealed => (if ((prim equal resealed data : Bool) && (prim equal identity (basisIdentity) : Bool)) then (match (linkedBody body)\n              | Option.none => (ctor Option.none [Bytes])\n              | Option.some whole => (seal (preimage 0x01 (first h) whole))) else (ctor Option.none [Bytes]))))))))) else (ctor Option.none [Bytes]))")
+# compress candidates
+D('ulzLinkedArchive', ['input : Bytes'], '(Option Bytes)',
+  f"(let payload : Bytes := ({ENC}::encode input); (if (prim equal ({DEC}::decode payload) input : Bool) then (linkedArchive (ulzSuffix) (prim length input : Nat) payload) else (ctor Option.none [Bytes])))")
+D('ncmLinkedArchive', ['input : Bytes'], '(Option Bytes)',
+  f"(let payload : Bytes := ({NENC}::run input); (if ((0 <? (prim length payload : Nat)) && (prim equal ({NDEC}::run payload) input : Bool)) then (linkedArchive (ncmSuffix) (prim length input : Nat) payload) else (ctor Option.none [Bytes])))")
+
+# ---- window frames: a frame is a linked archive whose basis is [library, the K preceding frames' outputs] ----
+# Its identity is the UORC-BASIS-V1 chain over those roots, and its entry decodes the payload with the window
+# (roots 1..K, oldest first) as the decoder's history, so matches reach back across frame boundaries.
+NONE_B = "(ctor Option.none [Bytes])"
+D('basisTag', [], 'Bytes', '0x' + GB.TAG.hex())
+D('libraryRoot', [], 'Bytes', "(cat (number (libraryBlocks)) (basisLibrary))")
+for c, k in GB.WINDOWS.items():
+    D(f'window{k}Prefix', [], 'Bytes', '0x' + GB.TEMPLATES[c][0].hex())
+    D(f'window{k}Suffix', [], 'Bytes', '0x' + GB.TEMPLATES[c][1].hex())
+D('windowCount', ['window : (List Bytes)'], 'Nat',
+  "(match window\n    | List.nil => 0\n    | List.cons r rest => (1 + (windowCount rest)))", 'window')
+D('windowRoots', ['window : (List Bytes)'], 'Bytes',
+  "(match window\n    | List.nil => 0x\n    | List.cons r rest => (cat (cat (number (prim length r : Nat)) r) (windowRoots rest)))", 'window')
+D('windowHistory', ['window : (List Bytes)'], 'Bytes',
+  "(match window\n    | List.nil => 0x\n    | List.cons r rest => (cat r (windowHistory rest)))", 'window')
+D('digest', ['pre : Bytes'], '(Option Bytes)',
+  f"(match ({SHA}::hash (cat 0x{DOM} 0x00))\n    | Result.error failure => {NONE_B}\n    | Result.ok c => (chainLoop ((prim quotient (prim length pre : Nat) 64 0 : Nat) + 1) pre 0 c))")
+D('windowIdentity', ['window : (List Bytes)'], '(Option Bytes)',
+  "(digest (cat (cat (cat (cat (basisTag) (number (1 + (windowCount window)))) (number (prim length (libraryRoot) : Nat))) (libraryRoot)) (windowRoots window)))")
+D('windowPrefix', ['k : Nat'], 'Bytes', "(if (k =? 1) then (window1Prefix) else (if (k =? 2) then (window2Prefix) else 0x))")
+D('windowSuffix', ['k : Nat'], 'Bytes', "(if (k =? 1) then (window1Suffix) else (if (k =? 2) then (window2Suffix) else 0x))")
+D('windowPreimage', ['identity : Bytes', 'n : Nat', 'body : Bytes'], 'Bytes',
+  "(cat (cat (cat (cat (cat 0x554f524302010101 (number 1)) (number n)) (number (prim length body : Nat))) identity) body)")
+D('windowArchive', ['k : Nat', 'identity : Bytes', 'n : Nat', 'payload : Bytes'], '(Option Bytes)',
+  f"(if ((1 <=? k) && (k <=? 2)) then (seal (windowPreimage identity n (cat (cat (cat (windowPrefix k) (number (prim length payload : Nat))) payload) (windowSuffix k)))) else {NONE_B})")
+D('ulzWindowArchive', ['window : (List Bytes)', 'input : Bytes'], '(Option Bytes)',
+  f"(match window\n    | List.nil => (ulzLinkedArchive input)\n    | List.cons oldest rest => (match (windowIdentity window)\n      | Option.none => {NONE_B}\n      | Option.some identity => (let history : Bytes := (windowHistory window); (let payload : Bytes := ({ENC}::encodeWith history input); "
+  f"(if (prim equal ({DEC}::decodeWith history payload) input : Bool) then (windowArchive (windowCount window) identity (prim length input : Nat) payload) else {NONE_B})))))")
+D('windowDecode', ['data : Bytes', 'window : (List Bytes)'], '(Option Bytes)',
+  f"(let k : Nat := (windowCount window); (match (linkedHeader data)\n    | Option.none => {NONE_B}\n    | Option.some h => (match (prim slice data (second h) 32 : (Option Bytes))\n      | Option.none => {NONE_B}\n      | Option.some identity => (match (payloadAt data (((second h) + 32) + (prim length (windowPrefix k) : Nat)))\n        | Option.none => {NONE_B}\n        | Option.some payload => (match (windowArchive k identity (first h) payload)\n          | Option.none => {NONE_B}\n          | Option.some rebuilt => (match (windowIdentity window)\n            | Option.none => {NONE_B}\n            | Option.some expected => (if ((prim equal rebuilt data : Bool) && (prim equal identity expected : Bool)) then (let history : Bytes := (windowHistory window); (let out : Bytes := ({DEC}::decodeWith history payload); "
+  f"(if (((prim length out : Nat) =? (first h)) && (prim equal ({ENC}::encodeWith history out) payload : Bool)) then (ctor Option.some [Bytes] out) else {NONE_B}))) else {NONE_B})))))))")
+D('fastDecodeWith', ['data : Bytes', 'window : (List Bytes)'], '(Option Bytes)',
+  "(match window\n    | List.nil => (fastDecode data)\n    | List.cons oldest rest => (windowDecode data window))")
+D('windowMaterialize', ['data : Bytes', 'window : (List Bytes)'], '(Option Bytes)',
+  f"(if (((byteAt data 6) =? 1) && ((byteAt data 7) =? 1)) then (match (linkedHeader data)\n    | Option.none => {NONE_B}\n    | Option.some h => (let at : Nat := ((second h) + 32); (let end : Nat := (prim subtract (prim length data : Nat) 32 : Nat); (match (prim slice data (second h) 32 : (Option Bytes))\n      | Option.none => {NONE_B}\n      | Option.some identity => (match (prim slice data at (prim subtract end at : Nat) : (Option Bytes))\n        | Option.none => {NONE_B}\n        | Option.some body => (match (prim slice data 0 end : (Option Bytes))\n          | Option.none => {NONE_B}\n          | Option.some pre => (match (seal pre)\n            | Option.none => {NONE_B}\n            | Option.some resealed => (match (windowIdentity window)\n              | Option.none => {NONE_B}\n              | Option.some expected => (if ((prim equal resealed data : Bool) && (prim equal identity expected : Bool)) then (match (linkedBody body)\n                | Option.none => {NONE_B}\n                | Option.some whole => (seal (windowPreimage identity (first h) whole))) else {NONE_B}))))))))) else {NONE_B})")
+src = ("\\begin{lexlean}{Uorc.Codec.Archive}\n\\importmodule{Uorc.Codec.LzDecode}\n\\importmodule{Uorc.Codec.LzEncode}\n\\importmodule{Uorc.Codec.NcmDecode}\n\\importmodule{Uorc.Codec.NcmEncode}\n\\importmodule{Uorc.Integrity.Sha256}\n\\title{Parameters}\n\\begin{semanticmodule}\n"
        + "\n".join(defs) + "\\end{semanticmodule}\n\\end{lexlean}\n")
 open(os.path.join(HERE, '..', 'src', 'Uorc', 'Codec', 'Archive.lex.tex'), 'w').write(src)
 print('prefix', len(PREFIX), 'suffix', len(SUFFIX))
