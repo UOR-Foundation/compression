@@ -338,12 +338,30 @@ definition{
 }
 
 definition{
+  name: startWith,
+  parameters: [history : Bytes, input : Bytes],
+  result: (Bytes * EncS),
+  body: (let e : (Bytes * EncS) := (start (prim append history input : Bytes)); (let h : Nat := (prim length history : Nat); (insertRange h (let mem16 : Bytes := (first e); (let r16_0 : EncS := (second e); (let sc16 : EncS := r16_0; (mem16, (record EncS {data := (project sc16 data), n := (project sc16 n), low := (project sc16 low), rng := (project sc16 rng), cache := (project sc16 cache), csize := (project sc16 csize), outSize := (project sc16 outSize), state := (project sc16 state), rep0 := (project sc16 rep0), rep1 := (project sc16 rep1), rep2 := (project sc16 rep2), rep3 := (project sc16 rep3), at := h, outBase := (project sc16 outBase)}))))) 0))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encodeWith,
+  parameters: [history : Bytes, input : Bytes],
+  result: Bytes,
+  body: (let n : Nat := (prim length input : Nat); (let e : (Bytes * EncS) := (startWith history input); (let f : (Bytes * EncS) := (shiftLow (shiftLow (shiftLow (shiftLow (shiftLow (encodeLoop (n + 1) e)))))); (let size : Nat := (project (second f) outSize); (prim append (header 8 n) (match (prim slice (first f) (project (second f) outBase) size : (Option Bytes))
+    | Option.none => 0x
+    | Option.some b => b) : Bytes))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: encode,
   parameters: [data : Bytes],
   result: Bytes,
-  body: (let n : Nat := (prim length data : Nat); (let e : (Bytes * EncS) := (start data); (let f : (Bytes * EncS) := (shiftLow (shiftLow (shiftLow (shiftLow (shiftLow (encodeLoop (n + 1) e)))))); (let size : Nat := (project (second f) outSize); (prim append (header 8 n) (match (prim slice (first f) (project (second f) outBase) size : (Option Bytes))
-    | Option.none => 0x
-    | Option.some b => b) : Bytes))))),
+  body: (encodeWith 0x data),
   executable: true,
   axioms: [Quot.sound, propext]
 }

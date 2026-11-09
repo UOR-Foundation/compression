@@ -86,9 +86,18 @@ fn inspect_reads_the_header_without_decoding() {
     let shown = uorc(&["inspect", "--json", s(&archive)]);
     assert_eq!(code(&shown), 0, "{shown:?}");
     let json = String::from_utf8(shown.stdout).unwrap();
-    assert!(json.contains("\"representation\":\"ulz-kernel\""), "{json}");
+    assert!(json.contains("\"representation\":\"ulz\""), "{json}");
     assert!(json.contains("\"object_lengths\":[20000]"), "{json}");
     assert!(json.contains("\"integrity_ok\":true"), "{json}");
+
+    let best = dir.join("best.uorc");
+    assert_eq!(
+        code(&uorc(&["compress", "--best", "-o", s(&best), s(&input)])),
+        0
+    );
+    let shown = uorc(&["inspect", "--json", s(&best)]);
+    let json = String::from_utf8(shown.stdout).unwrap();
+    assert!(json.contains("\"representation\":\"ncm\""), "{json}");
 
     let mut bytes = fs::read(&archive).unwrap();
     let last = bytes.len() - 1;

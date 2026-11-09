@@ -17,8 +17,9 @@ SLOT, SPEC, ALIGN, LENL, LENR, LIT = 6216, 6472, 6587, 6603, 7149, 72
 W = {RANGE: 4, CODE: 4, POS: 8, SIZE: 8, TOTAL: 8, STATE: 1, KM: 2, KACC: 8, KW: 8, KVAL: 8, KLEN: 8, KDIST: 8}
 for r in REP: W[r] = 8
 
-def build(payload):
-    g = Graph()
+def build(payload, g=None):
+    """The kernel graph with `payload` as its constant; with None, the library whose last block is run(payload)."""
+    g = g or Graph()
     # get: acc*256 + store[key+i]
     b = g.block('getStep', [N, N, T, N], N)
     i, acc, st, key = (b.arg(k) for k in range(4))
@@ -348,14 +349,49 @@ def build(payload):
     b.returns(b.sread(st, b.add(OUT, i)))
     OUTB = b
 
-    b = g.block('entry', [], S)
-    pl = b.seq(payload)
-    st = b.fold(b.slen(pl), b.snew(b.byte(0)), PAYB, [pl])
-    total = b.fold(8, b.nat(0), LENB, [st])
-    code = b.nat(0)
-    for k in range(9, 13):
-        code = b.add(b.mul(256, code), b.apply(BYTEAT, [st, k]))
-    st = put(b, st, RANGE, 0xFFFFFFFF); st = put(b, st, CODE, code); st = put(b, st, POS, 13); st = put(b, st, TOTAL, total)
-    st = b.fold(b.add(total, 1), st, STEP, [])
-    b.returns(b.tabulate(get(b, st, SIZE), OUTB, [st]))
+    HISTB = OUTAT = None
+
+    def decode_from(b, pl, history):
+        """Decode payload `pl` with the output store pre-seeded by `history` (None: empty)."""
+        st = b.fold(b.slen(pl), b.snew(b.byte(0)), PAYB, [pl])
+        total = b.fold(8, b.nat(0), LENB, [st])
+        h = None
+        if history is not None:
+            h = b.slen(history)
+            st = b.fold(h, st, HISTB, [history])
+            st = put(b, st, SIZE, h)
+        code = b.nat(0)
+        for k in range(9, 13):
+            code = b.add(b.mul(256, code), b.apply(BYTEAT, [st, k]))
+        st = put(b, st, RANGE, 0xFFFFFFFF); st = put(b, st, CODE, code); st = put(b, st, POS, 13); st = put(b, st, TOTAL, total if h is None else b.add(total, h))
+        st = b.fold(b.add(total, 1), st, STEP, [])
+        if history is None:
+            return b.tabulate(get(b, st, SIZE), OUTB, [st])
+        return b.tabulate(b.sub(get(b, st, SIZE), h), OUTAT, [st, h])
+
+    if payload is None:
+        # the linked library form: the entry's work as a block of the payload
+        b = g.block('run', [S], S)
+        b.returns(decode_from(b, b.arg(0), None))
+        run = b
+        b = g.block('historyByte', [N, T, S], T)
+        i, st, hs = b.arg(0), b.arg(1), b.arg(2)
+        b.returns(b.swrite(st, b.add(OUT, i), b.sidx(hs, i)))
+        HISTB = b
+        b = g.block('outByteAt', [N, T, N], Y)
+        i, st, h = b.arg(0), b.arg(1), b.arg(2)
+        b.returns(b.sread(st, b.add(b.add(OUT, h), i)))
+        OUTAT = b
+        # run against a window: the output starts as `history` and matches may reach into it
+        b = g.block('runWith', [S, S], S)
+        b.returns(decode_from(b, b.arg(0), b.arg(1)))
+        g.run_with = b
+        b = run
+    else:
+        b = g.block('entry', [], S)
+        b.returns(decode_from(b, b.seq(payload), None))
     return g, b
+
+
+def library(g=None):
+    return build(None, g)

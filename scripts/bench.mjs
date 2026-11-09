@@ -39,13 +39,15 @@ for (const file of files) {
   const input = fs.readFileSync(path.join(corpus, file));
   const row = {file, bytes: input.length, sha256: sha(input), results: []};
   const src = path.join(work, 'in'); fs.writeFileSync(src, input);
-  const c = timed(uorc, ['compress', '--steps', steps, src, '-o', path.join(work, 'a.uorc')]);
-  if (c.r.status === 0) {
-    const archive = fs.readFileSync(path.join(work, 'a.uorc'));
-    const d = timed(uorc, ['decompress', path.join(work, 'a.uorc'), '-o', path.join(work, 'back')]);
-    const ok = d.r.status === 0 && Buffer.compare(fs.readFileSync(path.join(work, 'back')), input) === 0;
-    row.results.push({compressor: `uorc (${steps} steps)`, bytes: archive.length, compress_s: c.seconds, decompress_s: d.seconds, round_trip: ok});
-  } else row.results.push({compressor: `uorc (${steps} steps)`, error: c.r.stderr.toString().trim()});
+  for (const [label, extra] of [[`uorc (${steps} steps)`, []], [`uorc --best (${steps} steps)`, ['--best']]]) {
+    const c = timed(uorc, ['compress', ...extra, '--steps', steps, src, '-o', path.join(work, 'a.uorc')]);
+    if (c.r.status === 0) {
+      const archive = fs.readFileSync(path.join(work, 'a.uorc'));
+      const d = timed(uorc, ['decompress', path.join(work, 'a.uorc'), '-o', path.join(work, 'back')]);
+      const ok = d.r.status === 0 && Buffer.compare(fs.readFileSync(path.join(work, 'back')), input) === 0;
+      row.results.push({compressor: label, bytes: archive.length, compress_s: c.seconds, decompress_s: d.seconds, round_trip: ok});
+    } else row.results.push({compressor: label, error: c.r.stderr.toString().trim()});
+  }
   for (const t of tools) {
     const cz = timed(t.tool, t.compress, input);
     const dz = timed(t.tool, t.decompress, cz.r.stdout);
