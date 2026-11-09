@@ -14,10 +14,11 @@
 //      (LLV7015); the let form certifies.
 // Repository sources are never modified.
 //
-// The export uses LexLean pinned at LEXLEAN_REV: the rust-std shared-box
-// lowering it carries keeps search states behind reference-counted boxes
-// instead of copying them on every field read, which is what makes the client
-// fast. The pin moves to a crates.io release once that lowering is released.
+// The export uses LexLean pinned at LEXLEAN_REV, the branch claude/uorc-pin of
+// UOR-Foundation/LexLean: the rust-std shared-box lowering (LexLean#441) keeps
+// search states behind reference-counted boxes instead of copying them on every
+// field read, and the in-place byte update primitive (LexLean#443) gives the
+// codec O(1) table writes. The pin moves to a LexLean release once both ship.
 // Set LEXLEAN to an already built binary of the same revision to skip the build.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -30,7 +31,7 @@ const out = path.join(root, 'generated/rust');
 const entry = 'src/Uorc/Client.lex.tex';
 const roots = [['uorc_compress', 'Uorc.Uorc.Client.compress'], ['uorc_decompress', 'Uorc.Uorc.Client.decompress']];
 const LEXLEAN_REPO = 'https://github.com/UOR-Foundation/LexLean';
-const LEXLEAN_REV = '7da569d333afd338bf81a99c5c9c1731398fa60d';
+const LEXLEAN_REV = '4c41d395286826faf568817f46e181c22b09cba1';
 const fail = m => { throw new Error(m); };
 const run = (cmd, args, cwd) => {
   const r = spawnSync(cmd, args, {cwd, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024});
