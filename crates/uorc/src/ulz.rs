@@ -30,7 +30,6 @@ const REP_LEN: usize = 7149;
 const MAX_MATCH: usize = 273;
 const NICE: usize = 64;
 const DEPTH: usize = 48;
-const HASH_BITS: u32 = 16;
 
 fn after_literal(s: usize) -> usize {
     if s < 4 {
@@ -228,9 +227,25 @@ impl RangeEncoder {
     }
 }
 
+const HASH3_BITS: u32 = 16;
+
+/// Bits of the 4-byte hash table for `n` bytes of encoder input: the bit
+/// length of `n + 1` clamped to [16, 22] (`LzEncode.start`).
+fn hash4_bits(n: usize) -> u32 {
+    let mut d = 0u32;
+    while (1u64 << d) < n as u64 + 1 {
+        d += 1;
+    }
+    d.clamp(16, 22)
+}
+
 struct Finder<'a> {
     data: &'a [u8],
+    /// Most recent position (+1) of each 3-byte hash.
+    head3: Vec<u32>,
+    /// Most recent position (+1) of each 4-byte hash, chained through `chain`.
     head: Vec<u32>,
+    bits: u32,
     chain: Vec<u32>,
 }
 
@@ -241,19 +256,29 @@ impl Finder<'_> {
     }
 
     #[inline(always)]
-    fn hash(&self, i: usize) -> usize {
+    fn hash3(&self, i: usize) -> usize {
         let x = (u64::from(self.data[i]) << 16)
             | (u64::from(self.data[i + 1]) << 8)
             | u64::from(self.data[i + 2]);
-        ((x * 2_654_435_761) >> 16) as usize & ((1 << HASH_BITS) - 1)
+        ((x * 2_654_435_761) >> 16) as usize & ((1 << HASH3_BITS) - 1)
+    }
+
+    #[inline(always)]
+    fn hash4(&self, i: usize) -> usize {
+        let x = u64::from(u32::from_le_bytes(self.data[i..i + 4].try_into().unwrap_or([0; 4])));
+        ((x * 2_654_435_761) >> (32 - self.bits)) as usize & ((1 << self.bits) - 1)
     }
 
     #[inline(always)]
     fn insert(&mut self, i: usize) {
-        if i + 2 < self.data.len() {
-            let k = self.hash(i);
+        if i + 3 < self.data.len() {
+            let k = self.hash4(i);
             self.chain[i] = self.head[k];
             self.head[k] = i as u32 + 1;
+        }
+        if i + 2 < self.data.len() {
+            let k = self.hash3(i);
+            self.head3[k] = i as u32 + 1;
         }
     }
 
@@ -284,7 +309,19 @@ impl Finder<'_> {
         }
         let limit = (n - i).min(MAX_MATCH);
         let (mut best, mut dist) = (0usize, 0usize);
-        let mut candidate = self.head[self.hash(i)];
+        let c3 = self.head3[self.hash3(i)];
+        if c3 != 0 {
+            let j = c3 as usize - 1;
+            let l = self.common(j, i, limit);
+            if l >= 2 {
+                best = l;
+                dist = i - (j + 1);
+            }
+        }
+        if n <= i + 3 || best >= NICE {
+            return (best, dist);
+        }
+        let mut candidate = self.head[self.hash4(i)];
         for _ in 0..DEPTH {
             if candidate == 0 {
                 break;
@@ -330,7 +367,9 @@ pub fn encode_with(history: &[u8], input: &[u8]) -> Vec<u8> {
     let mut probs = vec![1024u16; PROBS];
     let mut f = Finder {
         data,
-        head: vec![0; 1 << HASH_BITS],
+        head3: vec![0; 1 << HASH3_BITS],
+        head: vec![0; 1 << hash4_bits(n)],
+        bits: hash4_bits(n),
         chain: vec![0; n],
     };
     for j in 0..start {
@@ -732,3 +771,4 @@ mod tests {
         assert_eq!(decode(&payload, 3000), None);
     }
 }
+
