@@ -86,7 +86,7 @@ fn inspect_reads_the_header_without_decoding() {
     let shown = uorc(&["inspect", "--json", s(&archive)]);
     assert_eq!(code(&shown), 0, "{shown:?}");
     let json = String::from_utf8(shown.stdout).unwrap();
-    assert!(json.contains("\"representation\":\"ulz\""), "{json}");
+    assert!(json.contains("\"representation\":\"ncm\""), "{json}");
     assert!(json.contains("\"object_lengths\":[20000]"), "{json}");
     assert!(json.contains("\"integrity_ok\":true"), "{json}");
 

@@ -66,6 +66,7 @@ const machine = {cores, cpu: os.cpus()[0]?.model ?? 'unknown', memory_bytes: os.
   copy_mb_s_one_core: await best(1) / 1e6, copy_mb_s_all_cores: await best(cores) / 1e6};
 
 const tools = baselines.map(b => ({...b, available: firstLine(b.tool, b.version)})).filter(b => b.available !== null);
+// uorc has one coder (ncm); --best is accepted and changes nothing.
 const uorcName = `uorc (${steps} steps)`;
 const names = [uorcName, ...tools.map(t => t.name)];
 fs.mkdirSync(out, {recursive: true});
