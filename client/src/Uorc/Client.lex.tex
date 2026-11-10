@@ -137,39 +137,39 @@ definition{
 
 definition{
   name: weight,
-  parameters: [family : Nat, strategy : Nat],
+  parameters: [fam : Nat, strategy : Nat],
   result: Nat,
-  body: (Uorc.Codec.Archive::byteAt (weightTable) ((prim multiply 6 family : Nat) + strategy)),
+  body: (Uorc.Codec.Archive::byteAt (weightTable) ((prim multiply 6 fam : Nat) + strategy)),
   axioms: [Quot.sound, propext]
 }
 
 definition{
   name: insertByWeight,
-  parameters: [family : Nat, x : Nat, ordered : (List Nat)],
+  parameters: [fam : Nat, x : Nat, ordered : (List Nat)],
   result: (List Nat),
   body: (match ordered
     | List.nil => (cons x (nil Nat))
-    | List.cons head tail => (if ((weight family head) <? (weight family x)) then (cons x (cons head tail)) else (cons head (insertByWeight family x tail)))),
+    | List.cons head tail => (if ((weight fam head) <? (weight fam x)) then (cons x (cons head tail)) else (cons head (insertByWeight fam x tail)))),
   axioms: [Quot.sound, propext],
   recursive_argument: ordered
 }
 
 definition{
   name: scheduleFrom,
-  parameters: [family : Nat, pending : (List Nat), ordered : (List Nat)],
+  parameters: [fam : Nat, pending : (List Nat), ordered : (List Nat)],
   result: (List Nat),
   body: (match pending
     | List.nil => ordered
-    | List.cons head tail => (scheduleFrom family tail (insertByWeight family head ordered))),
+    | List.cons head tail => (scheduleFrom fam tail (insertByWeight fam head ordered))),
   axioms: [Quot.sound, propext],
   recursive_argument: pending
 }
 
 definition{
   name: schedule,
-  parameters: [family : Nat],
+  parameters: [fam : Nat],
   result: (List Nat),
-  body: (scheduleFrom family (cons 0 (cons 1 (cons 2 (cons 3 (cons 4 (cons 5 (nil Nat))))))) (nil Nat)),
+  body: (scheduleFrom fam (cons 0 (cons 1 (cons 2 (cons 3 (cons 4 (cons 5 (nil Nat))))))) (nil Nat)),
   axioms: [Quot.sound, propext]
 }
 

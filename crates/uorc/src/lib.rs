@@ -216,7 +216,7 @@ fn compress_pieces(
                 Some(identity) => archive::window_archive_profile(
                     codec,
                     strategy.profile,
-                    window.len(),
+                    window,
                     identity,
                     lengths,
                     &payload,

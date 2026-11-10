@@ -1326,12 +1326,25 @@ definition{
 }
 
 definition{
+  name: v03Candidate,
+  parameters: [x : Nat, window : (List Bytes), n : Nat, payload : Bytes],
+  result: (Option Bytes),
+  body: (match window
+    | List.nil => (if (x =? 1) then (v03Archive (x86Prefix) (v03NcmxSuffix) n payload) else (v03Archive (linkedPrefix) (v03NcmSuffix) n payload))
+    | List.cons oldest rest => (match (v03WindowIdentity window)
+      | Option.none => (ctor Option.none [Bytes])
+      | Option.some identity => (v03WindowArchive (x + 1) (windowCount window) identity n payload))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: profileCandidate,
   parameters: [codec : Nat, profile : Nat, window : (List Bytes), input : Bytes],
   result: (Option Bytes),
-  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (match (profiledIdentity window)
+  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (profile =? 131071) then (v03Candidate x window (prim length input : Nat) payload) else (match (profiledIdentity window)
     | Option.none => (ctor Option.none [Bytes])
-    | Option.some identity => (profiledArchive x (windowCount window) identity (prim length input : Nat) profile payload)) else (ctor Option.none [Bytes]))))),
+    | Option.some identity => (profiledArchive x (windowCount window) identity (prim length input : Nat) profile payload))) else (ctor Option.none [Bytes]))))),
   executable: true,
   axioms: [Quot.sound, propext]
 }
