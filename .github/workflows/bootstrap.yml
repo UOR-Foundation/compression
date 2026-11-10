@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 # A newer push to a pull request supersedes its older run.
 concurrency:
@@ -22,11 +21,14 @@ jobs:
   # normative x86-64 host; the arm host runs the host-dependent `rest` leg.
   # Wall time is the slowest leg, not the sum.
   #
-  # Every leg but `rest` is a formal obligation: it runs once per content
-  # identity κ of its inputs (scripts/ci-receipt.sh) and uploads a receipt when
-  # it passes. A later run with the same κ (a product-only change, a rerun, the
-  # merge of an up-to-date pull request) finds the receipt and does not repeat
-  # the work. `rest` checks the product and runs on every revision.
+  # Every leg is a factory obligation (factory/graph.json, scripts/factory.mjs):
+  # its identity is the SHA-256 of the inputs it declares, and it runs once per
+  # identity. A later run with the same identity (a product-only change for the
+  # formal legs, the merge of an up-to-date pull request for all of them) finds
+  # the receipt and does not repeat the work; a formal leg that failed on the
+  # same inputs is refuted in seconds instead of failing again an hour later
+  # (re-run the job to observe it anyway). Each leg uploads only its outcome;
+  # factory.yml turns outcomes into receipts from the default branch.
   template-gate:
     name: acceptance / ${{ matrix.leg }} / ${{ matrix.runner }}
     strategy:
@@ -51,16 +53,31 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Look up a receipt for this leg's inputs
-        id: receipt
-        if: matrix.leg != 'rest'
+      - name: Route this leg by its own inputs
+        id: route
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
           OBLIGATION: ${{ matrix.leg }}-${{ matrix.runner }}
-        run: scripts/ci-receipt.sh lookup "$OBLIGATION" >> "$GITHUB_OUTPUT"
+          LEG_RECIPES: ${{ matrix.recipes }}
+        run: node scripts/factory.mjs route "$OBLIGATION" --expect-run "just $LEG_RECIPES" >> "$GITHUB_OUTPUT"
+      - name: Stop on refuted or blocked inputs
+        if: steps.route.outputs.route != 'observe' && steps.route.outputs.route != 'proved'
+        shell: bash
+        run: exit 1
+      - name: Pull the locked SDK, retrying the registry
+        if: steps.route.outputs.route == 'observe'
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=$(sed -n 's/.*"sdk_image":"\([^"]*\)".*/\1/p' prismpm.lock)
+          for attempt in 1 2 3 4; do
+            if docker pull --quiet "$image"; then exit 0; fi
+            sleep $((attempt * 15))
+          done
+          exit 1
       - name: Run this leg of the template gate through the locked SDK
-        if: steps.receipt.outputs.proved != 'true'
+        id: run
+        if: steps.route.outputs.route == 'observe'
         shell: bash
         env:
           LEG_RECIPES: ${{ matrix.recipes }}
@@ -103,20 +120,21 @@ jobs:
               devcontainer --version
               exec just $LEG_RECIPES
             '
-      - name: Record the receipt for this leg's inputs
-        if: steps.receipt.outputs.proved == 'false'
+      - name: Record this leg's outcome
+        if: always() && steps.route.outputs.route == 'observe' && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
         shell: bash
         env:
           OBLIGATION: ${{ matrix.leg }}-${{ matrix.runner }}
-          KAPPA: ${{ steps.receipt.outputs.kappa }}
-        run: scripts/ci-receipt.sh record "$OBLIGATION" "$KAPPA"
+          IDENTITY: ${{ steps.route.outputs.identity }}
+          OUTCOME: ${{ steps.run.outcome }}
+        run: node scripts/factory.mjs outcome "$OBLIGATION" "$IDENTITY" "$OUTCOME" .tmp/factory
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        if: steps.receipt.outputs.proved == 'false'
+        if: always() && steps.route.outputs.route == 'observe' && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
         with:
-          name: receipt-${{ matrix.leg }}-${{ matrix.runner }}-${{ steps.receipt.outputs.kappa }}
-          path: .tmp/receipt/receipt.json
+          name: factory-outcome-${{ matrix.leg }}-${{ matrix.runner }}
+          path: .tmp/factory/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 3
 
   # The single required signal per host: it passes only when every leg passed.
   acceptance:
