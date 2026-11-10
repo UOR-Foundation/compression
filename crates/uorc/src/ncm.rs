@@ -20,6 +20,55 @@
 //! probability, which drives a 32-bit binary arithmetic coder.
 //!
 //! A payload is the input length (4 bytes, big-endian) and the coder output.
+//!
+//! The plasticity of every learning part (mixer weights, context slots and
+//! the probability maps) is the one the Prism model `Uorc.Neuromorphic`
+//! (`src/Uorc/Neuromorphic.lex.tex`) states, with its bounds kernel-checked
+//! there; [`standard`] holds its constants.
+
+/// ncm's plasticity as `Uorc.Neuromorphic` states it. A test holds every
+/// constant here equal to the model's, and the coder reads them from here.
+pub mod standard {
+    /// The mixers.
+    pub const MIXERS: usize = 3;
+    /// Inputs per mixer: the hashed contexts, the match model's two, a bias.
+    pub const MIXER_INPUTS: usize = super::NIN;
+    /// Hashed contexts, each a slot that adapts toward the coded bit.
+    pub const CONTEXTS: usize = super::NC;
+    /// Every mixer weight stays within this bound (`hebbianBoundsHold`).
+    pub const WEIGHT_LIMIT: i32 = 1 << 22;
+    /// A fresh weight: 1/4 in 16-bit fixed point.
+    pub const WEIGHT_INITIAL: i32 = 1 << 14;
+    /// A mixer input's magnitude bound (stretched probabilities, vote, bias).
+    pub const INPUT_LIMIT: i32 = 2047;
+    /// A mixer error's magnitude bound (12-bit probabilities).
+    pub const ERROR_LIMIT: i32 = 4096;
+    /// A weight learns `x * err * plasticity / 2^PLASTICITY_SHIFT` per bit.
+    pub const PLASTICITY_SHIFT: u32 = 16;
+    /// The plasticity's floor, approached as the input is seen.
+    pub const PLASTICITY_FLOOR: i64 = 24;
+    /// The plasticity above the floor at the first byte.
+    pub const PLASTICITY_GAIN: i64 = 104;
+    /// Bytes after which the plasticity above the floor has halved.
+    pub const PLASTICITY_HALF_LIFE: i64 = 4096;
+    /// A weight's largest change in one bit (`laneFitHolds`).
+    pub const STEP_LIMIT: i32 = 16376;
+    /// A slot's count saturates here: the slot is consolidated.
+    pub const COUNT_LIMIT: u8 = 127;
+    /// A slot adapts by `RATE_NUMERATOR / (2 * count + 3)` / 65536 of its gap.
+    pub const RATE_NUMERATOR: i32 = 131_072;
+    /// A probability map point moves 1/2^REFINEMENT_SHIFT of its gap.
+    pub const REFINEMENT_SHIFT: i32 = 6;
+
+    /// The mixers' plasticity after `pos` coded bytes, in 1/65536 per unit
+    /// of `x * err`: 128 at the start, decaying toward 24 (`plasticity`).
+    #[must_use]
+    pub fn plasticity(pos: u32) -> i32 {
+        (PLASTICITY_FLOOR
+            + PLASTICITY_GAIN * PLASTICITY_HALF_LIFE / (PLASTICITY_HALF_LIFE + i64::from(pos)))
+            as i32
+    }
+}
 
 const NC: usize = 17;
 const NIN: usize = NC + 3;
@@ -31,10 +80,10 @@ const SQT: [i32; 33] = [
     1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047, 2549, 2994, 3348,
     3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094,
 ];
-const WEIGHT_LIMIT: i32 = 1 << 22;
+const WEIGHT_LIMIT: i32 = standard::WEIGHT_LIMIT;
 /// Adaptive probability map rows: 33 interpolation points over the stretch domain.
 const APM_ROW: usize = 33;
-const APM_RATE: i32 = 6;
+const APM_RATE: i32 = standard::REFINEMENT_SHIFT;
 const APM2_BITS: u32 = 16;
 
 fn squash(d: i32) -> i32 {
@@ -68,7 +117,7 @@ fn tables() -> &'static Tables {
         }
         let mut rate = [0i32; 128];
         for (c, r) in rate.iter_mut().enumerate() {
-            *r = 131_072 / (2 * c as i32 + 3);
+            *r = standard::RATE_NUMERATOR / (2 * c as i32 + 3);
         }
         Tables { stretch, rate }
     })
@@ -232,7 +281,7 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
     let pv = i32::from(*p);
     let t = if y { 65535 } else { 0 };
     *p = (pv + (((i64::from(t - pv)) * i64::from(r)) >> 16) as i32) as u16;
-    if *n < 127 {
+    if *n < standard::COUNT_LIMIT {
         *n += 1;
     }
 }
@@ -624,12 +673,11 @@ impl Model {
         if self.mlen > 0 {
             adapt(&mut self.msp[self.mi], &mut self.msn[self.mi], y, rate);
         }
-        // plasticity: 24 + 104 * 4096 / (4096 + pos), in 1/65536 per unit of x * err
-        let lr = 24 + (104 * 4096 / (4096 + u64::from(self.pos))) as i64;
+        let lr = standard::plasticity(self.pos);
         let yb = i32::from(y) << 12;
-        // |err| <= 4096 and lr <= 128, so err * lr < 2^20 and x * err * lr
-        // (|x| <= 2047) stays inside i32: the kernels learn in 32-bit lanes.
-        let lr = lr as i32;
+        // |err| <= 4096 and lr <= 128, so err * lr <= 2^19 and x * err * lr
+        // (|x| <= 2047) stays inside i32 (`laneFitHolds`): the kernels learn
+        // in 32-bit lanes.
         let e = [
             (yb - self.pm1) * lr,
             (yb - self.pm2) * lr,
@@ -678,7 +726,7 @@ impl Model {
 fn weights(rows: usize) -> Vec<i32> {
     let mut w = vec![0; rows * NINP];
     for r in w.chunks_exact_mut(NINP) {
-        r[..NIN].fill(1 << 14);
+        r[..NIN].fill(standard::WEIGHT_INITIAL);
     }
     w
 }

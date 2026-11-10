@@ -21,8 +21,8 @@ const steps = () => BigInt(Math.max(0, Math.floor(Number($("steps").value) || 0)
 const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 try {
-  const uorc = await load("./uorc.wasm");
-  fetch("version.txt").then((r) => r.ok ? r.text() : "").then((v) => { if (v) $("version").textContent = `Release ${v.trim()}`; });
+  const uorc = await load("./uorc_bg.wasm");
+  fetch("provenance.json").then((r) => r.ok ? r.json() : {}).then((p) => { if (p.version) $("version").textContent = `Release ${p.version}`; }).catch(() => {});
   for (const id of ["compress", "decompress", "inspect", "verify"]) $(id).disabled = false;
   status.textContent = "Ready. Choose a file, or run an example below.";
 

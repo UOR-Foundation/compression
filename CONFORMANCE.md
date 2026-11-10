@@ -64,6 +64,12 @@ The three honesty levels (R2):
 | --- | --- | --- |
 | `UC-MACH-01` | `build` | The client's reference-semantics evaluator decodes program archives, including search-found programs and the ulz kernel graph when the certified fast path declines, to their exact original bytes. |
 
+## neuromorphic-standard
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-NEU-01` | `build` | The ncm coder's plasticity is stated as the Prism neuromorphic standard in Uorc.Neuromorphic, with kernel-checked bounds: every mixer weight stays within plus or minus 2^22 under the bounded Hebbian rule, potentiation never lowers and depression never raises a weight, the plasticity lies between 24 and 128 per 65536 (128 at the first byte, 24 in the limit), one bit's weight change is at most 16376 and every product fits a 32-bit lane, a context slot never steps past its gap to the coded bit and consolidates at count 127, and every probability-map point stays within 16 bits; the native coder reads the model's constants. |
+
 ## ordered-objects
 
 | ID | Level | Statement |
@@ -154,3 +160,4 @@ The three honesty levels (R2):
 | `UC-INT-03` | `build` | `build_evidence` | `not_measured` | Source-owned checker soundness and constructive finite backward reduction are kernel checked for actual canonical framed messages and shape-valid source-SHA-authenticated traces, without global hash injectivity or an assumed frame codec. The decoder-to-authenticated-trace bridge and full product acceptance remain distinct. |
 | `UC-INT-04` | `build` | `build_evidence` | `not_measured` | Source-owned actual-call relations establish ordered hash admissions, drained selected-view EOF and checked cumulative basis/main work; composed generated-model controls reject failed-prefix resets and late corruption. Consumer snapshot preservation, canonical digest refinement and complete archive EOF remain separate obligations. |
 | `UC-INT-05` | `build` | `build_evidence` | `not_measured` | Source-owned completed-view and continuous publication proofs derive the actual chosen-profile digest and emitted-image reads, discharging canonical driver termination and OwnedHash control/cleanup lifetime for both explicit format identities and arbitrary finite source input. Initial source-layout correspondence and full product acceptance remain separate consumer obligations. |
+| `UC-NEU-01` | `build` | `kernel_theorem` | `not_measured` | The ncm coder's plasticity is stated as the Prism neuromorphic standard in Uorc.Neuromorphic, with kernel-checked bounds: every mixer weight stays within plus or minus 2^22 under the bounded Hebbian rule, potentiation never lowers and depression never raises a weight, the plasticity lies between 24 and 128 per 65536 (128 at the first byte, 24 in the limit), one bit's weight change is at most 16376 and every product fits a 32-bit lane, a context slot never steps past its gap to the coded bit and consolidates at count 127, and every probability-map point stays within 16 bits; the native coder reads the model's constants. |
