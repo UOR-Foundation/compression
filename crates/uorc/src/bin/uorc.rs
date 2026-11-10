@@ -23,8 +23,9 @@ by identity, so they carry no decoder kernel.
 Input of any size streams through 8 MiB frames, compressed --threads N at a
 time (default: every core) and written back to back; each frame may match
 into up to two frames before it in its block of four, and blocks decompress
-on separate cores. A frame identical to an earlier one is stored once, as a
-reference to it. Without -o, compress writes <input>.uorc and decompress
+on separate cores. Content repeated anywhere in the input (64 KiB or more,
+found by content-defined anchors) is stored once, as a reference to its
+earlier copy. Without -o, compress writes <input>.uorc and decompress
 strips a .uorc suffix (or writes <input>.out). '-' reads stdin or writes
 stdout.
 
