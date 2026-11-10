@@ -34,6 +34,21 @@ pub const BASIS_ID: [u8; 32] = hex_literal(BASIS_ID_HEX);
 const LINKED_PREFIX: [u8; hex_len(LINKED_PREFIX_HEX)] = hex_literal(LINKED_PREFIX_HEX);
 const ULZ_SUFFIX: [u8; hex_len(ULZ_SUFFIX_HEX)] = hex_literal(ULZ_SUFFIX_HEX);
 const NCM_SUFFIX: [u8; hex_len(NCM_SUFFIX_HEX)] = hex_literal(NCM_SUFFIX_HEX);
+const LIBRARY_HEX: &str = include_str!("basis-library.hex");
+/// The standard basis's one root (`Archive.libraryRoot`): the ulz and ncm
+/// decoder library blocks.
+pub const LIBRARY: [u8; hex_len(LIBRARY_HEX)] = hex_literal(LIBRARY_HEX);
+const BASIS_TAG: &[u8] = b"UORC-BASIS-V1\0";
+const WINDOW1_PREFIX_HEX: &str = include_str!("linked-ulz1-prefix.hex");
+const WINDOW1_SUFFIX_HEX: &str = include_str!("linked-ulz1-suffix.hex");
+const WINDOW2_PREFIX_HEX: &str = include_str!("linked-ulz2-prefix.hex");
+const WINDOW2_SUFFIX_HEX: &str = include_str!("linked-ulz2-suffix.hex");
+const WINDOW1_PREFIX: [u8; hex_len(WINDOW1_PREFIX_HEX)] = hex_literal(WINDOW1_PREFIX_HEX);
+const WINDOW1_SUFFIX: [u8; hex_len(WINDOW1_SUFFIX_HEX)] = hex_literal(WINDOW1_SUFFIX_HEX);
+const WINDOW2_PREFIX: [u8; hex_len(WINDOW2_PREFIX_HEX)] = hex_literal(WINDOW2_PREFIX_HEX);
+const WINDOW2_SUFFIX: [u8; hex_len(WINDOW2_SUFFIX_HEX)] = hex_literal(WINDOW2_SUFFIX_HEX);
+/// Most preceding frames a window frame reads (`Archive.windowPrefix`).
+pub const WINDOW: usize = 2;
 
 /// A decoder of the standard basis that a linked archive applies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,28 +149,54 @@ pub(crate) fn read_uleb(data: &[u8], mut at: usize) -> Option<(u64, usize)> {
 
 /// The UORC-SHA256-CHAIN-v1 digest of `preimage`.
 pub fn chain(preimage: &[u8]) -> [u8; 32] {
+    chain_parts(&[preimage])
+}
+
+fn chain_block(c: &[u8; 32], block: &[u8]) -> [u8; 32] {
+    Sha256::new()
+        .chain_update(CHAIN_TAG)
+        .chain_update([1u8])
+        .chain_update(c)
+        .chain_update(block)
+        .finalize()
+        .into()
+}
+
+/// [`chain`] of the concatenation of `parts`, without joining them.
+pub fn chain_parts(parts: &[&[u8]]) -> [u8; 32] {
     let mut c: [u8; 32] = Sha256::new()
         .chain_update(CHAIN_TAG)
         .chain_update([0u8])
         .finalize()
         .into();
-    let mut blocks = preimage.chunks_exact(64);
-    for block in &mut blocks {
-        c = Sha256::new()
-            .chain_update(CHAIN_TAG)
-            .chain_update([1u8])
-            .chain_update(c)
-            .chain_update(block)
-            .finalize()
-            .into();
+    let mut carry = [0u8; 64];
+    let mut held = 0usize;
+    for part in parts {
+        let mut rest = *part;
+        if held > 0 {
+            let take = rest.len().min(64 - held);
+            carry[held..held + take].copy_from_slice(&rest[..take]);
+            held += take;
+            rest = &rest[take..];
+            if held < 64 {
+                continue;
+            }
+            c = chain_block(&c, &carry);
+        }
+        let mut blocks = rest.chunks_exact(64);
+        for block in &mut blocks {
+            c = chain_block(&c, block);
+        }
+        let tail = blocks.remainder();
+        carry[..tail.len()].copy_from_slice(tail);
+        held = tail.len();
     }
-    let tail = blocks.remainder();
     Sha256::new()
         .chain_update(CHAIN_TAG)
         .chain_update([2u8])
         .chain_update(c)
-        .chain_update([tail.len() as u8])
-        .chain_update(tail)
+        .chain_update([held as u8])
+        .chain_update(&carry[..held])
         .finalize()
         .into()
 }
@@ -251,6 +292,141 @@ pub fn linked_length(codec: Codec, lengths: &[u64], p: u64) -> u64 {
         + 32
         + body
         + SEAL as u64
+}
+
+fn window_template(k: usize) -> Option<(&'static [u8], &'static [u8])> {
+    match k {
+        1 => Some((&WINDOW1_PREFIX, &WINDOW1_SUFFIX)),
+        2 => Some((&WINDOW2_PREFIX, &WINDOW2_SUFFIX)),
+        _ => None,
+    }
+}
+
+/// `Archive.windowIdentity`: the identity of the basis `[library, window..]`,
+/// the UORC-BASIS-V1 chain over its roots, oldest frame first.
+pub fn window_identity(window: &[&[u8]]) -> [u8; 32] {
+    let mut head = BASIS_TAG.to_vec();
+    push_uleb(&mut head, 1 + window.len() as u64);
+    push_uleb(&mut head, LIBRARY.len() as u64);
+    let lengths: Vec<Vec<u8>> = window
+        .iter()
+        .map(|r| {
+            let mut l = Vec::new();
+            push_uleb(&mut l, r.len() as u64);
+            l
+        })
+        .collect();
+    let mut parts: Vec<&[u8]> = vec![&head, &LIBRARY];
+    for (l, r) in lengths.iter().zip(window) {
+        parts.push(l);
+        parts.push(r);
+    }
+    chain_parts(&parts)
+}
+
+fn window_body_len(k: usize, p: u64) -> Option<u64> {
+    let (prefix, suffix) = window_template(k)?;
+    Some(prefix.len() as u64 + uleb_len(p) as u64 + p + suffix.len() as u64)
+}
+
+/// `Archive.windowArchive`: a conditional archive over `[library, the k
+/// preceding frames]` (named by `identity`) whose entry decodes the ulz
+/// `payload` with those frames as history, reconstructing objects of `lengths`.
+pub fn window_archive(
+    k: usize,
+    identity: &[u8; 32],
+    lengths: &[u64],
+    payload: &[u8],
+) -> Option<Vec<u8>> {
+    let (prefix, suffix) = window_template(k)?;
+    let p = payload.len() as u64;
+    let body_len = window_body_len(k, p)?;
+    let mut pre = header(1, lengths, body_len);
+    pre[6] = 1;
+    pre.extend_from_slice(identity);
+    pre.reserve(body_len as usize + SEAL);
+    pre.extend_from_slice(prefix);
+    push_uleb(&mut pre, p);
+    pre.extend_from_slice(payload);
+    pre.extend_from_slice(suffix);
+    Some(sealed(pre))
+}
+
+/// The basis identity a conditional archive names, if it is one.
+pub fn basis_of(data: &[u8]) -> Option<[u8; 32]> {
+    if data.len() < 8 || data[..6] != MAGIC[..] || data[6] != 1 {
+        return None;
+    }
+    let (count, mut at) = read_uleb(data, 8)?;
+    for _ in 0..count {
+        at = read_uleb(data, at)?.1;
+    }
+    let at = read_uleb(data, at)?.1;
+    data.get(at..at + 32)?.try_into().ok()
+}
+
+/// `Archive.windowDecode`, natively: the output of a window archive over
+/// `window` laid out exactly as [`window_archive`] writes it, with a payload
+/// the native decoder vouches for. The basis identity is checked on another
+/// core while the payload decodes.
+pub fn window_decode(data: &[u8], window: &[&[u8]]) -> Option<Vec<u8>> {
+    let k = window.len();
+    let (prefix, suffix) = window_template(k)?;
+    if data.len() < 8 + 32 + SEAL || data[..6] != MAGIC[..] || data[6] != 1 || data[7] != 1 {
+        return None;
+    }
+    let (count, mut at) = read_uleb(data, 8)?;
+    if count > data.len() as u64 {
+        return None;
+    }
+    let mut lengths = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let (n, next) = read_uleb(data, at)?;
+        lengths.push(n);
+        at = next;
+    }
+    let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
+    let (body_len, at) = read_uleb(data, at)?;
+    let body_len = usize::try_from(body_len).ok()?;
+    let start = at.checked_add(32)?;
+    if data.len() != start.checked_add(body_len)?.checked_add(SEAL)? {
+        return None;
+    }
+    let (pre, seal) = data.split_at(data.len() - SEAL);
+    let identity: [u8; 32] = pre[at..start].try_into().ok()?;
+    let mut expected = header(1, &lengths, body_len as u64);
+    expected[6] = 1;
+    if pre[..at] != expected[..] {
+        return None;
+    }
+    let rest = pre[start..].strip_prefix(prefix)?;
+    let (p, after) = read_uleb(rest, 0)?;
+    let p = usize::try_from(p).ok()?;
+    if after != uleb_len(p as u64)
+        || rest.len() != after.checked_add(p)?.checked_add(suffix.len())?
+    {
+        return None;
+    }
+    let (payload, tail) = rest[after..].split_at(p);
+    if tail != suffix {
+        return None;
+    }
+    let history = window.concat();
+    let decode = || crate::ulz::decode_with(&history, payload, n);
+    let check = || seal == chain(pre) && identity == window_identity(window);
+    #[cfg(not(target_family = "wasm"))]
+    let (output, ok) = std::thread::scope(|scope| {
+        let checked = scope.spawn(check);
+        let output = decode();
+        (output, checked.join().unwrap_or(false))
+    });
+    #[cfg(target_family = "wasm")]
+    let (output, ok) = (decode(), check());
+    if ok {
+        output
+    } else {
+        None
+    }
 }
 
 /// `Archive.fastDecode`, natively: the output of an archive this client wrote
