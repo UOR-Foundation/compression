@@ -21,6 +21,7 @@
 //   node scripts/factory.mjs plan [--rev REV] [--context KEY=VALUE]...
 //   node scripts/factory.mjs identity NAME [--rev REV] [--context KEY=VALUE]...
 //   node scripts/factory.mjs route NAME... [--context KEY=VALUE]... [--expect-run TEXT]
+//   node scripts/factory.mjs materialize NAME     (CI: delete what NAME does not declare)
 //   node scripts/factory.mjs outcome NAME IDENTITY success|failure DIR
 //   node scripts/factory.mjs publish DIR          (factory.yml only: needs GH_TOKEN)
 //   node scripts/factory.mjs export-check | export-record
@@ -69,14 +70,23 @@ export function loadGraph(dir) {
   return graph;
 }
 
-// `closure:Module` is the module's import closure, each module read from
-// client/src when it has one there and from src otherwise (as the export stages it).
-function closurePaths(module, entries) {
-  const paths = new Set(entries.map(e => e.path)); const found = []; const seen = new Set(); const stack = [module];
+// `closure:ROOTS@DIRS` is the import closure of ROOTS (comma-separated module
+// names; `Uorc.Integrity.*` names every module under that directory), each
+// module read from the first of DIRS (default `src`) that has it, as the
+// export stages client/src over src.
+function closurePaths(spec, entries) {
+  const [rootList, dirList = 'src'] = spec.split('@');
+  const dirs = dirList.split(',');
+  const paths = new Set(entries.map(e => e.path)); const found = []; const seen = new Set();
+  const stack = rootList.split(',').flatMap(r => {
+    if (!r.endsWith('.*')) return [r];
+    const prefix = r.slice(0, -2).split('.').join('/') + '/';
+    return [...paths].flatMap(p => dirs.map(d => `${d}/`).filter(d => p.startsWith(d + prefix) && p.endsWith('.lex.tex')).map(d => p.slice(d.length, -8).split('/').join('.')));
+  });
   while (stack.length) {
     const m = stack.pop(); if (seen.has(m)) continue; seen.add(m);
     const rel = m.split('.').join('/') + '.lex.tex';
-    const p = paths.has(`client/src/${rel}`) ? `client/src/${rel}` : paths.has(`src/${rel}`) ? `src/${rel}` : fail(`closure ${module}: module ${m} is not tracked`);
+    const p = dirs.map(d => `${d}/${rel}`).find(x => paths.has(x)) ?? fail(`closure ${spec}: module ${m} is not tracked`);
     found.push(p);
     const object = entries.find(e => e.path === p).object.split(':')[1];
     for (const i of git(['cat-file', 'blob', object]).toString().matchAll(/\\importmodule\{([^}]+)\}/g)) stack.push(i[1]);
@@ -84,17 +94,27 @@ function closurePaths(module, entries) {
   return new Set(found);
 }
 
+// `manifest:PATH` is a Cargo manifest read for workspace resolution only: the
+// manifest is an input, and a closure copy gives each target it declares an
+// empty file when the target's own sources are not inputs.
+const manifestPath = i => i.slice('manifest:'.length);
+
 /// An entry is covered when the longest inclusion it starts with is longer
 /// than the longest exclusion (`!prefix`) it starts with.
 export function covered(inputs, p, exact) {
   let include = -1, exclude = -1;
   for (const i of inputs) {
     if (i.startsWith('@') || i.startsWith('closure:')) continue;
+    if (i.startsWith('manifest:')) { if (p === manifestPath(i)) include = Math.max(include, p.length); continue; }
     if (i.startsWith('!')) { if (p.startsWith(i.slice(1))) exclude = Math.max(exclude, i.length - 1); }
     else if (p.startsWith(i)) include = Math.max(include, i.length);
   }
   if (exact.has(p)) include = Math.max(include, p.length);
   return include > exclude;
+}
+
+function exactPaths(o, entries) {
+  return new Set(o.inputs.filter(i => i.startsWith('closure:')).flatMap(i => [...closurePaths(i.slice(8), entries)]));
 }
 
 /// Identities of every obligation at REV: PrismPM's `prism-factory/obligation/1`.
@@ -104,7 +124,7 @@ export function identities(graph, entries, contexts) {
     // An obligation that reads a context nobody supplied, or needs one that
     // does, has no identity here (a pull request run never plans `publish`).
     if (o.inputs.some(i => i.startsWith('@') && contexts[i.slice(1)] === undefined) || o.needs.some(n => ids[n] === null)) { ids[o.name] = null; continue; }
-    const exact = new Set(o.inputs.filter(i => i.startsWith('closure:')).flatMap(i => [...closurePaths(i.slice(8), entries)]));
+    const exact = exactPaths(o, entries);
     let closure = '';
     for (const e of entries) if (covered(o.inputs, e.path, exact)) closure += `file ${e.object} ${e.path}\n`;
     for (const i of o.inputs) if (i.startsWith('@')) {
@@ -266,6 +286,35 @@ function main(argv) {
       if (!['success', 'failure'].includes(result)) fail('outcome result is success or failure');
       fs.mkdirSync(out, {recursive: true});
       fs.writeFileSync(path.join(out, `${name}.outcome`), `outcome ${name} ${identity} ${result === 'success' ? 'pass' : 'fail'} ${git(['rev-parse', 'HEAD']).toString().trim()}\n`);
+      return;
+    }
+    case 'materialize': {
+      // A closure copy in place (PrismPM runs each obligation in a copy of its
+      // closure): delete every tracked file the obligation does not declare,
+      // so an undeclared input fails the run instead of proving a false receipt.
+      const o = byName(opts.names[0]);
+      if (o.inputs.includes('') && !o.inputs.some(i => i.startsWith('!'))) { console.log(`${o.name} reads the whole tree`); return; }
+      const entries = tree('HEAD', dir), exact = exactPaths(o, entries);
+      let removed = 0, kept = 0;
+      for (const e of entries) {
+        if (covered(o.inputs, e.path, exact)) { kept++; continue; }
+        if (e.path.startsWith('factory/') || e.path.startsWith('scripts/factory.')) continue; // the host itself, for the outcome step
+        fs.rmSync(path.join(dir, e.path), {force: true}); removed++;
+      }
+      const stubs = [];
+      for (const i of o.inputs.filter(x => x.startsWith('manifest:'))) {
+        const manifest = manifestPath(i), crate = path.dirname(manifest);
+        const text = fs.readFileSync(path.join(dir, manifest), 'utf8');
+        const targets = [...text.matchAll(/^path\s*=\s*"([^"]+)"/gm)].map(m => m[1]);
+        if (!targets.length) targets.push('src/lib.rs');
+        for (const t of targets) {
+          const file = path.join(dir, crate, t);
+          if (fs.existsSync(file)) continue;
+          fs.mkdirSync(path.dirname(file), {recursive: true}); fs.writeFileSync(file, '');
+          stubs.push(path.join(crate, t));
+        }
+      }
+      console.log(`${o.name}: kept ${kept} declared files, removed ${removed}, stubbed ${stubs.length} target(s) of manifest-only crates`);
       return;
     }
     case 'publish': return publish(graph, dir, opts.names[0]);
