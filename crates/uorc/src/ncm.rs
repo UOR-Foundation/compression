@@ -1182,8 +1182,9 @@ mod x86 {
         data: &[u8],
         profile: u32,
         learn: bool,
+        stop: usize,
     ) -> Option<(Vec<u8>, u32)> {
-        super::encoder::<Avx2>(history, data, profile, learn)
+        super::encoder::<Avx2>(history, data, profile, learn, stop)
     }
 
     /// The decoder loop compiled for AVX2.
@@ -1478,11 +1479,28 @@ pub fn encode_profile(history: &[u8], data: &[u8], profile: u32) -> Option<Vec<u
     if !valid_profile(profile) {
         return None;
     }
-    encode_any(history, data, profile, false).map(|(payload, _)| payload)
+    encode_below(history, data, profile, usize::MAX)
 }
 
-fn encode_any(history: &[u8], data: &[u8], profile: u32, learn: bool) -> Option<(Vec<u8>, u32)> {
-    dispatch!(encoder(history, data, profile, learn))
+/// [`encode_profile`], abandoned (`None`) as soon as the payload would reach
+/// `stop` bytes: the caller's bound past which the payload cannot win. The
+/// payload only grows as bytes are coded, so a payload this returns is the
+/// one [`encode_profile`] returns.
+pub fn encode_below(history: &[u8], data: &[u8], profile: u32, stop: usize) -> Option<Vec<u8>> {
+    if !valid_profile(profile) {
+        return None;
+    }
+    encode_any(history, data, profile, false, stop).map(|(payload, _)| payload)
+}
+
+fn encode_any(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    learn: bool,
+    stop: usize,
+) -> Option<(Vec<u8>, u32)> {
+    dispatch!(encoder(history, data, profile, learn, stop))
 }
 
 /// [`encode_profile`], and the profile the encoder learned for this input:
@@ -1490,10 +1508,20 @@ fn encode_any(history: &[u8], data: &[u8], profile: u32, learn: bool) -> Option<
 /// was not positive (`NcmEncode.learnProfile`). The client codes that profile
 /// too and keeps the smaller frame.
 pub fn encode_learn(history: &[u8], data: &[u8], profile: u32) -> Option<(Vec<u8>, u32)> {
+    encode_learn_below(history, data, profile, usize::MAX)
+}
+
+/// [`encode_learn`] abandoned at `stop` payload bytes, as [`encode_below`].
+pub fn encode_learn_below(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    stop: usize,
+) -> Option<(Vec<u8>, u32)> {
     if !valid_profile(profile) {
         return None;
     }
-    encode_any(history, data, profile, true)
+    encode_any(history, data, profile, true, stop)
 }
 
 #[inline(always)]
@@ -1502,6 +1530,7 @@ fn encoder<K: Kernel>(
     data: &[u8],
     profile: u32,
     learn: bool,
+    stop: usize,
 ) -> Option<(Vec<u8>, u32)> {
     let n = u32::try_from(data.len()).ok()?;
     let mut m = Model::new(n, history, profile);
@@ -1509,15 +1538,20 @@ fn encoder<K: Kernel>(
         m.gain = Some(Box::new([0; NC]));
     }
     if m.stride == NINP_NARROW {
-        encode_bits::<K, NINP_NARROW>(m, data)
+        encode_bits::<K, NINP_NARROW>(m, data, stop)
     } else {
-        encode_bits::<K, NINP>(m, data)
+        encode_bits::<K, NINP>(m, data, stop)
     }
 }
 
 #[inline(always)]
-fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8]) -> Option<(Vec<u8>, u32)> {
-    let cap = 2 * data.len() + 64;
+fn encode_bits<K: Kernel, const W: usize>(
+    mut m: Model,
+    data: &[u8],
+    stop: usize,
+) -> Option<(Vec<u8>, u32)> {
+    // the payload ends one byte longer than the bytes emitted so far
+    let cap = (2 * data.len() + 64).min(stop.saturating_sub(5));
     let mut out = Vec::with_capacity(data.len() / 2 + 16);
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
     let (mut x1, mut x2) = (0u32, u32::MAX);
@@ -1736,7 +1770,9 @@ mod tests {
             .collect();
         let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
         for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
-            let p = encoder::<Scalar>(&[], data, V03, false).expect("fits").0;
+            let p = encoder::<Scalar>(&[], data, V03, false, usize::MAX)
+                .expect("fits")
+                .0;
             assert_eq!(encode(data).as_deref(), Some(&p[..]));
             let n = data.len() as u64;
             assert_eq!(decode(&p, n).as_deref(), Some(data));
@@ -1745,12 +1781,16 @@ mod tests {
                 Some(data)
             );
             // and after a window history
-            let w = encoder::<Scalar>(&text[..999], data, V03, false).expect("fits").0;
+            let w = encoder::<Scalar>(&text[..999], data, V03, false, usize::MAX)
+                .expect("fits")
+                .0;
             assert_eq!(encode_with(&text[..999], data).as_deref(), Some(&w[..]));
             assert_eq!(decode_with(&text[..999], &w, n).as_deref(), Some(data));
             // and under narrow and wide profiles
             for profile in [0x1059e, 0x1e79f, 1, FULL, 0x1059e | F_REP, V03 | F_SHORT] {
-                let p = encoder::<Scalar>(&text[..999], data, profile, false).expect("fits").0;
+                let p = encoder::<Scalar>(&text[..999], data, profile, false, usize::MAX)
+                    .expect("fits")
+                    .0;
                 assert_eq!(
                     encode_profile(&text[..999], data, profile).as_deref(),
                     Some(&p[..])
@@ -1811,6 +1851,22 @@ mod tests {
         }
         assert!(valid_profile(0) && !valid_profile(FULL + 1));
         assert_eq!(encode_profile(&[], &text, FULL + 1), None);
+    }
+
+    /// A bounded encode returns exactly the unbounded payload when that is
+    /// shorter than the bound, and nothing otherwise.
+    #[test]
+    fn bounded_encodes_are_the_payload_or_nothing() {
+        let text = b"a bound never changes a payload, it only stops early. ".repeat(40);
+        for profile in [V03, FULL] {
+            let p = encode_profile(&[], &text, profile).expect("fits");
+            assert_eq!(
+                encode_below(&[], &text, profile, p.len() + 1),
+                Some(p.clone())
+            );
+            assert_eq!(encode_below(&[], &text, profile, p.len()), None);
+            assert_eq!(encode_below(&[], &text, profile, 0), None);
+        }
     }
 
     #[test]

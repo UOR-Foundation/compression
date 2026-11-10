@@ -156,7 +156,7 @@ pub fn default_threads() -> usize {
 /// archive when that is not smaller; with `steps > 0` the exported model also searches and keeps the
 /// smallest.
 pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], &[], steps)
+    compress_pieces(frame, &[frame.len() as u64], &[], steps, true)
 }
 
 /// [`compress_frame`] for a frame that follows the frames `window` (at most
@@ -164,7 +164,7 @@ pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
 /// `compress input window steps`: the ncm candidate is the window archive
 /// whose payload reads those frames as history.
 pub fn compress_frame_with(frame: &[u8], window: &[&[u8]], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], window, steps)
+    compress_pieces(frame, &[frame.len() as u64], window, steps, true)
 }
 
 /// [`compress_frame`] with the output split into objects of `lengths`, which
@@ -175,6 +175,7 @@ fn compress_pieces(
     lengths: &[u64],
     window: &[&[u8]],
     steps: u64,
+    side_by_side: bool,
 ) -> Result<Vec<u8>, Error> {
     if steps > 0 {
         let archive = on_reference_stack(|| reference_compress(frame, window, steps))?;
@@ -190,7 +191,14 @@ fn compress_pieces(
     // first BUDGET strategies its family's schedule orders and keep the
     // smallest archive, the earlier one on a tie. A filtered strategy codes
     // the filtered frame after the filtered window.
-    let code = |strategy: portfolio::Strategy, learn: bool| -> Option<Vec<u8>> {
+    let raw = archive::raw_length(lengths);
+    // `code(strategy, learn, bound)`: the strategy's archive, or `None` when
+    // it cannot be shorter than `bound` bytes. An archive is at least its
+    // empty-payload form plus the payload, so the encoder stops once the
+    // payload passes `bound` less that form: an archive it would have
+    // finished could not have been chosen, and every archive it does finish
+    // is the one it always wrote.
+    let code = |strategy: portfolio::Strategy, learn: bool, bound: u64| -> Option<Vec<u8>> {
         let filtered;
         let (data, past) = if strategy.x86 {
             filtered = (
@@ -215,19 +223,29 @@ fn compress_pieces(
                 archive::window_archive_profile(codec, profile, window, identity, lengths, payload)
             }
         };
+        let stop = |profile: u32, bound: u64| -> usize {
+            let form = frame_of(profile, &[]).map_or(0, |a| a.len() as u64);
+            usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX)
+        };
         if !learn {
-            return ncm::encode_profile(past, data, strategy.profile)
+            return ncm::encode_below(past, data, strategy.profile, stop(strategy.profile, bound))
                 .and_then(|payload| frame_of(strategy.profile, &payload));
         }
         // The learned profile (`Archive.learnedCandidate`): the strategy's
         // profile without the contexts that saved nothing on this frame,
         // coded too and kept when no larger. Fewer contexts decode faster.
-        let (payload, learned) = ncm::encode_learn(past, data, strategy.profile)?;
+        let (payload, learned) =
+            ncm::encode_learn_below(past, data, strategy.profile, stop(strategy.profile, bound))?;
         let plain = frame_of(strategy.profile, &payload);
         if learned == strategy.profile {
             return plain;
         }
-        let pruned = ncm::encode_profile(past, data, learned).and_then(|p| frame_of(learned, &p));
+        // the pruned frame is kept when no larger than the plain one
+        let keep = plain
+            .as_ref()
+            .map_or(bound, |p| bound.min(p.len() as u64 + 1));
+        let pruned = ncm::encode_below(past, data, learned, stop(learned, keep))
+            .and_then(|p| frame_of(learned, &p));
         match (plain, pruned) {
             (Some(p), Some(l)) => Some(if l.len() <= p.len() { l } else { p }),
             (p, l) => l.or(p),
@@ -236,14 +254,23 @@ fn compress_pieces(
     // The scheduled strategies code side by side (a lone frame then uses two
     // cores); the choice is the same in any order. The first also learns its
     // context mask (`Client.portfolioLearned`).
+    // With a core to spare they code side by side, each bounded by the raw
+    // archive; otherwise one after the other, the second bounded by the
+    // first's archive as well (it is kept only when strictly smaller).
     let [first, second] = portfolio::plan(frame);
-    #[cfg(not(target_family = "wasm"))]
-    let (a, b) = std::thread::scope(|s| {
-        let other = s.spawn(|| code(second, false));
-        (code(first, true), other.join().expect("strategy thread"))
-    });
-    #[cfg(target_family = "wasm")]
-    let (a, b) = (code(first, true), code(second, false));
+    let (a, b) = if side_by_side && cfg!(not(target_family = "wasm")) {
+        std::thread::scope(|s| {
+            let other = s.spawn(|| code(second, false, raw));
+            (
+                code(first, true, raw),
+                other.join().expect("strategy thread"),
+            )
+        })
+    } else {
+        let a = code(first, true, raw);
+        let bound = a.as_ref().map_or(raw, |a| raw.min(a.len() as u64));
+        (a, code(second, false, bound))
+    };
     let best = match (a, b) {
         (Some(a), Some(b)) => Some(if b.len() < a.len() { b } else { a }),
         (a, b) => a.or(b),
@@ -663,9 +690,11 @@ fn compress_frames(
             .filter(|&k| references[k - before.len()].is_none())
             .collect();
         let first = totals.frames as usize - before.len();
+        // a frame codes its two strategies side by side when the batch leaves a core free
+        let spare = 2 * jobs.len() <= threads;
         let mut coded = parallel(&jobs, threads, |&k| {
             let pieces = &batch[k - before.len()].1;
-            compress_pieces(all[k], pieces, &window_of(&all, first, k), steps)
+            compress_pieces(all[k], pieces, &window_of(&all, first, k), steps, spare)
         })
         .into_iter();
         drop(all);
