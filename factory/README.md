@@ -1,3 +1,4 @@
+<!-- uorc:non-authoritative -->
 # uorc factory
 
 The release factory keys every CI and release obligation on its own declared

@@ -28,7 +28,7 @@
 //
 // The export is the factory obligation `export` (factory/graph.json): its
 // identity covers only what it reads (the import closure of Uorc.Client, the
-// LexLean project files and these scripts), recorded in generated/rust/factory.txt.
+// LexLean project files and these scripts), recorded in generated/rust/factory.identity.
 // When the recorded identity matches, the export is already proved and this
 // exits without running; pass --force to export anyway.
 import fs from 'node:fs';
@@ -138,7 +138,7 @@ function wrapBoxedReturns(dir, modules) {
   }
 }
 
-const exportRecord = path.join(out, 'factory.txt');
+const exportRecord = path.join(out, 'factory.identity');
 const exportIdentity = identities(loadGraph(root), workingTree(root), {}).export;
 if (!process.argv.includes('--force') && fs.existsSync(exportRecord) && fs.readFileSync(exportRecord, 'utf8').trim() === `export ${exportIdentity}`) {
   console.log(`export proved: generated/rust was exported from these inputs (${exportIdentity}); --force exports anyway`);
