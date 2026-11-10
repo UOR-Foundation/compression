@@ -505,6 +505,31 @@ pub fn linked_archive(codec: Codec, lengths: &[u64], payload: &[u8]) -> Option<V
     Some(sealed(pre))
 }
 
+/// [`linked_archive`] of the profiled entry for `codec` ([`Codec::Ncm`] or
+/// [`Codec::NcmX86`], whose x86 filter it keeps) under `profile`
+/// (`Archive.profileCandidate` with no window).
+pub fn linked_archive_profile(
+    codec: Codec,
+    profile: u32,
+    lengths: &[u64],
+    payload: &[u8],
+) -> Option<Vec<u8>> {
+    linked_archive(Codec::profiled(profile, codec.x86()), lengths, payload)
+}
+
+/// [`window_archive`] of the profiled entry for `codec` under `profile`
+/// (`Archive.profileCandidate` over `k` window frames).
+pub fn window_archive_profile(
+    codec: Codec,
+    profile: u32,
+    k: usize,
+    identity: &[u8; 32],
+    lengths: &[u64],
+    payload: &[u8],
+) -> Option<Vec<u8>> {
+    window_archive(Codec::profiled(profile, codec.x86()), k, identity, lengths, payload)
+}
+
 /// Exact length of [`linked_archive`] for objects of `lengths` and a `p`-byte payload.
 pub fn linked_length(codec: Codec, lengths: &[u64], p: u64) -> u64 {
     let body = body_len(codec, 0, p).unwrap_or(u64::MAX / 4);

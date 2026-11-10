@@ -229,7 +229,9 @@ if __name__ == '__main__':
         text = b'the standard basis carries the kernels; archives name it by identity. ' * 3
         text = text[:100] + bytes([0xE8, 0x10, 0, 0, 0, 0xE8, 0xF0, 0xFF, 0xFF, 0xFF]) + text[100:]
         xf = lambda d, base=0: x86_model.py_filter(d, 0, base)
-        for c, enc in (('ulz', ulz.compress), ('ncm', ncm_model.py_encode), ('ncmx', lambda d: ncm_model.py_encode(xf(d)))):
+        V03 = ncm_model.V03
+        for c, enc in (('ulz', ulz.compress), ('ncm', lambda d: ncm_model.py_encode(d, b'', V03)),
+                       ('ncmx', lambda d: ncm_model.py_encode(xf(d), b'', V03))):
             payload = enc(text)
             # the materialized graph is the libraries plus the entry, exactly as built structurally
             g, runs = libraries()
@@ -251,8 +253,10 @@ if __name__ == '__main__':
         frames = [b'window frame one: the standard basis carries the kernels. ' * 4 + call,
                   b'window frame two: archives name the kernels by identity. ' * 4 + call,
                   b'window frame three: the standard basis carries the kernels; archives name it by identity. ' * 2 + call]
-        wenc = {'ulz': ulz.compress_with, 'ncm': lambda h, d: ncm_model.py_encode(d, h)}
+        wenc = {'ulz': ulz.compress_with, 'ncm': lambda h, d: ncm_model.py_encode(d, h, V03)}
         for c, k in WINDOWS.items():
+            if c not in CODECS:
+                continue
             window = frames[2 - k:2]
             hist = b''.join(window)
             if c.endswith('x'):
@@ -266,3 +270,19 @@ if __name__ == '__main__':
             assert out == frames[2], (c, out[:60])
             alone = wenc[c[:3]](b'', frames[2])  # the window's gain
             print(c, 'window payload', len(payload), 'vs alone', len(alone), '; decodes on the mirror')
+        # profiled entries: the payload coded under the profile word the entry carries
+        for c in PCODECS:
+            k = WINDOWS.get(c, 0)
+            window = frames[2 - k:2]
+            hist = b''.join(window)
+            for prof in (ncm_model.FULL, 0x1059e | ncm_model.F_REP):
+                if c.endswith('x'):
+                    payload = ncm_model.py_encode(xf(frames[2], len(hist)), xf(hist), prof)
+                else:
+                    payload = ncm_model.py_encode(frames[2], hist, prof)
+                g, runs = libraries()
+                e = entry(g, runs[c], payload, k, c.endswith('x'), prof)
+                assert materialize(linked_body(c, payload, prof)) == wire.graph_bytes(g, e), c
+                out = evaluate(g, e, basis=[LIB] + window)
+                assert out == frames[2], (c, hex(prof), out[:60])
+                print(c, hex(prof), 'profiled payload', len(payload), '; decodes on the mirror')
