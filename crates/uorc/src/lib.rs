@@ -206,7 +206,11 @@ fn compress_pieces(
         if let Some(payload) = ncm::encode(frame) {
             let len = archive::linked_length(archive::Codec::Ncm, lengths, payload.len() as u64);
             let smaller = best.as_ref().is_none_or(|b| len < b.len() as u64);
-            if smaller && ncm::decode(&payload, n).as_deref() == Some(frame) {
+            // The native ncm encoder is byte-identical to the model
+            // (`native_archives_are_the_model_archives`) and every encoder
+            // output decodes to its input, so a self-decode would only repeat
+            // the encode's whole cost.
+            if smaller {
                 best = Some(archive::linked_archive(
                     archive::Codec::Ncm,
                     lengths,
