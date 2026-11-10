@@ -313,4 +313,37 @@ mod tests {
         ORIGINAL.with(|original| original.borrow_mut()[0] ^= 1);
         assert_eq!(run(&archive, || verify(1)).0, MISMATCH);
     }
+
+    /// The frame exports stream as the page drives them: a repeated frame is
+    /// a reference frame, noted in a header pass, and decodes.
+    #[test]
+    fn frame_exports_stream_reference_frames() {
+        let (x, y): (Vec<u8>, Vec<u8>) = (
+            b"frame x ".iter().copied().cycle().take(3_000).collect(),
+            (0..3_000u32).map(|i| (i * 7 % 251) as u8).collect(),
+        );
+        window_reset();
+        let archives: Vec<Vec<u8>> = [&x, &y, &x]
+            .iter()
+            .map(|frame| {
+                let (code, archive) = run(frame, || compress_frame(0));
+                assert_eq!(code, OK);
+                archive
+            })
+            .collect();
+        let info = uorc::inspect(&archives[2]).expect("inspect");
+        assert_eq!(info.representation, uorc::Representation::Reference);
+        window_reset();
+        for archive in &archives {
+            if run(archive, || may_be_reference()).0 == 1 {
+                run(archive, || {
+                    note_frame();
+                    OK
+                });
+            }
+        }
+        for (archive, frame) in archives.iter().zip([&x, &y, &x]) {
+            assert_eq!(run(archive, || decompress_frame()), (OK, frame.to_vec()));
+        }
+    }
 }
