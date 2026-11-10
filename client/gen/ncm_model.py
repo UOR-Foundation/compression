@@ -33,7 +33,7 @@ for name, w in [('n', 4), ('tb', 1), ('mb', 1), ('pos', 4), ('c4', 4), ('c8', 4)
                 ('r', 4), ('pm1', 2), ('pm2', 2), ('pr', 2), ('acc', 8), ('sso', 4), ('sw', 8),
                 ('acc2', 8), ('sw2', 8), ('ml', 4), ('mf', 1), ('pi', 2), ('x1', 4), ('x2', 4), ('x', 4),
                 ('ip', 4), ('op', 4), ('y', 1), ('cap', 4), ('ovf', 1), ('pm3', 2), ('acc3', 8), ('sw3', 8),
-                ('ai1', 4), ('aj1', 1), ('ai2', 4), ('aj2', 1)]:
+                ('ai1', 4), ('aj1', 1), ('ai2', 4), ('aj2', 1), ('hoff', 4)]:
     P.glob(name, w)
 # graph store regions (key bases); every table is addressed as width * index + byte
 for name, base in [('HB', 1 << 8), ('BB', 1 << 9), ('IX', 1 << 10), ('ST', 1 << 11), ('MS', 1 << 12), ('LP', 1 << 13),
@@ -55,6 +55,21 @@ def squash_(out, di, body):
     body.append(('let', out, ('squash', di)))
 
 def hist(i): return ld('H', 1, i)
+# H holds the window history (hoff bytes, the preceding frames' outputs) and then the coded bytes: the
+# match model works on absolute positions PA, everything else on positions in the coded bytes
+PA = add(G('hoff'), G('pos'))
+def coded(i): return hist(add(G('hoff'), i))
+
+def match_key(p, body):
+    """body += the match-model key of absolute position p (the hash of the 7 bytes before it), as mk."""
+    body.append(('let', 'mh0', 0))
+    last = 'mh0'
+    for i in range(1, 8):
+        nxt = fresh('mh')
+        body.append(('let', nxt, u32(add(add(mul(0x2F0B4C27, V(last)), hist(sub(p, i))), 1))))
+        last = nxt
+    hash_('mhh', V(last), body)
+    body.append(('let', 'mk', div(V('mhh'), rom('POW2', 4, sub(32, G('mb'))))))
 
 # ---- one-time setup ----
 init = []
@@ -72,29 +87,28 @@ sb += [('let', 'cnt', monus(add(V('sv'), 1), G('pi'))),
 init += [('set', 'pi', 0), ('loop', 4095, 'k', sb),
          ('loop', monus(4096, G('pi')), 'j', [('store', 'STR', 2, add(G('pi'), V('j')), 4095)])]
 init += [('loop', 64, 'k', [('store', 'MS', 3, V('k'), sel(eq(mod(V('k'), 2), 1), 60000 * 256, 5536 * 256))])]
+# the match model starts holding every history position (absolute positions 7 .. hoff - 1)
+pf = []
+match_key(add(7, V('j')), pf)
+pf.append(('store', 'MT', 4, V('mk'), add(7, V('j'))))
+init += [('loop', monus(G('hoff'), 7), 'j', pf)]
 init += [('call', 'newByte', [])]
 P.func('setup', [], init)
 
 # ---- byte boundary: match model, then the context hashes ----
 nb = []
 nb += [('if', lt(0, G('mlen')), [('set', 'mlen', mn(add(G('mlen'), 1), 65535)), ('set', 'mptr', add(G('mptr'), 1))], [])]
-mm = [('let', 'mh0', 0)]
-last = 'mh0'
-for i in range(1, 8):
-    nxt = fresh('mh')
-    mm.append(('let', nxt, u32(add(add(mul(0x2F0B4C27, V(last)), hist(sub(G('pos'), i))), 1))))
-    last = nxt
-hash_('mhh', V(last), mm)
-mm.append(('let', 'mk', div(V('mhh'), rom('POW2', 4, sub(32, G('mb'))))))
+mm = []
+match_key(PA, mm)
 look = [('let', 'cand', ld('MT', 4, V('mk'))),
         ('if', lt(0, V('cand')),
          [('set', 'ml', 0), ('set', 'mf', 1),
           ('loopw', 1024, AND(eq(G('mf'), 1), lt(G('ml'), V('cand'))), 'j',
-           [('if', eq(hist(monus(V('cand'), add(G('ml'), 1))), hist(monus(G('pos'), add(G('ml'), 1)))),
+           [('if', eq(hist(monus(V('cand'), add(G('ml'), 1))), hist(monus(PA, add(G('ml'), 1)))),
              [('set', 'ml', add(G('ml'), 1))], [('set', 'mf', 0)])]),
           ('if', le(7, G('ml')), [('set', 'mptr', V('cand')), ('set', 'mlen', G('ml'))], [])], [])]
-mm += [('if', eq(G('mlen'), 0), look, []), ('store', 'MT', 4, V('mk'), G('pos'))]
-nb += [('if', le(7, G('pos')), mm, [])]
+mm += [('if', eq(G('mlen'), 0), look, []), ('store', 'MT', 4, V('mk'), PA)]
+nb += [('if', le(7, PA), mm, [])]
 L_ = G('mlen')
 bucket = sel(lt(L_, 16), L_, sel(lt(L_, 32), add(16, div(monus(L_, 16), 4)), sel(lt(L_, 64), add(20, div(monus(L_, 32), 8)),
              sel(lt(L_, 512), add(24, div(monus(L_, 64), 64)), 31))))
@@ -102,9 +116,9 @@ nb += [('if', lt(0, G('mlen')), [('set', 'mexp', hist(G('mptr'))), ('set', 'mbuc
         [('set', 'mexp', 0), ('set', 'mbucket', 0)])]
 R, pos, c4, c8 = G('r'), G('pos'), G('c4'), G('c8')
 nb += [('let', 'b1', mod(c4, 256)), ('let', 'p3', mod(pos, 4)),
-       ('let', 'ab', sel(AND(lt(0, R), le(R, pos)), hist(monus(pos, R)), 0)),
-       ('let', 'ab1', sel(AND(lt(0, R), le(R, add(pos, 1))), hist(monus(add(pos, 1), R)), 0)),
-       ('let', 'ab2', sel(AND(lt(0, R), le(mul(2, R), pos)), hist(monus(pos, mul(2, R))), 0))]
+       ('let', 'ab', sel(AND(lt(0, R), le(R, pos)), coded(monus(pos, R)), 0)),
+       ('let', 'ab1', sel(AND(lt(0, R), le(R, add(pos, 1))), coded(monus(add(pos, 1), R)), 0)),
+       ('let', 'ab2', sel(AND(lt(0, R), le(mul(2, R), pos)), coded(monus(pos, mul(2, R))), 0))]
 hash_('hc4', c4, nb)
 hash_('hw1', G('word1'), nb)
 b1, p3 = V('b1'), V('p3')
@@ -261,7 +275,7 @@ learn('W1', add(V('s1'), V('i')), V('e1'), wl)
 learn('W2', add(V('s2'), V('i')), V('e2'), wl)
 up += [('loop', NIN, 'i', wl)]
 up += [('set', 'c0', add(mul(2, G('c0')), G('y'))), ('set', 'bit', add(G('bit'), 1))]
-be = [('let', 'b', sub(G('c0'), 256)), ('store', 'H', 1, G('pos'), V('b')), ('set', 'pos', add(G('pos'), 1)),
+be = [('let', 'b', sub(G('c0'), 256)), ('store', 'H', 1, PA, V('b')), ('set', 'pos', add(G('pos'), 1)),
       ('set', 'c8', u32(add(mul(256, G('c8')), div(G('c4'), 1 << 24)))), ('set', 'c4', u32(add(mul(256, G('c4')), V('b'))))]
 letter = OR(OR(AND(le(97, V('b')), le(V('b'), 122)), AND(le(65, V('b')), le(V('b'), 90))), le(128, V('b')))
 lw = []
@@ -297,6 +311,8 @@ dstart = [('set', 'n', add(add(add(mul(1 << 24, IN(0)), mul(1 << 16, IN(1))), mu
           ('set', 'ip', 8), ('call', 'setup', [])]
 P.func('decodeStart', [], dstart)
 P.func('decode', [], [('call', 'decodeStart', []), ('loop', G('n'), 'i', [('call', 'decodeByte', [])])])
+# against a window: H already holds the h history bytes
+P.func('decodeWith', ['h'], [('set', 'hoff', V('h')), ('call', 'decode', [])])
 
 enc = [('call', 'predict', [])] + split() + [
     ('if', eq(G('y'), 1), [('set', 'x2', V('xm'))], [('set', 'x1', add(V('xm'), 1))]),
@@ -314,16 +330,22 @@ P.func('encodeByte', ['i'], eb_)
 P.func('encode', ['size', 'limit'], [('set', 'n', V('size')), ('set', 'cap', V('limit')), ('call', 'setup', []),
                                      ('loop', G('n'), 'i', [('call', 'encodeByte', [V('i')])]),
                                      ('call', 'emit', [div(G('x1'), 1 << 24)])])
+P.func('encodeWith', ['size', 'limit', 'h'], [('set', 'hoff', V('h')), ('call', 'encode', [V('size'), V('limit')])])
 
 
-def py_encode(data):
+def py_encode(data, history=b''):
     m = Machine(P, data)
-    m.call('encode', len(data), 2 * len(data) + 64)
+    for i, b in enumerate(history):
+        m.t['H'][i] = b
+    m.call('encodeWith', len(data), 2 * len(data) + 64, len(history))
     assert not m.g['ovf']
     out = bytes(m.t['OUT'].get(i, 0) for i in range(m.g['op']))
     return len(data).to_bytes(4, 'big') + out
 
-def py_decode(payload):
+def py_decode(payload, history=b''):
     m = Machine(P, payload)
-    m.call('decode')
-    return bytes(m.t['H'].get(i, 0) for i in range(m.g['n']))
+    for i, b in enumerate(history):
+        m.t['H'][i] = b
+    m.call('decodeWith', len(history))
+    h = len(history)
+    return bytes(m.t['H'].get(h + i, 0) for i in range(m.g['n']))

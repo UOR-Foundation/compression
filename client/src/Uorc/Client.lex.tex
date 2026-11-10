@@ -110,11 +110,11 @@ definition{
 
 definition{
   name: compress,
-  parameters: [input : Bytes, window : (List Bytes), steps : Nat, level : Nat],
+  parameters: [input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
-  body: (let linked : (Option Bytes) := (if (level =? 0) then (Uorc.Codec.Archive::ulzWindowArchive window input) else (smaller (Uorc.Codec.Archive::ulzWindowArchive window input) (Uorc.Codec.Archive::ncmLinkedArchive input))); (let quick : (Option Bytes) := (match linked
+  body: (let codec : Nat := (if (Uorc.Codec.Archive::x86Dense input) then 2 else 1); (let linked : (Option Bytes) := (Uorc.Codec.Archive::windowCandidate codec window input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))),
+    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))))),
   axioms: [Quot.sound, propext]
 }
 
@@ -211,9 +211,9 @@ definition{
         | Option.some linked => linked) (ctor Uorc.Wire.Frame::Scope.selfContained) (nil Uorc.Core.Bytes::Rope) work)
       | List.cons oldest rest => (match (Uorc.Codec.Archive::windowMaterialize archive window)
         | Option.none => (ctor Option.none [Bytes])
-        | Option.some whole => (match (Uorc.Codec.Archive::windowIdentity window)
+        | Option.some whole => (match (Uorc.Codec.Archive::windowBasis archive window)
           | Option.none => (ctor Option.none [Bytes])
-          | Option.some identity => (referenceDecode whole (ctor Uorc.Wire.Frame::Scope.conditional identity) (cons (Uorc.Core.Bytes::fromBytes (Uorc.Codec.Archive::libraryRoot)) (windowRopes window)) work))))),
+          | Option.some named => (referenceDecode whole (ctor Uorc.Wire.Frame::Scope.conditional (first named)) (cons (Uorc.Core.Bytes::fromBytes (second named)) (windowRopes window)) work))))),
   axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}
