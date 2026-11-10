@@ -25,13 +25,15 @@ const NC: usize = 17;
 const NIN: usize = NC + 7;
 /// Profile bit: the short match model (keyed on 4 bytes, found from 4).
 pub const F_SHORT: u32 = 1 << 17;
-/// Profile bit: the repeat-distance model (its inputs, context 13, and the
-/// match state that selects mixer 1 and the first APM).
+/// Profile bit: the repeat-distance model (its inputs and context 13).
 pub const F_REP: u32 = 1 << 18;
+/// Profile bit: mixer 1 and the first APM selected by the two match models'
+/// states as well as the partial byte (pays on long inputs, costs on short).
+pub const F_SEL: u32 = 1 << 19;
 /// The v0.3 model: every context, no short match or repeat model.
 pub const V03: u32 = (1 << 17) - 1;
-/// Every context and both match features.
-pub const FULL: u32 = (1 << 19) - 1;
+/// Every context and every match feature.
+pub const FULL: u32 = (1 << 20) - 1;
 /// A mixer's row stride: its `NIN` inputs padded with zero inputs to three
 /// 8-lane vectors, so the vector kernels need no tail.
 const NINP: usize = 24;
@@ -779,8 +781,11 @@ impl Model {
             -256
         };
         // mixer 1 and the first APM: the partial byte and the two match states
-        let msel =
-            (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 });
+        let msel = if self.profile & F_SEL == 0 {
+            0
+        } else {
+            (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 })
+        };
         let c1 = (self.c0 + 256 * msel) as usize;
         self.s1 = c1 * NINP;
         self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * NINP;
@@ -877,11 +882,12 @@ impl Model {
     }
 }
 
-/// Fresh mixer weights for `rows` contexts: 1/4 on every input, 0 on padding.
+/// Fresh mixer weights for `rows` contexts: 1/4 on every v0.3 input, 0 on
+/// the short match and repeat inputs (they earn their weight) and on padding.
 fn weights(rows: usize) -> Vec<i32> {
     let mut w = vec![0; rows * NINP];
     for r in w.chunks_exact_mut(NINP) {
-        r[..NIN].fill(1 << 14);
+        r[..NC + 3].fill(1 << 14);
     }
     w
 }
