@@ -19,9 +19,9 @@ also tries the context-mixing coder (ncm: smallest, but well under 1 MB/s
 each way), and --steps N also runs the program search for N steps; the
 smallest is kept. Archives name the built-in decoder basis by identity, so
 they carry no decoder kernel.
-Input of any size streams through 8 MiB frames, --threads N at a time
-(default: every core); each frame is one self-contained archive, written
-back to back. Without -o, compress writes <input>.uorc and decompress strips a .uorc suffix
+Input of any size streams through 8 MiB frames, compressed --threads N at a
+time (default: every core) and written back to back; each frame after the
+first may match into the two before it, so frames decode in order. Without -o, compress writes <input>.uorc and decompress strips a .uorc suffix
 (or writes <input>.out). '-' reads stdin or writes stdout.
 
 Given a directory or several paths, compress stores them as one archive of

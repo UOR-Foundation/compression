@@ -6,8 +6,9 @@
 //!
 //! Large files stream through the frame operations: the page slices the file
 //! into [`frame_size`] pieces (or, to decompress, into the archives that
-//! [`frame_length`] delimits) and converts one at a time, so wasm memory stays
-//! bounded by one frame whatever the file size.
+//! [`frame_length`] delimits) and converts one at a time after
+//! [`window_reset`], so wasm memory stays bounded by a few frames (the one in
+//! flight and the window it reads) whatever the file size.
 
 use std::cell::RefCell;
 
@@ -15,6 +16,42 @@ thread_local! {
     static INPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     static OUTPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     static ORIGINAL: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+    /// The frames before the next frame of the stream in progress.
+    static WINDOW: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Run `op` on the input and the current window, then make `next` (the
+/// input or the output) the newest frame of the window.
+fn framed(
+    op: impl FnOnce(&[u8], &[&[u8]]) -> Result<Vec<u8>, uorc::Error>,
+    keep_input: bool,
+) -> i32 {
+    let result = INPUT.with(|input| {
+        WINDOW.with(|window| {
+            let input = input.borrow();
+            let mut window = window.borrow_mut();
+            let view: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
+            let result = op(&input, &view);
+            if let Ok(output) = &result {
+                window.push(if keep_input {
+                    input.clone()
+                } else {
+                    output.clone()
+                });
+                if window.len() > uorc::archive::WINDOW {
+                    window.remove(0);
+                }
+            }
+            result
+        })
+    });
+    finish(result)
+}
+
+/// Start a new stream: the next frame reads no earlier frames.
+#[no_mangle]
+pub extern "C" fn window_reset() {
+    WINDOW.with(|window| window.borrow_mut().clear());
 }
 
 /// Operation succeeded; the result is in the output buffer.
@@ -93,16 +130,24 @@ pub extern "C" fn decompress() -> i32 {
     finish(INPUT.with(|input| uorc::decompress(&input.borrow(), uorc::DEFAULT_DECODE_WORK)))
 }
 
-/// Compress the input buffer as a single frame (at most [`frame_size`] bytes).
+/// Compress the input buffer as the next frame (at most [`frame_size`] bytes)
+/// of the stream since [`window_reset`].
 #[no_mangle]
 pub extern "C" fn compress_frame(steps: u64, best: u32) -> i32 {
-    finish(INPUT.with(|input| uorc::compress_frame(&input.borrow(), steps, level(best))))
+    framed(
+        |input, window| uorc::compress_frame_with(input, window, steps, level(best)),
+        true,
+    )
 }
 
-/// Decompress the input buffer as a single archive.
+/// Decompress the input buffer as the next archive of the stream since
+/// [`window_reset`].
 #[no_mangle]
 pub extern "C" fn decompress_frame() -> i32 {
-    finish(INPUT.with(|input| uorc::decompress_frame(&input.borrow(), uorc::DEFAULT_DECODE_WORK)))
+    framed(
+        |input, window| uorc::decompress_frame_with(input, window, uorc::DEFAULT_DECODE_WORK),
+        false,
+    )
 }
 
 /// Input bytes per frame.

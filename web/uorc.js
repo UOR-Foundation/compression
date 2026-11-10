@@ -76,6 +76,7 @@ export async function load(url) {
     // a time; the result is a Blob of the concatenated outputs.
     async compressBlob(blob, steps = 0n, progress = () => {}, best = false) {
       const parts = [];
+      x.window_reset();
       for (let at = 0; at < blob.size || at === 0; at += frame) {
         const piece = await bytesOf(blob.slice(at, at + frame));
         parts.push(call(piece, () => x.compress_frame(BigInt(steps), best ? 1 : 0)));
@@ -86,6 +87,7 @@ export async function load(url) {
     },
     async decompressBlob(blob, progress = () => {}) {
       const parts = [];
+      x.window_reset();
       for (let at = 0; at < blob.size || parts.length === 0;) {
         const length = await archiveLength(blob, at);
         parts.push(call(await bytesOf(blob.slice(at, at + length)), () => x.decompress_frame()));
