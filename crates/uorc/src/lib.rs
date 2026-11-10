@@ -1511,6 +1511,9 @@ mod tests {
             let model = on_reference_stack(|| reference_compress(&c, &window, 0)).expect("model");
             assert_eq!(native, model, "window of {}", window.len());
             assert!(reads_window(&native));
+            let info = inspect(&native).expect("inspect");
+            assert_eq!(info.representation, Representation::Ncm);
+            assert_eq!(info.window, window.len());
             assert_eq!(archive::window_decode(&native, &window), Some(c.clone()));
             assert_eq!(
                 decompress_frame_with(&native, &window, DEFAULT_DECODE_WORK),

@@ -536,6 +536,41 @@ pub fn window_len(data: &[u8]) -> Option<usize> {
     .find_map(|(prefix, k)| body.starts_with(prefix).then_some(k))
 }
 
+/// The codec and payload of a window body over `k` frames laid out exactly as
+/// [`window_archive`] writes it: this basis's entries, then the v0.2 ulz
+/// entries (`old`).
+fn window_payload(body: &[u8], k: usize) -> Option<(Codec, bool, &[u8])> {
+    let v02 = match k {
+        1 => Some((&WINDOW1_PREFIX[..], &V02_ULZ1_SUFFIX[..])),
+        2 => Some((&WINDOW2_PREFIX[..], &V02_ULZ2_SUFFIX[..])),
+        _ => None,
+    };
+    Codec::ALL
+        .into_iter()
+        .filter_map(|c| Some((c, false, window_template(c, k)?)))
+        .chain(v02.map(|t| (Codec::Ulz, true, t)))
+        .find_map(|(c, old, (prefix, suffix))| {
+            let rest = body.strip_prefix(prefix)?;
+            let (p, after) = read_uleb(rest, 0)?;
+            let p = usize::try_from(p).ok()?;
+            if after != uleb_len(p as u64)
+                || rest.len() != after.checked_add(p)?.checked_add(suffix.len())?
+            {
+                return None;
+            }
+            let (payload, tail) = rest[after..].split_at(p);
+            (tail == suffix).then_some((c, old, payload))
+        })
+}
+
+/// The codec of a window frame and how many frames it reads, when it is laid
+/// out exactly as [`window_archive`] writes it.
+pub fn window_codec(data: &[u8]) -> Option<(Codec, usize)> {
+    let k = window_len(data).filter(|&k| k > 0)?;
+    let (_, _, body) = conditional_fields(data)?;
+    Some((window_payload(body, k)?.0, k))
+}
+
 /// `Archive.windowDecode`, natively: the output of a window archive over
 /// `window` laid out exactly as [`window_archive`] writes it, with a payload
 /// the native decoder vouches for. The basis identity is checked on another
@@ -570,30 +605,7 @@ pub fn window_decode(data: &[u8], window: &[&[u8]]) -> Option<Vec<u8>> {
     if pre[..at] != expected[..] {
         return None;
     }
-    // this basis's entries, then the v0.2 ulz entries (`true`)
-    let v02 = |k| match k {
-        1 => Some((&WINDOW1_PREFIX[..], &V02_ULZ1_SUFFIX[..])),
-        2 => Some((&WINDOW2_PREFIX[..], &V02_ULZ2_SUFFIX[..])),
-        _ => None,
-    };
-    let candidates = Codec::ALL
-        .into_iter()
-        .filter_map(|c| Some((c, false, window_template(c, k)?)))
-        .chain(v02(k).map(|t| (Codec::Ulz, true, t)));
-    let (codec, old, payload) = candidates
-        .into_iter()
-        .find_map(|(c, old, (prefix, suffix))| {
-            let rest = pre[start..].strip_prefix(prefix)?;
-            let (p, after) = read_uleb(rest, 0)?;
-            let p = usize::try_from(p).ok()?;
-            if after != uleb_len(p as u64)
-                || rest.len() != after.checked_add(p)?.checked_add(suffix.len())?
-            {
-                return None;
-            }
-            let (payload, tail) = rest[after..].split_at(p);
-            (tail == suffix).then_some((c, old, payload))
-        })?;
+    let (codec, old, payload) = window_payload(&pre[start..], k)?;
     let history = window.concat();
     let decode = || {
         if !codec.x86() {

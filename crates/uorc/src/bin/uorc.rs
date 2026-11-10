@@ -750,7 +750,11 @@ fn describe(info: &uorc::Info) -> String {
         || "self-contained".to_owned(),
         |b| {
             let hex: String = b.iter().map(|x| format!("{x:02x}")).collect();
-            format!("conditional on {hex}")
+            match info.window {
+                0 => format!("conditional on {hex}"),
+                1 => format!("conditional on {hex} (the library and the frame before)"),
+                k => format!("conditional on {hex} (the library and the {k} frames before)"),
+            }
         },
     );
     format!(
