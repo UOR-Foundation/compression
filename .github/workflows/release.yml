@@ -293,7 +293,7 @@ jobs:
       - name: Package the binaries, the source bundle, the wasm bundle and the site
         run: |
           set -euo pipefail
-          mkdir -p dist site
+          mkdir -p dist
           for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
             name="uorc-${TAG}-${target}"
             mkdir -p "dist/$name"
@@ -303,13 +303,12 @@ jobs:
             (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
             rm -rf "dist/$name"
           done
-          cp web/* site/
-          cp build/wasm/uorc.wasm site/uorc.wasm
-          cp bench/bench.html bench/bench.json bench/bench.md site/
-          printf '%s\n' "$TAG" > site/version.txt
+          # The site is a browser closure v2: the page, the brand files, provenance.
+          node scripts/site.mjs site --wasm build/wasm/uorc.wasm --version "$TAG" --bench bench
           name="uorc-${TAG}-wasm"
           mkdir -p "dist/$name"
-          cp site/uorc.wasm site/uorc.js LICENSE-APACHE LICENSE-MIT "dist/$name/"
+          cp site/uorc_bg.wasm "dist/$name/uorc.wasm"
+          cp site/uorc.js LICENSE-APACHE LICENSE-MIT "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
           rm -rf "dist/$name"
           git archive --format=tar.gz --prefix="uorc-${TAG}-src/" -o "dist/uorc-${TAG}-src.tar.gz" HEAD \
