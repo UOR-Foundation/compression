@@ -151,9 +151,9 @@ pub fn default_threads() -> usize {
 }
 
 /// Compress one frame into its archive exactly as the model's
-/// `compress input [] steps`: the linked ncm archive (over the x86 filter
-/// for x86 code, [`x86::dense`]), or the raw archive when that is not
-/// smaller; with `steps > 0` the exported model also searches and keeps the
+/// `compress input [] steps`: the smallest linked ncm archive of the
+/// strategies the frame's family schedules first ([`portfolio`]), or the raw
+/// archive when that is not smaller; with `steps > 0` the exported model also searches and keeps the
 /// smallest.
 pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
     compress_pieces(frame, &[frame.len() as u64], &[], steps)
@@ -1349,13 +1349,13 @@ mod tests {
     #[test]
     fn linked_archives_decode_by_linking_the_basis() {
         let mut payload = ulz::encode(b"ab");
-        let a = archive::linked_archive(archive::Codec::Ulz, &[2], &payload);
+        let a = archive::linked_archive(archive::Codec::Ulz, &[2], &payload).expect("codec");
         assert_eq!(
             decompress(&a, DEFAULT_DECODE_WORK).as_deref(),
             Ok(&b"ab"[..])
         );
         payload.push(0);
-        let padded = archive::linked_archive(archive::Codec::Ulz, &[2], &payload);
+        let padded = archive::linked_archive(archive::Codec::Ulz, &[2], &payload).expect("codec");
         assert_eq!(archive::fast_decode(&padded), None);
         assert_eq!(
             decompress(&padded, DEFAULT_DECODE_WORK).as_deref(),
@@ -1363,14 +1363,15 @@ mod tests {
         );
         let mut payload = ncm::encode(b"ab").expect("fits");
         payload.push(255);
-        let padded = archive::linked_archive(archive::Codec::Ncm, &[2], &payload);
+        let padded = archive::linked_archive(archive::Codec::Ncm, &[2], &payload).expect("codec");
         assert_eq!(archive::fast_decode(&padded), None);
     }
 
     #[test]
     fn ncm_beats_ulz_on_text() {
         let input = text(20_000, 9);
-        let ulz = archive::linked_archive(archive::Codec::Ulz, &[20_000], &ulz::encode(&input));
+        let ulz = archive::linked_archive(archive::Codec::Ulz, &[20_000], &ulz::encode(&input))
+            .expect("codec");
         let best = compress(&input, 0).expect("best");
         assert!(best.len() < ulz.len(), "{} vs {}", best.len(), ulz.len());
         assert_eq!(

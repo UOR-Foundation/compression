@@ -49,7 +49,7 @@ for name, w in [('n', 4), ('tb', 1), ('mb', 1), ('pos', 4), ('c4', 4), ('c8', 4)
 # graph store regions (key bases); every table is addressed as width * index + byte
 for name, base in [('HB', 1 << 8), ('BB', 1 << 9), ('IX', 1 << 10), ('ST', 1 << 11), ('MS', 1 << 12), ('LP', 1 << 13),
                    ('LD', 1 << 14), ('STR', 1 << 15), ('RC', 1 << 18), ('W1', 1 << 19), ('W2', 1 << 20), ('W3', 1 << 21),
-                   ('A1', (1 << 21) + (1 << 17)), ('A2', 1 << 23), ('MT', 1 << 26),
+                   ('A1', (1 << 21) + (1 << 18)), ('A2', 1 << 23), ('MT', 1 << 26),
                    ('T', 1 << 27), ('M2T', 1 << 30), ('M2S', 1 << 31), ('RS', (1 << 31) + (1 << 12)),
                    ('H', 1 << 33), ('OUT', 1 << 34)]:
     P.table(name, base)
@@ -74,6 +74,11 @@ def coded(i): return hist(add(G('hoff'), i))
 
 def has(bit):
     return eq(mod(div(G('prof'), bit), 2), 1)
+
+# Profile bits 0..NC-1 keep context k. A context left out is never looked up or adapted and feeds every mixer
+# the stretch 0 (2048 in offset form), which moves no dot product and trains no weight.
+def keeps(k):
+    return eq(mod(div(G('prof'), rom('POW2', 4, k)), 2), 1)
 
 def match_key2(p, body):
     """body += the short match model's key of absolute position p (the hash of the 4 bytes before it), as mk2."""
@@ -209,14 +214,14 @@ recycle = [('let', 'bs', sel(lt(mod(ld('T', 3, add(V('alt'), 1)), 256), mod(ld('
            ('store', 'T', 3, V('bs'), V('ck')), ('store', 'BB', 4, V('k'), V('bs'))]
 bkl += [('if', eq(mod(ld('T', 3, V('b0')), 256), V('ck')), [('store', 'BB', 4, V('k'), V('b0'))],
          [('if', eq(mod(ld('T', 3, V('alt')), 256), V('ck')), [('store', 'BB', 4, V('k'), V('alt'))], recycle)])]
-bk += [('loop', NC, 'k', bkl)]
+bk += [('loop', NC, 'k', [('if', keeps(V('k')), bkl, [])])]
 pr += [('if', OR(eq(G('bit'), 0), eq(G('bit'), 4)), bk, [])]
 pr += [('let', 'part', sel(lt(G('bit'), 4), G('c0'),
                           add(mod(G('c0'), rom('POW2', 4, monus(G('bit'), 4))), rom('POW2', 4, monus(G('bit'), 4)))))]
 sl = [('let', 'ix', add(ld('BB', 4, V('k')), V('part'))), ('store', 'IX', 4, V('k'), V('ix')),
       ('let', 'sp', mod(add(div(ld('T', 3, V('ix')), 256), 32768), 65536)),
       ('store', 'ST', 2, V('k'), ld('STR', 2, div(V('sp'), 16)))]
-pr += [('loop', NC, 'k', sl)]
+pr += [('loop', NC, 'k', [('if', keeps(V('k')), sl, [('store', 'ST', 2, V('k'), 2048)])])]
 pr += [('set', 'eb', 0)]
 bp = sub(7, G('bit'))
 mt = [('if', eq(div(add(G('mexp'), 256), rom('POW2', 4, add(bp, 1))), G('c0')),
@@ -319,7 +324,7 @@ sv = [('let', 'ix', ld('IX', 4, V('k'))), ('let', 'sv', ld('T', 3, V('ix'))),
       ('let', 'np', sel(eq(G('y'), 1), add(V('pp'), div(mul(sub(65535, V('pp')), V('rt')), 65536)),
                         sub(V('pp'), div(add(mul(V('pp'), V('rt')), 65535), 65536)))),
       ('store', 'T', 3, V('ix'), add(mul(256, mod(add(V('np'), 32768), 65536)), mn(add(V('cn'), 1), 127)))]
-up += [('loop', NC, 'k', sv)]
+up += [('loop', NC, 'k', [('if', keeps(V('k')), sv, [])])]
 ms = [('let', 'mi', add(mul(2, G('mbucket')), G('eb'))), ('let', 'sv', ld('MS', 3, V('mi'))),
       ('let', 'cn', mod(V('sv'), 256)), ('let', 'pp', div(V('sv'), 256)),
       ('let', 'rt', div(131072, add(mul(2, V('cn')), 3))),
@@ -397,6 +402,7 @@ P.func('decodeStart', [], dstart)
 P.func('decode', [], [('call', 'decodeStart', []), ('loop', G('n'), 'i', [('call', 'decodeByte', [])])])
 # against a window: H already holds the h history bytes
 P.func('decodeWith', ['h'], [('set', 'hoff', V('h')), ('call', 'decode', [])])
+P.func('decodeProfile', ['h', 'pf'], [('set', 'prof', V('pf')), ('call', 'decodeWith', [V('h')])])
 
 enc = [('call', 'predict', [])] + split() + [
     ('if', eq(G('y'), 1), [('set', 'x2', V('xm'))], [('set', 'x1', add(V('xm'), 1))]),
@@ -415,25 +421,25 @@ P.func('encode', ['size', 'limit'], [('set', 'n', V('size')), ('set', 'cap', V('
                                      ('loop', G('n'), 'i', [('call', 'encodeByte', [V('i')])]),
                                      ('call', 'emit', [div(G('x1'), 1 << 24)])])
 P.func('encodeWith', ['size', 'limit', 'h'], [('set', 'hoff', V('h')), ('call', 'encode', [V('size'), V('limit')])])
+P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], [('set', 'prof', V('pf')), ('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
 
 
 FULL = (1 << 20) - 1   # every context and every match feature
+V03 = (1 << NC) - 1    # the v0.3 coder: every context, neither match feature
 
 def py_encode(data, history=b'', prof=FULL):
     m = Machine(P, data)
-    m.g['prof'] = prof
     for i, b in enumerate(history):
         m.t['H'][i] = b
-    m.call('encodeWith', len(data), 2 * len(data) + 64, len(history))
+    m.call('encodeProfile', len(data), 2 * len(data) + 64, len(history), prof)
     assert not m.g['ovf']
     out = bytes(m.t['OUT'].get(i, 0) for i in range(m.g['op']))
     return len(data).to_bytes(4, 'big') + out
 
 def py_decode(payload, history=b'', prof=FULL):
     m = Machine(P, payload)
-    m.g['prof'] = prof
     for i, b in enumerate(history):
         m.t['H'][i] = b
-    m.call('decodeWith', len(history))
+    m.call('decodeProfile', len(history), prof)
     h = len(history)
     return bytes(m.t['H'].get(h + i, 0) for i in range(m.g['n']))

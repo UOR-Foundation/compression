@@ -15,7 +15,7 @@
 //! the object lengths. This module only reads that framing; the body is
 //! decoded and checked in [`crate::decompress_frame`].
 
-use crate::archive::{chain, push_uleb, KERNEL_PREFIX, SEAL as DIGEST_LEN};
+use crate::archive::{chain, push_uleb, Codec, KERNEL_PREFIX, SEAL as DIGEST_LEN};
 use crate::Error;
 
 const MAGIC: &[u8; 4] = b"UORC";
@@ -69,6 +69,10 @@ pub struct Info {
     /// How many frames before it a window frame reads as history (its basis
     /// is the standard library plus those frames); 0 for any other archive.
     pub window: usize,
+    /// The ncm profile word the payload is coded under
+    /// ([`crate::ncm::valid_profile`]; [`crate::ncm::V03`] for the v0.3
+    /// entries), `None` when the body applies no ncm decoder.
+    pub ncm_profile: Option<u32>,
     /// Byte length of each output object, in order.
     pub object_lengths: Vec<u64>,
     /// Total output length: the sum of `object_lengths`.
@@ -98,7 +102,7 @@ impl Info {
     pub fn to_json(&self) -> String {
         let lengths: Vec<String> = self.object_lengths.iter().map(u64::to_string).collect();
         format!(
-            "{{\"format\":{},\"profile\":{},\"scope\":\"{}\",\"basis\":{},\"representation\":\"{}\",\"window\":{},\
+            "{{\"format\":{},\"profile\":{},\"scope\":\"{}\",\"basis\":{},\"representation\":\"{}\",\"ncm_profile\":{},\"window\":{},\
              \"objects\":{},\"object_lengths\":[{}],\"output_bytes\":{},\"body_bytes\":{},\
              \"archive_bytes\":{},\"integrity\":\"{}\",\"digest\":\"{}\",\"integrity_ok\":{}}}",
             self.format,
@@ -106,6 +110,8 @@ impl Info {
             if self.basis.is_some() { "conditional" } else { "self-contained" },
             self.basis.map_or_else(|| "null".to_owned(), |b| format!("\"{}\"", hex(&b))),
             self.representation.name(),
+            self.ncm_profile
+                .map_or_else(|| "null".to_owned(), |p| format!("\"0x{p:05x}\"")),
             self.window,
             self.object_lengths.len(),
             lengths.join(","),
@@ -285,25 +291,26 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
         Representation::Raw
     } else if body.starts_with(KERNEL_PREFIX) {
         Representation::UlzKernel
-    } else if h.basis == Some(crate::archive::BASIS_ID)
-        || h.basis == Some(crate::archive::V02_BASIS_ID)
+    } else if let Some(codec) = h
+        .basis
+        .and_then(|b| crate::archive::linked_codec(&b, body))
+        .or(windowed.map(|(c, _)| c))
     {
-        match crate::archive::linked_codec(body) {
-            Some(crate::archive::Codec::Ulz) => Representation::Ulz,
-            Some(crate::archive::Codec::Ncm) => Representation::Ncm,
-            Some(crate::archive::Codec::NcmX86) => Representation::NcmX86,
-            None => Representation::Program,
+        match codec {
+            Codec::Ulz => Representation::Ulz,
+            c if c.x86() => Representation::NcmX86,
+            _ => Representation::Ncm,
         }
     } else if h.basis.is_some() && body == crate::archive::REF_BODY {
         Representation::Reference
     } else {
-        match windowed {
-            Some((crate::archive::Codec::Ulz, _)) => Representation::Ulz,
-            Some((crate::archive::Codec::Ncm, _)) => Representation::Ncm,
-            Some((crate::archive::Codec::NcmX86, _)) => Representation::NcmX86,
-            None => Representation::Program,
-        }
+        Representation::Program
     };
+    let ncm_profile = h
+        .basis
+        .and_then(|b| crate::archive::linked_codec(&b, body))
+        .or(windowed.map(|(c, _)| c))
+        .and_then(Codec::ncm_profile);
     let window = windowed.map_or(0, |(_, k)| k);
     let info = Info {
         format: h.format,
@@ -311,6 +318,7 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
         basis: h.basis,
         representation,
         window,
+        ncm_profile,
         object_lengths: h.object_lengths,
         output_len: h.output_len,
         body_len: h.body_len,

@@ -172,10 +172,10 @@ mod tests {
             assert!((1..=16).contains(&learn(w, true)));
             assert!((1..=16).contains(&learn(w, false)));
         }
-        for f in 0..FAMILIES {
+        for (f, w) in WEIGHTS.iter().enumerate() {
             let mut s = schedule(f);
             for k in 1..6 {
-                assert!(WEIGHTS[f][s[k - 1]] >= WEIGHTS[f][s[k]]);
+                assert!(w[s[k - 1]] >= w[s[k]]);
             }
             s.sort_unstable();
             assert_eq!(s, [0, 1, 2, 3, 4, 5]);

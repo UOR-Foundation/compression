@@ -24,7 +24,10 @@ def tables(L, n, extra, history='0x'):
     # Every table's depth names n: the certificate kernel evaluates whatever is closed, and a closed state
     # would have it run the model's whole setup (thousands of table writes) at check time.
     t = {'glob': f'(zeros (8 + (prim multiply 0 {n} : Nat)))', 'mem': f'(zeros (22 + (prim multiply 0 {n} : Nat)))', 'T': f'({TB}::fill 3 (tbFor {n}) 0)', 'MT': f'({TB}::fill 4 (mbFor (tbFor {n})) 0)',
-         'H': f'(prim append {history} (zeros (depthFor 40 {n} 0)) : Bytes)', 'A2': f'({TB}::fill 2 (22 + (prim multiply 0 {n} : Nat)) 0)'}
+         'H': f'(prim append {history} (zeros (depthFor 40 {n} 0)) : Bytes)', 'A2': f'({TB}::fill 2 (22 + (prim multiply 0 {n} : Nat)) 0)',
+         # the short match table, and the short match and repeat models' 64 and 128 slots
+         'M2T': f'({TB}::fill 4 (mbFor (tbFor {n})) 0)', 'M2S': f'({TB}::fill 3 (6 + (prim multiply 0 {n} : Nat)) 0)',
+         'RS': f'({TB}::fill 3 (7 + (prim multiply 0 {n} : Nat)) 0)'}
     t.update(extra)
     return t
 
@@ -34,20 +37,24 @@ def scalars(L, inp):
 
 
 # decoder
-dec = irlex.Lex(ncm_model.P, 'NcmDecode', ['decodeWith'], ['T', 'H', 'MT', 'A2'])
+BIG = ['T', 'H', 'MT', 'A2', 'M2T', 'M2S', 'RS']
+V03 = str(ncm_model.V03)
+dec = irlex.Lex(ncm_model.P, 'NcmDecode', ['decodeProfile'], BIG)
 sizing(dec.D)
 n = ("(let n : Nat := (((prim multiply 16777216 (getAt 1 input 0) : Nat) + (prim multiply 65536 (getAt 1 input 1) : Nat)) + "
      "((prim multiply 256 (getAt 1 input 2) : Nat) + (getAt 1 input 3))); ")
 # against a window: H starts holding the history (h bytes), and only the n coded bytes after it are returned
 body = (n + "(let h : Nat := (prim length history : Nat); "
         f"(let s0 : {dec.St} := {dec.L.make(tables(dec.L, 'n', {}, 'history'), scalars(dec.L, 'input'))}; "
-        f"(let s1 : {dec.St} := (decodeWith s0 h); (match (prim slice {dec.L.P('s1', 'H')} h n : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b)))))")
-dec.D('runWith', ['history : Bytes', 'input : Bytes'], 'Bytes', f"(if ((prim length input : Nat) <? 4) then 0x else {body})")
+        f"(let s1 : {dec.St} := (decodeProfile s0 h profile); (match (prim slice {dec.L.P('s1', 'H')} h n : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b)))))")
+# the decode under a profile word (ncm_model: bits 0-16 contexts, then the match features); V03 is the v0.3 coder
+dec.D('runProfile', ['history : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4) then 0x else {body})")
+dec.D('runWith', ['history : Bytes', 'input : Bytes'], 'Bytes', f"(runProfile history input {V03})")
 dec.D('run', ['input : Bytes'], 'Bytes', "(runWith 0x input)")
 open(os.path.join(OUTDIR, 'NcmDecode.lex.tex'), 'w').write(dec.source([TB]))
 
 # encoder
-enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encodeWith'], ['T', 'H', 'MT', 'A2', 'OUT'])
+enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encodeProfile'], BIG + ['OUT'])
 sizing(enc.D)
 enc.D('start', ['history : Bytes', 'input : Bytes', 'n : Nat', 'cap : Nat'], enc.St,
       enc.L.make(tables(enc.L, 'n', {'OUT': '(zeros (depthFor 40 cap 0))'}, 'history'), scalars(enc.L, 'input')))
@@ -56,9 +63,11 @@ enc.D('finish', ['s1 : ' + enc.St, 'n : Nat'], 'Bytes',
       f"(match (prim slice {enc.L.P('s1', 'OUT')} 0 {enc.gread('s1', 'op')} : (Option Bytes))\n    | Option.none => 0x\n"
       f"    | Option.some b => (prim append head b : Bytes))))")
 body = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim multiply 2 n : Nat) + 64); "
-        "(finish (encodeWith (start history input n cap) n cap (prim length history : Nat)) n)))")
-# encode `input` against the window `history`: the match model starts holding every history position
-enc.D('runWith', ['history : Bytes', 'input : Bytes'], 'Bytes', f"(if ((prim length input : Nat) <? 4294967296) then {body} else 0x)")
+        "(finish (encodeProfile (start history input n cap) n cap (prim length history : Nat) profile) n)))")
+# encode `input` against the window `history` under a profile word: the match model starts holding every
+# history position
+enc.D('runProfile', ['history : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4294967296) then {body} else 0x)")
+enc.D('runWith', ['history : Bytes', 'input : Bytes'], 'Bytes', f"(runProfile history input {V03})")
 enc.D('run', ['input : Bytes'], 'Bytes', "(runWith 0x input)")
 open(os.path.join(OUTDIR, 'NcmEncode.lex.tex'), 'w').write(enc.source([TB]))
 print('ok')
