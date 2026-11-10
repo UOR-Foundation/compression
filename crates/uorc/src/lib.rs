@@ -190,8 +190,7 @@ fn compress_pieces(
     // first BUDGET strategies its family's schedule orders and keep the
     // smallest archive, the earlier one on a tie. A filtered strategy codes
     // the filtered frame after the filtered window.
-    let mut best: Option<Vec<u8>> = None;
-    for strategy in portfolio::plan(frame) {
+    let code = |strategy: portfolio::Strategy| -> Option<Vec<u8>> {
         let filtered;
         let (data, past) = if strategy.x86 {
             filtered = (
@@ -210,24 +209,32 @@ fn compress_pieces(
         // The native ncm encoder is byte-identical to the model
         // (`native_archives_are_the_model_archives`) and every encoder output
         // decodes to its input, so a self-decode would only repeat its cost.
-        let candidate =
-            ncm::encode_profile(past, data, strategy.profile).and_then(|payload| match &identity {
-                None => archive::linked_archive_profile(codec, strategy.profile, lengths, &payload),
-                Some(identity) => archive::window_archive_profile(
-                    codec,
-                    strategy.profile,
-                    window,
-                    identity,
-                    lengths,
-                    &payload,
-                ),
-            });
-        if let Some(c) = candidate {
-            if best.as_ref().is_none_or(|b| c.len() < b.len()) {
-                best = Some(c);
-            }
-        }
-    }
+        ncm::encode_profile(past, data, strategy.profile).and_then(|payload| match &identity {
+            None => archive::linked_archive_profile(codec, strategy.profile, lengths, &payload),
+            Some(identity) => archive::window_archive_profile(
+                codec,
+                strategy.profile,
+                window,
+                identity,
+                lengths,
+                &payload,
+            ),
+        })
+    };
+    // The scheduled strategies code side by side (a lone frame then uses two
+    // cores); the choice is the same in any order.
+    let [first, second] = portfolio::plan(frame);
+    #[cfg(not(target_family = "wasm"))]
+    let (a, b) = std::thread::scope(|s| {
+        let other = s.spawn(|| code(second));
+        (code(first), other.join().expect("strategy thread"))
+    });
+    #[cfg(target_family = "wasm")]
+    let (a, b) = (code(first), code(second));
+    let best = match (a, b) {
+        (Some(a), Some(b)) => Some(if b.len() < a.len() { b } else { a }),
+        (a, b) => a.or(b),
+    };
     match best {
         Some(linked) if (linked.len() as u64) < archive::raw_length(lengths) => Ok(linked),
         _ => Ok(archive::raw_objects(frame, lengths)),
