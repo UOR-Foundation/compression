@@ -1,7 +1,7 @@
 //! `uorc`: the command-line client.
 
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufReader, BufWriter, Read, Write};
+use std::io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
@@ -21,7 +21,8 @@ and changes nothing (it was a level before there was one coder). Archives name t
 they carry no decoder kernel.
 Input of any size streams through 8 MiB frames, compressed --threads N at a
 time (default: every core) and written back to back; each frame after the
-first may match into the two before it, so frames decode in order. Without -o, compress writes <input>.uorc and decompress strips a .uorc suffix
+first may match into the two before it, so frames decode in order. A frame
+identical to an earlier one is stored once, as a reference to it. Without -o, compress writes <input>.uorc and decompress strips a .uorc suffix
 (or writes <input>.out). '-' reads stdin or writes stdout.
 
 Given a directory or several paths, compress stores them as one archive of
@@ -424,14 +425,52 @@ fn open_input(path: &str) -> Result<Box<dyn Read>, Failure> {
     })
 }
 
+/// A stream to decompress: read twice, headers first (see `uorc::decompress_stream`).
+trait Source: Read + Seek {}
+impl<T: Read + Seek> Source for T {}
+
+/// The stream at `path`, seekable. Standard input is used as is when it is a
+/// regular file, and otherwise copied to an unnamed temporary file first.
+fn open_stream(path: &str) -> Result<Box<dyn Source>, Failure> {
+    if path != "-" {
+        let file = File::open(path).map_err(|e| io_failure(path, e))?;
+        return Ok(Box::new(BufReader::with_capacity(1 << 20, file)));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::fd::AsFd;
+        if let Ok(fd) = io::stdin().as_fd().try_clone_to_owned() {
+            let mut file = File::from(fd);
+            if file.metadata().is_ok_and(|m| m.is_file()) && file.stream_position().is_ok() {
+                return Ok(Box::new(BufReader::with_capacity(1 << 20, file)));
+            }
+        }
+    }
+    let spool = |e| io_failure("-", e);
+    let name = std::env::temp_dir().join(format!("uorc-stdin-{}.tmp", std::process::id()));
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&name)
+        .map_err(spool)?;
+    #[cfg(unix)]
+    let _ = fs::remove_file(&name);
+    let copied = io::copy(&mut io::stdin().lock(), &mut file).and_then(|_| file.rewind());
+    #[cfg(not(unix))]
+    let _ = fs::remove_file(&name);
+    copied.map_err(spool)?;
+    Ok(Box::new(BufReader::with_capacity(1 << 20, file)))
+}
+
 /// Read enough of a stream to see its first archive header, and whether that
-/// archive holds several objects (a tree). The bytes read are handed back in
-/// front of the rest of the stream.
-fn peek_tree(mut input: Box<dyn Read>) -> io::Result<(bool, Box<dyn Read>)> {
+/// archive holds several objects (a tree). The stream is rewound to where it began.
+fn peek_tree(input: &mut dyn Source) -> io::Result<bool> {
+    let start = input.stream_position()?;
     let mut prefix = Vec::new();
     let mut want = uorc::HEADER_HINT;
     loop {
-        (&mut input)
+        (&mut *input)
             .take((want - prefix.len()) as u64)
             .read_to_end(&mut prefix)?;
         match uorc::frame_length(&prefix) {
@@ -439,11 +478,15 @@ fn peek_tree(mut input: Box<dyn Read>) -> io::Result<(bool, Box<dyn Read>)> {
             _ => break,
         }
     }
-    let tree = uorc::object_lengths(&prefix).is_ok_and(|lengths| lengths.len() != 1);
-    Ok((tree, Box::new(io::Cursor::new(prefix).chain(input))))
+    input.seek(SeekFrom::Start(start))?;
+    Ok(uorc::object_lengths(&prefix).is_ok_and(|lengths| lengths.len() != 1))
 }
 
-fn decompress_tree(options: &Options, mut input: Box<dyn Read>, path: &str) -> Result<(), Failure> {
+fn decompress_tree(
+    options: &Options,
+    mut input: Box<dyn Source>,
+    path: &str,
+) -> Result<(), Failure> {
     if path == "-" {
         return Err(usage(
             "a multi-object archive restores to a directory; give -o <dir>",
@@ -482,23 +525,28 @@ fn transform(options: &Options) -> Result<(), Failure> {
             .strip_suffix(".uorc")
             .map_or_else(|| format!("{input_path}.out"), str::to_owned),
     };
-    let mut input = open_input(input_path)?;
-    if !compress {
-        let (tree, rest) = peek_tree(input).map_err(|e| io_failure(input_path, e))?;
-        if tree {
-            return decompress_tree(options, rest, &path);
+    let mut input: Option<Box<dyn Read>> = None;
+    let mut stream: Option<Box<dyn Source>> = None;
+    if compress {
+        input = Some(open_input(input_path)?);
+    } else {
+        let mut source = open_stream(input_path)?;
+        if peek_tree(source.as_mut()).map_err(|e| io_failure(input_path, e))? {
+            return decompress_tree(options, source, &path);
         }
-        input = rest;
+        stream = Some(source);
     }
     check_free(&path, options.force)?;
     let threads = options.threads.unwrap_or_else(uorc::default_threads);
-    let run = |output: &mut dyn Write| {
+    let mut run = |output: &mut dyn Write| {
         if compress {
             let steps = options.budget.unwrap_or(uorc::DEFAULT_STEPS);
+            let input = input.take().expect("compress reads its input once");
             uorc::compress_stream(input, output, steps, threads)
         } else {
             let work = options.budget.unwrap_or(uorc::DEFAULT_DECODE_WORK);
-            uorc::decompress_stream(input, output, work, threads)
+            let stream = stream.take().expect("decompress reads its stream once");
+            uorc::decompress_stream(stream, output, work, threads)
         }
     };
     let failed = |e: io::Error| match uorc::Error::of(&e) {

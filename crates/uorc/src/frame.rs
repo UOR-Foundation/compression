@@ -34,12 +34,14 @@ pub enum Representation {
     Ncm,
     /// [`Representation::Ncm`] over the x86 branch filter.
     NcmX86,
+    /// The body reproduces an earlier frame, named by its κ-label (the basis identity).
+    Reference,
     /// The body is any other UORC program graph (for example a search result).
     Program,
 }
 
 impl Representation {
-    /// A short lowercase name: `raw`, `ulz`, `ncm`, `ncm-x86`, `ulz-kernel` or `program`.
+    /// A short lowercase name: `raw`, `ulz`, `ncm`, `ncm-x86`, `reference`, `ulz-kernel` or `program`.
     pub fn name(self) -> &'static str {
         match self {
             Representation::Raw => "raw",
@@ -47,6 +49,7 @@ impl Representation {
             Representation::Ulz => "ulz",
             Representation::Ncm => "ncm",
             Representation::NcmX86 => "ncm-x86",
+            Representation::Reference => "reference",
             Representation::Program => "program",
         }
     }
@@ -285,6 +288,8 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
             Some(crate::archive::Codec::NcmX86) => Representation::NcmX86,
             None => Representation::Program,
         }
+    } else if h.basis.is_some() && body == crate::archive::REF_BODY {
+        Representation::Reference
     } else {
         Representation::Program
     };
