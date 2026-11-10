@@ -527,7 +527,13 @@ pub fn window_archive_profile(
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
-    window_archive(Codec::profiled(profile, codec.x86()), k, identity, lengths, payload)
+    window_archive(
+        Codec::profiled(profile, codec.x86()),
+        k,
+        identity,
+        lengths,
+        payload,
+    )
 }
 
 /// Exact length of [`linked_archive`] for objects of `lengths` and a `p`-byte payload.
@@ -950,7 +956,8 @@ mod tests {
             b"the standard basis carries the kernels; archives name it by identity. ".repeat(3);
         let n = input.len() as u64;
         let u = linked_archive(Codec::Ulz, &[n], &crate::ulz::encode(&input)).expect("codec");
-        let c = linked_archive(Codec::Ncm, &[n], &crate::ncm::encode(&input).expect("fits")).expect("codec");
+        let c = linked_archive(Codec::Ncm, &[n], &crate::ncm::encode(&input).expect("fits"))
+            .expect("codec");
         // the model's archives for this text (client/gen/gen_basis.py, Archive.ulzLinkedArchive)
         assert_eq!((u.len(), c.len()), (166, 139));
         for a in [&u, &c] {
@@ -1036,7 +1043,8 @@ mod tests {
 
     #[test]
     fn linked_archive_names_the_basis() {
-        let mut a = linked_archive(Codec::Ncm, &[3], &crate::ncm::encode(b"abc").expect("fits")).expect("codec");
+        let mut a = linked_archive(Codec::Ncm, &[3], &crate::ncm::encode(b"abc").expect("fits"))
+            .expect("codec");
         assert_eq!(fast_decode(&a).as_deref(), Some(&b"abc"[..]));
         // another basis identity, resealed so only the identity differs
         a[12] ^= 1;

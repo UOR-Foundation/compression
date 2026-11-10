@@ -109,12 +109,104 @@ definition{
 }
 
 definition{
+  name: printableFrom,
+  parameters: [fuel : Nat, data : Bytes, at : Nat, acc : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => acc
+    | Nat.succ m => (let b : Nat := (Uorc.Codec.Archive::byteAt data at); (printableFrom m data (at + 1) (if ((((b =? 9) || (b =? 10)) || (b =? 13)) || ((32 <=? b) && (b <? 127))) then (acc + 1) else acc)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: family,
+  parameters: [input : Bytes],
+  result: Nat,
+  body: (let n : Nat := (prim length input : Nat); (if (n <? 4096) then 0 else (if (n <? 65536) then 1 else (if (Uorc.Codec.Archive::x86Dense input) then 2 else (if ((prim multiply 9 n : Nat) <=? (prim multiply 10 (printableFrom n input 0 0) : Nat)) then 3 else 4))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: weightTable,
+  parameters: [],
+  result: Bytes,
+  body: 0x01010f010c010101100101010501010f01010a010a01040109010c010101,
+  axioms: []
+}
+
+definition{
+  name: weight,
+  parameters: [family : Nat, strategy : Nat],
+  result: Nat,
+  body: (Uorc.Codec.Archive::byteAt (weightTable) ((prim multiply 6 family : Nat) + strategy)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: insertByWeight,
+  parameters: [family : Nat, x : Nat, ordered : (List Nat)],
+  result: (List Nat),
+  body: (match ordered
+    | List.nil => (cons x (nil Nat))
+    | List.cons head tail => (if ((weight family head) <? (weight family x)) then (cons x (cons head tail)) else (cons head (insertByWeight family x tail)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: ordered
+}
+
+definition{
+  name: scheduleFrom,
+  parameters: [family : Nat, pending : (List Nat), ordered : (List Nat)],
+  result: (List Nat),
+  body: (match pending
+    | List.nil => ordered
+    | List.cons head tail => (scheduleFrom family tail (insertByWeight family head ordered))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: pending
+}
+
+definition{
+  name: schedule,
+  parameters: [family : Nat],
+  result: (List Nat),
+  body: (scheduleFrom family (cons 0 (cons 1 (cons 2 (cons 3 (cons 4 (cons 5 (nil Nat))))))) (nil Nat)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: strategyProfile,
+  parameters: [strategy : Nat],
+  result: Nat,
+  body: (let k : Nat := (prim quotient strategy 2 0 : Nat); (if (k =? 0) then 1048575 else (if (k =? 1) then 524287 else 131071))),
+  axioms: []
+}
+
+definition{
+  name: strategyCandidate,
+  parameters: [strategy : Nat, window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (Uorc.Codec.Archive::profileCandidate (if ((prim remainder strategy 2 0 : Nat) =? 1) then 2 else 1) (strategyProfile strategy) window input),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: portfolio,
+  parameters: [budget : Nat, scheduled : (List Nat), window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (match scheduled
+    | List.nil => (ctor Option.none [Bytes])
+    | List.cons head tail => (if (budget =? 0) then (ctor Option.none [Bytes]) else (smaller (strategyCandidate head window input) (portfolio (prim subtract budget 1 : Nat) tail window input)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: scheduled
+}
+
+definition{
   name: compress,
   parameters: [input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
-  body: (let codec : Nat := (if (Uorc.Codec.Archive::x86Dense input) then 2 else 1); (let linked : (Option Bytes) := (Uorc.Codec.Archive::windowCandidate codec window input); (let quick : (Option Bytes) := (match linked
+  body: (let linked : (Option Bytes) := (portfolio 2 (schedule (family input)) window input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))))),
+    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))),
   axioms: [Quot.sound, propext]
 }
 
