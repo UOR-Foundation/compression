@@ -34,12 +34,13 @@ This table classifies evidence within its verified scope. It does not validate a
 | `scoped_minimum_certificate` | `minimum_certified` | `build` | `not_measured` | true |
 | `benchmark_target_unmet` | `benchmark_result` | `open` | `measured_target_unmet` | false |
 | `benchmark_target_met` | `benchmark_result` | `open` | `measured_target_met` | false |
+| `benchmark_measurement` | `benchmark_result` | `open` | `measured_no_target` | false |
 | `external_record_acceptance` | `record_validated` | `open` | `externally_accepted_record` | false |
 | `version_metadata` | `open_claim` | `open` | `not_measured` | false |
 
 ## Current research dispositions
 
-- `UC-PERF-01`: `not_measured`; evidence `none`; honesty level `open`.
+- `UC-PERF-01`: `measured_no_target`; evidence `benchmark_measurement`; honesty level `open`.
 - `UC-REC-01`: `not_measured`; evidence `none`; honesty level `open`.
 
 The source-owned bounded ULEB128 codec, errors, and proof inventory are projected in [UORC-VARINT.md](UORC-VARINT.md).
