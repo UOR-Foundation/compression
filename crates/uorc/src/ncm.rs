@@ -1094,8 +1094,14 @@ trait Kernel {
     );
 }
 
-/// The portable kernel (wasm, and x86_64 without AVX2).
-#[cfg_attr(target_arch = "aarch64", allow(dead_code))]
+/// The portable kernel (x86_64 without AVX2, and wasm without simd128).
+#[cfg_attr(
+    any(
+        target_arch = "aarch64",
+        all(target_arch = "wasm32", target_feature = "simd128")
+    ),
+    allow(dead_code)
+)]
 struct Scalar;
 
 impl Kernel for Scalar {
@@ -1147,7 +1153,15 @@ macro_rules! dispatch {
         {
             $f::<arm::Neon>($($a),*)
         }
-        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        {
+            $f::<wasm::Simd128>($($a),*)
+        }
+        #[cfg(not(any(
+            target_arch = "x86_64",
+            target_arch = "aarch64",
+            all(target_arch = "wasm32", target_feature = "simd128")
+        )))]
         {
             $f::<Scalar>($($a),*)
         }
@@ -1366,6 +1380,70 @@ mod arm {
                         let p = w.as_mut_ptr().add(i * 4);
                         let d = vshrq_n_s32::<16>(vmulq_n_s32(xv, e));
                         vst1q_s32(p, vmaxq_s32(vminq_s32(vaddq_s32(vld1q_s32(p), d), hi), lo));
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod wasm {
+    use super::{Kernel, WEIGHT_LIMIT};
+    use std::arch::wasm32::*;
+
+    /// The WebAssembly SIMD128 kernel: 4 lanes of i32, products widened to
+    /// i64 pairs exactly as the scalar kernel computes them.
+    pub(super) struct Simd128;
+
+    impl Kernel for Simd128 {
+        #[inline(always)]
+        fn dot<const W: usize>(
+            x: &[i32; W],
+            w1: &[i32; W],
+            w2: &[i32; W],
+            w3: &[i32; W],
+        ) -> [i64; 3] {
+            // SAFETY: simd128 is enabled at compile time for this module, and
+            // every 4-lane load at i * 4 < W (W a multiple of 4) stays inside
+            // its row; v128_load takes unaligned addresses.
+            unsafe {
+                let (mut a, mut b, mut c) = (i64x2_splat(0), i64x2_splat(0), i64x2_splat(0));
+                for i in 0..W / 4 {
+                    let xv = v128_load(x.as_ptr().add(i * 4).cast());
+                    let acc = |s: v128, w: &[i32; W]| {
+                        let wv = v128_load(w.as_ptr().add(i * 4).cast());
+                        i64x2_add(
+                            i64x2_add(s, i64x2_extmul_low_i32x4(xv, wv)),
+                            i64x2_extmul_high_i32x4(xv, wv),
+                        )
+                    };
+                    a = acc(a, w1);
+                    b = acc(b, w2);
+                    c = acc(c, w3);
+                }
+                let sum = |v: v128| i64x2_extract_lane::<0>(v) + i64x2_extract_lane::<1>(v);
+                [sum(a), sum(b), sum(c)]
+            }
+        }
+
+        #[inline(always)]
+        fn train<const W: usize>(
+            x: &[i32; W],
+            w1: &mut [i32; W],
+            w2: &mut [i32; W],
+            w3: &mut [i32; W],
+            e: [i32; 3],
+        ) {
+            // SAFETY: as in `dot`; the stores write the rows they loaded.
+            unsafe {
+                let (hi, lo) = (i32x4_splat(WEIGHT_LIMIT), i32x4_splat(-WEIGHT_LIMIT));
+                for i in 0..W / 4 {
+                    let xv = v128_load(x.as_ptr().add(i * 4).cast());
+                    for (w, e) in [(&mut *w1, e[0]), (&mut *w2, e[1]), (&mut *w3, e[2])] {
+                        let p = w.as_mut_ptr().add(i * 4).cast::<v128>();
+                        let d = i32x4_shr(i32x4_mul(xv, i32x4_splat(e)), 16);
+                        v128_store(p, i32x4_max(i32x4_min(i32x4_add(v128_load(p), d), hi), lo));
                     }
                 }
             }
