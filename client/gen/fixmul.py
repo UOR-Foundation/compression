@@ -38,4 +38,4 @@ def fix(s):
         expr=parts[0]
         for p in parts[1:]: expr=f"(prim multiply {expr} {p} : Nat)"
         s=s[:j]+expr+s[k+1:]
-p=sys.argv[1]; t=fix(open(p).read().replace('(Nat * Dec)','PAIRTY').replace('(Dec * Bool)','DBTY').replace('(Nat * Nat)','NNTY').replace('(Enc * Bool)','EBTY').replace('(Nat * Bytes)','NBYTY')).replace('PAIRTY','(Nat * Dec)').replace('DBTY','(Dec * Bool)').replace('NNTY','(Nat * Nat)').replace('EBTY','(Enc * Bool)').replace('NBYTY','(Nat * Bytes)'); open(p,'w').write(t)
+p=sys.argv[1]; t=fix(open(p).read().replace('(Nat * Dec)','PAIRTY').replace('(Dec * Bool)','DBTY').replace('(Nat * Nat)','NNTY').replace('(Enc * Bool)','EBTY').replace('(Nat * Bytes)','NBYTY').replace('(Bytes * Bytes)','BBTY')).replace('PAIRTY','(Nat * Dec)').replace('DBTY','(Dec * Bool)').replace('NNTY','(Nat * Nat)').replace('EBTY','(Enc * Bool)').replace('NBYTY','(Nat * Bytes)').replace('BBTY','(Bytes * Bytes)'); open(p,'w').write(t)

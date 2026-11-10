@@ -244,6 +244,9 @@ struct Model {
     sp: Vec<u16>,
     sn: Vec<u8>,
     hist: Vec<u8>,
+    /// History bytes ahead of the coded ones in `hist` (a window frame's
+    /// preceding outputs): the match model reaches into them.
+    hoff: u32,
     pos: u32,
     c4: u32,
     c8: u32,
@@ -281,23 +284,23 @@ struct Model {
 }
 
 impl Model {
-    fn new(n: u32) -> Model {
-        let mut tb = 16;
-        while tb < TB_MAX && (1u64 << tb) < u64::from(n) * 1024 {
-            tb += 1;
-        }
-        let mb = if tb > 22 { 22 } else { tb - 2 };
+    /// The model for `n` bytes coded after `history` (a window frame's
+    /// preceding outputs): the match model starts holding every history
+    /// position, and every other model starts fresh.
+    fn new(n: u32, history: &[u8]) -> Model {
+        let (mask, mb) = Model::sized(n);
         let mut msp = [0u16; 64];
         for (i, p) in msp.iter_mut().enumerate() {
             *p = if i % 2 == 1 { 60000 } else { 5536 };
         }
         let mut m = Model {
             t: tables(),
-            mask: (1u32 << tb) - 1,
+            mask,
             mb,
-            sp: vec![32768; 1 << tb],
-            sn: vec![0; 1 << tb],
-            hist: Vec::with_capacity(n as usize),
+            sp: vec![32768; mask as usize + 1],
+            sn: vec![0; mask as usize + 1],
+            hist: Vec::with_capacity(history.len() + n as usize),
+            hoff: history.len() as u32,
             pos: 0,
             c4: 0,
             c8: 0,
@@ -333,13 +336,52 @@ impl Model {
             a1: Apm::new(256),
             a2: Apm::new(1 << APM2_BITS),
         };
+        m.hist.extend_from_slice(history);
+        for p in 7..m.hoff {
+            let k = m.match_key(p);
+            m.mtab[k] = p;
+        }
         m.new_byte();
         m
     }
 
+    /// (table mask, match table bits) for `n` coded bytes.
+    fn sized(n: u32) -> (u32, u32) {
+        let mut tb = 16;
+        while tb < TB_MAX && (1u64 << tb) < u64::from(n) * 1024 {
+            tb += 1;
+        }
+        ((1u32 << tb) - 1, if tb > 22 { 22 } else { tb - 2 })
+    }
+
+    /// The byte at coded position `i`.
     #[inline]
     fn at(&self, i: u32) -> u32 {
+        u32::from(self.hist[(self.hoff + i) as usize])
+    }
+
+    /// The byte at absolute position `i` (history first).
+    #[inline]
+    fn abs(&self, i: u32) -> u32 {
         u32::from(self.hist[i as usize])
+    }
+
+    /// The match-model key of absolute position `p`: the hash of the 7 bytes before it.
+    fn match_key(&self, p: u32) -> usize {
+        self.match_key_by(p, |i| self.abs(i))
+    }
+
+    /// [`Model::match_key`], reading absolute positions through `abs`.
+    #[inline(always)]
+    fn match_key_by(&self, p: u32, abs: impl Fn(u32) -> u32) -> usize {
+        let mut k = 0u32;
+        for i in 1..=7 {
+            k = k
+                .wrapping_mul(0x2F0B_4C27)
+                .wrapping_add(abs(p - i))
+                .wrapping_add(1);
+        }
+        (h(k) >> (32 - self.mb)) as usize
     }
 
     fn new_byte(&mut self) {
@@ -350,13 +392,14 @@ impl Model {
             }
             self.mptr += 1;
         }
-        if pos >= 7 {
-            let k = self.match_slot(pos, |i| self.at(i));
+        let pa = self.hoff + pos;
+        if pa >= 7 {
+            let k = self.match_key(pa);
             if self.mlen == 0 {
                 let cand = self.mtab[k];
                 if cand > 0 {
                     let mut l = 0;
-                    while l < 1024 && l < cand && self.at(cand - 1 - l) == self.at(pos - 1 - l) {
+                    while l < 1024 && l < cand && self.abs(cand - 1 - l) == self.abs(pa - 1 - l) {
                         l += 1;
                     }
                     if l >= 7 {
@@ -365,10 +408,10 @@ impl Model {
                     }
                 }
             }
-            self.mtab[k] = pos;
+            self.mtab[k] = pa;
         }
         if self.mlen > 0 {
-            self.mexp = self.at(self.mptr);
+            self.mexp = self.abs(self.mptr);
             self.mbucket = len_bucket(self.mlen);
         } else {
             self.mexp = 0;
@@ -406,13 +449,13 @@ impl Model {
                 word1 = wordh;
                 wordh = 0;
             }
-            let (pos, at) = (
-                self.pos,
-                |i: u32| if i == self.pos { b } else { self.at(i) },
-            );
-            let (mexp, mbucket) = if self.mlen > 0 && self.mexp == b && self.mptr < pos {
+            // coded and absolute readers that see `b` at its position
+            let (pos, pa) = (self.pos, self.hoff + self.pos);
+            let at = |i: u32| if i == pos { b } else { self.at(i) };
+            let abs = |i: u32| if i == pa { b } else { self.abs(i) };
+            let (mexp, mbucket) = if self.mlen > 0 && self.mexp == b && self.mptr < pa {
                 (
-                    at(self.mptr + 1) + 0x100,
+                    abs(self.mptr + 1) + 0x100,
                     len_bucket((self.mlen + 1).min(65535)),
                 )
             } else {
@@ -430,8 +473,8 @@ impl Model {
                 mbucket,
             });
             self.prefetch_buckets(&hb, 0);
-            if pos + 1 >= 7 {
-                prefetch(&self.mtab[self.match_slot(pos + 1, at)]);
+            if pa + 1 >= 7 {
+                prefetch(&self.mtab[self.match_key_by(pa + 1, abs)]);
             }
             ((self.c4 << 8) | b, 1)
         } else {
@@ -454,19 +497,6 @@ impl Model {
         let row = cx2 as usize * APM_ROW;
         prefetch(&self.a2.t[row]);
         prefetch(&self.a2.t[row + APM_ROW - 1]);
-    }
-
-    /// The match table slot of the 7 bytes before `pos >= 7`.
-    #[inline(always)]
-    fn match_slot(&self, pos: u32, at: impl Fn(u32) -> u32) -> usize {
-        let mut k = 0u32;
-        for i in 1..=7 {
-            k = k
-                .wrapping_mul(0x2F0B_4C27)
-                .wrapping_add(at(pos - i))
-                .wrapping_add(1);
-        }
-        (h(k) >> (32 - self.mb)) as usize
     }
 
     #[inline(always)]
@@ -746,14 +776,19 @@ mod x86 {
 
     /// The encoder loop compiled for AVX2.
     #[target_feature(enable = "avx2")]
-    pub(super) fn encode_with(data: &[u8]) -> Option<Vec<u8>> {
-        super::encode_with::<Avx2>(data)
+    pub(super) fn encoder(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
+        super::encoder::<Avx2>(history, data)
     }
 
     /// The decoder loop compiled for AVX2.
     #[target_feature(enable = "avx2")]
-    pub(super) fn decode_with(payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
-        super::decode_with::<Avx2>(payload, limit, canonical)
+    pub(super) fn decoder(
+        history: &[u8],
+        payload: &[u8],
+        limit: u64,
+        canonical: bool,
+    ) -> Option<Vec<u8>> {
+        super::decoder::<Avx2>(history, payload, limit, canonical)
     }
 
     /// Eight lanes of a row.
@@ -932,16 +967,22 @@ mod arm {
 /// `2 * len + 64` bytes (the model abandons the encoding there) or the input
 /// does not fit the 4-byte length.
 pub fn encode(data: &[u8]) -> Option<Vec<u8>> {
-    dispatch!(encode_with(data))
+    encode_with(&[], data)
+}
+
+/// [`encode`] for a window frame: `data` coded after `history`, which the
+/// match model reaches into (`Ncm.encodeWith`).
+pub fn encode_with(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
+    dispatch!(encoder(history, data))
 }
 
 #[inline(always)]
-fn encode_with<K: Kernel>(data: &[u8]) -> Option<Vec<u8>> {
+fn encoder<K: Kernel>(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
     let n = u32::try_from(data.len()).ok()?;
     let cap = 2 * data.len() + 64;
     let mut out = Vec::with_capacity(data.len() / 2 + 16);
     out.extend_from_slice(&n.to_be_bytes());
-    let mut m = Model::new(n);
+    let mut m = Model::new(n, history);
     let (mut x1, mut x2) = (0u32, u32::MAX);
     for &byte in data {
         for k in (0..8).rev() {
@@ -980,7 +1021,12 @@ pub fn declared_length(payload: &[u8]) -> Option<u32> {
 /// meaning (bytes past its end read as 255), so this is the kernel graph's
 /// meaning; `limit` bounds the declared length the caller will accept.
 pub fn decode(payload: &[u8], limit: u64) -> Option<Vec<u8>> {
-    run_decoder(payload, limit, false)
+    run_decoder(&[], payload, limit, false)
+}
+
+/// [`decode`] for a window frame coded after `history`.
+pub fn decode_with(history: &[u8], payload: &[u8], limit: u64) -> Option<Vec<u8>> {
+    run_decoder(history, payload, limit, false)
 }
 
 /// Decode a payload of exactly `n` bytes that [`encode`] writes for its own
@@ -991,15 +1037,28 @@ pub fn decode_canonical(payload: &[u8], n: u64) -> Option<Vec<u8>> {
     if declared_length(payload).map(u64::from) != Some(n) {
         return None;
     }
-    run_decoder(payload, n, true)
+    run_decoder(&[], payload, n, true)
 }
 
-fn run_decoder(payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
-    dispatch!(decode_with(payload, limit, canonical))
+/// [`decode_canonical`] for a window frame coded after `history`.
+pub fn decode_canonical_with(history: &[u8], payload: &[u8], n: u64) -> Option<Vec<u8>> {
+    if declared_length(payload).map(u64::from) != Some(n) {
+        return None;
+    }
+    run_decoder(history, payload, n, true)
+}
+
+fn run_decoder(history: &[u8], payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
+    dispatch!(decoder(history, payload, limit, canonical))
 }
 
 #[inline(always)]
-fn decode_with<K: Kernel>(payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
+fn decoder<K: Kernel>(
+    history: &[u8],
+    payload: &[u8],
+    limit: u64,
+    canonical: bool,
+) -> Option<Vec<u8>> {
     let n = declared_length(payload)?;
     if u64::from(n) > limit {
         return None;
@@ -1013,7 +1072,7 @@ fn decode_with<K: Kernel>(payload: &[u8], limit: u64, canonical: bool) -> Option
     }
     // coder bytes the encoder has emitted so far
     let mut emitted = 0usize;
-    let mut m = Model::new(n);
+    let mut m = Model::new(n, history);
     let (mut x1, mut x2) = (0u32, u32::MAX);
     for _ in 0..n {
         for _ in 0..8 {
@@ -1047,7 +1106,9 @@ fn decode_with<K: Kernel>(payload: &[u8], limit: u64, canonical: bool) -> Option
     {
         return None;
     }
-    Some(m.hist)
+    let mut out = m.hist;
+    out.drain(..history.len());
+    Some(out)
 }
 
 #[cfg(test)]
@@ -1085,11 +1146,15 @@ mod tests {
             .collect();
         let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
         for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
-            let p = encode_with::<Scalar>(data).expect("fits");
+            let p = encoder::<Scalar>(&[], data).expect("fits");
             assert_eq!(encode(data).as_deref(), Some(&p[..]));
             let n = data.len() as u64;
             assert_eq!(decode(&p, n).as_deref(), Some(data));
-            assert_eq!(decode_with::<Scalar>(&p, n, true).as_deref(), Some(data));
+            assert_eq!(decoder::<Scalar>(&[], &p, n, true).as_deref(), Some(data));
+            // and after a window history
+            let w = encoder::<Scalar>(&text[..999], data).expect("fits");
+            assert_eq!(encode_with(&text[..999], data).as_deref(), Some(&w[..]));
+            assert_eq!(decode_with(&text[..999], &w, n).as_deref(), Some(data));
         }
     }
 

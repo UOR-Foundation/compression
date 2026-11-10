@@ -37,8 +37,8 @@ const failure = r => (r.error ? String(r.error.code ?? r.error) : `exit ${r.stat
 const firstLine = (cmd, argv) => { const r = spawnSync(cmd, argv, {encoding: 'utf8'}); return r.error ? null : `${r.stdout}${r.stderr}`.trim().split('\n')[0]; };
 
 const tools = baselines.map(b => ({...b, available: firstLine(b.tool, b.version)})).filter(b => b.available);
-// The default level, and --best (the ncm context-mixing level).
-const levels = [[`uorc (${steps} steps)`, []], [`uorc --best (${steps} steps)`, ['--best']]];
+// uorc has one coder (ncm); --best is accepted and changes nothing.
+const levels = [[`uorc (${steps} steps)`, []]];
 const names = [...levels.map(([label]) => label), ...tools.map(t => t.name)];
 fs.mkdirSync(out, {recursive: true});
 const work = fs.mkdtempSync(path.join(out, 'work-'));

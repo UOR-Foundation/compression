@@ -10,15 +10,15 @@ use std::process::{Command, Stdio};
 use uorc::archive::{chain, BASIS_ID};
 use uorc::{
     compress_objects as compress_objects_at, decompress, decompress_objects, inspect, verify,
-    Error, Level, Representation, DEFAULT_DECODE_WORK, DEFAULT_STEPS,
+    Error, Representation, DEFAULT_DECODE_WORK, DEFAULT_STEPS,
 };
 
 fn compress(input: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-    uorc::compress(input, steps, Level::Fast)
+    uorc::compress(input, steps)
 }
 
 fn compress_objects(objects: &[Vec<u8>], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_objects_at(objects, steps, Level::Fast)
+    compress_objects_at(objects, steps)
 }
 
 /// 200 zero bytes as a 64-byte program archive found by the exported search.
@@ -111,12 +111,6 @@ fn real_archives_decode_to_every_original_byte_uc_real_01() {
         let archive = compress(&input, DEFAULT_STEPS).expect(name);
         let back = decompress(&archive, DEFAULT_DECODE_WORK).expect(name);
         assert_eq!(back, input, "{name}");
-        let best = uorc::compress(&input, DEFAULT_STEPS, Level::Best).expect(name);
-        assert_eq!(
-            decompress(&best, DEFAULT_DECODE_WORK).expect(name),
-            input,
-            "{name} --best"
-        );
     }
     // Text takes a coded archive: a real program over the basis, not a copy.
     let (_, text) = &corpus()[2];
@@ -292,11 +286,8 @@ fn compress_returns_the_smallest_checked_candidate_uc_opt_01() {
         );
     }
     let (_, text) = &corpus()[2];
-    let fast = compress(text, DEFAULT_STEPS).expect("text");
-    assert!(fast.len() < raw_size(text.len()));
-    // --best also tries ncm and keeps it only when smaller.
-    let best = uorc::compress(text, DEFAULT_STEPS, Level::Best).expect("text");
-    assert!(best.len() <= fast.len());
+    let archive = compress(text, DEFAULT_STEPS).expect("text");
+    assert!(archive.len() < raw_size(text.len()));
 }
 
 /// Offset of the basis identity inside a conditional archive's header.
@@ -310,10 +301,10 @@ fn basis_at(archive: &[u8]) -> usize {
 #[test]
 fn conditional_archives_bind_the_actual_basis_uc_bas_01() {
     let (_, text) = &corpus()[2];
-    for level in [Level::Fast, Level::Best] {
-        let archive = uorc::compress(text, DEFAULT_STEPS, level).expect("archive");
+    {
+        let archive = uorc::compress(text, DEFAULT_STEPS).expect("archive");
         let info = inspect(&archive).expect("header");
-        assert_eq!(info.basis, Some(BASIS_ID), "{level:?}");
+        assert_eq!(info.basis, Some(BASIS_ID));
         assert_eq!(decompress(&archive, DEFAULT_DECODE_WORK).as_ref(), Ok(text));
         // Another basis identity, resealed so only the identity differs: the
         // archive is not accepted because a tag happens to be well formed.
@@ -328,10 +319,6 @@ fn conditional_archives_bind_the_actual_basis_uc_bas_01() {
                 .expect("still a well-formed header")
                 .integrity_ok
         );
-        assert_eq!(
-            decompress(&other, DEFAULT_DECODE_WORK),
-            Err(Error::Decode),
-            "{level:?}"
-        );
+        assert_eq!(decompress(&other, DEFAULT_DECODE_WORK), Err(Error::Decode));
     }
 }
