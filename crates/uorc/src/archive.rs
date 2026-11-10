@@ -964,6 +964,76 @@ mod tests {
         );
     }
 
+    /// Archives the v0.2.0 and v0.3.0 release binaries wrote still decode
+    /// natively, to the bytes they were written from.
+    #[test]
+    fn earlier_releases_decode() {
+        let text = include_bytes!("../tests/compat/text.bin");
+        let x86 = include_bytes!("../tests/compat/x86.bin");
+        for (archive, original, era) in [
+            (&include_bytes!("../tests/compat/text-v0.2.0.uorc")[..], &text[..], Era::V02),
+            (include_bytes!("../tests/compat/text-v0.2.0-ncm.uorc"), text, Era::V02),
+            (include_bytes!("../tests/compat/x86-v0.2.0.uorc"), x86, Era::V02),
+            (include_bytes!("../tests/compat/text-v0.3.0.uorc"), text, Era::V03),
+            (include_bytes!("../tests/compat/x86-v0.3.0.uorc"), x86, Era::V03),
+        ] {
+            assert_eq!(basis_of(archive).and_then(|b| Era::of(&b)), Some(era));
+            assert_eq!(fast_decode(archive).as_deref(), Some(original));
+            assert_eq!(window_len(archive), Some(0));
+        }
+    }
+
+    /// A profiled entry carries its profile word; the archive decodes under
+    /// that word alone, linked and over a window, and only a shortest word
+    /// below 2^20 is read as one.
+    #[test]
+    fn profiled_archives_round_trip() {
+        let a = b"profiled frames carry the word that names their coder. ".repeat(20);
+        let b = b"the second frame reads the first through its window. ".repeat(20);
+        let n = b.len() as u64;
+        for profile in [crate::ncm::FULL, crate::ncm::V03, 0x1059e | crate::ncm::F_REP, 0] {
+            for x86 in [false, true] {
+                let codec = if x86 { Codec::NcmX86 } else { Codec::Ncm };
+                let (history, data) = if x86 {
+                    let h = crate::x86::filter(&a, false, 0).0;
+                    let d = crate::x86::filter(&b, false, a.len() as u64).0;
+                    (h, d)
+                } else {
+                    (a.clone(), b.clone())
+                };
+                let lone = if x86 { crate::x86::filter(&b, false, 0).0 } else { b.clone() };
+                let p = crate::ncm::encode_profile(&[], &lone, profile).expect("fits");
+                let linked = linked_archive_profile(codec, profile, &[n], &p).expect("profile");
+                assert_eq!(fast_decode(&linked).as_ref(), Some(&b));
+                assert_eq!(linked.len() as u64, linked_length(Codec::profiled(profile, x86), &[n], p.len() as u64));
+                let (_, _, body) = conditional_fields(&linked).expect("fields");
+                assert_eq!(linked_codec(&BASIS_ID, body), Some(Codec::profiled(profile, x86)));
+                let w = crate::ncm::encode_profile(&history, &data, profile).expect("fits");
+                let id = window_identity(&[&a]);
+                let windowed =
+                    window_archive_profile(codec, profile, 1, &id, &[n], &w).expect("profile");
+                assert_eq!(window_len(&windowed), Some(1));
+                assert_eq!(window_codec(&windowed), Some((Codec::profiled(profile, x86), 1)));
+                assert_eq!(window_decode(&windowed, &[&a]).as_ref(), Some(&b));
+                // the payload under another word is not the encoder's
+                let other = if profile == crate::ncm::FULL { crate::ncm::V03 } else { crate::ncm::FULL };
+                let wrong = linked_archive_profile(codec, other, &[n], &p).expect("profile");
+                assert_eq!(fast_decode(&wrong), None);
+            }
+        }
+        let p = crate::ncm::encode(b"abc").expect("fits");
+        assert_eq!(linked_archive(Codec::Profile(1 << 20), &[3], &p), None);
+        // a profile word written in a longer form than the shortest
+        let a = linked_archive(Codec::Profile(1), &[3], &p).expect("profile");
+        let (_, _, body) = conditional_fields(&a).expect("fields");
+        let at = body.len() - NCMP_TAIL.len() - 1;
+        assert_eq!(body[at - 1..at + 1], [0, 1]);
+        let mut long = body[..at].to_vec();
+        long.extend_from_slice(&[0x81, 0x00]);
+        long.extend_from_slice(&NCMP_TAIL);
+        assert_eq!(parse_body(&long, 0, Era::Current), None);
+    }
+
     #[test]
     fn linked_archive_names_the_basis() {
         let mut a = linked_archive(Codec::Ncm, &[3], &crate::ncm::encode(b"abc").expect("fits")).expect("codec");
