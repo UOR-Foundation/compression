@@ -22,10 +22,14 @@
 //! A payload is the input length (4 bytes, big-endian) and the coder output.
 
 const NC: usize = 17;
-const NIN: usize = NC + 3;
-/// A mixer's row stride: its `NIN` inputs padded with zero inputs to three
+/// A mixer's row stride: its `NC + 3` inputs padded with zero inputs to three
 /// 8-lane vectors, so the vector kernels need no tail.
 const NINP: usize = 24;
+/// The narrow row stride: a profile with at most 13 contexts has at most 16
+/// inputs, one 64-byte line per mixer row.
+const NINP_NARROW: usize = 16;
+/// The profile with every context: the ncm coder of v0.3 and earlier archives.
+pub const FULL: u32 = (1 << NC) - 1;
 const TB_MAX: u32 = 24;
 const SQT: [i32; 33] = [
     1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047, 2549, 2994, 3348,
@@ -51,6 +55,9 @@ fn squash(d: i32) -> i32 {
 
 struct Tables {
     stretch: [i16; 4096],
+    /// `squash(d)` at `d + 2048`, for `d` in -2048..=2047: the integer LUT the
+    /// coder reads in place of interpolating, with the same values.
+    squash: [i16; 4096],
     rate: [i32; 128],
 }
 
@@ -70,7 +77,15 @@ fn tables() -> &'static Tables {
         for (c, r) in rate.iter_mut().enumerate() {
             *r = 131_072 / (2 * c as i32 + 3);
         }
-        Tables { stretch, rate }
+        let mut sq = [0i16; 4096];
+        for (i, v) in sq.iter_mut().enumerate() {
+            *v = squash(i as i32 - 2048) as i16;
+        }
+        Tables {
+            stretch,
+            squash: sq,
+            rate,
+        }
     })
 }
 
@@ -237,12 +252,40 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
     }
 }
 
+#[derive(Clone, Copy)]
+#[repr(C, align(64))]
+struct Bucket([u32; 16]);
+
+const SLOT_FRESH: u32 = 32768;
+
+/// [`adapt`] on a packed slot (probability low, count above it).
+#[inline]
+fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
+    let n = *s >> 16;
+    let pv = (*s & 0xffff) as i32;
+    let t = if y { 65535 } else { 0 };
+    let p = (pv + ((i64::from(t - pv) * i64::from(rate[n as usize])) >> 16) as i32) as u32;
+    *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
+}
+
 struct Model {
     t: &'static Tables,
+    /// The profile's contexts, in order (`act[..na]`): the mixers read them as
+    /// inputs `0..na`, then the match model's two inputs and the bias. A
+    /// context outside the profile is never looked up or adapted and would
+    /// feed every mixer 0, which neither moves a dot product nor trains a
+    /// weight, so leaving it out is exactly the model with that input 0.
+    act: [usize; NC],
+    na: usize,
+    /// The mixer row stride: [`NINP`], or [`NINP_NARROW`] when `na + 3` fits.
+    stride: usize,
     mask: u32,
     mb: u32,
-    sp: Vec<u16>,
-    sn: Vec<u8>,
+    /// The context slots, 16 to a bucket: a slot holds its probability in
+    /// the low 16 bits and its count in the next 8, so a bucket is one 64-byte
+    /// line and a lookup touches one line (slot 0's count is the bucket's
+    /// check byte).
+    sl: Vec<Bucket>,
     hist: Vec<u8>,
     /// History bytes ahead of the coded ones in `hist` (a window frame's
     /// preceding outputs): the match model reaches into them.
@@ -266,6 +309,10 @@ struct Model {
     rcnt: Vec<u16>,
     r: u32,
     hb: [u32; NC],
+    /// The inputs and context hashes prefetch_next computed for the byte it
+    /// expected next.
+    spec_key: [u32; 8],
+    spec_hb: [u32; NC],
     bb: [u32; NC],
     ix: [u32; NC],
     st: [i32; NINP],
@@ -287,18 +334,33 @@ impl Model {
     /// The model for `n` bytes coded after `history` (a window frame's
     /// preceding outputs): the match model starts holding every history
     /// position, and every other model starts fresh.
-    fn new(n: u32, history: &[u8]) -> Model {
+    fn new(n: u32, history: &[u8], profile: u32) -> Model {
         let (mask, mb) = Model::sized(n);
+        let mut act = [0; NC];
+        let mut na = 0;
+        for k in 0..NC {
+            if profile >> k & 1 == 1 {
+                act[na] = k;
+                na += 1;
+            }
+        }
+        let stride = if na + 3 <= NINP_NARROW {
+            NINP_NARROW
+        } else {
+            NINP
+        };
         let mut msp = [0u16; 64];
         for (i, p) in msp.iter_mut().enumerate() {
             *p = if i % 2 == 1 { 60000 } else { 5536 };
         }
         let mut m = Model {
             t: tables(),
+            act,
+            na,
+            stride,
             mask,
             mb,
-            sp: vec![32768; mask as usize + 1],
-            sn: vec![0; mask as usize + 1],
+            sl: vec![Bucket([SLOT_FRESH; 16]); (mask as usize + 1) / 16],
             hist: Vec::with_capacity(history.len() + n as usize),
             hoff: history.len() as u32,
             pos: 0,
@@ -320,13 +382,15 @@ impl Model {
             rcnt: vec![0; 65536],
             r: 0,
             hb: [0; NC],
+            spec_key: [u32::MAX; 8],
+            spec_hb: [0; NC],
             bb: [0; NC],
             ix: [0; NC],
             st: [0; NINP],
             mi: 0,
-            w1: weights(256),
-            w2: weights(2048),
-            w3: weights(2048),
+            w1: weights(256, na + 3, stride),
+            w2: weights(2048, na + 3, stride),
+            w3: weights(2048, na + 3, stride),
             s1: 0,
             s2: 0,
             s3: 0,
@@ -417,17 +481,34 @@ impl Model {
             self.mexp = 0;
             self.mbucket = 0;
         }
-        self.hb = context_hashes(&Ctx {
+        let key = [
             pos,
-            c4: self.c4,
-            c8: self.c8,
-            wordh: self.wordh,
-            word1: self.word1,
-            r: self.r,
-            at: |i| self.at(i),
-            mexp: if self.mlen > 0 { self.mexp + 0x100 } else { 0 },
-            mbucket: self.mbucket,
-        });
+            self.c4,
+            self.c8,
+            self.wordh,
+            self.word1,
+            self.r,
+            if self.mlen > 0 { self.mexp + 0x100 } else { 0 },
+            self.mbucket,
+        ];
+        // The hashes prefetch_next computed for the byte it expected are
+        // these when every input matches (the bytes `at` reads behind `pos`
+        // are the same history either way).
+        self.hb = if self.spec_key == key {
+            self.spec_hb
+        } else {
+            context_hashes(&Ctx {
+                pos,
+                c4: key[1],
+                c8: key[2],
+                wordh: key[3],
+                word1: key[4],
+                r: key[5],
+                at: |i| self.at(i),
+                mexp: key[6],
+                mbucket: key[7],
+            })
+        };
     }
 
     /// Starts loading what the next bit will read, for the likelier value of
@@ -437,7 +518,7 @@ impl Model {
     /// the next APM row. A prefetch changes no result, only when memory is
     /// read, so a wrong guess costs a few loads and nothing else.
     #[inline(always)]
-    fn prefetch_next(&self, p: u32) {
+    fn prefetch_next(&mut self, p: u32) {
         let y = u32::from(p >= 2048);
         let c0 = (self.c0 << 1) | y;
         let (c4, c0) = if self.bit == 7 {
@@ -461,13 +542,23 @@ impl Model {
             } else {
                 (0, 0)
             };
-            let hb = context_hashes(&Ctx {
-                pos: pos + 1,
-                c4: (self.c4 << 8) | b,
-                c8: (self.c8 << 8) | (self.c4 >> 24),
+            let key = [
+                pos + 1,
+                (self.c4 << 8) | b,
+                (self.c8 << 8) | (self.c4 >> 24),
                 wordh,
                 word1,
-                r: self.r,
+                self.r,
+                mexp,
+                mbucket,
+            ];
+            let hb = context_hashes(&Ctx {
+                pos: key[0],
+                c4: key[1],
+                c8: key[2],
+                wordh,
+                word1,
+                r: key[5],
                 at,
                 mexp,
                 mbucket,
@@ -476,6 +567,8 @@ impl Model {
             if pa + 1 >= 7 {
                 prefetch(&self.mtab[self.match_key_by(pa + 1, abs)]);
             }
+            self.spec_key = key;
+            self.spec_hb = hb;
             ((self.c4 << 8) | b, 1)
         } else {
             if self.bit == 3 {
@@ -489,8 +582,8 @@ impl Model {
             (&self.w2, ((c4 & 255) * 8 + bit) as usize),
             (&self.w3, (((c4 >> 8) & 255) * 8 + bit) as usize),
         ] {
-            prefetch(&w[s * NINP]);
-            prefetch(&w[s * NINP + NINP - 1]);
+            prefetch(&w[s * self.stride]);
+            prefetch(&w[s * self.stride + self.stride - 1]);
         }
         let cx2 =
             h((c4 & 0xff_ffff).wrapping_mul(0x2F0B_4C27).wrapping_add(c0)) >> (32 - APM2_BITS);
@@ -501,12 +594,13 @@ impl Model {
 
     #[inline(always)]
     fn prefetch_buckets(&self, hb: &[u32; NC], nc: u32) {
-        for &hb in hb {
+        for &k in &self.act[..self.na] {
+            let hb = hb[k];
             let hh = h(hb.wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
             // a bucket and its neighbour share one 32-slot line pair
             let b = ((hh & self.mask) & !31) as usize;
-            prefetch(&self.sp[b]);
-            prefetch(&self.sn[b]);
+            prefetch(&self.sl[b >> 4]);
+            prefetch(&self.sl[(b >> 4) + 1]);
         }
     }
 
@@ -518,26 +612,23 @@ impl Model {
         let ck = ((hh >> 24) | 1) as u8;
         let b0 = (hh & self.mask) & !15;
         let alt = b0 ^ 16;
-        if self.sn[b0 as usize] == ck {
+        let count = |s: u32| (s >> 16) as u8;
+        let (x0, xa) = (&self.sl[b0 as usize >> 4].0, &self.sl[alt as usize >> 4].0);
+        if count(x0[0]) == ck {
             return b0;
         }
-        if self.sn[alt as usize] == ck {
+        if count(xa[0]) == ck {
             return alt;
         }
-        let b = if self.sn[b0 as usize + 1] > self.sn[alt as usize + 1] {
-            alt
-        } else {
-            b0
-        };
-        let b = b as usize;
-        self.sp[b..b + 16].fill(32768);
-        self.sn[b..b + 16].fill(0);
-        self.sn[b] = ck;
-        b as u32
+        let b = if count(x0[1]) > count(xa[1]) { alt } else { b0 };
+        let mut fresh = [SLOT_FRESH; 16];
+        fresh[0] |= u32::from(ck) << 16;
+        self.sl[b as usize >> 4].0 = fresh;
+        b
     }
 
     #[inline(always)]
-    fn predict<K: Kernel>(&mut self) -> u32 {
+    fn predict<K: Kernel, const W: usize>(&mut self) -> u32 {
         let t = self.t;
         if self.bit == 0 || self.bit == 4 {
             let nc = if self.bit == 0 {
@@ -545,9 +636,9 @@ impl Model {
             } else {
                 (self.c0 & 15) | 16
             };
-            for k in 0..NC {
-                let hh = h(self.hb[k].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
-                self.bb[k] = self.bucket(hh);
+            for j in 0..self.na {
+                let hh = h(self.hb[self.act[j]].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+                self.bb[j] = self.bucket(hh);
             }
         }
         let part = if self.bit < 4 {
@@ -555,10 +646,12 @@ impl Model {
         } else {
             (self.c0 & ((1 << (self.bit - 4)) - 1)) | (1 << (self.bit - 4))
         };
-        for k in 0..NC {
-            let i = self.bb[k] + part;
-            self.ix[k] = i;
-            self.st[k] = i32::from(t.stretch[usize::from(self.sp[i as usize] >> 4)]);
+        let na = self.na;
+        for j in 0..na {
+            let i = self.bb[j] + part;
+            self.ix[j] = i;
+            let p = self.sl[i as usize >> 4].0[i as usize & 15] & 0xffff;
+            self.st[j] = i32::from(t.stretch[(p >> 4) as usize]);
         }
         let mut eb = 0;
         if self.mlen > 0 {
@@ -571,25 +664,25 @@ impl Model {
             }
         }
         self.mi = (self.mbucket * 2 + eb) as usize;
-        self.st[NC] = if self.mlen > 0 {
+        self.st[na] = if self.mlen > 0 {
             i32::from(t.stretch[usize::from(self.msp[self.mi] >> 4)])
         } else {
             0
         };
         let vote = if self.mbucket > 15 { 1024 } else { 256 };
-        self.st[NC + 1] = if self.mlen == 0 {
+        self.st[na + 1] = if self.mlen == 0 {
             0
         } else if eb == 1 {
             vote
         } else {
             -vote
         };
-        self.st[NC + 2] = 256;
-        self.s1 = self.c0 as usize * NINP;
-        self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * NINP;
-        self.s3 = (((self.c4 >> 8) & 255) * 8 + self.bit) as usize * NINP;
-        let [a, b, c] = K::dot(
-            &self.st,
+        self.st[na + 2] = 256;
+        self.s1 = self.c0 as usize * W;
+        self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * W;
+        self.s3 = (((self.c4 >> 8) & 255) * 8 + self.bit) as usize * W;
+        let [a, b, c] = K::dot::<W>(
+            row(&self.st, 0),
             row(&self.w1, self.s1),
             row(&self.w2, self.s2),
             row(&self.w3, self.s3),
@@ -597,10 +690,12 @@ impl Model {
         let d1 = (a >> 16).clamp(-2047, 2047) as i32;
         let d2 = (b >> 16).clamp(-2047, 2047) as i32;
         let d3 = (c >> 16).clamp(-2047, 2047) as i32;
-        self.pm1 = squash(d1);
-        self.pm2 = squash(d2);
-        self.pm3 = squash(d3);
-        let p = squash((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
+        let sq = |d: i32| i32::from(t.squash[(d + 2048) as usize]);
+        self.pm1 = sq(d1);
+        self.pm2 = sq(d2);
+        self.pm3 = sq(d3);
+        // the mean of the three, in -2048..=2047
+        let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
         let q1 = self.a1.refine(&t.stretch, p, self.c0 as usize);
         let cx2 = h((self.c4 & 0xff_ffff)
             .wrapping_mul(0x2F0B_4C27)
@@ -613,13 +708,13 @@ impl Model {
     }
 
     #[inline(always)]
-    fn update<K: Kernel>(&mut self, y: bool) {
+    fn update<K: Kernel, const W: usize>(&mut self, y: bool) {
         self.a1.learn(y);
         self.a2.learn(y);
         let rate = &self.t.rate;
-        for k in 0..NC {
-            let i = self.ix[k] as usize;
-            adapt(&mut self.sp[i], &mut self.sn[i], y, rate);
+        for j in 0..self.na {
+            let i = self.ix[j] as usize;
+            adapt_slot(&mut self.sl[i >> 4].0[i & 15], y, rate);
         }
         if self.mlen > 0 {
             adapt(&mut self.msp[self.mi], &mut self.msn[self.mi], y, rate);
@@ -635,8 +730,8 @@ impl Model {
             (yb - self.pm2) * lr,
             (yb - self.pm3) * lr,
         ];
-        K::train(
-            &self.st,
+        K::train::<W>(
+            row(&self.st, 0),
             row_mut(&mut self.w1, self.s1),
             row_mut(&mut self.w2, self.s2),
             row_mut(&mut self.w3, self.s3),
@@ -674,35 +769,36 @@ impl Model {
     }
 }
 
-/// Fresh mixer weights for `rows` contexts: 1/4 on every input, 0 on padding.
-fn weights(rows: usize) -> Vec<i32> {
-    let mut w = vec![0; rows * NINP];
-    for r in w.chunks_exact_mut(NINP) {
-        r[..NIN].fill(1 << 14);
+/// Fresh mixer weights for `rows` contexts of `inputs` inputs in rows of
+/// `stride`: 1/4 on every input, 0 on padding.
+fn weights(rows: usize, inputs: usize, stride: usize) -> Vec<i32> {
+    let mut w = vec![0; rows * stride];
+    for r in w.chunks_exact_mut(stride) {
+        r[..inputs].fill(1 << 14);
     }
     w
 }
 
 #[inline(always)]
-fn row(w: &[i32], s: usize) -> &[i32; NINP] {
-    w[s..s + NINP].try_into().expect("row")
+fn row<const W: usize>(w: &[i32], s: usize) -> &[i32; W] {
+    w[s..s + W].try_into().expect("row")
 }
 
 #[inline(always)]
-fn row_mut(w: &mut [i32], s: usize) -> &mut [i32; NINP] {
-    (&mut w[s..s + NINP]).try_into().expect("row")
+fn row_mut<const W: usize>(w: &mut [i32], s: usize) -> &mut [i32; W] {
+    (&mut w[s..s + W]).try_into().expect("row")
 }
 
 /// The three mixers' arithmetic: the exact dot products of the inputs with
 /// three weight rows, and the bounded Hebbian step on those rows. Every kernel
 /// computes the same integers; only the instructions differ.
 trait Kernel {
-    fn dot(x: &[i32; NINP], w1: &[i32; NINP], w2: &[i32; NINP], w3: &[i32; NINP]) -> [i64; 3];
-    fn train(
-        x: &[i32; NINP],
-        w1: &mut [i32; NINP],
-        w2: &mut [i32; NINP],
-        w3: &mut [i32; NINP],
+    fn dot<const W: usize>(x: &[i32; W], w1: &[i32; W], w2: &[i32; W], w3: &[i32; W]) -> [i64; 3];
+    fn train<const W: usize>(
+        x: &[i32; W],
+        w1: &mut [i32; W],
+        w2: &mut [i32; W],
+        w3: &mut [i32; W],
         e: [i32; 3],
     );
 }
@@ -713,9 +809,9 @@ struct Scalar;
 
 impl Kernel for Scalar {
     #[inline(always)]
-    fn dot(x: &[i32; NINP], w1: &[i32; NINP], w2: &[i32; NINP], w3: &[i32; NINP]) -> [i64; 3] {
+    fn dot<const W: usize>(x: &[i32; W], w1: &[i32; W], w2: &[i32; W], w3: &[i32; W]) -> [i64; 3] {
         let (mut a, mut b, mut c) = (0i64, 0i64, 0i64);
-        for i in 0..NIN {
+        for i in 0..W {
             let x = i64::from(x[i]);
             a += x * i64::from(w1[i]);
             b += x * i64::from(w2[i]);
@@ -725,14 +821,14 @@ impl Kernel for Scalar {
     }
 
     #[inline(always)]
-    fn train(
-        x: &[i32; NINP],
-        w1: &mut [i32; NINP],
-        w2: &mut [i32; NINP],
-        w3: &mut [i32; NINP],
+    fn train<const W: usize>(
+        x: &[i32; W],
+        w1: &mut [i32; W],
+        w2: &mut [i32; W],
+        w3: &mut [i32; W],
         e: [i32; 3],
     ) {
-        for i in 0..NIN {
+        for i in 0..W {
             let learn = |w: &mut i32, e: i32| {
                 *w = (*w + ((x[i] * e) >> 16)).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
             };
@@ -769,15 +865,15 @@ macro_rules! dispatch {
 
 #[cfg(target_arch = "x86_64")]
 mod x86 {
-    use super::{Kernel, NINP, WEIGHT_LIMIT};
+    use super::{Kernel, WEIGHT_LIMIT};
     use std::arch::x86_64::*;
 
     pub(super) struct Avx2;
 
     /// The encoder loop compiled for AVX2.
     #[target_feature(enable = "avx2")]
-    pub(super) fn encoder(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
-        super::encoder::<Avx2>(history, data)
+    pub(super) fn encoder(history: &[u8], data: &[u8], profile: u32) -> Option<Vec<u8>> {
+        super::encoder::<Avx2>(history, data, profile)
     }
 
     /// The decoder loop compiled for AVX2.
@@ -787,17 +883,18 @@ mod x86 {
         payload: &[u8],
         limit: u64,
         canonical: bool,
+        profile: u32,
     ) -> Option<Vec<u8>> {
-        super::decoder::<Avx2>(history, payload, limit, canonical)
+        super::decoder::<Avx2>(history, payload, limit, canonical, profile)
     }
 
     /// Eight lanes of a row.
     ///
     /// # Safety
-    /// AVX2 must be available and `i * 8 + 8 <= NINP`.
+    /// AVX2 must be available and `i * 8 + 8 <= W`.
     #[target_feature(enable = "avx2")]
     #[inline]
-    unsafe fn lanes(r: &[i32; NINP], i: usize) -> __m256i {
+    unsafe fn lanes<const W: usize>(r: &[i32; W], i: usize) -> __m256i {
         // SAFETY: the caller keeps the eight lanes inside the row.
         unsafe { _mm256_loadu_si256(r.as_ptr().add(i * 8).cast()) }
     }
@@ -822,19 +919,19 @@ mod x86 {
     /// AVX2 must be available.
     #[target_feature(enable = "avx2")]
     #[inline]
-    unsafe fn dot(
-        x: &[i32; NINP],
-        w1: &[i32; NINP],
-        w2: &[i32; NINP],
-        w3: &[i32; NINP],
+    unsafe fn dot<const W: usize>(
+        x: &[i32; W],
+        w1: &[i32; W],
+        w2: &[i32; W],
+        w3: &[i32; W],
     ) -> [i64; 3] {
         let (mut a, mut b, mut c) = (
             _mm256_setzero_si256(),
             _mm256_setzero_si256(),
             _mm256_setzero_si256(),
         );
-        for i in 0..NINP / 8 {
-            // SAFETY: AVX2 is available and i < NINP / 8.
+        for i in 0..W / 8 {
+            // SAFETY: AVX2 is available and i < W / 8.
             unsafe {
                 let xe = lanes(x, i);
                 let xo = _mm256_srli_epi64::<32>(xe);
@@ -850,19 +947,19 @@ mod x86 {
     /// AVX2 must be available.
     #[target_feature(enable = "avx2")]
     #[inline]
-    unsafe fn train(
-        x: &[i32; NINP],
-        w1: &mut [i32; NINP],
-        w2: &mut [i32; NINP],
-        w3: &mut [i32; NINP],
+    unsafe fn train<const W: usize>(
+        x: &[i32; W],
+        w1: &mut [i32; W],
+        w2: &mut [i32; W],
+        w3: &mut [i32; W],
         e: [i32; 3],
     ) {
         let (hi, lo) = (
             _mm256_set1_epi32(WEIGHT_LIMIT),
             _mm256_set1_epi32(-WEIGHT_LIMIT),
         );
-        for i in 0..NINP / 8 {
-            // SAFETY: AVX2 is available and i < NINP / 8.
+        for i in 0..W / 8 {
+            // SAFETY: AVX2 is available and i < W / 8.
             unsafe {
                 let xv = lanes(x, i);
                 step(w1, i, xv, e[0], hi, lo);
@@ -875,10 +972,17 @@ mod x86 {
     /// `w += (x * e) >> 16`, clamped to `lo..=hi`, on eight lanes of a row.
     ///
     /// # Safety
-    /// AVX2 must be available and `i * 8 + 8 <= NINP`.
+    /// AVX2 must be available and `i * 8 + 8 <= W`.
     #[target_feature(enable = "avx2")]
     #[inline]
-    unsafe fn step(w: &mut [i32; NINP], i: usize, x: __m256i, e: i32, hi: __m256i, lo: __m256i) {
+    unsafe fn step<const W: usize>(
+        w: &mut [i32; W],
+        i: usize,
+        x: __m256i,
+        e: i32,
+        hi: __m256i,
+        lo: __m256i,
+    ) {
         // SAFETY: the caller keeps the eight lanes inside the row.
         unsafe {
             let p = w.as_mut_ptr().add(i * 8).cast::<__m256i>();
@@ -890,17 +994,22 @@ mod x86 {
 
     impl Kernel for Avx2 {
         #[inline(always)]
-        fn dot(x: &[i32; NINP], w1: &[i32; NINP], w2: &[i32; NINP], w3: &[i32; NINP]) -> [i64; 3] {
+        fn dot<const W: usize>(
+            x: &[i32; W],
+            w1: &[i32; W],
+            w2: &[i32; W],
+            w3: &[i32; W],
+        ) -> [i64; 3] {
             // SAFETY: `Avx2` is only used once AVX2 has been detected.
             unsafe { dot(x, w1, w2, w3) }
         }
 
         #[inline(always)]
-        fn train(
-            x: &[i32; NINP],
-            w1: &mut [i32; NINP],
-            w2: &mut [i32; NINP],
-            w3: &mut [i32; NINP],
+        fn train<const W: usize>(
+            x: &[i32; W],
+            w1: &mut [i32; W],
+            w2: &mut [i32; W],
+            w3: &mut [i32; W],
             e: [i32; 3],
         ) {
             // SAFETY: `Avx2` is only used once AVX2 has been detected.
@@ -911,22 +1020,27 @@ mod x86 {
 
 #[cfg(target_arch = "aarch64")]
 mod arm {
-    use super::{Kernel, NINP, WEIGHT_LIMIT};
+    use super::{Kernel, WEIGHT_LIMIT};
     use std::arch::aarch64::*;
 
     pub(super) struct Neon;
 
     impl Kernel for Neon {
         #[inline(always)]
-        fn dot(x: &[i32; NINP], w1: &[i32; NINP], w2: &[i32; NINP], w3: &[i32; NINP]) -> [i64; 3] {
+        fn dot<const W: usize>(
+            x: &[i32; W],
+            w1: &[i32; W],
+            w2: &[i32; W],
+            w3: &[i32; W],
+        ) -> [i64; 3] {
             // SAFETY: NEON is part of aarch64, and every 4-lane load at
-            // i * 4 < NINP stays inside its row.
+            // i * 4 < W stays inside its row.
             unsafe {
                 let (mut a, mut b, mut c) = (vdupq_n_s64(0), vdupq_n_s64(0), vdupq_n_s64(0));
-                for i in 0..NINP / 4 {
+                for i in 0..W / 4 {
                     let xv = vld1q_s32(x.as_ptr().add(i * 4));
                     let xl = vget_low_s32(xv);
-                    let acc = |s: int64x2_t, w: &[i32; NINP]| {
+                    let acc = |s: int64x2_t, w: &[i32; W]| {
                         let wv = vld1q_s32(w.as_ptr().add(i * 4));
                         vmlal_high_s32(vmlal_s32(s, xl, vget_low_s32(wv)), xv, wv)
                     };
@@ -939,18 +1053,18 @@ mod arm {
         }
 
         #[inline(always)]
-        fn train(
-            x: &[i32; NINP],
-            w1: &mut [i32; NINP],
-            w2: &mut [i32; NINP],
-            w3: &mut [i32; NINP],
+        fn train<const W: usize>(
+            x: &[i32; W],
+            w1: &mut [i32; W],
+            w2: &mut [i32; W],
+            w3: &mut [i32; W],
             e: [i32; 3],
         ) {
             // SAFETY: NEON is part of aarch64, and every 4-lane access at
-            // i * 4 < NINP stays inside its row.
+            // i * 4 < W stays inside its row.
             unsafe {
                 let (hi, lo) = (vdupq_n_s32(WEIGHT_LIMIT), vdupq_n_s32(-WEIGHT_LIMIT));
-                for i in 0..NINP / 4 {
+                for i in 0..W / 4 {
                     let xv = vld1q_s32(x.as_ptr().add(i * 4));
                     for (w, e) in [(&mut *w1, e[0]), (&mut *w2, e[1]), (&mut *w3, e[2])] {
                         let p = w.as_mut_ptr().add(i * 4);
@@ -973,21 +1087,44 @@ pub fn encode(data: &[u8]) -> Option<Vec<u8>> {
 /// [`encode`] for a window frame: `data` coded after `history`, which the
 /// match model reaches into (`Ncm.encodeWith`).
 pub fn encode_with(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
-    dispatch!(encoder(history, data))
+    dispatch!(encoder(history, data, FULL))
+}
+
+/// Whether `profile` names an ncm profile: a nonempty set of the 17 contexts.
+pub fn valid_profile(profile: u32) -> bool {
+    profile != 0 && profile & !FULL == 0
+}
+
+/// [`encode_with`] with only the contexts of `profile` (a [`valid_profile`]):
+/// the payload decodes only with the same profile.
+pub fn encode_profile(history: &[u8], data: &[u8], profile: u32) -> Option<Vec<u8>> {
+    if !valid_profile(profile) {
+        return None;
+    }
+    dispatch!(encoder(history, data, profile))
 }
 
 #[inline(always)]
-fn encoder<K: Kernel>(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
+fn encoder<K: Kernel>(history: &[u8], data: &[u8], profile: u32) -> Option<Vec<u8>> {
     let n = u32::try_from(data.len()).ok()?;
+    let m = Model::new(n, history, profile);
+    if m.stride == NINP_NARROW {
+        encode_bits::<K, NINP_NARROW>(m, data)
+    } else {
+        encode_bits::<K, NINP>(m, data)
+    }
+}
+
+#[inline(always)]
+fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8]) -> Option<Vec<u8>> {
     let cap = 2 * data.len() + 64;
     let mut out = Vec::with_capacity(data.len() / 2 + 16);
-    out.extend_from_slice(&n.to_be_bytes());
-    let mut m = Model::new(n, history);
+    out.extend_from_slice(&(data.len() as u32).to_be_bytes());
     let (mut x1, mut x2) = (0u32, u32::MAX);
     for &byte in data {
         for k in (0..8).rev() {
             let y = (byte >> k) & 1 == 1;
-            let p = m.predict::<K>();
+            let p = m.predict::<K, W>();
             let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
             if y {
                 x2 = xm;
@@ -1002,7 +1139,7 @@ fn encoder<K: Kernel>(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
                 x1 <<= 8;
                 x2 = (x2 << 8) | 255;
             }
-            m.update::<K>(y);
+            m.update::<K, W>(y);
         }
     }
     if out.len() - 4 >= cap {
@@ -1048,8 +1185,22 @@ pub fn decode_canonical_with(history: &[u8], payload: &[u8], n: u64) -> Option<V
     run_decoder(history, payload, n, true)
 }
 
+/// [`decode_canonical_with`] for a payload coded with `profile` (a
+/// [`valid_profile`]).
+pub fn decode_canonical_profile(
+    history: &[u8],
+    payload: &[u8],
+    n: u64,
+    profile: u32,
+) -> Option<Vec<u8>> {
+    if !valid_profile(profile) || declared_length(payload).map(u64::from) != Some(n) {
+        return None;
+    }
+    dispatch!(decoder(history, payload, n, true, profile))
+}
+
 fn run_decoder(history: &[u8], payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
-    dispatch!(decoder(history, payload, limit, canonical))
+    dispatch!(decoder(history, payload, limit, canonical, FULL))
 }
 
 #[inline(always)]
@@ -1058,11 +1209,28 @@ fn decoder<K: Kernel>(
     payload: &[u8],
     limit: u64,
     canonical: bool,
+    profile: u32,
 ) -> Option<Vec<u8>> {
     let n = declared_length(payload)?;
     if u64::from(n) > limit {
         return None;
     }
+    let m = Model::new(n, history, profile);
+    if m.stride == NINP_NARROW {
+        decode_bits::<K, NINP_NARROW>(m, history.len(), payload, canonical)
+    } else {
+        decode_bits::<K, NINP>(m, history.len(), payload, canonical)
+    }
+}
+
+#[inline(always)]
+fn decode_bits<K: Kernel, const W: usize>(
+    mut m: Model,
+    history: usize,
+    payload: &[u8],
+    canonical: bool,
+) -> Option<Vec<u8>> {
+    let n = declared_length(payload)?;
     let cap = 2 * n as usize + 64;
     let mut ip = 4usize;
     let mut x = 0u32;
@@ -1072,11 +1240,10 @@ fn decoder<K: Kernel>(
     }
     // coder bytes the encoder has emitted so far
     let mut emitted = 0usize;
-    let mut m = Model::new(n, history);
     let (mut x1, mut x2) = (0u32, u32::MAX);
     for _ in 0..n {
         for _ in 0..8 {
-            let p = m.predict::<K>();
+            let p = m.predict::<K, W>();
             let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
             let y = x <= xm;
             if y {
@@ -1096,7 +1263,7 @@ fn decoder<K: Kernel>(
                 x = (x << 8) | u32::from(payload.get(ip).copied().unwrap_or(255));
                 ip += 1;
             }
-            m.update::<K>(y);
+            m.update::<K, W>(y);
         }
     }
     if canonical
@@ -1107,7 +1274,7 @@ fn decoder<K: Kernel>(
         return None;
     }
     let mut out = m.hist;
-    out.drain(..history.len());
+    out.drain(..history);
     Some(out)
 }
 
@@ -1146,16 +1313,52 @@ mod tests {
             .collect();
         let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
         for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
-            let p = encoder::<Scalar>(&[], data).expect("fits");
+            let p = encoder::<Scalar>(&[], data, FULL).expect("fits");
             assert_eq!(encode(data).as_deref(), Some(&p[..]));
             let n = data.len() as u64;
             assert_eq!(decode(&p, n).as_deref(), Some(data));
-            assert_eq!(decoder::<Scalar>(&[], &p, n, true).as_deref(), Some(data));
+            assert_eq!(
+                decoder::<Scalar>(&[], &p, n, true, FULL).as_deref(),
+                Some(data)
+            );
             // and after a window history
-            let w = encoder::<Scalar>(&text[..999], data).expect("fits");
+            let w = encoder::<Scalar>(&text[..999], data, FULL).expect("fits");
             assert_eq!(encode_with(&text[..999], data).as_deref(), Some(&w[..]));
             assert_eq!(decode_with(&text[..999], &w, n).as_deref(), Some(data));
+            // and under narrow and wide profiles
+            for profile in [0x1059e, 0x1e79f, 1] {
+                let p = encoder::<Scalar>(&text[..999], data, profile).expect("fits");
+                assert_eq!(
+                    encode_profile(&text[..999], data, profile).as_deref(),
+                    Some(&p[..])
+                );
+                assert_eq!(
+                    decode_canonical_profile(&text[..999], &p, n, profile).as_deref(),
+                    Some(data)
+                );
+            }
         }
+    }
+
+    /// A profile is the model with the left-out contexts' inputs held at 0:
+    /// every profile codes, and only its own profile reads its payload.
+    #[test]
+    fn profiles_round_trip_and_differ() {
+        let text = b"profiles leave contexts out; the mixers never see them. ".repeat(80);
+        let full = encode(&text).expect("fits");
+        assert_eq!(encode_profile(&[], &text, FULL), Some(full.clone()));
+        for profile in [1, 0x1059e, 0x1e79f, FULL >> 1] {
+            let p = encode_profile(&[], &text, profile).expect("fits");
+            assert_ne!(p, full);
+            let n = text.len() as u64;
+            assert_eq!(
+                decode_canonical_profile(&[], &p, n, profile).as_deref(),
+                Some(&text[..])
+            );
+            assert_eq!(decode_canonical_profile(&[], &p, n, FULL), None);
+        }
+        assert!(!valid_profile(0) && !valid_profile(FULL + 1));
+        assert_eq!(encode_profile(&[], &text, 0), None);
     }
 
     #[test]
