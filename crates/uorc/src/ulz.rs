@@ -1,16 +1,17 @@
-//! Native ulz codec: the LZ + adaptive range coder of `Uorc.Codec.LzEncode`
-//! and `Uorc.Codec.LzDecode` (client/src/Uorc/Codec), ported operation for
-//! operation so that [`encode`] writes exactly the payload the LexLean encoder
-//! writes, and [`decode`] reconstructs exactly what the LexLean decoder (and the
-//! ulz kernel graph) reconstructs.
+//! Native ulz decoder: the LZ + adaptive range coder of `Uorc.Codec.LzDecode`
+//! (client/src/Uorc/Codec), ported operation for operation so that [`decode`]
+//! reconstructs exactly what the LexLean decoder (and the ulz kernel graph)
+//! reconstructs. The client compresses with ncm only; this decoder reads the
+//! ulz archives earlier versions wrote. The port of `Uorc.Codec.LzEncode`
+//! stays in the tests, which build those archives with it.
 //!
 //! The decoder is deliberately partial. It accepts only payloads on which every
 //! reading of the bitstream agrees: the range coder keeps `code < range`, every
 //! match source lies inside the output, no match runs past the declared length,
 //! and the coder consumes the payload exactly. Any other payload is declined
 //! with `None`, and the caller hands the archive to the exported reference
-//! decoder, which applies the model's semantics to it. Every payload [`encode`]
-//! writes is accepted (checked in the tests).
+//! decoder, which applies the model's semantics to it. Every payload the
+//! encoder writes is accepted (checked in the tests).
 
 /// Probability model size (`Table::fill 2 13 1024`).
 const PROBS: usize = 1 << 13;
@@ -27,9 +28,6 @@ const SPEC: usize = 6472;
 const ALIGN: usize = 6587;
 const LEN: usize = 6603;
 const REP_LEN: usize = 7149;
-const MAX_MATCH: usize = 273;
-const NICE: usize = 64;
-const DEPTH: usize = 48;
 
 fn after_literal(s: usize) -> usize {
     if s < 4 {
@@ -71,400 +69,413 @@ fn literal_base(prev: u8) -> usize {
 
 // ---------------------------------------------------------------- encoder
 
-struct RangeEncoder {
-    low: u64,
-    range: u32,
-    cache: u8,
-    pending: u64,
-    out: Vec<u8>,
-}
+/// The port of `Uorc.Codec.LzEncode`, byte for byte, which the tests use to
+/// write the ulz archives earlier clients wrote.
+#[cfg(test)]
+pub(crate) mod encoder {
+    use super::*;
 
-impl RangeEncoder {
-    fn new(capacity: usize) -> Self {
-        RangeEncoder {
-            low: 0,
-            range: u32::MAX,
-            cache: 0,
-            pending: 1,
-            out: Vec::with_capacity(capacity),
-        }
+    const MAX_MATCH: usize = 273;
+    const NICE: usize = 64;
+    const DEPTH: usize = 48;
+
+    struct RangeEncoder {
+        low: u64,
+        range: u32,
+        cache: u8,
+        pending: u64,
+        out: Vec<u8>,
     }
 
-    fn shift_low(&mut self) {
-        if self.low < 0xFF00_0000 || self.low >= 1 << 32 {
-            let carry = (self.low >> 32) as u8;
-            self.out.push(self.cache.wrapping_add(carry));
-            for _ in 1..self.pending {
-                self.out.push(0xFFu8.wrapping_add(carry));
+    impl RangeEncoder {
+        fn new(capacity: usize) -> Self {
+            RangeEncoder {
+                low: 0,
+                range: u32::MAX,
+                cache: 0,
+                pending: 1,
+                out: Vec::with_capacity(capacity),
             }
-            self.cache = (self.low >> 24) as u8;
-            self.pending = 1;
-        } else {
-            self.pending += 1;
         }
-        self.low = (self.low & 0x00FF_FFFF) << 8;
-    }
 
-    #[inline(always)]
-    fn normalize(&mut self) {
-        if self.range < TOP {
-            self.range <<= 8;
-            self.shift_low();
-        }
-    }
-
-    #[inline(always)]
-    fn bit(&mut self, probs: &mut [u16], at: usize, bit: u32) {
-        let v = u32::from(probs[at]);
-        let bound = (self.range >> 11) * v;
-        if bit == 0 {
-            self.range = bound;
-            probs[at] = (v + ((2048 - v) >> 5)) as u16;
-        } else {
-            self.low += u64::from(bound);
-            self.range -= bound;
-            probs[at] = (v - (v >> 5)) as u16;
-        }
-        self.normalize();
-    }
-
-    fn direct(&mut self, value: u32, bits: u32) {
-        for k in (0..bits).rev() {
-            let half = self.range >> 1;
-            if (value >> k) & 1 == 1 {
-                self.low += u64::from(half);
+        fn shift_low(&mut self) {
+            if self.low < 0xFF00_0000 || self.low >= 1 << 32 {
+                let carry = (self.low >> 32) as u8;
+                self.out.push(self.cache.wrapping_add(carry));
+                for _ in 1..self.pending {
+                    self.out.push(0xFFu8.wrapping_add(carry));
+                }
+                self.cache = (self.low >> 24) as u8;
+                self.pending = 1;
+            } else {
+                self.pending += 1;
             }
-            self.range = half;
+            self.low = (self.low & 0x00FF_FFFF) << 8;
+        }
+
+        #[inline(always)]
+        fn normalize(&mut self) {
+            if self.range < TOP {
+                self.range <<= 8;
+                self.shift_low();
+            }
+        }
+
+        #[inline(always)]
+        fn bit(&mut self, probs: &mut [u16], at: usize, bit: u32) {
+            let v = u32::from(probs[at]);
+            let bound = (self.range >> 11) * v;
+            if bit == 0 {
+                self.range = bound;
+                probs[at] = (v + ((2048 - v) >> 5)) as u16;
+            } else {
+                self.low += u64::from(bound);
+                self.range -= bound;
+                probs[at] = (v - (v >> 5)) as u16;
+            }
             self.normalize();
         }
-    }
 
-    fn tree(&mut self, probs: &mut [u16], base: usize, bits: u32, value: u32) {
-        let mut m = 1usize;
-        for k in (0..bits).rev() {
-            let b = (value >> k) & 1;
-            self.bit(probs, base + m, b);
-            m = (m << 1) | b as usize;
-        }
-    }
-
-    fn reverse(&mut self, probs: &mut [u16], base: usize, bits: u32, mut value: u32) {
-        let mut m = 1usize;
-        for _ in 0..bits {
-            let b = value & 1;
-            value >>= 1;
-            self.bit(probs, base + m, b);
-            m = (m << 1) | b as usize;
-        }
-    }
-
-    fn length(&mut self, probs: &mut [u16], base: usize, v: u32) {
-        if v < 8 {
-            self.bit(probs, base, 0);
-            self.tree(probs, base + 2, 3, v);
-        } else if v < 16 {
-            self.bit(probs, base, 1);
-            self.bit(probs, base + 1, 0);
-            self.tree(probs, base + 18, 3, v - 8);
-        } else {
-            self.bit(probs, base, 1);
-            self.bit(probs, base + 1, 1);
-            self.tree(probs, base + 34, 8, v - 16);
-        }
-    }
-
-    fn distance(&mut self, probs: &mut [u16], dist: u32, len_code: u32) {
-        let ls = len_code.min(3) as usize;
-        let slot = if dist < 4 {
-            dist
-        } else {
-            let top = 31 - dist.leading_zeros();
-            2 * top + ((dist >> (top - 1)) & 1)
-        };
-        self.tree(probs, SLOT + 64 * ls, 6, slot);
-        if slot >= 4 {
-            let fb = (slot >> 1) - 1;
-            let base = (2 + (slot & 1)) << fb;
-            let reduced = dist - base;
-            if slot < 14 {
-                self.reverse(probs, SPEC + base as usize - slot as usize, fb, reduced);
-            } else {
-                self.direct(reduced >> 4, fb - 4);
-                self.reverse(probs, ALIGN, 4, reduced & 15);
-            }
-        }
-    }
-
-    fn literal(&mut self, probs: &mut [u16], base: usize, value: u8, match_byte: Option<u8>) {
-        let value = u32::from(value);
-        let Some(mb) = match_byte else {
-            self.tree(probs, base, 8, value);
-            return;
-        };
-        let mb = u32::from(mb);
-        let mut sym = 1usize;
-        for k in (0..8).rev() {
-            let mbit = (mb >> k) & 1;
-            let b = (value >> k) & 1;
-            self.bit(probs, base + 256 * (1 + mbit as usize) + sym, b);
-            sym = (sym << 1) | b as usize;
-            if b != mbit {
-                for j in (0..k).rev() {
-                    let b = (value >> j) & 1;
-                    self.bit(probs, base + sym, b);
-                    sym = (sym << 1) | b as usize;
+        fn direct(&mut self, value: u32, bits: u32) {
+            for k in (0..bits).rev() {
+                let half = self.range >> 1;
+                if (value >> k) & 1 == 1 {
+                    self.low += u64::from(half);
                 }
+                self.range = half;
+                self.normalize();
+            }
+        }
+
+        fn tree(&mut self, probs: &mut [u16], base: usize, bits: u32, value: u32) {
+            let mut m = 1usize;
+            for k in (0..bits).rev() {
+                let b = (value >> k) & 1;
+                self.bit(probs, base + m, b);
+                m = (m << 1) | b as usize;
+            }
+        }
+
+        fn reverse(&mut self, probs: &mut [u16], base: usize, bits: u32, mut value: u32) {
+            let mut m = 1usize;
+            for _ in 0..bits {
+                let b = value & 1;
+                value >>= 1;
+                self.bit(probs, base + m, b);
+                m = (m << 1) | b as usize;
+            }
+        }
+
+        fn length(&mut self, probs: &mut [u16], base: usize, v: u32) {
+            if v < 8 {
+                self.bit(probs, base, 0);
+                self.tree(probs, base + 2, 3, v);
+            } else if v < 16 {
+                self.bit(probs, base, 1);
+                self.bit(probs, base + 1, 0);
+                self.tree(probs, base + 18, 3, v - 8);
+            } else {
+                self.bit(probs, base, 1);
+                self.bit(probs, base + 1, 1);
+                self.tree(probs, base + 34, 8, v - 16);
+            }
+        }
+
+        fn distance(&mut self, probs: &mut [u16], dist: u32, len_code: u32) {
+            let ls = len_code.min(3) as usize;
+            let slot = if dist < 4 {
+                dist
+            } else {
+                let top = 31 - dist.leading_zeros();
+                2 * top + ((dist >> (top - 1)) & 1)
+            };
+            self.tree(probs, SLOT + 64 * ls, 6, slot);
+            if slot >= 4 {
+                let fb = (slot >> 1) - 1;
+                let base = (2 + (slot & 1)) << fb;
+                let reduced = dist - base;
+                if slot < 14 {
+                    self.reverse(probs, SPEC + base as usize - slot as usize, fb, reduced);
+                } else {
+                    self.direct(reduced >> 4, fb - 4);
+                    self.reverse(probs, ALIGN, 4, reduced & 15);
+                }
+            }
+        }
+
+        fn literal(&mut self, probs: &mut [u16], base: usize, value: u8, match_byte: Option<u8>) {
+            let value = u32::from(value);
+            let Some(mb) = match_byte else {
+                self.tree(probs, base, 8, value);
                 return;
+            };
+            let mb = u32::from(mb);
+            let mut sym = 1usize;
+            for k in (0..8).rev() {
+                let mbit = (mb >> k) & 1;
+                let b = (value >> k) & 1;
+                self.bit(probs, base + 256 * (1 + mbit as usize) + sym, b);
+                sym = (sym << 1) | b as usize;
+                if b != mbit {
+                    for j in (0..k).rev() {
+                        let b = (value >> j) & 1;
+                        self.bit(probs, base + sym, b);
+                        sym = (sym << 1) | b as usize;
+                    }
+                    return;
+                }
             }
         }
-    }
 
-    fn finish(mut self) -> Vec<u8> {
-        for _ in 0..5 {
-            self.shift_low();
-        }
-        self.out
-    }
-}
-
-const HASH3_BITS: u32 = 16;
-
-/// Bits of the 4-byte hash table for `n` bytes of encoder input: the bit
-/// length of `n + 1` clamped to [16, 22] (`LzEncode.start`).
-fn hash4_bits(n: usize) -> u32 {
-    let mut d = 0u32;
-    while (1u64 << d) < n as u64 + 1 {
-        d += 1;
-    }
-    d.clamp(16, 22)
-}
-
-struct Finder<'a> {
-    data: &'a [u8],
-    /// Most recent position (+1) of each 3-byte hash.
-    head3: Vec<u32>,
-    /// Most recent position (+1) of each 4-byte hash, chained through `chain`.
-    head: Vec<u32>,
-    bits: u32,
-    chain: Vec<u32>,
-}
-
-impl Finder<'_> {
-    #[inline(always)]
-    fn at(&self, i: usize) -> u8 {
-        self.data.get(i).copied().unwrap_or(0)
-    }
-
-    #[inline(always)]
-    fn hash3(&self, i: usize) -> usize {
-        let x = (u64::from(self.data[i]) << 16)
-            | (u64::from(self.data[i + 1]) << 8)
-            | u64::from(self.data[i + 2]);
-        ((x * 2_654_435_761) >> 16) as usize & ((1 << HASH3_BITS) - 1)
-    }
-
-    #[inline(always)]
-    fn hash4(&self, i: usize) -> usize {
-        let x = u64::from(u32::from_le_bytes(
-            self.data[i..i + 4].try_into().unwrap_or([0; 4]),
-        ));
-        ((x * 2_654_435_761) >> (32 - self.bits)) as usize & ((1 << self.bits) - 1)
-    }
-
-    #[inline(always)]
-    fn insert(&mut self, i: usize) {
-        if i + 3 < self.data.len() {
-            let k = self.hash4(i);
-            self.chain[i] = self.head[k];
-            self.head[k] = i as u32 + 1;
-        }
-        if i + 2 < self.data.len() {
-            let k = self.hash3(i);
-            self.head3[k] = i as u32 + 1;
-        }
-    }
-
-    /// Length of the common run of `a..` and `b..` (a < b), at most `limit`.
-    #[inline(always)]
-    fn common(&self, a: usize, b: usize, limit: usize) -> usize {
-        let x = &self.data[a..a + limit];
-        let y = &self.data[b..b + limit];
-        let mut l = 0;
-        while l + 8 <= limit {
-            let diff = u64::from_le_bytes(x[l..l + 8].try_into().unwrap_or([0; 8]))
-                ^ u64::from_le_bytes(y[l..l + 8].try_into().unwrap_or([0; 8]));
-            if diff != 0 {
-                return l + (diff.trailing_zeros() / 8) as usize;
+        fn finish(mut self) -> Vec<u8> {
+            for _ in 0..5 {
+                self.shift_low();
             }
-            l += 8;
+            self.out
         }
-        while l < limit && x[l] == y[l] {
-            l += 1;
-        }
-        l
     }
 
-    fn find(&self, i: usize) -> (usize, usize) {
-        let n = self.data.len();
-        if n <= i + 2 {
-            return (0, 0);
+    const HASH3_BITS: u32 = 16;
+
+    /// Bits of the 4-byte hash table for `n` bytes of encoder input: the bit
+    /// length of `n + 1` clamped to [16, 22] (`LzEncode.start`).
+    fn hash4_bits(n: usize) -> u32 {
+        let mut d = 0u32;
+        while (1u64 << d) < n as u64 + 1 {
+            d += 1;
         }
-        let limit = (n - i).min(MAX_MATCH);
-        let (mut best, mut dist) = (0usize, 0usize);
-        let c3 = self.head3[self.hash3(i)];
-        if c3 != 0 {
-            let j = c3 as usize - 1;
-            let l = self.common(j, i, limit);
-            if l >= 2 {
-                best = l;
-                dist = i - (j + 1);
+        d.clamp(16, 22)
+    }
+
+    struct Finder<'a> {
+        data: &'a [u8],
+        /// Most recent position (+1) of each 3-byte hash.
+        head3: Vec<u32>,
+        /// Most recent position (+1) of each 4-byte hash, chained through `chain`.
+        head: Vec<u32>,
+        bits: u32,
+        chain: Vec<u32>,
+    }
+
+    impl Finder<'_> {
+        #[inline(always)]
+        fn at(&self, i: usize) -> u8 {
+            self.data.get(i).copied().unwrap_or(0)
+        }
+
+        #[inline(always)]
+        fn hash3(&self, i: usize) -> usize {
+            let x = (u64::from(self.data[i]) << 16)
+                | (u64::from(self.data[i + 1]) << 8)
+                | u64::from(self.data[i + 2]);
+            ((x * 2_654_435_761) >> 16) as usize & ((1 << HASH3_BITS) - 1)
+        }
+
+        #[inline(always)]
+        fn hash4(&self, i: usize) -> usize {
+            let x = u64::from(u32::from_le_bytes(
+                self.data[i..i + 4].try_into().unwrap_or([0; 4]),
+            ));
+            ((x * 2_654_435_761) >> (32 - self.bits)) as usize & ((1 << self.bits) - 1)
+        }
+
+        #[inline(always)]
+        fn insert(&mut self, i: usize) {
+            if i + 3 < self.data.len() {
+                let k = self.hash4(i);
+                self.chain[i] = self.head[k];
+                self.head[k] = i as u32 + 1;
+            }
+            if i + 2 < self.data.len() {
+                let k = self.hash3(i);
+                self.head3[k] = i as u32 + 1;
             }
         }
-        if n <= i + 3 || best >= NICE {
-            return (best, dist);
-        }
-        let mut candidate = self.head[self.hash4(i)];
-        for _ in 0..DEPTH {
-            if candidate == 0 {
-                break;
+
+        /// Length of the common run of `a..` and `b..` (a < b), at most `limit`.
+        #[inline(always)]
+        fn common(&self, a: usize, b: usize, limit: usize) -> usize {
+            let x = &self.data[a..a + limit];
+            let y = &self.data[b..b + limit];
+            let mut l = 0;
+            while l + 8 <= limit {
+                let diff = u64::from_le_bytes(x[l..l + 8].try_into().unwrap_or([0; 8]))
+                    ^ u64::from_le_bytes(y[l..l + 8].try_into().unwrap_or([0; 8]));
+                if diff != 0 {
+                    return l + (diff.trailing_zeros() / 8) as usize;
+                }
+                l += 8;
             }
-            let j = candidate as usize - 1;
-            let next = self.chain[j];
-            if self.at(j + best) == self.at(i + best) {
+            while l < limit && x[l] == y[l] {
+                l += 1;
+            }
+            l
+        }
+
+        fn find(&self, i: usize) -> (usize, usize) {
+            let n = self.data.len();
+            if n <= i + 2 {
+                return (0, 0);
+            }
+            let limit = (n - i).min(MAX_MATCH);
+            let (mut best, mut dist) = (0usize, 0usize);
+            let c3 = self.head3[self.hash3(i)];
+            if c3 != 0 {
+                let j = c3 as usize - 1;
                 let l = self.common(j, i, limit);
-                if best < l {
+                if l >= 2 {
                     best = l;
                     dist = i - (j + 1);
                 }
-                if l >= NICE {
-                    return (best, dist);
+            }
+            if n <= i + 3 || best >= NICE {
+                return (best, dist);
+            }
+            let mut candidate = self.head[self.hash4(i)];
+            for _ in 0..DEPTH {
+                if candidate == 0 {
+                    break;
                 }
+                let j = candidate as usize - 1;
+                let next = self.chain[j];
+                if self.at(j + best) == self.at(i + best) {
+                    let l = self.common(j, i, limit);
+                    if best < l {
+                        best = l;
+                        dist = i - (j + 1);
+                    }
+                    if l >= NICE {
+                        return (best, dist);
+                    }
+                }
+                candidate = next;
             }
-            candidate = next;
+            (best, dist)
         }
-        (best, dist)
     }
-}
 
-/// The ulz payload of `data`, byte for byte `Uorc.Codec.LzEncode::encode data`.
-pub fn encode(data: &[u8]) -> Vec<u8> {
-    encode_with(&[], data)
-}
-
-/// The ulz payload of `input` against a `history` window it may copy from:
-/// the encoder runs over `history ++ input` with the match finder already
-/// holding every history position, and emits only `input`. With an empty
-/// history this is [`encode`].
-pub fn encode_with(history: &[u8], input: &[u8]) -> Vec<u8> {
-    let joined;
-    let data: &[u8] = if history.is_empty() {
-        input
-    } else {
-        joined = [history, input].concat();
-        &joined
-    };
-    let n = data.len();
-    let start = history.len();
-    let mut rc = RangeEncoder::new(input.len() / 2 + 64);
-    let mut probs = vec![1024u16; PROBS];
-    let mut f = Finder {
-        data,
-        head3: vec![0; 1 << HASH3_BITS],
-        head: vec![0; 1 << hash4_bits(n)],
-        bits: hash4_bits(n),
-        chain: vec![0; n],
-    };
-    for j in 0..start {
-        f.insert(j);
+    /// The ulz payload of `data`, byte for byte `Uorc.Codec.LzEncode::encode data`.
+    pub fn encode(data: &[u8]) -> Vec<u8> {
+        encode_with(&[], data)
     }
-    let (mut state, mut reps, mut i) = (0usize, [0usize; 4], start);
-    while i < n {
-        let limit = (n - i).min(MAX_MATCH);
-        let (mut rl, mut ri) = (0usize, 0usize);
-        for (k, &r) in reps.iter().enumerate() {
-            let l = if i < r + 1 {
-                0
-            } else {
-                f.common(i - (r + 1), i, limit)
-            };
-            if rl < l {
-                rl = l;
-                ri = k;
-            }
-        }
-        let (fl, fd) = f.find(i);
-        let ml1 = if fl == 2 && fd >= 128 { 0 } else { fl };
-        f.insert(i);
-        let ml = if ml1 >= 2 && rl + 1 < ml1 && i + 1 < n {
-            let (gl, gd) = f.find(i + 1);
-            if ml1 + 1 < gl || (gl == ml1 + 1 && gd < 4 * fd) {
-                0
-            } else {
-                ml1
-            }
+
+    /// The ulz payload of `input` against a `history` window it may copy from:
+    /// the encoder runs over `history ++ input` with the match finder already
+    /// holding every history position, and emits only `input`. With an empty
+    /// history this is [`encode`].
+    pub fn encode_with(history: &[u8], input: &[u8]) -> Vec<u8> {
+        let joined;
+        let data: &[u8] = if history.is_empty() {
+            input
         } else {
-            ml1
+            joined = [history, input].concat();
+            &joined
         };
-        let s = state;
-        if rl >= 2 && ml <= rl + 1 {
-            rc.bit(&mut probs, s, 1);
-            rc.bit(&mut probs, IS_REP + s, 1);
-            if ri == 0 {
-                rc.bit(&mut probs, IS_REP_G0 + s, 0);
-                rc.bit(&mut probs, IS_REP0_LONG + s, 1);
-            } else {
-                rc.bit(&mut probs, IS_REP_G0 + s, 1);
-                if ri == 1 {
-                    rc.bit(&mut probs, IS_REP_G1 + s, 0);
-                } else {
-                    rc.bit(&mut probs, IS_REP_G1 + s, 1);
-                    rc.bit(&mut probs, IS_REP_G2 + s, ri as u32 - 2);
-                }
-            }
-            rc.length(&mut probs, REP_LEN, rl as u32 - 2);
-            let d = reps[ri];
-            reps.copy_within(0..ri, 1);
-            reps[0] = d;
-            for k in 1..rl {
-                f.insert(i + k);
-            }
-            state = after_rep(s);
-            i += rl;
-        } else if ml >= 2 {
-            rc.bit(&mut probs, s, 1);
-            rc.bit(&mut probs, IS_REP + s, 0);
-            rc.length(&mut probs, LEN, ml as u32 - 2);
-            rc.distance(&mut probs, fd as u32, ml as u32 - 2);
-            for k in 1..ml {
-                f.insert(i + k);
-            }
-            reps = [fd, reps[0], reps[1], reps[2]];
-            state = after_match(s);
-            i += ml;
-        } else {
-            rc.bit(&mut probs, s, 0);
-            let prev = if i == 0 { 0 } else { data[i - 1] };
-            let match_byte = (s >= 7).then(|| {
-                if i < reps[0] + 1 {
+        let n = data.len();
+        let start = history.len();
+        let mut rc = RangeEncoder::new(input.len() / 2 + 64);
+        let mut probs = vec![1024u16; PROBS];
+        let mut f = Finder {
+            data,
+            head3: vec![0; 1 << HASH3_BITS],
+            head: vec![0; 1 << hash4_bits(n)],
+            bits: hash4_bits(n),
+            chain: vec![0; n],
+        };
+        for j in 0..start {
+            f.insert(j);
+        }
+        let (mut state, mut reps, mut i) = (0usize, [0usize; 4], start);
+        while i < n {
+            let limit = (n - i).min(MAX_MATCH);
+            let (mut rl, mut ri) = (0usize, 0usize);
+            for (k, &r) in reps.iter().enumerate() {
+                let l = if i < r + 1 {
                     0
                 } else {
-                    data[i - (reps[0] + 1)]
+                    f.common(i - (r + 1), i, limit)
+                };
+                if rl < l {
+                    rl = l;
+                    ri = k;
                 }
-            });
-            rc.literal(&mut probs, literal_base(prev), data[i], match_byte);
-            state = after_literal(s);
-            i += 1;
+            }
+            let (fl, fd) = f.find(i);
+            let ml1 = if fl == 2 && fd >= 128 { 0 } else { fl };
+            f.insert(i);
+            let ml = if ml1 >= 2 && rl + 1 < ml1 && i + 1 < n {
+                let (gl, gd) = f.find(i + 1);
+                if ml1 + 1 < gl || (gl == ml1 + 1 && gd < 4 * fd) {
+                    0
+                } else {
+                    ml1
+                }
+            } else {
+                ml1
+            };
+            let s = state;
+            if rl >= 2 && ml <= rl + 1 {
+                rc.bit(&mut probs, s, 1);
+                rc.bit(&mut probs, IS_REP + s, 1);
+                if ri == 0 {
+                    rc.bit(&mut probs, IS_REP_G0 + s, 0);
+                    rc.bit(&mut probs, IS_REP0_LONG + s, 1);
+                } else {
+                    rc.bit(&mut probs, IS_REP_G0 + s, 1);
+                    if ri == 1 {
+                        rc.bit(&mut probs, IS_REP_G1 + s, 0);
+                    } else {
+                        rc.bit(&mut probs, IS_REP_G1 + s, 1);
+                        rc.bit(&mut probs, IS_REP_G2 + s, ri as u32 - 2);
+                    }
+                }
+                rc.length(&mut probs, REP_LEN, rl as u32 - 2);
+                let d = reps[ri];
+                reps.copy_within(0..ri, 1);
+                reps[0] = d;
+                for k in 1..rl {
+                    f.insert(i + k);
+                }
+                state = after_rep(s);
+                i += rl;
+            } else if ml >= 2 {
+                rc.bit(&mut probs, s, 1);
+                rc.bit(&mut probs, IS_REP + s, 0);
+                rc.length(&mut probs, LEN, ml as u32 - 2);
+                rc.distance(&mut probs, fd as u32, ml as u32 - 2);
+                for k in 1..ml {
+                    f.insert(i + k);
+                }
+                reps = [fd, reps[0], reps[1], reps[2]];
+                state = after_match(s);
+                i += ml;
+            } else {
+                rc.bit(&mut probs, s, 0);
+                let prev = if i == 0 { 0 } else { data[i - 1] };
+                let match_byte = (s >= 7).then(|| {
+                    if i < reps[0] + 1 {
+                        0
+                    } else {
+                        data[i - (reps[0] + 1)]
+                    }
+                });
+                rc.literal(&mut probs, literal_base(prev), data[i], match_byte);
+                state = after_literal(s);
+                i += 1;
+            }
         }
+        let body = rc.finish();
+        let mut payload = Vec::with_capacity(8 + body.len());
+        payload.extend_from_slice(&(input.len() as u64).to_le_bytes());
+        payload.extend_from_slice(&body);
+        payload
     }
-    let body = rc.finish();
-    let mut payload = Vec::with_capacity(8 + body.len());
-    payload.extend_from_slice(&(input.len() as u64).to_le_bytes());
-    payload.extend_from_slice(&body);
-    payload
+
+    // ---------------------------------------------------------------- decoder
 }
 
-// ---------------------------------------------------------------- decoder
-
+#[cfg(test)]
+pub(crate) use encoder::{encode, encode_with};
 struct RangeDecoder<'a> {
     input: &'a [u8],
     pos: usize,
@@ -584,7 +595,7 @@ pub fn decode(payload: &[u8], expected: u64) -> Option<Vec<u8>> {
 }
 
 /// [`decode`] against the `history` window the payload was encoded with
-/// ([`encode_with`]): the output starts as `history`, matches may reach into
+/// (the encoder's `encode_with`): the output starts as `history`, matches may reach into
 /// it, and only the bytes after it are returned.
 pub fn decode_with(history: &[u8], payload: &[u8], expected: u64) -> Option<Vec<u8>> {
     if payload.len() < 13 {

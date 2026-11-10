@@ -122,7 +122,7 @@ definition{
   name: uc_bas_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-BAS-01", level := "build", suite := "conditional-basis", statement := "Conditional archives name the client's standard basis, the ulz and ncm decoder libraries, by its UORC-BASIS-V1 identity and decode only against that actual basis.", given := "archives written at the default and best levels, and the same archives with their basis identity altered and resealed", when := "uorc inspects and decompresses them", expected := "the intact archives name the standard basis identity and decode to the input; an archive naming any other basis is a decode failure even though its header and seal are well formed", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-BAS-01", level := "build", suite := "conditional-basis", statement := "Conditional archives name the client's standard basis, the ulz and ncm decoder libraries, by its UORC-BASIS-V1 identity and decode only against that actual basis.", given := "archives written by compress, and the same archives with their basis identity altered and resealed", when := "uorc inspects and decompresses them", expected := "the intact archives name the standard basis identity and decode to the input; an archive naming any other basis is a decode failure even though its header and seal are well formed", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
@@ -136,7 +136,7 @@ definition{
   name: uc_opt_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-OPT-01", level := "build", suite := "scoped-optimality", statement := "Compress returns the smallest of the archives it checked, which are the raw archive, the ulz archive, the ncm archive at the best level and any search candidate within the step budget; no minimum beyond that candidate set is claimed.", given := "empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs", when := "uorc compress chooses its archive", expected := "the archive is never larger than the raw archive of the same length, compressible text takes a strictly smaller archive, and the best level is never larger than the default", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-OPT-01", level := "build", suite := "scoped-optimality", statement := "Compress returns the smallest of the archives it checked, which are the raw archive, the ncm archive (over the x86 branch filter for x86 code) and any search candidate within the step budget; no minimum beyond that candidate set is claimed.", given := "empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs", when := "uorc compress chooses its archive", expected := "the archive is never larger than the raw archive of the same length, and compressible text takes a strictly smaller archive", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{

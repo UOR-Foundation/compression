@@ -8,7 +8,10 @@
 //! into [`frame_size`] pieces (or, to decompress, into the archives that
 //! [`frame_length`] delimits) and converts one at a time after
 //! [`window_reset`], so wasm memory stays bounded by a few frames (the one in
-//! flight and the window it reads) whatever the file size.
+//! flight, the window it reads, and any frame a later reference frame names)
+//! whatever the file size. The frame operations run the library's
+//! [`uorc::FrameEncoder`] and [`uorc::FrameDecoder`], so the page writes and
+//! reads exactly the streams the native client does.
 
 use std::cell::RefCell;
 
@@ -16,57 +19,20 @@ thread_local! {
     static INPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     static OUTPUT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     static ORIGINAL: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
-    /// The frames before the next frame of the stream in progress.
-    static WINDOW: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
-    /// Frames of the stream in progress so far.
-    static COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// The stream being compressed frame by frame since [`window_reset`].
+    static ENCODER: RefCell<uorc::FrameEncoder> = RefCell::new(uorc::FrameEncoder::new());
+    /// The stream being decompressed archive by archive since [`window_reset`].
+    static DECODER: RefCell<uorc::FrameDecoder> =
+        RefCell::new(uorc::FrameDecoder::new(uorc::DEFAULT_DECODE_WORK));
 }
 
-/// Run `op` on the input and the current window, then make `next` (the
-/// input or the output) the newest frame of the window.
-fn framed(
-    op: impl FnOnce(&[u8], &[&[u8]]) -> Result<Vec<u8>, uorc::Error>,
-    keep_input: bool,
-) -> i32 {
-    let result = INPUT.with(|input| {
-        WINDOW.with(|window| {
-            let input = input.borrow();
-            let mut window = window.borrow_mut();
-            // The encoder starts a block every `uorc::BLOCK` frames (the
-            // decoder reads the window length each archive names).
-            let k = COUNT.with(|count| count.get());
-            let reach = if keep_input {
-                k % uorc::BLOCK
-            } else {
-                window.len()
-            };
-            let view: Vec<&[u8]> = window[window.len().saturating_sub(reach)..]
-                .iter()
-                .map(Vec::as_slice)
-                .collect();
-            let result = op(&input, &view);
-            if let Ok(output) = &result {
-                window.push(if keep_input {
-                    input.clone()
-                } else {
-                    output.clone()
-                });
-                if window.len() > uorc::archive::WINDOW {
-                    window.remove(0);
-                }
-                COUNT.with(|count| count.set(k + 1));
-            }
-            result
-        })
-    });
-    finish(result)
-}
-
-/// Start a new stream: the next frame reads no earlier frames.
+/// Start a new stream for the frame operations.
 #[no_mangle]
 pub extern "C" fn window_reset() {
-    WINDOW.with(|window| window.borrow_mut().clear());
-    COUNT.with(|count| count.set(0));
+    ENCODER.with(|encoder| *encoder.borrow_mut() = uorc::FrameEncoder::new());
+    DECODER.with(|decoder| {
+        *decoder.borrow_mut() = uorc::FrameDecoder::new(uorc::DEFAULT_DECODE_WORK);
+    });
 }
 
 /// Operation succeeded; the result is in the output buffer.
@@ -124,11 +90,9 @@ fn finish(result: Result<Vec<u8>, uorc::Error>) -> i32 {
     code
 }
 
-/// Compress the input buffer with a search budget of `steps`. `best` is
-/// accepted for earlier pages and changes nothing: there is one coder.
+/// Compress the input buffer with a search budget of `steps`.
 #[no_mangle]
-pub extern "C" fn compress(steps: u64, best: u32) -> i32 {
-    let _ = best;
+pub extern "C" fn compress(steps: u64) -> i32 {
     finish(INPUT.with(|input| uorc::compress(&input.borrow(), steps)))
 }
 
@@ -138,25 +102,40 @@ pub extern "C" fn decompress() -> i32 {
     finish(INPUT.with(|input| uorc::decompress(&input.borrow(), uorc::DEFAULT_DECODE_WORK)))
 }
 
-/// Compress the input buffer as the next frame (at most [`frame_size`] bytes)
-/// of the stream since [`window_reset`].
+/// Compress the input buffer as the next frame (exactly [`frame_size`]
+/// bytes, except the last) of the stream since [`window_reset`]: the archives
+/// written back to back are the stream the native client writes.
 #[no_mangle]
-pub extern "C" fn compress_frame(steps: u64, best: u32) -> i32 {
-    let _ = best;
-    framed(
-        |input, window| uorc::compress_frame_with(input, window, steps),
-        true,
+pub extern "C" fn compress_frame(steps: u64) -> i32 {
+    finish(
+        INPUT.with(|input| {
+            ENCODER.with(|encoder| encoder.borrow_mut().push(&input.borrow(), steps))
+        }),
     )
+}
+
+/// Whether the archive whose header is in the input buffer may be a
+/// reference frame (it has a reference frame's length), so the page should
+/// [`note_frame`] it whole.
+#[no_mangle]
+pub extern "C" fn may_be_reference() -> i32 {
+    INPUT.with(|input| i32::from(uorc::may_be_reference(&input.borrow())))
+}
+
+/// Note the whole archive in the input buffer before decompressing the stream
+/// since [`window_reset`]: a reference frame names an earlier frame the
+/// decoder must keep. The page reads the headers first and notes every
+/// archive that [`may_be_reference`].
+#[no_mangle]
+pub extern "C" fn note_frame() {
+    INPUT.with(|input| DECODER.with(|decoder| decoder.borrow_mut().note(&input.borrow())));
 }
 
 /// Decompress the input buffer as the next archive of the stream since
 /// [`window_reset`].
 #[no_mangle]
 pub extern "C" fn decompress_frame() -> i32 {
-    framed(
-        |input, window| uorc::decompress_frame_with(input, window, uorc::DEFAULT_DECODE_WORK),
-        false,
-    )
+    finish(INPUT.with(|input| DECODER.with(|decoder| decoder.borrow_mut().push(&input.borrow()))))
 }
 
 /// Input bytes per frame.
@@ -282,8 +261,7 @@ fn write_entries(entries: &[uorc::tree::Entry]) -> Vec<u8> {
 /// Compress the entries in the input buffer (see [`read_entries`]) into one
 /// archive of ordered objects.
 #[no_mangle]
-pub extern "C" fn compress_tree(steps: u64, best: u32) -> i32 {
-    let _ = best;
+pub extern "C" fn compress_tree(steps: u64) -> i32 {
     finish(INPUT.with(|input| {
         read_entries(&input.borrow()).and_then(|entries| uorc::compress_tree(&entries, steps))
     }))
@@ -313,13 +291,9 @@ mod tests {
     #[test]
     fn wasm_exports_match_the_library_uc_api_01() {
         let input = [0u8, 0xff, 0xc3, 0x28, b'a', b'b', b'a', b'b', 0];
-        for best in [1, 0] {
-            let (code, archive) = run(&input, || compress(0, best));
-            assert_eq!(code, OK);
-            let library = uorc::compress(&input, 0).expect("library archive");
-            assert_eq!(archive, library, "best {best}");
-        }
-        let (_, archive) = run(&input, || compress(0, 0));
+        let (code, archive) = run(&input, || compress(0));
+        assert_eq!(code, OK);
+        assert_eq!(archive, uorc::compress(&input, 0).expect("library archive"));
         assert_eq!(run(&archive, || decompress()), (OK, input.to_vec()));
         assert_eq!(
             run(b"not an archive", || decompress()),
@@ -338,5 +312,38 @@ mod tests {
         );
         ORIGINAL.with(|original| original.borrow_mut()[0] ^= 1);
         assert_eq!(run(&archive, || verify(1)).0, MISMATCH);
+    }
+
+    /// The frame exports stream as the page drives them: a repeated frame is
+    /// a reference frame, noted in a header pass, and decodes.
+    #[test]
+    fn frame_exports_stream_reference_frames() {
+        let (x, y): (Vec<u8>, Vec<u8>) = (
+            b"frame x ".iter().copied().cycle().take(3_000).collect(),
+            (0..3_000u32).map(|i| (i * 7 % 251) as u8).collect(),
+        );
+        window_reset();
+        let archives: Vec<Vec<u8>> = [&x, &y, &x]
+            .iter()
+            .map(|frame| {
+                let (code, archive) = run(frame, || compress_frame(0));
+                assert_eq!(code, OK);
+                archive
+            })
+            .collect();
+        let info = uorc::inspect(&archives[2]).expect("inspect");
+        assert_eq!(info.representation, uorc::Representation::Reference);
+        window_reset();
+        for archive in &archives {
+            if run(archive, || may_be_reference()).0 == 1 {
+                run(archive, || {
+                    note_frame();
+                    OK
+                });
+            }
+        }
+        for (archive, frame) in archives.iter().zip([&x, &y, &x]) {
+            assert_eq!(run(archive, || decompress_frame()), (OK, frame.to_vec()));
+        }
     }
 }

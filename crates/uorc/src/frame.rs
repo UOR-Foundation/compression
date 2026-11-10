@@ -66,6 +66,9 @@ pub struct Info {
     pub basis: Option<[u8; BASIS_LEN]>,
     /// How the body produces the output.
     pub representation: Representation,
+    /// How many frames before it a window frame reads as history (its basis
+    /// is the standard library plus those frames); 0 for any other archive.
+    pub window: usize,
     /// Byte length of each output object, in order.
     pub object_lengths: Vec<u64>,
     /// Total output length: the sum of `object_lengths`.
@@ -95,7 +98,7 @@ impl Info {
     pub fn to_json(&self) -> String {
         let lengths: Vec<String> = self.object_lengths.iter().map(u64::to_string).collect();
         format!(
-            "{{\"format\":{},\"profile\":{},\"scope\":\"{}\",\"basis\":{},\"representation\":\"{}\",\
+            "{{\"format\":{},\"profile\":{},\"scope\":\"{}\",\"basis\":{},\"representation\":\"{}\",\"window\":{},\
              \"objects\":{},\"object_lengths\":[{}],\"output_bytes\":{},\"body_bytes\":{},\
              \"archive_bytes\":{},\"integrity\":\"{}\",\"digest\":\"{}\",\"integrity_ok\":{}}}",
             self.format,
@@ -103,6 +106,7 @@ impl Info {
             if self.basis.is_some() { "conditional" } else { "self-contained" },
             self.basis.map_or_else(|| "null".to_owned(), |b| format!("\"{}\"", hex(&b))),
             self.representation.name(),
+            self.window,
             self.object_lengths.len(),
             lengths.join(","),
             self.output_len,
@@ -275,6 +279,8 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
     let sealed = r.at;
     let digest: [u8; DIGEST_LEN] = r.take(DIGEST_LEN)?.try_into().expect("32 bytes");
     let end = r.at;
+    // A window frame names its own basis (the library plus its window).
+    let windowed = crate::archive::window_codec(&data[..end]);
     let representation = if !h.program {
         Representation::Raw
     } else if body.starts_with(KERNEL_PREFIX) {
@@ -291,13 +297,20 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
     } else if h.basis.is_some() && body == crate::archive::REF_BODY {
         Representation::Reference
     } else {
-        Representation::Program
+        match windowed {
+            Some((crate::archive::Codec::Ulz, _)) => Representation::Ulz,
+            Some((crate::archive::Codec::Ncm, _)) => Representation::Ncm,
+            Some((crate::archive::Codec::NcmX86, _)) => Representation::NcmX86,
+            None => Representation::Program,
+        }
     };
+    let window = windowed.map_or(0, |(_, k)| k);
     let info = Info {
         format: h.format,
         profile: h.profile,
         basis: h.basis,
         representation,
+        window,
         object_lengths: h.object_lengths,
         output_len: h.output_len,
         body_len: h.body_len,

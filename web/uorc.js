@@ -67,19 +67,20 @@ export async function load(url) {
     }
   };
   return {
-    compress: (bytes, steps = 0n) => call(bytes, () => x.compress(BigInt(steps), 0)),
+    compress: (bytes, steps = 0n) => call(bytes, () => x.compress(BigInt(steps))),
     decompress: (archive) => call(archive, () => x.decompress()),
     // Frame header and integrity seal of every archive in a stream, without
     // decoding: one description per archive.
     inspect: (archive) => json(call(archive, () => x.inspect())),
     // Stream a File or Blob of any size through frames, one in wasm memory at
-    // a time; the result is a Blob of the concatenated outputs.
+    // a time; the result is a Blob of the concatenated archives, the same
+    // bytes the native client writes.
     async compressBlob(blob, steps = 0n, progress = () => {}) {
       const parts = [];
       x.window_reset();
       for (let at = 0; at < blob.size || at === 0; at += frame) {
         const piece = await bytesOf(blob.slice(at, at + frame));
-        parts.push(call(piece, () => x.compress_frame(BigInt(steps), 0)));
+        parts.push(call(piece, () => x.compress_frame(BigInt(steps))));
         progress(Math.min(at + frame, blob.size), blob.size);
         if (blob.size === 0) break;
       }
@@ -88,6 +89,16 @@ export async function load(url) {
     async decompressBlob(blob, progress = () => {}) {
       const parts = [];
       x.window_reset();
+      // Headers first: note every reference frame, so the decoder keeps the
+      // frames they name (and only those).
+      for (let at = 0; at < blob.size;) {
+        const length = await archiveLength(blob, at);
+        if (x.may_be_reference()) {
+          put(x.input_buffer, await bytesOf(blob.slice(at, at + length)));
+          x.note_frame();
+        }
+        at += length;
+      }
       for (let at = 0; at < blob.size || parts.length === 0;) {
         const length = await archiveLength(blob, at);
         parts.push(call(await bytesOf(blob.slice(at, at + length)), () => x.decompress_frame()));
@@ -103,7 +114,7 @@ export async function load(url) {
       return x.verify(original ? 1 : 0);
     })),
     // entries: [{ path: "dir/a.txt", kind: "file" | "executable" | "directory", data: Uint8Array }]
-    compressFiles: (entries, steps = 0n) => call(packEntries(entries), () => x.compress_tree(BigInt(steps), 0)),
+    compressFiles: (entries, steps = 0n) => call(packEntries(entries), () => x.compress_tree(BigInt(steps))),
     decompressFiles: (archive) => unpackEntries(call(archive, () => x.decompress_tree())),
   };
 }
