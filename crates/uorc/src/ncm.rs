@@ -1653,7 +1653,7 @@ mod tests {
             .collect();
         let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
         for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
-            let p = encoder::<Scalar>(&[], data, V03).expect("fits");
+            let p = encoder::<Scalar>(&[], data, V03, false).expect("fits").0;
             assert_eq!(encode(data).as_deref(), Some(&p[..]));
             let n = data.len() as u64;
             assert_eq!(decode(&p, n).as_deref(), Some(data));
@@ -1662,12 +1662,12 @@ mod tests {
                 Some(data)
             );
             // and after a window history
-            let w = encoder::<Scalar>(&text[..999], data, V03).expect("fits");
+            let w = encoder::<Scalar>(&text[..999], data, V03, false).expect("fits").0;
             assert_eq!(encode_with(&text[..999], data).as_deref(), Some(&w[..]));
             assert_eq!(decode_with(&text[..999], &w, n).as_deref(), Some(data));
             // and under narrow and wide profiles
             for profile in [0x1059e, 0x1e79f, 1, FULL, 0x1059e | F_REP, V03 | F_SHORT] {
-                let p = encoder::<Scalar>(&text[..999], data, profile).expect("fits");
+                let p = encoder::<Scalar>(&text[..999], data, profile, false).expect("fits").0;
                 assert_eq!(
                     encode_profile(&text[..999], data, profile).as_deref(),
                     Some(&p[..])
