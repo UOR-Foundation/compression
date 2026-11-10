@@ -23,6 +23,9 @@
 
 const NC: usize = 17;
 const NIN: usize = NC + 3;
+/// A mixer's row stride: its `NIN` inputs padded with zero inputs to three
+/// 8-lane vectors, so the vector kernels need no tail.
+const NINP: usize = 24;
 const TB_MAX: u32 = 24;
 const SQT: [i32; 33] = [
     1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047, 2549, 2994, 3348,
@@ -117,6 +120,112 @@ fn h(mut a: u32) -> u32 {
     a.wrapping_add(a >> 15)
 }
 
+/// The match length bucket: exact below 16, then coarser.
+#[inline]
+fn len_bucket(l: u32) -> u32 {
+    if l < 16 {
+        l
+    } else if l < 32 {
+        16 + ((l - 16) >> 2)
+    } else if l < 64 {
+        20 + ((l - 32) >> 3)
+    } else if l < 512 {
+        24 + ((l - 64) >> 6)
+    } else {
+        31
+    }
+}
+
+/// What a byte position's context hashes read: the bytes and words before
+/// it, the record model's row length `r` (with `at` reading the history), and
+/// the match model's expected byte (`0x100 + byte`, or 0) and length bucket.
+struct Ctx<F: Fn(u32) -> u32> {
+    pos: u32,
+    c4: u32,
+    c8: u32,
+    wordh: u32,
+    word1: u32,
+    r: u32,
+    at: F,
+    mexp: u32,
+    mbucket: u32,
+}
+
+/// The 17 context hashes of a byte position.
+#[inline(always)]
+fn context_hashes<F: Fn(u32) -> u32>(x: &Ctx<F>) -> [u32; NC] {
+    let (pos, c4, c8, r) = (x.pos, x.c4, x.c8, x.r);
+    let b1 = c4 & 255;
+    let p3 = pos & 3;
+    let ab = if r > 0 && pos >= r {
+        (x.at)(pos - r)
+    } else {
+        0
+    };
+    let ab1 = if r > 0 && pos + 1 >= r {
+        (x.at)(pos + 1 - r)
+    } else {
+        0
+    };
+    let ab2 = if r > 0 && pos >= 2 * r {
+        (x.at)(pos - 2 * r)
+    } else {
+        0
+    };
+    let hc4 = h(c4);
+    let v: [u32; NC] = [
+        0,
+        b1 + 0x100,
+        c4 & 0xffff,
+        (c4 & 0xff_ffff) + 0x100_0000,
+        c4.wrapping_add(0x300_0000),
+        hc4.wrapping_add(c8 & 0xffff),
+        hc4.wrapping_add(c8),
+        x.wordh.wrapping_add(h(x.word1)),
+        x.wordh,
+        (c4 & 0xff00) + (p3 << 16),
+        (c4 & 0xffff_0000) + p3,
+        b1 + (p3 << 8) + 0x80_0000,
+        (c4 & 0xffff) + (p3 << 16) + 0x400_0000,
+        c4 & 0x00ff_00ff,
+        ab.wrapping_add(b1 << 8)
+            .wrapping_add(r << 16)
+            .wrapping_add(0x1000_0000),
+        ab.wrapping_add(ab1 << 8)
+            .wrapping_add(ab2 << 16)
+            .wrapping_add(r << 24)
+            .wrapping_add(0x8000_0000),
+        x.mexp
+            .wrapping_add(x.mbucket << 9)
+            .wrapping_add(0x7700_0000),
+    ];
+    let mut hb = [0; NC];
+    for (k, (hb, v)) in hb.iter_mut().zip(v).enumerate() {
+        *hb = h(v.wrapping_add((k as u32).wrapping_mul(0x0100_0193)));
+    }
+    hb
+}
+
+/// Asks the processor to start loading the cache line at `p`. A prefetch
+/// never faults and changes no value, whatever the address.
+#[inline(always)]
+fn prefetch<T>(p: &T) {
+    #[cfg(target_arch = "x86_64")]
+    // SAFETY: a prefetch hint reads nothing architecturally and cannot fault.
+    unsafe {
+        use std::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
+        _mm_prefetch::<_MM_HINT_T0>(std::ptr::from_ref(p).cast());
+    }
+    #[cfg(target_arch = "aarch64")]
+    // SAFETY: `prfm` is a hint: it reads nothing architecturally and cannot
+    // fault.
+    unsafe {
+        std::arch::asm!("prfm pldl1keep, [{0}]", in(reg) std::ptr::from_ref(p), options(nostack, preserves_flags, readonly));
+    }
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+    let _ = p;
+}
+
 #[inline]
 fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
     let r = rate[usize::from(*n)];
@@ -156,7 +265,7 @@ struct Model {
     hb: [u32; NC],
     bb: [u32; NC],
     ix: [u32; NC],
-    st: [i32; NIN],
+    st: [i32; NINP],
     mi: usize,
     w1: Vec<i32>,
     w2: Vec<i32>,
@@ -210,11 +319,11 @@ impl Model {
             hb: [0; NC],
             bb: [0; NC],
             ix: [0; NC],
-            st: [0; NIN],
+            st: [0; NINP],
             mi: 0,
-            w1: vec![1 << 14; 256 * NIN],
-            w2: vec![1 << 14; 2048 * NIN],
-            w3: vec![1 << 14; 2048 * NIN],
+            w1: weights(256),
+            w2: weights(2048),
+            w3: weights(2048),
             s1: 0,
             s2: 0,
             s3: 0,
@@ -242,14 +351,7 @@ impl Model {
             self.mptr += 1;
         }
         if pos >= 7 {
-            let mut k = 0u32;
-            for i in 1..=7 {
-                k = k
-                    .wrapping_mul(0x2F0B_4C27)
-                    .wrapping_add(self.at(pos - i))
-                    .wrapping_add(1);
-            }
-            let k = (h(k) >> (32 - self.mb)) as usize;
+            let k = self.match_slot(pos, |i| self.at(i));
             if self.mlen == 0 {
                 let cand = self.mtab[k];
                 if cand > 0 {
@@ -266,70 +368,115 @@ impl Model {
             self.mtab[k] = pos;
         }
         if self.mlen > 0 {
-            let l = self.mlen;
             self.mexp = self.at(self.mptr);
-            self.mbucket = if l < 16 {
-                l
-            } else if l < 32 {
-                16 + ((l - 16) >> 2)
-            } else if l < 64 {
-                20 + ((l - 32) >> 3)
-            } else if l < 512 {
-                24 + ((l - 64) >> 6)
-            } else {
-                31
-            };
+            self.mbucket = len_bucket(self.mlen);
         } else {
             self.mexp = 0;
             self.mbucket = 0;
         }
-        let (c4, c8, r) = (self.c4, self.c8, self.r);
-        let b1 = c4 & 255;
-        let p3 = pos & 3;
-        let ab = if r > 0 && pos >= r {
-            self.at(pos - r)
+        self.hb = context_hashes(&Ctx {
+            pos,
+            c4: self.c4,
+            c8: self.c8,
+            wordh: self.wordh,
+            word1: self.word1,
+            r: self.r,
+            at: |i| self.at(i),
+            mexp: if self.mlen > 0 { self.mexp + 0x100 } else { 0 },
+            mbucket: self.mbucket,
+        });
+    }
+
+    /// Starts loading what the next bit will read, for the likelier value of
+    /// the bit being coded (`p` is its probability of a 1): the second
+    /// nibble's 17 buckets ahead of bit 4, the next byte's first-nibble
+    /// buckets (from the contexts that byte would have) ahead of bit 0, and
+    /// the next APM row. A prefetch changes no result, only when memory is
+    /// read, so a wrong guess costs a few loads and nothing else.
+    #[inline(always)]
+    fn prefetch_next(&self, p: u32) {
+        let y = u32::from(p >= 2048);
+        let c0 = (self.c0 << 1) | y;
+        let (c4, c0) = if self.bit == 7 {
+            let b = c0 & 255;
+            let (mut wordh, mut word1) = (self.wordh, self.word1);
+            if (b as u8).is_ascii_alphabetic() || b >= 128 {
+                wordh = h(wordh.wrapping_add(b | 32));
+            } else if wordh != 0 {
+                word1 = wordh;
+                wordh = 0;
+            }
+            let (pos, at) = (
+                self.pos,
+                |i: u32| if i == self.pos { b } else { self.at(i) },
+            );
+            let (mexp, mbucket) = if self.mlen > 0 && self.mexp == b && self.mptr < pos {
+                (
+                    at(self.mptr + 1) + 0x100,
+                    len_bucket((self.mlen + 1).min(65535)),
+                )
+            } else {
+                (0, 0)
+            };
+            let hb = context_hashes(&Ctx {
+                pos: pos + 1,
+                c4: (self.c4 << 8) | b,
+                c8: (self.c8 << 8) | (self.c4 >> 24),
+                wordh,
+                word1,
+                r: self.r,
+                at,
+                mexp,
+                mbucket,
+            });
+            self.prefetch_buckets(&hb, 0);
+            if pos + 1 >= 7 {
+                prefetch(&self.mtab[self.match_slot(pos + 1, at)]);
+            }
+            ((self.c4 << 8) | b, 1)
         } else {
-            0
+            if self.bit == 3 {
+                self.prefetch_buckets(&self.hb, (c0 & 15) | 16);
+            }
+            (self.c4, c0)
         };
-        let ab1 = if r > 0 && pos + 1 >= r {
-            self.at(pos + 1 - r)
-        } else {
-            0
-        };
-        let ab2 = if r > 0 && pos >= 2 * r {
-            self.at(pos - 2 * r)
-        } else {
-            0
-        };
-        let hc4 = h(c4);
-        let v: [u32; NC] = [
-            0,
-            b1 + 0x100,
-            c4 & 0xffff,
-            (c4 & 0xff_ffff) + 0x100_0000,
-            c4.wrapping_add(0x300_0000),
-            hc4.wrapping_add(c8 & 0xffff),
-            hc4.wrapping_add(c8),
-            self.wordh.wrapping_add(h(self.word1)),
-            self.wordh,
-            (c4 & 0xff00) + (p3 << 16),
-            (c4 & 0xffff_0000) + p3,
-            b1 + (p3 << 8) + 0x80_0000,
-            (c4 & 0xffff) + (p3 << 16) + 0x400_0000,
-            c4 & 0x00ff_00ff,
-            ab.wrapping_add(b1 << 8)
-                .wrapping_add(r << 16)
-                .wrapping_add(0x1000_0000),
-            ab.wrapping_add(ab1 << 8)
-                .wrapping_add(ab2 << 16)
-                .wrapping_add(r << 24)
-                .wrapping_add(0x8000_0000),
-            (if self.mlen > 0 { self.mexp + 0x100 } else { 0 })
-                .wrapping_add(self.mbucket << 9)
-                .wrapping_add(0x7700_0000),
-        ];
-        for (k, (hb, v)) in self.hb.iter_mut().zip(v).enumerate() {
-            *hb = h(v.wrapping_add((k as u32).wrapping_mul(0x0100_0193)));
+        let bit = (self.bit + 1) & 7;
+        for (w, s) in [
+            (&self.w1, c0 as usize),
+            (&self.w2, ((c4 & 255) * 8 + bit) as usize),
+            (&self.w3, (((c4 >> 8) & 255) * 8 + bit) as usize),
+        ] {
+            prefetch(&w[s * NINP]);
+            prefetch(&w[s * NINP + NINP - 1]);
+        }
+        let cx2 =
+            h((c4 & 0xff_ffff).wrapping_mul(0x2F0B_4C27).wrapping_add(c0)) >> (32 - APM2_BITS);
+        let row = cx2 as usize * APM_ROW;
+        prefetch(&self.a2.t[row]);
+        prefetch(&self.a2.t[row + APM_ROW - 1]);
+    }
+
+    /// The match table slot of the 7 bytes before `pos >= 7`.
+    #[inline(always)]
+    fn match_slot(&self, pos: u32, at: impl Fn(u32) -> u32) -> usize {
+        let mut k = 0u32;
+        for i in 1..=7 {
+            k = k
+                .wrapping_mul(0x2F0B_4C27)
+                .wrapping_add(at(pos - i))
+                .wrapping_add(1);
+        }
+        (h(k) >> (32 - self.mb)) as usize
+    }
+
+    #[inline(always)]
+    fn prefetch_buckets(&self, hb: &[u32; NC], nc: u32) {
+        for &hb in hb {
+            let hh = h(hb.wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+            // a bucket and its neighbour share one 32-slot line pair
+            let b = ((hh & self.mask) & !31) as usize;
+            prefetch(&self.sp[b]);
+            prefetch(&self.sn[b]);
         }
     }
 
@@ -359,7 +506,8 @@ impl Model {
         b as u32
     }
 
-    fn predict(&mut self) -> u32 {
+    #[inline(always)]
+    fn predict<K: Kernel>(&mut self) -> u32 {
         let t = self.t;
         if self.bit == 0 || self.bit == 4 {
             let nc = if self.bit == 0 {
@@ -407,19 +555,15 @@ impl Model {
             -vote
         };
         self.st[NC + 2] = 256;
-        self.s1 = self.c0 as usize * NIN;
-        self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * NIN;
-        self.s3 = (((self.c4 >> 8) & 255) * 8 + self.bit) as usize * NIN;
-        let w1 = &self.w1[self.s1..self.s1 + NIN];
-        let w2 = &self.w2[self.s2..self.s2 + NIN];
-        let w3 = &self.w3[self.s3..self.s3 + NIN];
-        let (mut a, mut b, mut c) = (0i64, 0i64, 0i64);
-        for i in 0..NIN {
-            let x = i64::from(self.st[i]);
-            a += x * i64::from(w1[i]);
-            b += x * i64::from(w2[i]);
-            c += x * i64::from(w3[i]);
-        }
+        self.s1 = self.c0 as usize * NINP;
+        self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * NINP;
+        self.s3 = (((self.c4 >> 8) & 255) * 8 + self.bit) as usize * NINP;
+        let [a, b, c] = K::dot(
+            &self.st,
+            row(&self.w1, self.s1),
+            row(&self.w2, self.s2),
+            row(&self.w3, self.s3),
+        );
         let d1 = (a >> 16).clamp(-2047, 2047) as i32;
         let d2 = (b >> 16).clamp(-2047, 2047) as i32;
         let d3 = (c >> 16).clamp(-2047, 2047) as i32;
@@ -433,10 +577,13 @@ impl Model {
             .wrapping_add(self.c0))
             >> (32 - APM2_BITS);
         let q2 = self.a2.refine(&t.stretch, p, cx2 as usize);
-        ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32
+        let pr = ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32;
+        self.prefetch_next(pr);
+        pr
     }
 
-    fn update(&mut self, y: bool) {
+    #[inline(always)]
+    fn update<K: Kernel>(&mut self, y: bool) {
         self.a1.learn(y);
         self.a2.learn(y);
         let rate = &self.t.rate;
@@ -450,21 +597,21 @@ impl Model {
         // plasticity: 24 + 104 * 4096 / (4096 + pos), in 1/65536 per unit of x * err
         let lr = 24 + (104 * 4096 / (4096 + u64::from(self.pos))) as i64;
         let yb = i32::from(y) << 12;
-        let e1 = i64::from(yb - self.pm1) * lr;
-        let e2 = i64::from(yb - self.pm2) * lr;
-        let e3 = i64::from(yb - self.pm3) * lr;
-        let w1 = &mut self.w1[self.s1..self.s1 + NIN];
-        let w2 = &mut self.w2[self.s2..self.s2 + NIN];
-        let w3 = &mut self.w3[self.s3..self.s3 + NIN];
-        for i in 0..NIN {
-            let x = i64::from(self.st[i]);
-            let learn = |w: &mut i32, e: i64| {
-                *w = (*w + ((x * e) >> 16) as i32).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
-            };
-            learn(&mut w3[i], e3);
-            learn(&mut w1[i], e1);
-            learn(&mut w2[i], e2);
-        }
+        // |err| <= 4096 and lr <= 128, so err * lr < 2^20 and x * err * lr
+        // (|x| <= 2047) stays inside i32: the kernels learn in 32-bit lanes.
+        let lr = lr as i32;
+        let e = [
+            (yb - self.pm1) * lr,
+            (yb - self.pm2) * lr,
+            (yb - self.pm3) * lr,
+        ];
+        K::train(
+            &self.st,
+            row_mut(&mut self.w1, self.s1),
+            row_mut(&mut self.w2, self.s2),
+            row_mut(&mut self.w3, self.s3),
+            e,
+        );
         self.c0 = (self.c0 << 1) | u32::from(y);
         self.bit += 1;
         if self.bit == 8 {
@@ -497,10 +644,299 @@ impl Model {
     }
 }
 
+/// Fresh mixer weights for `rows` contexts: 1/4 on every input, 0 on padding.
+fn weights(rows: usize) -> Vec<i32> {
+    let mut w = vec![0; rows * NINP];
+    for r in w.chunks_exact_mut(NINP) {
+        r[..NIN].fill(1 << 14);
+    }
+    w
+}
+
+#[inline(always)]
+fn row(w: &[i32], s: usize) -> &[i32; NINP] {
+    w[s..s + NINP].try_into().expect("row")
+}
+
+#[inline(always)]
+fn row_mut(w: &mut [i32], s: usize) -> &mut [i32; NINP] {
+    (&mut w[s..s + NINP]).try_into().expect("row")
+}
+
+/// The three mixers' arithmetic: the exact dot products of the inputs with
+/// three weight rows, and the bounded Hebbian step on those rows. Every kernel
+/// computes the same integers; only the instructions differ.
+trait Kernel {
+    fn dot(x: &[i32; NINP], w1: &[i32; NINP], w2: &[i32; NINP], w3: &[i32; NINP]) -> [i64; 3];
+    fn train(
+        x: &[i32; NINP],
+        w1: &mut [i32; NINP],
+        w2: &mut [i32; NINP],
+        w3: &mut [i32; NINP],
+        e: [i32; 3],
+    );
+}
+
+/// The portable kernel (wasm, and x86_64 without AVX2).
+#[cfg_attr(target_arch = "aarch64", allow(dead_code))]
+struct Scalar;
+
+impl Kernel for Scalar {
+    #[inline(always)]
+    fn dot(x: &[i32; NINP], w1: &[i32; NINP], w2: &[i32; NINP], w3: &[i32; NINP]) -> [i64; 3] {
+        let (mut a, mut b, mut c) = (0i64, 0i64, 0i64);
+        for i in 0..NIN {
+            let x = i64::from(x[i]);
+            a += x * i64::from(w1[i]);
+            b += x * i64::from(w2[i]);
+            c += x * i64::from(w3[i]);
+        }
+        [a, b, c]
+    }
+
+    #[inline(always)]
+    fn train(
+        x: &[i32; NINP],
+        w1: &mut [i32; NINP],
+        w2: &mut [i32; NINP],
+        w3: &mut [i32; NINP],
+        e: [i32; 3],
+    ) {
+        for i in 0..NIN {
+            let learn = |w: &mut i32, e: i32| {
+                *w = (*w + ((x[i] * e) >> 16)).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
+            };
+            learn(&mut w1[i], e[0]);
+            learn(&mut w2[i], e[1]);
+            learn(&mut w3[i], e[2]);
+        }
+    }
+}
+
+/// Runs `f::<K>(args)` with the best kernel this processor has: on x86_64,
+/// AVX2 when runtime detection finds it (the whole coder loop is then compiled
+/// with AVX2), else the portable kernel; NEON on aarch64, which always has it.
+macro_rules! dispatch {
+    ($f:ident($($a:expr),*)) => {{
+        #[cfg(target_arch = "x86_64")]
+        {
+            if std::arch::is_x86_feature_detected!("avx2") {
+                // SAFETY: AVX2 was detected on this processor just above.
+                return unsafe { x86::$f($($a),*) };
+            }
+            $f::<Scalar>($($a),*)
+        }
+        #[cfg(target_arch = "aarch64")]
+        {
+            $f::<arm::Neon>($($a),*)
+        }
+        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+        {
+            $f::<Scalar>($($a),*)
+        }
+    }};
+}
+
+#[cfg(target_arch = "x86_64")]
+mod x86 {
+    use super::{Kernel, NINP, WEIGHT_LIMIT};
+    use std::arch::x86_64::*;
+
+    pub(super) struct Avx2;
+
+    /// The encoder loop compiled for AVX2.
+    #[target_feature(enable = "avx2")]
+    pub(super) fn encode_with(data: &[u8]) -> Option<Vec<u8>> {
+        super::encode_with::<Avx2>(data)
+    }
+
+    /// The decoder loop compiled for AVX2.
+    #[target_feature(enable = "avx2")]
+    pub(super) fn decode_with(payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
+        super::decode_with::<Avx2>(payload, limit, canonical)
+    }
+
+    /// Eight lanes of a row.
+    ///
+    /// # Safety
+    /// AVX2 must be available and `i * 8 + 8 <= NINP`.
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    unsafe fn lanes(r: &[i32; NINP], i: usize) -> __m256i {
+        // SAFETY: the caller keeps the eight lanes inside the row.
+        unsafe { _mm256_loadu_si256(r.as_ptr().add(i * 8).cast()) }
+    }
+
+    /// The exact i64 sums of `x[j] * w[j]` over even and odd lanes.
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    fn madd(acc: __m256i, xe: __m256i, xo: __m256i, w: __m256i) -> __m256i {
+        let even = _mm256_mul_epi32(xe, w);
+        let odd = _mm256_mul_epi32(xo, _mm256_srli_epi64::<32>(w));
+        _mm256_add_epi64(acc, _mm256_add_epi64(even, odd))
+    }
+
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    fn hsum(v: __m256i) -> i64 {
+        let s = _mm_add_epi64(_mm256_castsi256_si128(v), _mm256_extracti128_si256::<1>(v));
+        _mm_cvtsi128_si64(s) + _mm_extract_epi64::<1>(s)
+    }
+
+    /// # Safety
+    /// AVX2 must be available.
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    unsafe fn dot(
+        x: &[i32; NINP],
+        w1: &[i32; NINP],
+        w2: &[i32; NINP],
+        w3: &[i32; NINP],
+    ) -> [i64; 3] {
+        let (mut a, mut b, mut c) = (
+            _mm256_setzero_si256(),
+            _mm256_setzero_si256(),
+            _mm256_setzero_si256(),
+        );
+        for i in 0..NINP / 8 {
+            // SAFETY: AVX2 is available and i < NINP / 8.
+            unsafe {
+                let xe = lanes(x, i);
+                let xo = _mm256_srli_epi64::<32>(xe);
+                a = madd(a, xe, xo, lanes(w1, i));
+                b = madd(b, xe, xo, lanes(w2, i));
+                c = madd(c, xe, xo, lanes(w3, i));
+            }
+        }
+        [hsum(a), hsum(b), hsum(c)]
+    }
+
+    /// # Safety
+    /// AVX2 must be available.
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    unsafe fn train(
+        x: &[i32; NINP],
+        w1: &mut [i32; NINP],
+        w2: &mut [i32; NINP],
+        w3: &mut [i32; NINP],
+        e: [i32; 3],
+    ) {
+        let (hi, lo) = (
+            _mm256_set1_epi32(WEIGHT_LIMIT),
+            _mm256_set1_epi32(-WEIGHT_LIMIT),
+        );
+        for i in 0..NINP / 8 {
+            // SAFETY: AVX2 is available and i < NINP / 8.
+            unsafe {
+                let xv = lanes(x, i);
+                step(w1, i, xv, e[0], hi, lo);
+                step(w2, i, xv, e[1], hi, lo);
+                step(w3, i, xv, e[2], hi, lo);
+            }
+        }
+    }
+
+    /// `w += (x * e) >> 16`, clamped to `lo..=hi`, on eight lanes of a row.
+    ///
+    /// # Safety
+    /// AVX2 must be available and `i * 8 + 8 <= NINP`.
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    unsafe fn step(w: &mut [i32; NINP], i: usize, x: __m256i, e: i32, hi: __m256i, lo: __m256i) {
+        // SAFETY: the caller keeps the eight lanes inside the row.
+        unsafe {
+            let p = w.as_mut_ptr().add(i * 8).cast::<__m256i>();
+            let d = _mm256_srai_epi32::<16>(_mm256_mullo_epi32(x, _mm256_set1_epi32(e)));
+            let v = _mm256_add_epi32(_mm256_loadu_si256(p), d);
+            _mm256_storeu_si256(p, _mm256_max_epi32(_mm256_min_epi32(v, hi), lo));
+        }
+    }
+
+    impl Kernel for Avx2 {
+        #[inline(always)]
+        fn dot(x: &[i32; NINP], w1: &[i32; NINP], w2: &[i32; NINP], w3: &[i32; NINP]) -> [i64; 3] {
+            // SAFETY: `Avx2` is only used once AVX2 has been detected.
+            unsafe { dot(x, w1, w2, w3) }
+        }
+
+        #[inline(always)]
+        fn train(
+            x: &[i32; NINP],
+            w1: &mut [i32; NINP],
+            w2: &mut [i32; NINP],
+            w3: &mut [i32; NINP],
+            e: [i32; 3],
+        ) {
+            // SAFETY: `Avx2` is only used once AVX2 has been detected.
+            unsafe { train(x, w1, w2, w3, e) }
+        }
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+mod arm {
+    use super::{Kernel, NINP, WEIGHT_LIMIT};
+    use std::arch::aarch64::*;
+
+    pub(super) struct Neon;
+
+    impl Kernel for Neon {
+        #[inline(always)]
+        fn dot(x: &[i32; NINP], w1: &[i32; NINP], w2: &[i32; NINP], w3: &[i32; NINP]) -> [i64; 3] {
+            // SAFETY: NEON is part of aarch64, and every 4-lane load at
+            // i * 4 < NINP stays inside its row.
+            unsafe {
+                let (mut a, mut b, mut c) = (vdupq_n_s64(0), vdupq_n_s64(0), vdupq_n_s64(0));
+                for i in 0..NINP / 4 {
+                    let xv = vld1q_s32(x.as_ptr().add(i * 4));
+                    let xl = vget_low_s32(xv);
+                    let acc = |s: int64x2_t, w: &[i32; NINP]| {
+                        let wv = vld1q_s32(w.as_ptr().add(i * 4));
+                        vmlal_high_s32(vmlal_s32(s, xl, vget_low_s32(wv)), xv, wv)
+                    };
+                    a = acc(a, w1);
+                    b = acc(b, w2);
+                    c = acc(c, w3);
+                }
+                [vaddvq_s64(a), vaddvq_s64(b), vaddvq_s64(c)]
+            }
+        }
+
+        #[inline(always)]
+        fn train(
+            x: &[i32; NINP],
+            w1: &mut [i32; NINP],
+            w2: &mut [i32; NINP],
+            w3: &mut [i32; NINP],
+            e: [i32; 3],
+        ) {
+            // SAFETY: NEON is part of aarch64, and every 4-lane access at
+            // i * 4 < NINP stays inside its row.
+            unsafe {
+                let (hi, lo) = (vdupq_n_s32(WEIGHT_LIMIT), vdupq_n_s32(-WEIGHT_LIMIT));
+                for i in 0..NINP / 4 {
+                    let xv = vld1q_s32(x.as_ptr().add(i * 4));
+                    for (w, e) in [(&mut *w1, e[0]), (&mut *w2, e[1]), (&mut *w3, e[2])] {
+                        let p = w.as_mut_ptr().add(i * 4);
+                        let d = vshrq_n_s32::<16>(vmulq_n_s32(xv, e));
+                        vst1q_s32(p, vmaxq_s32(vminq_s32(vaddq_s32(vld1q_s32(p), d), hi), lo));
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Encode `data` as an ncm payload, or `None` when the coder output would pass
 /// `2 * len + 64` bytes (the model abandons the encoding there) or the input
 /// does not fit the 4-byte length.
 pub fn encode(data: &[u8]) -> Option<Vec<u8>> {
+    dispatch!(encode_with(data))
+}
+
+#[inline(always)]
+fn encode_with<K: Kernel>(data: &[u8]) -> Option<Vec<u8>> {
     let n = u32::try_from(data.len()).ok()?;
     let cap = 2 * data.len() + 64;
     let mut out = Vec::with_capacity(data.len() / 2 + 16);
@@ -510,7 +946,7 @@ pub fn encode(data: &[u8]) -> Option<Vec<u8>> {
     for &byte in data {
         for k in (0..8).rev() {
             let y = (byte >> k) & 1 == 1;
-            let p = m.predict();
+            let p = m.predict::<K>();
             let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
             if y {
                 x2 = xm;
@@ -525,7 +961,7 @@ pub fn encode(data: &[u8]) -> Option<Vec<u8>> {
                 x1 <<= 8;
                 x2 = (x2 << 8) | 255;
             }
-            m.update(y);
+            m.update::<K>(y);
         }
     }
     if out.len() - 4 >= cap {
@@ -559,6 +995,11 @@ pub fn decode_canonical(payload: &[u8], n: u64) -> Option<Vec<u8>> {
 }
 
 fn run_decoder(payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
+    dispatch!(decode_with(payload, limit, canonical))
+}
+
+#[inline(always)]
+fn decode_with<K: Kernel>(payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
     let n = declared_length(payload)?;
     if u64::from(n) > limit {
         return None;
@@ -576,7 +1017,7 @@ fn run_decoder(payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
     let (mut x1, mut x2) = (0u32, u32::MAX);
     for _ in 0..n {
         for _ in 0..8 {
-            let p = m.predict();
+            let p = m.predict::<K>();
             let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
             let y = x <= xm;
             if y {
@@ -596,7 +1037,7 @@ fn run_decoder(payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
                 x = (x << 8) | u32::from(payload.get(ip).copied().unwrap_or(255));
                 ip += 1;
             }
-            m.update(y);
+            m.update::<K>(y);
         }
     }
     if canonical
@@ -623,6 +1064,32 @@ mod tests {
                 decode_canonical(&p, data.len() as u64).as_deref(),
                 Some(data)
             );
+        }
+    }
+
+    /// Every kernel this processor runs codes the same bytes as the portable
+    /// one, so an archive never depends on the machine that wrote it.
+    #[test]
+    fn kernels_agree() {
+        let mut x = 0x2545_F491u32;
+        let noise: Vec<u8> = (0..20_000)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 17;
+                x ^= x << 5;
+                (x >> 24) as u8
+            })
+            .collect();
+        let rows: Vec<u8> = (0..30_000u32)
+            .map(|i| (i % 37 * 7 + i / 999) as u8)
+            .collect();
+        let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
+        for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
+            let p = encode_with::<Scalar>(data).expect("fits");
+            assert_eq!(encode(data).as_deref(), Some(&p[..]));
+            let n = data.len() as u64;
+            assert_eq!(decode(&p, n).as_deref(), Some(data));
+            assert_eq!(decode_with::<Scalar>(&p, n, true).as_deref(), Some(data));
         }
     }
 
