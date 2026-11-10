@@ -36,18 +36,27 @@ def libraries():
     nwith = ncmgraph.window_library(g)
     _, x86 = x86graph.library(g)
     g.x86 = x86
-    runs = {'ulz': urun, 'ncm': nrun, 'ulz1': uwith, 'ulz2': uwith, 'ncm1': nwith, 'ncm2': nwith}
+    # every block above is the v0.3 library, unchanged; the profiled coder (ncm_model) follows
+    g.v03_blocks = len(g.blocks)
+    nprof = ncmgraph.profile_library(g)
+    runs = {'ulz': urun, 'ncm': nrun, 'ulz1': uwith, 'ulz2': uwith, 'ncm1': nwith, 'ncm2': nwith,
+            'ncmp': nprof, 'ncmp1': nprof, 'ncmp2': nprof}
     runs.update({c + 'x': r for c, r in list(runs.items()) if c.startswith('ncm')})
     return g, runs
 
 
 # Window entries: roots 1..K of the basis are the outputs of the K preceding frames, oldest first.
-WINDOWS = {'ulz1': 1, 'ulz2': 2, 'ncm1': 1, 'ncm2': 2}
+WINDOWS = {'ulz1': 1, 'ulz2': 2, 'ncm1': 1, 'ncm2': 2, 'ncmp1': 1, 'ncmp2': 2}
 WINDOWS.update({c + 'x': k for c, k in list(WINDOWS.items()) if c.startswith('ncm')})
 # The client compresses with ncm only; the ulz entries stay so earlier archives keep their meaning.
 # Codecs ending in x code the x86-filtered bytes (x86_model): the entry undoes the filter on the
 # decoder's output, and a window entry filters the history first, the frame placed after it.
 CODECS = ['ulz', 'ncm', 'ulz1', 'ulz2', 'ncm1', 'ncm2', 'ncmx', 'ncm1x', 'ncm2x']
+# Profiled codecs (ncmp*): the entry applies ncmRunProfile to the payload, the history (empty without a window)
+# and the frame's profile word, a natural constant right after the payload: the template is
+# prefix ++ uleb(len) ++ payload ++ 00 ++ uleb(profile) ++ tail.
+PCODECS = ['ncmp', 'ncmp1', 'ncmp2', 'ncmpx', 'ncmp1x', 'ncmp2x']
+PROFILE_MARK = 0x7ffff
 
 
 G, RUN = libraries()
@@ -67,8 +76,22 @@ assert V02_ID == wire.chain(TAG + wire.uleb(1) + wire.uleb(len(V02_LIB)) + V02_L
 assert V02_LIB == wire.uleb(G.v02_blocks) + b''.join(block_bytes(b) for b in G.blocks[:G.v02_blocks]), 'the v0.2 blocks changed'
 
 
-def entry(g, run, payload, k=0, x86=False):
+def entry(g, run, payload, k=0, x86=False, profile=None):
     e = g.block('entry', [], S)
+    if profile is not None:
+        pl = e.seq(payload)
+        pf = e.nat(profile)
+        history = e.seq(b'')
+        if k > 0:
+            history = e.basis(1)
+            for r in range(2, k + 1):
+                history = e.sconcat(history, e.basis(r))
+        if not x86:
+            e.returns(e.apply(run, [pl, history, pf]))
+            return e
+        out = e.apply(run, [pl, e.apply(g.x86, [history, e.nat(0), e.nat(0)]), pf])
+        e.returns(e.apply(g.x86, [out, e.nat(1), e.slen(history)]))
+        return e
     if k == 0:
         out = e.apply(run, [e.seq(payload)])
         e.returns(e.apply(g.x86, [out, e.nat(1), e.nat(0)]) if x86 else out)
@@ -106,6 +129,21 @@ def template(codec):
 TEMPLATES = {c: template(c) for c in CODECS}
 
 
+def profile_template(codec):
+    """(prefix, tail) of a profiled codec: its body is prefix ++ uleb(len) ++ payload ++ 00 ++ uleb(profile) ++ tail."""
+    e = entry(G, RUN[codec], PH, WINDOWS.get(codec, 0), codec.endswith('x'), PROFILE_MARK)
+    eb = block_bytes(e)
+    G.blocks.pop()
+    body = wire.uleb(1) + eb + wire.uleb(0)
+    mark = bytes([3, 2]) + PH + bytes([0]) + wire.uleb(PROFILE_MARK)
+    assert body.count(mark) == 1, codec
+    cut = body.index(mark)
+    return body[:cut + 1], body[cut + len(mark):]
+
+
+PTEMPLATES = {c: profile_template(c) for c in PCODECS}
+
+
 def reference_body():
     """Body of a reference frame: a conditional archive over [library, F] whose one entry block returns
     basis root 1, the earlier frame F itself. It applies no library block, so it is the same bytes for
@@ -120,7 +158,10 @@ def reference_body():
 REF_BODY = reference_body()
 
 
-def linked_body(codec, payload):
+def linked_body(codec, payload, profile=None):
+    if profile is not None:
+        pre, tail = PTEMPLATES[codec]
+        return pre + wire.uleb(len(payload)) + payload + bytes([0]) + wire.uleb(profile) + tail
     pre, suf = TEMPLATES[codec]
     return pre + wire.uleb(len(payload)) + payload + suf
 
@@ -131,8 +172,8 @@ def materialize(body):
     return wire.uleb(L + 1) + LIBB + body[1:-1] + wire.uleb(L)
 
 
-def linked_archive(codec, n, payload, window=()):
-    body = linked_body(codec, payload)
+def linked_archive(codec, n, payload, window=(), profile=None):
+    body = linked_body(codec, payload, profile)
     ident = basis_id(window) if window else STD_ID
     pre = b'UORC' + bytes([2, 1, 1, 1]) + wire.uleb(1) + wire.uleb(n) + wire.uleb(len(body)) + ident + body
     return wire.sealed(pre)
