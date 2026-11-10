@@ -19,7 +19,9 @@ sys.path.insert(0, HERE)
 from ir import *
 
 NC = 17               # hashed contexts
-NIN = NC + 3          # mixer inputs: contexts, match probability, match vote, bias
+NIN = NC + 7          # mixer inputs: contexts, match probability, match vote, bias, short match (2), repeat (2)
+F_SHORT = 1 << 17     # profile bit: the short match model
+F_REP = 1 << 18       # profile bit: the repeat-distance model (its inputs, context 13 and the mixer/APM state)
 TBMAX = 24
 SQT = [1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047,
        2549, 2994, 3348, 3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094]
@@ -33,13 +35,16 @@ for name, w in [('n', 4), ('tb', 1), ('mb', 1), ('pos', 4), ('c4', 4), ('c8', 4)
                 ('r', 4), ('pm1', 2), ('pm2', 2), ('pr', 2), ('acc', 8), ('sso', 4), ('sw', 8),
                 ('acc2', 8), ('sw2', 8), ('ml', 4), ('mf', 1), ('pi', 2), ('x1', 4), ('x2', 4), ('x', 4),
                 ('ip', 4), ('op', 4), ('y', 1), ('cap', 4), ('ovf', 1), ('pm3', 2), ('acc3', 8), ('sw3', 8),
-                ('ai1', 4), ('aj1', 1), ('ai2', 4), ('aj2', 1), ('hoff', 4)]:
+                ('ai1', 4), ('aj1', 1), ('ai2', 4), ('aj2', 1), ('hoff', 4),
+                ('prof', 4), ('m2ptr', 4), ('m2len', 4), ('m2exp', 1), ('m2b', 1), ('eb2', 1), ('ml2', 4), ('mf2', 1),
+                ('rd', 4), ('rrun', 1), ('rexp', 1), ('rok', 1), ('ra', 1), ('ebr', 1), ('msel', 1)]:
     P.glob(name, w)
 # graph store regions (key bases); every table is addressed as width * index + byte
 for name, base in [('HB', 1 << 8), ('BB', 1 << 9), ('IX', 1 << 10), ('ST', 1 << 11), ('MS', 1 << 12), ('LP', 1 << 13),
                    ('LD', 1 << 14), ('STR', 1 << 15), ('RC', 1 << 18), ('W1', 1 << 19), ('W2', 1 << 20), ('W3', 1 << 21),
                    ('A1', (1 << 21) + (1 << 17)), ('A2', 1 << 23), ('MT', 1 << 26),
-                   ('T', 1 << 27), ('H', 1 << 33), ('OUT', 1 << 34)]:
+                   ('T', 1 << 27), ('M2T', 1 << 30), ('M2S', 1 << 31), ('RS', (1 << 31) + (1 << 12)),
+                   ('H', 1 << 33), ('OUT', 1 << 34)]:
     P.table(name, base)
 P.rom('POW2', 4, [1 << k for k in range(25)])
 
@@ -59,6 +64,20 @@ def hist(i): return ld('H', 1, i)
 # match model works on absolute positions PA, everything else on positions in the coded bytes
 PA = add(G('hoff'), G('pos'))
 def coded(i): return hist(add(G('hoff'), i))
+
+def has(bit):
+    return eq(mod(div(G('prof'), bit), 2), 1)
+
+def match_key2(p, body):
+    """body += the short match model's key of absolute position p (the hash of the 4 bytes before it), as mk2."""
+    body.append(('let', 'mq0', 0x55))
+    last = 'mq0'
+    for i in range(1, 5):
+        nxt = fresh('mq')
+        body.append(('let', nxt, u32(add(add(mul(0x2F0B4C27, V(last)), hist(sub(p, i))), 1))))
+        last = nxt
+    hash_('mqh', V(last), body)
+    body.append(('let', 'mk2', div(V('mqh'), rom('POW2', 4, sub(32, G('mb'))))))
 
 def match_key(p, body):
     """body += the match-model key of absolute position p (the hash of the 7 bytes before it), as mk."""
@@ -86,17 +105,25 @@ sb += [('let', 'cnt', monus(add(V('sv'), 1), G('pi'))),
        ('set', 'pi', mx(G('pi'), add(V('sv'), 1)))]
 init += [('set', 'pi', 0), ('loop', 4095, 'k', sb),
          ('loop', monus(4096, G('pi')), 'j', [('store', 'STR', 2, add(G('pi'), V('j')), 4095)])]
-init += [('loop', 64, 'k', [('store', 'MS', 3, V('k'), sel(eq(mod(V('k'), 2), 1), 60000 * 256, 5536 * 256))])]
+init += [('loop', 64, 'k', [('store', 'MS', 3, V('k'), sel(eq(mod(V('k'), 2), 1), 60000 * 256, 5536 * 256)),
+                            ('store', 'M2S', 3, V('k'), sel(eq(mod(V('k'), 2), 1), 60000 * 256, 5536 * 256))]),
+         ('loop', 128, 'k', [('store', 'RS', 3, V('k'), 32768 * 256)])]
 # the match model starts holding every history position (absolute positions 7 .. hoff - 1)
 pf = []
 match_key(add(7, V('j')), pf)
 pf.append(('store', 'MT', 4, V('mk'), add(7, V('j'))))
 init += [('loop', monus(G('hoff'), 7), 'j', pf)]
+pf2 = []
+match_key2(add(4, V('j')), pf2)
+pf2.append(('store', 'M2T', 4, V('mk2'), add(4, V('j'))))
+init += [('if', has(F_SHORT), [('loop', monus(G('hoff'), 4), 'j', pf2)], [])]
 init += [('call', 'newByte', [])]
 P.func('setup', [], init)
 
 # ---- byte boundary: match model, then the context hashes ----
 nb = []
+# the repeat model's run: how many bytes in a row the byte at the repeat distance predicted
+nb += [('if', eq(G('rok'), 1), [('set', 'rrun', sel(eq(G('rexp'), hist(sub(PA, 1))), mn(add(G('rrun'), 1), 63), 0))], [])]
 nb += [('if', lt(0, G('mlen')), [('set', 'mlen', mn(add(G('mlen'), 1), 65535)), ('set', 'mptr', add(G('mptr'), 1))], [])]
 mm = []
 match_key(PA, mm)
@@ -106,9 +133,32 @@ look = [('let', 'cand', ld('MT', 4, V('mk'))),
           ('loopw', 1024, AND(eq(G('mf'), 1), lt(G('ml'), V('cand'))), 'j',
            [('if', eq(hist(monus(V('cand'), add(G('ml'), 1))), hist(monus(PA, add(G('ml'), 1)))),
              [('set', 'ml', add(G('ml'), 1))], [('set', 'mf', 0)])]),
-          ('if', le(7, G('ml')), [('set', 'mptr', V('cand')), ('set', 'mlen', G('ml'))], [])], [])]
+          ('if', le(7, G('ml')), [('set', 'mptr', V('cand')), ('set', 'mlen', G('ml')),
+                                  ('if', has(F_REP), [('set', 'rd', sub(PA, V('cand'))), ('set', 'rrun', 0)], [])], [])], [])]
 mm += [('if', eq(G('mlen'), 0), look, []), ('store', 'MT', 4, V('mk'), PA)]
 nb += [('if', le(7, PA), mm, [])]
+# the short match model: the same, keyed on the 4 bytes before, found from 4 matching bytes
+m2 = [('if', lt(0, G('m2len')), [('set', 'm2len', mn(add(G('m2len'), 1), 65535)), ('set', 'm2ptr', add(G('m2ptr'), 1))], [])]
+mm2 = []
+match_key2(PA, mm2)
+look2 = [('let', 'cand2', ld('M2T', 4, V('mk2'))),
+         ('if', lt(0, V('cand2')),
+          [('set', 'ml2', 0), ('set', 'mf2', 1),
+           ('loopw', 1024, AND(eq(G('mf2'), 1), lt(G('ml2'), V('cand2'))), 'j',
+            [('if', eq(hist(monus(V('cand2'), add(G('ml2'), 1))), hist(monus(PA, add(G('ml2'), 1)))),
+              [('set', 'ml2', add(G('ml2'), 1))], [('set', 'mf2', 0)])]),
+           ('if', le(4, G('ml2')), [('set', 'm2ptr', V('cand2')), ('set', 'm2len', G('ml2')),
+                                    ('if', has(F_REP), [('set', 'rd', sub(PA, V('cand2'))), ('set', 'rrun', 0)], [])], [])], [])]
+mm2 += [('if', eq(G('m2len'), 0), look2, []), ('store', 'M2T', 4, V('mk2'), PA)]
+m2 += [('if', le(4, PA), mm2, [])]
+L2 = G('m2len')
+bucket2 = sel(lt(L2, 16), L2, sel(lt(L2, 32), add(16, div(monus(L2, 16), 4)), sel(lt(L2, 64), add(20, div(monus(L2, 32), 8)),
+              sel(lt(L2, 512), add(24, div(monus(L2, 64), 64)), 31))))
+m2 += [('if', lt(0, G('m2len')), [('set', 'm2exp', hist(G('m2ptr'))), ('set', 'm2b', bucket2)],
+        [('set', 'm2exp', 0), ('set', 'm2b', 0)])]
+nb += [('if', has(F_SHORT), m2, [])]
+# the repeat model: the byte at the distance of the last match found, kept after a mismatch
+nb += [('if', AND(has(F_REP), lt(0, G('rd'))), [('set', 'rexp', hist(sub(PA, G('rd')))), ('set', 'rok', 1)], [('set', 'rok', 0)])]
 L_ = G('mlen')
 bucket = sel(lt(L_, 16), L_, sel(lt(L_, 32), add(16, div(monus(L_, 16), 4)), sel(lt(L_, 64), add(20, div(monus(L_, 32), 8)),
              sel(lt(L_, 512), add(24, div(monus(L_, 64), 64)), 31))))
@@ -126,7 +176,8 @@ ctx = [0, add(b1, 256), mod(c4, 65536), add(mod(c4, 1 << 24), 1 << 24), u32(add(
        u32(add(V('hc4'), mod(c8, 65536))), u32(add(V('hc4'), c8)), u32(add(G('wordh'), V('hw1'))), G('wordh'),
        add(sub(mod(c4, 65536), b1), mul(65536, p3)), add(sub(c4, mod(c4, 65536)), p3),
        add(add(b1, mul(256, p3)), 0x800000), add(add(mod(c4, 65536), mul(65536, p3)), 0x4000000),
-       add(b1, mul(65536, mod(div(c4, 65536), 256))),
+       sel(has(F_REP), add(add(sel(eq(G('rok'), 1), add(add(G('rexp'), 256), mul(512, mn(G('rrun'), 15))), 0), mul(65536, b1)), 0x55000000),
+           add(b1, mul(65536, mod(div(c4, 65536), 256)))),
        u32(add(add(add(V('ab'), mul(256, b1)), mul(65536, R)), 0x10000000)),
        u32(add(add(add(add(V('ab'), mul(256, V('ab1'))), mul(65536, V('ab2'))), mul(1 << 24, R)), 0x80000000)),
        u32(add(add(sel(lt(0, G('mlen')), add(G('mexp'), 256), 0), mul(512, G('mbucket'))), 0x77000000))]
@@ -170,10 +221,27 @@ pr += [('let', 'mi', add(mul(2, G('mbucket')), G('eb'))),
        ('let', 'vote', sel(lt(15, G('mbucket')), 1024, 256)),
        ('store', 'ST', 2, NC + 1, sel(lt(0, G('mlen')), sel(eq(G('eb'), 1), add(2048, V('vote')), sub(2048, V('vote'))), 2048)),
        ('store', 'ST', 2, NC + 2, 2048 + 256)]
+pr += [('set', 'eb2', 0)]
+mt2 = [('if', eq(div(add(G('m2exp'), 256), rom('POW2', 4, add(bp, 1))), G('c0')),
+        [('set', 'eb2', mod(div(G('m2exp'), rom('POW2', 4, bp)), 2))],
+        [('set', 'm2len', 0), ('set', 'm2b', 0)])]
+pr += [('if', lt(0, G('m2len')), mt2, [])]
+pr += [('set', 'ra', 0), ('set', 'ebr', 0)]
+pr += [('if', AND(eq(G('rok'), 1), eq(div(add(G('rexp'), 256), rom('POW2', 4, add(bp, 1))), G('c0'))),
+        [('set', 'ra', 1), ('set', 'ebr', mod(div(G('rexp'), rom('POW2', 4, bp)), 2))], [])]
+pr += [('let', 'm2i', add(mul(2, G('m2b')), G('eb2'))),
+       ('store', 'ST', 2, NC + 3, sel(lt(0, G('m2len')), ld('STR', 2, div(div(ld('M2S', 3, V('m2i')), 256), 16)), 2048)),
+       ('let', 'vote2', sel(lt(15, G('m2b')), 1024, 256)),
+       ('store', 'ST', 2, NC + 4, sel(lt(0, G('m2len')), sel(eq(G('eb2'), 1), add(2048, V('vote2')), sub(2048, V('vote2'))), 2048)),
+       ('let', 'ri', add(mul(2, G('rrun')), G('ebr'))),
+       ('store', 'ST', 2, NC + 5, sel(eq(G('ra'), 1), ld('STR', 2, div(mod(add(div(ld('RS', 3, V('ri')), 256), 0), 65536), 16)), 2048)),
+       ('store', 'ST', 2, NC + 6, sel(eq(G('ra'), 1), sel(eq(G('ebr'), 1), 2048 + 256, 2048 - 256), 2048)),
+       # mixer 1 and the first APM are selected by the partial byte and the two match states
+       ('set', 'msel', add(sel(lt(0, G('m2len')), add(1, G('eb2')), 0), mul(3, sel(eq(G('ra'), 1), add(1, G('ebr')), 0))))]
 # the two mixers' dot products, accumulated over the inputs
 pr += [('set', 'acc', 0), ('set', 'sso', 0), ('set', 'sw', 0), ('set', 'acc2', 0), ('set', 'sw2', 0),
        ('set', 'acc3', 0), ('set', 'sw3', 0),
-       ('let', 's1', mul(NIN, G('c0'))), ('let', 's2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
+       ('let', 's1', mul(NIN, add(G('c0'), mul(256, G('msel'))))), ('let', 's2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
        ('let', 's3', mul(NIN, add(mul(8, mod(div(G('c4'), 256), 256)), G('bit'))))]
 dl = [('let', 'so', ld('ST', 2, V('i'))),
       ('let', 'w1', mod(add(ld('W1', 3, add(V('s1'), V('i'))), WINIT), 1 << 24)),
@@ -220,7 +288,7 @@ def refine(out, table, cx, gi, gj, body):
     body += [('let', out, div(add(mul(t0, sub(128, V(w))), mul(t1, V(w))), 2048)),
              ('set', gi, add(V(base), div(V(w), 64))), ('set', gj, add(V(l), div(V(w), 64)))]
 
-refine('r1', 'A1', G('c0'), 'ai1', 'aj1', pr)
+refine('r1', 'A1', add(G('c0'), mul(256, G('msel'))), 'ai1', 'aj1', pr)
 hash_('ah2', u32(add(mul(0x2F0B4C27, mod(G('c4'), 1 << 24)), G('c0'))), pr)
 refine('r2', 'A2', div(V('ah2'), 65536), 'ai2', 'aj2', pr)
 pr += [('set', 'pr', mx(mn(div(add(add(V('pa'), V('r1')), mul(2, V('r2'))), 4), 4095), 1))]
@@ -252,7 +320,16 @@ ms = [('let', 'mi', add(mul(2, G('mbucket')), G('eb'))), ('let', 'sv', ld('MS', 
                         sub(V('pp'), div(add(mul(V('pp'), V('rt')), 65535), 65536)))),
       ('store', 'MS', 3, V('mi'), add(mul(256, V('np')), mn(add(V('cn'), 1), 127)))]
 up += [('if', lt(0, G('mlen')), ms, [])]
-up += [('let', 's1', mul(NIN, G('c0'))), ('let', 's2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
+def adapt_slot(table, key):
+    return [('let', 'sv', ld(table, 3, key)),
+            ('let', 'cn', mod(V('sv'), 256)), ('let', 'pp', div(V('sv'), 256)),
+            ('let', 'rt', div(131072, add(mul(2, V('cn')), 3))),
+            ('let', 'np', sel(eq(G('y'), 1), add(V('pp'), div(mul(sub(65535, V('pp')), V('rt')), 65536)),
+                              sub(V('pp'), div(add(mul(V('pp'), V('rt')), 65535), 65536)))),
+            ('store', table, 3, key, add(mul(256, V('np')), mn(add(V('cn'), 1), 127)))]
+up += [('if', eq(G('ra'), 1), adapt_slot('RS', add(mul(2, G('rrun')), G('ebr'))), [])]
+up += [('if', lt(0, G('m2len')), adapt_slot('M2S', add(mul(2, G('m2b')), G('eb2'))), [])]
+up += [('let', 's1', mul(NIN, add(G('c0'), mul(256, G('msel'))))), ('let', 's2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
        ('let', 'e1', sel(eq(G('y'), 1), sub(4096, G('pm1')), G('pm1'))),
        ('let', 'e2', sel(eq(G('y'), 1), sub(4096, G('pm2')), G('pm2'))),
        ('let', 's3', mul(NIN, add(mul(8, mod(div(G('c4'), 256), 256)), G('bit')))),
@@ -333,8 +410,11 @@ P.func('encode', ['size', 'limit'], [('set', 'n', V('size')), ('set', 'cap', V('
 P.func('encodeWith', ['size', 'limit', 'h'], [('set', 'hoff', V('h')), ('call', 'encode', [V('size'), V('limit')])])
 
 
-def py_encode(data, history=b''):
+FULL = (1 << 19) - 1   # every context and both match features
+
+def py_encode(data, history=b'', prof=FULL):
     m = Machine(P, data)
+    m.g['prof'] = prof
     for i, b in enumerate(history):
         m.t['H'][i] = b
     m.call('encodeWith', len(data), 2 * len(data) + 64, len(history))
@@ -342,8 +422,9 @@ def py_encode(data, history=b''):
     out = bytes(m.t['OUT'].get(i, 0) for i in range(m.g['op']))
     return len(data).to_bytes(4, 'big') + out
 
-def py_decode(payload, history=b''):
+def py_decode(payload, history=b'', prof=FULL):
     m = Machine(P, payload)
+    m.g['prof'] = prof
     for i, b in enumerate(history):
         m.t['H'][i] = b
     m.call('decodeWith', len(history))
