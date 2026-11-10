@@ -34,9 +34,6 @@
     <label for="steps">Extra program-search steps (compress, 0 = none)</label>
     <input id="steps" type="number" min="0" step="1000000" value="0" inputmode="numeric">
   </div>
-  <div class="row">
-    <label><input id="best" type="checkbox"> Best ratio (context-mixing coder; slower)</label>
-  </div>
   <div class="row buttons">
     <button id="compress" type="button" disabled>Compress</button>
     <button id="decompress" type="button" disabled>Decompress</button>
@@ -67,10 +64,10 @@
   <h2 id="use">Use it</h2>
   <h3>Command line</h3>
 <pre><code>uorc compress --stats notes.txt      # writes notes.txt.uorc
-uorc compress --best notes.txt       # smallest archive (context-mixing coder)
 uorc decompress notes.txt.uorc -o notes.restored.txt
 cat data.bin | uorc compress - &gt; data.uorc   # any size: streams through 8 MiB frames
 uorc compress --threads 4 big.tar     # frames compress in parallel
+uorc decompress --threads 4 big.tar.uorc   # blocks of 4 frames decode in parallel
 uorc compress photos/                 # writes photos.uorc (a whole tree)
 uorc decompress photos.uorc -o restore/   # --resume finishes an interrupted restore
 uorc inspect notes.txt.uorc           # header and integrity, no decoding
@@ -80,15 +77,15 @@ uorc verify notes.txt.uorc notes.txt  # decode, check, compare</code></pre>
   3 I/O, 4 invalid archive or integrity, 5 step budget, 6 overflow, 7 differs
   from the original.</p>
   <h3>Rust library</h3>
-<pre><code>let archive = uorc::compress(&amp;bytes, uorc::DEFAULT_STEPS, uorc::Level::Best)?;
+<pre><code>let archive = uorc::compress(&amp;bytes, uorc::DEFAULT_STEPS)?;
 let original = uorc::decompress(&amp;archive, uorc::DEFAULT_DECODE_WORK)?;
 assert_eq!(original, bytes);
 let info = uorc::inspect(&amp;archive)?;           // header + integrity, no decode
 uorc::verify(&amp;archive, Some(&amp;bytes), uorc::DEFAULT_DECODE_WORK)?;
-let many = uorc::compress_objects(&amp;[a, b, c], uorc::DEFAULT_STEPS, uorc::Level::Fast)?;
+let many = uorc::compress_objects(&amp;[a, b, c], uorc::DEFAULT_STEPS)?;
 let parts = uorc::decompress_objects(&amp;many, uorc::DEFAULT_DECODE_WORK)?;
 // Or stream between any reader and writer, with bounded memory:
-uorc::compress_stream(reader, writer, uorc::DEFAULT_STEPS, uorc::Level::Fast, uorc::default_threads())?;</code></pre>
+uorc::compress_stream(reader, writer, uorc::DEFAULT_STEPS, uorc::default_threads())?;</code></pre>
   <h3>JavaScript (this page's module)</h3>
 <pre><code>import { load } from "./uorc.js";
 const uorc = await load("./uorc.wasm");

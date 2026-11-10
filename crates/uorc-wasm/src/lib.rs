@@ -18,6 +18,8 @@ thread_local! {
     static ORIGINAL: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     /// The frames before the next frame of the stream in progress.
     static WINDOW: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
+    /// Frames of the stream in progress so far.
+    static COUNT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// Run `op` on the input and the current window, then make `next` (the
@@ -30,7 +32,18 @@ fn framed(
         WINDOW.with(|window| {
             let input = input.borrow();
             let mut window = window.borrow_mut();
-            let view: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
+            // The encoder starts a block every `uorc::BLOCK` frames (the
+            // decoder reads the window length each archive names).
+            let k = COUNT.with(|count| count.get());
+            let reach = if keep_input {
+                k % uorc::BLOCK
+            } else {
+                window.len()
+            };
+            let view: Vec<&[u8]> = window[window.len().saturating_sub(reach)..]
+                .iter()
+                .map(Vec::as_slice)
+                .collect();
             let result = op(&input, &view);
             if let Ok(output) = &result {
                 window.push(if keep_input {
@@ -41,6 +54,7 @@ fn framed(
                 if window.len() > uorc::archive::WINDOW {
                     window.remove(0);
                 }
+                COUNT.with(|count| count.set(k + 1));
             }
             result
         })
@@ -52,6 +66,7 @@ fn framed(
 #[no_mangle]
 pub extern "C" fn window_reset() {
     WINDOW.with(|window| window.borrow_mut().clear());
+    COUNT.with(|count| count.set(0));
 }
 
 /// Operation succeeded; the result is in the output buffer.
@@ -109,19 +124,12 @@ fn finish(result: Result<Vec<u8>, uorc::Error>) -> i32 {
     code
 }
 
-/// Compress the input buffer with a search budget of `steps`.
+/// Compress the input buffer with a search budget of `steps`. `best` is
+/// accepted for earlier pages and changes nothing: there is one coder.
 #[no_mangle]
 pub extern "C" fn compress(steps: u64, best: u32) -> i32 {
-    finish(INPUT.with(|input| uorc::compress(&input.borrow(), steps, level(best))))
-}
-
-/// `best` nonzero also tries the context-mixing coder.
-fn level(best: u32) -> uorc::Level {
-    if best == 0 {
-        uorc::Level::Fast
-    } else {
-        uorc::Level::Best
-    }
+    let _ = best;
+    finish(INPUT.with(|input| uorc::compress(&input.borrow(), steps)))
 }
 
 /// Decompress the input buffer.
@@ -134,8 +142,9 @@ pub extern "C" fn decompress() -> i32 {
 /// of the stream since [`window_reset`].
 #[no_mangle]
 pub extern "C" fn compress_frame(steps: u64, best: u32) -> i32 {
+    let _ = best;
     framed(
-        |input, window| uorc::compress_frame_with(input, window, steps, level(best)),
+        |input, window| uorc::compress_frame_with(input, window, steps),
         true,
     )
 }
@@ -274,9 +283,9 @@ fn write_entries(entries: &[uorc::tree::Entry]) -> Vec<u8> {
 /// archive of ordered objects.
 #[no_mangle]
 pub extern "C" fn compress_tree(steps: u64, best: u32) -> i32 {
+    let _ = best;
     finish(INPUT.with(|input| {
-        read_entries(&input.borrow())
-            .and_then(|entries| uorc::compress_tree(&entries, steps, level(best)))
+        read_entries(&input.borrow()).and_then(|entries| uorc::compress_tree(&entries, steps))
     }))
 }
 
@@ -304,11 +313,11 @@ mod tests {
     #[test]
     fn wasm_exports_match_the_library_uc_api_01() {
         let input = [0u8, 0xff, 0xc3, 0x28, b'a', b'b', b'a', b'b', 0];
-        for (best, level) in [(1, uorc::Level::Best), (0, uorc::Level::Fast)] {
+        for best in [1, 0] {
             let (code, archive) = run(&input, || compress(0, best));
             assert_eq!(code, OK);
-            let library = uorc::compress(&input, 0, level).expect("library archive");
-            assert_eq!(archive, library, "{level:?}");
+            let library = uorc::compress(&input, 0).expect("library archive");
+            assert_eq!(archive, library, "best {best}");
         }
         let (_, archive) = run(&input, || compress(0, 0));
         assert_eq!(run(&archive, || decompress()), (OK, input.to_vec()));
