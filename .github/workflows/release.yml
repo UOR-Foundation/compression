@@ -122,14 +122,13 @@ jobs:
       - name: Assemble the site and the wasm bundle
         run: |
           set -euo pipefail
-          mkdir -p site dist
-          cp web/* site/
-          cp target/wasm32-unknown-unknown/release/uorc_wasm.wasm site/uorc.wasm
-          cp bench/bench.html bench/bench.json bench/bench.md site/
-          printf '%s\n' "$TAG" > site/version.txt
+          mkdir -p dist
+          # The site is a browser closure v2: the page, the brand files, provenance.
+          node scripts/site.mjs site --wasm target/wasm32-unknown-unknown/release/uorc_wasm.wasm --version "$TAG" --bench bench
           name="uorc-${TAG}-wasm"
           mkdir -p "dist/$name"
-          cp site/uorc.wasm site/uorc.js LICENSE-APACHE LICENSE-MIT "dist/$name/"
+          cp site/uorc_bg.wasm "dist/$name/uorc.wasm"
+          cp site/uorc.js LICENSE-APACHE LICENSE-MIT "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
           git archive --format=tar.gz --prefix="uorc-${TAG}-src/" -o "dist/uorc-${TAG}-src.tar.gz" HEAD \
             Cargo.toml Cargo.lock rust-toolchain.toml crates/uorc crates/uorc-wasm generated/rust LICENSE-APACHE LICENSE-MIT
