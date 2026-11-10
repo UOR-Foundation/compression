@@ -835,7 +835,24 @@ fn decode_stream(
 
     let store = store::Shared::new(scan(&mut reader)?);
     let store = &store;
-    let threads = threads.max(1);
+    if threads <= 1 {
+        // One core decodes in stream order with no worker thread, which is
+        // also the only schedule a host without threads (WebAssembly) can run.
+        let (mut totals, mut carry, mut window) = (Totals::default(), Vec::new(), Vec::new());
+        while let Some(archive) = next_archive(&mut reader, &mut carry)? {
+            totals.read += archive.len() as u64;
+            on_archive(&archive)?;
+            let lengths = object_lengths(&archive)?;
+            let output = decode_into(&mut window, &archive, totals.frames as usize, store, work)?;
+            totals.written += output.len() as u64;
+            totals.frames += 1;
+            on_output(&lengths, output)?;
+        }
+        if totals.frames == 0 {
+            return Err(Error::Decode.into());
+        }
+        return Ok(totals);
+    }
     // Frames sent to the decoders and not yet handed on.
     let limit = threads * BLOCK;
     let mut totals = Totals::default();

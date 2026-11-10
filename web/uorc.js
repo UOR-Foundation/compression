@@ -1,7 +1,11 @@
-// Thin loader for the uorc WebAssembly client (crates/uorc-wasm).
+// Thin loader for the uorc WebAssembly client (crates/uorc-wasm). Loaded as a
+// module worker, it is also the page's worker: see `serve` at the end.
 const ERRORS = ["", "no checked archive was found within the step budget",
   "a natural-number operation overflowed 64 bits", "input is not a decodable stream of self-contained UORC archives",
   "the archive does not decode to the given original"];
+// The code of each failure, as the page's product model names them.
+export const CODES = ["", "budget", "overflow", "decode", "mismatch"];
+const failure = (code) => Object.assign(new Error(ERRORS[code] ?? `uorc error ${code}`), { code: CODES[code] ?? "decode" });
 const KINDS = ["file", "executable", "directory"];
 
 // Entries cross into wasm as u32 count, then per entry u8 kind, u32 path length,
@@ -50,7 +54,7 @@ export async function load(url) {
   const call = (bytes, op) => {
     put(x.input_buffer, bytes);
     const code = op();
-    if (code !== 0) throw new Error(ERRORS[code] ?? `uorc error ${code}`);
+    if (code !== 0) throw failure(code);
     return new Uint8Array(x.memory.buffer, x.output_ptr(), x.output_len()).slice();
   };
   const json = (bytes) => JSON.parse(new TextDecoder().decode(bytes));
@@ -63,7 +67,7 @@ export async function load(url) {
       put(x.input_buffer, head);
       const length = x.frame_length();
       if (length >= 0 && at + length <= blob.size) return length;
-      if (length === -1 || head.length < want) throw new Error(ERRORS[3]);
+      if (length === -1 || head.length < want) throw failure(3);
     }
   };
   return {
@@ -116,5 +120,103 @@ export async function load(url) {
     // entries: [{ path: "dir/a.txt", kind: "file" | "executable" | "directory", data: Uint8Array }]
     compressFiles: (entries, steps = 0n) => call(packEntries(entries), () => x.compress_tree(BigInt(steps))),
     decompressFiles: (archive) => unpackEntries(call(archive, () => x.decompress_tree())),
+    // How many objects the stream's first archive holds: one for a file, more
+    // for an archive of several files or a folder.
+    async objects(blob) {
+      const length = await archiveLength(blob, 0);
+      const [info] = json(call(await bytesOf(blob.slice(0, length)), () => x.inspect()));
+      return info.objects;
+    },
+    // Bytes of WebAssembly memory the client holds now.
+    memoryBytes: () => x.memory.buffer.byteLength,
   };
 }
+
+// The page's worker: one operation at a time on File objects, answering with
+// progress, then the result or the failure's code. The page ends a running
+// operation by terminating the worker.
+const inWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+
+const EXAMPLES = {
+  text: (n, seed) => { const t = new TextEncoder().encode(seed); return Uint8Array.from({ length: n }, (_, i) => t[i % t.length]); },
+  zeros: (n) => new Uint8Array(n),
+  counter: (n) => Uint8Array.from({ length: n }, (_, i) => i & 255),
+  random: (n) => { const out = new Uint8Array(n); for (let at = 0; at < n; at += 65536) crypto.getRandomValues(out.subarray(at, Math.min(n, at + 65536))); return out; },
+  empty: () => new Uint8Array(0),
+};
+
+async function serve() {
+  let uorc;
+  try {
+    uorc = await load("./uorc_bg.wasm");
+  } catch (error) {
+    self.postMessage({ type: "loadFailed", message: String(error?.message ?? error) });
+    return;
+  }
+  const bytesOf = async (file) => new Uint8Array(await file.arrayBuffer());
+  const progress = (done, total) => self.postMessage({ type: "progress", done, total });
+  const run = {
+    async compress({ files }) {
+      const tree = files.length > 1 || files.some((f) => f.webkitRelativePath);
+      if (!tree) {
+        const [file] = files;
+        const archive = await uorc.compressBlob(file, 0n, progress);
+        return { kind: "archive", input: file.size, files: [{ path: `${file.name}.uorc`, blob: archive }] };
+      }
+      const entries = [];
+      const dirs = new Set();
+      let total = 0;
+      for (const file of files) {
+        const path = file.webkitRelativePath || file.name;
+        const parts = path.split("/");
+        for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join("/"));
+        entries.push({ path, data: await bytesOf(file) });
+        total += file.size;
+        progress(total, files.reduce((n, f) => n + f.size, 0));
+      }
+      const all = [...[...dirs].sort().map((path) => ({ path, kind: "directory" })), ...entries];
+      const root = files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "files";
+      const archive = new Blob([uorc.compressFiles(all)]);
+      return { kind: "archive", input: total, count: entries.length, files: [{ path: `${root}.uorc`, blob: archive }] };
+    },
+    async decompress({ archive }) {
+      if ((await uorc.objects(archive)) === 1) {
+        const blob = await uorc.decompressBlob(archive, progress);
+        const name = archive.name.endsWith(".uorc") && archive.name.length > 5 ? archive.name.slice(0, -5) : `${archive.name}.out`;
+        return { kind: "files", input: archive.size, files: [{ path: name, blob }] };
+      }
+      const entries = uorc.decompressFiles(await bytesOf(archive));
+      const files = entries.filter((e) => e.kind !== "directory").map((e) => ({ path: e.path, blob: new Blob([e.data]) }));
+      return { kind: "files", input: archive.size, files };
+    },
+    async inspect({ archive }) {
+      return { kind: "table", input: archive.size, rows: uorc.inspect(await bytesOf(archive)) };
+    },
+    async verify({ archive, original }) {
+      const rows = uorc.verify(await bytesOf(archive), original ? await bytesOf(original) : undefined);
+      return { kind: "verified", input: archive.size, compared: Boolean(original), rows };
+    },
+    async example({ input, bytes, seed }) {
+      const data = EXAMPLES[input](bytes, seed);
+      const started = performance.now();
+      const archive = uorc.compress(data);
+      const back = uorc.decompress(archive);
+      const same = back.length === data.length && back.every((b, i) => b === data[i]);
+      return { kind: "example", bytes: data.length, archive: archive.length, same, seconds: (performance.now() - started) / 1000 };
+    },
+  };
+  self.onmessage = async ({ data }) => {
+    try {
+      const result = await run[data.op](data);
+      self.postMessage({ type: "done", result: { ...result, memory: uorc.memoryBytes() } });
+    } catch (error) {
+      // Anything but a uorc failure (a trap, exhausted memory) leaves the
+      // module unusable: report the stop and let the page start a new worker.
+      self.postMessage({ type: "failed", code: error?.code ?? "stopped", message: String(error?.message ?? error) });
+      if (!error?.code) self.close();
+    }
+  };
+  self.postMessage({ type: "ready" });
+}
+
+if (inWorker) serve();
