@@ -56,6 +56,7 @@ lint:
 # runtimes (tens of minutes) and is its own recipe, `formal-tests`.
 test:
     cargo test --locked --workspace --exclude xtask
+    node --test scripts/site.test.mjs
 
 # The xtask suite: product-runtime, integrity, claims and offline harnesses.
 formal-tests:
