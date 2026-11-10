@@ -207,7 +207,7 @@ fn compress_pieces(
     // decodes to its input, so a self-decode would only repeat its cost.
     let best = ncm::encode_with(past, data).and_then(|payload| {
         if window.is_empty() {
-            Some(archive::linked_archive(codec, lengths, &payload))
+            archive::linked_archive(codec, lengths, &payload)
         } else {
             let identity = archive::window_identity(window);
             archive::window_archive(codec, window.len(), &identity, lengths, &payload)
@@ -1334,13 +1334,13 @@ mod tests {
     #[test]
     fn linked_archives_decode_by_linking_the_basis() {
         let mut payload = ulz::encode(b"ab");
-        let a = archive::linked_archive(archive::Codec::Ulz, &[2], &payload);
+        let a = archive::linked_archive(archive::Codec::Ulz, &[2], &payload).expect("codec");
         assert_eq!(
             decompress(&a, DEFAULT_DECODE_WORK).as_deref(),
             Ok(&b"ab"[..])
         );
         payload.push(0);
-        let padded = archive::linked_archive(archive::Codec::Ulz, &[2], &payload);
+        let padded = archive::linked_archive(archive::Codec::Ulz, &[2], &payload).expect("codec");
         assert_eq!(archive::fast_decode(&padded), None);
         assert_eq!(
             decompress(&padded, DEFAULT_DECODE_WORK).as_deref(),
@@ -1348,14 +1348,14 @@ mod tests {
         );
         let mut payload = ncm::encode(b"ab").expect("fits");
         payload.push(255);
-        let padded = archive::linked_archive(archive::Codec::Ncm, &[2], &payload);
+        let padded = archive::linked_archive(archive::Codec::Ncm, &[2], &payload).expect("codec");
         assert_eq!(archive::fast_decode(&padded), None);
     }
 
     #[test]
     fn ncm_beats_ulz_on_text() {
         let input = text(20_000, 9);
-        let ulz = archive::linked_archive(archive::Codec::Ulz, &[20_000], &ulz::encode(&input));
+        let ulz = archive::linked_archive(archive::Codec::Ulz, &[20_000], &ulz::encode(&input)).expect("codec");
         let best = compress(&input, 0).expect("best");
         assert!(best.len() < ulz.len(), "{} vs {}", best.len(), ulz.len());
         assert_eq!(

@@ -75,6 +75,17 @@ V02_ID = _hex('basis-id.hex')
 assert V02_ID == wire.chain(TAG + wire.uleb(1) + wire.uleb(len(V02_LIB)) + V02_LIB)
 assert V02_LIB == wire.uleb(G.v02_blocks) + b''.join(block_bytes(b) for b in G.blocks[:G.v02_blocks]), 'the v0.2 blocks changed'
 
+# The v0.3 basis (client/gen/v03): its library is this one's first v03_blocks blocks, byte for byte, so v0.3
+# archives keep their meaning too. The client accepts its identity beside STD_ID.
+def _hex3(name):
+    return bytes.fromhex(open(os.path.join(HERE, 'v03', name)).read().replace('\n', ''))
+V03_LIB = _hex3('basis-library.hex')
+V03_ID = _hex3('basis-id.hex')
+assert V03_ID == wire.chain(TAG + wire.uleb(1) + wire.uleb(len(V03_LIB)) + V03_LIB)
+assert V03_LIB == wire.uleb(G.v03_blocks) + b''.join(block_bytes(b) for b in G.blocks[:G.v03_blocks]), 'the v0.3 blocks changed'
+# a v0.3 entry: its frozen suffix with the current prefix (prefixes reference no block)
+V03_TEMPLATES = None
+
 
 def entry(g, run, payload, k=0, x86=False, profile=None):
     e = g.block('entry', [], S)
@@ -127,6 +138,7 @@ def template(codec):
 
 
 TEMPLATES = {c: template(c) for c in CODECS}
+V03_TEMPLATES = {c: (TEMPLATES[c][0], _hex3(f'linked-{c}-suffix.hex')) for c in CODECS}
 
 
 def profile_template(codec):
@@ -198,9 +210,20 @@ if __name__ == '__main__':
             write_hex(f'linked-{c}-prefix.hex', pre)
         write_hex(f'linked-{c}-suffix.hex', suf)
     write_hex('linked-ref.hex', REF_BODY)
+    write_hex('basis-v03-id.hex', V03_ID)
+    write_hex('basis-v03-library.hex', V03_LIB)
+    # v0.3 entries: the same prefixes; their suffixes name the run blocks at their v0.3 (relative) distance
+    for c in CODECS:
+        assert TEMPLATES[c][0] == V03_TEMPLATES[c][0], c
+        write_hex(f'v03-linked-{c}-suffix.hex', V03_TEMPLATES[c][1])
+    for c, (pre, tail) in PTEMPLATES.items():
+        write_hex(f'linked-{c}-prefix.hex', pre)
+        write_hex(f'linked-{c}-tail.hex', tail)
     print('library blocks', L, 'bytes', len(LIB), 'identity', STD_ID.hex())
     for c, (pre, suf) in TEMPLATES.items():
         print(c, 'linked prefix', pre.hex(), 'suffix', suf.hex())
+    for c, (pre, tail) in PTEMPLATES.items():
+        print(c, 'profiled prefix', pre.hex(), 'tail', tail.hex())
     if '--check' in sys.argv:
         import ulz, ncm_model, x86_model
         text = b'the standard basis carries the kernels; archives name it by identity. ' * 3

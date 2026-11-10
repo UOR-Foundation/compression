@@ -10,7 +10,8 @@
 #
 # Signed quantities are kept in offset form so every target computes on naturals:
 #   stretch values x in [-2047, 2047] as x + 2048; weights w as w + 2^22 in [0, 2^23], stored
-#   as (w + 2^22 + KW) mod 2^24 so that a fresh (zero) table holds the initial weight 2^14;
+#   as (w + 2^22 + KW) mod 2^24 so that a fresh (zero) table holds the initial weight 2^14 (0 for the
+#   short match and repeat inputs, winit/kw);
 #   slot probabilities p as (p + 32768) mod 65536 so that zero holds p = 1/2.
 import sys
 import os
@@ -21,12 +22,18 @@ from ir import *
 NC = 17               # hashed contexts
 NIN = NC + 7          # mixer inputs: contexts, match probability, match vote, bias, short match (2), repeat (2)
 F_SHORT = 1 << 17     # profile bit: the short match model
-F_REP = 1 << 18       # profile bit: the repeat-distance model (its inputs, context 13 and the mixer/APM state)
+F_REP = 1 << 18       # profile bit: the repeat-distance model (its inputs and context 13)
+F_SEL = 1 << 19       # profile bit: mixer 1 and the first APM selected by the match states too
 TBMAX = 24
 SQT = [1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047,
        2549, 2994, 3348, 3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094]
 WINIT = (1 << 22) + (1 << 14)
 KW = (1 << 24) - WINIT
+# the short match and repeat inputs (NC + 3 ..) start at weight 0 and earn theirs
+WINIT0 = 1 << 22
+KW0 = (1 << 24) - WINIT0
+def winit(i): return sel(lt(i, NC + 3), WINIT, WINIT0)
+def kw(i): return sel(lt(i, NC + 3), KW, KW0)
 M32 = 1 << 32
 
 P = Prog()
@@ -242,18 +249,18 @@ pr += [('let', 'm2i', add(mul(2, G('m2b')), G('eb2'))),
        ('store', 'ST', 2, NC + 5, sel(eq(G('ra'), 1), ld('STR', 2, div(mod(add(div(ld('RS', 3, V('ri')), 256), 0), 65536), 16)), 2048)),
        ('store', 'ST', 2, NC + 6, sel(eq(G('ra'), 1), sel(eq(G('ebr'), 1), 2048 + 256, 2048 - 256), 2048)),
        # mixer 1 and the first APM are selected by the partial byte and the two match states
-       ('set', 'msel', add(sel(lt(0, G('m2len')), add(1, G('eb2')), 0), mul(3, sel(eq(G('ra'), 1), add(1, G('ebr')), 0))))]
+       ('set', 'msel', sel(has(F_SEL), add(sel(lt(0, G('m2len')), add(1, G('eb2')), 0), mul(3, sel(eq(G('ra'), 1), add(1, G('ebr')), 0))), 0))]
 # the two mixers' dot products, accumulated over the inputs
 pr += [('set', 'acc', 0), ('set', 'sso', 0), ('set', 'sw', 0), ('set', 'acc2', 0), ('set', 'sw2', 0),
        ('set', 'acc3', 0), ('set', 'sw3', 0),
        ('let', 's1', mul(NIN, add(G('c0'), mul(256, G('msel'))))), ('let', 's2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
        ('let', 's3', mul(NIN, add(mul(8, mod(div(G('c4'), 256), 256)), G('bit'))))]
 dl = [('let', 'so', ld('ST', 2, V('i'))),
-      ('let', 'w1', mod(add(ld('W1', 3, add(V('s1'), V('i'))), WINIT), 1 << 24)),
-      ('let', 'w2', mod(add(ld('W2', 3, add(V('s2'), V('i'))), WINIT), 1 << 24)),
+      ('let', 'w1', mod(add(ld('W1', 3, add(V('s1'), V('i'))), winit(V('i'))), 1 << 24)),
+      ('let', 'w2', mod(add(ld('W2', 3, add(V('s2'), V('i'))), winit(V('i'))), 1 << 24)),
       ('set', 'acc', add(G('acc'), mul(V('so'), V('w1')))), ('set', 'acc2', add(G('acc2'), mul(V('so'), V('w2')))),
       ('set', 'sso', add(G('sso'), V('so'))), ('set', 'sw', add(G('sw'), V('w1'))), ('set', 'sw2', add(G('sw2'), V('w2'))),
-      ('let', 'w3', mod(add(ld('W3', 3, add(V('s3'), V('i'))), WINIT), 1 << 24)),
+      ('let', 'w3', mod(add(ld('W3', 3, add(V('s3'), V('i'))), winit(V('i'))), 1 << 24)),
       ('set', 'acc3', add(G('acc3'), mul(V('so'), V('w3')))), ('set', 'sw3', add(G('sw3'), V('w3')))]
 pr += [('loop', NIN, 'i', dl)]
 
@@ -344,10 +351,10 @@ up += [('let', 's1', mul(NIN, add(G('c0'), mul(256, G('msel'))))), ('let', 's2',
 
 def learn(table, key, err, body):
     w = fresh('w'); m = fresh('m'); s = fresh('s')
-    body += [('let', w, mod(add(ld(table, 3, key), WINIT), 1 << 24)),
+    body += [('let', w, mod(add(ld(table, 3, key), winit(V('i'))), 1 << 24)),
              ('let', m, mul(mul(V('mag'), err), V('lr'))),
              ('let', s, sel(V('pos_'), mn(add(V(w), div(V(m), 65536)), 1 << 23), monus(V(w), div(add(V(m), 65535), 65536)))),
-             ('store', table, 3, key, mod(add(V(s), KW), 1 << 24))]
+             ('store', table, 3, key, mod(add(V(s), kw(V('i'))), 1 << 24))]
 
 wl = [('let', 'so', ld('ST', 2, V('i'))),
       ('let', 'mag', add(monus(V('so'), 2048), monus(2048, V('so')))),
@@ -417,7 +424,7 @@ P.func('encodeWith', ['size', 'limit', 'h'], [('set', 'hoff', V('h')), ('call', 
 P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], [('set', 'prof', V('pf')), ('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
 
 
-FULL = (1 << 19) - 1   # every context and both match features
+FULL = (1 << 20) - 1   # every context and every match feature
 V03 = (1 << NC) - 1    # the v0.3 coder: every context, neither match feature
 
 def py_encode(data, history=b'', prof=FULL):

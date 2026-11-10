@@ -24,13 +24,15 @@
 const NC: usize = 17;
 /// Profile bit: the short match model (keyed on 4 bytes, found from 4).
 pub const F_SHORT: u32 = 1 << 17;
-/// Profile bit: the repeat-distance model (its inputs, context 13, and the
-/// match state that selects mixer 1 and the first APM).
+/// Profile bit: the repeat-distance model (its inputs and context 13).
 pub const F_REP: u32 = 1 << 18;
+/// Profile bit: mixer 1 and the first APM selected by the two match models'
+/// states as well as the partial byte (pays on long inputs, costs on short).
+pub const F_SEL: u32 = 1 << 19;
 /// The v0.3 model: every context, no short match or repeat model.
 pub const V03: u32 = (1 << NC) - 1;
-/// Every context and both match features.
-pub const FULL: u32 = (1 << 19) - 1;
+/// Every context and every match feature.
+pub const FULL: u32 = (1 << 20) - 1;
 /// A mixer's row stride: its at most `NC + 7` inputs padded with zero inputs to three
 /// 8-lane vectors, so the vector kernels need no tail.
 const NINP: usize = 24;
@@ -289,8 +291,6 @@ struct Model {
     /// the model with that input 0.
     act: [usize; NC],
     na: usize,
-    /// Mixer inputs: `na + 3`, plus 2 under [`F_SHORT`] and 2 under [`F_REP`].
-    inputs: usize,
     /// The mixer row stride: [`NINP_NARROW`] when the inputs fit, else [`NINP`].
     stride: usize,
     mask: u32,
@@ -390,7 +390,6 @@ impl Model {
             t: tables(),
             act,
             na,
-            inputs,
             stride,
             mask,
             mb,
@@ -439,9 +438,9 @@ impl Model {
             ix: [0; NC],
             st: [0; NINP],
             mi: 0,
-            w1: weights(256 * 9, inputs, stride),
-            w2: weights(2048, inputs, stride),
-            w3: weights(2048, inputs, stride),
+            w1: weights(256 * 9, na + 3, stride),
+            w2: weights(2048, na + 3, stride),
+            w3: weights(2048, na + 3, stride),
             s1: 0,
             s2: 0,
             s3: 0,
@@ -881,8 +880,11 @@ impl Model {
             };
         }
         // mixer 1 and the first APM: the partial byte and the two match states
-        let msel =
-            (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 });
+        let msel = if self.profile & F_SEL == 0 {
+            0
+        } else {
+            (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 })
+        };
         let c1 = (self.c0 + 256 * msel) as usize;
         self.s1 = c1 * W;
         self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * W;
@@ -981,12 +983,13 @@ impl Model {
     }
 }
 
-/// Fresh mixer weights for `rows` contexts of `inputs` inputs in rows of
-/// `stride`: 1/4 on every input, 0 on padding.
-fn weights(rows: usize, inputs: usize, stride: usize) -> Vec<i32> {
+/// Fresh mixer weights for `rows` contexts in rows of `stride`: 1/4 on the
+/// first `v03` inputs (the contexts, the match model's and the bias), 0 on the
+/// short match and repeat inputs (they earn their weight) and on padding.
+fn weights(rows: usize, v03: usize, stride: usize) -> Vec<i32> {
     let mut w = vec![0; rows * stride];
     for r in w.chunks_exact_mut(stride) {
-        r[..inputs].fill(1 << 14);
+        r[..v03].fill(1 << 14);
     }
     w
 }
