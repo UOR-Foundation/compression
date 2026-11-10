@@ -289,3 +289,45 @@ pub extern "C" fn decompress_tree() -> i32 {
             .map(|entries| write_entries(&entries))
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn run(input: &[u8], op: impl FnOnce() -> i32) -> (i32, Vec<u8>) {
+        INPUT.with(|buffer| *buffer.borrow_mut() = input.to_vec());
+        let code = op();
+        (code, OUTPUT.with(|output| output.borrow().clone()))
+    }
+
+    /// The page's exports run the library's compress and decompress unchanged.
+    #[test]
+    fn wasm_exports_match_the_library_uc_api_01() {
+        let input = [0u8, 0xff, 0xc3, 0x28, b'a', b'b', b'a', b'b', 0];
+        for (best, level) in [(1, uorc::Level::Best), (0, uorc::Level::Fast)] {
+            let (code, archive) = run(&input, || compress(0, best));
+            assert_eq!(code, OK);
+            let library = uorc::compress(&input, 0, level).expect("library archive");
+            assert_eq!(archive, library, "{level:?}");
+        }
+        let (_, archive) = run(&input, || compress(0, 0));
+        assert_eq!(run(&archive, || decompress()), (OK, input.to_vec()));
+        assert_eq!(
+            run(b"not an archive", || decompress()),
+            (DECODE, Vec::new())
+        );
+
+        let (code, json) = run(&archive, || inspect());
+        assert_eq!(code, OK);
+        let info = uorc::inspect(&archive).expect("library inspect");
+        assert_eq!(json, format!("[{}]", info.to_json()).into_bytes());
+        ORIGINAL.with(|original| *original.borrow_mut() = input.to_vec());
+        let (code, json) = run(&archive, || verify(1));
+        assert_eq!(
+            (code, json),
+            (OK, format!("[{}]", info.to_json()).into_bytes())
+        );
+        ORIGINAL.with(|original| original.borrow_mut()[0] ^= 1);
+        assert_eq!(run(&archive, || verify(1)).0, MISMATCH);
+    }
+}

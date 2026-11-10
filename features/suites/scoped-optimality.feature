@@ -1,8 +1,8 @@
 # @generated from src/Uorc/Registry.lex.tex by `cargo xtask check-model --write`.
 Feature: scoped-optimality
 
-  @UC-OPT-01 @open
-  Scenario: The product minimizes complete archive byte length and unsigned lexicographic order within an explicitly sealed wire, basis and decoder-resource scope.
-    Given a checked incumbent and the complete finite set of earlier canonical archives in the sealed scope
-    When the independent verifier replays every required predecessor or a proved equivalent canonical framing factorization
-    Then a minimum certificate is accepted only after complete coverage; interrupted or exhausted verification remains incomplete and no unrestricted global minimum is claimed
+  @UC-OPT-01 @build
+  Scenario: Compress returns the smallest of the archives it checked, which are the raw archive, the ulz archive, the ncm archive at the best level and any search candidate within the step budget; no minimum beyond that candidate set is claimed.
+    Given empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs
+    When uorc compress chooses its archive
+    Then the archive is never larger than the raw archive of the same length, compressible text takes a strictly smaller archive, and the best level is never larger than the default
