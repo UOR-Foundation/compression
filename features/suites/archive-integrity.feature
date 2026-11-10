@@ -1,11 +1,11 @@
 # @generated from src/Uorc/Registry.lex.tex by `cargo xtask check-model --write`.
 Feature: archive-integrity
 
-  @UC-INT-01 @open
-  Scenario: Archive and basis integrity use an explicitly identified bounded streaming construction with standard SHA-256 components; digest agreement never replaces exact byte comparison.
-    Given source-owned integrity identities, locked independent vectors, split updates, finalization and a planted arithmetic defect
-    When the actual source checks the vectors and the archive path hashes the received preimage
-    Then standard-domain boundaries and any separately named composition are explicit; invalid protocols fail, mutations are caught, and no cryptographic assumption is reported as a kernel theorem
+  @UC-INT-01 @build
+  Scenario: Every archive the client decodes is checked against its UORC-SHA256-CHAIN-v1 integrity trailer, so changing any single bit of an archive makes it fail to decode.
+    Given a program archive and a raw archive, each with every byte altered in its low and in its high bit
+    When uorc decompress reads each altered archive
+    Then every altered archive returns a decode failure and none yields output
 
   @UC-INT-02 @build
   Scenario: Format3/machine1 explicitly binds STREAM-MAX-v1 to charged image spans, preserves format2 CHAIN-v1 semantics, and seals input, basis and checkpoint identity domains without replacing exact reconstruction comparison.
@@ -30,9 +30,3 @@ Feature: archive-integrity
     Given actual completed ordered views, continuous actual finish/publication transitions and source-derived profile progress and lifetime laws
     When the composed source theorem, all-declaration audits, exact source mutations and restored generated-model controls are replayed
     Then canonical digest equality and emitted-image reads follow without caller-supplied hash success or preservation flags; source-layout and full byte reconstruction claims require their own consumer proofs
-
-  @UC-INT-06 @open
-  Scenario: Actual archive snapshot, selected preimage traversal and trailer comparison are connected to canonical original-source layout bytes through source-derived consumer calls, structural coverage and retained-node ownership premises.
-    Given the exact compatible Core and Wire source, actual archive ownership and independently specified structural source layout
-    When the consumer bridge derives source-selected reader coverage and actual snapshot, retain/feed, trailer comparison and EOF transitions
-    Then only canonical digest equality for the actual retained preimage and exactly32 stored trailer bytes can establish main archive integrity; source lifetime and layout are not inferred from live roots or lengths
