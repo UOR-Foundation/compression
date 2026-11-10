@@ -68,16 +68,19 @@ impl Store {
         if self.wanted.is_empty() {
             return Ok(());
         }
-        self.offer_labelled(archive::frame_label(frame), frame)
+        self.offer_labelled(archive::frame_labels(frame), frame)
     }
 
-    /// [`Store::offer`] with the frame's label already computed.
-    fn offer_labelled(&mut self, label: [u8; 32], frame: &[u8]) -> io::Result<()> {
-        if !self.wanted.contains_key(&label) || self.held.contains_key(&label) {
-            return Ok(());
+    /// [`Store::offer`] with the frame's labels (one per library era a
+    /// reference may name it over) already computed.
+    fn offer_labelled(&mut self, labels: [[u8; 32]; 2], frame: &[u8]) -> io::Result<()> {
+        for label in labels {
+            if !self.wanted.contains_key(&label) || self.held.contains_key(&label) {
+                continue;
+            }
+            let slot = self.keep(frame)?;
+            self.held.insert(label, slot);
         }
-        let slot = self.keep(frame)?;
-        self.held.insert(label, slot);
         Ok(())
     }
 
@@ -178,7 +181,7 @@ impl Shared {
         let label = if self.lock().store.wanted.is_empty() {
             None
         } else {
-            Some(archive::frame_label(frame))
+            Some(archive::frame_labels(frame))
         };
         let mut state = self.lock();
         let kept = match label {
@@ -289,6 +292,23 @@ mod spill {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A v0.3 stream's reference frame names its frame's label over the v0.3
+    /// library; the store still finds the frame.
+    #[test]
+    fn finds_frames_named_over_an_earlier_library() {
+        let a = vec![7u8; 100];
+        let [now, v03] = archive::frame_labels(&a);
+        assert_ne!(now, v03);
+        let reference = archive::reference_archive(&v03, &[100]);
+        let mut store = Store::of(&[&reference]);
+        store.offer(&a).expect("offer");
+        assert_eq!(store.take(&v03).expect("take"), Some(a.clone()));
+        assert_eq!(
+            crate::archive::reference_decode(&reference, &a).as_ref(),
+            Some(&a)
+        );
+    }
 
     #[test]
     fn keeps_only_named_frames_until_their_last_reference() {

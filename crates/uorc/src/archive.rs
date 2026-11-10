@@ -637,6 +637,13 @@ pub fn frame_label(frame: &[u8]) -> [u8; 32] {
     window_identity(&[frame])
 }
 
+/// The κ-labels a reference frame may name for `frame`: its label over the
+/// current library ([`frame_label`]) and over the v0.3 library, which a v0.3
+/// stream's reference frames name.
+pub fn frame_labels(frame: &[u8]) -> [[u8; 32]; 2] {
+    [frame_label(frame), window_identity_over(&V03_LIBRARY, &[frame])]
+}
+
 /// A reference frame: a conditional archive over `[library, F]`, named by `F`'s
 /// κ-label `label`, that reproduces `F` as objects of `lengths`.
 pub fn reference_archive(label: &[u8; 32], lengths: &[u64]) -> Vec<u8> {
@@ -701,7 +708,7 @@ pub fn reference_decode(data: &[u8], frame: &[u8]) -> Option<Vec<u8>> {
     let (pre, seal) = data.split_at(data.len() - SEAL);
     let shortest = reference_length(&lengths) == data.len() as u64;
     (body == REF_BODY && shortest && n == frame.len() as u64 && seal == chain(pre)).then(|| {
-        debug_assert_eq!(label, frame_label(frame));
+        debug_assert!(frame_labels(frame).contains(&label));
         frame.to_vec()
     })
 }
@@ -982,7 +989,7 @@ mod tests {
         let c = linked_archive(Codec::Ncm, &[n], &crate::ncm::encode(&input).expect("fits"))
             .expect("codec");
         // the model's archives for this text (client/gen/gen_basis.py, Archive.ulzLinkedArchive)
-        assert_eq!((u.len(), c.len()), (166, 139));
+        assert_eq!((u.len(), c.len()), (166, 140));
         for a in [&u, &c] {
             assert_eq!(crate::frame_length(a), Ok(Some(a.len())));
             assert_eq!(fast_decode(a).as_deref(), Some(&input[..]));
