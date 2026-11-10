@@ -22,14 +22,21 @@
 //! A payload is the input length (4 bytes, big-endian) and the coder output.
 
 const NC: usize = 17;
-/// A mixer's row stride: its `NC + 3` inputs padded with zero inputs to three
+/// Profile bit: the short match model (keyed on 4 bytes, found from 4).
+pub const F_SHORT: u32 = 1 << 17;
+/// Profile bit: the repeat-distance model (its inputs, context 13, and the
+/// match state that selects mixer 1 and the first APM).
+pub const F_REP: u32 = 1 << 18;
+/// The v0.3 model: every context, no short match or repeat model.
+pub const V03: u32 = (1 << NC) - 1;
+/// Every context and both match features.
+pub const FULL: u32 = (1 << 19) - 1;
+/// A mixer's row stride: its at most `NC + 7` inputs padded with zero inputs to three
 /// 8-lane vectors, so the vector kernels need no tail.
 const NINP: usize = 24;
-/// The narrow row stride: a profile with at most 13 contexts has at most 16
-/// inputs, one 64-byte line per mixer row.
+/// The narrow row stride, one 64-byte line per mixer row, for a profile with
+/// at most 16 inputs.
 const NINP_NARROW: usize = 16;
-/// The profile with every context: the ncm coder of v0.3 and earlier archives.
-pub const FULL: u32 = (1 << NC) - 1;
 const TB_MAX: u32 = 24;
 const SQT: [i32; 33] = [
     1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047, 2549, 2994, 3348,
@@ -164,6 +171,9 @@ struct Ctx<F: Fn(u32) -> u32> {
     at: F,
     mexp: u32,
     mbucket: u32,
+    /// Context 13's value: the sparse context, or under [`F_REP`] the
+    /// repeat model's expected byte and run with the previous byte.
+    c13: u32,
 }
 
 /// The 17 context hashes of a byte position.
@@ -202,7 +212,7 @@ fn context_hashes<F: Fn(u32) -> u32>(x: &Ctx<F>) -> [u32; NC] {
         (c4 & 0xffff_0000) + p3,
         b1 + (p3 << 8) + 0x80_0000,
         (c4 & 0xffff) + (p3 << 16) + 0x400_0000,
-        c4 & 0x00ff_00ff,
+        x.c13,
         ab.wrapping_add(b1 << 8)
             .wrapping_add(r << 16)
             .wrapping_add(0x1000_0000),
@@ -271,13 +281,17 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
 struct Model {
     t: &'static Tables,
     /// The profile's contexts, in order (`act[..na]`): the mixers read them as
-    /// inputs `0..na`, then the match model's two inputs and the bias. A
-    /// context outside the profile is never looked up or adapted and would
-    /// feed every mixer 0, which neither moves a dot product nor trains a
-    /// weight, so leaving it out is exactly the model with that input 0.
+    /// inputs `0..na`, then the match model's two inputs and the bias, then
+    /// the short match model's two and the repeat model's two when the
+    /// profile has them. A context or feature outside the profile is never
+    /// looked up or adapted and would feed every mixer 0, which neither moves
+    /// a dot product nor trains a weight, so leaving its input out is exactly
+    /// the model with that input 0.
     act: [usize; NC],
     na: usize,
-    /// The mixer row stride: [`NINP`], or [`NINP_NARROW`] when `na + 3` fits.
+    /// Mixer inputs: `na + 3`, plus 2 under [`F_SHORT`] and 2 under [`F_REP`].
+    inputs: usize,
+    /// The mixer row stride: [`NINP_NARROW`] when the inputs fit, else [`NINP`].
     stride: usize,
     mask: u32,
     mb: u32,
@@ -298,6 +312,23 @@ struct Model {
     c0: u32,
     bit: u32,
     mtab: Vec<u32>,
+    profile: u32,
+    m2tab: Vec<u32>,
+    m2ptr: u32,
+    m2len: u32,
+    m2exp: u32,
+    m2b: u32,
+    m2sp: [u16; 64],
+    m2sn: [u8; 64],
+    m2i: usize,
+    rd: u32,
+    rrun: u32,
+    rexp: u32,
+    rok: bool,
+    ra: bool,
+    rsp: [u16; 128],
+    rsn: [u8; 128],
+    ri: usize,
     mptr: u32,
     mlen: u32,
     mexp: u32,
@@ -311,7 +342,7 @@ struct Model {
     hb: [u32; NC],
     /// The inputs and context hashes prefetch_next computed for the byte it
     /// expected next.
-    spec_key: [u32; 8],
+    spec_key: [u32; 9],
     spec_hb: [u32; NC],
     bb: [u32; NC],
     ix: [u32; NC],
@@ -344,7 +375,9 @@ impl Model {
                 na += 1;
             }
         }
-        let stride = if na + 3 <= NINP_NARROW {
+        let short = profile & F_SHORT != 0;
+        let inputs = na + 3 + 2 * usize::from(short) + 2 * usize::from(profile & F_REP != 0);
+        let stride = if inputs <= NINP_NARROW {
             NINP_NARROW
         } else {
             NINP
@@ -357,6 +390,7 @@ impl Model {
             t: tables(),
             act,
             na,
+            inputs,
             stride,
             mask,
             mb,
@@ -371,6 +405,23 @@ impl Model {
             c0: 1,
             bit: 0,
             mtab: vec![0; 1 << mb],
+            profile,
+            m2tab: if short { vec![0; 1 << mb] } else { Vec::new() },
+            m2ptr: 0,
+            m2len: 0,
+            m2exp: 0,
+            m2b: 0,
+            m2sp: msp,
+            m2sn: [0; 64],
+            m2i: 0,
+            rd: 0,
+            rrun: 0,
+            rexp: 0,
+            rok: false,
+            ra: false,
+            rsp: [32768; 128],
+            rsn: [0; 128],
+            ri: 0,
             mptr: 0,
             mlen: 0,
             mexp: 0,
@@ -382,28 +433,34 @@ impl Model {
             rcnt: vec![0; 65536],
             r: 0,
             hb: [0; NC],
-            spec_key: [u32::MAX; 8],
+            spec_key: [u32::MAX; 9],
             spec_hb: [0; NC],
             bb: [0; NC],
             ix: [0; NC],
             st: [0; NINP],
             mi: 0,
-            w1: weights(256, na + 3, stride),
-            w2: weights(2048, na + 3, stride),
-            w3: weights(2048, na + 3, stride),
+            w1: weights(256 * 9, inputs, stride),
+            w2: weights(2048, inputs, stride),
+            w3: weights(2048, inputs, stride),
             s1: 0,
             s2: 0,
             s3: 0,
             pm1: 0,
             pm2: 0,
             pm3: 0,
-            a1: Apm::new(256),
+            a1: Apm::new(256 * 9),
             a2: Apm::new(1 << APM2_BITS),
         };
         m.hist.extend_from_slice(history);
         for p in 7..m.hoff {
             let k = m.match_key(p);
             m.mtab[k] = p;
+        }
+        if short {
+            for p in 4..m.hoff {
+                let k = m.short_key(p);
+                m.m2tab[k] = p;
+            }
         }
         m.new_byte();
         m
@@ -435,6 +492,28 @@ impl Model {
         self.match_key_by(p, |i| self.abs(i))
     }
 
+    /// The short match model's key of absolute position `p`: the hash of the 4 bytes before it.
+    fn short_key(&self, p: u32) -> usize {
+        let mut k = 0x55u32;
+        for i in 1..=4 {
+            k = k
+                .wrapping_mul(0x2F0B_4C27)
+                .wrapping_add(self.abs(p - i))
+                .wrapping_add(1);
+        }
+        (h(k) >> (32 - self.mb)) as usize
+    }
+
+    /// How many bytes before absolute positions `cand` and `pa` agree (at most 1024).
+    #[inline]
+    fn agree(&self, cand: u32, pa: u32) -> u32 {
+        let mut l = 0;
+        while l < 1024 && l < cand && self.abs(cand - 1 - l) == self.abs(pa - 1 - l) {
+            l += 1;
+        }
+        l
+    }
+
     /// [`Model::match_key`], reading absolute positions through `abs`.
     #[inline(always)]
     fn match_key_by(&self, p: u32, abs: impl Fn(u32) -> u32) -> usize {
@@ -450,29 +529,77 @@ impl Model {
 
     fn new_byte(&mut self) {
         let pos = self.pos;
+        let pa = self.hoff + pos;
+        // the repeat model's run: how many bytes in a row its prediction held
+        if self.rok {
+            self.rrun = if self.rexp == self.abs(pa - 1) {
+                (self.rrun + 1).min(63)
+            } else {
+                0
+            };
+        }
+        let rep = self.profile & F_REP != 0;
         if self.mlen > 0 {
             if self.mlen < 65535 {
                 self.mlen += 1;
             }
             self.mptr += 1;
         }
-        let pa = self.hoff + pos;
         if pa >= 7 {
             let k = self.match_key(pa);
             if self.mlen == 0 {
                 let cand = self.mtab[k];
                 if cand > 0 {
-                    let mut l = 0;
-                    while l < 1024 && l < cand && self.abs(cand - 1 - l) == self.abs(pa - 1 - l) {
-                        l += 1;
-                    }
+                    let l = self.agree(cand, pa);
                     if l >= 7 {
                         self.mptr = cand;
                         self.mlen = l;
+                        if rep {
+                            self.rd = pa - cand;
+                            self.rrun = 0;
+                        }
                     }
                 }
             }
             self.mtab[k] = pa;
+        }
+        if self.profile & F_SHORT != 0 {
+            if self.m2len > 0 {
+                if self.m2len < 65535 {
+                    self.m2len += 1;
+                }
+                self.m2ptr += 1;
+            }
+            if pa >= 4 {
+                let k = self.short_key(pa);
+                if self.m2len == 0 {
+                    let cand = self.m2tab[k];
+                    if cand > 0 {
+                        let l = self.agree(cand, pa);
+                        if l >= 4 {
+                            self.m2ptr = cand;
+                            self.m2len = l;
+                            if rep {
+                                self.rd = pa - cand;
+                                self.rrun = 0;
+                            }
+                        }
+                    }
+                }
+                self.m2tab[k] = pa;
+            }
+            if self.m2len > 0 {
+                self.m2exp = self.abs(self.m2ptr);
+                self.m2b = len_bucket(self.m2len);
+            } else {
+                self.m2exp = 0;
+                self.m2b = 0;
+            }
+        }
+        // the repeat model: the byte at the distance of the last match found
+        self.rok = rep && self.rd > 0;
+        if self.rok {
+            self.rexp = self.abs(pa - self.rd);
         }
         if self.mlen > 0 {
             self.mexp = self.abs(self.mptr);
@@ -490,6 +617,7 @@ impl Model {
             self.r,
             if self.mlen > 0 { self.mexp + 0x100 } else { 0 },
             self.mbucket,
+            self.c13(self.c4),
         ];
         // The hashes prefetch_next computed for the byte it expected are
         // these when every input matches (the bytes `at` reads behind `pos`
@@ -507,8 +635,24 @@ impl Model {
                 at: |i| self.at(i),
                 mexp: key[6],
                 mbucket: key[7],
+                c13: key[8],
             })
         };
+    }
+
+    /// Context 13's value for the last four bytes `c4`.
+    #[inline(always)]
+    fn c13(&self, c4: u32) -> u32 {
+        if self.profile & F_REP == 0 {
+            c4 & 0x00ff_00ff
+        } else {
+            let rx = if self.rok {
+                (self.rexp + 256) + (self.rrun.min(15) << 9)
+            } else {
+                0
+            };
+            rx.wrapping_add((c4 & 255) << 16).wrapping_add(0x5500_0000)
+        }
     }
 
     /// Starts loading what the next bit will read, for the likelier value of
@@ -551,6 +695,18 @@ impl Model {
                 self.r,
                 mexp,
                 mbucket,
+                if self.profile & F_REP == 0 {
+                    ((self.c4 << 8) | b) & 0x00ff_00ff
+                } else {
+                    // the repeat state the next byte has if no new match is found
+                    let rx = if self.rok && self.rd <= pa + 1 {
+                        let run = if self.rexp == b { self.rrun + 1 } else { 0 };
+                        abs(pa + 1 - self.rd) + 256 + (run.min(15) << 9)
+                    } else {
+                        0
+                    };
+                    rx.wrapping_add(b << 16).wrapping_add(0x5500_0000)
+                },
             ];
             let hb = context_hashes(&Ctx {
                 pos: key[0],
@@ -562,6 +718,7 @@ impl Model {
                 at,
                 mexp,
                 mbucket,
+                c13: key[8],
             });
             self.prefetch_buckets(&hb, 0);
             if pa + 1 >= 7 {
@@ -678,7 +835,56 @@ impl Model {
             -vote
         };
         self.st[na + 2] = 256;
-        self.s1 = self.c0 as usize * W;
+        let bp = 7 - self.bit;
+        let mut eb2 = 0;
+        if self.m2len > 0 {
+            if ((self.m2exp | 256) >> (bp + 1)) == self.c0 {
+                eb2 = (self.m2exp >> bp) & 1;
+            } else {
+                self.m2len = 0;
+                self.m2b = 0;
+            }
+        }
+        self.ra = self.rok && ((self.rexp | 256) >> (bp + 1)) == self.c0;
+        let ebr = if self.ra { (self.rexp >> bp) & 1 } else { 0 };
+        let mut at = na + 3;
+        if self.profile & F_SHORT != 0 {
+            self.m2i = (self.m2b * 2 + eb2) as usize;
+            self.st[at] = if self.m2len > 0 {
+                i32::from(t.stretch[usize::from(self.m2sp[self.m2i] >> 4)])
+            } else {
+                0
+            };
+            let vote2 = if self.m2b > 15 { 1024 } else { 256 };
+            self.st[at + 1] = if self.m2len == 0 {
+                0
+            } else if eb2 == 1 {
+                vote2
+            } else {
+                -vote2
+            };
+            at += 2;
+        }
+        if self.profile & F_REP != 0 {
+            self.ri = (self.rrun * 2 + ebr) as usize;
+            self.st[at] = if self.ra {
+                i32::from(t.stretch[usize::from(self.rsp[self.ri] >> 4)])
+            } else {
+                0
+            };
+            self.st[at + 1] = if !self.ra {
+                0
+            } else if ebr == 1 {
+                256
+            } else {
+                -256
+            };
+        }
+        // mixer 1 and the first APM: the partial byte and the two match states
+        let msel =
+            (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 });
+        let c1 = (self.c0 + 256 * msel) as usize;
+        self.s1 = c1 * W;
         self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * W;
         self.s3 = (((self.c4 >> 8) & 255) * 8 + self.bit) as usize * W;
         let [a, b, c] = K::dot::<W>(
@@ -696,7 +902,7 @@ impl Model {
         self.pm3 = sq(d3);
         // the mean of the three, in -2048..=2047
         let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
-        let q1 = self.a1.refine(&t.stretch, p, self.c0 as usize);
+        let q1 = self.a1.refine(&t.stretch, p, c1);
         let cx2 = h((self.c4 & 0xff_ffff)
             .wrapping_mul(0x2F0B_4C27)
             .wrapping_add(self.c0))
@@ -718,6 +924,12 @@ impl Model {
         }
         if self.mlen > 0 {
             adapt(&mut self.msp[self.mi], &mut self.msn[self.mi], y, rate);
+        }
+        if self.ra {
+            adapt(&mut self.rsp[self.ri], &mut self.rsn[self.ri], y, rate);
+        }
+        if self.m2len > 0 {
+            adapt(&mut self.m2sp[self.m2i], &mut self.m2sn[self.m2i], y, rate);
         }
         // plasticity: 24 + 104 * 4096 / (4096 + pos), in 1/65536 per unit of x * err
         let lr = 24 + (104 * 4096 / (4096 + u64::from(self.pos))) as i64;
@@ -1087,16 +1299,19 @@ pub fn encode(data: &[u8]) -> Option<Vec<u8>> {
 /// [`encode`] for a window frame: `data` coded after `history`, which the
 /// match model reaches into (`Ncm.encodeWith`).
 pub fn encode_with(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
-    dispatch!(encoder(history, data, FULL))
+    encode_profile(history, data, V03)
 }
 
-/// Whether `profile` names an ncm profile: a nonempty set of the 17 contexts.
+/// Whether `profile` names an ncm profile: a set of the 17 contexts and the
+/// [`F_SHORT`] and [`F_REP`] features.
 pub fn valid_profile(profile: u32) -> bool {
-    profile != 0 && profile & !FULL == 0
+    profile & !FULL == 0
 }
 
-/// [`encode_with`] with only the contexts of `profile` (a [`valid_profile`]):
-/// the payload decodes only with the same profile.
+/// [`encode_with`] under the model `profile` (a [`valid_profile`]; [`V03`] is
+/// the v0.3 coder, [`FULL`] every feature): `None` for any other word, or
+/// when [`encode`] would give `None`. The payload decodes only under the same
+/// profile.
 pub fn encode_profile(history: &[u8], data: &[u8], profile: u32) -> Option<Vec<u8>> {
     if !valid_profile(profile) {
         return None;
@@ -1193,14 +1408,34 @@ pub fn decode_canonical_profile(
     n: u64,
     profile: u32,
 ) -> Option<Vec<u8>> {
-    if !valid_profile(profile) || declared_length(payload).map(u64::from) != Some(n) {
+    if declared_length(payload).map(u64::from) != Some(n) {
         return None;
     }
-    dispatch!(decoder(history, payload, n, true, profile))
+    run_profile(history, payload, n, true, profile)
 }
 
 fn run_decoder(history: &[u8], payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
-    dispatch!(decoder(history, payload, limit, canonical, FULL))
+    run_profile(history, payload, limit, canonical, V03)
+}
+
+/// The decoder under the model `profile`: `None` for a word that is not a
+/// [`valid_profile`].
+pub(crate) fn run_profile(
+    history: &[u8],
+    payload: &[u8],
+    limit: u64,
+    canonical: bool,
+    profile: u32,
+) -> Option<Vec<u8>> {
+    if !valid_profile(profile) {
+        return None;
+    }
+    dispatch!(decoder(history, payload, limit, canonical, profile))
+}
+
+/// Decode a payload [`encode_profile`] wrote under `profile`.
+pub fn decode_profile(history: &[u8], payload: &[u8], limit: u64, profile: u32) -> Option<Vec<u8>> {
+    run_profile(history, payload, limit, false, profile)
 }
 
 #[inline(always)]
@@ -1313,20 +1548,20 @@ mod tests {
             .collect();
         let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
         for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
-            let p = encoder::<Scalar>(&[], data, FULL).expect("fits");
+            let p = encoder::<Scalar>(&[], data, V03).expect("fits");
             assert_eq!(encode(data).as_deref(), Some(&p[..]));
             let n = data.len() as u64;
             assert_eq!(decode(&p, n).as_deref(), Some(data));
             assert_eq!(
-                decoder::<Scalar>(&[], &p, n, true, FULL).as_deref(),
+                decoder::<Scalar>(&[], &p, n, true, V03).as_deref(),
                 Some(data)
             );
             // and after a window history
-            let w = encoder::<Scalar>(&text[..999], data, FULL).expect("fits");
+            let w = encoder::<Scalar>(&text[..999], data, V03).expect("fits");
             assert_eq!(encode_with(&text[..999], data).as_deref(), Some(&w[..]));
             assert_eq!(decode_with(&text[..999], &w, n).as_deref(), Some(data));
             // and under narrow and wide profiles
-            for profile in [0x1059e, 0x1e79f, 1] {
+            for profile in [0x1059e, 0x1e79f, 1, FULL, 0x1059e | F_REP, V03 | F_SHORT] {
                 let p = encoder::<Scalar>(&text[..999], data, profile).expect("fits");
                 assert_eq!(
                     encode_profile(&text[..999], data, profile).as_deref(),
@@ -1346,8 +1581,8 @@ mod tests {
     fn profiles_round_trip_and_differ() {
         let text = b"profiles leave contexts out; the mixers never see them. ".repeat(80);
         let full = encode(&text).expect("fits");
-        assert_eq!(encode_profile(&[], &text, FULL), Some(full.clone()));
-        for profile in [1, 0x1059e, 0x1e79f, FULL >> 1] {
+        assert_eq!(encode_profile(&[], &text, V03), Some(full.clone()));
+        for profile in [0, 1, 0x1059e, 0x1e79f, V03 >> 1, FULL, F_SHORT | 0x1059e] {
             let p = encode_profile(&[], &text, profile).expect("fits");
             assert_ne!(p, full);
             let n = text.len() as u64;
@@ -1355,10 +1590,10 @@ mod tests {
                 decode_canonical_profile(&[], &p, n, profile).as_deref(),
                 Some(&text[..])
             );
-            assert_eq!(decode_canonical_profile(&[], &p, n, FULL), None);
+            assert_eq!(decode_canonical_profile(&[], &p, n, V03), None);
         }
-        assert!(!valid_profile(0) && !valid_profile(FULL + 1));
-        assert_eq!(encode_profile(&[], &text, 0), None);
+        assert!(valid_profile(0) && !valid_profile(FULL + 1));
+        assert_eq!(encode_profile(&[], &text, FULL + 1), None);
     }
 
     #[test]
