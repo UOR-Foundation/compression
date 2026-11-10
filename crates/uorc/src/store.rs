@@ -53,6 +53,7 @@ impl Store {
     }
 
     /// A store for the archives of a stream held whole.
+    #[cfg(test)]
     pub(crate) fn of(archives: &[&[u8]]) -> Self {
         let mut store = Store::default();
         for archive in archives {
@@ -163,6 +164,11 @@ impl Shared {
         self.state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Note the reference frame `archive`, if it is one (see [`Store::want`]).
+    pub(crate) fn want(&self, archive: &[u8]) {
+        self.lock().store.want(archive);
     }
 
     /// Frame `index` has decoded to `frame`: keep it if a reference names it.

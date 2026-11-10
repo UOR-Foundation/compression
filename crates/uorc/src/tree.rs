@@ -81,46 +81,85 @@ fn read_uleb(data: &[u8], at: &mut usize) -> Result<u64, Error> {
     }
 }
 
-/// The ordered objects that store `entries`. Paths must be safe and unique.
-pub fn to_objects(entries: &[Entry]) -> Result<Vec<Vec<u8>>, Error> {
-    if entries.is_empty() {
-        return Ok(Vec::new());
-    }
+/// How a tree is stored: its manifest and the length of every object, the
+/// manifest first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Layout {
+    /// The manifest object (empty for an empty tree, which has no objects).
+    pub manifest: Vec<u8>,
+    /// The object lengths: the manifest's, then each regular file's in order
+    /// (or one empty end object for a tree of directories only).
+    pub lengths: Vec<u64>,
+}
+
+/// The layout of a tree whose entries are `items`: path, kind and, for a
+/// regular file, its length. Paths must be safe and unique.
+pub fn layout<'a>(items: impl IntoIterator<Item = (&'a str, Kind, u64)>) -> Result<Layout, Error> {
     let mut seen = std::collections::HashSet::new();
-    let mut manifest = MAGIC.to_vec();
-    push_uleb(&mut manifest, entries.len() as u64);
-    let mut objects = vec![Vec::new()];
-    for entry in entries {
-        if !is_safe_path(&entry.path) || !seen.insert(entry.path.as_str()) {
+    let mut manifest = Vec::new();
+    let mut lengths = vec![0];
+    let mut count = 0u64;
+    for (path, kind, len) in items {
+        if !is_safe_path(path) || !seen.insert(path) {
             return Err(Error::Decode);
         }
-        manifest.push(match entry.kind {
+        manifest.push(match kind {
             Kind::File => 0,
             Kind::Executable => 1,
             Kind::Directory => 2,
         });
-        push_uleb(&mut manifest, entry.path.len() as u64);
-        manifest.extend_from_slice(entry.path.as_bytes());
-        if entry.kind != Kind::Directory {
-            objects.push(entry.data.clone());
+        push_uleb(&mut manifest, path.len() as u64);
+        manifest.extend_from_slice(path.as_bytes());
+        if kind != Kind::Directory {
+            lengths.push(len);
         }
+        count += 1;
     }
-    objects[0] = manifest;
-    if objects.len() == 1 {
+    if count == 0 {
+        return Ok(Layout {
+            manifest: Vec::new(),
+            lengths: Vec::new(),
+        });
+    }
+    let mut head = MAGIC.to_vec();
+    push_uleb(&mut head, count);
+    head.extend_from_slice(&manifest);
+    lengths[0] = head.len() as u64;
+    if lengths.len() == 1 {
         // A tree of directories only: an empty end object keeps it from
         // reading as a one-object plain stream.
-        objects.push(Vec::new());
+        lengths.push(0);
     }
+    Ok(Layout {
+        manifest: head,
+        lengths,
+    })
+}
+
+/// The ordered objects that store `entries`. Paths must be safe and unique.
+pub fn to_objects(entries: &[Entry]) -> Result<Vec<Vec<u8>>, Error> {
+    let layout = layout(
+        entries
+            .iter()
+            .map(|e| (e.path.as_str(), e.kind, e.data.len() as u64)),
+    )?;
+    if layout.lengths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut objects = vec![layout.manifest];
+    objects.extend(
+        entries
+            .iter()
+            .filter(|e| e.kind != Kind::Directory)
+            .map(|e| e.data.clone()),
+    );
+    objects.resize(layout.lengths.len(), Vec::new());
     Ok(objects)
 }
 
-/// The entries the ordered `objects` store, checking every path is safe.
-pub fn from_objects(mut objects: Vec<Vec<u8>>) -> Result<Vec<Entry>, Error> {
-    if objects.is_empty() {
-        return Ok(Vec::new());
-    }
-    let manifest = std::mem::take(&mut objects[0]);
-    let mut files = objects.into_iter().skip(1);
+/// The entries a manifest lists (path and kind, in order), checking every
+/// path is safe and unique.
+pub fn read_manifest(manifest: &[u8]) -> Result<Vec<(String, Kind)>, Error> {
     let rest = manifest.strip_prefix(MAGIC).ok_or(Error::Decode)?;
     let mut at = 0;
     let count = read_uleb(rest, &mut at)?;
@@ -143,6 +182,23 @@ pub fn from_objects(mut objects: Vec<Vec<u8>>) -> Result<Vec<Entry>, Error> {
         if !is_safe_path(&path) || !seen.insert(path.clone()) {
             return Err(Error::Decode);
         }
+        entries.push((path, kind));
+    }
+    if at != rest.len() {
+        return Err(Error::Decode);
+    }
+    Ok(entries)
+}
+
+/// The entries the ordered `objects` store, checking every path is safe.
+pub fn from_objects(mut objects: Vec<Vec<u8>>) -> Result<Vec<Entry>, Error> {
+    if objects.is_empty() {
+        return Ok(Vec::new());
+    }
+    let listed = read_manifest(&std::mem::take(&mut objects[0]))?;
+    let mut files = objects.into_iter().skip(1);
+    let mut entries = Vec::with_capacity(listed.len());
+    for (path, kind) in listed {
         let data = if kind == Kind::Directory {
             Vec::new()
         } else {
@@ -155,7 +211,7 @@ pub fn from_objects(mut objects: Vec<Vec<u8>>) -> Result<Vec<Entry>, Error> {
     {
         files.next();
     }
-    if at != rest.len() || files.next().is_some() {
+    if files.next().is_some() {
         return Err(Error::Decode);
     }
     Ok(entries)
