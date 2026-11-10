@@ -572,7 +572,7 @@ mod tests {
         let u = linked_archive(Codec::Ulz, &[n], &crate::ulz::encode(&input));
         let c = linked_archive(Codec::Ncm, &[n], &crate::ncm::encode(&input).expect("fits"));
         // the model's archives for this text (client/gen/gen_basis.py, Archive.ulzLinkedArchive)
-        assert_eq!((u.len(), c.len()), (165, 140));
+        assert_eq!((u.len(), c.len()), (165, 139));
         for a in [&u, &c] {
             assert_eq!(crate::frame_length(a), Ok(Some(a.len())));
             assert_eq!(fast_decode(a).as_deref(), Some(&input[..]));

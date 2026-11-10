@@ -32,11 +32,13 @@ for name, w in [('n', 4), ('tb', 1), ('mb', 1), ('pos', 4), ('c4', 4), ('c8', 4)
                 ('c0', 2), ('bit', 1), ('mptr', 4), ('mlen', 4), ('mexp', 1), ('mbucket', 1), ('eb', 1),
                 ('r', 4), ('pm1', 2), ('pm2', 2), ('pr', 2), ('acc', 8), ('sso', 4), ('sw', 8),
                 ('acc2', 8), ('sw2', 8), ('ml', 4), ('mf', 1), ('pi', 2), ('x1', 4), ('x2', 4), ('x', 4),
-                ('ip', 4), ('op', 4), ('y', 1), ('cap', 4), ('ovf', 1)]:
+                ('ip', 4), ('op', 4), ('y', 1), ('cap', 4), ('ovf', 1), ('pm3', 2), ('acc3', 8), ('sw3', 8),
+                ('ai1', 4), ('aj1', 1), ('ai2', 4), ('aj2', 1)]:
     P.glob(name, w)
 # graph store regions (key bases); every table is addressed as width * index + byte
 for name, base in [('HB', 1 << 8), ('BB', 1 << 9), ('IX', 1 << 10), ('ST', 1 << 11), ('MS', 1 << 12), ('LP', 1 << 13),
-                   ('LD', 1 << 14), ('STR', 1 << 15), ('RC', 1 << 18), ('W1', 1 << 19), ('W2', 1 << 20), ('MT', 1 << 26),
+                   ('LD', 1 << 14), ('STR', 1 << 15), ('RC', 1 << 18), ('W1', 1 << 19), ('W2', 1 << 20), ('W3', 1 << 21),
+                   ('A1', (1 << 21) + (1 << 17)), ('A2', 1 << 23), ('MT', 1 << 26),
                    ('T', 1 << 27), ('H', 1 << 33), ('OUT', 1 << 34)]:
     P.table(name, base)
 P.rom('POW2', 4, [1 << k for k in range(25)])
@@ -125,7 +127,16 @@ pr = []
 bk = [('let', 'nc', sel(eq(G('bit'), 0), 0, add(mod(G('c0'), 16), 16)))]
 bkl = []
 hash_('bh', u32(add(ld('HB', 4, V('k')), mul(0x2F0B4C27, V('nc')))), bkl)
-bkl += [('let', 'bm', mod(V('bh'), rom('POW2', 4, G('tb')))), ('store', 'BB', 4, V('k'), sub(V('bm'), mod(V('bm'), 16)))]
+bkl += [('let', 'bm', mod(V('bh'), rom('POW2', 4, G('tb')))), ('let', 'b0', sub(V('bm'), mod(V('bm'), 16))),
+        ('let', 'h24', div(V('bh'), 1 << 24)), ('let', 'ck', add(V('h24'), sub(1, mod(V('h24'), 2)))),
+        ('let', 'alt', sel(eq(mod(div(V('b0'), 16), 2), 1), monus(V('b0'), 16), add(V('b0'), 16)))]
+# a bucket carries its context's check byte in the count of its unused slot 0: use the one of the pair
+# that does, else recycle the less used one (by slot 1's count), cleared and tagged
+recycle = [('let', 'bs', sel(lt(mod(ld('T', 3, add(V('alt'), 1)), 256), mod(ld('T', 3, add(V('b0'), 1)), 256)), V('alt'), V('b0'))),
+           ('loop', 16, 'j', [('store', 'T', 3, add(V('bs'), V('j')), 0)]),
+           ('store', 'T', 3, V('bs'), V('ck')), ('store', 'BB', 4, V('k'), V('bs'))]
+bkl += [('if', eq(mod(ld('T', 3, V('b0')), 256), V('ck')), [('store', 'BB', 4, V('k'), V('b0'))],
+         [('if', eq(mod(ld('T', 3, V('alt')), 256), V('ck')), [('store', 'BB', 4, V('k'), V('alt'))], recycle)])]
 bk += [('loop', NC, 'k', bkl)]
 pr += [('if', OR(eq(G('bit'), 0), eq(G('bit'), 4)), bk, [])]
 pr += [('let', 'part', sel(lt(G('bit'), 4), G('c0'),
@@ -147,12 +158,16 @@ pr += [('let', 'mi', add(mul(2, G('mbucket')), G('eb'))),
        ('store', 'ST', 2, NC + 2, 2048 + 256)]
 # the two mixers' dot products, accumulated over the inputs
 pr += [('set', 'acc', 0), ('set', 'sso', 0), ('set', 'sw', 0), ('set', 'acc2', 0), ('set', 'sw2', 0),
-       ('let', 's1', mul(NIN, G('c0'))), ('let', 's2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit'))))]
+       ('set', 'acc3', 0), ('set', 'sw3', 0),
+       ('let', 's1', mul(NIN, G('c0'))), ('let', 's2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
+       ('let', 's3', mul(NIN, add(mul(8, mod(div(G('c4'), 256), 256)), G('bit'))))]
 dl = [('let', 'so', ld('ST', 2, V('i'))),
       ('let', 'w1', mod(add(ld('W1', 3, add(V('s1'), V('i'))), WINIT), 1 << 24)),
       ('let', 'w2', mod(add(ld('W2', 3, add(V('s2'), V('i'))), WINIT), 1 << 24)),
       ('set', 'acc', add(G('acc'), mul(V('so'), V('w1')))), ('set', 'acc2', add(G('acc2'), mul(V('so'), V('w2')))),
-      ('set', 'sso', add(G('sso'), V('so'))), ('set', 'sw', add(G('sw'), V('w1'))), ('set', 'sw2', add(G('sw2'), V('w2')))]
+      ('set', 'sso', add(G('sso'), V('so'))), ('set', 'sw', add(G('sw'), V('w1'))), ('set', 'sw2', add(G('sw2'), V('w2'))),
+      ('let', 'w3', mod(add(ld('W3', 3, add(V('s3'), V('i'))), WINIT), 1 << 24)),
+      ('set', 'acc3', add(G('acc3'), mul(V('so'), V('w3')))), ('set', 'sw3', add(G('sw3'), V('w3')))]
 pr += [('loop', NIN, 'i', dl)]
 
 def dot(out, accv, swv, body):
@@ -163,10 +178,38 @@ def dot(out, accv, swv, body):
                                  sub(2048, mn(div(add(monus(V(b), V(a)), 65535), 65536), 2047)))))
 dot('d1', G('acc'), G('sw'), pr)
 dot('d2', G('acc2'), G('sw2'), pr)
+dot('d3', G('acc3'), G('sw3'), pr)
 squash_('q1', V('d1'), pr)
 squash_('q2', V('d2'), pr)
-squash_('qm', div(add(V('d1'), V('d2')), 2), pr)
-pr += [('set', 'pm1', V('q1')), ('set', 'pm2', V('q2')), ('set', 'pr', mx(V('qm'), 1))]
+squash_('q3', V('d3'), pr)
+squash_('qm', div(mul(21846, add(add(V('d1'), V('d2')), V('d3'))), 65536), pr)
+pr += [('set', 'pm1', V('q1')), ('set', 'pm2', V('q2')), ('set', 'pm3', V('q3')), ('let', 'pa', mx(mn(V('qm'), 4095), 1))]
+
+# adaptive probability maps: rows of 33 points over the stretch domain, stored as offsets from their
+# initial values (point j starts at 16 * squash(128 j - 2048)) so that a fresh table holds the start
+def ainit(j):
+    sq = fresh('sq')
+    return sq, [('let', sq, ('squash', mn(mul(128, j), 4095)))], sel(eq(j, 0), 0, sel(eq(j, 32), 4095 * 16, mul(16, V(sq))))
+
+def apm_get(table, idx, j, body):
+    sq, pre, init = ainit(j)
+    body += pre
+    return mod(add(ld(table, 2, idx), init), 65536)
+
+def refine(out, table, cx, gi, gj, body):
+    s, l, w = fresh('as'), fresh('al'), fresh('aw')
+    body += [('let', s, ld('STR', 2, V('pa'))), ('let', l, div(V(s), 128)), ('let', w, mod(V(s), 128))]
+    base = fresh('ab')
+    body += [('let', base, add(mul(33, cx), V(l)))]
+    t0 = apm_get(table, V(base), V(l), body)
+    t1 = apm_get(table, add(V(base), 1), add(V(l), 1), body)
+    body += [('let', out, div(add(mul(t0, sub(128, V(w))), mul(t1, V(w))), 2048)),
+             ('set', gi, add(V(base), div(V(w), 64))), ('set', gj, add(V(l), div(V(w), 64)))]
+
+refine('r1', 'A1', G('c0'), 'ai1', 'aj1', pr)
+hash_('ah2', u32(add(mul(0x2F0B4C27, mod(G('c4'), 1 << 24)), G('c0'))), pr)
+refine('r2', 'A2', div(V('ah2'), 65536), 'ai2', 'aj2', pr)
+pr += [('set', 'pr', mx(mn(div(add(add(V('pa'), V('r1')), mul(2, V('r2'))), 4), 4095), 1))]
 P.func('predict', [], pr)
 
 # ---- learning ----
@@ -175,6 +218,12 @@ def adapt(stored, y):
     pass
 
 up = []
+for table, gi, gj in (('A1', 'ai1', 'aj1'), ('A2', 'ai2', 'aj2')):
+    sq, pre, init = ainit(G(gj))
+    t = fresh('at')
+    up += pre + [('let', t, mod(add(ld(table, 2, G(gi)), init), 65536)),
+                 ('let', t + 'n', sel(eq(G('y'), 1), add(V(t), div(sub(65598, V(t)), 64)), sub(V(t), div(add(V(t), 63), 64)))),
+                 ('store', table, 2, G(gi), mod(sub(add(V(t + 'n'), 65536), init), 65536))]
 sv = [('let', 'ix', ld('IX', 4, V('k'))), ('let', 'sv', ld('T', 3, V('ix'))),
       ('let', 'cn', mod(V('sv'), 256)), ('let', 'pp', mod(add(div(V('sv'), 256), 32768), 65536)),
       ('let', 'rt', div(131072, add(mul(2, V('cn')), 3))),
@@ -191,18 +240,23 @@ ms = [('let', 'mi', add(mul(2, G('mbucket')), G('eb'))), ('let', 'sv', ld('MS', 
 up += [('if', lt(0, G('mlen')), ms, [])]
 up += [('let', 's1', mul(NIN, G('c0'))), ('let', 's2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
        ('let', 'e1', sel(eq(G('y'), 1), sub(4096, G('pm1')), G('pm1'))),
-       ('let', 'e2', sel(eq(G('y'), 1), sub(4096, G('pm2')), G('pm2')))]
+       ('let', 'e2', sel(eq(G('y'), 1), sub(4096, G('pm2')), G('pm2'))),
+       ('let', 's3', mul(NIN, add(mul(8, mod(div(G('c4'), 256), 256)), G('bit')))),
+       ('let', 'e3', sel(eq(G('y'), 1), sub(4096, G('pm3')), G('pm3'))),
+       # plasticity decays from 128/65536 to 24/65536 per unit of x * err as the input is seen
+       ('let', 'lr', add(24, div(104 * 4096, add(4096, G('pos')))))]
 
 def learn(table, key, err, body):
     w = fresh('w'); m = fresh('m'); s = fresh('s')
     body += [('let', w, mod(add(ld(table, 3, key), WINIT), 1 << 24)),
-             ('let', m, mul(V('mag'), err)),
-             ('let', s, sel(V('pos_'), mn(add(V(w), div(V(m), 1024)), 1 << 23), monus(V(w), div(add(V(m), 1023), 1024)))),
+             ('let', m, mul(mul(V('mag'), err), V('lr'))),
+             ('let', s, sel(V('pos_'), mn(add(V(w), div(V(m), 65536)), 1 << 23), monus(V(w), div(add(V(m), 65535), 65536)))),
              ('store', table, 3, key, mod(add(V(s), KW), 1 << 24))]
 
 wl = [('let', 'so', ld('ST', 2, V('i'))),
       ('let', 'mag', add(monus(V('so'), 2048), monus(2048, V('so')))),
       ('let', 'pos_', OR(AND(lt(2048, V('so')), eq(G('y'), 1)), AND(lt(V('so'), 2048), eq(G('y'), 0))))]
+learn('W3', add(V('s3'), V('i')), V('e3'), wl)
 learn('W1', add(V('s1'), V('i')), V('e1'), wl)
 learn('W2', add(V('s2'), V('i')), V('e2'), wl)
 up += [('loop', NIN, 'i', wl)]
