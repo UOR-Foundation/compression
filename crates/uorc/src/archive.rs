@@ -352,6 +352,88 @@ pub fn window_archive(
     Some(sealed(pre))
 }
 
+const REF_HEX: &str = include_str!("linked-ref.hex");
+/// Body of a reference frame (`gen_basis.py` `REF_BODY`): one entry block that
+/// returns basis root 1. Over the basis `[library, F]` it reproduces `F`, so an
+/// earlier frame is named by its κ-label ([`frame_label`]) and stored once.
+pub const REF_BODY: [u8; hex_len(REF_HEX)] = hex_literal(REF_HEX);
+
+/// The κ-label of a frame's content: the identity of the basis `[library,
+/// frame]` ([`window_identity`] of the one frame), which a reference frame
+/// names to reproduce it.
+pub fn frame_label(frame: &[u8]) -> [u8; 32] {
+    window_identity(&[frame])
+}
+
+/// A reference frame: a conditional archive over `[library, F]`, named by `F`'s
+/// κ-label `label`, that reproduces `F` as objects of `lengths`.
+pub fn reference_archive(label: &[u8; 32], lengths: &[u64]) -> Vec<u8> {
+    let mut pre = header(1, lengths, REF_BODY.len() as u64);
+    pre[6] = 1;
+    pre.extend_from_slice(label);
+    pre.extend_from_slice(&REF_BODY);
+    sealed(pre)
+}
+
+/// Exact length of [`reference_archive`] for objects of `lengths`.
+pub fn reference_length(lengths: &[u64]) -> u64 {
+    let fields: u64 = lengths.iter().map(|&l| uleb_len(l) as u64).sum();
+    let body = REF_BODY.len() as u64;
+    8 + uleb_len(lengths.len() as u64) as u64
+        + fields
+        + uleb_len(body) as u64
+        + 32
+        + body
+        + SEAL as u64
+}
+
+/// Where the fields of a conditional program archive sit: the object lengths,
+/// the basis identity and the body. `None` for any other shape.
+fn conditional_fields(data: &[u8]) -> Option<(Vec<u64>, [u8; 32], &[u8])> {
+    if data.len() < 8 + 32 + SEAL || data[..6] != MAGIC[..] || data[6] != 1 || data[7] != 1 {
+        return None;
+    }
+    let (count, mut at) = read_uleb(data, 8)?;
+    if count > data.len() as u64 {
+        return None;
+    }
+    let mut lengths = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let (n, next) = read_uleb(data, at)?;
+        lengths.push(n);
+        at = next;
+    }
+    let (body_len, at) = read_uleb(data, at)?;
+    let start = at.checked_add(32)?;
+    let end = start.checked_add(usize::try_from(body_len).ok()?)?;
+    if data.len() != end.checked_add(SEAL)? {
+        return None;
+    }
+    Some((lengths, data[at..start].try_into().ok()?, &data[start..end]))
+}
+
+/// The κ-label a reference frame names, read from its fields (the seal is
+/// checked when it is decoded); `None` when `data` is not one.
+pub fn reference_of(data: &[u8]) -> Option<[u8; 32]> {
+    let (_, label, body) = conditional_fields(data)?;
+    (body == REF_BODY).then_some(label)
+}
+
+/// `Archive.windowDecode` of a reference frame, natively: `frame` (the frame
+/// whose κ-label the archive names) when the archive is laid out exactly as
+/// [`reference_archive`] writes it, its seal holds and its objects add up to
+/// `frame`. The caller found `frame` by that label.
+pub fn reference_decode(data: &[u8], frame: &[u8]) -> Option<Vec<u8>> {
+    let (lengths, label, body) = conditional_fields(data)?;
+    let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
+    let (pre, seal) = data.split_at(data.len() - SEAL);
+    let shortest = reference_length(&lengths) == data.len() as u64;
+    (body == REF_BODY && shortest && n == frame.len() as u64 && seal == chain(pre)).then(|| {
+        debug_assert_eq!(label, frame_label(frame));
+        frame.to_vec()
+    })
+}
+
 /// The basis identity a conditional archive names, if it is one.
 pub fn basis_of(data: &[u8]) -> Option<[u8; 32]> {
     if data.len() < 8 || data[..6] != MAGIC[..] || data[6] != 1 {

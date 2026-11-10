@@ -79,6 +79,20 @@ def template(codec):
 TEMPLATES = {c: template(c) for c in ('ulz', 'ncm', 'ulz1', 'ulz2')}
 
 
+def reference_body():
+    """Body of a reference frame: a conditional archive over [library, F] whose one entry block returns
+    basis root 1, the earlier frame F itself. It applies no library block, so it is the same bytes for
+    every library; only the basis identity (the frame's kappa-label) names F."""
+    e = G.block('entry', [], S)
+    e.returns(e.basis(1))
+    eb = block_bytes(e)
+    G.blocks.pop()
+    return wire.uleb(1) + eb + wire.uleb(0)
+
+
+REF_BODY = reference_body()
+
+
 def linked_body(codec, payload):
     pre, suf = TEMPLATES[codec]
     return pre + wire.uleb(len(payload)) + payload + suf
@@ -112,6 +126,7 @@ if __name__ == '__main__':
         if c in WINDOWS:
             write_hex(f'linked-{c}-prefix.hex', pre)
         write_hex(f'linked-{c}-suffix.hex', suf)
+    write_hex('linked-ref.hex', REF_BODY)
     print('library blocks', L, 'bytes', len(LIB), 'identity', STD_ID.hex())
     for c, (pre, suf) in TEMPLATES.items():
         print(c, 'linked prefix', pre.hex(), 'suffix', suf.hex())
@@ -128,6 +143,13 @@ if __name__ == '__main__':
             out = evaluate(g, e)
             assert out == text, (c, out[:40])
             print(c, 'linked archive', len(linked_archive(c, len(text), payload)), 'bytes; decodes on the mirror')
+        # a reference frame reproduces the earlier frame it names
+        g, _ = libraries()
+        e = g.block('entry', [], S)
+        e.returns(e.basis(1))
+        assert materialize(REF_BODY) == wire.graph_bytes(g, e)
+        assert evaluate(g, e, basis=[LIB, text]) == text
+        print('ref body', REF_BODY.hex(), '; decodes on the mirror')
         # window frames: the payload is encoded against the preceding frames' outputs (basis roots 1..K)
         frames = [b'window frame one: the standard basis carries the kernels. ' * 4,
                   b'window frame two: archives name the kernels by identity. ' * 4,
