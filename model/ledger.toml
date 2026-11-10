@@ -22,7 +22,7 @@ feature = "features/suites/source-authority.feature"
 [[claim]]
 id = "UC-PERF-01"
 level = "open"
-statement = "measured public-corpus compression improvement, with exact target and scope; open until actually measured"
+statement = "measured public-corpus compression: every release runs scripts/bench.mjs on the Canterbury and Silesia corpora against gzip, bzip2, xz, zstd and brotli and publishes archive sizes and times in the release notes and on the Pages site; open because the measurement sets no target"
 evidence_kind = "none"
 research_disposition = "not_measured"
 feature = "features/suites/source-authority.feature"
@@ -77,123 +77,83 @@ feature = "features/suites/varint.feature"
 
 [[claim]]
 id = "UC-MACH-01"
-level = "open"
-statement = "Every admitted graph has the source-defined meaning of all 39 wire operations, including eager typed failures, prior-block calls and observer-before-update Scan with its final updater."
-evidence_kind = "none"
+level = "build"
+statement = "The client's reference-semantics evaluator decodes program archives, including search-found programs and the ulz kernel graph when the certified fast path declines, to their exact original bytes."
+evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/machine-semantics.feature"
 
 [[claim]]
 id = "UC-MACH-02"
-level = "open"
-statement = "Execution accounts for logical work and runtime-owned bytes under the explicit uorc.logical-owned-bytes/1 profile, including aliases, metadata, closures, transient copies and cancellation; old diagnostic live-cell counts remain distinct from bytes and neither is a claim of physical CPU time or resident memory."
-evidence_kind = "none"
+level = "build"
+statement = "Decoding is charged against an explicit decoder work budget, and exhausting the budget is a typed refusal with no partial output."
+evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/machine-resources.feature"
 
 [[claim]]
 id = "UC-WIRE-01"
-level = "open"
-statement = "The source-declared unshipped archive and machine profile identities have canonical source-owned layouts, strict incremental parsing, exact body lengths and complete EOF checks, without asserting compatibility with an unavailable older draft."
-evidence_kind = "none"
+level = "build"
+statement = "The client decodes only complete UORC archives in their canonical layout, self-contained or over the standard basis: truncated archives, trailing bytes and unsupported format identities are typed decode failures."
+evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/wire-format.feature"
 
 [[claim]]
 id = "UC-OBJ-01"
-level = "open"
-statement = "Decoded output preserves the exact ordered object boundary vector, including zero objects and distinct zero-length objects."
-evidence_kind = "none"
+level = "build"
+statement = "Archives of ordered objects preserve the exact object boundary vector, including zero objects and distinct zero-length objects."
+evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/ordered-objects.feature"
 
 [[claim]]
 id = "UC-INT-01"
-level = "open"
-statement = "Archive and basis integrity use an explicitly identified bounded streaming construction with standard SHA-256 components; digest agreement never replaces exact byte comparison."
-evidence_kind = "none"
+level = "build"
+statement = "Every archive the client decodes is checked against its UORC-SHA256-CHAIN-v1 integrity trailer, so changing any single bit of an archive makes it fail to decode."
+evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/archive-integrity.feature"
 
 [[claim]]
 id = "UC-BAS-01"
-level = "open"
-statement = "Conditional archives bind the actual supplied ordered basis using a source-owned length-delimited domain-separated identity, and execute against that admitted basis."
-evidence_kind = "none"
+level = "build"
+statement = "Conditional archives name the client's standard basis, the ulz and ncm decoder libraries, by its UORC-BASIS-V1 identity and decode only against that actual basis."
+evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/conditional-basis.feature"
 
 [[claim]]
 id = "UC-SYN-01"
-level = "open"
-statement = "Fair synthesis combines input-derived algebra, recurrence, residuals, dictionary, typed sharing and complete syntax enumeration without making heuristic proposals the admissible universe."
-evidence_kind = "none"
+level = "build"
+statement = "Program search under a step budget keeps a candidate only as a fully checked archive: more effort can change which archive wins, never whether the result decodes to the input."
+evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/complete-synthesis.feature"
 
 [[claim]]
 id = "UC-OPT-01"
-level = "open"
-statement = "The product minimizes complete archive byte length and unsigned lexicographic order within an explicitly sealed wire, basis and decoder-resource scope."
-evidence_kind = "none"
+level = "build"
+statement = "Compress returns the smallest of the archives it checked, which are the raw archive, the ulz archive, the ncm archive at the best level and any search candidate within the step budget; no minimum beyond that candidate set is claimed."
+evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/scoped-optimality.feature"
 
 [[claim]]
-id = "UC-CHK-01"
-level = "open"
-statement = "Imported checkpoints are untrusted replay requests, not authority for a queue, incumbent, coverage, source identity or resource receipt."
-evidence_kind = "none"
-research_disposition = "not_measured"
-feature = "features/suites/checkpoint-replay.feature"
-
-[[claim]]
-id = "UC-PROD-01"
-level = "open"
-statement = "The source-owned product lifecycle handles demand, EOF, cancellation, edits, retries, stale completion and publication without exposing unfinished results as completed files."
-evidence_kind = "none"
-research_disposition = "not_measured"
-feature = "features/suites/product-lifecycle.feature"
-
-[[claim]]
 id = "UC-API-01"
-level = "open"
-statement = "The same product semantics serve native library, CLI and browser interfaces, with explicitly versioned streaming ownership rather than invented compatibility with bounded whole-buffer adapters."
-evidence_kind = "none"
+level = "build"
+statement = "The uorc library, CLI and WebAssembly exports run the same compress, decompress, inspect and verify operations over arbitrary bytes, with typed budget, overflow, decode and mismatch failures."
+evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/product-interfaces.feature"
 
 [[claim]]
 id = "UC-REAL-01"
-level = "open"
-statement = "A real nonliteral archive is independently parsed, executed and compared against every original byte before encoder publication."
-evidence_kind = "none"
+level = "build"
+statement = "Real archives that uorc compress writes for text, structured binary, noise and edge-case inputs are independently decoded and compared against every original byte."
+evidence_kind = "fixture_result"
 research_disposition = "not_measured"
 feature = "features/suites/real-execution.feature"
-
-[[claim]]
-id = "UC-CTL-01"
-level = "open"
-statement = "Source-owned asynchronous product transitions preserve run, revision, ordered input and output ownership."
-evidence_kind = "none"
-research_disposition = "not_measured"
-feature = "features/suites/product-control.feature"
-
-[[claim]]
-id = "UC-VIW-01"
-level = "open"
-statement = "Source-owned presentation values govern labels, enabled actions, focus, accessibility and evidence claims."
-evidence_kind = "none"
-research_disposition = "not_measured"
-feature = "features/suites/product-view.feature"
-
-[[claim]]
-id = "UC-STG-01"
-level = "open"
-statement = "Storage admission and observed job-owned storage remain separate from logical arena memory and physical observations."
-evidence_kind = "none"
-research_disposition = "not_measured"
-feature = "features/suites/product-storage.feature"
 
 [[claim]]
 id = "UC-SHA-01"
@@ -246,14 +206,6 @@ research_disposition = "not_measured"
 feature = "features/suites/archive-integrity.feature"
 
 [[claim]]
-id = "UC-EXE-01"
-level = "open"
-statement = "Product operation binding moves the actual admitted runtime owner, decoded ticket and resulting effects without inventing successful evidence."
-evidence_kind = "none"
-research_disposition = "not_measured"
-feature = "features/suites/product-execution.feature"
-
-[[claim]]
 id = "UC-INT-04"
 level = "build"
 statement = "Source-owned actual-call relations establish ordered hash admissions, drained selected-view EOF and checked cumulative basis/main work; composed generated-model controls reject failed-prefix resets and late corruption. Consumer snapshot preservation, canonical digest refinement and complete archive EOF remain separate obligations."
@@ -266,13 +218,5 @@ id = "UC-INT-05"
 level = "build"
 statement = "Source-owned completed-view and continuous publication proofs derive the actual chosen-profile digest and emitted-image reads, discharging canonical driver termination and OwnedHash control/cleanup lifetime for both explicit format identities and arbitrary finite source input. Initial source-layout correspondence and full product acceptance remain separate consumer obligations."
 evidence_kind = "build_evidence"
-research_disposition = "not_measured"
-feature = "features/suites/archive-integrity.feature"
-
-[[claim]]
-id = "UC-INT-06"
-level = "open"
-statement = "Actual archive snapshot, selected preimage traversal and trailer comparison are connected to canonical original-source layout bytes through source-derived consumer calls, structural coverage and retained-node ownership premises."
-evidence_kind = "none"
 research_disposition = "not_measured"
 feature = "features/suites/archive-integrity.feature"

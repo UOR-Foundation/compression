@@ -14,10 +14,10 @@ Feature: source-authority
     Then the marked evidence remains non-authoritative and the conflicting handwritten rule is rejected by the R1 source-authority gate
 
   @UC-PERF-01 @open
-  Scenario: measured public-corpus compression improvement, with exact target and scope; open until actually measured
+  Scenario: measured public-corpus compression: every release runs scripts/bench.mjs on the Canterbury and Silesia corpora against gzip, bzip2, xz, zstd and brotli and publishes archive sizes and times in the release notes and on the Pages site; open because the measurement sets no target
     Given the registered public-corpus performance claim
-    When the honesty gate reads its disposition before any sealed benchmark result has established the target
-    Then the claim remains open rather than becoming implementation evidence
+    When the honesty gate reads its disposition
+    Then the claim remains open with its measurements reported, rather than becoming implementation evidence
 
   @UC-REC-01 @open
   Scenario: externally accepted compression record; open unless the external authority actually accepts it

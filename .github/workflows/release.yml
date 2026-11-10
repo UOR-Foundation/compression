@@ -1,6 +1,6 @@
 # Builds the uorc client from the committed LexLean-exported Rust (generated/rust)
 # and publishes it: native binaries, the library source bundle, the WebAssembly
-# module, a benchmark run, and the GitHub Pages site that runs the client.
+# module, a Canterbury and Silesia benchmark run, and the GitHub Pages site that runs the client.
 name: release
 
 on:
@@ -60,26 +60,49 @@ jobs:
           name: native-${{ matrix.target }}
           path: dist/*.tar.gz*
           if-no-files-found: error
-      - name: Fetch the Canterbury corpus
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+
+  # Measurement only (UC-PERF-01): the release binary on the Canterbury and
+  # Silesia corpora against standard compressors. It runs on release, never on
+  # pull requests, and its table goes into the release notes and the Pages site.
+  bench:
+    name: benchmark
+    needs: native
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: native-x86_64-unknown-linux-gnu
+          path: dist
+      - name: Fetch the corpora and the comparison tools
         run: |
           set -euo pipefail
           sudo apt-get install -y -qq zstd brotli >/dev/null
-          mkdir -p corpus/canterbury
-          curl -fsSL https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz | tar -xz -C corpus/canterbury
+          tar -C dist -xzf "dist/uorc-${TAG}-x86_64-unknown-linux-gnu.tar.gz"
+          mkdir -p corpus/canterbury corpus/silesia
+          curl -fsSL --retry 3 https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz | tar -xz -C corpus/canterbury
+          curl -fsSL --retry 3 -o silesia.zip https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip
+          unzip -q -d corpus/silesia silesia.zip
+          find corpus/silesia -mindepth 2 -type f -exec mv -t corpus/silesia {} +
       - name: Benchmark the release binary
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: node scripts/bench.mjs --uorc "target/${{ matrix.target }}/release/uorc" --corpus corpus/canterbury --steps 0 --out bench
+        run: node scripts/bench.mjs --uorc "dist/uorc-${TAG}-x86_64-unknown-linux-gnu/uorc" --corpus corpus/canterbury,corpus/silesia --steps 0 --out bench
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
         with:
           name: bench
-          path: bench/
+          path: |
+            bench/bench.json
+            bench/bench.md
+            bench/bench.html
           if-no-files-found: error
 
   wasm:
     name: wasm and site
-    needs: native
+    needs: bench
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -128,7 +151,7 @@ jobs:
 
   publish:
     name: publish release
-    needs: [native, wasm]
+    needs: [native, bench, wasm]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
