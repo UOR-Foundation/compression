@@ -1,7 +1,9 @@
 # Generates Uorc/Codec/LzEncode.lex.tex (LexLean source). The generator is a writing aid; the .lex.tex is the source.
 # The encoder state is (mem, EncS): one byte table and a record of scalars (see state.py).
-# mem holds the probabilities (bytes [0, 16384)), the hash heads (65536 four-byte entries from byte 16384),
-# the chain (four-byte entries from byte 278528), and then the output from byte outBase.
+# mem holds the probabilities (bytes [0, 16384)), the 3-byte hash table (65536 four-byte entries from byte
+# 16384: the latest position of each hash), the 4-byte hash heads (h4size four-byte entries from byte 278528),
+# the chain through them (four-byte entries from word chainAt), and then the output from byte outBase.
+# h4size is 2^hb with hb the input's bit length clamped to [16, 22], so small inputs keep small tables.
 import sys
 import os
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -11,7 +13,8 @@ from state import Layout, definer
 T = 'Uorc.Codec.Table'; DEC = 'Uorc.Codec.LzDecode'
 L = Layout('Enc', ['mem'],
            ['data:Bytes', 'n:Nat', 'low:Nat', 'rng:Nat', 'cache:Nat', 'csize:Nat', 'outSize:Nat',
-            'state:Nat', 'rep0:Nat', 'rep1:Nat', 'rep2:Nat', 'rep3:Nat', 'at:Nat', 'outBase:Nat'], {})
+            'state:Nat', 'rep0:Nat', 'rep1:Nat', 'rep2:Nat', 'rep3:Nat', 'at:Nat', 'outBase:Nat',
+            'h4div:Nat', 'h4size:Nat', 'chainAt:Nat'], {})
 P, upd = L.P, L.upd
 defs = []
 D = definer(defs, 'LzEncode')
@@ -52,18 +55,26 @@ de = (f"(let ls : Nat := (if (lenCode <? 3) then lenCode else 3); (let slot : Na
 D('distEnc', ['e : Enc', 'dist : Nat', 'lenCode : Nat'], 'Enc', de)
 # match finding reads the input and the tables without taking the state
 D('hashAt', ['data : Bytes', 'i : Nat'], 'Nat', f"(let x : Nat := ((({B('data','i')} * 65536) + ({B('data','(i + 1)')} * 256)) + {B('data','(i + 2)')}); (prim remainder (prim quotient (x * 2654435761) 65536 0 : Nat) 65536 0 : Nat))")
-ins = (f"(if ((i + 2) <? {P('e','n')}) then (let k : Nat := (hashAt {P('e','data')} i); (let hv : Nat := ({T}::get 4 {P('e','mem')} (4096 + k)); "
-       + upd('e', mem=f"({T}::set 4 ({T}::set 4 {P('e','mem')} (69632 + i) hv) (4096 + k) (i + 1))") + ")) else e)")
+D('hash4At', ['data : Bytes', 'i : Nat', 'hdiv : Nat', 'hsz : Nat'], 'Nat',
+  f"(let x : Nat := ((({B('data','i')} + (256 * {B('data','(i + 1)')})) + (65536 * {B('data','(i + 2)')})) + (16777216 * {B('data','(i + 3)')})); (prim remainder (prim quotient (2654435761 * x) hdiv 0 : Nat) hsz 0 : Nat))")
+ins = (f"(let n : Nat := {P('e','n')}; (let data : Bytes := {P('e','data')}; "
+       f"(let f : Enc := (if ((i + 3) <? n) then (let k : Nat := (69632 + (hash4At data i {P('e','h4div')} {P('e','h4size')})); (let hv : Nat := ({T}::get 4 {P('e','mem')} k); "
+       + upd('e', mem=f"({T}::set 4 ({T}::set 4 {P('e','mem')} ({P('e','chainAt')} + i) hv) k (i + 1))") + ")) else e); "
+       f"(if ((i + 2) <? n) then {upd('f', mem=f'({T}::set 4 {P(chr(102),chr(109)+chr(101)+chr(109))} (4096 + (hashAt data i)) (i + 1))')} else f))))")
 D('insert', ['e : Enc', 'i : Nat'], 'Enc', ins)
 D('insertRange', ['fuel : Nat', 'e : Enc', 'i : Nat'], 'Enc', "(match fuel\n    | Nat.zero => e\n    | Nat.succ k => (insertRange k (insert e i) (i + 1)))", 'fuel')
 D('matchLen', ['fuel : Nat', 'data : Bytes', 'a : Nat', 'b : Nat', 'l : Nat'], 'Nat', f"(match fuel\n    | Nat.zero => l\n    | Nat.succ k => (if ({B('data','(a + l)')} =? {B('data','(b + l)')}) then (matchLen k data a b (l + 1)) else l))", 'fuel')
-fl = (f"(match fuel\n    | Nat.zero => (best, dist)\n    | Nat.succ k => (if (candidate =? 0) then (best, dist) else (let j : Nat := (prim subtract candidate 1 : Nat); (let next : Nat := ({T}::get 4 chain (69632 + j)); "
-      f"(if ({B('data','(j + best)')} =? {B('data','(i + best)')}) then (let l : Nat := (matchLen lim data j i 0); (let nb : Nat := (if (best <? l) then l else best); (let nd : Nat := (if (best <? l) then (prim subtract i (j + 1) : Nat) else dist); (if (64 <=? l) then (nb, nd) else (findLoop k data chain i lim next nb nd))))) "
-      f"else (findLoop k data chain i lim next best dist))))))")
-D('findLoop', ['fuel : Nat', 'data : Bytes', 'chain : Bytes', 'i : Nat', 'lim : Nat', 'candidate : Nat', 'best : Nat', 'dist : Nat'], '(Nat * Nat)', fl, 'fuel')
+fl = (f"(match fuel\n    | Nat.zero => (best, dist)\n    | Nat.succ k => (if (candidate =? 0) then (best, dist) else (let j : Nat := (prim subtract candidate 1 : Nat); (let next : Nat := ({T}::get 4 chain (cb + j)); "
+      f"(if ({B('data','(j + best)')} =? {B('data','(i + best)')}) then (let l : Nat := (matchLen lim data j i 0); (let nb : Nat := (if (best <? l) then l else best); (let nd : Nat := (if (best <? l) then (prim subtract i (j + 1) : Nat) else dist); (if (64 <=? l) then (nb, nd) else (findLoop k data chain cb i lim next nb nd))))) "
+      f"else (findLoop k data chain cb i lim next best dist))))))")
+D('findLoop', ['fuel : Nat', 'data : Bytes', 'chain : Bytes', 'cb : Nat', 'i : Nat', 'lim : Nat', 'candidate : Nat', 'best : Nat', 'dist : Nat'], '(Nat * Nat)', fl, 'fuel')
 D('limitAt', ['n : Nat', 'i : Nat'], 'Nat', "(let left : Nat := (prim subtract n i : Nat); (if (left <? 273) then left else 273))")
-D('find', ['e : Enc', 'i : Nat'], '(Nat * Nat)',
-  f"(let n : Nat := {P('e','n')}; (if (n <=? (i + 2)) then (0, 0) else (let data : Bytes := {P('e','data')}; (let h : Nat := ({T}::get 4 {P('e','mem')} (4096 + (hashAt data i))); (findLoop 48 data {P('e','mem')} i (limitAt n i) h 0 0)))))")
+# the latest position with the same 3-byte hash gives the short matches; the 4-byte chain, the long ones
+fd = (f"(let n : Nat := {P('e','n')}; (if (n <=? (i + 2)) then (0, 0) else (let data : Bytes := {P('e','data')}; (let mem : Bytes := {P('e','mem')}; (let lim : Nat := (limitAt n i); "
+      f"(let c3 : Nat := ({T}::get 4 mem (4096 + (hashAt data i))); "
+      f"(let s : (Nat * Nat) := (if (c3 =? 0) then (0, 0) else (let j : Nat := (prim subtract c3 1 : Nat); (let l : Nat := (matchLen lim data j i 0); (if (2 <=? l) then (l, (prim subtract i (j + 1) : Nat)) else (0, 0))))); "
+      f"(if ((n <=? (i + 3)) || (64 <=? (first s))) then s else (let h : Nat := ({T}::get 4 mem (69632 + (hash4At data i {P('e','h4div')} {P('e','h4size')}))); (findLoop 48 data mem {P('e','chainAt')} i lim h (first s) (second s)))))))))))")
+D('find', ['e : Enc', 'i : Nat'], '(Nat * Nat)', fd)
 D('repLen', ['data : Bytes', 'i : Nat', 'lim : Nat', 'r : Nat'], 'Nat', "(if (i <? (r + 1)) then 0 else (matchLen lim data (prim subtract i (r + 1) : Nat) i 0))")
 br = (f"(let data : Bytes := {P('e','data')}; (let l0 : Nat := (repLen data i lim {P('e','rep0')}); (let l1 : Nat := (repLen data i lim {P('e','rep1')}); (let l2 : Nat := (repLen data i lim {P('e','rep2')}); (let l3 : Nat := (repLen data i lim {P('e','rep3')}); "
       "(let a : (Nat * Nat) := (if (l0 <? l1) then (l1, 1) else (l0, 0)); (let b : (Nat * Nat) := (if ((first a) <? l2) then (l2, 2) else a); (if ((first b) <? l3) then (l3, 3) else b))))))))")
@@ -92,8 +103,10 @@ D('step', ['e : Enc'], 'Enc', stp)
 D('encodeLoop', ['fuel : Nat', 'e : Enc'], 'Enc', f"(match fuel\n    | Nat.zero => e\n    | Nat.succ k => (let i : Nat := {P('e','at')}; (let n : Nat := {P('e','n')}; (if (n <=? i) then e else (encodeLoop k (step e))))))", 'fuel')
 D('header', ['fuel : Nat', 'v : Nat'], 'Bytes', f"(match fuel\n    | Nat.zero => 0x\n    | Nat.succ k => (prim append ({DEC}::singleton (prim remainder v 256 0 : Nat)) (header k (prim quotient v 256 0 : Nat)) : Bytes))", 'fuel')
 start = (f"(let n : Nat := (prim length data : Nat); (let od : Nat := ({DEC}::depthFor 64 ((2 * n) + 64) 0); (let cd : Nat := ({DEC}::depthFor 64 (n + 1) 0); "
-         + L.make({'mem': f"(prim append (prim append (prim append ({T}::fill 2 13 1024) ({T}::fill 4 16 0) : Bytes) ({T}::fill 4 cd 0) : Bytes) ({T}::fill 1 od 0) : Bytes)"},
-                  dict(data='data', n='n', low='0', rng='4294967295', cache='0', csize='1', outSize='0', state='0', rep0='0', rep1='0', rep2='0', rep3='0', at='0', outBase=f'(278528 + (4 * {pow2(chr(99)+chr(100))}))')) + ")))")
+         f"(let hb : Nat := (if (cd <? 16) then 16 else (if (22 <? cd) then 22 else cd)); (let h4size : Nat := {pow2('hb')}; "
+         + L.make({'mem': f"(prim append (prim append (prim append (prim append ({T}::fill 2 13 1024) ({T}::fill 4 16 0) : Bytes) ({T}::fill 4 hb 0) : Bytes) ({T}::fill 4 cd 0) : Bytes) ({T}::fill 1 od 0) : Bytes)"},
+                  dict(data='data', n='n', low='0', rng='4294967295', cache='0', csize='1', outSize='0', state='0', rep0='0', rep1='0', rep2='0', rep3='0', at='0',
+                       outBase=f'((278528 + (4 * h4size)) + (4 * {pow2(chr(99)+chr(100))}))', h4div=pow2('(prim subtract 32 hb : Nat)'), h4size='h4size', chainAt='(69632 + h4size)')) + ")))))")
 D('start', ['data : Bytes'], 'Enc', start)
 # encode `input` against the window `history`: the match finder starts holding every history position,
 # the coder starts at the first input byte, and only the input is emitted

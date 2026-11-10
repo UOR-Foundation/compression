@@ -134,18 +134,30 @@ def compress_with(hist, data, depth=48, nice=64):
     # encode `data` against the window `hist`: matches may reach into it; only `data` is emitted
     hl=len(hist); m_in=len(data); data=bytes(hist)+bytes(data)
     e=Enc(); m=model(); L=lenmodel(); R=lenmodel()
-    n=len(data); HB=16; head=[-1]*(1<<HB); chain=[-1]*n
+    n=len(data); HB=16; head3=[-1]*(1<<HB); chain=[-1]*n
+    cd=0
+    while (1<<cd)<n+1: cd+=1
+    H4=min(22,max(16,cd)); head=[-1]*(1<<H4)
     def h(i): return ((data[i]<<16|data[i+1]<<8|data[i+2])*2654435761>>(32-HB))&((1<<HB)-1)
+    def h4(i): return ((int.from_bytes(data[i:i+4],'little')*2654435761)>>(32-H4))&((1<<H4)-1)
     def ins(i):
-        if i+2<n: k=h(i); chain[i]=head[k]; head[k]=i
+        if i+3<n: k=h4(i); chain[i]=head[k]; head[k]=i
+        if i+2<n: head3[h(i)]=i
     def mlen(a,b,lim):
         l=0
         while l<lim and data[a+l]==data[b+l]: l+=1
         return l
     def find(i):
+        # the latest position with the same 3-byte hash gives the short matches; the 4-byte chain, the long ones
         best=0; bd=0
         if i+2>=n: return 0,0
-        j=head[h(i)]; c=depth; lim=min(MAXM,n-i)
+        lim=min(MAXM,n-i)
+        j=head3[h(i)]
+        if j>=0:
+            l=mlen(j,i,lim)
+            if l>=2: best=l; bd=i-j-1
+        if i+3>=n or best>=nice: return best,bd
+        j=head[h4(i)]; c=depth
         while j>=0 and c>0:
             if (data[j+best] if j+best<n else 0)==(data[i+best] if i+best<n else 0):  # an out-of-range read is 0, as in LexLean
                 l=mlen(j,i,lim)
