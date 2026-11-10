@@ -265,7 +265,9 @@ impl Finder<'_> {
 
     #[inline(always)]
     fn hash4(&self, i: usize) -> usize {
-        let x = u64::from(u32::from_le_bytes(self.data[i..i + 4].try_into().unwrap_or([0; 4])));
+        let x = u64::from(u32::from_le_bytes(
+            self.data[i..i + 4].try_into().unwrap_or([0; 4]),
+        ));
         ((x * 2_654_435_761) >> (32 - self.bits)) as usize & ((1 << self.bits) - 1)
     }
 
@@ -771,4 +773,3 @@ mod tests {
         assert_eq!(decode(&payload, 3000), None);
     }
 }
-
