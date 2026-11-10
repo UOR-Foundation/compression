@@ -1,0 +1,43 @@
+# Records receipts. After a bootstrap, offline or release run from this
+# repository completes, this turns the outcomes its jobs uploaded into receipts
+# on the factory-receipts branch (scripts/factory.mjs publish). It runs from the
+# default branch with its own token, so no pull-request code ever gets write
+# access, and an outcome from a fork is never recorded. Runs that finish
+# together each rebuild on the branch's newest head and retry the push.
+name: factory
+
+on:
+  workflow_run:
+    workflows: [bootstrap, SDK offline reproducibility, release]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  receipts:
+    name: record receipts
+    if: github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: factory-outcome-*
+          path: .tmp/outcomes
+          merge-multiple: true
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Publish the run's receipts and reweigh the schedule
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FACTORY_RUN_ID: ${{ github.event.workflow_run.id }}
+          FACTORY_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: node scripts/factory.mjs publish .tmp/outcomes

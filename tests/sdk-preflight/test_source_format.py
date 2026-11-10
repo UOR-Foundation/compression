@@ -233,9 +233,9 @@ class SourceFormatTests(unittest.TestCase):
         self.assertIn('node scripts/offline-validation.mjs compare-offline .prism/offline/first .prism/offline/second-distinct-root', workflow)
         self.assertIn('name: review-only generated projections', workflow)
         self.assertEqual([line.strip() for line in workflow.splitlines() if 'if:' in line], [
-            "if: needs.route.outputs.proved != 'true'", "if: needs.route.outputs.proved != 'true'",
+            "if: needs.route.outputs.route == 'observe'", "if: needs.route.outputs.route == 'observe'",
             'if: always()', 'if: always()'])
-        self.assertIn('run: scripts/ci-receipt.sh lookup offline >> "$GITHUB_OUTPUT"', workflow)
+        self.assertIn('run: node scripts/factory.mjs route offline >> "$GITHUB_OUTPUT"', workflow)
 
 
     def test_acceptance_legs_run_every_vv_recipe_exactly_once(self):
