@@ -1378,16 +1378,27 @@ mod tests {
             .map(|i| (i % 37 * 7 + i / 999) as u8)
             .collect();
         let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
-        for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
-            let p = encoder::<Scalar>(&[], data).expect("fits");
-            assert_eq!(encode(data).as_deref(), Some(&p[..]));
-            let n = data.len() as u64;
-            assert_eq!(decode(&p, n).as_deref(), Some(data));
-            assert_eq!(decoder::<Scalar>(&[], &p, n, true).as_deref(), Some(data));
-            // and after a window history
-            let w = encoder::<Scalar>(&text[..999], data).expect("fits");
-            assert_eq!(encode_with(&text[..999], data).as_deref(), Some(&w[..]));
-            assert_eq!(decode_with(&text[..999], &w, n).as_deref(), Some(data));
+        for profile in [V03, F_SHORT | F_REP | 0x1ffff, FULL] {
+            for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
+                let p = encoder::<Scalar>(&[], data, profile).expect("fits");
+                assert_eq!(encode_profile(&[], data, profile).as_deref(), Some(&p[..]));
+                let n = data.len() as u64;
+                assert_eq!(decode_profile(&[], &p, n, profile).as_deref(), Some(data));
+                assert_eq!(
+                    decoder::<Scalar>(&[], &p, n, true, profile).as_deref(),
+                    Some(data)
+                );
+                // and after a window history
+                let w = encoder::<Scalar>(&text[..999], data, profile).expect("fits");
+                assert_eq!(
+                    encode_profile(&text[..999], data, profile).as_deref(),
+                    Some(&w[..])
+                );
+                assert_eq!(
+                    decode_profile(&text[..999], &w, n, profile).as_deref(),
+                    Some(data)
+                );
+            }
         }
     }
 

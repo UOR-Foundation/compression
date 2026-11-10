@@ -875,3 +875,31 @@ mod tests {
         }
     }
 }
+
+// Interim until the profile templates land (lane 2): only the v0.3 profile
+// has an archive form here.
+/// [`linked_archive`] for a payload coded under the ncm `profile`.
+pub fn linked_archive_profile(
+    codec: Codec,
+    profile: u32,
+    lengths: &[u64],
+    payload: &[u8],
+) -> Option<Vec<u8>> {
+    (profile == crate::ncm::V03).then(|| linked_archive(codec, lengths, payload))
+}
+
+/// [`window_archive`] for a payload coded under the ncm `profile`.
+pub fn window_archive_profile(
+    codec: Codec,
+    profile: u32,
+    k: usize,
+    identity: &[u8; 32],
+    lengths: &[u64],
+    payload: &[u8],
+) -> Option<Vec<u8>> {
+    if profile == crate::ncm::V03 {
+        window_archive(codec, k, identity, lengths, payload)
+    } else {
+        None
+    }
+}

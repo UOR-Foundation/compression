@@ -55,6 +55,7 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
 pub mod archive;
 mod frame;
 pub mod ncm;
+pub mod portfolio;
 mod store;
 pub mod tree;
 pub mod ulz;
@@ -183,36 +184,50 @@ fn compress_pieces(
             frame::relabel(&archive, lengths)
         };
     }
-    // An x86 frame is coded filtered (`Archive.x86Dense`); a window frame is
-    // coded after its window, filtered too and the frame placed after it.
-    let x86 = x86::dense(frame);
     let history = window.concat();
-    let filtered;
-    let (data, past) = if x86 {
-        filtered = (
-            x86::filter(frame, false, history.len() as u64).0,
-            x86::filter(&history, false, 0).0,
-        );
-        (&filtered.0[..], &filtered.1[..])
-    } else {
-        (frame, &history[..])
-    };
-    let codec = if x86 {
-        archive::Codec::NcmX86
-    } else {
-        archive::Codec::Ncm
-    };
-    // The native ncm encoder is byte-identical to the model
-    // (`native_archives_are_the_model_archives`) and every encoder output
-    // decodes to its input, so a self-decode would only repeat its cost.
-    let best = ncm::encode_with(past, data).and_then(|payload| {
-        if window.is_empty() {
-            Some(archive::linked_archive(codec, lengths, &payload))
+    let identity = (!window.is_empty()).then(|| archive::window_identity(window));
+    // The strategy portfolio (`Client.portfolio`): code the frame by the
+    // first BUDGET strategies its family's schedule orders and keep the
+    // smallest archive, the earlier one on a tie. A filtered strategy codes
+    // the filtered frame after the filtered window.
+    let mut best: Option<Vec<u8>> = None;
+    for strategy in portfolio::plan(frame) {
+        let filtered;
+        let (data, past) = if strategy.x86 {
+            filtered = (
+                x86::filter(frame, false, history.len() as u64).0,
+                x86::filter(&history, false, 0).0,
+            );
+            (&filtered.0[..], &filtered.1[..])
         } else {
-            let identity = archive::window_identity(window);
-            archive::window_archive(codec, window.len(), &identity, lengths, &payload)
+            (frame, &history[..])
+        };
+        let codec = if strategy.x86 {
+            archive::Codec::NcmX86
+        } else {
+            archive::Codec::Ncm
+        };
+        // The native ncm encoder is byte-identical to the model
+        // (`native_archives_are_the_model_archives`) and every encoder output
+        // decodes to its input, so a self-decode would only repeat its cost.
+        let candidate =
+            ncm::encode_profile(past, data, strategy.profile).and_then(|payload| match &identity {
+                None => archive::linked_archive_profile(codec, strategy.profile, lengths, &payload),
+                Some(identity) => archive::window_archive_profile(
+                    codec,
+                    strategy.profile,
+                    window.len(),
+                    identity,
+                    lengths,
+                    &payload,
+                ),
+            });
+        if let Some(c) = candidate {
+            if best.as_ref().is_none_or(|b| c.len() < b.len()) {
+                best = Some(c);
+            }
         }
-    });
+    }
     match best {
         Some(linked) if (linked.len() as u64) < archive::raw_length(lengths) => Ok(linked),
         _ => Ok(archive::raw_objects(frame, lengths)),
