@@ -44,12 +44,14 @@ for name, w in [('n', 4), ('tb', 1), ('mb', 1), ('pos', 4), ('c4', 4), ('c8', 4)
                 ('ip', 4), ('op', 4), ('y', 1), ('cap', 4), ('ovf', 1), ('pm3', 2), ('acc3', 8), ('sw3', 8),
                 ('ai1', 4), ('aj1', 1), ('ai2', 4), ('aj2', 1), ('hoff', 4),
                 ('prof', 4), ('m2ptr', 4), ('m2len', 4), ('m2exp', 1), ('m2b', 1), ('eb2', 1), ('ml2', 4), ('mf2', 1),
-                ('rd', 4), ('rrun', 1), ('rexp', 1), ('rok', 1), ('ra', 1), ('ebr', 1), ('msel', 1)]:
+                ('rd', 4), ('rrun', 1), ('rexp', 1), ('rok', 1), ('ra', 1), ('ebr', 1), ('msel', 1),
+                ('learn', 1), ('lmask', 4), ('cm', 8), ('ce', 1), ('cfr', 2)]:
     P.glob(name, w)
 # graph store regions (key bases); every table is addressed as width * index + byte
 for name, base in [('HB', 1 << 8), ('BB', 1 << 9), ('IX', 1 << 10), ('ST', 1 << 11), ('MS', 1 << 12), ('LP', 1 << 13),
                    ('LD', 1 << 14), ('STR', 1 << 15), ('RC', 1 << 18), ('W1', 1 << 19), ('W2', 1 << 20), ('W3', 1 << 21),
-                   ('A1', (1 << 21) + (1 << 18)), ('A2', 1 << 23), ('MT', 1 << 26),
+                   ('A1', (1 << 21) + (1 << 18)), ('GN', (1 << 21) + (1 << 19)), ('COST', (1 << 21) + (1 << 19) + (1 << 12)),
+                   ('A2', 1 << 23), ('MT', 1 << 26),
                    ('T', 1 << 27), ('M2T', 1 << 30), ('M2S', 1 << 31), ('RS', (1 << 31) + (1 << 12)),
                    ('H', 1 << 33), ('OUT', 1 << 34)]:
     P.table(name, base)
@@ -404,7 +406,34 @@ P.func('decode', [], [('call', 'decodeStart', []), ('loop', G('n'), 'i', [('call
 P.func('decodeWith', ['h'], [('set', 'hoff', V('h')), ('call', 'decode', [])])
 P.func('decodeProfile', ['h', 'pf'], [('set', 'prof', V('pf')), ('call', 'decodeWith', [V('h')])])
 
-enc = [('call', 'predict', [])] + split() + [
+# ---- the encoder learns which contexts earn their place ----
+# With learn set, every coded bit charges each kept context k the cost, in 1/256 bit (COST), of coding the bit
+# with k's term left out of the three mixers' dot products, less the cost with it: GN[k] (offset GOFF) sums
+# what k saved. After the frame, encodeLearn leaves in lmask the profile without the contexts that saved
+# nothing, which the client codes as a candidate of its own (the integer log of R4-style LUT paths).
+GOFF = 1 << 46
+def cost(p): return ld('COST', 2, sel(eq(G('y'), 1), p, sub(4096, p)))
+def dot_of(out, a, b, body):
+    body.append(('let', out, sel(le(b, a), add(2048, mn(div(monus(a, b), 65536), 2047)),
+                                 sub(2048, mn(div(add(monus(b, a), 65535), 65536), 2047)))))
+gk = [('let', 'gs1', mul(NIN, add(G('c0'), mul(256, G('msel'))))),
+      ('let', 'gs2', mul(NIN, add(mul(8, mod(G('c4'), 256)), G('bit')))),
+      ('let', 'gs3', mul(NIN, add(mul(8, mod(div(G('c4'), 256), 256)), G('bit'))))]
+for m, acc, sw in ((1, 'acc', 'sw'), (2, 'acc2', 'sw2'), (3, 'acc3', 'sw3')):
+    dot_of(f'gd{m}', add(G(acc), NIN * 2048 * (1 << 22)), add(mul(1 << 22, G('sso')), mul(2048, G(sw))), gk)
+squash_('gq', div(mul(21846, add(add(V('gd1'), V('gd2')), V('gd3'))), 65536), gk)
+gk += [('let', 'gbase', cost(mx(mn(V('gq'), 4095), 1)))]
+gl = [('let', 'gso', ld('ST', 2, V('k')))]
+for m, tab, acc, sw in ((1, 'W1', 'acc', 'sw'), (2, 'W2', 'acc2', 'sw2'), (3, 'W3', 'acc3', 'sw3')):
+    gl += [('let', f'gw{m}', mod(add(ld(tab, 3, add(V(f'gs{m}'), V('k'))), winit(V('k'))), 1 << 24))]
+    dot_of(f'ge{m}', add(sub(G(acc), mul(V('gso'), V(f'gw{m}'))), (NIN - 1) * 2048 * (1 << 22)),
+           add(mul(1 << 22, sub(G('sso'), V('gso'))), mul(2048, sub(G(sw), V(f'gw{m}')))), gl)
+squash_('gp', div(mul(21846, add(add(V('ge1'), V('ge2')), V('ge3'))), 65536), gl)
+gl += [('let', 'gv', mod(add(ld('GN', 8, V('k')), GOFF), 1 << 48)),
+       ('store', 'GN', 8, V('k'), mod(sub(add(monus(add(V('gv'), cost(mx(mn(V('gp'), 4095), 1))), V('gbase')), 1 << 48), GOFF), 1 << 48))]
+gk += [('loop', NC, 'k', [('if', keeps(V('k')), gl, [])])]
+
+enc = [('call', 'predict', [])] + [('if', eq(G('learn'), 1), gk, [])] + split() + [
     ('if', eq(G('y'), 1), [('set', 'x2', V('xm'))], [('set', 'x1', add(V('xm'), 1))]),
     ('loop', 4, 'k', [('if', eq(div(G('x1'), 1 << 24), div(G('x2'), 1 << 24)),
                        [('call', 'emit', [div(G('x2'), 1 << 24)]),
@@ -422,6 +451,17 @@ P.func('encode', ['size', 'limit'], [('set', 'n', V('size')), ('set', 'cap', V('
                                      ('call', 'emit', [div(G('x1'), 1 << 24)])])
 P.func('encodeWith', ['size', 'limit', 'h'], [('set', 'hoff', V('h')), ('call', 'encode', [V('size'), V('limit')])])
 P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], [('set', 'prof', V('pf')), ('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
+# COST[p] = 256 log2(4096 / p): the integer log2 of p by normalising to 2^15 <= m < 2^16 and squaring for each
+# of the 8 fraction bits (ncm.rs cost_table computes the same integers)
+cf = [('set', 'cm', add(V('q'), 1)), ('set', 'ce', 0), ('set', 'cfr', 0),
+      ('loop', 16, 'j', [('if', lt(G('cm'), 32768), [('set', 'cm', mul(2, G('cm'))), ('set', 'ce', add(G('ce'), 1))], [])]),
+      ('loop', 8, 'j', [('set', 'cm', div(mul(G('cm'), G('cm')), 32768)),
+                        ('if', le(65536, G('cm')), [('set', 'cm', div(G('cm'), 2)), ('set', 'cfr', add(G('cfr'), rom('POW2', 4, sub(7, V('j')))))], [])]),
+      ('store', 'COST', 2, add(V('q'), 1), sub(3072, add(mul(256, sub(15, G('ce'))), G('cfr'))))]
+lm = [('if', AND(keeps(V('k')), le(mod(add(ld('GN', 8, V('k')), GOFF), 1 << 48), GOFF)), [('set', 'lmask', sub(G('lmask'), rom('POW2', 4, V('k'))))], [])]
+P.func('encodeLearn', ['size', 'limit', 'h', 'pf'], [('set', 'learn', 1), ('loop', 4095, 'q', cf),
+                                                    ('call', 'encodeProfile', [V('size'), V('limit'), V('h'), V('pf')]),
+                                                    ('set', 'lmask', V('pf')), ('loop', NC, 'k', lm)])
 
 
 FULL = (1 << 20) - 1   # every context and every match feature
@@ -435,6 +475,15 @@ def py_encode(data, history=b'', prof=FULL):
     assert not m.g['ovf']
     out = bytes(m.t['OUT'].get(i, 0) for i in range(m.g['op']))
     return len(data).to_bytes(4, 'big') + out
+
+def py_learn(data, history=b'', prof=FULL):
+    m = Machine(P, data)
+    for i, b in enumerate(history):
+        m.t['H'][i] = b
+    m.call('encodeLearn', len(data), 2 * len(data) + 64, len(history), prof)
+    assert not m.g['ovf']
+    out = bytes(m.t['OUT'].get(i, 0) for i in range(m.g['op']))
+    return len(data).to_bytes(4, 'big') + out, m.g['lmask']
 
 def py_decode(payload, history=b'', prof=FULL):
     m = Machine(P, payload)

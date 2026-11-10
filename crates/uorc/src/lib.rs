@@ -190,7 +190,7 @@ fn compress_pieces(
     // first BUDGET strategies its family's schedule orders and keep the
     // smallest archive, the earlier one on a tie. A filtered strategy codes
     // the filtered frame after the filtered window.
-    let code = |strategy: portfolio::Strategy| -> Option<Vec<u8>> {
+    let code = |strategy: portfolio::Strategy, learn: bool| -> Option<Vec<u8>> {
         let filtered;
         let (data, past) = if strategy.x86 {
             filtered = (
@@ -209,28 +209,41 @@ fn compress_pieces(
         // The native ncm encoder is byte-identical to the model
         // (`native_archives_are_the_model_archives`) and every encoder output
         // decodes to its input, so a self-decode would only repeat its cost.
-        ncm::encode_profile(past, data, strategy.profile).and_then(|payload| match &identity {
-            None => archive::linked_archive_profile(codec, strategy.profile, lengths, &payload),
-            Some(identity) => archive::window_archive_profile(
-                codec,
-                strategy.profile,
-                window,
-                identity,
-                lengths,
-                &payload,
-            ),
-        })
+        let frame_of = |profile: u32, payload: &[u8]| match &identity {
+            None => archive::linked_archive_profile(codec, profile, lengths, payload),
+            Some(identity) => {
+                archive::window_archive_profile(codec, profile, window, identity, lengths, payload)
+            }
+        };
+        if !learn {
+            return ncm::encode_profile(past, data, strategy.profile)
+                .and_then(|payload| frame_of(strategy.profile, &payload));
+        }
+        // The learned profile (`Archive.learnedCandidate`): the strategy's
+        // profile without the contexts that saved nothing on this frame,
+        // coded too and kept when no larger. Fewer contexts decode faster.
+        let (payload, learned) = ncm::encode_learn(past, data, strategy.profile)?;
+        let plain = frame_of(strategy.profile, &payload);
+        if learned == strategy.profile {
+            return plain;
+        }
+        let pruned = ncm::encode_profile(past, data, learned).and_then(|p| frame_of(learned, &p));
+        match (plain, pruned) {
+            (Some(p), Some(l)) => Some(if l.len() <= p.len() { l } else { p }),
+            (p, l) => l.or(p),
+        }
     };
     // The scheduled strategies code side by side (a lone frame then uses two
-    // cores); the choice is the same in any order.
+    // cores); the choice is the same in any order. The first also learns its
+    // context mask (`Client.portfolioLearned`).
     let [first, second] = portfolio::plan(frame);
     #[cfg(not(target_family = "wasm"))]
     let (a, b) = std::thread::scope(|s| {
-        let other = s.spawn(|| code(second));
-        (code(first), other.join().expect("strategy thread"))
+        let other = s.spawn(|| code(second, false));
+        (code(first, true), other.join().expect("strategy thread"))
     });
     #[cfg(target_family = "wasm")]
-    let (a, b) = (code(first), code(second));
+    let (a, b) = (code(first, true), code(second, false));
     let best = match (a, b) {
         (Some(a), Some(b)) => Some(if b.len() < a.len() { b } else { a }),
         (a, b) => a.or(b),

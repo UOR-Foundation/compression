@@ -201,10 +201,28 @@ definition{
 }
 
 definition{
+  name: learnedStrategy,
+  parameters: [strategy : Nat, window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (Uorc.Codec.Archive::learnedCandidate (if ((prim remainder strategy 2 0 : Nat) =? 1) then 2 else 1) (strategyProfile strategy) window input),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: portfolioLearned,
+  parameters: [budget : Nat, scheduled : (List Nat), window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (match scheduled
+    | List.nil => (ctor Option.none [Bytes])
+    | List.cons head tail => (if (budget =? 0) then (ctor Option.none [Bytes]) else (smaller (learnedStrategy head window input) (portfolio (prim subtract budget 1 : Nat) tail window input)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: compress,
   parameters: [input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
-  body: (let linked : (Option Bytes) := (portfolio 2 (schedule (family input)) window input); (let quick : (Option Bytes) := (match linked
+  body: (let linked : (Option Bytes) := (portfolioLearned 2 (schedule (family input)) window input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
     | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))),
   axioms: [Quot.sound, propext]

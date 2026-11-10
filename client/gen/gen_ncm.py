@@ -54,7 +54,7 @@ dec.D('run', ['input : Bytes'], 'Bytes', "(runWith 0x input)")
 open(os.path.join(OUTDIR, 'NcmDecode.lex.tex'), 'w').write(dec.source([TB]))
 
 # encoder
-enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encodeProfile'], BIG + ['OUT'])
+enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encodeProfile', 'encodeLearn'], BIG + ['OUT'])
 sizing(enc.D)
 enc.D('start', ['history : Bytes', 'input : Bytes', 'n : Nat', 'cap : Nat'], enc.St,
       enc.L.make(tables(enc.L, 'n', {'OUT': '(zeros (depthFor 40 cap 0))'}, 'history'), scalars(enc.L, 'input')))
@@ -68,6 +68,11 @@ body = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim mul
 # history position
 enc.D('runProfile', ['history : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4294967296) then {body} else 0x)")
 enc.D('runWith', ['history : Bytes', 'input : Bytes'], 'Bytes', f"(runProfile history input {V03})")
+# the profile the encoder learns coding `input` under `profile`: without the contexts that saved nothing
+learn = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim multiply 2 n : Nat) + 64); "
+         f"(let s1 : {enc.St} := (encodeLearn (start history input n cap) n cap (prim length history : Nat) profile); "
+         f"(if (0 <? {enc.gread('s1', 'ovf')}) then profile else {enc.gread('s1', 'lmask')}))))")
+enc.D('learnProfile', ['history : Bytes', 'input : Bytes', 'profile : Nat'], 'Nat', f"(if ((prim length input : Nat) <? 4294967296) then {learn} else profile)")
 enc.D('run', ['input : Bytes'], 'Bytes', "(runWith 0x input)")
 open(os.path.join(OUTDIR, 'NcmEncode.lex.tex'), 'w').write(enc.source([TB]))
 print('ok')

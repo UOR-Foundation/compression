@@ -68,6 +68,34 @@ struct Tables {
     /// coder reads in place of interpolating, with the same values.
     squash: [i16; 4096],
     rate: [i32; 128],
+    /// `cost[p]` = 256 log2(4096 / p), the cost in 1/256 bit of coding a bit
+    /// at probability p / 4096 (`cost_table`).
+    cost: [u16; 4096],
+}
+
+/// The integer log the encoder's context gains are counted in
+/// (`ncm_model.py` `encodeLearn` fills its COST table the same way):
+/// 256 log2(4096 / p) by normalising p to 2^15 <= m < 2^16 and squaring once
+/// for each of 8 fraction bits.
+fn cost_table() -> [u16; 4096] {
+    let mut cost = [0u16; 4096];
+    for (p, c) in cost.iter_mut().enumerate().skip(1) {
+        let (mut m, mut e) = (p as u64, 0u32);
+        while m < 32768 {
+            m *= 2;
+            e += 1;
+        }
+        let mut frac = 0u32;
+        for j in 0..8 {
+            m = m * m / 32768;
+            if m >= 65536 {
+                m /= 2;
+                frac += 1 << (7 - j);
+            }
+        }
+        *c = (3072 - (256 * (15 - e) + frac)) as u16;
+    }
+    cost
 }
 
 fn tables() -> &'static Tables {
@@ -94,6 +122,7 @@ fn tables() -> &'static Tables {
             stretch,
             squash: sq,
             rate,
+            cost: cost_table(),
         }
     })
 }
@@ -357,6 +386,11 @@ struct Model {
     pm1: i32,
     pm2: i32,
     pm3: i32,
+    /// the three mixers' dot products for the bit being coded
+    dots: [i64; 3],
+    /// With the encoder learning: what each context saved, in 1/256 bit, over
+    /// the bits coded so far (see [`Model::learn`]).
+    gain: Option<Box<[i64; NC]>>,
     a1: Apm,
     a2: Apm,
 }
@@ -442,6 +476,8 @@ impl Model {
             w2: weights(2048, na + 3, stride),
             w3: weights(2048, na + 3, stride),
             s1: 0,
+            dots: [0; 3],
+            gain: None,
             s2: 0,
             s3: 0,
             pm1: 0,
@@ -895,6 +931,7 @@ impl Model {
             row(&self.w2, self.s2),
             row(&self.w3, self.s3),
         );
+        self.dots = [a, b, c];
         let d1 = (a >> 16).clamp(-2047, 2047) as i32;
         let d2 = (b >> 16).clamp(-2047, 2047) as i32;
         let d3 = (c >> 16).clamp(-2047, 2047) as i32;
@@ -913,6 +950,45 @@ impl Model {
         let pr = ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32;
         self.prefetch_next(pr);
         pr
+    }
+
+    /// Charge each kept context the cost of coding bit `y` with its term left
+    /// out of the three mixers (the mean of their outputs, as `predict` takes
+    /// it), less the cost with it: what the context saved on this bit.
+    fn learn<const W: usize>(&mut self, y: bool) {
+        let t = self.t;
+        let sq = |d: i64| i32::from(t.squash[(d.clamp(-2047, 2047) + 2048) as usize]);
+        let mean = |d: [i64; 3]| {
+            let c = |d: i64| (d >> 16).clamp(-2047, 2047);
+            sq((((c(d[0]) + c(d[1]) + c(d[2]) + 6144) * 21846) >> 16) - 2048).clamp(1, 4095)
+        };
+        let cost = |p: i32| i64::from(t.cost[if y { p } else { 4096 - p } as usize]);
+        let base = cost(mean(self.dots));
+        let Some(gain) = self.gain.as_mut() else {
+            return;
+        };
+        for j in 0..self.na {
+            let x = i64::from(self.st[j]);
+            let without = [
+                self.dots[0] - i64::from(self.w1[self.s1 + j]) * x,
+                self.dots[1] - i64::from(self.w2[self.s2 + j]) * x,
+                self.dots[2] - i64::from(self.w3[self.s3 + j]) * x,
+            ];
+            gain[self.act[j]] += cost(mean(without)) - base;
+        }
+    }
+
+    /// The profile without the contexts that saved nothing (gain <= 0).
+    fn learned(&self) -> u32 {
+        let mut profile = self.profile;
+        if let Some(gain) = &self.gain {
+            for j in 0..self.na {
+                if gain[self.act[j]] <= 0 {
+                    profile &= !(1 << self.act[j]);
+                }
+            }
+        }
+        profile
     }
 
     #[inline(always)]
@@ -1087,8 +1163,13 @@ mod x86 {
 
     /// The encoder loop compiled for AVX2.
     #[target_feature(enable = "avx2")]
-    pub(super) fn encoder(history: &[u8], data: &[u8], profile: u32) -> Option<Vec<u8>> {
-        super::encoder::<Avx2>(history, data, profile)
+    pub(super) fn encoder(
+        history: &[u8],
+        data: &[u8],
+        profile: u32,
+        learn: bool,
+    ) -> Option<(Vec<u8>, u32)> {
+        super::encoder::<Avx2>(history, data, profile, learn)
     }
 
     /// The decoder loop compiled for AVX2.
@@ -1319,13 +1400,31 @@ pub fn encode_profile(history: &[u8], data: &[u8], profile: u32) -> Option<Vec<u
     if !valid_profile(profile) {
         return None;
     }
-    dispatch!(encoder(history, data, profile))
+    encode_any(history, data, profile, false).map(|(payload, _)| payload)
+}
+
+fn encode_any(history: &[u8], data: &[u8], profile: u32, learn: bool) -> Option<(Vec<u8>, u32)> {
+    dispatch!(encoder(history, data, profile, learn))
+}
+
+/// [`encode_profile`], and the profile the encoder learned for this input:
+/// `profile` without the contexts whose leave-one-out gain over the coded bits
+/// was not positive (`NcmEncode.learnProfile`). The client codes that profile
+/// too and keeps the smaller frame.
+pub fn encode_learn(history: &[u8], data: &[u8], profile: u32) -> Option<(Vec<u8>, u32)> {
+    if !valid_profile(profile) {
+        return None;
+    }
+    encode_any(history, data, profile, true)
 }
 
 #[inline(always)]
-fn encoder<K: Kernel>(history: &[u8], data: &[u8], profile: u32) -> Option<Vec<u8>> {
+fn encoder<K: Kernel>(history: &[u8], data: &[u8], profile: u32, learn: bool) -> Option<(Vec<u8>, u32)> {
     let n = u32::try_from(data.len()).ok()?;
-    let m = Model::new(n, history, profile);
+    let mut m = Model::new(n, history, profile);
+    if learn {
+        m.gain = Some(Box::new([0; NC]));
+    }
     if m.stride == NINP_NARROW {
         encode_bits::<K, NINP_NARROW>(m, data)
     } else {
@@ -1334,7 +1433,7 @@ fn encoder<K: Kernel>(history: &[u8], data: &[u8], profile: u32) -> Option<Vec<u
 }
 
 #[inline(always)]
-fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8]) -> Option<Vec<u8>> {
+fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8]) -> Option<(Vec<u8>, u32)> {
     let cap = 2 * data.len() + 64;
     let mut out = Vec::with_capacity(data.len() / 2 + 16);
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
@@ -1357,6 +1456,9 @@ fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8]) -> Option<V
                 x1 <<= 8;
                 x2 = (x2 << 8) | 255;
             }
+            if m.gain.is_some() {
+                m.learn::<W>(y);
+            }
             m.update::<K, W>(y);
         }
     }
@@ -1364,7 +1466,7 @@ fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8]) -> Option<V
         return None;
     }
     out.push((x1 >> 24) as u8);
-    Some(out)
+    Some((out, m.learned()))
 }
 
 /// The output length a payload declares, if it has its 4-byte header.
@@ -1579,6 +1681,28 @@ mod tests {
     }
 
     /// A profile is the model with the left-out contexts' inputs held at 0:
+    /// The learning encoder writes the same payload as the plain one and
+    /// learns a profile inside its own, which codes and decodes; the cost LUT
+    /// is 256 log2(4096 / p) to within 1.5 units (truncated fraction bits).
+    #[test]
+    fn learned_profiles_code_and_stay_inside() {
+        let t = tables();
+        assert_eq!((t.cost[1], t.cost[2048], t.cost[1024]), (3072, 256, 512));
+        for p in 1..4096usize {
+            let exact = 256.0 * (4096.0 / p as f64).log2();
+            assert!((f64::from(t.cost[p]) - exact).abs() < 1.5, "{p}");
+        }
+        let text = b"learned profiles drop the contexts that saved nothing on this frame; ".repeat(40);
+        for profile in [FULL, V03, 0x1059e | F_REP] {
+            let (payload, learned) = encode_learn(b"a window", &text, profile).expect("fits");
+            assert_eq!(Some(&payload), encode_profile(b"a window", &text, profile).as_ref());
+            assert_eq!(learned & !profile, 0);
+            assert_eq!(learned >> NC, profile >> NC);
+            let p = encode_profile(b"a window", &text, learned).expect("fits");
+            assert_eq!(decode_profile(b"a window", &p, text.len() as u64, learned).as_deref(), Some(&text[..]));
+        }
+    }
+
     /// every profile codes, and only its own profile reads its payload.
     #[test]
     fn profiles_round_trip_and_differ() {
