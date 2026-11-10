@@ -15,6 +15,7 @@ inductive{
     {name: scoped_minimum_certificate, fields: []},
     {name: benchmark_target_unmet, fields: []},
     {name: benchmark_target_met, fields: []},
+    {name: benchmark_measurement, fields: []},
     {name: external_record_acceptance, fields: []},
     {name: version_metadata, fields: []}
   ]
@@ -44,6 +45,7 @@ inductive{
     {name: not_measured, fields: []},
     {name: measured_target_unmet, fields: []},
     {name: measured_target_met, fields: []},
+    {name: measured_no_target, fields: []},
     {name: externally_accepted_record, fields: []}
   ]
 }
@@ -118,6 +120,13 @@ definition{
 }
 
 definition{
+  name: rule_benchmark_measurement,
+  parameters: [],
+  result: EvidenceRule,
+  body: (record EvidenceRule {evidence := (ctor EvidenceKind.benchmark_measurement), claim := (ctor ClaimKind.benchmark_result), level := "open", disposition := (ctor ResearchDisposition.measured_no_target), implementationEvidence := false})
+}
+
+definition{
   name: rule_external_record_acceptance,
   parameters: [],
   result: EvidenceRule,
@@ -144,6 +153,7 @@ definition{
     | EvidenceKind.scoped_minimum_certificate => (project (rule_scoped_minimum_certificate) claim)
     | EvidenceKind.benchmark_target_unmet => (project (rule_benchmark_target_unmet) claim)
     | EvidenceKind.benchmark_target_met => (project (rule_benchmark_target_met) claim)
+    | EvidenceKind.benchmark_measurement => (project (rule_benchmark_measurement) claim)
     | EvidenceKind.external_record_acceptance => (project (rule_external_record_acceptance) claim)
     | EvidenceKind.version_metadata => (project (rule_version_metadata) claim))
 }
@@ -161,6 +171,7 @@ definition{
     | EvidenceKind.scoped_minimum_certificate => (project (rule_scoped_minimum_certificate) disposition)
     | EvidenceKind.benchmark_target_unmet => (project (rule_benchmark_target_unmet) disposition)
     | EvidenceKind.benchmark_target_met => (project (rule_benchmark_target_met) disposition)
+    | EvidenceKind.benchmark_measurement => (project (rule_benchmark_measurement) disposition)
     | EvidenceKind.external_record_acceptance => (project (rule_external_record_acceptance) disposition)
     | EvidenceKind.version_metadata => (project (rule_version_metadata) disposition))
 }
@@ -178,6 +189,7 @@ definition{
     | EvidenceKind.scoped_minimum_certificate => (project (rule_scoped_minimum_certificate) implementationEvidence)
     | EvidenceKind.benchmark_target_unmet => (project (rule_benchmark_target_unmet) implementationEvidence)
     | EvidenceKind.benchmark_target_met => (project (rule_benchmark_target_met) implementationEvidence)
+    | EvidenceKind.benchmark_measurement => (project (rule_benchmark_measurement) implementationEvidence)
     | EvidenceKind.external_record_acceptance => (project (rule_external_record_acceptance) implementationEvidence)
     | EvidenceKind.version_metadata => (project (rule_version_metadata) implementationEvidence))
 }
@@ -375,6 +387,30 @@ theorem{
 }
 
 theorem{
+  name: claimForEvidence_benchmark_measurement,
+  parameters: [],
+  statement: ((claimForEvidence (ctor EvidenceKind.benchmark_measurement)) = (ctor ClaimKind.benchmark_result)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: researchDisposition_benchmark_measurement,
+  parameters: [],
+  statement: ((researchDisposition (ctor EvidenceKind.benchmark_measurement)) = (ctor ResearchDisposition.measured_no_target)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: implementationEvidence_benchmark_measurement,
+  parameters: [],
+  statement: ((implementationEvidence (ctor EvidenceKind.benchmark_measurement)) = false),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
   name: claimForEvidence_external_record_acceptance,
   parameters: [],
   statement: ((claimForEvidence (ctor EvidenceKind.external_record_acceptance)) = (ctor ClaimKind.record_validated)),
@@ -435,6 +471,7 @@ definition{
     | EvidenceKind.scoped_minimum_certificate => false
     | EvidenceKind.benchmark_target_unmet => true
     | EvidenceKind.benchmark_target_met => true
+    | EvidenceKind.benchmark_measurement => true
     | EvidenceKind.external_record_acceptance => true
     | EvidenceKind.version_metadata => false)
 }
@@ -455,6 +492,14 @@ theorem{
   axioms: []
 }
 
+theorem{
+  name: valid_measurement_benchmark_measurement,
+  parameters: [],
+  statement: ((measurementComplete (ctor EvidenceKind.benchmark_measurement)) = true),
+  proof: reflexivity{},
+  axioms: []
+}
+
 structure{
   name: OpenClaim,
   type_parameters: [],
@@ -471,7 +516,7 @@ definition{
   name: performance,
   parameters: [],
   result: OpenClaim,
-  body: (record OpenClaim {id := "UC-PERF-01", level := "open", evidence := "none", disposition := "not_measured"})
+  body: (record OpenClaim {id := "UC-PERF-01", level := "open", evidence := "benchmark_measurement", disposition := "measured_no_target"})
 }
 
 definition{
@@ -494,6 +539,7 @@ definition{
     | EvidenceKind.scoped_minimum_certificate => (project (rule_scoped_minimum_certificate) level)
     | EvidenceKind.benchmark_target_unmet => (project (rule_benchmark_target_unmet) level)
     | EvidenceKind.benchmark_target_met => (project (rule_benchmark_target_met) level)
+    | EvidenceKind.benchmark_measurement => (project (rule_benchmark_measurement) level)
     | EvidenceKind.external_record_acceptance => (project (rule_external_record_acceptance) level)
     | EvidenceKind.version_metadata => (project (rule_version_metadata) level))
 }
@@ -563,6 +609,14 @@ theorem{
 }
 
 theorem{
+  name: honestyLevel_benchmark_measurement,
+  parameters: [],
+  statement: ((honestyLevel (ctor EvidenceKind.benchmark_measurement)) = "open"),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
   name: honestyLevel_external_record_acceptance,
   parameters: [],
   statement: ((honestyLevel (ctor EvidenceKind.external_record_acceptance)) = "open"),
@@ -589,7 +643,7 @@ theorem{
 theorem{
   name: performance_evidence_unpromoted,
   parameters: [],
-  statement: ((project (performance) evidence) = "none"),
+  statement: ((project (performance) evidence) = "benchmark_measurement"),
   proof: reflexivity{},
   axioms: []
 }
@@ -597,7 +651,7 @@ theorem{
 theorem{
   name: performance_disposition_unpromoted,
   parameters: [],
-  statement: ((project (performance) disposition) = "not_measured"),
+  statement: ((project (performance) disposition) = "measured_no_target"),
   proof: reflexivity{},
   axioms: []
 }

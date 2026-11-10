@@ -225,6 +225,7 @@ impl ClaimPolicy {
         expected_proofs.extend([
             "valid_measurement_benchmark_target_unmet".into(),
             "valid_measurement_benchmark_target_met".into(),
+            "valid_measurement_benchmark_measurement".into(),
         ]);
         let mut actual_proofs = BTreeSet::new();
         for d in declarations.iter().filter(|d| d["kind"] == "theorem") {
@@ -348,8 +349,8 @@ mod tests {
     #[test]
     fn conformance_uc_hon_01() {
         let policy = ClaimPolicy::load_source(&crate::repo_root()).expect("source policy");
-        assert_eq!(policy.evidence.len(), 10);
-        assert_eq!(policy.theorem_roots.len(), 48);
+        assert_eq!(policy.evidence.len(), 11);
+        assert_eq!(policy.theorem_roots.len(), 53);
         for kind in &policy.evidence_kinds {
             let rule = policy.rule(kind).unwrap();
             assert_eq!(
@@ -369,6 +370,10 @@ mod tests {
             policy.rule("benchmark_target_met").unwrap().disposition,
             "measured_target_met"
         );
+        let measured = policy.rule("benchmark_measurement").unwrap();
+        assert_eq!(measured.claim, "benchmark_result");
+        assert_eq!(measured.disposition, "measured_no_target");
+        assert!(!measured.implementation_evidence);
         for kind in [
             "fixture_result",
             "scoped_minimum_certificate",
@@ -392,8 +397,9 @@ mod tests {
             .push(duplicate.ledger.claim[0].clone());
         assert!(duplicate.check().is_err());
         for id in ["UC-PERF-01", "UC-REC-01"] {
+            let current = &model.ledger.get(id).unwrap().evidence_kind;
             for kind in &model.claim_policy.evidence_kinds {
-                if kind == "none" {
+                if kind == current {
                     continue;
                 }
                 let mut changed = model.clone();

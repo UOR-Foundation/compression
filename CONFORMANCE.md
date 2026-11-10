@@ -101,7 +101,7 @@ The three honesty levels (R2):
 | --- | --- | --- |
 | `UC-CHR-01` | `build` | UORC charter, claim-boundary, evidence-boundary, and research-position records are accepted by the locked LexLean project and generate the committed project documentation projections. |
 | `UC-CHR-02` | `build` | Handwritten project prose cannot define a second UORC specification or BCP-14 semantic rule, while non-authoritative evidence and planning prose remain permitted. |
-| `UC-PERF-01` | `open` | measured public-corpus compression: every release runs scripts/bench.mjs on the Canterbury and Silesia corpora against gzip, bzip2, xz, zstd and brotli and publishes archive sizes and times in the release notes and on the Pages site; open because the measurement sets no target |
+| `UC-PERF-01` | `open` | measured public-corpus compression: every release runs scripts/bench.mjs on the Canterbury and Silesia corpora against gzip, bzip2, xz, zstd, brotli, zpaq and 7-Zip PPMd, reports each throughput against the host's measured core count and memory copy rate, and publishes archive sizes and times in the release notes, the release's bench.json and the Pages site; open because the measurement sets no target |
 | `UC-REC-01` | `open` | externally accepted compression record; open unless the external authority actually accepts it |
 
 ## varint
@@ -129,7 +129,7 @@ The three honesty levels (R2):
 | --- | --- | --- | --- | --- |
 | `UC-CHR-01` | `build` | `build_evidence` | `not_measured` | UORC charter, claim-boundary, evidence-boundary, and research-position records are accepted by the locked LexLean project and generate the committed project documentation projections. |
 | `UC-CHR-02` | `build` | `build_evidence` | `not_measured` | Handwritten project prose cannot define a second UORC specification or BCP-14 semantic rule, while non-authoritative evidence and planning prose remain permitted. |
-| `UC-PERF-01` | `open` | `none` | `not_measured` | measured public-corpus compression: every release runs scripts/bench.mjs on the Canterbury and Silesia corpora against gzip, bzip2, xz, zstd and brotli and publishes archive sizes and times in the release notes and on the Pages site; open because the measurement sets no target |
+| `UC-PERF-01` | `open` | `benchmark_measurement` | `measured_no_target` | measured public-corpus compression: every release runs scripts/bench.mjs on the Canterbury and Silesia corpora against gzip, bzip2, xz, zstd, brotli, zpaq and 7-Zip PPMd, reports each throughput against the host's measured core count and memory copy rate, and publishes archive sizes and times in the release notes, the release's bench.json and the Pages site; open because the measurement sets no target |
 | `UC-REC-01` | `open` | `none` | `not_measured` | externally accepted compression record; open unless the external authority actually accepts it |
 | `UC-REP-01` | `build` | `build_evidence` | `not_measured` | Source-derived charter projections and complete LexLean build and verification artifacts are byte-identical across clean absolute roots under the locked SDK. |
 | `UC-REP-02` | `build` | `build_evidence` | `not_measured` | Dependency and execution-boundary failures are explicit and planted SDK-lock, source-lock, adjacent-checkout, and host-PATH fallbacks are rejected. |

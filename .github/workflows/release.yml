@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to (re)publish, e.g. v0.1.0
+        description: Existing tag to (re)publish, e.g. v0.3.0
         required: true
         type: string
 
@@ -62,7 +62,8 @@ jobs:
           if-no-files-found: error
 
   # Measurement only (UC-PERF-01): the release binary on the Canterbury and
-  # Silesia corpora against standard compressors. It runs on release, never on
+  # Silesia corpora against standard and context-mixing compressors, beside
+  # the runner's measured core count and memory copy rate. It runs on release, never on
   # pull requests, and its table goes into the release notes and the Pages site.
   bench:
     name: benchmark
@@ -82,7 +83,8 @@ jobs:
       - name: Fetch the corpora and the comparison tools
         run: |
           set -euo pipefail
-          sudo apt-get install -y -qq zstd brotli >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq zstd brotli zpaq 7zip >/dev/null
           tar -C dist -xzf "dist/uorc-${TAG}-x86_64-unknown-linux-gnu.tar.gz"
           mkdir -p corpus/canterbury corpus/silesia
           curl -fsSL --retry 3 https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz | tar -xz -C corpus/canterbury
@@ -180,17 +182,19 @@ jobs:
             gh release create "$TAG" --verify-tag --title "uorc $TAG" --notes-file notes.md $files
           fi
 
+  # The github-pages environment accepts only the default branch, so a tag-push
+  # run hands its site to pages.yml, dispatched there (v0.2.0's in-run deploy
+  # was refused before it started).
   pages:
     name: deploy pages
-    needs: wasm
+    needs: [wasm, publish]
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      actions: write
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
+      - name: Dispatch the Pages deployment on the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f run_id="$GITHUB_RUN_ID"

@@ -18,7 +18,7 @@ set -euo pipefail
 
 # The product client and release plumbing. Product changes are checked by the
 # `rest` leg on every run; none of these paths is read by the formal legs.
-EXCLUDE='^(client/|crates/uorc/|crates/uorc-wasm/|generated/|web/|Cargo\.toml$|Cargo\.lock$|README\.md$|scripts/bench\.mjs$|scripts/client-export\.mjs$|scripts/ci-receipt\.sh$|\.github/workflows/release\.yml$)'
+EXCLUDE='^(client/|crates/uorc/|crates/uorc-wasm/|generated/|web/|Cargo\.toml$|Cargo\.lock$|README\.md$|scripts/bench\.mjs$|scripts/client-export\.mjs$|scripts/ci-receipt\.sh$|\.github/workflows/release\.yml$|\.github/workflows/pages\.yml$)'
 
 kappa() {
   git ls-tree -r --full-tree HEAD | awk -F'\t' -v re="$EXCLUDE" '$2 !~ re' | sha256sum | cut -c1-64

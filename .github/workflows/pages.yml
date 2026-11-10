@@ -1,0 +1,48 @@
+# Deploys the Pages site that a release run built. The github-pages environment
+# accepts deployments from the default branch only, so a run started by a tag
+# push cannot deploy it; release.yml dispatches this workflow on the default
+# branch with its own run id, and this copies that run's site and deploys it.
+name: pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Release run whose github-pages artifact to deploy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy pages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: github-pages
+          path: site
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: github-pages
+          path: site/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
