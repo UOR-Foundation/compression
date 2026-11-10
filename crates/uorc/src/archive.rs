@@ -641,7 +641,10 @@ pub fn frame_label(frame: &[u8]) -> [u8; 32] {
 /// current library ([`frame_label`]) and over the v0.3 library, which a v0.3
 /// stream's reference frames name.
 pub fn frame_labels(frame: &[u8]) -> [[u8; 32]; 2] {
-    [frame_label(frame), window_identity_over(&V03_LIBRARY, &[frame])]
+    [
+        frame_label(frame),
+        window_identity_over(&V03_LIBRARY, &[frame]),
+    ]
 }
 
 /// A reference frame: a conditional archive over `[library, F]`, named by `F`'s
@@ -1008,11 +1011,31 @@ mod tests {
         let text = include_bytes!("../tests/compat/text.bin");
         let x86 = include_bytes!("../tests/compat/x86.bin");
         for (archive, original, era) in [
-            (&include_bytes!("../tests/compat/text-v0.2.0.uorc")[..], &text[..], Era::V02),
-            (include_bytes!("../tests/compat/text-v0.2.0-ncm.uorc"), text, Era::V02),
-            (include_bytes!("../tests/compat/x86-v0.2.0.uorc"), x86, Era::V02),
-            (include_bytes!("../tests/compat/text-v0.3.0.uorc"), text, Era::V03),
-            (include_bytes!("../tests/compat/x86-v0.3.0.uorc"), x86, Era::V03),
+            (
+                &include_bytes!("../tests/compat/text-v0.2.0.uorc")[..],
+                &text[..],
+                Era::V02,
+            ),
+            (
+                include_bytes!("../tests/compat/text-v0.2.0-ncm.uorc"),
+                text,
+                Era::V02,
+            ),
+            (
+                include_bytes!("../tests/compat/x86-v0.2.0.uorc"),
+                x86,
+                Era::V02,
+            ),
+            (
+                include_bytes!("../tests/compat/text-v0.3.0.uorc"),
+                text,
+                Era::V03,
+            ),
+            (
+                include_bytes!("../tests/compat/x86-v0.3.0.uorc"),
+                x86,
+                Era::V03,
+            ),
         ] {
             assert_eq!(basis_of(archive).and_then(|b| Era::of(&b)), Some(era));
             assert_eq!(fast_decode(archive).as_deref(), Some(original));
@@ -1028,7 +1051,12 @@ mod tests {
         let a = b"profiled frames carry the word that names their coder. ".repeat(20);
         let b = b"the second frame reads the first through its window. ".repeat(20);
         let n = b.len() as u64;
-        for profile in [crate::ncm::FULL, crate::ncm::V03, 0x1059e | crate::ncm::F_REP, 0] {
+        for profile in [
+            crate::ncm::FULL,
+            crate::ncm::V03,
+            0x1059e | crate::ncm::F_REP,
+            0,
+        ] {
             for x86 in [false, true] {
                 let codec = if x86 { Codec::NcmX86 } else { Codec::Ncm };
                 let (history, data) = if x86 {
@@ -1038,7 +1066,11 @@ mod tests {
                 } else {
                     (a.clone(), b.clone())
                 };
-                let lone = if x86 { crate::x86::filter(&b, false, 0).0 } else { b.clone() };
+                let lone = if x86 {
+                    crate::x86::filter(&b, false, 0).0
+                } else {
+                    b.clone()
+                };
                 let p = crate::ncm::encode_profile(&[], &lone, profile).expect("fits");
                 // the v0.3 coder's frame is the v0.3 archive: old-shape entry, v0.3 identity
                 let v03 = profile == crate::ncm::V03;
@@ -1050,7 +1082,10 @@ mod tests {
                 let linked = linked_archive_profile(codec, profile, &[n], &p).expect("profile");
                 assert_eq!(fast_decode(&linked).as_ref(), Some(&b));
                 if !v03 {
-                    assert_eq!(linked.len() as u64, linked_length(expect, &[n], p.len() as u64));
+                    assert_eq!(
+                        linked.len() as u64,
+                        linked_length(expect, &[n], p.len() as u64)
+                    );
                 }
                 let (_, _, body) = conditional_fields(&linked).expect("fields");
                 assert_eq!(linked_codec(era.identity(), body), Some(expect));
@@ -1062,7 +1097,11 @@ mod tests {
                 assert_eq!(window_codec(&windowed), Some((expect, 1)));
                 assert_eq!(window_decode(&windowed, &[&a]).as_ref(), Some(&b));
                 // the payload under another word is not the encoder's
-                let other = if profile == crate::ncm::FULL { crate::ncm::V03 } else { crate::ncm::FULL };
+                let other = if profile == crate::ncm::FULL {
+                    crate::ncm::V03
+                } else {
+                    crate::ncm::FULL
+                };
                 let wrong = linked_archive_profile(codec, other, &[n], &p).expect("profile");
                 assert_eq!(fast_decode(&wrong), None);
             }

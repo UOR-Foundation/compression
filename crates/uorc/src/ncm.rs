@@ -1419,7 +1419,12 @@ pub fn encode_learn(history: &[u8], data: &[u8], profile: u32) -> Option<(Vec<u8
 }
 
 #[inline(always)]
-fn encoder<K: Kernel>(history: &[u8], data: &[u8], profile: u32, learn: bool) -> Option<(Vec<u8>, u32)> {
+fn encoder<K: Kernel>(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    learn: bool,
+) -> Option<(Vec<u8>, u32)> {
     let n = u32::try_from(data.len()).ok()?;
     let mut m = Model::new(n, history, profile);
     if learn {
@@ -1692,14 +1697,21 @@ mod tests {
             let exact = 256.0 * (4096.0 / p as f64).log2();
             assert!((f64::from(t.cost[p]) - exact).abs() < 1.5, "{p}");
         }
-        let text = b"learned profiles drop the contexts that saved nothing on this frame; ".repeat(40);
+        let text =
+            b"learned profiles drop the contexts that saved nothing on this frame; ".repeat(40);
         for profile in [FULL, V03, 0x1059e | F_REP] {
             let (payload, learned) = encode_learn(b"a window", &text, profile).expect("fits");
-            assert_eq!(Some(&payload), encode_profile(b"a window", &text, profile).as_ref());
+            assert_eq!(
+                Some(&payload),
+                encode_profile(b"a window", &text, profile).as_ref()
+            );
             assert_eq!(learned & !profile, 0);
             assert_eq!(learned >> NC, profile >> NC);
             let p = encode_profile(b"a window", &text, learned).expect("fits");
-            assert_eq!(decode_profile(b"a window", &p, text.len() as u64, learned).as_deref(), Some(&text[..]));
+            assert_eq!(
+                decode_profile(b"a window", &p, text.len() as u64, learned).as_deref(),
+                Some(&text[..])
+            );
         }
     }
 

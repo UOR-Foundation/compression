@@ -1306,6 +1306,55 @@ mod tests {
         );
     }
 
+    /// The portfolio's choices depend on each frame and its window only (the
+    /// weights are the committed table), so a stream of frames from every
+    /// family is the same bytes for any number of threads.
+    #[test]
+    fn portfolio_streams_do_not_depend_on_threads() {
+        let calls: Vec<u8> = (0..20_000u32)
+            .flat_map(|k| {
+                let mut c = vec![0x48, 0x89, 0xC7, 0xE8];
+                c.extend_from_slice(&(0x1000u32.wrapping_sub(k * 9) % 0x300).to_le_bytes());
+                c
+            })
+            .collect();
+        let mut x = 0x9E37_79B9u32;
+        let noise: Vec<u8> = (0..70_000)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 17;
+                x ^= x << 5;
+                (x >> 24) as u8
+            })
+            .collect();
+        let frames = [
+            text(3_000, 1),
+            text(40_000, 2),
+            text(90_000, 3),
+            calls,
+            noise,
+            vec![0; 70_000],
+            text(5_000, 4),
+        ];
+        let families: HashSet<usize> = frames.iter().map(|f| portfolio::family(f)).collect();
+        assert_eq!(families.len(), portfolio::FAMILIES);
+        let run = |threads: usize| {
+            let mut queue = frames.iter();
+            let mut next = || Ok(queue.next().map(|f| (f.clone(), vec![f.len() as u64])));
+            let mut out = Vec::new();
+            compress_frames(&mut next, &mut out, 0, threads).expect("compresses");
+            out
+        };
+        let one = run(1);
+        for threads in [2, 3, 4] {
+            assert!(run(threads) == one, "{threads} threads");
+        }
+        let mut back = Vec::new();
+        decompress_stream(io::Cursor::new(&one[..]), &mut back, DEFAULT_DECODE_WORK, 2)
+            .expect("decodes");
+        assert!(back == frames.concat());
+    }
+
     fn text(n: usize, seed: u64) -> Vec<u8> {
         let mut x = seed;
         let words: [&[u8]; 7] = [
