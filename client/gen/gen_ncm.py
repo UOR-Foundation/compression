@@ -23,8 +23,8 @@ def sizing(D):
 def tables(L, n, extra):
     # Every table's depth names n: the certificate kernel evaluates whatever is closed, and a closed state
     # would have it run the model's whole setup (thousands of table writes) at check time.
-    t = {'glob': f'(zeros (8 + (prim multiply 0 {n} : Nat)))', 'mem': f'(zeros (21 + (prim multiply 0 {n} : Nat)))', 'T': f'({TB}::fill 3 (tbFor {n}) 0)', 'MT': f'({TB}::fill 4 (mbFor (tbFor {n})) 0)',
-         'H': f'(zeros (depthFor 40 {n} 0))'}
+    t = {'glob': f'(zeros (8 + (prim multiply 0 {n} : Nat)))', 'mem': f'(zeros (22 + (prim multiply 0 {n} : Nat)))', 'T': f'({TB}::fill 3 (tbFor {n}) 0)', 'MT': f'({TB}::fill 4 (mbFor (tbFor {n})) 0)',
+         'H': f'(zeros (depthFor 40 {n} 0))', 'A2': f'({TB}::fill 2 (22 + (prim multiply 0 {n} : Nat)) 0)'}
     t.update(extra)
     return t
 
@@ -34,7 +34,7 @@ def scalars(L, inp):
 
 
 # decoder
-dec = irlex.Lex(ncm_model.P, 'NcmDecode', ['decode'], ['T', 'H', 'MT'])
+dec = irlex.Lex(ncm_model.P, 'NcmDecode', ['decode'], ['T', 'H', 'MT', 'A2'])
 sizing(dec.D)
 n = ("(let n : Nat := (((prim multiply 16777216 (getAt 1 input 0) : Nat) + (prim multiply 65536 (getAt 1 input 1) : Nat)) + "
      "((prim multiply 256 (getAt 1 input 2) : Nat) + (getAt 1 input 3))); ")
@@ -44,7 +44,7 @@ dec.D('run', ['input : Bytes'], 'Bytes', f"(if ((prim length input : Nat) <? 4) 
 open(os.path.join(OUTDIR, 'NcmDecode.lex.tex'), 'w').write(dec.source([TB]))
 
 # encoder
-enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encode'], ['T', 'H', 'MT', 'OUT'])
+enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encode'], ['T', 'H', 'MT', 'A2', 'OUT'])
 sizing(enc.D)
 enc.D('start', ['input : Bytes', 'n : Nat', 'cap : Nat'], enc.St,
       enc.L.make(tables(enc.L, 'n', {'OUT': '(zeros (depthFor 40 cap 0))'}), scalars(enc.L, 'input')))

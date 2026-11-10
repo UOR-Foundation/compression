@@ -6,12 +6,18 @@
 //! Per bit, 17 hashed contexts each hold an adaptive probability: orders 0-4,
 //! 6 and 8, the current and previous word, sparse and 4-byte-aligned
 //! contexts, two contexts from a record model that learns the input's row
-//! length, and the byte a long match predicts. A match model adds its own
-//! probability and a vote, and a bias completes 20 inputs. Two integer neural
-//! mixers (selected by the partial byte, and by the previous byte and the bit
-//! position) combine them in the logistic domain, and every weight learns by a
-//! bounded Hebbian rule, `w += x * err`, clamped to +-2^22. The mixed
-//! probability drives a 32-bit binary arithmetic coder.
+//! length, and the byte a long match predicts. Each context's slots live in a
+//! 16-slot bucket tagged with a check byte; a bucket that does not carry the
+//! context's tag is looked for in its neighbour and otherwise recycled (the
+//! less used of the two), so colliding contexts do not share statistics. A
+//! match model adds its own probability and a vote, and a bias completes 20
+//! inputs. Three integer neural mixers (selected by the partial byte, and by
+//! the previous byte or the byte before it with the bit position) combine them
+//! in the logistic domain, and every weight learns by a bounded Hebbian rule,
+//! `w += x * err * rate`, clamped to +-2^22, with a plasticity that decays
+//! from 1/512 to 3/8192 as the input is seen. Two adaptive probability maps
+//! (selected by the partial byte and by an order-3 hash) refine the mixed
+//! probability, which drives a 32-bit binary arithmetic coder.
 //!
 //! A payload is the input length (4 bytes, big-endian) and the coder output.
 
@@ -23,6 +29,10 @@ const SQT: [i32; 33] = [
     3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094,
 ];
 const WEIGHT_LIMIT: i32 = 1 << 22;
+/// Adaptive probability map rows: 33 interpolation points over the stretch domain.
+const APM_ROW: usize = 33;
+const APM_RATE: i32 = 6;
+const APM2_BITS: u32 = 16;
 
 fn squash(d: i32) -> i32 {
     if d > 2047 {
@@ -59,6 +69,42 @@ fn tables() -> &'static Tables {
         }
         Tables { stretch, rate }
     })
+}
+
+/// An adaptive probability map: a probability, refined by interpolating
+/// between learned points of its row for the context.
+struct Apm {
+    t: Vec<u16>,
+    idx: usize,
+}
+
+impl Apm {
+    fn new(rows: usize) -> Apm {
+        let row: Vec<u16> = (0..APM_ROW as i32)
+            .map(|j| (squash((j - 16) * 128) * 16) as u16)
+            .collect();
+        Apm {
+            t: row.repeat(rows),
+            idx: 0,
+        }
+    }
+
+    #[inline]
+    fn refine(&mut self, stretch: &[i16; 4096], p: u32, cx: usize) -> i32 {
+        let s = (i32::from(stretch[p as usize]) + 2048) as usize;
+        let (lo, w) = (s >> 7, (s & 127) as i32);
+        let base = cx * APM_ROW + lo;
+        self.idx = base + (w >> 6) as usize;
+        (i32::from(self.t[base]) * (128 - w) + i32::from(self.t[base + 1]) * w) >> 11
+    }
+
+    #[inline]
+    fn learn(&mut self, y: bool) {
+        let yi = i32::from(y);
+        let g = (yi << 16) + (yi << APM_RATE) - 2 * yi;
+        let t = &mut self.t[self.idx];
+        *t = (i32::from(*t) + ((g - i32::from(*t)) >> APM_RATE)) as u16;
+    }
 }
 
 #[inline]
@@ -114,10 +160,15 @@ struct Model {
     mi: usize,
     w1: Vec<i32>,
     w2: Vec<i32>,
+    w3: Vec<i32>,
     s1: usize,
     s2: usize,
+    s3: usize,
     pm1: i32,
     pm2: i32,
+    pm3: i32,
+    a1: Apm,
+    a2: Apm,
 }
 
 impl Model {
@@ -163,10 +214,15 @@ impl Model {
             mi: 0,
             w1: vec![1 << 14; 256 * NIN],
             w2: vec![1 << 14; 2048 * NIN],
+            w3: vec![1 << 14; 2048 * NIN],
             s1: 0,
             s2: 0,
+            s3: 0,
             pm1: 0,
             pm2: 0,
+            pm3: 0,
+            a1: Apm::new(256),
+            a2: Apm::new(1 << APM2_BITS),
         };
         m.new_byte();
         m
@@ -277,6 +333,32 @@ impl Model {
         }
     }
 
+    /// The bucket for a context hash: the one of a neighbouring pair that
+    /// carries its check byte (in the unused slot 0), else the less used one
+    /// (by slot 1's count), cleared and tagged.
+    #[inline]
+    fn bucket(&mut self, hh: u32) -> u32 {
+        let ck = ((hh >> 24) | 1) as u8;
+        let b0 = (hh & self.mask) & !15;
+        let alt = b0 ^ 16;
+        if self.sn[b0 as usize] == ck {
+            return b0;
+        }
+        if self.sn[alt as usize] == ck {
+            return alt;
+        }
+        let b = if self.sn[b0 as usize + 1] > self.sn[alt as usize + 1] {
+            alt
+        } else {
+            b0
+        };
+        let b = b as usize;
+        self.sp[b..b + 16].fill(32768);
+        self.sn[b..b + 16].fill(0);
+        self.sn[b] = ck;
+        b as u32
+    }
+
     fn predict(&mut self) -> u32 {
         let t = self.t;
         if self.bit == 0 || self.bit == 4 {
@@ -286,8 +368,8 @@ impl Model {
                 (self.c0 & 15) | 16
             };
             for k in 0..NC {
-                self.bb[k] =
-                    (h(self.hb[k].wrapping_add(nc.wrapping_mul(0x2F0B_4C27))) & self.mask) & !15;
+                let hh = h(self.hb[k].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+                self.bb[k] = self.bucket(hh);
             }
         }
         let part = if self.bit < 4 {
@@ -327,21 +409,36 @@ impl Model {
         self.st[NC + 2] = 256;
         self.s1 = self.c0 as usize * NIN;
         self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * NIN;
+        self.s3 = (((self.c4 >> 8) & 255) * 8 + self.bit) as usize * NIN;
         let w1 = &self.w1[self.s1..self.s1 + NIN];
         let w2 = &self.w2[self.s2..self.s2 + NIN];
-        let (mut a, mut b) = (0i64, 0i64);
+        let w3 = &self.w3[self.s3..self.s3 + NIN];
+        let (mut a, mut b, mut c) = (0i64, 0i64, 0i64);
         for i in 0..NIN {
-            a += i64::from(self.st[i]) * i64::from(w1[i]);
-            b += i64::from(self.st[i]) * i64::from(w2[i]);
+            let x = i64::from(self.st[i]);
+            a += x * i64::from(w1[i]);
+            b += x * i64::from(w2[i]);
+            c += x * i64::from(w3[i]);
         }
         let d1 = (a >> 16).clamp(-2047, 2047) as i32;
         let d2 = (b >> 16).clamp(-2047, 2047) as i32;
+        let d3 = (c >> 16).clamp(-2047, 2047) as i32;
         self.pm1 = squash(d1);
         self.pm2 = squash(d2);
-        squash((d1 + d2) >> 1).clamp(1, 4095) as u32
+        self.pm3 = squash(d3);
+        let p = squash((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
+        let q1 = self.a1.refine(&t.stretch, p, self.c0 as usize);
+        let cx2 = h((self.c4 & 0xff_ffff)
+            .wrapping_mul(0x2F0B_4C27)
+            .wrapping_add(self.c0))
+            >> (32 - APM2_BITS);
+        let q2 = self.a2.refine(&t.stretch, p, cx2 as usize);
+        ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32
     }
 
     fn update(&mut self, y: bool) {
+        self.a1.learn(y);
+        self.a2.learn(y);
         let rate = &self.t.rate;
         for k in 0..NC {
             let i = self.ix[k] as usize;
@@ -350,15 +447,23 @@ impl Model {
         if self.mlen > 0 {
             adapt(&mut self.msp[self.mi], &mut self.msn[self.mi], y, rate);
         }
+        // plasticity: 24 + 104 * 4096 / (4096 + pos), in 1/65536 per unit of x * err
+        let lr = 24 + (104 * 4096 / (4096 + u64::from(self.pos))) as i64;
         let yb = i32::from(y) << 12;
-        let e1 = yb - self.pm1;
-        let e2 = yb - self.pm2;
+        let e1 = i64::from(yb - self.pm1) * lr;
+        let e2 = i64::from(yb - self.pm2) * lr;
+        let e3 = i64::from(yb - self.pm3) * lr;
         let w1 = &mut self.w1[self.s1..self.s1 + NIN];
         let w2 = &mut self.w2[self.s2..self.s2 + NIN];
+        let w3 = &mut self.w3[self.s3..self.s3 + NIN];
         for i in 0..NIN {
-            let x = self.st[i];
-            w1[i] = (w1[i] + ((x * e1) >> 10)).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
-            w2[i] = (w2[i] + ((x * e2) >> 10)).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
+            let x = i64::from(self.st[i]);
+            let learn = |w: &mut i32, e: i64| {
+                *w = (*w + ((x * e) >> 16) as i32).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
+            };
+            learn(&mut w3[i], e3);
+            learn(&mut w1[i], e1);
+            learn(&mut w2[i], e2);
         }
         self.c0 = (self.c0 << 1) | u32::from(y);
         self.bit += 1;
