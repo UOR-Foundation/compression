@@ -32,6 +32,8 @@ pub enum Representation {
     Ulz,
     /// The body applies the standard basis's ncm (context-mixing) decoder to its payload.
     Ncm,
+    /// [`Representation::Ncm`] over the x86 branch filter.
+    NcmX86,
     /// The body reproduces an earlier frame, named by its κ-label (the basis identity).
     Reference,
     /// The body is any other UORC program graph (for example a search result).
@@ -39,13 +41,14 @@ pub enum Representation {
 }
 
 impl Representation {
-    /// A short lowercase name: `raw`, `ulz`, `ncm`, `reference`, `ulz-kernel` or `program`.
+    /// A short lowercase name: `raw`, `ulz`, `ncm`, `ncm-x86`, `reference`, `ulz-kernel` or `program`.
     pub fn name(self) -> &'static str {
         match self {
             Representation::Raw => "raw",
             Representation::UlzKernel => "ulz-kernel",
             Representation::Ulz => "ulz",
             Representation::Ncm => "ncm",
+            Representation::NcmX86 => "ncm-x86",
             Representation::Reference => "reference",
             Representation::Program => "program",
         }
@@ -276,10 +279,13 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
         Representation::Raw
     } else if body.starts_with(KERNEL_PREFIX) {
         Representation::UlzKernel
-    } else if h.basis == Some(crate::archive::BASIS_ID) {
+    } else if h.basis == Some(crate::archive::BASIS_ID)
+        || h.basis == Some(crate::archive::V02_BASIS_ID)
+    {
         match crate::archive::linked_codec(body) {
             Some(crate::archive::Codec::Ulz) => Representation::Ulz,
             Some(crate::archive::Codec::Ncm) => Representation::Ncm,
+            Some(crate::archive::Codec::NcmX86) => Representation::NcmX86,
             None => Representation::Program,
         }
     } else if h.basis.is_some() && body == crate::archive::REF_BODY {

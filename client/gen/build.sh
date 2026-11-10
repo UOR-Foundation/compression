@@ -7,5 +7,6 @@ python3 gen_table.py; python3 fixmul.py $C/Table.lex.tex; python3 finish.py dec 
 python3 gen_dec.py; python3 fixmul.py $C/LzDecode.lex.tex; python3 finish.py dec $C/LzDecode.lex.tex
 python3 gen_enc.py; python3 fixmul.py $C/LzEncode.lex.tex; python3 finish.py enc $C/LzEncode.lex.tex
 python3 gen_ncm.py
+python3 gen_x86.py
 python3 gen_basis.py
 python3 gen_archive.py; python3 fixmul.py $C/Archive.lex.tex

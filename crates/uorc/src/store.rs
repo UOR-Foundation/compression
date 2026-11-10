@@ -9,12 +9,17 @@
 //! read it, and drops it after the last one. A stream with no reference frames
 //! labels nothing and keeps nothing.
 //!
+//! Blocks of a stream decode on separate cores, so the store is shared
+//! ([`Shared`]): a reference frame whose frame another block is still decoding
+//! waits until that frame is offered.
+//!
 //! Kept frames stay in memory up to [`STORE_MEMORY`] bytes; beyond that they
 //! go to an unnamed temporary file, so memory stays bounded whatever the
 //! stream holds.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
+use std::sync::{Condvar, Mutex, MutexGuard};
 
 use crate::archive;
 
@@ -57,11 +62,16 @@ impl Store {
     }
 
     /// Offer a decoded frame: kept if a reference still to come names it.
+    #[cfg(test)]
     pub(crate) fn offer(&mut self, frame: &[u8]) -> io::Result<()> {
         if self.wanted.is_empty() {
             return Ok(());
         }
-        let label = archive::frame_label(frame);
+        self.offer_labelled(archive::frame_label(frame), frame)
+    }
+
+    /// [`Store::offer`] with the frame's label already computed.
+    fn offer_labelled(&mut self, label: [u8; 32], frame: &[u8]) -> io::Result<()> {
         if !self.wanted.contains_key(&label) || self.held.contains_key(&label) {
             return Ok(());
         }
@@ -115,6 +125,97 @@ impl Store {
             }
             #[cfg(target_family = "wasm")]
             Some(Slot::Spilled(..)) => Ok(None),
+        }
+    }
+}
+
+/// A [`Store`] that the blocks of a stream share while they decode on
+/// separate cores. Frames are numbered in stream order.
+pub(crate) struct Shared {
+    state: Mutex<State>,
+    offered: Condvar,
+}
+
+struct State {
+    store: Store,
+    /// Every frame before this one has finished.
+    frontier: usize,
+    /// Finished frames at or after the frontier.
+    finished: HashSet<usize>,
+    /// A block failed: nothing more will be offered.
+    failed: bool,
+}
+
+impl Shared {
+    pub(crate) fn new(store: Store) -> Self {
+        Shared {
+            state: Mutex::new(State {
+                store,
+                frontier: 0,
+                finished: HashSet::new(),
+                failed: false,
+            }),
+            offered: Condvar::new(),
+        }
+    }
+
+    fn lock(&self) -> MutexGuard<'_, State> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Frame `index` has decoded to `frame`: keep it if a reference names it.
+    /// The frame is labelled outside the lock, and only when some reference
+    /// still waits for a frame.
+    pub(crate) fn finish(&self, index: usize, frame: &[u8]) -> io::Result<()> {
+        let label = if self.lock().store.wanted.is_empty() {
+            None
+        } else {
+            Some(archive::frame_label(frame))
+        };
+        let mut state = self.lock();
+        let kept = match label {
+            Some(label) => state.store.offer_labelled(label, frame),
+            None => Ok(()),
+        };
+        state.finished.insert(index);
+        loop {
+            let next = state.frontier;
+            if !state.finished.remove(&next) {
+                break;
+            }
+            state.frontier += 1;
+        }
+        drop(state);
+        self.offered.notify_all();
+        kept
+    }
+
+    /// No more frames will finish: wake every waiting reference.
+    pub(crate) fn fail(&self) {
+        self.lock().failed = true;
+        self.offered.notify_all();
+    }
+
+    /// The frame labelled `label` for reference frame `index`, waiting while
+    /// a frame before it may still produce it.
+    pub(crate) fn take(&self, index: usize, label: &[u8; 32]) -> io::Result<Vec<u8>> {
+        let mut state = self.lock();
+        loop {
+            if state.store.held.contains_key(label) {
+                return state
+                    .store
+                    .take(label)?
+                    .ok_or_else(|| crate::Error::Decode.into());
+            }
+            if state.failed || state.frontier >= index {
+                return Err(crate::Error::Decode.into());
+            }
+            state = self
+                .offered
+                .wait(state)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
         }
     }
 }

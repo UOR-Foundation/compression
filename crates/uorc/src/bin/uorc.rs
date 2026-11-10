@@ -7,17 +7,17 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 const USAGE: &str = "usage:
-  uorc compress   [--best] [--steps N] [--threads N] [--force] [--stats] <input|-> [-o <output|->]
-  uorc compress   [--best] [--steps N] [--force] [--stats] <file|dir>... -o <archive>
+  uorc compress   [--steps N] [--threads N] [--force] [--stats] <input|-> [-o <output|->]
+  uorc compress   [--steps N] [--force] [--stats] <file|dir>... -o <archive>
   uorc decompress [--work N]  [--threads N] [--force|--resume] [--stats] <input|-> [-o <output|->]
   uorc inspect    [--json] <archive|->
   uorc verify     [--work N] [--json] <archive|-> [original]
   uorc --version
 
-Compress writes the smaller of the ulz archive and the raw archive; --best
-also tries the context-mixing coder (ncm: smallest, but well under 1 MB/s
-each way), and --steps N also runs the program search for N steps; the
-smallest is kept. Archives name the built-in decoder basis by identity, so
+Compress codes with the context-mixing coder (ncm), x86 code over a branch
+filter, and keeps the raw archive when that is smaller; --steps N also runs
+the program search for N steps and keeps the smallest. --best is accepted
+and changes nothing (it was a level before there was one coder). Archives name the built-in decoder basis by identity, so
 they carry no decoder kernel.
 Input of any size streams through 8 MiB frames, compressed --threads N at a
 time (default: every core) and written back to back; each frame after the
@@ -86,7 +86,6 @@ impl From<uorc::Error> for Failure {
 struct Options {
     command: String,
     budget: Option<u64>,
-    level: uorc::Level,
     stats: bool,
     force: bool,
     resume: bool,
@@ -124,7 +123,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, Failure> {
                 );
             }
             "--stats" => options.stats = true,
-            "--best" => options.level = uorc::Level::Best,
+            "--best" => {}
             "--force" | "-f" => options.force = true,
             "--json" => options.json = true,
             "--resume" => options.resume = true,
@@ -355,11 +354,7 @@ fn compress_tree(options: &Options) -> Result<(), Failure> {
     }
     let input_bytes: usize = entries.iter().map(|e| e.data.len()).sum();
     let started = Instant::now();
-    let archive = uorc::compress_tree(
-        &entries,
-        options.budget.unwrap_or(uorc::DEFAULT_STEPS),
-        options.level,
-    )?;
+    let archive = uorc::compress_tree(&entries, options.budget.unwrap_or(uorc::DEFAULT_STEPS))?;
     let elapsed = started.elapsed();
     write(&output, &archive, options.force)?;
     if options.stats {
@@ -547,7 +542,7 @@ fn transform(options: &Options) -> Result<(), Failure> {
         if compress {
             let steps = options.budget.unwrap_or(uorc::DEFAULT_STEPS);
             let input = input.take().expect("compress reads its input once");
-            uorc::compress_stream(input, output, steps, options.level, threads)
+            uorc::compress_stream(input, output, steps, threads)
         } else {
             let work = options.budget.unwrap_or(uorc::DEFAULT_DECODE_WORK);
             let stream = stream.take().expect("decompress reads its stream once");
