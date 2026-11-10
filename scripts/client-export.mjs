@@ -25,11 +25,18 @@
 // field read, and the in-place byte update primitive (LexLean#443) gives the
 // codec O(1) table writes. The pin moves to a LexLean release once both ship.
 // Set LEXLEAN to an already built binary of the same revision to skip the build.
+//
+// The export is the factory obligation `export` (factory/graph.json): its
+// identity covers only what it reads (the import closure of Uorc.Client, the
+// LexLean project files and these scripts), recorded in generated/rust/factory.identity.
+// When the recorded identity matches, the export is already proved and this
+// exits without running; pass --force to export anyway.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {dataForm, notation} from './semantic-source.mjs';
+import {loadGraph, identities, workingTree} from './factory.mjs';
 
 const root = process.cwd();
 const out = path.join(root, 'generated/rust');
@@ -131,6 +138,12 @@ function wrapBoxedReturns(dir, modules) {
   }
 }
 
+const exportRecord = path.join(out, 'factory.identity');
+const exportIdentity = identities(loadGraph(root), workingTree(root), {}).export;
+if (!process.argv.includes('--force') && fs.existsSync(exportRecord) && fs.readFileSync(exportRecord, 'utf8').trim() === `export ${exportIdentity}`) {
+  console.log(`export proved: generated/rust was exported from these inputs (${exportIdentity}); --force exports anyway`);
+  process.exit(0);
+}
 const lexlean = lexleanBinary();
 const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'uorc-client-export-'));
 try {
@@ -154,5 +167,6 @@ try {
   for (const [name] of roots) fs.cpSync(path.join(bundle, 'packages/rust-std', name), path.join(out, name), {recursive: true});
   fs.writeFileSync(path.join(out, 'request.json'), JSON.stringify(request, null, 1) + '\n');
   fs.copyFileSync(path.join(bundle, 'result.json'), path.join(out, 'result.json'));
+  fs.writeFileSync(exportRecord, `export ${exportIdentity}\n`);
   console.log(`exported ${roots.length} packages from ${modules.length} modules (result ${result.result_id ?? result.artifacts[0]})`);
 } finally { fs.rmSync(stage, {recursive: true, force: true}); }

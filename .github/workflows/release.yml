@@ -1,6 +1,14 @@
 # Builds the uorc client from the committed LexLean-exported Rust (generated/rust)
 # and publishes it: native binaries, the library source bundle, the WebAssembly
 # module, a Canterbury and Silesia benchmark run, and the GitHub Pages site that runs the client.
+#
+# Every stage is a factory obligation (factory/graph.json, scripts/factory.mjs)
+# keyed on its own inputs. A stage proved by a receipt is not run again: its
+# artifact is taken from the run that proved it. So a rehearsal (dispatch with
+# mode rehearsal, on main or any ref) builds, benchmarks and packages a commit
+# without publishing, and the tag of that commit then only packages and
+# publishes. A failed publish or Pages step re-runs only what is left.
+# Publication is blocked unless the bootstrap gate passed on exactly this tree.
 name: release
 
 on:
@@ -8,58 +16,171 @@ on:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      tag:
-        description: Existing tag to (re)publish, e.g. v0.3.0
+      ref:
+        description: The tag to publish (e.g. v0.4.0), or for a rehearsal any branch, tag or commit
         required: true
         type: string
+      mode:
+        description: publish creates or updates the release; rehearsal builds and packages only
+        required: true
+        default: publish
+        type: choice
+        options: [publish, rehearsal]
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  group: release-${{ github.event.inputs.ref || github.ref_name }}
   cancel-in-progress: false
 
 env:
-  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  REF: ${{ github.event.inputs.ref || github.ref_name }}
+  MODE: ${{ github.event.inputs.mode || 'publish' }}
   CARGO_TERM_COLOR: never
 
 jobs:
+  # Decides every stage's route from the receipts, and refuses a publish whose
+  # tag does not name the workspace version (v0.2.0 shipped binaries that said
+  # 0.1.0) or whose tree has not passed the bootstrap gate.
+  factory:
+    name: factory route
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.policy.outputs.tag }}
+      native_matrix: ${{ steps.matrix.outputs.native }}
+      native_x86_identity: ${{ steps.route.outputs.native_x86_64_unknown_linux_gnu_identity }}
+      native_x86_run: ${{ steps.route.outputs.native_x86_64_unknown_linux_gnu_run }}
+      native_arm_identity: ${{ steps.route.outputs.native_aarch64_unknown_linux_gnu_identity }}
+      native_arm_run: ${{ steps.route.outputs.native_aarch64_unknown_linux_gnu_run }}
+      wasm: ${{ steps.route.outputs.wasm_route }}
+      wasm_identity: ${{ steps.route.outputs.wasm_identity }}
+      wasm_run: ${{ steps.route.outputs.wasm_run }}
+      bench: ${{ steps.route.outputs.bench_route }}
+      bench_identity: ${{ steps.route.outputs.bench_identity }}
+      bench_run: ${{ steps.route.outputs.bench_run }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.REF }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the release policy
+        id: policy
+        run: |
+          set -euo pipefail
+          version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+          if [ "$MODE" = publish ]; then
+            git rev-parse --verify --quiet "refs/tags/$REF" >/dev/null || { echo "::error::$REF is not a tag; publish needs one (rehearse a branch with mode rehearsal)"; exit 1; }
+            [ "$REF" = "v$version" ] || { echo "::error::tag $REF does not name the workspace version $version; bump [workspace.package] version in Cargo.toml first"; exit 1; }
+          fi
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Route every stage by its own inputs
+        id: route
+        run: |
+          set -euo pipefail
+          node --test scripts/factory.test.mjs >/dev/null
+          node scripts/factory.mjs route gate native-x86_64-unknown-linux-gnu native-aarch64-unknown-linux-gnu wasm bench publish \
+            --context "mode=$MODE" --context "run=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" | tee -a "$GITHUB_OUTPUT"
+      - name: List the native targets to build
+        id: matrix
+        env:
+          X86: ${{ steps.route.outputs.native_x86_64_unknown_linux_gnu_route }}
+          ARM: ${{ steps.route.outputs.native_aarch64_unknown_linux_gnu_route }}
+          X86_IDENTITY: ${{ steps.route.outputs.native_x86_64_unknown_linux_gnu_identity }}
+          ARM_IDENTITY: ${{ steps.route.outputs.native_aarch64_unknown_linux_gnu_identity }}
+        run: |
+          rows=()
+          [ "$X86" = observe ] && rows+=("{\"runner\":\"ubuntu-24.04\",\"target\":\"x86_64-unknown-linux-gnu\",\"identity\":\"$X86_IDENTITY\"}")
+          [ "$ARM" = observe ] && rows+=("{\"runner\":\"ubuntu-24.04-arm\",\"target\":\"aarch64-unknown-linux-gnu\",\"identity\":\"$ARM_IDENTITY\"}")
+          echo "native={\"include\":[$(IFS=,; echo "${rows[*]}")]}" >> "$GITHUB_OUTPUT"
+      - name: Require the bootstrap gate on this tree
+        if: steps.route.outputs.gate_route != 'proved' || steps.route.outputs.publish_route != 'observe'
+        run: |
+          echo "::error::the bootstrap legs have not all passed on this exact tree; let bootstrap finish on this commit (receipts land a minute after it completes), then re-run"
+          exit 1
+
   native:
     name: native / ${{ matrix.target }}
+    needs: factory
+    if: needs.factory.outputs.native_matrix != '{"include":[]}'
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
-          - { runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+      matrix: ${{ fromJSON(needs.factory.outputs.native_matrix) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.REF }}
           fetch-depth: 0
           persist-credentials: false
       - name: Build and test the client
+        id: run
         run: |
           set -euo pipefail
           rustup show active-toolchain
           cargo test --locked --release -p uorc
           cargo build --locked --release -p uorc --target ${{ matrix.target }}
-      - name: Package
-        run: |
-          set -euo pipefail
-          name="uorc-${TAG}-${{ matrix.target }}"
-          mkdir -p "dist/$name"
-          cp "target/${{ matrix.target }}/release/uorc" LICENSE-APACHE LICENSE-MIT "dist/$name/"
-          tar -C dist -czf "dist/$name.tar.gz" "$name"
-          (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
+          mkdir -p build && cp "target/${{ matrix.target }}/release/uorc" build/
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: native-${{ matrix.target }}
-          path: dist/*.tar.gz*
+          name: factory-native-${{ matrix.target }}
+          path: build/uorc
           if-no-files-found: error
+          retention-days: 90
+      - name: Record the outcome
+        if: always() && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
+        env:
+          IDENTITY: ${{ matrix.identity }}
+          OUTCOME: ${{ steps.run.outcome }}
+        run: node scripts/factory.mjs outcome "native-${{ matrix.target }}" "$IDENTITY" "$OUTCOME" .tmp/factory
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
+        with:
+          name: factory-outcome-native-${{ matrix.target }}
+          path: .tmp/factory/
+          if-no-files-found: error
+          retention-days: 3
+
+  wasm:
+    name: wasm
+    needs: factory
+    if: needs.factory.outputs.wasm == 'observe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.REF }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build the WebAssembly client
+        id: run
+        run: |
+          set -euo pipefail
+          cargo build --locked --release -p uorc-wasm --target wasm32-unknown-unknown
+          mkdir -p build && cp target/wasm32-unknown-unknown/release/uorc_wasm.wasm build/uorc.wasm
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: factory-wasm
+          path: build/uorc.wasm
+          if-no-files-found: error
+          retention-days: 90
+      - name: Record the outcome
+        if: always() && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
+        env:
+          IDENTITY: ${{ needs.factory.outputs.wasm_identity }}
+          OUTCOME: ${{ steps.run.outcome }}
+        run: node scripts/factory.mjs outcome wasm "$IDENTITY" "$OUTCOME" .tmp/factory
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
+        with:
+          name: factory-outcome-wasm
+          path: .tmp/factory/
+          if-no-files-found: error
+          retention-days: 3
 
   # Measurement only (UC-PERF-01): the release binary on the Canterbury and
   # Silesia corpora against standard and context-mixing compressors, beside
@@ -67,126 +188,173 @@ jobs:
   # pull requests, and its table goes into the release notes and the Pages site.
   bench:
     name: benchmark
-    needs: native
+    needs: [factory, native]
+    if: always() && needs.factory.outputs.bench == 'observe' && (needs.native.result == 'success' || needs.native.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.REF }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: native-x86_64-unknown-linux-gnu
-          path: dist
+          name: factory-native-x86_64-unknown-linux-gnu
+          path: build
+          run-id: ${{ needs.factory.outputs.native_x86_run }}
+          github-token: ${{ needs.factory.outputs.native_x86_run != github.run_id && github.token || '' }}
       - name: Fetch the corpora and the comparison tools
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq zstd brotli zpaq 7zip >/dev/null
-          tar -C dist -xzf "dist/uorc-${TAG}-x86_64-unknown-linux-gnu.tar.gz"
+          chmod +x build/uorc
+          for attempt in 1 2 3; do
+            sudo apt-get update -qq && sudo apt-get install -y -qq zstd brotli zpaq 7zip >/dev/null && break
+            test "$attempt" -lt 3; sleep $((attempt * 20))
+          done
           mkdir -p corpus/canterbury corpus/silesia
-          curl -fsSL --retry 3 https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz | tar -xz -C corpus/canterbury
-          curl -fsSL --retry 3 -o silesia.zip https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip
+          curl -fsSL --retry 5 --retry-all-errors https://corpus.canterbury.ac.nz/resources/cantrbry.tar.gz | tar -xz -C corpus/canterbury
+          curl -fsSL --retry 5 --retry-all-errors -o silesia.zip https://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip
           unzip -q -d corpus/silesia silesia.zip
           find corpus/silesia -mindepth 2 -type f -exec mv -t corpus/silesia {} +
       - name: Benchmark the release binary
-        run: node scripts/bench.mjs --uorc "dist/uorc-${TAG}-x86_64-unknown-linux-gnu/uorc" --corpus corpus/canterbury,corpus/silesia --steps 0 --out bench
+        id: run
+        run: node scripts/bench.mjs --uorc build/uorc --corpus corpus/canterbury,corpus/silesia --steps 0 --out bench
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: bench
+          name: factory-bench
           path: |
             bench/bench.json
             bench/bench.md
             bench/bench.html
           if-no-files-found: error
+          retention-days: 90
+      - name: Record the outcome
+        if: always() && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
+        env:
+          IDENTITY: ${{ needs.factory.outputs.bench_identity }}
+          OUTCOME: ${{ steps.run.outcome }}
+        run: node scripts/factory.mjs outcome bench "$IDENTITY" "$OUTCOME" .tmp/factory
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
+        with:
+          name: factory-outcome-bench
+          path: .tmp/factory/
+          if-no-files-found: error
+          retention-days: 3
 
-  wasm:
-    name: wasm and site
-    needs: bench
+  # Packages what the stages proved (from this run or the runs that proved
+  # them) under the tag, and publishes it; a rehearsal keeps the package as an
+  # artifact instead.
+  publish:
+    name: ${{ github.event.inputs.mode == 'rehearsal' && 'package (rehearsal)' || 'publish release' }}
+    needs: [factory, native, wasm, bench]
+    if: always() && needs.factory.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    env:
+      TAG: ${{ needs.factory.outputs.tag }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.REF }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Build the WebAssembly client
-        run: cargo build --locked --release -p uorc-wasm --target wasm32-unknown-unknown
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: bench
+          name: factory-native-x86_64-unknown-linux-gnu
+          path: build/x86_64-unknown-linux-gnu
+          run-id: ${{ needs.factory.outputs.native_x86_run }}
+          github-token: ${{ needs.factory.outputs.native_x86_run != github.run_id && github.token || '' }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: factory-native-aarch64-unknown-linux-gnu
+          path: build/aarch64-unknown-linux-gnu
+          run-id: ${{ needs.factory.outputs.native_arm_run }}
+          github-token: ${{ needs.factory.outputs.native_arm_run != github.run_id && github.token || '' }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: factory-wasm
+          path: build/wasm
+          run-id: ${{ needs.factory.outputs.wasm_run }}
+          github-token: ${{ needs.factory.outputs.wasm_run != github.run_id && github.token || '' }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: factory-bench
           path: bench
-      - name: Assemble the site and the wasm bundle
+          run-id: ${{ needs.factory.outputs.bench_run }}
+          github-token: ${{ needs.factory.outputs.bench_run != github.run_id && github.token || '' }}
+      - name: Package the binaries, the source bundle, the wasm bundle and the site
         run: |
           set -euo pipefail
           mkdir -p dist
+          for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            name="uorc-${TAG}-${target}"
+            mkdir -p "dist/$name"
+            install -m 755 "build/$target/uorc" "dist/$name/uorc"
+            cp LICENSE-APACHE LICENSE-MIT "dist/$name/"
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+            (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
+            rm -rf "dist/$name"
+          done
           # The site is a browser closure v2: the page, the brand files, provenance.
-          node scripts/site.mjs site --wasm target/wasm32-unknown-unknown/release/uorc_wasm.wasm --version "$TAG" --bench bench
+          node scripts/site.mjs site --wasm build/wasm/uorc.wasm --version "$TAG" --bench bench
           name="uorc-${TAG}-wasm"
           mkdir -p "dist/$name"
           cp site/uorc_bg.wasm "dist/$name/uorc.wasm"
           cp site/uorc.js LICENSE-APACHE LICENSE-MIT "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
+          rm -rf "dist/$name"
           git archive --format=tar.gz --prefix="uorc-${TAG}-src/" -o "dist/uorc-${TAG}-src.tar.gz" HEAD \
             Cargo.toml Cargo.lock rust-toolchain.toml crates/uorc crates/uorc-wasm generated/rust LICENSE-APACHE LICENSE-MIT
           cp bench/bench.json "dist/uorc-${TAG}-bench.json"
-          (cd dist && sha256sum *.tar.gz *.json > SHA256SUMS-wasm-src)
+          (cd dist && sha256sum uorc-*-wasm.tar.gz uorc-*-src.tar.gz *.json > SHA256SUMS-wasm-src)
+          ls -la dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: env.MODE == 'rehearsal'
         with:
-          name: wasm-src
+          name: release-rehearsal
           path: dist/*
           if-no-files-found: error
+          retention-days: 7
+      - name: Create or update the GitHub release
+        if: env.MODE == 'publish'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          { printf 'uorc %s\n\n' "$TAG"; printf 'Client: https://%s.github.io/%s/\n\n' "${GITHUB_REPOSITORY_OWNER,,}" "${GITHUB_REPOSITORY#*/}"; cat bench/bench.md; } > notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" --verify-tag --title "uorc $TAG" --notes-file notes.md dist/*
+          fi
       # The Pages artifact is packed here rather than by actions/upload-pages-artifact,
       # which calls an unpinned upload-artifact that the organization's action policy rejects.
       - name: Pack the Pages site
+        if: env.MODE == 'publish'
         run: tar --dereference --hard-dereference -C site -cf "$RUNNER_TEMP/artifact.tar" .
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: env.MODE == 'publish'
         with:
           name: github-pages
           path: ${{ runner.temp }}/artifact.tar
           retention-days: 1
           if-no-files-found: error
 
-  publish:
-    name: publish release
-    needs: [native, bench, wasm]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          ref: ${{ env.TAG }}
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          path: assets
-          merge-multiple: true
-      - name: Create or update the GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          ls -la assets
-          { printf 'uorc %s\n\n' "$TAG"; printf 'Client: https://%s.github.io/%s/\n\n' "${GITHUB_REPOSITORY_OWNER,,}" "${GITHUB_REPOSITORY#*/}"; cat assets/bench.md; } > notes.md
-          files=$(find assets -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.sha256' -o -name 'SHA256SUMS*' -o -name '*-bench.json' \))
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" $files --clobber
-          else
-            gh release create "$TAG" --verify-tag --title "uorc $TAG" --notes-file notes.md $files
-          fi
-
   # The github-pages environment accepts only the default branch, so a tag-push
   # run hands its site to pages.yml, dispatched there (v0.2.0's in-run deploy
   # was refused before it started).
   pages:
     name: deploy pages
-    needs: [wasm, publish]
+    needs: publish
+    if: github.event.inputs.mode != 'rehearsal'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 # A newer push to a pull request supersedes its older run.
 concurrency:
@@ -16,31 +15,29 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The whole workflow is one formal obligation: it runs once per content
-  # identity κ of its inputs (scripts/ci-receipt.sh). When an earlier run with
-  # the same κ passed, every job below is skipped.
+  # The whole workflow is one factory obligation, `offline` (factory/graph.json):
+  # it runs once per identity of its declared inputs. When an earlier run with
+  # the same identity passed, every job below is skipped.
   route:
     name: offline formal construction / receipt
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      proved: ${{ steps.receipt.outputs.proved }}
-      kappa: ${{ steps.receipt.outputs.kappa }}
+      route: ${{ steps.route.outputs.route }}
+      identity: ${{ steps.route.outputs.identity }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Look up a receipt for this workflow's inputs
-        id: receipt
+      - name: Route this workflow by its own inputs
+        id: route
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: scripts/ci-receipt.sh lookup offline >> "$GITHUB_OUTPUT"
+        run: node scripts/factory.mjs route offline >> "$GITHUB_OUTPUT"
   regenerate:
     name: review-only generated projections
     needs: route
-    if: needs.route.outputs.proved != 'true'
+    if: needs.route.outputs.route == 'observe'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -60,7 +57,7 @@ jobs:
           set -euo pipefail
           image=$(node -p 'JSON.parse(require("fs").readFileSync("prismpm.lock")).sdk_image')
           [[ "$image" =~ ^[a-z0-9.-]+(:[0-9]{1,5})?/[a-z0-9./_-]+@sha256:[0-9a-f]{64}$ ]]
-          docker pull "$image"
+          for attempt in 1 2 3 4; do docker pull "$image" && break; test "$attempt" -lt 4; sleep $((attempt * 15)); done
           docker run --rm --user "$(id -u):$(id -g)" \
             --volume "$PWD:$PWD" --workdir "$PWD" \
             --env PRISMPM_EPHEMERAL_HOME=1 \
@@ -75,7 +72,7 @@ jobs:
   offline-setup:
     name: offline formal construction / dependency setup
     needs: route
-    if: needs.route.outputs.proved != 'true'
+    if: needs.route.outputs.route == 'observe'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -95,7 +92,7 @@ jobs:
           set -euo pipefail
           image=$(node -p 'JSON.parse(require("fs").readFileSync("prismpm.lock")).sdk_image')
           [[ "$image" =~ ^[a-z0-9.-]+(:[0-9]{1,5})?/[a-z0-9./_-]+@sha256:[0-9a-f]{64}$ ]]
-          docker pull "$image"
+          for attempt in 1 2 3 4; do docker pull "$image" && break; test "$attempt" -lt 4; sleep $((attempt * 15)); done
           docker run --rm --user "$(id -u):$(id -g)" \
             --group-add "$(stat -c '%g' /var/run/docker.sock)" \
             --volume "$PWD:$PWD" --workdir "$PWD" \
@@ -146,7 +143,7 @@ jobs:
           mkdir -p .tmp && tar -C .tmp -xf .prism/offline-setup/offline-acquisition.tar && rm -rf .prism/offline-setup
           image=$(node -p 'JSON.parse(require("fs").readFileSync("prismpm.lock")).sdk_image')
           [[ "$image" =~ ^[a-z0-9.-]+(:[0-9]{1,5})?/[a-z0-9./_-]+@sha256:[0-9a-f]{64}$ ]]
-          docker pull "$image"
+          for attempt in 1 2 3 4; do docker pull "$image" && break; test "$attempt" -lt 4; sleep $((attempt * 15)); done
           # Only orchestration sees the daemon. The verifier containers have
           # no socket, credentials, parent checkout mount, or network interface.
           docker run --rm --user "$(id -u):$(id -g)" \
@@ -188,14 +185,14 @@ jobs:
           name: offline-comparison
           path: .prism/uorc/offline-comparison.json
           if-no-files-found: error
-      - name: Record the receipt for this workflow's inputs
+      - name: Record this workflow's outcome
         shell: bash
         env:
-          KAPPA: ${{ needs.route.outputs.kappa }}
-        run: scripts/ci-receipt.sh record offline "$KAPPA"
+          IDENTITY: ${{ needs.route.outputs.identity }}
+        run: node scripts/factory.mjs outcome offline "$IDENTITY" success .tmp/factory
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: receipt-offline-${{ needs.route.outputs.kappa }}
-          path: .tmp/receipt/receipt.json
+          name: factory-outcome-offline
+          path: .tmp/factory/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 3
