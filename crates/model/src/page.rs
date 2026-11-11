@@ -77,7 +77,14 @@ pub const ERROR_CODES: &[&str] = &[
     "budget", "overflow", "decode", "mismatch", "stopped", "load",
 ];
 /// The tables the page draws.
-pub const TABLES: &[&str] = &["inspect", "examples"];
+pub const TABLES: &[&str] = &["inspect", "examples", "theorems", "claims", "weights"];
+/// The tables of the model view, each filled from the release's `model.json`,
+/// with the label of its heading.
+const MODEL_TABLES: &[(&str, &str)] = &[
+    ("theorems", "theorems"),
+    ("claims", "claims"),
+    ("weights", "engine"),
+];
 
 /// One row: the definition's name and its record's fields as JSON.
 #[derive(Debug, Clone, PartialEq)]
@@ -435,6 +442,11 @@ impl PageModel {
                 )));
             }
         }
+        for table in TABLES {
+            if !self.of("Column").iter().any(|c| c.str("table") == *table) {
+                return Err(inconsistent(format!("table `{table}` has no column")));
+            }
+        }
         let codes = unique("ErrorHint", "code")?;
         if codes != ERROR_CODES.iter().map(ToString::to_string).collect() {
             return Err(inconsistent(format!(
@@ -666,6 +678,39 @@ impl PageModel {
         }
         h.push_str("</tr></thead><tbody></tbody></table></div>\n</section>\n");
 
+        // What the codec claims: the release's theorems, closed claims and
+        // engine state, which app.js reads from the published model.json.
+        let _ = write!(
+            h,
+            "<section id=\"model\" aria-labelledby=\"model-title\" data-empty=\"{}\">\n<h2 id=\"model-title\">{}</h2>\n<p>{}</p>\n",
+            esc(labels.str("unpublished")),
+            esc(labels.str("model")),
+            esc(labels.str("modelHelp"))
+        );
+        for (table, heading) in MODEL_TABLES {
+            let _ = writeln!(
+                h,
+                "<h3 id=\"model-{table}-title\">{}</h3>",
+                esc(labels.str(heading))
+            );
+            if *table == "weights" {
+                h.push_str("<p id=\"model-engine\"></p>\n");
+            }
+            let _ = write!(
+                h,
+                "<div class=\"table-wrap\"><table id=\"model-{table}\" aria-labelledby=\"model-{table}-title\"><thead><tr>"
+            );
+            for column in self
+                .sorted("Column")
+                .into_iter()
+                .filter(|c| c.str("table") == *table)
+            {
+                let _ = write!(h, "<th scope=\"col\">{}</th>", esc(column.str("label")));
+            }
+            h.push_str("</tr></thead><tbody></tbody></table></div>\n");
+        }
+        h.push_str("</section>\n");
+
         // What the page does, and usage elsewhere.
         for section in self.sorted("Section") {
             let _ = write!(
@@ -764,6 +809,45 @@ mod tests {
         assert!(page.contains("id=\"page-model\""));
     }
 
+    /// The model view: one table per model table with the model's columns,
+    /// the engine line, and the inspect table carries the codec point columns.
+    #[test]
+    fn the_model_view_holds_every_model_table_uc_web_02() {
+        let model = PageModel::load(&root()).expect("the page model checks");
+        let page = model.render();
+        assert!(page.contains("<section id=\"model\""));
+        assert!(page.contains("id=\"model-engine\""));
+        for (table, _) in MODEL_TABLES {
+            assert!(page.contains(&format!("id=\"model-{table}\"")));
+            for column in model
+                .of("Column")
+                .iter()
+                .filter(|c| c.str("table") == *table)
+            {
+                assert!(page.contains(&format!(
+                    "<th scope=\"col\">{}</th>",
+                    esc(column.str("label"))
+                )));
+            }
+        }
+        let keys: BTreeSet<&str> = model
+            .of("Column")
+            .iter()
+            .filter(|c| c.str("table") == "inspect")
+            .map(|c| c.str("key"))
+            .collect();
+        for key in [
+            "codec_point",
+            "steps",
+            "state",
+            "lanes",
+            "ncm_profile",
+            "claims",
+        ] {
+            assert!(keys.contains(key), "inspect shows no {key}");
+        }
+    }
+
     /// Each Prism check rejects its planted defect.
     #[test]
     fn planted_model_defects_are_rejected_uc_web_01() {
@@ -810,6 +894,12 @@ mod tests {
             }),
             ("uncovered error", |m| {
                 m.rows.get_mut("ErrorHint").expect("rows").pop();
+            }),
+            ("table without columns", |m| {
+                m.rows
+                    .get_mut("Column")
+                    .expect("rows")
+                    .retain(|c| c.str("table") != "weights");
             }),
             ("remote link", |m| {
                 set(m, "Link", 0, "href", Value::from("https://example.com/"))

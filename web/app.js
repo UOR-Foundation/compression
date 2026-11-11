@@ -223,7 +223,7 @@ function runOperation() {
       const bytes = result.files.reduce((n, f) => n + f.blob.size, 0);
       return `${fmt(result.input)} → ${fmt(bytes)} bytes in ${fmt(result.files.length)} file(s), in ${seconds(took)}.`;
     }
-    const rows = result.rows.map((row, i) => ({ ...row, index: i + 1, integrity_ok: row.integrity_ok ? "intact" : "broken" }));
+    const rows = result.rows.map((row, i) => frameRow(row, i));
     showResult(result, [table("inspect", rows)]);
     if (result.kind === "table") {
       const ok = result.rows.every((r) => r.integrity_ok);
@@ -233,6 +233,55 @@ function runOperation() {
       ? `Verified: the archive reproduces ${original.name} exactly, in ${seconds(took)}.`
       : `Verified: the archive decodes and every integrity seal holds, in ${seconds(took)}.`;
   });
+}
+
+// One inspect row: the library's header reading, with the frame's codec point
+// as the uorc library names it and the published claims that name that point.
+function frameRow(row, i) {
+  return {
+    ...row,
+    index: i + 1,
+    integrity_ok: row.integrity_ok ? "intact" : "broken",
+    ncm_profile: row.ncm_profile == null ? "none" : `${row.ncm_profile}${row.representation === "ncm-x86" ? " x86" : ""}`,
+    state: row.state ?? "none",
+    steps: row.steps == null ? "not modelled" : fmt(row.steps),
+    claims: claimsNaming(row.codec_point),
+  };
+}
+
+// The release's theorems, claims and engine state (model.json, published
+// beside the page from the repository's register and engine files).
+let published = { theorems: [], claims: [], engine: { tick: null, weights: [] } };
+function claimsNaming(point) {
+  const named = published.claims.filter((c) => c.codec === point || c.candidate === point || c.incumbent === point);
+  if (!named.length) return "none";
+  const count = (status) => named.filter((c) => c.status === status).length;
+  return ["proved", "refuted", "open"].filter((s) => count(s)).map((s) => `${fmt(count(s))} ${s}`).join(", ");
+}
+function fillModel(m) {
+  published = m;
+  const empty = $("model").dataset.empty;
+  const fill = (kind, rows) => {
+    const body = $(`model-${kind}`).tBodies[0];
+    const columns = byOrder(model.Column.filter((c) => c.table === kind));
+    body.replaceChildren();
+    if (!rows.length) {
+      const cell = body.insertRow().insertCell();
+      cell.colSpan = columns.length;
+      cell.textContent = empty;
+      return;
+    }
+    for (const row of rows) {
+      const tr = body.insertRow();
+      for (const c of columns) tr.insertCell().textContent = typeof row[c.key] === "number" ? fmt(row[c.key]) : String(row[c.key] ?? "");
+    }
+  };
+  fill("theorems", m.theorems);
+  fill("claims", m.claims);
+  fill("weights", m.engine.weights);
+  $("model-engine").textContent = m.engine.tick == null
+    ? empty
+    : `Tick ${fmt(m.engine.tick)}, rule30 register ${m.engine.rule30}, ${fmt(m.engine.strategies)} strategies in the portfolio.`;
 }
 
 function runExample(example) {
@@ -278,6 +327,10 @@ for (const button of document.querySelectorAll("[data-example]")) {
 fetch("provenance.json").then((r) => (r.ok ? r.json() : {})).then((p) => {
   if (p.version) $("version").textContent = `${$("version").dataset.label} ${p.version}`;
 }).catch(() => {});
+
+fetch("model.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error(`model.json: ${r.status}`)))).then(fillModel).catch(() => {
+  fillModel(published);
+});
 
 render();
 start(() => fire("loaded"));

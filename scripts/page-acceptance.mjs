@@ -53,7 +53,12 @@ const server = http.createServer((req, res) => {
   let url = decodeURIComponent(req.url.split('?')[0]);
   const broken = url.startsWith('/no-wasm/');
   if (broken) url = url.slice('/no-wasm'.length);
+  // The same site with a register whose claims name the codec points the
+  // acceptance has just written, so the inspect table must find them.
+  const claimed = url.startsWith('/claimed/');
+  if (claimed) url = url.slice('/claimed'.length);
   const name = url === '/' ? 'index.html' : url.slice(1);
+  if (claimed && name === 'model.json') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(claimedModel)); return; }
   const p = path.join(site, name);
   if (name.includes('/') || !fs.existsSync(p) || (broken && name.endsWith('.wasm'))) { res.writeHead(404); res.end(); return; }
   res.writeHead(200, { 'content-type': types[path.extname(name)] ?? 'application/octet-stream' });
@@ -61,6 +66,9 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
+
+const published = JSON.parse(fs.readFileSync(path.join(site, 'model.json'), 'utf8'));
+let claimedModel = published;
 
 // Chromium over the DevTools protocol.
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'uorc-chrome-'));
@@ -333,6 +341,38 @@ const cases = {
     expect(JSON.stringify(head) === JSON.stringify(columns), 'inspect columns differ from the model');
     expect(rows.length === 3 && rows[2][1] === 'reference' && rows.every((row) => row[5] === 'intact'), `inspect rows ${JSON.stringify(rows)}`);
   },
+  // Each frame's codec point, steps and claims on the page equal what the
+  // library reads from the header and what the register says about the point.
+  async 'inspect-codec-point'() {
+    await need('compress-matches-library');
+    const library = await evaluate(`(async () => {
+      const { load } = await import('./uorc.js');
+      const u = await load('./uorc_bg.wasm');
+      return u.inspect(new Uint8Array(${JSON.stringify([...fs.readFileSync(saved.frames)])}));
+    })()`);
+    expect(library.length === 3 && library.every((f) => /^[0-9a-f]{64}$/.test(f.codec_point)), `library inspect ${JSON.stringify(library.map((f) => f.codec_point))}`);
+    expect(library[2].steps === 0 && library[0].steps > 0, `reference frames cost no steps: ${JSON.stringify(library.map((f) => f.steps))}`);
+    claimedModel = { ...published, claims: [{ id: 'acceptance', form: 'closed', codec: library[0].codec_point, corpus: '00', bytes: library[0].archive_bytes, steps: library[0].steps, status: 'proved' }] };
+    await open(`${origin}/claimed/`);
+    await tab('inspect');
+    await setFiles('field-archive', [saved.frames]);
+    const r = await runAndWait();
+    expect(r.state === 'done', `inspect: ${await text('status')}`);
+    const columns = model.Column.filter((c) => c.table === 'inspect').sort((a, b) => a.order - b.order);
+    const at = (key) => columns.findIndex((c) => c.key === key);
+    const rows = await evaluate("[...document.querySelectorAll('#result tbody tr')].map((tr) => [...tr.cells].map((c) => c.textContent))");
+    let differing = 0;
+    library.forEach((f, i) => {
+      const row = rows[i] ?? [];
+      const claims = library[0].codec_point === f.codec_point ? '1 proved' : 'none';
+      if (row[at('codec_point')] !== f.codec_point || row[at('steps')] !== f.steps.toLocaleString('en-US')
+        || row[at('lanes')] !== String(f.lanes) || row[at('state')] !== (f.state ?? 'none')
+        || row[at('ncm_profile')] !== (f.ncm_profile == null ? 'none' : `${f.ncm_profile}${f.representation === 'ncm-x86' ? ' x86' : ''}`) || row[at('claims')] !== claims) differing += 1;
+    });
+    raise('differingCodecPoints', differing + Math.abs(rows.length - library.length));
+    expect(gates.differingCodecPoints === 0, `inspect rows ${JSON.stringify(rows)} differ from the library ${JSON.stringify(library)}`);
+    await open();
+  },
   async 'verify-archive'() {
     await need('compress-file');
     await tab('verify');
@@ -353,6 +393,17 @@ const cases = {
     await setFiles('field-original', [inputs.other]);
     const r = await runAndWait();
     expect(r.state === 'failed', `verify against another file: ${await text('status')}`);
+  },
+  async 'model-theorems'() { await modelTable('theorems', published.theorems); },
+  async 'model-claims'() { await modelTable('claims', published.claims); },
+  async 'model-engine'() {
+    await modelTable('weights', published.engine.weights);
+    const e = published.engine;
+    const line = await text('model-engine');
+    const want = e.tick == null ? await evaluate("document.getElementById('model').dataset.empty")
+      : `Tick ${e.tick.toLocaleString('en-US')}, rule30 register ${e.rule30}, ${e.strategies.toLocaleString('en-US')} strategies in the portfolio.`;
+    raise('differingModelValues', (gates.differingModelValues ?? 0) + (line === want ? 0 : 1));
+    expect(line === want, `engine line ${line} differs from model.json (${want})`);
   },
   async 'cancel-running'() {
     await tab('compress');
@@ -410,6 +461,24 @@ const cases = {
     expect(await evaluate("[...document.querySelectorAll('button, input')].every((e) => e.disabled)"), 'a control is enabled without the client');
   },
 };
+// A model view table against model.json: the model's columns, and one row
+// per published row with every value as published (or the empty note).
+async function modelTable(kind, published) {
+  await waitFor(`document.querySelector('#model-${kind} tbody').rows.length > 0`, 10000);
+  const columns = model.Column.filter((c) => c.table === kind).sort((a, b) => a.order - b.order);
+  const head = await evaluate(`[...document.querySelectorAll('#model-${kind} thead th')].map((th) => th.textContent)`);
+  expect(JSON.stringify(head) === JSON.stringify(columns.map((c) => c.label)), `${kind} columns differ from the model`);
+  const rows = await evaluate(`[...document.querySelectorAll('#model-${kind} tbody tr')].map((tr) => [...tr.cells].map((c) => c.textContent))`);
+  const show = (v) => (typeof v === 'number' ? v.toLocaleString('en-US') : String(v ?? ''));
+  const want = published.length ? published.map((row) => columns.map((c) => show(row[c.key])))
+    : [[await evaluate("document.getElementById('model').dataset.empty")]];
+  let differing = 0;
+  want.forEach((row, i) => row.forEach((v, j) => { if ((rows[i] ?? [])[j] !== v) differing += 1; }));
+  differing += Math.abs(rows.length - want.length);
+  raise('differingModelValues', (gates.differingModelValues ?? 0) + differing);
+  expect(differing === 0, `${kind} rows ${JSON.stringify(rows)} differ from model.json ${JSON.stringify(want)}`);
+}
+
 const done = new Set();
 async function need(name) {
   if (done.has(name)) return;
