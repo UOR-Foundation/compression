@@ -7,7 +7,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use uorc::archive::{chain, BASIS_ID, V03_BASIS_ID};
+use uorc::archive::{chain, V03_BASIS_ID};
 use uorc::{
     compress_objects as compress_objects_at, decompress, decompress_objects, inspect, verify,
     Error, Representation, DEFAULT_DECODE_WORK, DEFAULT_STEPS,
@@ -300,14 +300,20 @@ fn basis_at(archive: &[u8], basis: &[u8; 32]) -> usize {
 
 #[test]
 fn conditional_archives_bind_the_actual_basis_uc_bas_01() {
-    // A small text takes the v0.3-era entry, a large one the current basis:
-    // each archive names the basis it was coded over and is bound to it.
+    // A small text takes the v0.3-era entry, a large one a later basis (the
+    // v0.4 one for a frame without a state, or the basis [library, S] of the
+    // state it continues): each archive names the basis it was coded over
+    // and is bound to it.
     let (_, text) = &corpus()[2];
     let large = text.repeat(3);
-    for (input, basis) in [(text, V03_BASIS_ID), (&large, BASIS_ID)] {
+    for (input, era) in [(text, Some(V03_BASIS_ID)), (&large, None)] {
         let archive = uorc::compress(input, DEFAULT_STEPS).expect("archive");
         let info = inspect(&archive).expect("header");
-        assert_eq!(info.basis, Some(basis));
+        let basis = info.basis.expect("a conditional archive");
+        match era {
+            Some(era) => assert_eq!(basis, era),
+            None => assert_ne!(basis, V03_BASIS_ID),
+        }
         assert_eq!(
             decompress(&archive, DEFAULT_DECODE_WORK).as_ref(),
             Ok(input)

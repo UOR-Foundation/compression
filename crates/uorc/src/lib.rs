@@ -1955,22 +1955,11 @@ mod tests {
             bad[at] ^= 1;
             assert!(decompress_frame(&bad, 0).is_err());
         }
-        // a small text frame is smaller continuing a state, and the kept
-        // archive is no larger than any state frame
+        // the kept archive is no larger than any state frame (that a state
+        // makes small text smaller is checked on the shipped states, in
+        // tests/shipped_states.rs)
         let a = compress_frame(&input, 0).expect("codes");
         assert!(a.len() <= least_state, "{} vs {least_state}", a.len());
-        let alone = archive::linked_archive_profile(
-            archive::Codec::Ncm,
-            ncm::FULL,
-            &lengths,
-            &ncm::encode_profile(&[], &input, ncm::FULL).expect("codes"),
-        )
-        .expect("frame");
-        assert!(
-            least_state < alone.len(),
-            "{least_state} vs {}",
-            alone.len()
-        );
     }
 
     /// A linked archive whose payload the encoder would not write (one extra

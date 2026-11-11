@@ -37,3 +37,33 @@ fn shipped_states_native_is_the_model() {
         Ok(&input)
     );
 }
+
+/// Continuing a shipped state codes a small text frame smaller than the
+/// same profile alone: the least state frame beats the FULL frame.
+#[test]
+fn shipped_states_make_small_text_smaller() {
+    use uorc::{archive, ncm, portfolio, states};
+    let input = text(3000, 7);
+    let lengths = [input.len() as u64];
+    let least = portfolio::STRATEGIES
+        .iter()
+        .filter(|s| s.state > 0 && !s.x86)
+        .map(|s| {
+            let state = states::state(s.state).expect("shipped");
+            let id = states::identity(s.state).expect("named");
+            let p = ncm::encode_warm(state, &input, s.profile).expect("codes");
+            archive::state_archive(false, s.profile, &id, &lengths, &p)
+                .expect("frame")
+                .len()
+        })
+        .min()
+        .expect("a state strategy");
+    let alone = archive::linked_archive_profile(
+        archive::Codec::Ncm,
+        ncm::FULL,
+        &lengths,
+        &ncm::encode_profile(&[], &input, ncm::FULL).expect("codes"),
+    )
+    .expect("frame");
+    assert!(least < alone.len(), "{least} vs {}", alone.len());
+}
