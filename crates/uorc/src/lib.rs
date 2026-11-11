@@ -323,7 +323,11 @@ impl<'a> Prepared<'a> {
                 archive::Codec::NcmX86,
             )
         } else {
-            (std::borrow::Cow::Borrowed(frame), history, archive::Codec::Ncm)
+            (
+                std::borrow::Cow::Borrowed(frame),
+                history,
+                archive::Codec::Ncm,
+            )
         };
         Prepared {
             data,
@@ -435,7 +439,10 @@ fn code_twins(
         &at.data,
         first.profile,
         true,
-        [at.stop(first.profile, bound), at.stop(second.profile, bound)],
+        [
+            at.stop(first.profile, bound),
+            at.stop(second.profile, bound),
+        ],
     );
     let b = b.and_then(|payload| at.frame_of(second.profile, &payload));
     (at.settle_learned(first.profile, a, bound), b)

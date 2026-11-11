@@ -1760,7 +1760,7 @@ pub fn encode_pair_below(
     profile: u32,
     learn: bool,
     stops: [usize; 2],
-) -> (Option<(Vec<u8>, u32)>, Option<Vec<u8>>) {
+) -> Pair {
     if !valid_profile(profile) {
         return (None, None);
     }
@@ -1782,7 +1782,7 @@ fn encoder<K: Kernel>(
 
 /// The payloads of `profile` (learning its mask with `learn`) and of its
 /// [`F_SEL`] twin, from one pass, each abandoned at its own stop.
-type Pair = (Option<(Vec<u8>, u32)>, Option<Vec<u8>>);
+pub type Pair = (Option<(Vec<u8>, u32)>, Option<Vec<u8>>);
 
 #[inline(always)]
 fn encoder_pair<K: Kernel>(

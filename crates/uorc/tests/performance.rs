@@ -422,10 +422,7 @@ fn a_shared_pass_writes_each_twins_own_payload_uc_perf_11() {
     }
     // the client codes twins in one pass when no core is spare: the archives
     // are the same at every thread count
-    let input: Vec<u8> = text(300_000)
-        .into_iter()
-        .chain(noise(200_000, 5))
-        .collect();
+    let input: Vec<u8> = text(300_000).into_iter().chain(noise(200_000, 5)).collect();
     let mut one = Vec::new();
     let mut four = Vec::new();
     uorc::compress_stream(&input[..], &mut one, 0, 1).expect("compress");
