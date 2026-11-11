@@ -48,7 +48,7 @@ try{
   for(const [module,count] of expected){
    const harness=path.join(runtime,`Run${module.replace('/','')}.lean`);fs.writeFileSync(harness,driver(undefined,module));
    const execution=run('lean',['--run',harness],root,{LEAN_PATH:runtime});
-   requireFact(execution.status===0&&execution.stdout.trim()===`${count}/${count} actual product-machine binding controls passed`,`${module}: ${execution.stdout}${execution.stderr}`);
+   requireFact(execution.status===0&&execution.stdout.trim()===`${count}/${count} executed controls passed`,`${module}: ${execution.stdout}${execution.stderr}`);
    console.log(`${module}: ${count}/${count} executed controls passed`);
   }
  }finally{fs.rmSync(runtime,{recursive:true,force:true});}
