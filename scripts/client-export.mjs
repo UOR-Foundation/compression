@@ -150,7 +150,10 @@ try {
   for (const f of ['src', 'lexlean.toml', 'lakefile.toml', 'lake-manifest.json', 'lean-toolchain']) fs.cpSync(path.join(root, f), path.join(stage, f), {recursive: true});
   fs.cpSync(path.join(root, 'client/src'), path.join(stage, 'src'), {recursive: true});
   const config = path.join(stage, 'lexlean.toml');
-  fs.writeFileSync(config, fs.readFileSync(config, 'utf8').replace(/^entrypoints = .*$/m, `entrypoints = ["${entry}"]`));
+  // The client closure carries every era's decoder library as a literal; its
+  // extraction outgrows the authority project's 64 MiB child-output limit.
+  fs.writeFileSync(config, fs.readFileSync(config, 'utf8').replace(/^entrypoints = .*$/m, `entrypoints = ["${entry}"]`)
+    .replace(/^max_child_output_bytes = .*$/m, 'max_child_output_bytes = 536870912'));
   const modules = closure(stage);
   for (const m of modules) markExecutable(moduleFile(stage, m));
   markRoots(moduleFile(stage, 'Uorc.Client'), ['compress', 'decompress']);

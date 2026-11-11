@@ -405,6 +405,16 @@ P.func('decode', [], [('call', 'decodeStart', []), ('loop', G('n'), 'i', [('call
 # against a window: H already holds the h history bytes
 P.func('decodeWith', ['h'], [('set', 'hoff', V('h')), ('call', 'decode', [])])
 P.func('decodeProfile', ['h', 'pf'], [('set', 'prof', V('pf')), ('call', 'decodeWith', [V('h')])])
+# from a kappa-named model state: H starts holding the state's w bytes, which the whole model codes first as
+# though they were the frame's opening bytes (every context, mixer and map learns them, nothing is emitted), so
+# the frame is coded as their continuation. The tables are sized for w + n bytes.
+warm = [('let', 'wb', hist(V('i'))),
+        ('loop', 8, 'k', [('set', 'y', mod(div(V('wb'), rom('POW2', 4, sub(7, V('k')))), 2)),
+                          ('call', 'predict', []), ('call', 'update', [])])]
+P.func('warmState', ['w'], [('loop', V('w'), 'i', warm)])
+P.func('decodeWarm', ['w', 'pf'], [('set', 'prof', V('pf')), ('set', 'hoff', 0)] + dstart[:3] + [
+    ('let', 'nn', G('n')), ('set', 'n', add(V('nn'), V('w'))), ('call', 'setup', []), ('set', 'n', V('nn')),
+    ('call', 'warmState', [V('w')]), ('loop', G('n'), 'i', [('call', 'decodeByte', [])])])
 
 # ---- the encoder learns which contexts earn their place ----
 # With learn set, every coded bit charges each kept context k the cost, in 1/256 bit (COST), of coding the bit
@@ -451,6 +461,11 @@ P.func('encode', ['size', 'limit'], [('set', 'n', V('size')), ('set', 'cap', V('
                                      ('call', 'emit', [div(G('x1'), 1 << 24)])])
 P.func('encodeWith', ['size', 'limit', 'h'], [('set', 'hoff', V('h')), ('call', 'encode', [V('size'), V('limit')])])
 P.func('encodeProfile', ['size', 'limit', 'h', 'pf'], [('set', 'prof', V('pf')), ('call', 'encodeWith', [V('size'), V('limit'), V('h')])])
+P.func('encodeWarm', ['size', 'limit', 'w', 'pf'], [('set', 'prof', V('pf')), ('set', 'hoff', 0), ('set', 'n', add(V('size'), V('w'))),
+                                                  ('set', 'cap', V('limit')), ('call', 'setup', []), ('set', 'n', V('size')),
+                                                  ('call', 'warmState', [V('w')]),
+                                                  ('loop', G('n'), 'i', [('call', 'encodeByte', [V('i')])]),
+                                                  ('call', 'emit', [div(G('x1'), 1 << 24)])])
 # COST[p] = 256 log2(4096 / p): the integer log2 of p by normalising to 2^15 <= m < 2^16 and squaring for each
 # of the 8 fraction bits (ncm.rs cost_table computes the same integers)
 cf = [('set', 'cm', add(V('q'), 1)), ('set', 'ce', 0), ('set', 'cfr', 0),
@@ -492,3 +507,21 @@ def py_decode(payload, history=b'', prof=FULL):
     m.call('decodeProfile', len(history), prof)
     h = len(history)
     return bytes(m.t['H'].get(h + i, 0) for i in range(m.g['n']))
+
+
+def py_encode_warm(data, state, prof=FULL):
+    m = Machine(P, data)
+    for i, b in enumerate(state):
+        m.t['H'][i] = b
+    m.call('encodeWarm', len(data), 2 * len(data) + 64, len(state), prof)
+    assert not m.g['ovf']
+    out = bytes(m.t['OUT'].get(i, 0) for i in range(m.g['op']))
+    return len(data).to_bytes(4, 'big') + out
+
+def py_decode_warm(payload, state, prof=FULL):
+    m = Machine(P, payload)
+    for i, b in enumerate(state):
+        m.t['H'][i] = b
+    m.call('decodeWarm', len(state), prof)
+    w = len(state)
+    return bytes(m.t['H'].get(w + i, 0) for i in range(m.g['n']))

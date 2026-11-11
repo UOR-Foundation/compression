@@ -777,6 +777,69 @@ definition{
 }
 
 definition{
+  name: warmStateLoop636Loop638,
+  parameters: [fuel : Nat, vk : Nat, s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))), vwb : Nat],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (let t639 : Nat := (prim remainder (prim quotient vwb (pow2 (prim subtract 7 vk : Nat)) 0 : Nat) 2 0 : Nat); (let s640 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (putGlob s 1 113 t639); (let s641 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (predict s640 ); (let s642 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (update s641 ); s642)))); (warmStateLoop636Loop638 m (vk + 1) next vwb))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: warmStateLoop636,
+  parameters: [fuel : Nat, vi : Nat, s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS)))))))))],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (let vwb637 : Nat := (getAt 1 (first (second (second (second s)))) vi); (let s643 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (warmStateLoop636Loop638 (8 + (prim multiply 0 (getAt 1 (first s) 0) : Nat)) 0 s vwb637); s643)); (warmStateLoop636 m (vi + 1) next ))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: warmState,
+  parameters: [s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))), vw : Nat],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))),
+  body: (let s644 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (warmStateLoop636 vw 0 s ); s644),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: decodeWarmPart656Loop663,
+  parameters: [fuel : Nat, vi : Nat, s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS)))))))))],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (let s664 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (decodeByte s ); s664); (decodeWarmPart656Loop663 m (vi + 1) next ))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: decodeWarmPart656,
+  parameters: [s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))), vnn : Nat, vw : Nat],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))),
+  body: (let t657 : Nat := (vnn + vw); (let s658 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (putGlob s 4 0 t657); (let s659 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (setup s658 ); (let t660 : Nat := vnn; (let s661 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (putGlob s659 4 0 t660); (let s662 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (warmState s661 vw); (let s665 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (decodeWarmPart656Loop663 (getAt 4 (first s662) 0) 0 s662 ); s665))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: decodeWarm,
+  parameters: [s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))), vw : Nat, vpf : Nat],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))),
+  body: (let t645 : Nat := vpf; (let s646 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (putGlob s 4 151 t645); (let t647 : Nat := 0; (let s648 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (putGlob s646 4 147 t647); (let t649 : Nat := ((((prim multiply 16777216 (if (0 <? (prim length (project (second (second (second (second (second (second (second (second (second s648))))))))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second (second (second (second (second (second (second s648))))))))) input) 0) else 255) : Nat) + (prim multiply 65536 (if (1 <? (prim length (project (second (second (second (second (second (second (second (second (second s648))))))))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second (second (second (second (second (second (second s648))))))))) input) 1) else 255) : Nat)) + (prim multiply 256 (if (2 <? (prim length (project (second (second (second (second (second (second (second (second (second s648))))))))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second (second (second (second (second (second (second s648))))))))) input) 2) else 255) : Nat)) + (if (3 <? (prim length (project (second (second (second (second (second (second (second (second (second s648))))))))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second (second (second (second (second (second (second s648))))))))) input) 3) else 255)); (let s650 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (putGlob s648 4 0 t649); (let t651 : Nat := ((((prim multiply 16777216 (if (4 <? (prim length (project (second (second (second (second (second (second (second (second (second s650))))))))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second (second (second (second (second (second (second s650))))))))) input) 4) else 255) : Nat) + (prim multiply 65536 (if (5 <? (prim length (project (second (second (second (second (second (second (second (second (second s650))))))))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second (second (second (second (second (second (second s650))))))))) input) 5) else 255) : Nat)) + (prim multiply 256 (if (6 <? (prim length (project (second (second (second (second (second (second (second (second (second s650))))))))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second (second (second (second (second (second (second s650))))))))) input) 6) else 255) : Nat)) + (if (7 <? (prim length (project (second (second (second (second (second (second (second (second (second s650))))))))) input) : Nat)) then (Uorc.Codec.Table::readByte (project (second (second (second (second (second (second (second (second (second s650))))))))) input) 7) else 255)); (let s652 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (putGlob s650 4 101 t651); (let t653 : Nat := 8; (let s654 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (putGlob s652 4 105 t653); (let vnn655 : Nat := (getAt 4 (first s654) 0); (decodeWarmPart656 s654 vnn655 vw)))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: depthFor,
   parameters: [fuel : Nat, n : Nat, depth : Nat],
   result: Nat,
@@ -852,6 +915,17 @@ definition{
   parameters: [input : Bytes],
   result: Bytes,
   body: (runWith 0x input),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runWarm,
+  parameters: [state : Bytes, input : Bytes, profile : Nat],
+  result: Bytes,
+  body: (if ((prim length input : Nat) <? 4) then 0x else (let n : Nat := (((prim multiply 16777216 (getAt 1 input 0) : Nat) + (prim multiply 65536 (getAt 1 input 1) : Nat)) + ((prim multiply 256 (getAt 1 input 2) : Nat) + (getAt 1 input 3))); (let w : Nat := (prim length state : Nat); (let s0 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := ((zeros (8 + (prim multiply 0 (w + n) : Nat))), ((zeros (22 + (prim multiply 0 (w + n) : Nat))), ((Uorc.Codec.Table::fill 3 (tbFor (w + n)) 0), ((prim append state (zeros (depthFor 40 (w + n) 0)) : Bytes), ((Uorc.Codec.Table::fill 4 (mbFor (tbFor (w + n))) 0), ((Uorc.Codec.Table::fill 2 (22 + (prim multiply 0 (w + n) : Nat)) 0), ((Uorc.Codec.Table::fill 4 (mbFor (tbFor (w + n))) 0), ((Uorc.Codec.Table::fill 3 (6 + (prim multiply 0 (w + n) : Nat)) 0), ((Uorc.Codec.Table::fill 3 (7 + (prim multiply 0 (w + n) : Nat)) 0), (record NcmDStS {input := input})))))))))); (let s1 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmDStS))))))))) := (decodeWarm s0 w profile); (match (prim slice (first (second (second (second s1)))) w n : (Option Bytes))
+    | Option.none => 0x
+    | Option.some b => b)))))),
   executable: true,
   axioms: [Quot.sound, propext]
 }

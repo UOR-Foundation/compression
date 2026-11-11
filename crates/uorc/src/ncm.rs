@@ -182,6 +182,7 @@ fn tables() -> &'static Tables {
 
 /// An adaptive probability map: a probability, refined by interpolating
 /// between learned points of its row for the context.
+#[derive(Clone)]
 struct Apm {
     t: Vec<u16>,
     idx: usize,
@@ -362,6 +363,14 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
     *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
 }
 
+/// Warmed models kept for reuse (state bytes, profile, table mask, model):
+/// the most recently used last. Each holds full-size tables (about 100 MiB),
+/// so the WebAssembly page, which runs under a memory bound, keeps none.
+type Warmed = Vec<(Box<[u8]>, u32, u32, Model)>;
+static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
+const WARMED_KEEP: usize = if cfg!(target_family = "wasm") { 0 } else { 2 };
+
+#[derive(Clone)]
 struct Model {
     t: &'static Tables,
     /// The profile's contexts, in order (`act[..na]`): the mixers read them as
@@ -552,6 +561,52 @@ impl Model {
         }
         m.new_byte();
         m
+    }
+
+    /// The model for `n` bytes coded after the κ-named model state `state`
+    /// (`Ncm.decodeWarm`): the whole model codes the state's bytes first, as
+    /// though they opened the frame, and emits nothing for them, so the frame
+    /// is coded as their continuation. The tables are sized for `w + n` bytes,
+    /// which for a state of 16 KiB or more is the largest size whatever `n`,
+    /// so the warmed model is computed once per state and profile and cloned.
+    fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32) -> Option<Model> {
+        let total = n.checked_add(u32::try_from(state.len()).ok()?)?;
+        let (mask, _) = Model::sized(total);
+        let mut cache = WARMED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(i) = cache
+            .iter()
+            .position(|(s, p, k, _)| *p == profile && *k == mask && s[..] == *state)
+        {
+            let hit = cache.remove(i);
+            let m = hit.3.clone();
+            cache.push(hit);
+            return Some(m);
+        }
+        let mut m = Model::new(total, &[], profile);
+        if m.stride == NINP_NARROW {
+            m.warm::<K, NINP_NARROW>(state);
+        } else {
+            m.warm::<K, NINP>(state);
+        }
+        if WARMED_KEEP > 0 {
+            if cache.len() >= WARMED_KEEP {
+                cache.remove(0);
+            }
+            cache.push((state.into(), profile, mask, m.clone()));
+        }
+        Some(m)
+    }
+
+    /// Codes `state`'s bits through the whole model without a coder.
+    fn warm<K: Kernel, const W: usize>(&mut self, state: &[u8]) {
+        for &byte in state {
+            for k in (0..8).rev() {
+                self.predict::<K, W>();
+                self.update::<K, W>((byte >> k) & 1 == 1);
+            }
+        }
     }
 
     /// (table mask, match table bits) for `n` coded bytes.
@@ -1231,24 +1286,26 @@ mod x86 {
     #[target_feature(enable = "avx2")]
     pub(super) fn encoder(
         history: &[u8],
+        state: &[u8],
         data: &[u8],
         profile: u32,
         learn: bool,
         stop: usize,
     ) -> Option<(Vec<u8>, u32)> {
-        super::encoder::<Avx2>(history, data, profile, learn, stop)
+        super::encoder::<Avx2>(history, state, data, profile, learn, stop)
     }
 
     /// The decoder loop compiled for AVX2.
     #[target_feature(enable = "avx2")]
     pub(super) fn decoder(
         history: &[u8],
+        state: &[u8],
         payload: &[u8],
         limit: u64,
         canonical: bool,
         profile: u32,
     ) -> Option<Vec<u8>> {
-        super::decoder::<Avx2>(history, payload, limit, canonical, profile)
+        super::decoder::<Avx2>(history, state, payload, limit, canonical, profile)
     }
 
     /// Eight lanes of a row.
@@ -1552,7 +1609,7 @@ fn encode_any(
     learn: bool,
     stop: usize,
 ) -> Option<(Vec<u8>, u32)> {
-    dispatch!(encoder(history, data, profile, learn, stop))
+    dispatch!(encoder(history, &[], data, profile, learn, stop))
 }
 
 /// [`encode_profile`], and the profile the encoder learned for this input:
@@ -1579,13 +1636,18 @@ pub fn encode_learn_below(
 #[inline(always)]
 fn encoder<K: Kernel>(
     history: &[u8],
+    state: &[u8],
     data: &[u8],
     profile: u32,
     learn: bool,
     stop: usize,
 ) -> Option<(Vec<u8>, u32)> {
     let n = u32::try_from(data.len()).ok()?;
-    let mut m = Model::new(n, history, profile);
+    let mut m = if state.is_empty() {
+        Model::new(n, history, profile)
+    } else {
+        Model::warmed::<K>(n, state, profile)?
+    };
     if learn {
         m.gain = Some(Box::new([0; NC]));
     }
@@ -1636,6 +1698,50 @@ fn encode_bits<K: Kernel, const W: usize>(
     }
     out.push((x1 >> 24) as u8);
     Some((out, m.learned()))
+}
+
+/// [`encode_profile`] from the κ-named model state `state` (`Ncm.runWarm`):
+/// `data` is coded as the continuation of the state's bytes, which the whole
+/// model learns first. The payload decodes only from the same state and profile.
+pub fn encode_warm(state: &[u8], data: &[u8], profile: u32) -> Option<Vec<u8>> {
+    encode_warm_below(state, data, profile, usize::MAX)
+}
+
+/// [`encode_warm`] abandoned at `stop` payload bytes, as [`encode_below`].
+pub fn encode_warm_below(state: &[u8], data: &[u8], profile: u32, stop: usize) -> Option<Vec<u8>> {
+    if !valid_profile(profile) || state.is_empty() {
+        return None;
+    }
+    warm_encoder(state, data, profile, stop).map(|(payload, _)| payload)
+}
+
+fn warm_encoder(state: &[u8], data: &[u8], profile: u32, stop: usize) -> Option<(Vec<u8>, u32)> {
+    dispatch!(encoder(&[], state, data, profile, false, stop))
+}
+
+/// Decode a payload [`encode_warm`] wrote from `state` under `profile`.
+pub fn decode_warm(state: &[u8], payload: &[u8], limit: u64, profile: u32) -> Option<Vec<u8>> {
+    if !valid_profile(profile) || state.is_empty() {
+        return None;
+    }
+    dispatch!(decoder(&[], state, payload, limit, false, profile))
+}
+
+/// [`decode_warm`] of a payload of exactly `n` bytes that [`encode_warm`]
+/// writes for its own output, checked in the same pass ([`decode_canonical`]).
+pub fn decode_canonical_warm(
+    state: &[u8],
+    payload: &[u8],
+    n: u64,
+    profile: u32,
+) -> Option<Vec<u8>> {
+    if !valid_profile(profile)
+        || state.is_empty()
+        || declared_length(payload).map(u64::from) != Some(n)
+    {
+        return None;
+    }
+    dispatch!(decoder(&[], state, payload, n, true, profile))
 }
 
 /// The output length a payload declares, if it has its 4-byte header.
@@ -1704,7 +1810,7 @@ pub(crate) fn run_profile(
     if !valid_profile(profile) {
         return None;
     }
-    dispatch!(decoder(history, payload, limit, canonical, profile))
+    dispatch!(decoder(history, &[], payload, limit, canonical, profile))
 }
 
 /// Decode a payload [`encode_profile`] wrote under `profile`.
@@ -1715,6 +1821,7 @@ pub fn decode_profile(history: &[u8], payload: &[u8], limit: u64, profile: u32) 
 #[inline(always)]
 fn decoder<K: Kernel>(
     history: &[u8],
+    state: &[u8],
     payload: &[u8],
     limit: u64,
     canonical: bool,
@@ -1724,11 +1831,15 @@ fn decoder<K: Kernel>(
     if u64::from(n) > limit {
         return None;
     }
-    let m = Model::new(n, history, profile);
-    if m.stride == NINP_NARROW {
-        decode_bits::<K, NINP_NARROW>(m, history.len(), payload, canonical)
+    let (m, ahead) = if state.is_empty() {
+        (Model::new(n, history, profile), history.len())
     } else {
-        decode_bits::<K, NINP>(m, history.len(), payload, canonical)
+        (Model::warmed::<K>(n, state, profile)?, state.len())
+    };
+    if m.stride == NINP_NARROW {
+        decode_bits::<K, NINP_NARROW>(m, ahead, payload, canonical)
+    } else {
+        decode_bits::<K, NINP>(m, ahead, payload, canonical)
     }
 }
 
@@ -1792,6 +1903,41 @@ mod tests {
     use super::*;
 
     #[test]
+    fn warm_state_is_the_model_coder() {
+        // client/gen/ncm_model.py py_encode_warm: FULL then V03
+        let hex = |t: &str| -> Vec<u8> {
+            (0..t.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&t[i..i + 2], 16).unwrap())
+                .collect()
+        };
+        let fx: Vec<Vec<u8>> = include_str!("../tests/ncm-warm.fixture")
+            .lines()
+            .map(hex)
+            .collect();
+        let (state, x) = (&fx[0], &fx[1]);
+        for (payload, profile) in [(&fx[2], FULL), (&fx[3], V03)] {
+            assert_eq!(encode_warm(state, x, profile).as_ref(), Some(payload));
+            for _ in 0..2 {
+                assert_eq!(
+                    decode_canonical_warm(state, payload, x.len() as u64, profile).as_ref(),
+                    Some(x)
+                );
+            }
+            assert_eq!(
+                encoder::<Scalar>(&[], state, x, profile, false, usize::MAX)
+                    .map(|r| r.0)
+                    .as_ref(),
+                Some(payload)
+            );
+        }
+        assert_ne!(
+            decode_warm(&state[1..], &fx[2], u64::MAX, FULL).as_ref(),
+            Some(x)
+        );
+    }
+
+    #[test]
     fn round_trips() {
         let text = b"the quick brown fox jumps over the lazy dog; ".repeat(50);
         for data in [&b""[..], b"a", b"abcabcabcabc", &text[..], &[0u8; 5000][..]] {
@@ -1822,25 +1968,25 @@ mod tests {
             .collect();
         let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
         for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
-            let p = encoder::<Scalar>(&[], data, V03, false, usize::MAX)
+            let p = encoder::<Scalar>(&[], &[], data, V03, false, usize::MAX)
                 .expect("fits")
                 .0;
             assert_eq!(encode(data).as_deref(), Some(&p[..]));
             let n = data.len() as u64;
             assert_eq!(decode(&p, n).as_deref(), Some(data));
             assert_eq!(
-                decoder::<Scalar>(&[], &p, n, true, V03).as_deref(),
+                decoder::<Scalar>(&[], &[], &p, n, true, V03).as_deref(),
                 Some(data)
             );
             // and after a window history
-            let w = encoder::<Scalar>(&text[..999], data, V03, false, usize::MAX)
+            let w = encoder::<Scalar>(&text[..999], &[], data, V03, false, usize::MAX)
                 .expect("fits")
                 .0;
             assert_eq!(encode_with(&text[..999], data).as_deref(), Some(&w[..]));
             assert_eq!(decode_with(&text[..999], &w, n).as_deref(), Some(data));
             // and under narrow and wide profiles
             for profile in [0x1059e, 0x1e79f, 1, FULL, 0x1059e | F_REP, V03 | F_SHORT] {
-                let p = encoder::<Scalar>(&text[..999], data, profile, false, usize::MAX)
+                let p = encoder::<Scalar>(&text[..999], &[], data, profile, false, usize::MAX)
                     .expect("fits")
                     .0;
                 assert_eq!(

@@ -873,6 +873,69 @@ definition{
 }
 
 definition{
+  name: warmStateLoop703Loop705,
+  parameters: [fuel : Nat, vk : Nat, s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))), vwb : Nat],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (let t706 : Nat := (prim remainder (prim quotient vwb (pow2 (prim subtract 7 vk : Nat)) 0 : Nat) 2 0 : Nat); (let s707 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (putGlob s 1 113 t706); (let s708 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (predict s707 ); (let s709 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (update s708 ); s709)))); (warmStateLoop703Loop705 m (vk + 1) next vwb))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: warmStateLoop703,
+  parameters: [fuel : Nat, vi : Nat, s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS))))))))))],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (let vwb704 : Nat := (getAt 1 (first (second (second (second s)))) vi); (let s710 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (warmStateLoop703Loop705 (8 + (prim multiply 0 (getAt 1 (first s) 0) : Nat)) 0 s vwb704); s710)); (warmStateLoop703 m (vi + 1) next ))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: warmState,
+  parameters: [s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))), vw : Nat],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))),
+  body: (let s711 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (warmStateLoop703 vw 0 s ); s711),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encodeWarmPart723Loop725,
+  parameters: [fuel : Nat, vi : Nat, s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS))))))))))],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))),
+  body: (match fuel
+    | Nat.zero => s
+    | Nat.succ m => (let next : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (let s726 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (encodeByte s vi); s726); (encodeWarmPart723Loop725 m (vi + 1) next ))),
+  executable: true,
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: encodeWarmPart723,
+  parameters: [s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))), vw : Nat],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))),
+  body: (let s724 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (warmState s vw); (let s727 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (encodeWarmPart723Loop725 (getAt 4 (first s724) 0) 0 s724 ); (let s728 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (emit s727 (prim quotient (getAt 4 (first s727) 93) 16777216 0 : Nat)); s728))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encodeWarm,
+  parameters: [s : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))), vsize : Nat, vlimit : Nat, vw : Nat, vpf : Nat],
+  result: (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))),
+  body: (let t712 : Nat := vpf; (let s713 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (putGlob s 4 151 t712); (let t714 : Nat := 0; (let s715 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (putGlob s713 4 147 t714); (let t716 : Nat := (vsize + vw); (let s717 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (putGlob s715 4 0 t716); (let t718 : Nat := vlimit; (let s719 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (putGlob s717 4 114 t718); (let s720 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (setup s719 ); (let t721 : Nat := vsize; (let s722 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (putGlob s720 4 0 t721); (encodeWarmPart723 s722 vw)))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: depthFor,
   parameters: [fuel : Nat, n : Nat, depth : Nat],
   result: Nat,
@@ -966,6 +1029,15 @@ definition{
   parameters: [history : Bytes, input : Bytes, profile : Nat],
   result: Nat,
   body: (if ((prim length input : Nat) <? 4294967296) then (let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim multiply 2 n : Nat) + 64); (let s1 : (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * (Bytes * NcmEStS)))))))))) := (encodeLearn (start history input n cap) n cap (prim length history : Nat) profile); (if (0 <? (getAt 1 (first s1) 118)) then profile else (getAt 4 (first s1) 182))))) else profile),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: runWarm,
+  parameters: [state : Bytes, input : Bytes, profile : Nat],
+  result: Bytes,
+  body: (if ((prim length input : Nat) <? 4294967296) then (let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim multiply 2 n : Nat) + 64); (let w : Nat := (prim length state : Nat); (finish (encodeWarm (start state input (w + n) cap) n cap w profile) n)))) else 0x),
   executable: true,
   axioms: [Quot.sound, propext]
 }

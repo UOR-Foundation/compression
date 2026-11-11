@@ -123,108 +123,127 @@ definition{
   name: family,
   parameters: [input : Bytes],
   result: Nat,
-  body: (let n : Nat := (prim length input : Nat); (if (n <? 4096) then 0 else (if (n <? 65536) then 1 else (if (Uorc.Codec.Archive::x86Dense input) then 2 else (if ((prim multiply 9 n : Nat) <=? (prim multiply 10 (printableFrom n input 0 0) : Nat)) then 3 else 4))))),
+  body: (let n : Nat := (prim length input : Nat); (if (Uorc.Codec.Archive::x86Dense input) then 2 else (if (n <? 4096) then 0 else (if (n <? 65536) then 1 else (if ((prim multiply 9 n : Nat) <=? (prim multiply 10 (printableFrom n input 0 0) : Nat)) then 3 else 4))))),
   axioms: [Quot.sound, propext]
 }
 
 definition{
-  name: weightTable,
-  parameters: [],
-  result: Bytes,
-  body: 0x01010f010c010101100101010501010f01010a010a01040109010c010101,
+  name: strategyCount,
+  parameters: [strategies : Bytes],
+  result: Nat,
+  body: (prim quotient (prim length strategies : Nat) 5 0 : Nat),
   axioms: []
 }
 
 definition{
-  name: weight,
-  parameters: [fam : Nat, strategy : Nat],
+  name: strategyWord,
+  parameters: [strategies : Bytes, s : Nat],
   result: Nat,
-  body: (Uorc.Codec.Archive::byteAt (weightTable) ((prim multiply 6 fam : Nat) + strategy)),
+  body: (let at : Nat := (prim multiply 5 s : Nat); (((Uorc.Codec.Archive::byteAt strategies at) + (prim multiply 256 (Uorc.Codec.Archive::byteAt strategies (at + 1)) : Nat)) + ((prim multiply 65536 (Uorc.Codec.Archive::byteAt strategies (at + 2)) : Nat) + (prim multiply 16777216 (Uorc.Codec.Archive::byteAt strategies (at + 3)) : Nat)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: strategyState,
+  parameters: [strategies : Bytes, s : Nat],
+  result: Nat,
+  body: (Uorc.Codec.Archive::byteAt strategies ((prim multiply 5 s : Nat) + 4)),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: weight,
+  parameters: [weights : Bytes, count : Nat, fam : Nat, strategy : Nat],
+  result: Nat,
+  body: (Uorc.Codec.Archive::byteAt weights ((prim multiply count fam : Nat) + strategy)),
   axioms: [Quot.sound, propext]
 }
 
 definition{
   name: insertByWeight,
-  parameters: [fam : Nat, x : Nat, ordered : (List Nat)],
+  parameters: [weights : Bytes, count : Nat, fam : Nat, x : Nat, ordered : (List Nat)],
   result: (List Nat),
   body: (match ordered
     | List.nil => (cons x (nil Nat))
-    | List.cons head tail => (if ((weight fam head) <? (weight fam x)) then (cons x (cons head tail)) else (cons head (insertByWeight fam x tail)))),
+    | List.cons head tail => (if ((weight weights count fam head) <? (weight weights count fam x)) then (cons x (cons head tail)) else (cons head (insertByWeight weights count fam x tail)))),
   axioms: [Quot.sound, propext],
   recursive_argument: ordered
 }
 
 definition{
   name: scheduleFrom,
-  parameters: [fam : Nat, pending : (List Nat), ordered : (List Nat)],
+  parameters: [weights : Bytes, count : Nat, fam : Nat, fuel : Nat, next : Nat, ordered : (List Nat)],
   result: (List Nat),
-  body: (match pending
-    | List.nil => ordered
-    | List.cons head tail => (scheduleFrom fam tail (insertByWeight fam head ordered))),
+  body: (match fuel
+    | Nat.zero => ordered
+    | Nat.succ m => (scheduleFrom weights count fam m (next + 1) (insertByWeight weights count fam next ordered))),
   axioms: [Quot.sound, propext],
-  recursive_argument: pending
+  recursive_argument: fuel
 }
 
 definition{
   name: schedule,
-  parameters: [fam : Nat],
+  parameters: [strategies : Bytes, weights : Bytes, fam : Nat],
   result: (List Nat),
-  body: (scheduleFrom fam (cons 0 (cons 1 (cons 2 (cons 3 (cons 4 (cons 5 (nil Nat))))))) (nil Nat)),
+  body: (let count : Nat := (strategyCount strategies); (scheduleFrom weights count fam count 0 (nil Nat))),
   axioms: [Quot.sound, propext]
 }
 
 definition{
-  name: strategyProfile,
-  parameters: [strategy : Nat],
+  name: budgetFor,
+  parameters: [fam : Nat],
   result: Nat,
-  body: (let k : Nat := (prim quotient strategy 2 0 : Nat); (if (k =? 0) then 1048575 else (if (k =? 1) then 524287 else 131071))),
+  body: (if (fam <? 2) then 4 else (if (fam =? 3) then 3 else 2)),
   axioms: []
 }
 
 definition{
-  name: strategyCandidate,
-  parameters: [strategy : Nat, window : (List Bytes), input : Bytes],
+  name: stateAt,
+  parameters: [states : (List Bytes), k : Nat],
   result: (Option Bytes),
-  body: (Uorc.Codec.Archive::profileCandidate (if ((prim remainder strategy 2 0 : Nat) =? 1) then 2 else 1) (strategyProfile strategy) window input),
+  body: (match states
+    | List.nil => (ctor Option.none [Bytes])
+    | List.cons state rest => (if (k =? 0) then (ctor Option.some [Bytes] state) else (stateAt rest (prim subtract k 1 : Nat)))),
+  axioms: [],
+  recursive_argument: states
+}
+
+definition{
+  name: strategyCandidate,
+  parameters: [strategies : Bytes, states : (List Bytes), strategy : Nat, window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (let word : Nat := (strategyWord strategies strategy); (let x : Nat := (if (2147483648 <=? word) then 1 else 0); (let profile : Nat := (prim remainder word 2147483648 0 : Nat); (let st : Nat := (strategyState strategies strategy); (if (Uorc.Codec.Archive::profileWord profile) then (if (st =? 0) then (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) else (match (stateAt states (prim subtract st 1 : Nat))
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some state => (Uorc.Codec.Archive::stateCandidate x profile state input))) else (ctor Option.none [Bytes])))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: learnedStrategy,
+  parameters: [strategies : Bytes, states : (List Bytes), strategy : Nat, window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (let word : Nat := (strategyWord strategies strategy); (let profile : Nat := (prim remainder word 2147483648 0 : Nat); (if (((strategyState strategies strategy) =? 0) && (Uorc.Codec.Archive::profileWord profile)) then (Uorc.Codec.Archive::learnedCandidate (if (2147483648 <=? word) then 2 else 1) profile window input) else (strategyCandidate strategies states strategy window input)))),
   axioms: [Quot.sound, propext]
 }
 
 definition{
   name: portfolio,
-  parameters: [budget : Nat, scheduled : (List Nat), window : (List Bytes), input : Bytes],
+  parameters: [strategies : Bytes, states : (List Bytes), budget : Nat, scheduled : (List Nat), window : (List Bytes), input : Bytes],
   result: (Option Bytes),
   body: (match scheduled
     | List.nil => (ctor Option.none [Bytes])
-    | List.cons head tail => (if (budget =? 0) then (ctor Option.none [Bytes]) else (smaller (strategyCandidate head window input) (portfolio (prim subtract budget 1 : Nat) tail window input)))),
+    | List.cons head tail => (if (budget =? 0) then (ctor Option.none [Bytes]) else (smaller (learnedStrategy strategies states head window input) (portfolio strategies states (prim subtract budget 1 : Nat) tail window input)))),
   axioms: [Quot.sound, propext],
   recursive_argument: scheduled
 }
 
 definition{
-  name: learnedStrategy,
-  parameters: [strategy : Nat, window : (List Bytes), input : Bytes],
-  result: (Option Bytes),
-  body: (Uorc.Codec.Archive::learnedCandidate (if ((prim remainder strategy 2 0 : Nat) =? 1) then 2 else 1) (strategyProfile strategy) window input),
-  axioms: [Quot.sound, propext]
-}
-
-definition{
-  name: portfolioLearned,
-  parameters: [budget : Nat, scheduled : (List Nat), window : (List Bytes), input : Bytes],
-  result: (Option Bytes),
-  body: (match scheduled
-    | List.nil => (ctor Option.none [Bytes])
-    | List.cons head tail => (if (budget =? 0) then (ctor Option.none [Bytes]) else (smaller (learnedStrategy head window input) (portfolio (prim subtract budget 1 : Nat) tail window input)))),
-  axioms: [Quot.sound, propext]
-}
-
-definition{
   name: compress,
-  parameters: [input : Bytes, window : (List Bytes), steps : Nat],
+  parameters: [strategies : Bytes, weights : Bytes, states : (List Bytes), input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
-  body: (let linked : (Option Bytes) := (portfolioLearned 2 (schedule (family input)) window input); (let quick : (Option Bytes) := (match linked
+  body: (let fam : Nat := (family input); (let linked : (Option Bytes) := (portfolio strategies states (budgetFor fam) (schedule strategies weights fam) window input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))),
+    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))))),
   axioms: [Quot.sound, propext]
 }
 
@@ -310,20 +329,34 @@ definition{
 }
 
 definition{
-  name: decompress,
+  name: referencePath,
   parameters: [archive : Bytes, window : (List Bytes), work : Nat],
+  result: (Option Bytes),
+  body: (match window
+    | List.nil => (referenceDecode (match (Uorc.Codec.Archive::materialize archive)
+      | Option.none => archive
+      | Option.some linked => linked) (ctor Uorc.Wire.Frame::Scope.selfContained) (nil Uorc.Core.Bytes::Rope) work)
+    | List.cons oldest rest => (match (Uorc.Codec.Archive::windowMaterialize archive window)
+      | Option.none => (ctor Option.none [Bytes])
+      | Option.some whole => (match (Uorc.Codec.Archive::windowBasis archive window)
+        | Option.none => (ctor Option.none [Bytes])
+        | Option.some named => (referenceDecode whole (ctor Uorc.Wire.Frame::Scope.conditional (first named)) (cons (Uorc.Core.Bytes::fromBytes (second named)) (windowRopes window)) work)))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: decompress,
+  parameters: [archive : Bytes, window : (List Bytes), states : (List Bytes), work : Nat],
   result: (Option Bytes),
   body: (match (Uorc.Codec.Archive::fastDecodeWith archive window)
     | Option.some output => (ctor Option.some [Bytes] output)
-    | Option.none => (match window
-      | List.nil => (referenceDecode (match (Uorc.Codec.Archive::materialize archive)
-        | Option.none => archive
-        | Option.some linked => linked) (ctor Uorc.Wire.Frame::Scope.selfContained) (nil Uorc.Core.Bytes::Rope) work)
-      | List.cons oldest rest => (match (Uorc.Codec.Archive::windowMaterialize archive window)
-        | Option.none => (ctor Option.none [Bytes])
-        | Option.some whole => (match (Uorc.Codec.Archive::windowBasis archive window)
-          | Option.none => (ctor Option.none [Bytes])
-          | Option.some named => (referenceDecode whole (ctor Uorc.Wire.Frame::Scope.conditional (first named)) (cons (Uorc.Core.Bytes::fromBytes (second named)) (windowRopes window)) work))))),
+    | Option.none => (match (Uorc.Codec.Archive::stateDecode archive states)
+      | Option.some output => (ctor Option.some [Bytes] output)
+      | Option.none => (referencePath archive (match window
+        | List.nil => (match (Uorc.Codec.Archive::namedState archive states)
+          | Option.none => (nil Bytes)
+          | Option.some state => (cons state (nil Bytes)))
+        | List.cons oldest rest => window) work))),
   axioms: [Quot.sound, propext]
 }
 \end{semanticmodule}

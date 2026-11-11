@@ -74,6 +74,9 @@ pub struct Info {
     /// ([`crate::ncm::valid_profile`]; [`crate::ncm::V03`] for the v0.3
     /// entries), `None` when the body applies no ncm decoder.
     pub ncm_profile: Option<u32>,
+    /// The κ (SHA-256 of its bytes) of the model state a state frame
+    /// continues ([`crate::states`]); `None` for any other archive.
+    pub state: Option<[u8; 32]>,
     /// Byte length of each output object, in order.
     pub object_lengths: Vec<u64>,
     /// Total output length: the sum of `object_lengths`.
@@ -288,6 +291,7 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
     let end = r.at;
     // A window frame names its own basis (the library plus its window).
     let windowed = crate::archive::window_codec(&data[..end]);
+    let stated = crate::archive::state_frame(&data[..end]);
     let representation = if !h.program {
         Representation::Raw
     } else if body.starts_with(KERNEL_PREFIX) {
@@ -302,6 +306,12 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
             c if c.x86() => Representation::NcmX86,
             _ => Representation::Ncm,
         }
+    } else if let Some(st) = &stated {
+        if st.x86 {
+            Representation::NcmX86
+        } else {
+            Representation::Ncm
+        }
     } else if h.basis.is_some() && body == crate::archive::REF_BODY {
         Representation::Reference
     } else {
@@ -311,7 +321,11 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
         .basis
         .and_then(|b| crate::archive::linked_codec(&b, body))
         .or(windowed.map(|(c, _)| c))
-        .and_then(Codec::ncm_profile);
+        .and_then(Codec::ncm_profile)
+        .or(stated.as_ref().map(|s| s.profile));
+    let state = stated
+        .as_ref()
+        .and_then(|s| crate::states::kappa_bytes(s.state));
     let window = windowed.map_or(0, |(_, k)| k);
     let info = Info {
         format: h.format,
@@ -320,6 +334,7 @@ fn parse(data: &[u8]) -> Result<(Info, Layout), Error> {
         representation,
         window,
         ncm_profile,
+        state,
         object_lengths: h.object_lengths,
         output_len: h.output_len,
         body_len: h.body_len,
