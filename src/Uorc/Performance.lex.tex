@@ -1484,5 +1484,183 @@ theorem{
   },
   axioms: [Quot.sound, propext]
 }
+
+structure{
+  name: Requirement,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: characteristic, type: String},
+    {name: subcharacteristic, type: String},
+    {name: text, type: String}
+  ]
+}
+
+structure{
+  name: Measure,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: requirement, type: String},
+    {name: quantity, type: String},
+    {name: unit, type: String},
+    {name: sense, type: String},
+    {name: threshold, type: Nat},
+    {name: command, type: String},
+    {name: disposition, type: String}
+  ]
+}
+
+definition{
+  name: excessOver,
+  parameters: [threshold : Nat, observed : Nat],
+  result: Nat,
+  body: (prim subtract observed threshold : Nat)
+}
+
+definition{
+  name: lackUnder,
+  parameters: [threshold : Nat, observed : Nat],
+  result: Nat,
+  body: (prim subtract threshold observed : Nat)
+}
+
+theorem{
+  name: noExcessIsMet,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: (((excessOver threshold observed) = 0) -> (observed <= threshold)),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: metHasNoExcess,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: ((observed <= threshold) -> ((excessOver threshold observed) = 0)),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: noLackIsMet,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: (((lackUnder threshold observed) = 0) -> (threshold <= observed)),
+  proof: linear_arithmetic{definitions: [lackUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: metHasNoLack,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: ((threshold <= observed) -> ((lackUnder threshold observed) = 0)),
+  proof: linear_arithmetic{definitions: [lackUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: excessFallsWithTheObservation,
+  parameters: [threshold : Nat, before : Nat, after : Nat],
+  statement: ((after <= before) -> ((excessOver threshold after) <= (excessOver threshold before))),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: lackFallsAsTheObservationRises,
+  parameters: [threshold : Nat, before : Nat, after : Nat],
+  statement: ((before <= after) -> ((lackUnder threshold after) <= (lackUnder threshold before))),
+  proof: linear_arithmetic{definitions: [lackUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: frameStepsOver,
+  parameters: [profile : Nat, n : Nat],
+  statement: ((3 <= (inputs profile)) -> ((prim multiply 24 n : Nat) <= (frameSteps profile n))),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [frameSteps]}, binders: [], constructor: zero},
+      {
+        proof: linear_arithmetic{definitions: [bitsPerByte, frameSteps]},
+        binders: [k, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: n
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: frameStepsFloor,
+  parameters: [profile : Nat, n : Nat],
+  statement: ((prim multiply 24 n : Nat) <= (frameSteps profile n)),
+  proof: simplify{definitions: [frameStepsOver, inputsFloor]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: budgetUnderTheFloorIsExceeded,
+  parameters: [profile : Nat, n : Nat, budget : Nat],
+  statement: ((3 <= (inputs profile)) -> (((prim multiply 24 n : Nat) <= (frameSteps profile n)) -> ((budget < (prim multiply 24 n : Nat)) -> (0 < (excessOver budget (frameSteps profile n)))))),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: sizeAgainstTheField,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "capacity", text := "On each public corpus the archives are no larger in total than those of the best general-purpose compressor the release bench runs."})
+}
+
+definition{
+  name: decodeRate,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "Decompression on one core reaches the required rate on each public corpus."})
+}
+
+definition{
+  name: compressRate,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "Compression on four cores reaches the required rate on each public corpus."})
+}
+
+definition{
+  name: workingMemory,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Compressing or decompressing any input stays inside the required memory."})
+}
+
+definition{
+  name: corpusBytes,
+  parameters: [],
+  result: Measure,
+  body: (record Measure {requirement := "Uorc.Performance::sizeAgainstTheField", quantity := "total archive bytes on a corpus, per thousand bytes of the smaller of xz -9e and zpaq -m5 on the same corpus", unit := "per mille", sense := "at most", threshold := 1000, command := "scripts/bench.mjs", disposition := "draft"})
+}
+
+definition{
+  name: decodeKilobytesPerSecond,
+  parameters: [],
+  result: Measure,
+  body: (record Measure {requirement := "Uorc.Performance::decodeRate", quantity := "decompressed bytes per second on one core, over a corpus", unit := "KB/s", sense := "at least", threshold := 10000, command := "scripts/bench.mjs", disposition := "draft"})
+}
+
+definition{
+  name: compressKilobytesPerSecond,
+  parameters: [],
+  result: Measure,
+  body: (record Measure {requirement := "Uorc.Performance::compressRate", quantity := "compressed input bytes per second on four cores, over a corpus", unit := "KB/s", sense := "at least", threshold := 2000, command := "scripts/bench.mjs", disposition := "draft"})
+}
+
+definition{
+  name: peakMemory,
+  parameters: [],
+  result: Measure,
+  body: (record Measure {requirement := "Uorc.Performance::workingMemory", quantity := "peak resident memory while compressing or decompressing a corpus file", unit := "MiB", sense := "at most", threshold := 256, command := "scripts/bench.mjs", disposition := "draft"})
+}
 \end{semanticmodule}
 \end{lexlean}
