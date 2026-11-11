@@ -23,8 +23,9 @@ by identity, so they carry no decoder kernel.
 Each frame's context table grows one bit at a time past the size its length
 gives while that makes the archive smaller and a decoder on the declared host
 can hold it; the frame records the table it was coded with. The declared host
-is the page's worker (256 MiB), so every archive decodes on the page;
---host-memory B declares a decoder of B bytes instead.
+is one of the page's workers (512 MiB, with the tables it keeps between
+frames), so every archive decodes on the page; --host-memory B declares a
+native decoder of B bytes instead.
 
 Input of any size streams through 8 MiB frames, compressed --threads N at a
 time (default: every core) and written back to back; each frame may match
@@ -144,7 +145,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, Failure> {
                     .ok()
                     .filter(|&m| m > 0)
                     .ok_or_else(|| usage(format!("--host-memory: not a byte count: {value}")))?;
-                uorc::performance::declare_host(uorc::performance::Host { memory });
+                uorc::performance::declare_host(memory);
             }
             "--stats" => options.stats = true,
             "--best" => {}

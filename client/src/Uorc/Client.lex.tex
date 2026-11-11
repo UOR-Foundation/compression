@@ -199,6 +199,61 @@ definition{
 }
 
 definition{
+  name: v04Pair,
+  parameters: [fam : Nat],
+  result: Bytes,
+  body: (if (fam =? 0) then 0xffff010000ffff0f0000 else (if (fam =? 1) then 0xffff010000ffff070000 else (if (fam =? 2) then 0xffff078000ffff0f0000 else 0xffff0f0000ffff070000))),
+  axioms: []
+}
+definition{
+  name: takeNat,
+  parameters: [n : Nat, list : (List Nat)],
+  result: (List Nat),
+  body: (match list
+    | List.nil => (nil Nat)
+    | List.cons head tail => (if (n =? 0) then (nil Nat) else (cons head (takeNat (prim subtract n 1 : Nat) tail)))),
+  axioms: [],
+  recursive_argument: list
+}
+definition{
+  name: appendNat,
+  parameters: [list : (List Nat), more : (List Nat)],
+  result: (List Nat),
+  body: (match list
+    | List.nil => more
+    | List.cons head tail => (cons head (appendNat tail more))),
+  axioms: [],
+  recursive_argument: list
+}
+definition{
+  name: covers,
+  parameters: [table : Bytes, scheduled : (List Nat), entry : Bytes],
+  result: Bool,
+  body: (match scheduled
+    | List.nil => false
+    | List.cons head tail => (match (prim slice table (prim multiply 5 head : Nat) 5 : (Option Bytes))
+      | Option.none => (covers table tail entry)
+      | Option.some e => (if (prim equal e entry : Bool) then true else (covers table tail entry)))),
+  axioms: [],
+  recursive_argument: scheduled
+}
+definition{
+  name: pairMissing,
+  parameters: [table : Bytes, scheduled : (List Nat), count : Nat, k : Nat],
+  result: (List Nat),
+  body: (match (prim slice table (prim multiply 5 (count + k) : Nat) 5 : (Option Bytes))
+    | Option.none => (nil Nat)
+    | Option.some e => (if (covers table scheduled e) then (nil Nat) else (cons (count + k) (nil Nat)))),
+  axioms: []
+}
+definition{
+  name: planned,
+  parameters: [table : Bytes, count : Nat, scheduled : (List Nat)],
+  result: (List Nat),
+  body: (appendNat scheduled (appendNat (pairMissing table scheduled count 0) (pairMissing table scheduled count 1))),
+  axioms: []
+}
+definition{
   name: stateAt,
   parameters: [states : (List Bytes), k : Nat],
   result: (Option Bytes),
@@ -288,15 +343,15 @@ definition{
   name: hostMemory,
   parameters: [],
   result: Nat,
-  body: 268435456,
+  body: 536870912,
   axioms: []
 }
 
 definition{
-  name: decoderBytes,
+  name: pageBytes,
   parameters: [n : Nat, held : Nat, modelled : Nat, profile : Nat, tb : Nat],
   result: Nat,
-  body: (let mb : Nat := (Uorc.Codec.NcmEncode::mbOf modelled profile); (let short : Nat := (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat); (((prim multiply 4 (Uorc.Codec.NcmEncode::pow2 tb) : Nat) + (prim multiply (1 + short) (prim multiply 4 (Uorc.Codec.NcmEncode::pow2 mb) : Nat) : Nat)) + (n + held)))),
+  body: (let mb : Nat := (Uorc.Codec.NcmEncode::mbOf modelled profile); (let short : Nat := (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat); (let tables : Nat := ((prim multiply 4 (Uorc.Codec.NcmEncode::pow2 tb) : Nat) + (prim multiply (1 + short) (prim multiply 4 (Uorc.Codec.NcmEncode::pow2 mb) : Nat) : Nat)); ((prim multiply 2 tables : Nat) + ((prim multiply 2 n : Nat) + held))))),
   axioms: []
 }
 
@@ -316,7 +371,7 @@ definition{
   result: Bytes,
   body: (match fuel
     | Nat.zero => best
-    | Nat.succ m => (let t : Nat := (tb + 1); (if ((32 <? t) || ((hostMemory) <? (decoderBytes (prim length input : Nat) held modelled point t))) then best else (match (tableCandidate states point t window input)
+    | Nat.succ m => (let t : Nat := (tb + 1); (if ((32 <? t) || ((hostMemory) <? (pageBytes (prim length input : Nat) held modelled point t))) then best else (match (tableCandidate states point t window input)
       | Option.none => best
       | Option.some a => (if ((prim length a : Nat) <? (prim length best : Nat)) then (stepLoop m states point t held modelled window input a) else best))))),
   axioms: [Quot.sound, propext],
@@ -367,7 +422,7 @@ definition{
   name: windowTrial,
   parameters: [x : Nat, w : Nat, k : Nat, window : (List Bytes), input : Bytes, best : Bytes],
   result: (Option Bytes),
-  body: (let deep : (List Bytes) := (lastFrames k window); (let n : Nat := (prim length input : Nat); (let held : Nat := (prim length (Uorc.Codec.Archive::windowHistory deep) : Nat); (if ((hostMemory) <? (decoderBytes n held n w (Uorc.Codec.NcmEncode::tbOf n w))) then (ctor Option.none [Bytes]) else (match (Uorc.Codec.Archive::profileCandidate (x + 1) w deep input)
+  body: (let deep : (List Bytes) := (lastFrames k window); (let n : Nat := (prim length input : Nat); (let held : Nat := (prim length (Uorc.Codec.Archive::windowHistory deep) : Nat); (if ((hostMemory) <? (pageBytes n held n w (Uorc.Codec.NcmEncode::tbOf n w))) then (ctor Option.none [Bytes]) else (match (Uorc.Codec.Archive::profileCandidate (x + 1) w deep input)
     | Option.none => (ctor Option.none [Bytes])
     | Option.some a => (if ((prim length a : Nat) <? (prim length best : Nat)) then (ctor Option.some [Bytes] a) else (ctor Option.none [Bytes]))))))),
   axioms: [Quot.sound, propext]
@@ -411,9 +466,11 @@ definition{
   name: compress,
   parameters: [strategies : Bytes, weights : Bytes, states : (List Bytes), input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
-  body: (let fam : Nat := (family input); (let linked : (Option (Bytes * (Nat * Nat))) := (portfolio strategies states (budgetFor fam) (schedule strategies weights fam) (recentWindow window) input); (let quick : (Option Bytes) := (match linked
+  body: (let fam : Nat := (family input); (let count : Nat := (strategyCount strategies); (let table : Bytes := (Uorc.Codec.Archive::cat (match (prim slice strategies 0 (prim multiply 5 count : Nat) : (Option Bytes))
+    | Option.none => strategies
+    | Option.some whole => whole) (v04Pair fam)); (let coded : (List Nat) := (planned table count (takeNat (budgetFor fam) (schedule strategies weights fam))); (let linked : (Option (Bytes * (Nat * Nat))) := (portfolio table states (count + 2) coded (recentWindow window) input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (let stepped : (Bytes * (Nat * (List Bytes))) := (stepWindow (second (second kernel)) window input (first kernel)); (ctor Option.some [Bytes] (stepTable states (first (second stepped)) (second (second stepped)) input (first stepped)))) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))))),
+    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (let stepped : (Bytes * (Nat * (List Bytes))) := (stepWindow (second (second kernel)) window input (first kernel)); (ctor Option.some [Bytes] (stepTable states (first (second stepped)) (second (second stepped)) input (first stepped)))) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))))))),
   axioms: [Quot.sound, propext]
 }
 

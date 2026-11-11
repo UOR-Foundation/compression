@@ -7,7 +7,7 @@
 # drawn round-robin over the files of its kind (sorted by path), the next 4 KiB of each file per round. Generated
 # outputs, vendored files and frozen basis fixtures are left out.
 #
-#   python3 client/gen/gen_state.py           writes crates/uorc/src/state-1.bin
+#   python3 client/gen/gen_state.py           writes crates/uorc/src/state-*.bin
 #   python3 client/gen/gen_state.py --check   checks it against its kappa
 import hashlib
 import os
@@ -54,7 +54,13 @@ def state1():
     return mix[:size]
 
 
-STATES = {1: (state1, 'state-1.bin')}
+def state2():
+    # The last 64 KiB of state 1: about 93% of its gain on small text at a quarter of the warm-up (the model
+    # codes a state before every frame that continues it, natively once per process).
+    return state1()[-64 * 1024:]
+
+
+STATES = {1: (state1, 'state-1.bin'), 2: (state2, 'state-2.bin')}
 
 if __name__ == '__main__':
     for k, (build, name) in STATES.items():
