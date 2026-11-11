@@ -116,12 +116,20 @@ pub fn runs(
             let Some(labels) = wanted.get_mut(&len) else {
                 continue;
             };
-            let label = archive::frame_label(&frame[start..end]);
-            if labels.remove(&label) {
-                found.push((label, start..end));
-                if labels.is_empty() {
-                    wanted.remove(&len);
+            // A v0.3 stream's reference frames name whole frames, labelled
+            // over the v0.3 library.
+            let named: &[[u8; 32]] = if start == 0 && end == frame.len() {
+                &archive::frame_labels(frame)
+            } else {
+                &[archive::frame_label(&frame[start..end])]
+            };
+            for &label in named {
+                if labels.remove(&label) {
+                    found.push((label, start..end));
                 }
+            }
+            if labels.is_empty() {
+                wanted.remove(&len);
             }
         }
     }
