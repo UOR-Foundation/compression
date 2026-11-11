@@ -1627,5 +1627,30 @@ definition{
   result: Requirement,
   body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Throughput on a host is that host's ceiling for the steps the chosen point costs: the bound is derived from the host's model (cores, vector width, memory rate), and the measure is the distance to it."})
 }
+
+definition{
+  name: width,
+  parameters: [low : Nat, high : Nat],
+  result: Nat,
+  body: (prim subtract (high + 1) low : Nat)
+}
+
+definition{name: cut, parameters: [low : Nat, part : Nat], result: Nat, body: (low + part)}
+
+theorem{
+  name: splitSpendsTheWidth,
+  parameters: [low : Nat, span : Nat, part : Nat],
+  statement: (((width low (cut low part)) + (width ((cut low part) + 1) (low + span))) = ((width low (low + span)) + (prim subtract part span : Nat))),
+  proof: linear_arithmetic{definitions: [cut, width]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: shiftMultipliesTheWidth,
+  parameters: [top : Nat, low : Nat, high : Nat],
+  statement: ((width (prim multiply 256 low : Nat) ((prim multiply 256 high : Nat) + 255)) = (prim multiply 256 (width ((prim multiply 16777216 top : Nat) + low) ((prim multiply 16777216 top : Nat) + high)) : Nat)),
+  proof: linear_arithmetic{definitions: [width]},
+  axioms: [Quot.sound, propext]
+}
 \end{semanticmodule}
 \end{lexlean}
