@@ -288,15 +288,15 @@ definition{
   name: hostMemory,
   parameters: [],
   result: Nat,
-  body: 268435456,
+  body: 536870912,
   axioms: []
 }
 
 definition{
-  name: decoderBytes,
+  name: pageBytes,
   parameters: [n : Nat, held : Nat, modelled : Nat, profile : Nat, tb : Nat],
   result: Nat,
-  body: (let mb : Nat := (Uorc.Codec.NcmEncode::mbOf modelled profile); (let short : Nat := (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat); (((prim multiply 4 (Uorc.Codec.NcmEncode::pow2 tb) : Nat) + (prim multiply (1 + short) (prim multiply 4 (Uorc.Codec.NcmEncode::pow2 mb) : Nat) : Nat)) + (n + held)))),
+  body: (let mb : Nat := (Uorc.Codec.NcmEncode::mbOf modelled profile); (let short : Nat := (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat); (let tables : Nat := ((prim multiply 4 (Uorc.Codec.NcmEncode::pow2 tb) : Nat) + (prim multiply (1 + short) (prim multiply 4 (Uorc.Codec.NcmEncode::pow2 mb) : Nat) : Nat)); ((prim multiply 2 tables : Nat) + ((prim multiply 2 n : Nat) + held))))),
   axioms: []
 }
 
@@ -316,7 +316,7 @@ definition{
   result: Bytes,
   body: (match fuel
     | Nat.zero => best
-    | Nat.succ m => (let t : Nat := (tb + 1); (if ((32 <? t) || ((hostMemory) <? (decoderBytes (prim length input : Nat) held modelled point t))) then best else (match (tableCandidate states point t window input)
+    | Nat.succ m => (let t : Nat := (tb + 1); (if ((32 <? t) || ((hostMemory) <? (pageBytes (prim length input : Nat) held modelled point t))) then best else (match (tableCandidate states point t window input)
       | Option.none => best
       | Option.some a => (if ((prim length a : Nat) <? (prim length best : Nat)) then (stepLoop m states point t held modelled window input a) else best))))),
   axioms: [Quot.sound, propext],

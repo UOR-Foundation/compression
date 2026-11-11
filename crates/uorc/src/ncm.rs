@@ -1772,14 +1772,18 @@ pub fn with_table_bits(profile: u32, tb: u32) -> u32 {
 /// entry), and the history and frame bytes themselves. The client compares
 /// it with the declared decode host before it allocates.
 pub fn decoder_bytes(n: u64, history: u64, warm: bool, profile: u32) -> u64 {
+    table_bytes(n, history, warm, profile).saturating_add(n.saturating_add(history))
+}
+
+/// The tables' part of [`decoder_bytes`]: the context table and the match
+/// tables.
+pub fn table_bytes(n: u64, history: u64, warm: bool, profile: u32) -> u64 {
     let modelled = if warm { n.saturating_add(history) } else { n };
     let tb = table_bits(modelled, profile);
     let mb = recorded_match_bits(profile)
         .unwrap_or_else(|| Model::sized(u32::try_from(modelled).unwrap_or(u32::MAX)).1);
     let matches = 1 + u64::from(profile & F_SHORT != 0);
-    (4u64 << tb)
-        .saturating_add((4u64 << mb) * matches)
-        .saturating_add(n.saturating_add(history))
+    (4u64 << tb).saturating_add((4u64 << mb) * matches)
 }
 
 /// [`encode_with`] under the model `profile` (a [`valid_profile`]; [`V03`] is

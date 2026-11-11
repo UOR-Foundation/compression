@@ -223,7 +223,7 @@ fn compress_pieces(
 /// bit at a time, kept while the archive gets strictly shorter (the steps
 /// per byte do not depend on the table), and the stepping ends at the first
 /// table that does not pay or that `host` cannot hold
-/// ([`ncm::decoder_bytes`]). The frame records the table bits it was coded
+/// ([`performance::Host::footprint`]). The frame records the table bits it was coded
 /// with in its profile word ([`ncm::TABLE_SHIFT`]), so a frame where no step
 /// pays is the archive the portfolio chose, byte for byte. Raw frames and
 /// frames of the fixed v0.3 entries are returned as they are.
@@ -291,7 +291,7 @@ pub fn step_table(
     while tb < ncm::TABLE_MAX {
         tb += 1;
         let w = ncm::with_table_bits(word, tb);
-        if ncm::decoder_bytes(n, history.len() as u64, warm, w) > host.memory {
+        if !host.holds(n, history.len() as u64, warm, w) {
             break;
         }
         // only a strictly shorter archive is kept, so the encoder stops once
