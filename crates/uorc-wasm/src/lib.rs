@@ -1,4 +1,5 @@
-//! WebAssembly exports of the uorc client, with no unsafe code and no bindgen.
+//! WebAssembly exports of the uorc client, with no bindgen; the only unsafe
+//! code is the call of the page's progress import.
 //!
 //! The page asks for an input buffer of a given size, writes the bytes into
 //! wasm memory at the returned offset, calls an operation, then reads the
@@ -285,6 +286,264 @@ pub extern "C" fn decompress_tree() -> i32 {
     }))
 }
 
+/// Little-endian reader over a request in the input buffer.
+struct Fields<'a> {
+    bytes: &'a [u8],
+    at: usize,
+}
+
+impl<'a> Fields<'a> {
+    fn take(&mut self, n: usize) -> Result<&'a [u8], uorc::Error> {
+        let end = self.at.checked_add(n).ok_or(uorc::Error::Decode)?;
+        let out = self.bytes.get(self.at..end).ok_or(uorc::Error::Decode)?;
+        self.at = end;
+        Ok(out)
+    }
+    fn u32(&mut self) -> Result<usize, uorc::Error> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().expect("4 bytes")) as usize)
+    }
+    fn u64(&mut self) -> Result<u64, uorc::Error> {
+        Ok(u64::from_le_bytes(
+            self.take(8)?.try_into().expect("8 bytes"),
+        ))
+    }
+    fn len(&mut self) -> Result<usize, uorc::Error> {
+        usize::try_from(self.u64()?).map_err(|_| uorc::Error::Decode)
+    }
+    fn pieces(&mut self) -> Result<Vec<u64>, uorc::Error> {
+        let n = self.u32()?;
+        (0..n).map(|_| self.u64()).collect()
+    }
+    fn end(&self) -> Result<(), uorc::Error> {
+        if self.at == self.bytes.len() {
+            Ok(())
+        } else {
+            Err(uorc::Error::Decode)
+        }
+    }
+}
+
+fn plan_records(planned: Vec<uorc::Planned>) -> Vec<u8> {
+    let mut out = (planned.len() as u32).to_le_bytes().to_vec();
+    for frame in planned {
+        match frame {
+            uorc::Planned::Done { length, archive } => {
+                out.push(0);
+                out.extend(length.to_le_bytes());
+                out.extend((archive.len() as u64).to_le_bytes());
+                out.extend(archive);
+            }
+            uorc::Planned::Code {
+                bytes,
+                pieces,
+                window,
+            } => {
+                out.push(1);
+                out.extend((bytes.len() as u64).to_le_bytes());
+                out.extend((pieces.len() as u32).to_le_bytes());
+                for p in pieces {
+                    out.extend(p.to_le_bytes());
+                }
+                out.extend((window.len() as u32).to_le_bytes());
+            }
+        }
+    }
+    out
+}
+
+/// [`compress_frame`] without the coding, for a page that codes frames on
+/// other cores: the output is `u32 count` then, per frame the input buffer
+/// completes, `u8 0, u64 frameLength, u64 archiveLength, archive` for a
+/// finished repeat, or
+/// `u8 1, u64 frameLength, u32 pieceCount, u64 piece*, u32 window` for a frame
+/// to code with [`code_frame`] after the `window` frames before it. Frames
+/// follow the stream's input back to back, repeats included.
+#[no_mangle]
+pub extern "C" fn plan_frame() -> i32 {
+    finish(INPUT.with(|input| {
+        Ok(plan_records(ENCODER.with(|encoder| {
+            encoder.borrow_mut().plan(&input.borrow())
+        })))
+    }))
+}
+
+/// [`compress_end`] without the coding (see [`plan_frame`]).
+#[no_mangle]
+pub extern "C" fn plan_end() -> i32 {
+    finish(Ok(plan_records(
+        ENCODER.with(|encoder| encoder.borrow_mut().plan_end()),
+    )))
+}
+
+/// Code one planned frame. The input buffer holds `u32 pieceCount, u64
+/// piece*, u32 window, u64 windowLength*`, then the window frames and the
+/// frame, back to back. With `which` 0 or 1 the output is that scheduled
+/// strategy's archive, or empty when it cannot beat the raw archive (pass
+/// both to [`choose_frame`]); with any other `which`, the frame's archive.
+#[no_mangle]
+pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
+    finish(INPUT.with(|input| {
+        let input = input.borrow();
+        let mut f = Fields {
+            bytes: &input,
+            at: 0,
+        };
+        let pieces = f.pieces()?;
+        let lengths: Vec<usize> = (0..f.u32()?).map(|_| f.len()).collect::<Result<_, _>>()?;
+        let window: Vec<&[u8]> = lengths
+            .iter()
+            .map(|&n| f.take(n))
+            .collect::<Result<_, _>>()?;
+        let frame = &f.bytes[f.at..];
+        if pieces.iter().sum::<u64>() != frame.len() as u64 {
+            return Err(uorc::Error::Decode);
+        }
+        match which {
+            0 | 1 => Ok(
+                uorc::compress_strategy(frame, &pieces, &window, which as usize)
+                    .unwrap_or_default(),
+            ),
+            _ => uorc::Planned::Code {
+                bytes: frame.to_vec(),
+                pieces,
+                window: window.iter().map(|w| w.to_vec()).collect(),
+            }
+            .code(steps),
+        }
+    }))
+}
+
+/// The frame's archive from its two strategies' outputs of [`code_frame`]:
+/// the input buffer holds `u32 pieceCount, u64 piece*, u64 frameLength,
+/// frame, u64 firstLength, first, u64 secondLength, second` (an empty archive
+/// for a strategy that could not beat raw).
+#[no_mangle]
+pub extern "C" fn choose_frame() -> i32 {
+    finish(INPUT.with(|input| {
+        let input = input.borrow();
+        let mut f = Fields {
+            bytes: &input,
+            at: 0,
+        };
+        let pieces = f.pieces()?;
+        let n = f.len()?;
+        let frame = f.take(n)?;
+        let mut archive = || -> Result<Option<Vec<u8>>, uorc::Error> {
+            let n = f.len()?;
+            Ok(Some(f.take(n)?.to_vec()).filter(|a| !a.is_empty()))
+        };
+        let (first, second) = (archive()?, archive()?);
+        f.end()?;
+        if pieces.iter().sum::<u64>() != frame.len() as u64 {
+            return Err(uorc::Error::Decode);
+        }
+        Ok(uorc::choose(frame, &pieces, first, second))
+    }))
+}
+
+#[cfg(target_arch = "wasm32")]
+#[link(wasm_import_module = "uorc")]
+extern "C" {
+    /// The page's progress callback: bytes done and length of the pass.
+    #[link_name = "progress"]
+    fn page_progress(done: f64, total: f64);
+}
+
+#[cfg(target_arch = "wasm32")]
+fn report(done: u64, total: u64) {
+    // SAFETY: an imported function of two numbers with no other effect on
+    // this module's memory.
+    unsafe { page_progress(done as f64, total as f64) }
+}
+
+/// Report every coding and decoding pass to the page's `uorc.progress`
+/// import (`on` nonzero), or stop reporting.
+#[no_mangle]
+pub extern "C" fn report_progress(on: i32) {
+    #[cfg(target_arch = "wasm32")]
+    uorc::ncm::set_progress((on != 0).then_some(report as uorc::ncm::Progress));
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = on;
+}
+
+/// Start a file tree streamed through the frame operations: the input
+/// buffer lists its entries as `u32 count` then, per entry, `u8 kind`,
+/// `u32 pathLength`, path, `u64 length` (zero for a directory). The output is
+/// the manifest, the first object; push it, then every regular file's bytes
+/// in listing order, with [`compress_frame`], then [`compress_end`].
+#[no_mangle]
+pub extern "C" fn tree_start() -> i32 {
+    finish(INPUT.with(|input| {
+        let listing = read_listing(&input.borrow())?;
+        let layout = uorc::tree::layout(listing.iter().map(|(p, k, n)| (p.as_str(), *k, *n)))?;
+        ENCODER
+            .with(|encoder| *encoder.borrow_mut() = uorc::FrameEncoder::objects(&layout.lengths));
+        Ok(layout.manifest)
+    }))
+}
+
+fn read_listing(bytes: &[u8]) -> Result<Vec<(String, uorc::tree::Kind, u64)>, uorc::Error> {
+    use uorc::tree::Kind;
+    let mut at = 0usize;
+    let mut take = |n: usize| -> Result<&[u8], uorc::Error> {
+        let end = at.checked_add(n).ok_or(uorc::Error::Decode)?;
+        let out = bytes.get(at..end).ok_or(uorc::Error::Decode)?;
+        at = end;
+        Ok(out)
+    };
+    let word = |b: &[u8]| u32::from_le_bytes(b.try_into().expect("4 bytes")) as usize;
+    let count = word(take(4)?);
+    let mut out = Vec::new();
+    for _ in 0..count {
+        let kind = match take(1)?[0] {
+            0 => Kind::File,
+            1 => Kind::Executable,
+            2 => Kind::Directory,
+            _ => return Err(uorc::Error::Decode),
+        };
+        let len = word(take(4)?);
+        let path = std::str::from_utf8(take(len)?)
+            .map_err(|_| uorc::Error::Decode)?
+            .to_owned();
+        let length = u64::from_le_bytes(take(8)?.try_into().expect("8 bytes"));
+        out.push((path, kind, if kind == Kind::Directory { 0 } else { length }));
+    }
+    if at != bytes.len() {
+        return Err(uorc::Error::Decode);
+    }
+    Ok(out)
+}
+
+/// The lengths of the object pieces the archive in the input buffer holds,
+/// as a JSON array: its output splits at them, and every frame's first piece
+/// after the first frame continues the object before.
+#[no_mangle]
+pub extern "C" fn frame_objects() -> i32 {
+    finish(INPUT.with(|input| {
+        let lengths = uorc::object_lengths(&input.borrow())?;
+        let all: Vec<String> = lengths.iter().map(u64::to_string).collect();
+        Ok(format!("[{}]", all.join(",")).into_bytes())
+    }))
+}
+
+/// The entries a tree manifest in the input buffer lists, with every path
+/// checked, in the [`read_entries`] layout with empty data.
+#[no_mangle]
+pub extern "C" fn tree_manifest() -> i32 {
+    finish(INPUT.with(|input| {
+        let listed = uorc::tree::read_manifest(&input.borrow())?;
+        let entries: Vec<uorc::tree::Entry> = listed
+            .into_iter()
+            .map(|(path, kind)| uorc::tree::Entry {
+                path,
+                kind,
+                data: Vec::new(),
+            })
+            .collect();
+        Ok(write_entries(&entries))
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -351,6 +610,205 @@ mod tests {
         let (code, archives) = run(&[], || compress_end(0));
         assert_eq!(code, OK);
         stream.extend(archives);
+        assert_eq!(stream, uorc::compress(&input, 0).expect("library stream"));
+        let archives = uorc::frames(&stream).expect("frames");
+        assert!(archives.iter().any(|a| {
+            uorc::inspect(a).expect("inspect").representation == uorc::Representation::Reference
+        }));
+        window_reset();
+        for archive in &archives {
+            if run(archive, || may_be_reference()).0 == 1 {
+                run(archive, || {
+                    note_frame();
+                    OK
+                });
+            }
+        }
+        let mut back = Vec::new();
+        for archive in &archives {
+            let (code, output) = run(archive, || decompress_frame());
+            assert_eq!(code, OK);
+            back.extend(output);
+        }
+        assert!(back == input);
+    }
+
+    /// A tree streamed a piece at a time writes the library's bytes, and its
+    /// frames split back into the same files.
+    #[test]
+    fn tree_exports_stream_the_library_tree() {
+        use uorc::tree::{Entry, Kind};
+        let big: Vec<u8> = (0..uorc::FRAME + 70_000)
+            .map(|i| (i * 7 % 251) as u8)
+            .collect();
+        let entries = vec![
+            Entry {
+                path: "d".into(),
+                kind: Kind::Directory,
+                data: vec![],
+            },
+            Entry {
+                path: "d/a.txt".into(),
+                kind: Kind::File,
+                data: b"alpha".to_vec(),
+            },
+            Entry {
+                path: "d/big".into(),
+                kind: Kind::Executable,
+                data: big,
+            },
+            Entry {
+                path: "d/empty".into(),
+                kind: Kind::File,
+                data: vec![],
+            },
+        ];
+        let mut listing = (entries.len() as u32).to_le_bytes().to_vec();
+        for e in &entries {
+            listing.push(match e.kind {
+                Kind::File => 0,
+                Kind::Executable => 1,
+                Kind::Directory => 2,
+            });
+            listing.extend((e.path.len() as u32).to_le_bytes());
+            listing.extend(e.path.as_bytes());
+            listing.extend((e.data.len() as u64).to_le_bytes());
+        }
+        window_reset();
+        let (code, manifest) = run(&listing, || tree_start());
+        assert_eq!(code, OK);
+        let mut stream = run(&manifest, || compress_frame(0)).1;
+        for e in &entries {
+            for piece in e.data.chunks(1_000_000) {
+                let (code, archives) = run(piece, || compress_frame(0));
+                assert_eq!(code, OK);
+                stream.extend(archives);
+            }
+        }
+        stream.extend(run(&[], || compress_end(0)).1);
+        assert_eq!(
+            stream,
+            uorc::compress_tree(&entries, 0).expect("library tree")
+        );
+
+        window_reset();
+        let mut objects: Vec<Vec<u8>> = Vec::new();
+        for (frame, archive) in uorc::frames(&stream)
+            .expect("frames")
+            .into_iter()
+            .enumerate()
+        {
+            let (_, lengths) = run(archive, || frame_objects());
+            let lengths: Vec<usize> = String::from_utf8(lengths)
+                .expect("json")
+                .trim_matches(|c| c == '[' || c == ']')
+                .split(',')
+                .filter(|n| !n.is_empty())
+                .map(|n| n.parse().expect("length"))
+                .collect();
+            let (code, output) = run(archive, || decompress_frame());
+            assert_eq!(code, OK);
+            let mut rest = &output[..];
+            for (i, n) in lengths.into_iter().enumerate() {
+                let (piece, tail) = rest.split_at(n);
+                rest = tail;
+                if frame > 0 && i == 0 {
+                    objects
+                        .last_mut()
+                        .expect("an object to continue")
+                        .extend(piece);
+                } else {
+                    objects.push(piece.to_vec());
+                }
+            }
+        }
+        let (code, listed) = run(&objects[0], || tree_manifest());
+        assert_eq!(code, OK);
+        let listed = read_entries(&listed).expect("listing");
+        let mut files = objects.into_iter().skip(1);
+        for (want, got) in entries.iter().zip(&listed) {
+            assert_eq!((&want.path, want.kind), (&got.path, got.kind));
+            if want.kind != Kind::Directory {
+                assert_eq!(files.next().expect("file"), want.data);
+            }
+        }
+        assert!(files.next().is_none());
+    }
+
+    /// Frames planned in one place and coded elsewhere, a strategy at a
+    /// time, write the library's stream: what the page's workers do.
+    #[test]
+    fn planned_frames_coded_by_strategy_are_the_library_stream() {
+        let noise = |n: usize, seed: u32| -> Vec<u8> {
+            let mut x = seed;
+            (0..n)
+                .map(|_| {
+                    x = x.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+                    b"abcdefgh  \n"[(x >> 24) as usize % 11]
+                })
+                .collect()
+        };
+        let a = noise(uorc::FRAME, 1);
+        // a frame, the same frame again (a reference frame), then a short tail
+        let input = [&a[..], &a[..], &noise(70_000, 3)].concat();
+        window_reset();
+        let mut records = Vec::new();
+        for piece in input.chunks(5_000_000) {
+            let (code, out) = run(piece, || plan_frame());
+            assert_eq!(code, OK);
+            records.push(out);
+        }
+        records.push(run(&[], || plan_end()).1);
+        let (mut stream, mut at, mut frames) = (Vec::new(), 0usize, Vec::<&[u8]>::new());
+        let mut references = 0;
+        for record in &records {
+            let mut f = Fields {
+                bytes: record,
+                at: 0,
+            };
+            for _ in 0..f.u32().unwrap() {
+                let kind = f.take(1).unwrap()[0];
+                let n = f.len().unwrap();
+                let frame = &input[at..at + n];
+                if kind == 0 {
+                    let len = f.len().unwrap();
+                    stream.extend(f.take(len).unwrap());
+                    references += 1;
+                } else {
+                    let pieces = f.pieces().unwrap();
+                    let before = &frames[frames.len() - f.u32().unwrap()..];
+                    let mut head = (pieces.len() as u32).to_le_bytes().to_vec();
+                    for p in &pieces {
+                        head.extend(p.to_le_bytes());
+                    }
+                    let mut request = head.clone();
+                    request.extend((before.len() as u32).to_le_bytes());
+                    for w in before {
+                        request.extend((w.len() as u64).to_le_bytes());
+                    }
+                    for w in before {
+                        request.extend(*w);
+                    }
+                    request.extend(frame);
+                    let (c0, first) = run(&request, || code_frame(0, 0));
+                    let (c1, second) = run(&request, || code_frame(1, 0));
+                    assert_eq!((c0, c1), (OK, OK));
+                    let mut choice = head;
+                    for part in [frame, &first[..], &second[..]] {
+                        choice.extend((part.len() as u64).to_le_bytes());
+                        choice.extend(part);
+                    }
+                    let (code, archive) = run(&choice, || choose_frame());
+                    assert_eq!(code, OK);
+                    assert_eq!(archive, run(&request, || code_frame(-1, 0)).1);
+                    stream.extend(archive);
+                }
+                frames.push(frame);
+                at += n;
+            }
+        }
+        assert!(references > 0);
+        assert_eq!(at, input.len());
         assert_eq!(stream, uorc::compress(&input, 0).expect("library stream"));
         let archives = uorc::frames(&stream).expect("frames");
         assert!(archives.iter().any(|a| {

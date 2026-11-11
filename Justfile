@@ -28,14 +28,22 @@ model:
 
 # The hand-reviewed trust root is checked independently of generated project
 # content. PrismPM then validates the canonical contract and both locks.
+# PrismPM's native regeneration runs model-write in a copy of the tree staged
+# in the SDK's /tmp, a 2 GiB tmpfs of which CARGO_HOME already holds 1.1 GiB,
+# with a cleared environment. The note .tmp/model-write-target travels with
+# the copy and sends its build to a target directory of its own on this
+# workspace's disk. It is not the workspace's target: a binary built from the
+# copy carries the copy's paths, and cargo would take it as current here.
 template-check:
     cargo run --locked -q -p xtask -- audit-bootstrap
+    mkdir -p .tmp && printf '%s' "{{justfile_directory()}}/target/regeneration" > .tmp/model-write-target
     prismpm template check
+    rm -f .tmp/model-write-target
     prismpm lock check
 
 # Regenerate every model/document projection owned by the LexLean authority graph.
 model-write:
-    cargo run --locked -q -p xtask -- check-model --write
+    cargo run --locked -q -p xtask --target-dir "$(cat .tmp/model-write-target 2>/dev/null || echo target)" -- check-model --write
 
 # Direct R1 report: project prose cannot become a second UORC authority.
 source-authority:
@@ -57,6 +65,15 @@ lint:
 test:
     cargo test --locked --workspace --exclude xtask
     node --test scripts/site.test.mjs
+
+# UC-WEB-01: build the Pages site as the release does (a stand-in benchmark
+# page beside it) and walk every journey of the page's Prism product model in
+# headless Chrome. CI runs the same steps in pages-client.yml.
+pages:
+    cargo build --locked --release -p uorc-wasm --target wasm32-unknown-unknown
+    mkdir -p .tmp/bench && for f in bench.html bench.json bench.md; do printf 'benchmarks are published with each release\n' > .tmp/bench/$f; done
+    node scripts/site.mjs .tmp/site --wasm target/wasm32-unknown-unknown/release/uorc_wasm.wasm --version "$(git describe --tags --always)-dev" --bench .tmp/bench
+    node scripts/page-acceptance.mjs .tmp/site --report .tmp/page-acceptance.json
 
 # The xtask suite: product-runtime, integrity, claims and offline harnesses.
 formal-tests:

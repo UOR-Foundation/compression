@@ -1,161 +1,283 @@
-import { load } from "./uorc.js";
+// The page's behaviour, read from its Prism product model (src/Uorc/Page.lex.tex),
+// which index.html carries as JSON: the state machine, the operations and their
+// fields, the controls each state enables, the examples and the error hints.
+// The codec runs in a module worker (uorc.js), never on this thread.
 
 const $ = (id) => document.getElementById(id);
-const status = $("status");
-const examples = [
-  ["200 zero bytes", () => new Uint8Array(200)],
-  ["Repeating text", () => new TextEncoder().encode("abcd".repeat(64))],
-  ["Counter bytes 0..255", () => Uint8Array.from({ length: 256 }, (_, i) => i)],
-  ["Empty input", () => new Uint8Array(0)],
-];
+const model = JSON.parse($("page-model").textContent);
+const one = (kind) => model[kind][0];
+const byOrder = (rows) => [...rows].sort((a, b) => a.order - b.order);
+const labels = one("Labels");
+const states = new Map(model.UmlState.map((s) => [s.state, s]));
+const hints = new Map(model.ErrorHint.map((h) => [h.code, h]));
+const operations = new Map(model.Operation.map((o) => [o.id, o]));
+const fields = new Map(model.Field.map((f) => [f.id, f]));
+const controls = new Map(model.Control.map((c) => [c.id, c]));
 
-function offer(blob, name) {
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = name;
-  link.textContent = `Download ${name} (${blob.size} bytes)`;
-  $("download").replaceChildren(link);
+let state = model.UmlState.find((s) => s.initial).state;
+let operation = one("Workbench").initialOperation;
+let worker;
+let job;
+
+const fmt = (n) => n.toLocaleString("en-US");
+const seconds = (ms) => `${(ms / 1000).toFixed(2)} s`;
+const status = (text) => { $("status").textContent = text; };
+
+// Take the modeled transition for `trigger` from the current state.
+function fire(trigger, message) {
+  const t = model.UmlTransition.find((x) => x.source === state && x.trigger === trigger);
+  if (!t) throw new Error(`no ${trigger} transition from ${state}`);
+  state = t.target;
+  document.body.dataset.state = state;
+  status(message ?? states.get(state).status);
+  render();
 }
 
-const steps = () => BigInt(Math.max(0, Math.floor(Number($("steps").value) || 0)));
-const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
+const chosen = (id) => [...$(`field-${id}`).files];
+// An operation can run when each required field, or the field it may replace,
+// has a choice.
+function complete(op) {
+  return operations.get(op).fields.every((id) => {
+    const f = fields.get(id);
+    return !f.required || chosen(id).length > 0 || (f.replaces && chosen(f.replaces).length > 0);
+  });
+}
 
-try {
-  const uorc = await load("./uorc_bg.wasm");
-  fetch("provenance.json").then((r) => r.ok ? r.json() : {}).then((p) => { if (p.version) $("version").textContent = `Release ${p.version}`; }).catch(() => {});
-  for (const id of ["compress", "decompress", "inspect", "verify"]) $(id).disabled = false;
-  status.textContent = "Ready. Choose a file, or run an example below.";
+function enabled(id) {
+  return controls.get(id).enabledIn.includes(state);
+}
 
-  const bytesOf = async (file) => new Uint8Array(await file.arrayBuffer());
-  const report = (text) => { $("report").hidden = !text; $("report").textContent = text ?? ""; };
-  const picked = () => {
-    const folder = [...$("folder").files];
-    return folder.length ? folder : [...$("file").files];
-  };
-  const timed = async (label, work) => {
-    status.textContent = `${label}…`;
-    report();
-    $("download").replaceChildren();
-    await tick();
-    const started = performance.now();
-    try {
-      const said = await work();
-      status.textContent = `${said} in ${((performance.now() - started) / 1000).toFixed(2)} s.`;
-    } catch (error) {
-      status.textContent = `Failed: ${error.message}.`;
+function render() {
+  const op = operations.get(operation);
+  for (const tab of document.querySelectorAll("[role=tab]")) {
+    const on = tab.dataset.operation === operation;
+    tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+    tab.disabled = !enabled("operation");
+  }
+  $("panel").setAttribute("aria-labelledby", `tab-${operation}`);
+  for (const el of document.querySelectorAll(".operation")) el.hidden = el.dataset.operation !== operation;
+  for (const el of document.querySelectorAll(".field")) {
+    el.hidden = !op.fields.includes(el.dataset.field);
+    el.querySelector("input").disabled = !enabled("field");
+  }
+  $("run").textContent = op.runLabel;
+  $("run").disabled = !(enabled("run") && complete(operation));
+  $("cancel").disabled = !enabled("cancel");
+  for (const b of document.querySelectorAll("[data-example]")) b.disabled = !enabled("example");
+  $("progress").hidden = state !== "running";
+}
+
+function describe(files) {
+  if (!files.length) return "";
+  const bytes = files.reduce((n, f) => n + f.size, 0);
+  return files.length === 1 ? `${files[0].name}, ${fmt(bytes)} bytes` : `${fmt(files.length)} files, ${fmt(bytes)} bytes`;
+}
+
+function edited() {
+  for (const f of fields.values()) $(`chosen-${f.id}`).textContent = describe(chosen(f.id));
+  if (state === "done" || state === "failed") {
+    clearResult();
+    fire("edit");
+  } else {
+    render();
+  }
+}
+
+function clearResult() {
+  $("result").hidden = true;
+  $("result").replaceChildren();
+  $("error").hidden = true;
+}
+
+// The worker: started at load and again after a cancel or a stop.
+function start(onReady) {
+  try {
+    worker = new Worker(new URL("uorc.js", import.meta.url), { type: "module" });
+  } catch (error) {
+    unavailable(String(error?.message ?? error));
+    return;
+  }
+  worker.onmessage = ({ data }) => {
+    if (data.type === "ready") onReady();
+    else if (data.type === "loadFailed") unavailable(data.message);
+    else if (data.type === "progress") progress(data.done, data.total);
+    else if (data.type === "done") finished(data.result);
+    else if (data.type === "failed") {
+      failed(data.code, data.message);
+      if (data.code === "stopped") restart();
     }
   };
-
-  $("compress").addEventListener("click", async () => {
-    const files = picked();
-    if (!files.length) { status.textContent = "Choose files or a folder first."; return; }
-    const tree = files.length > 1 || $("folder").files.length > 0;
-    await timed(`Compressing ${files.length} file(s)`, async () => {
-      if (!tree) {
-        const file = files[0];
-        const progress = (done, total) => { status.textContent = `Compressing ${file.name}: ${done} of ${total} bytes…`; };
-        const output = await uorc.compressBlob(file, steps(), progress);
-        offer(output, `${file.name}.uorc`);
-        return `${file.size} → ${output.size} bytes`;
-      }
-      const entries = [];
-      const dirs = new Set();
-      for (const file of files) {
-        const path = file.webkitRelativePath || file.name;
-        const parts = path.split("/");
-        for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join("/"));
-        entries.push({ path, data: await bytesOf(file) });
-      }
-      const all = [...[...dirs].sort().map((path) => ({ path, kind: "directory" })), ...entries];
-      const output = uorc.compressFiles(all, steps());
-      const root = files[0].webkitRelativePath ? files[0].webkitRelativePath.split("/")[0] : "files";
-      offer(new Blob([output]), `${root}.uorc`);
-      return `${entries.length} files, ${entries.reduce((n, e) => n + e.data.length, 0)} → ${output.length} bytes`;
-    });
-  });
-
-  $("decompress").addEventListener("click", async () => {
-    const file = $("file").files[0];
-    if (!file) { status.textContent = "Choose an archive first."; return; }
-    await timed(`Decompressing ${file.name}`, async () => {
-      // A tree's first archive holds several objects; a plain stream's hold one.
-      const first = new Uint8Array(await file.slice(0, 64).arrayBuffer());
-      const objects = first.length > 8 ? first[8] : 1;
-      if (objects === 1) {
-        const progress = (done, total) => { status.textContent = `Decompressing ${file.name}: ${done} of ${total} bytes…`; };
-        const output = await uorc.decompressBlob(file, progress);
-        offer(output, file.name.replace(/\.uorc$/, "") || "output");
-        return `${file.size} → ${output.size} bytes`;
-      }
-      const archive = await bytesOf(file);
-      const entries = uorc.decompressFiles(archive);
-      const links = entries.filter((e) => e.kind !== "directory").map((e) => {
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(new Blob([e.data]));
-        link.download = e.path.split("/").pop();
-        link.textContent = `${e.path} (${e.data.length} bytes)`;
-        const item = document.createElement("li");
-        item.append(link);
-        return item;
-      });
-      const list = document.createElement("ul");
-      list.append(...links);
-      $("download").replaceChildren(list);
-      return `${entries.length} entries restored`;
-    });
-  });
-
-  $("inspect").addEventListener("click", async () => {
-    const file = $("file").files[0];
-    if (!file) { status.textContent = "Choose an archive first."; return; }
-    await timed(`Inspecting ${file.name}`, async () => {
-      const infos = uorc.inspect(await bytesOf(file));
-      report(JSON.stringify(infos, null, 2));
-      const ok = infos.every((info) => info.integrity_ok);
-      return `${infos.length} archive(s) read, integrity ${ok ? "ok" : "MISMATCH"}`;
-    });
-  });
-
-  $("verify").addEventListener("click", async () => {
-    const file = $("file").files[0];
-    if (!file) { status.textContent = "Choose an archive first."; return; }
-    const original = $("original").files[0];
-    await timed(`Verifying ${file.name}`, async () => {
-      const infos = uorc.verify(await bytesOf(file), original ? await bytesOf(original) : undefined);
-      report(JSON.stringify(infos, null, 2));
-      return original ? `Verified: identical to ${original.name}` : "Verified: decodes and integrity holds";
-    });
-  });
-
-  const body = $("example-results").querySelector("tbody");
-  for (const [label, make] of examples) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "secondary";
-    button.textContent = label;
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-      status.textContent = `Running “${label}”…`;
-      await tick();
-      const input = make();
-      const started = performance.now();
-      const row = document.createElement("tr");
-      try {
-        const archive = uorc.compress(input, steps());
-        const back = uorc.decompress(archive);
-        const same = back.length === input.length && back.every((b, i) => b === input[i]);
-        const cells = [label, input.length, archive.length, same ? "identical" : "MISMATCH", `${((performance.now() - started) / 1000).toFixed(2)} s`];
-        for (const c of cells) { const td = document.createElement("td"); td.textContent = String(c); row.append(td); }
-        status.textContent = `“${label}” done.`;
-      } catch (error) {
-        const td = document.createElement("td"); td.colSpan = 5; td.textContent = `${label}: ${error.message}`; row.append(td);
-        status.textContent = `“${label}” failed.`;
-      }
-      body.prepend(row);
-      button.disabled = false;
-    });
-    $("example-buttons").append(button);
-  }
-} catch (error) {
-  status.textContent = `Could not load the WebAssembly client: ${error.message}`;
+  worker.onerror = (event) => {
+    event.preventDefault();
+    if (state === "loading") unavailable(event.message);
+    else if (state === "running") {
+      failed("stopped", event.message);
+      restart();
+    }
+  };
 }
+
+function restart(after = () => {}) {
+  worker?.terminate();
+  start(after);
+}
+
+function unavailable(message) {
+  const hint = hints.get("load");
+  fire("loadFailed", `${hint.title}.`);
+  showError(hint, message);
+}
+
+function showError(hint, detail) {
+  $("error-title").textContent = hint.title;
+  $("error-explanation").textContent = detail ? `${hint.explanation} (${detail})` : hint.explanation;
+  $("error-recovery").textContent = hint.recovery;
+  $("error").hidden = false;
+}
+
+function progress(done, total) {
+  if (!job) return;
+  const p = $("progress");
+  p.max = Math.max(total, 1);
+  p.value = done;
+  const elapsed = performance.now() - job.started;
+  const rest = done > 0 && done < total ? `, about ${Math.ceil((elapsed / done) * (total - done) / 1000)} s left` : "";
+  status(`${job.label}: ${fmt(done)} of ${fmt(total)} bytes${rest}…`);
+}
+
+function run(request, label, onDone) {
+  clearResult();
+  job = { label, started: performance.now(), onDone, request };
+  fire("run", `${label}…`);
+  worker.postMessage(request);
+}
+
+function finished(result) {
+  const { onDone, started } = job;
+  job = undefined;
+  const took = performance.now() - started;
+  fire("finished", onDone(result, took));
+}
+
+function failed(code, message) {
+  const hint = hints.get(code) ?? hints.get("decode");
+  job = undefined;
+  fire("failed", `${hint.title}.`);
+  showError(hint, code === "stopped" ? message : "");
+}
+
+function download(file) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([file.blob], { type: "application/octet-stream" }));
+  link.download = file.path.split("/").pop();
+  link.textContent = `${labels.download} ${file.path} (${fmt(file.blob.size)} bytes)`;
+  return link;
+}
+
+function table(kind, rows) {
+  const columns = byOrder(model.Column.filter((c) => c.table === kind));
+  const t = document.createElement("table");
+  const head = t.createTHead().insertRow();
+  for (const c of columns) { const th = document.createElement("th"); th.scope = "col"; th.textContent = c.label; head.append(th); }
+  const body = t.createTBody();
+  rows.forEach((row) => {
+    const tr = body.insertRow();
+    for (const c of columns) tr.insertCell().textContent = String(row[c.key]);
+  });
+  const wrap = document.createElement("div");
+  wrap.className = "table-wrap";
+  wrap.append(t);
+  return wrap;
+}
+
+function showResult(result, nodes) {
+  const memory = document.createElement("p");
+  memory.className = "memory";
+  memory.textContent = `${labels.memory}: ${fmt(Math.round(result.memory / 1048576))} MiB`;
+  memory.dataset.workers = String(result.workers ?? 0);
+  $("result").replaceChildren(...nodes, memory);
+  $("result").hidden = false;
+}
+
+function runOperation() {
+  const op = operations.get(operation);
+  const files = [...chosen("files"), ...chosen("folder")];
+  const [archive] = chosen("archive");
+  const [original] = chosen("original");
+  const subject = operation === "compress" ? describe(files) : archive.name;
+  const request = { op: operation, files, archive, original };
+  run(request, `${op.running} ${subject}`, (result, took) => {
+    if (result.kind === "archive") {
+      const [file] = result.files;
+      const share = result.input ? ` (${((100 * file.blob.size) / result.input).toFixed(1)}%)` : "";
+      showResult(result, [download(file)]);
+      return `${fmt(result.input)} → ${fmt(file.blob.size)} bytes${share} in ${seconds(took)}.`;
+    }
+    if (result.kind === "files") {
+      const list = document.createElement("ul");
+      for (const file of result.files) { const li = document.createElement("li"); li.append(download(file)); list.append(li); }
+      const head = document.createElement("p");
+      head.textContent = `${labels.restored}: ${fmt(result.files.length)}`;
+      showResult(result, [head, list]);
+      const bytes = result.files.reduce((n, f) => n + f.blob.size, 0);
+      return `${fmt(result.input)} → ${fmt(bytes)} bytes in ${fmt(result.files.length)} file(s), in ${seconds(took)}.`;
+    }
+    const rows = result.rows.map((row, i) => ({ ...row, index: i + 1, integrity_ok: row.integrity_ok ? "intact" : "broken" }));
+    showResult(result, [table("inspect", rows)]);
+    if (result.kind === "table") {
+      const ok = result.rows.every((r) => r.integrity_ok);
+      return `${fmt(rows.length)} archive(s), integrity ${ok ? "intact" : "broken"}, in ${seconds(took)}.`;
+    }
+    return result.compared
+      ? `Verified: the archive reproduces ${original.name} exactly, in ${seconds(took)}.`
+      : `Verified: the archive decodes and every integrity seal holds, in ${seconds(took)}.`;
+  });
+}
+
+function runExample(example) {
+  const seed = `${one("Workbench").purpose} ${one("Workbench").guidance.join(" ")} `;
+  run({ op: "example", input: example.input, bytes: example.bytes, seed }, `${example.label}`, (result) => {
+    const row = { label: example.label, bytes: fmt(result.bytes), archive: fmt(result.archive), roundTrip: result.same ? example.expectedResponse : "differs", seconds: result.seconds.toFixed(2) };
+    const tr = document.createElement("tr");
+    for (const c of byOrder(model.Column.filter((x) => x.table === "examples"))) tr.insertCell().textContent = row[c.key];
+    $("example-results").tBodies[0].prepend(tr);
+    return `${example.label}: ${fmt(result.bytes)} → ${fmt(result.archive)} bytes, round trip ${row.roundTrip}.`;
+  });
+}
+
+// Controls.
+for (const tab of document.querySelectorAll("[role=tab]")) {
+  tab.addEventListener("click", () => { operation = tab.dataset.operation; edited(); });
+  tab.addEventListener("keydown", (event) => {
+    const order = byOrder(model.Operation).map((o) => o.id);
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+    if (!step) return;
+    operation = order[(order.indexOf(operation) + step + order.length) % order.length];
+    edited();
+    $(`tab-${operation}`).focus();
+  });
+}
+for (const f of fields.values()) {
+  $(`field-${f.id}`).addEventListener("change", () => {
+    if (f.replaces && chosen(f.id).length) $(`field-${f.replaces}`).value = "";
+    edited();
+  });
+}
+$("run").addEventListener("click", runOperation);
+$("cancel").addEventListener("click", () => {
+  job = undefined;
+  fire("cancel");
+  restart(() => fire("restarted", labels.cancelled));
+});
+for (const button of document.querySelectorAll("[data-example]")) {
+  const example = model.Example.find((e) => e.id === button.dataset.example);
+  button.addEventListener("click", () => runExample(example));
+}
+
+fetch("provenance.json").then((r) => (r.ok ? r.json() : {})).then((p) => {
+  if (p.version) $("version").textContent = `${$("version").dataset.label} ${p.version}`;
+}).catch(() => {});
+
+render();
+start(() => fire("loaded"));
