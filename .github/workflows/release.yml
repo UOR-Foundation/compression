@@ -430,7 +430,10 @@ jobs:
   pages:
     name: deploy pages
     needs: publish
-    if: github.event.inputs.mode != 'rehearsal'
+    # always(): publish's own needs (native, wasm, bench) are skipped when
+    # receipts prove them, and a skipped ancestor skips this job unless its
+    # condition calls a status function (v0.4.0's tag run skipped it).
+    if: always() && needs.publish.result == 'success' && github.event.inputs.mode != 'rehearsal'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
