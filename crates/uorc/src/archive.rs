@@ -227,9 +227,7 @@ impl Codec {
 fn template(codec: Codec, k: usize, era: Era) -> Option<(&'static [u8], Vec<u8>)> {
     if let Codec::Profile(p) | Codec::ProfileX86(p) = codec {
         // A recorded table field is read by this library's ncm blocks only.
-        if !crate::ncm::valid_profile(p)
-            || (era != Era::Current && crate::ncm::records_tables(p))
-        {
+        if !crate::ncm::valid_profile(p) || (era != Era::Current && crate::ncm::records_tables(p)) {
             return None;
         }
         let (prefix, tail) = profile_template(k, codec.x86(), era)?;
