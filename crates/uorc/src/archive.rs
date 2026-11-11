@@ -384,41 +384,66 @@ fn chain_block(c: &[u8; 32], block: &[u8]) -> [u8; 32] {
 
 /// [`chain`] of the concatenation of `parts`, without joining them.
 pub fn chain_parts(parts: &[&[u8]]) -> [u8; 32] {
-    let mut c: [u8; 32] = Sha256::new()
-        .chain_update(CHAIN_TAG)
-        .chain_update([0u8])
-        .finalize()
-        .into();
-    let mut carry = [0u8; 64];
-    let mut held = 0usize;
+    let mut chain = Chain::new();
     for part in parts {
-        let mut rest = *part;
-        if held > 0 {
-            let take = rest.len().min(64 - held);
-            carry[held..held + take].copy_from_slice(&rest[..take]);
-            held += take;
+        chain.update(part);
+    }
+    chain.finish()
+}
+
+/// The UORC-SHA256-CHAIN-v1 digest computed incrementally, so that a common
+/// prefix (the basis library before every κ-label) is hashed once.
+#[derive(Clone)]
+struct Chain {
+    c: [u8; 32],
+    carry: [u8; 64],
+    held: usize,
+}
+
+impl Chain {
+    fn new() -> Self {
+        Chain {
+            c: Sha256::new()
+                .chain_update(CHAIN_TAG)
+                .chain_update([0u8])
+                .finalize()
+                .into(),
+            carry: [0u8; 64],
+            held: 0,
+        }
+    }
+
+    fn update(&mut self, mut rest: &[u8]) {
+        if self.held > 0 {
+            let take = rest.len().min(64 - self.held);
+            self.carry[self.held..self.held + take].copy_from_slice(&rest[..take]);
+            self.held += take;
             rest = &rest[take..];
-            if held < 64 {
-                continue;
+            if self.held < 64 {
+                return;
             }
-            c = chain_block(&c, &carry);
+            self.c = chain_block(&self.c, &self.carry);
+            self.held = 0;
         }
         let mut blocks = rest.chunks_exact(64);
         for block in &mut blocks {
-            c = chain_block(&c, block);
+            self.c = chain_block(&self.c, block);
         }
         let tail = blocks.remainder();
-        carry[..tail.len()].copy_from_slice(tail);
-        held = tail.len();
+        self.carry[..tail.len()].copy_from_slice(tail);
+        self.held = tail.len();
     }
-    Sha256::new()
-        .chain_update(CHAIN_TAG)
-        .chain_update([2u8])
-        .chain_update(c)
-        .chain_update([held as u8])
-        .chain_update(&carry[..held])
-        .finalize()
-        .into()
+
+    fn finish(&self) -> [u8; 32] {
+        Sha256::new()
+            .chain_update(CHAIN_TAG)
+            .chain_update([2u8])
+            .chain_update(self.c)
+            .chain_update([self.held as u8])
+            .chain_update(&self.carry[..self.held])
+            .finalize()
+            .into()
+    }
 }
 
 fn sealed(mut preimage: Vec<u8>) -> Vec<u8> {
@@ -634,7 +659,25 @@ pub const REF_BODY: [u8; hex_len(REF_HEX)] = hex_literal(REF_HEX);
 /// frame]` ([`window_identity`] of the one frame), which a reference frame
 /// names to reproduce it.
 pub fn frame_label(frame: &[u8]) -> [u8; 32] {
-    window_identity(&[frame])
+    // The chain over the basis head and the library is the same for every
+    // one-frame basis, so it is computed once.
+    static PREFIX: std::sync::OnceLock<Chain> = std::sync::OnceLock::new();
+    let mut chain = PREFIX
+        .get_or_init(|| {
+            let mut head = BASIS_TAG.to_vec();
+            push_uleb(&mut head, 2);
+            push_uleb(&mut head, LIBRARY.len() as u64);
+            let mut chain = Chain::new();
+            chain.update(&head);
+            chain.update(&LIBRARY);
+            chain
+        })
+        .clone();
+    let mut length = Vec::new();
+    push_uleb(&mut length, frame.len() as u64);
+    chain.update(&length);
+    chain.update(frame);
+    chain.finish()
 }
 
 /// The κ-labels a reference frame may name for `frame`: its label over the
@@ -699,6 +742,14 @@ fn conditional_fields(data: &[u8]) -> Option<(Vec<u64>, [u8; 32], &[u8])> {
 pub fn reference_of(data: &[u8]) -> Option<[u8; 32]> {
     let (_, label, body) = conditional_fields(data)?;
     (body == REF_BODY).then_some(label)
+}
+
+/// [`reference_of`] with the length of the bytes the reference names (the
+/// sum of its object lengths), which the decoder matches before it labels.
+pub fn reference_target(data: &[u8]) -> Option<([u8; 32], u64)> {
+    let (lengths, label, body) = conditional_fields(data)?;
+    let n = lengths.iter().try_fold(0u64, |a, &l| a.checked_add(l))?;
+    (body == REF_BODY).then_some((label, n))
 }
 
 /// `Archive.windowDecode` of a reference frame, natively: `frame` (the frame

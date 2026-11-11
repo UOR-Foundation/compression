@@ -34,7 +34,8 @@ pub enum Representation {
     Ncm,
     /// [`Representation::Ncm`] over the x86 branch filter.
     NcmX86,
-    /// The body reproduces an earlier frame, named by its κ-label (the basis identity).
+    /// The body reproduces earlier bytes of the stream (a run of content-defined
+    /// units of an earlier frame), named by their κ-label (the basis identity).
     Reference,
     /// The body is any other UORC program graph (for example a search result).
     Program,

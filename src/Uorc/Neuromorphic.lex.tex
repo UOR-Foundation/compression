@@ -1,0 +1,453 @@
+\begin{lexlean}{Uorc.Neuromorphic}
+\title{Parameters}
+\begin{semanticmodule}
+structure{
+  name: SynapticPlasticity,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: mixerCount, type: Nat},
+    {name: mixerInputs, type: Nat},
+    {name: weightLimit, type: Nat},
+    {name: weightInitial, type: Nat},
+    {name: inputLimit, type: Nat},
+    {name: errorLimit, type: Nat},
+    {name: plasticityScale, type: Nat},
+    {name: plasticityCeiling, type: Nat},
+    {name: plasticityFloor, type: Nat},
+    {name: plasticityHalfLife, type: Nat},
+    {name: stepLimit, type: Nat}
+  ]
+}
+
+structure{
+  name: SlotPlasticity,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: contexts, type: Nat},
+    {name: probabilityLimit, type: Nat},
+    {name: countLimit, type: Nat},
+    {name: rateNumerator, type: Nat},
+    {name: rateCeiling, type: Nat},
+    {name: rateFloor, type: Nat}
+  ]
+}
+
+structure{
+  name: RefinementPlasticity,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: maps, type: Nat},
+    {name: points, type: Nat},
+    {name: probabilityLimit, type: Nat},
+    {name: rateShift, type: Nat}
+  ]
+}
+
+structure{
+  name: NeuromorphicStandard,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: profile, type: String},
+    {name: standard, type: String},
+    {name: kernel, type: String},
+    {name: synaptic, type: SynapticPlasticity},
+    {name: slot, type: SlotPlasticity},
+    {name: refinement, type: RefinementPlasticity}
+  ]
+}
+
+definition{name: mixerCount, parameters: [], result: Nat, body: 3}
+
+definition{name: mixerInputs, parameters: [], result: Nat, body: 24}
+
+definition{name: weightLimit, parameters: [], result: Nat, body: 4194304}
+
+definition{name: weightSpan, parameters: [], result: Nat, body: 8388608}
+
+definition{name: weightInitial, parameters: [], result: Nat, body: 16384}
+
+definition{name: weightInitialAdded, parameters: [], result: Nat, body: 0}
+
+definition{name: inputLimit, parameters: [], result: Nat, body: 2047}
+
+definition{name: errorLimit, parameters: [], result: Nat, body: 4096}
+
+definition{name: plasticityScale, parameters: [], result: Nat, body: 65536}
+
+definition{name: plasticityFloor, parameters: [], result: Nat, body: 24}
+
+definition{name: plasticityGain, parameters: [], result: Nat, body: 104}
+
+definition{name: plasticityHalfLife, parameters: [], result: Nat, body: 4096}
+
+definition{name: plasticityCeiling, parameters: [], result: Nat, body: 128}
+
+definition{name: stepLimit, parameters: [], result: Nat, body: 16376}
+
+definition{name: slotContexts, parameters: [], result: Nat, body: 17}
+
+definition{name: probabilityLimit, parameters: [], result: Nat, body: 65535}
+
+definition{name: countLimit, parameters: [], result: Nat, body: 127}
+
+definition{name: rateNumerator, parameters: [], result: Nat, body: 131072}
+
+definition{name: rateCeiling, parameters: [], result: Nat, body: 43690}
+
+definition{name: rateFloor, parameters: [], result: Nat, body: 510}
+
+definition{name: refinementMaps, parameters: [], result: Nat, body: 2}
+
+definition{name: refinementPoints, parameters: [], result: Nat, body: 33}
+
+definition{name: refinementTarget, parameters: [], result: Nat, body: 65598}
+
+definition{name: refinementShift, parameters: [], result: Nat, body: 6}
+
+definition{
+  name: scale,
+  parameters: [a : Nat, c : Nat],
+  result: Nat,
+  body: (match c | Nat.zero => 0 | Nat.succ k => ((scale a k) + a)),
+  axioms: [],
+  executable: true,
+  recursive_argument: c
+}
+
+theorem{
+  name: multiplySucc,
+  parameters: [a : Nat, n : Nat],
+  statement: ((prim multiply a (n + 1) : Nat) = ((prim multiply a n : Nat) + a)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+theorem{
+  name: scaleIsMultiply,
+  parameters: [a : Nat, c : Nat],
+  statement: ((scale a c) = (prim multiply a c : Nat)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: zero},
+      {proof: simplify{definitions: [ih, multiplySucc, scale]}, binders: [k, ih], constructor: succ}
+    ],
+    scrutinee: c
+  },
+  axioms: [propext]
+}
+
+definition{
+  name: plasticity,
+  parameters: [pos : Nat],
+  result: Nat,
+  body: ((plasticityFloor) + (prim quotient (prim multiply (plasticityGain) (plasticityHalfLife) : Nat) ((plasticityHalfLife) + pos) 0 : Nat))
+}
+
+definition{
+  name: stepTerm,
+  parameters: [mag : Nat, err : Nat, rate : Nat],
+  result: Nat,
+  body: (scale (scale mag err) rate)
+}
+
+definition{
+  name: potentiationStep,
+  parameters: [mag : Nat, err : Nat, rate : Nat],
+  result: Nat,
+  body: (prim quotient (stepTerm mag err rate) (plasticityScale) 0 : Nat)
+}
+
+definition{
+  name: depressionStep,
+  parameters: [mag : Nat, err : Nat, rate : Nat],
+  result: Nat,
+  body: (prim quotient ((stepTerm mag err rate) + 65535) (plasticityScale) 0 : Nat)
+}
+
+definition{
+  name: potentiateWeight,
+  parameters: [w : Nat, mag : Nat, err : Nat, rate : Nat],
+  result: Nat,
+  body: (if ((weightSpan) <? (w + (potentiationStep mag err rate))) then (weightSpan) else (w + (potentiationStep mag err rate)))
+}
+
+definition{
+  name: depressWeight,
+  parameters: [w : Nat, mag : Nat, err : Nat, rate : Nat],
+  result: Nat,
+  body: (prim subtract w (depressionStep mag err rate) : Nat)
+}
+
+definition{
+  name: learnWeight,
+  parameters: [w : Nat, mag : Nat, err : Nat, rate : Nat, potentiate : Bool],
+  result: Nat,
+  body: (if potentiate then (potentiateWeight w mag err rate) else (depressWeight w mag err rate))
+}
+
+theorem{
+  name: hebbianBoundsHold,
+  parameters: [w : Nat, mag : Nat, err : Nat, rate : Nat, potentiate : Bool],
+  statement: ((w <= (weightSpan)) -> ((learnWeight w mag err rate potentiate) <= (weightSpan))),
+  proof: linear_arithmetic{definitions: [depressWeight, learnWeight, potentiateWeight, weightSpan]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: potentiationNeverLowersHolds,
+  parameters: [w : Nat, mag : Nat, err : Nat, rate : Nat],
+  statement: ((w <= (weightSpan)) -> (w <= (potentiateWeight w mag err rate))),
+  proof: linear_arithmetic{definitions: [potentiateWeight, weightSpan]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: depressionNeverRaisesHolds,
+  parameters: [w : Nat, mag : Nat, err : Nat, rate : Nat],
+  statement: ((depressWeight w mag err rate) <= w),
+  proof: linear_arithmetic{definitions: [depressWeight]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: plasticityBoundsHold,
+  parameters: [pos : Nat, share : Nat],
+  statement: (((prim multiply 4096 share : Nat) <= (scale ((plasticityHalfLife) + pos) share)) /\ (((scale ((plasticityHalfLife) + pos) share) <= (prim multiply (plasticityGain) (plasticityHalfLife) : Nat)) -> (share <= 104))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [plasticityGain, plasticityHalfLife, scale]},
+        binders: [],
+        constructor: zero
+      },
+      {
+        proof: linear_arithmetic{definitions: [plasticityGain, plasticityHalfLife, scale]},
+        binders: [k, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: share
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: plasticityAt0,
+  parameters: [],
+  statement: ((plasticity 0) = 128),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: plasticityAt4096,
+  parameters: [],
+  statement: ((plasticity 4096) = 76),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: plasticityAt421888,
+  parameters: [],
+  statement: ((plasticity 421888) = 25),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: plasticityAt421889,
+  parameters: [],
+  statement: ((plasticity 421889) = 24),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: laneFitHolds,
+  parameters: [mag : Nat, err : Nat, rate : Nat],
+  statement: ((mag <= (inputLimit)) -> ((((scale mag err) <= (prim multiply 2047 err : Nat)) /\ ((err <= (errorLimit)) -> ((stepTerm mag err rate) <= (prim multiply 8384512 rate : Nat)))) /\ ((err <= (errorLimit)) -> ((rate <= (plasticityCeiling)) -> (((stepTerm mag err rate) <= 1073217536) /\ ((depressionStep mag err rate) <= (stepLimit))))))),
+  proof: induction{
+    branches: [
+      {
+        proof: induction{
+          branches: [
+            {
+              proof: linear_arithmetic{
+                definitions: [
+                  depressionStep,
+                  errorLimit,
+                  inputLimit,
+                  plasticityCeiling,
+                  plasticityScale,
+                  scale,
+                  stepLimit,
+                  stepTerm
+                ]
+              },
+              binders: [],
+              constructor: zero
+            },
+            {
+              proof: linear_arithmetic{
+                definitions: [
+                  depressionStep,
+                  errorLimit,
+                  inputLimit,
+                  plasticityCeiling,
+                  plasticityScale,
+                  scale,
+                  stepLimit,
+                  stepTerm
+                ]
+              },
+              binders: [j, jh],
+              constructor: succ
+            }
+          ],
+          scrutinee: err
+        },
+        binders: [],
+        constructor: zero
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [
+            depressionStep,
+            errorLimit,
+            inputLimit,
+            plasticityCeiling,
+            plasticityScale,
+            scale,
+            stepLimit,
+            stepTerm
+          ]
+        },
+        binders: [k, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: rate
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: slotRate,
+  parameters: [count : Nat],
+  result: Nat,
+  body: (prim quotient (rateNumerator) ((prim multiply 2 count : Nat) + 3) 0 : Nat)
+}
+
+definition{
+  name: slotStep,
+  parameters: [gap : Nat, rate : Nat],
+  result: Nat,
+  body: (prim quotient (scale rate gap) (plasticityScale) 0 : Nat)
+}
+
+definition{
+  name: slotStepUp,
+  parameters: [gap : Nat, rate : Nat],
+  result: Nat,
+  body: (prim quotient ((scale rate gap) + 65535) (plasticityScale) 0 : Nat)
+}
+
+definition{
+  name: slotCount,
+  parameters: [count : Nat],
+  result: Nat,
+  body: (if ((countLimit) <=? (count + 1)) then (countLimit) else (count + 1))
+}
+
+definition{
+  name: slotRatesBounded,
+  parameters: [fuel : Nat],
+  result: Bool,
+  body: (match fuel
+    | Nat.zero => true
+    | Nat.succ k => (((slotRate k) <=? (rateCeiling)) && (((rateFloor) <=? (slotRate (if ((countLimit) <=? k) then (countLimit) else k))) && (slotRatesBounded k)))),
+  axioms: [],
+  recursive_argument: fuel
+}
+
+theorem{
+  name: slotRatesBoundedHolds,
+  parameters: [],
+  statement: ((slotRatesBounded 256) = true),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: slotRateAtConsolidation,
+  parameters: [],
+  statement: ((slotRate (countLimit)) = (rateFloor)),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: slotCountBoundHolds,
+  parameters: [count : Nat],
+  statement: ((slotCount count) <= (countLimit)),
+  proof: linear_arithmetic{definitions: [countLimit, slotCount]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: slotStepWithinGapHolds,
+  parameters: [gap : Nat, rate : Nat],
+  statement: ((rate <= (plasticityScale)) -> ((((scale rate gap) <= (prim multiply 65536 gap : Nat)) /\ ((slotStep gap rate) <= gap)) /\ ((slotStepUp gap rate) <= gap))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [plasticityScale, scale, slotStep, slotStepUp]},
+        binders: [],
+        constructor: zero
+      },
+      {
+        proof: linear_arithmetic{definitions: [plasticityScale, scale, slotStep, slotStepUp]},
+        binders: [k, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: gap
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: refineUp,
+  parameters: [t : Nat],
+  result: Nat,
+  body: (t + (prim quotient (prim subtract (refinementTarget) t : Nat) 64 0 : Nat))
+}
+
+definition{
+  name: refineDown,
+  parameters: [t : Nat],
+  result: Nat,
+  body: (prim subtract t (prim quotient (t + 63) 64 0 : Nat) : Nat)
+}
+
+theorem{
+  name: refinementBoundsHold,
+  parameters: [t : Nat],
+  statement: ((t <= (probabilityLimit)) -> (((t <= (refineUp t)) /\ ((refineUp t) <= (probabilityLimit))) /\ ((refineDown t) <= t))),
+  proof: linear_arithmetic{definitions: [probabilityLimit, refineDown, refineUp, refinementTarget]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: ncmNeuromorphicStandard,
+  parameters: [],
+  result: NeuromorphicStandard,
+  body: (record NeuromorphicStandard {profile := "uorc/ncm-plasticity/1", standard := "prism/neuromorphic-standard", kernel := "ncm", synaptic := (record SynapticPlasticity {mixerCount := (mixerCount), mixerInputs := (mixerInputs), weightLimit := (weightLimit), weightInitial := (weightInitial), inputLimit := (inputLimit), errorLimit := (errorLimit), plasticityScale := (plasticityScale), plasticityCeiling := (plasticity 0), plasticityFloor := (plasticityFloor), plasticityHalfLife := (plasticityHalfLife), stepLimit := (stepLimit)}), slot := (record SlotPlasticity {contexts := (slotContexts), probabilityLimit := (probabilityLimit), countLimit := (countLimit), rateNumerator := (rateNumerator), rateCeiling := (slotRate 0), rateFloor := (slotRate (countLimit))}), refinement := (record RefinementPlasticity {maps := (refinementMaps), points := (refinementPoints), probabilityLimit := (probabilityLimit), rateShift := (refinementShift)})})
+}
+\end{semanticmodule}
+\end{lexlean}
