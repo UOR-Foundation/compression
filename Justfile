@@ -31,10 +31,12 @@ model:
 # PrismPM's native regeneration runs model-write in a copy of the tree staged
 # in the SDK's /tmp, a 2 GiB tmpfs of which CARGO_HOME already holds 1.1 GiB,
 # with a cleared environment. The note .tmp/model-write-target travels with
-# the copy and sends its build to this workspace's target directory on disk.
+# the copy and sends its build to a target directory of its own on this
+# workspace's disk. It is not the workspace's target: a binary built from the
+# copy carries the copy's paths, and cargo would take it as current here.
 template-check:
     cargo run --locked -q -p xtask -- audit-bootstrap
-    mkdir -p .tmp && printf '%s' "{{justfile_directory()}}/target" > .tmp/model-write-target
+    mkdir -p .tmp && printf '%s' "{{justfile_directory()}}/target/regeneration" > .tmp/model-write-target
     prismpm template check
     rm -f .tmp/model-write-target
     prismpm lock check
