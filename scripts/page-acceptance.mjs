@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const [site, ...rest] = process.argv.slice(2);
 const opt = (key) => { const i = rest.indexOf(key); return i < 0 ? undefined : rest[i + 1]; };
@@ -252,6 +253,20 @@ const cases = {
     expect(sha(out.bytes) === sha(fs.readFileSync(inputs.frames)), 'reference frames restored other bytes');
     const mib = Number((await evaluate("document.querySelector('#result .memory').textContent")).match(/([\d,]+) MiB/)[1].replace(/,/g, ''));
     raise('workerMemory', mib);
+  },
+  // Archives the released v0.2.0 and v0.3.0 binaries wrote (crates/uorc/tests/compat).
+  async 'decompress-released'() {
+    const compat = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'crates/uorc/tests/compat');
+    const frame = Buffer.from(Array.from({ length: 8 * 1048576 }, (_, i) => ((((i >> 4) * 7 + (i >> 12)) & 0x3f) + 0x20)));
+    const originals = { text: fs.readFileSync(path.join(compat, 'text.bin')), x86: fs.readFileSync(path.join(compat, 'x86.bin')), stream: Buffer.concat([frame, frame, frame.subarray(1000, 5096)]) };
+    await tab('decompress');
+    for (const name of fs.readdirSync(compat).filter((n) => n.endsWith('.uorc') && n.includes('-v0.')).sort()) {
+      await setFiles('field-archive', [path.join(compat, name)]);
+      const r = await runAndWait();
+      expect(r.state === 'done', `${name}: ${await text('status')}`);
+      const [out] = await downloads();
+      expect(sha(out.bytes) === sha(originals[name.split('-')[0]]), `${name} restored other bytes`);
+    }
   },
   async 'compress-files'() {
     await tab('compress');
