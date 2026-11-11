@@ -27,6 +27,10 @@ pub const MAX_INPUTS: u32 = CONTEXT_BITS + FIXED_INPUTS + 2 * FEATURE_INPUTS;
 /// The bound of `Uorc.Performance.decodeStepsBound`: no frame costs more
 /// steps per output byte than this (the full model).
 pub const MAX_STEPS_PER_BYTE: u64 = BITS_PER_BYTE * MAX_INPUTS as u64;
+/// The bit of a codec point's profile word that says the frame is coded over
+/// the x86 filter (the strategy table's encoding: bits 0-19 the ncm profile,
+/// bit 31 the filter). The filter changes the bytes a frame codes, not its steps.
+pub const POINT_X86: u32 = 1 << 31;
 /// Domain tag of a codec point's identity.
 pub const CODEC_POINT_TAG: &[u8] = b"uorc/codec-point/1";
 
@@ -64,7 +68,8 @@ pub struct CodecPoint {
     /// The basis identity the frame names (the export's library), zeros when
     /// the frame is self-contained.
     pub basis: [u8; 32],
-    /// The ncm profile word, 0 when the frame applies no ncm decoder.
+    /// The ncm profile word, with [`POINT_X86`] set when the frame is coded
+    /// over the x86 filter; 0 when the frame applies no ncm decoder.
     pub profile: u32,
     /// κ of the consolidated model state the frame starts from, zeros for none.
     pub state: [u8; 32],
@@ -77,7 +82,12 @@ impl CodecPoint {
     pub fn of(info: &Info) -> CodecPoint {
         CodecPoint {
             basis: info.basis.unwrap_or([0; 32]),
-            profile: info.ncm_profile.unwrap_or(0),
+            profile: info.ncm_profile.unwrap_or(0)
+                | if info.representation == Representation::NcmX86 {
+                    POINT_X86
+                } else {
+                    0
+                },
             state: [0; 32],
             lanes: 1,
         }
@@ -151,6 +161,14 @@ mod tests {
             p.kappa(),
             CodecPoint {
                 profile: ncm::V03,
+                ..p
+            }
+            .kappa()
+        );
+        assert_ne!(
+            p.kappa(),
+            CodecPoint {
+                profile: ncm::FULL | POINT_X86,
                 ..p
             }
             .kappa()
