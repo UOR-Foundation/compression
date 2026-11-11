@@ -73,6 +73,9 @@ pub const COUNT: usize = 8;
 /// (< 64 KiB), text, other; numbered tiny 0, small 1, x86 2, text 3, other 4.
 pub const FAMILIES: usize = 5;
 
+/// The most strategies any family codes ([`budget`]).
+pub const MAX_BUDGET: usize = 4;
+
 /// Strategies the encoder codes for a frame of `family` (`Client.budgetFor`):
 /// four for tiny and small frames, three for text, two for x86 and other
 /// frames. With these, each family's schedule holds the two strategies v0.4

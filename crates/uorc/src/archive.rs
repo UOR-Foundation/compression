@@ -1013,11 +1013,15 @@ pub fn window_decode(data: &[u8], window: &[&[u8]]) -> Option<Vec<u8>> {
         return None;
     }
     let (codec, era, payload) = window_payload(&pre[start..], k)?;
-    let history = window.concat();
     let decode = || {
         if !codec.x86() {
-            return decode_with(codec, &history, payload, n);
+            return match codec.ncm_profile() {
+                // The model reads the window's frames in place.
+                Some(p) => crate::ncm::decode_canonical_window(window, payload, n, p),
+                None => crate::ulz::decode_with(&window.concat(), payload, n),
+            };
         }
+        let history = window.concat();
         let h = crate::x86::filter(&history, false, 0).0;
         let out = decode_with(codec, &h, payload, n)?;
         Some(crate::x86::filter(&out, true, history.len() as u64).0)

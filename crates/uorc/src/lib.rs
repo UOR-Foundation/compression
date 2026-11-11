@@ -364,6 +364,66 @@ fn portfolio_trials(
     }
 }
 
+/// The archive of scheduled strategy `which` (an index into
+/// [`portfolio::plan`], fewer than [`portfolio::MAX_BUDGET`]) for a frame
+/// with objects of `lengths` after the frames `window`, bounded by the raw
+/// archive: `None` when there is no such strategy, it is excluded, or it
+/// cannot be shorter. Coding every scheduled strategy and passing the
+/// archives to [`choose`] gives the archive [`compress_frame_with`] writes
+/// (with `steps == 0`), so callers on separate cores (the page's workers)
+/// write the library's bytes.
+pub fn compress_strategy(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    which: usize,
+) -> Option<Vec<u8>> {
+    let strategy = *portfolio::plan(frame).get(which)?;
+    portfolio_trials(frame, lengths, window, &[strategy], true)
+        .pop()
+        .flatten()
+        .map(|(a, _)| a)
+}
+
+/// The frame's archive from its scheduled strategies' archives, in plan
+/// order (see [`compress_strategy`]): the least in bytes, then in decode
+/// steps (`Client.pick`), then the raw archive unless the kept one is
+/// strictly shorter.
+pub fn choose(frame: &[u8], lengths: &[u64], archives: Vec<Option<Vec<u8>>>) -> Vec<u8> {
+    let n = frame.len() as u64;
+    let best = archives
+        .into_iter()
+        .map(|a| {
+            a.and_then(|a| Some((trial_steps(&a, n)?, a)))
+                .map(|(s, a)| (a, s))
+        })
+        .rev()
+        .fold(None, |kept, head| pick_trial(head, kept));
+    match best {
+        Some((linked, _)) if (linked.len() as u64) < archive::raw_length(lengths) => linked,
+        _ => archive::raw_objects(frame, lengths),
+    }
+}
+
+/// The decode steps of a coded ncm archive of `n` output bytes, as the
+/// portfolio measures them (`Client.trialSteps`): a state frame models
+/// n + |S| bytes.
+fn trial_steps(archive: &[u8], n: u64) -> Option<u64> {
+    let info = frame::inspect(archive).ok()?;
+    if !matches!(
+        info.representation,
+        frame::Representation::Ncm | frame::Representation::NcmX86
+    ) {
+        return None;
+    }
+    let profile = info.ncm_profile.unwrap_or(ncm::V03);
+    let modelled = match archive::state_frame(archive) {
+        Some(st) => n + states::state(st.state)?.len() as u64,
+        None => n,
+    };
+    Some(performance::trial_steps(profile, modelled))
+}
+
 /// `Client.pick` over coded archives and their steps: `head` replaces `kept`
 /// when it has fewer bytes, or as many bytes and fewer steps
 /// (`performance::pick`).
@@ -1325,36 +1385,97 @@ impl FrameEncoder {
     /// The next piece of input: returns the archives of the frames it
     /// completes, back to back (none until more than a frame is pending).
     pub fn push(&mut self, input: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-        let frames = self.framer.push(input);
-        self.code(frames, steps)
+        let planned = self.plan(input);
+        code_all(planned, steps)
     }
 
     /// The end of input: the archives of the remaining frames.
     pub fn finish(&mut self, steps: u64) -> Result<Vec<u8>, Error> {
-        let frames = self.framer.finish();
-        self.code(frames, steps)
+        let planned = self.plan_end();
+        code_all(planned, steps)
     }
 
-    fn code(&mut self, frames: Vec<chunk::Frame>, steps: u64) -> Result<Vec<u8>, Error> {
+    /// [`FrameEncoder::push`] without the coding: the frames it completes,
+    /// each a finished repeat or a frame with the window it reads, so that a
+    /// caller can code them on other cores ([`Planned::code`], or
+    /// [`compress_strategy`] and [`choose`]) and write the archives in order.
+    pub fn plan(&mut self, input: &[u8]) -> Vec<Planned> {
+        let frames = self.framer.push(input);
+        self.planned(frames)
+    }
+
+    /// [`FrameEncoder::finish`] without the coding (see [`FrameEncoder::plan`]).
+    pub fn plan_end(&mut self) -> Vec<Planned> {
+        let frames = self.framer.finish();
+        self.planned(frames)
+    }
+
+    fn planned(&mut self, frames: Vec<chunk::Frame>) -> Vec<Planned> {
         let mut out = Vec::new();
         for frame in frames {
-            let archive = match frame.reference {
-                Some(label) => reference_or_raw(&frame.bytes, &label, &frame.pieces),
-                None => {
-                    let window: Vec<&[u8]> = self.before[self.before.len() - frame.window..]
-                        .iter()
-                        .map(Vec::as_slice)
-                        .collect();
-                    compress_pieces(&frame.bytes, &frame.pieces, &window, steps, true)?
-                }
-            };
-            out.extend_from_slice(&archive);
+            out.push(match frame.reference {
+                Some(label) => Planned::Done {
+                    length: frame.bytes.len() as u64,
+                    archive: reference_or_raw(&frame.bytes, &label, &frame.pieces),
+                },
+                None => Planned::Code {
+                    bytes: frame.bytes.clone(),
+                    pieces: frame.pieces,
+                    window: self.before[self.before.len() - frame.window..].to_vec(),
+                },
+            });
             self.before.push(frame.bytes);
             if self.before.len() > archive::WINDOW {
                 self.before.remove(0);
             }
         }
-        Ok(out)
+        out
+    }
+}
+
+fn code_all(planned: Vec<Planned>, steps: u64) -> Result<Vec<u8>, Error> {
+    let mut out = Vec::new();
+    for frame in planned {
+        out.extend_from_slice(&frame.code(steps)?);
+    }
+    Ok(out)
+}
+
+/// A frame [`FrameEncoder::plan`] has cut.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Planned {
+    /// A repeat of an earlier run, already its archive.
+    Done {
+        /// The frame's input length.
+        length: u64,
+        /// Its archive.
+        archive: Vec<u8>,
+    },
+    /// A frame still to code after the frames of its window (oldest first).
+    Code {
+        /// The frame's input bytes.
+        bytes: Vec<u8>,
+        /// The pieces of objects it holds.
+        pieces: Vec<u64>,
+        /// The frames it reads as history.
+        window: Vec<Vec<u8>>,
+    },
+}
+
+impl Planned {
+    /// The frame's archive, the one [`FrameEncoder::push`] writes for it.
+    pub fn code(&self, steps: u64) -> Result<Vec<u8>, Error> {
+        match self {
+            Planned::Done { archive, .. } => Ok(archive.clone()),
+            Planned::Code {
+                bytes,
+                pieces,
+                window,
+            } => {
+                let window: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
+                compress_pieces(bytes, pieces, &window, steps, true)
+            }
+        }
     }
 }
 
