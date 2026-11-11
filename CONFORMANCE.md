@@ -76,6 +76,12 @@ The three honesty levels (R2):
 | --- | --- | --- |
 | `UC-OBJ-01` | `build` | Archives of ordered objects preserve the exact object boundary vector, including zero objects and distinct zero-length objects. |
 
+## pages-client
+
+| ID | Level | Statement |
+| --- | --- | --- |
+| `UC-WEB-01` | `build` | The Pages client is generated from and conforms to its Prism product model in Uorc.Page: stakeholders, features with their calls and acceptance cases, journeys, the page's UML state machine, operations, fields, controls, examples, error hints, sections, usage, links and quality measures. The generated page holds exactly the modeled elements, and a real browser walks every journey, takes every modeled transition, checks every control's enabled state in every state it reaches and holds every gated quality measure. |
+
 ## product-interfaces
 
 | ID | Level | Statement |
@@ -161,3 +167,4 @@ The three honesty levels (R2):
 | `UC-INT-04` | `build` | `build_evidence` | `not_measured` | Source-owned actual-call relations establish ordered hash admissions, drained selected-view EOF and checked cumulative basis/main work; composed generated-model controls reject failed-prefix resets and late corruption. Consumer snapshot preservation, canonical digest refinement and complete archive EOF remain separate obligations. |
 | `UC-INT-05` | `build` | `build_evidence` | `not_measured` | Source-owned completed-view and continuous publication proofs derive the actual chosen-profile digest and emitted-image reads, discharging canonical driver termination and OwnedHash control/cleanup lifetime for both explicit format identities and arbitrary finite source input. Initial source-layout correspondence and full product acceptance remain separate consumer obligations. |
 | `UC-NEU-01` | `build` | `kernel_theorem` | `not_measured` | The ncm coder's plasticity is stated as the Prism neuromorphic standard in Uorc.Neuromorphic, with kernel-checked bounds: every mixer weight stays within plus or minus 2^22 under the bounded Hebbian rule, potentiation never lowers and depression never raises a weight, the plasticity lies between 24 and 128 per 65536 (128 at the first byte, 24 in the limit), one bit's weight change is at most 16376 and every product fits a 32-bit lane, a context slot never steps past its gap to the coded bit and consolidates at count 127, and every probability-map point stays within 16 bits; the native coder reads the model's constants. |
+| `UC-WEB-01` | `build` | `build_evidence` | `not_measured` | The Pages client is generated from and conforms to its Prism product model in Uorc.Page: stakeholders, features with their calls and acceptance cases, journeys, the page's UML state machine, operations, fields, controls, examples, error hints, sections, usage, links and quality measures. The generated page holds exactly the modeled elements, and a real browser walks every journey, takes every modeled transition, checks every control's enabled state in every state it reaches and holds every gated quality measure. |

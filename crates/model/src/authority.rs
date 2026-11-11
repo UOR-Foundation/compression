@@ -137,6 +137,8 @@ pub struct AuthorityGraph {
     pub claim_policy: ClaimPolicy,
     /// Generated claim-disposition ledger.
     pub ledger: Ledger,
+    /// The Prism product model of the Pages client.
+    pub page: crate::page::PageModel,
 }
 
 impl AuthorityGraph {
@@ -335,6 +337,7 @@ impl AuthorityGraph {
                 spec: "template/1".to_string(),
                 claim: claims,
             },
+            page: crate::page::PageModel::load(root)?,
         };
 
         graph.model().check()?;
