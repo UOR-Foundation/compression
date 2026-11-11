@@ -34,7 +34,7 @@ reports), the same schedule `FrameDecoder` runs.
 - `planted_model_defects_are_rejected_uc_web_01`: eleven planted model defects,
   each rejected by its check.
 - `scripts/page-acceptance.mjs` (CI: `pages-client.yml`; local: `just pages`):
-  walks the three journeys in fresh pages, runs the 17 acceptance cases, records
+  walks the three journeys in fresh pages, runs the 18 acceptance cases, records
   every state change and checks every control against `enabledIn` at each one,
   and holds the gated measures.
 
@@ -64,18 +64,49 @@ Planting the v0.3 wasm first showed a page defect: an async trap in the worker
 raised no `error` event, so the page stayed in `running`. The worker now reports
 any non-uorc failure as `stopped` and closes, and the page starts a new one.
 
-## Measured (4 vCPU cloud VM, headless Chromium, SIMD128 build)
+## The page uses the visitor's cores
+
+The page's worker plans each frame with the library (`FrameEncoder::plan`), and
+a pool of workers codes the frame's two portfolio strategies side by side, then
+the library's own rule (`uorc::choose`) keeps one. The pool holds one worker per
+core, at most 16 and two per GiB of device memory; every worker shares one
+compiled module. Bytes equal the library's: the acceptance compares every page
+archive against `uorc::compress` (differingArchives 0), and the wasm test
+`planned_frames_coded_by_strategy_are_the_library_stream` checks the same path
+in Node.
+
+Progress moves within a frame: ncm reports every 64 KiB it codes, so the bar
+never stands still for long on an 8 MiB frame (measure `progressGap`).
+
+Same 10 MiB of generated prose, 4 vCPU, headless Chromium:
+
+| | Compress | Decompress |
+| --- | --- | --- |
+| One worker (main before the pool) | 168 KB/s (62.3 s) | 563 KB/s (18.6 s) |
+| Worker pool | 369 KB/s (28.4 s) | 561 KB/s (18.7 s) |
+
+Decoding this input stays on one worker, as it does natively: every frame is a
+window frame whose model reads the two frames before it. The archive is the
+same 5,731 bytes in both rows.
+
+## Measured (4 vCPU cloud VM, headless Chromium, SIMD128 build, ncm v4)
 
 | Measure | Value | Gate |
 | --- | --- | --- |
-| Longest page task while an operation runs | 0 ms (4 long tasks seen outside operations) | ≤ 200 ms |
-| Cancel to ready | 112 ms | ≤ 3000 ms |
-| Navigation to ready | 225 ms | ≤ 5000 ms |
+| Cores the page may use without a pool worker | 0 | 0 |
+| Longest time the progress bar stands still | 1,859 ms | ≤ 2000 ms |
+| Longest page task while an operation runs | 0 ms | ≤ 200 ms |
+| Cancel to ready | 132 ms | ≤ 3000 ms |
+| Navigation to ready | 337 ms | ≤ 5000 ms |
 | Page archives differing from the library's | 0 | 0 |
-| WebAssembly memory after a 3-frame (24 MiB) stream | 179 MiB | ≤ 256 MiB |
+| WebAssembly memory, largest worker | 227 MiB | ≤ 256 MiB |
 | Controls without an accessible name | 0 | 0 |
-| Compress, generated prose | 409 KB/s | measured |
-| Decompress, generated prose | 439 KB/s | measured |
+| Compress, the acceptance's 10 MiB of prose | 359 KB/s | measured |
+| Decompress, the acceptance's 10 MiB of prose | 899 KB/s | measured |
+
+Decode memory is bounded: in Node, decoding streams of 3, 6 and 12 distinct
+8 MiB frames peaks at 241, 257 and 257 MiB, flat once the two-frame window is
+full (the 64 MiB stack is part of it).
 
 Node (same V8) on 2 MB of repository text: 0.21 MB/s both ways without SIMD128,
 0.29 MB/s with it, against 0.53 MB/s for one native core. Random input

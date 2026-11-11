@@ -794,7 +794,35 @@ definition{
   name: browserThroughput,
   parameters: [],
   result: QualityRequirement,
-  body: (record QualityRequirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "Compress and decompress throughput in the browser, measured and reported; the release sets no target."})
+  body: (record QualityRequirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "Compress and decompress throughput in the browser on 10 MiB of text, measured and reported. Measured on the same 10 MiB (4 vCPU, headless Chromium): one worker compressed it at 168 KB/s and decompressed it at 563 KB/s; with the worker pool the page compresses it at 369 KB/s and decompresses it at 561 KB/s. Decoding this input stays on one worker, as it does natively, because each of its frames is a window frame whose model reads the frames before it."})
+}
+
+definition{
+  name: useTheCores,
+  parameters: [],
+  result: QualityRequirement,
+  body: (record QualityRequirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Compressing uses the visitor's cores: a pool of workers codes each frame's two scheduled strategies side by side, and frames side by side, and the archive is still the library's."})
+}
+
+definition{
+  name: progressWithinFrame,
+  parameters: [],
+  result: QualityRequirement,
+  body: (record QualityRequirement {characteristic := "interaction capability", subcharacteristic := "self-descriptiveness", text := "Progress moves while a frame is coded, not only between frames, so a long operation never looks stalled."})
+}
+
+definition{
+  name: coresUnused,
+  parameters: [],
+  result: QualityMeasure,
+  body: (record QualityMeasure {requirement := "Uorc.Page::useTheCores", quantity := "cores the page may use (at most 16, and two per GiB of device memory) without a pool worker", unit := "cores", threshold := 0, disposition := "gate"})
+}
+
+definition{
+  name: progressGap,
+  parameters: [],
+  result: QualityMeasure,
+  body: (record QualityMeasure {requirement := "Uorc.Page::progressWithinFrame", quantity := "longest time the progress bar stands still while an operation runs", unit := "ms", threshold := 2000, disposition := "gate"})
 }
 
 definition{
@@ -843,14 +871,14 @@ definition{
   name: compressThroughput,
   parameters: [],
   result: QualityMeasure,
-  body: (record QualityMeasure {requirement := "Uorc.Page::browserThroughput", quantity := "compress throughput on text", unit := "KB/s", threshold := 0, disposition := "measured"})
+  body: (record QualityMeasure {requirement := "Uorc.Page::browserThroughput", quantity := "compress throughput on 10 MiB of text, on every worker the page starts", unit := "KB/s", threshold := 0, disposition := "measured"})
 }
 
 definition{
   name: decompressThroughput,
   parameters: [],
   result: QualityMeasure,
-  body: (record QualityMeasure {requirement := "Uorc.Page::browserThroughput", quantity := "decompress throughput on text", unit := "KB/s", threshold := 0, disposition := "measured"})
+  body: (record QualityMeasure {requirement := "Uorc.Page::browserThroughput", quantity := "decompress throughput on 10 MiB of text", unit := "KB/s", threshold := 0, disposition := "measured"})
 }
 \end{semanticmodule}
 \end{lexlean}

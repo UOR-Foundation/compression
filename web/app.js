@@ -195,6 +195,7 @@ function showResult(result, nodes) {
   const memory = document.createElement("p");
   memory.className = "memory";
   memory.textContent = `${labels.memory}: ${fmt(Math.round(result.memory / 1048576))} MiB`;
+  memory.dataset.workers = String(result.workers ?? 0);
   $("result").replaceChildren(...nodes, memory);
   $("result").hidden = false;
 }
