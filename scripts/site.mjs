@@ -12,7 +12,7 @@
 // claim ledger), its closed claims (frontier.toml) and its engine state
 // (model/engine.toml), which the page's model view shows.
 //
-//   node scripts/site.mjs <out> --wasm <uorc_wasm.wasm> --version <tag> [--bench <dir>] [--model-notes <file>]
+//   node scripts/site.mjs <out> --wasm <uorc_wasm.wasm> --version <tag> [--bench <dir>] [--frontier <decided frontier.toml>] [--model-notes <file>]
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -93,14 +93,15 @@ export function readToml(text, name = 'toml') {
  * frontier.toml and the engine state of model/engine.toml, as the page shows
  * them. A file that does not exist yet contributes nothing.
  */
-export function modelState(root = ROOT) {
+export function modelState(root = ROOT, { frontier } = {}) {
   const read = (rel) => (fs.existsSync(path.join(root, rel)) ? readToml(fs.readFileSync(path.join(root, rel), 'utf8'), rel) : {});
   const ledger = read('model/ledger.toml').claim ?? [];
   const theorems = ledger.filter((c) => c.id.startsWith('UC-PERF-'))
     .map((c) => ({ id: c.id, statement: c.statement, evidence: c.evidence_kind }));
-  const claims = (read('frontier.toml').claim ?? []).map((c) => ({
-    id: c.id, form: c.form, codec: c.codec ?? c.candidate ?? '', candidate: c.candidate, incumbent: c.incumbent,
-    family: c.family, corpus: c.corpus ?? c.family ?? '', bytes: c.bytes, steps: c.steps, status: c.status,
+  const register = frontier ? readToml(fs.readFileSync(frontier, 'utf8'), frontier) : read('frontier.toml');
+  const claims = (register.claim ?? []).map((c) => ({
+    id: c.id, form: c.form, codec: c.codec ?? c.candidate ?? '', candidate: c.candidate ?? null, incumbent: c.incumbent ?? null,
+    family: c.family ?? null, corpus: c.corpus ?? c.family ?? '', bytes: c.bytes ?? null, steps: c.steps ?? null, status: c.status,
   }));
   // model/engine.toml (uorc/engine/1): [[weight]] names a [[strategy]] by
   // index (its point profile word, bit 31 the x86 filter); [[generator]]
@@ -156,7 +157,7 @@ export function references(text) {
 }
 
 /** Builds the site into `out` and returns its provenance. */
-export function build(out, { wasm, version, bench }) {
+export function build(out, { wasm, version, bench, frontier }) {
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
   const files = new Map();
@@ -175,7 +176,7 @@ export function build(out, { wasm, version, bench }) {
   files.set('provenance.json', Buffer.from(`${JSON.stringify(provenance, null, 2)}\n`));
   const site = new Set([...files.keys()]);
   if (bench) for (const name of BENCH_FILES) { files.set(name, fs.readFileSync(path.join(bench, name))); site.add(name); }
-  files.set(MODEL_FILE, Buffer.from(`${JSON.stringify(modelState(), null, 2)}\n`));
+  files.set(MODEL_FILE, Buffer.from(`${JSON.stringify(modelState(ROOT, { frontier }), null, 2)}\n`));
   site.add(MODEL_FILE);
   check(files, site);
   for (const [name, bytes] of files) fs.writeFileSync(path.join(out, name), bytes);
@@ -204,11 +205,9 @@ export function check(files, site = new Set(files.keys())) {
 /** The release notes' account of model.json, in Markdown. */
 export function modelNotes(m) {
   const count = (status) => m.claims.filter((c) => c.status === status).length;
-  const lines = ['## What this release claims', ''];
+  const lines = ['## The model on the page', ''];
   lines.push(m.theorems.length ? `Performance rows: ${m.theorems.map((t) => `${t.id} (${t.evidence})`).join(', ')}.` : 'Performance rows: none recorded.');
-  lines.push('', m.claims.length
-    ? `Claims: ${m.claims.length} recorded, ${count('proved')} proved, ${count('refuted')} refuted, ${m.claims.length - count('proved') - count('refuted')} not yet decided. Each names its codec point κ, corpus κ, exact bytes and steps.`
-    : 'Claims: none recorded.');
+  lines.push('', `Claims: ${m.claims.length} recorded, ${count('proved')} proved, ${count('refuted')} refuted (listed above).`);
   lines.push('', m.engine.tick == null ? 'Engine: no tick recorded.' : `Engine: tick ${m.engine.tick}, rule30 register ${m.engine.rule30}, ${m.engine.strategies} strategies in the portfolio, ${m.engine.weights.length} weights.`);
   lines.push('', 'The full register is model.json, on the Pages site and attached to this release.', '');
   return lines.join('\n');
@@ -218,10 +217,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [out, ...rest] = process.argv.slice(2);
   const opt = (key) => { const i = rest.indexOf(key); return i < 0 ? undefined : rest[i + 1]; };
   if (!out || !opt('--wasm') || !opt('--version')) {
-    console.error('usage: node scripts/site.mjs <out> --wasm <file> --version <tag> [--bench <dir>] [--model-notes <file>]');
+    console.error('usage: node scripts/site.mjs <out> --wasm <file> --version <tag> [--bench <dir>] [--frontier <decided frontier.toml>] [--model-notes <file>]');
     process.exit(2);
   }
-  const p = build(out, { wasm: opt('--wasm'), version: opt('--version'), bench: opt('--bench') });
+  const p = build(out, { wasm: opt('--wasm'), version: opt('--version'), bench: opt('--bench'), frontier: opt('--frontier') });
   if (opt('--model-notes')) fs.writeFileSync(opt('--model-notes'), modelNotes(JSON.parse(fs.readFileSync(path.join(out, MODEL_FILE), 'utf8'))));
   console.log(`site: closure v2, ${Object.keys(p.files).length + 1} files, ${p.application} ${p.version}`);
 }

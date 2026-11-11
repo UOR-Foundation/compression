@@ -242,6 +242,31 @@ pub fn compress_strategy(
     )
 }
 
+/// The archive a frame gets when the encoder codes `strategies` (in
+/// order, at most [`portfolio::BUDGET`]) instead of the ones
+/// [`portfolio::plan`] schedules: the first learns its context mask, each is
+/// bounded by the raw archive, and [`choose`] keeps the result. With
+/// `portfolio::plan(frame)` it is the archive [`compress_frame_with`] writes
+/// (with `steps == 0`); with other strategies it is the frame at another
+/// point of the codec space (the claim decider, `crates/frontier`). `None`
+/// entries (a strategy the coder cannot apply) yield no candidate.
+pub fn compress_with_strategies(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    strategies: &[Option<portfolio::Strategy>],
+) -> Vec<u8> {
+    let raw = archive::raw_length(lengths);
+    let mut coded = strategies
+        .iter()
+        .take(portfolio::BUDGET)
+        .enumerate()
+        .map(|(k, s)| s.and_then(|s| code_strategy(frame, lengths, window, s, k == 0, raw)));
+    let first = coded.next().flatten();
+    let second = coded.next().flatten();
+    choose(frame, lengths, first, second)
+}
+
 /// The frame's archive from its two strategies' archives (see
 /// [`compress_strategy`]): the second only when strictly shorter than the
 /// first, then the raw archive unless the kept one is strictly shorter.

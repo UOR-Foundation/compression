@@ -140,9 +140,12 @@ archive:
   bench page): the ledger's `UC-PERF-*` rows, the claims of `frontier.toml`
   and the engine state of `model/engine.toml`. Its reader refuses any TOML it
   cannot read faithfully, so a register the page would misreport fails the
-  build. The page's model view (`readModel`) shows the three tables and the
-  engine line; the release attaches `model.json` and puts its summary in the
-  release notes.
+  build. The release passes `--frontier claims/frontier.toml`, the register
+  the factory decided for the tag, so the page lists the same claims as the
+  release's `frontier.md` notes and `uorc-<tag>-frontier.toml`. The page's
+  model view (`readModel`) shows the three tables and the engine line; the
+  release attaches `model.json` and adds the performance rows and engine line
+  to the notes after `frontier.md`.
 - The factory obligation `pages` keys on the three model files, so a new
   claim or engine tick re-runs the browser acceptance and nothing else.
 
