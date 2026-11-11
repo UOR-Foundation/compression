@@ -310,6 +310,22 @@ research_disposition = "not_measured"
 feature = "features/suites/performance-theorems.feature"
 
 [[claim]]
+id = "UC-PERF-10"
+level = "build"
+statement = "The encoder's stop is a ledger over its coder events: its count of emitted bytes saturates at the cap (ledgerSaturatesAtTheCap), so a payload below the cap is exactly the unbounded payload, four header bytes, the emitted bytes and one final byte (stopKeepsEveryPayloadBelowTheCap), and a candidate is abandoned exactly when its emitted bytes reach the cap and at no other point (stopAbandonsExactlyAtTheCap). A coded bit at a 12-bit probability narrows the coder's width by at least one and by at least one part in 4096 (aOneNarrowsTheWidth, aOneSpendsAFraction, aZeroNarrowsTheWidth, aZeroSpendsAFraction). No exact rule decides a raw frame earlier than its ledger does (exactRawDecision): until a candidate's ledger reaches the cap, a continuation the model codes in few bytes can still make the coded frame the smaller one. Measured: random bytes code to 0.28 to 0.30 percent over raw under every shipped profile, so on random input the earliest exact stop comes at about 99.7 percent of the frame."
+evidence_kind = "kernel_theorem"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
+
+[[claim]]
+id = "UC-PERF-11"
+level = "build"
+statement = "Input the model cannot shrink costs one coder pass per scheduled candidate, so that cost falls only through passes that write the same bytes in less time. Strategies whose profiles differ only in mixer selection read the same contexts, slots, match and repeat state and mixers 2 and 3, so when no core is spare they are coded in one shared pass that writes each strategy's own payload (ncm::encode_pair_below). It changes no byte: the shared pass equals the two separate passes in both directions of the pair and when either side is abandoned, and the client's archives do not depend on the thread count."
+evidence_kind = "build_evidence"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
+
+[[claim]]
 id = "UC-WEB-02"
 level = "build"
 statement = "The product shows the codec as a point of its modelled space: uorc inspect, the library's Info JSON and the Pages client name each frame's codec point (basis, ncm profile word, consolidated model state, lanes and its κ) and the exact steps its decode takes, as Uorc.Performance defines them, from the header alone; the page's model view shows the release's performance theorems, its closed claims with codec point, corpus κ, bytes, steps and the factory's decision, and the engine's tick, rule30 register and weights, exactly as the release publishes them in model.json."
