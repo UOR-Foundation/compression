@@ -35,22 +35,47 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use uorc::portfolio::{self, Strategy, Table};
+use uorc::portfolio::{self, Strategy};
 
 /// The register's schema name.
 pub const SCHEMA: &str = "uorc/frontier/1";
 
 /// Names of the portfolio's frame families, in [`portfolio::family`] order.
-pub const FAMILIES: [&str; portfolio::FAMILIES] = portfolio::FAMILY_NAMES;
+pub const FAMILIES: [&str; portfolio::FAMILIES] = ["tiny", "small", "x86", "text", "other"];
 
-/// The strategy coordinate of a codec point: a portfolio table in the byte
-/// form the model's `compress` reads, or one fixed strategy (coded as the
-/// one-entry table, exactly as the shipped encoder codes that strategy,
-/// learned context mask included).
+/// Bytes of one strategy entry: the u32 little-endian word (bits 0-19 the
+/// ncm profile, bit 31 the x86 filter), then a state byte (0: none).
+pub const ENTRY: usize = 5;
+
+/// The x86 bit of an entry's word.
+pub const X86_BIT: u32 = 1 << 31;
+
+/// The [`ENTRY`] bytes of a strategy.
+pub fn entry(s: Strategy) -> [u8; ENTRY] {
+    let w = (s.profile | if s.x86 { X86_BIT } else { 0 }).to_le_bytes();
+    [w[0], w[1], w[2], w[3], 0]
+}
+
+/// The strategy an entry names, when the coder can apply it: a valid
+/// profile word, no other word bits, and no state.
+pub fn strategy_of(e: &[u8]) -> Option<Strategy> {
+    let e: &[u8; ENTRY] = e.try_into().ok()?;
+    let word = u32::from_le_bytes([e[0], e[1], e[2], e[3]]);
+    let profile = word & !X86_BIT;
+    (uorc::ncm::valid_profile(profile) && e[4] == 0).then_some(Strategy {
+        x86: word & X86_BIT != 0,
+        profile,
+    })
+}
+
+/// The strategy coordinate of a codec point: a portfolio table (strategy
+/// entries and one weight per family and entry, the byte form the engine
+/// consolidates), or one fixed strategy (coded exactly as the shipped
+/// encoder codes that strategy, learned context mask included).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Plan {
-    /// A portfolio: [`portfolio::ENTRY`] bytes per strategy, and
-    /// `FAMILIES * count` weights.
+    /// A portfolio: [`ENTRY`] bytes per strategy, and `FAMILIES * count`
+    /// weights, row by family.
     Portfolio {
         /// The strategy entries.
         strategies: Vec<u8>,
@@ -62,35 +87,74 @@ pub enum Plan {
 }
 
 impl Plan {
-    /// The shipped portfolio ([`portfolio::SHIPPED`]).
+    /// The shipped portfolio ([`portfolio::STRATEGIES`] under
+    /// [`portfolio::WEIGHTS`]).
     pub fn shipped() -> Plan {
         Plan::Portfolio {
-            strategies: portfolio::SHIPPED.strategies.to_vec(),
-            weights: portfolio::SHIPPED.weights.to_vec(),
+            strategies: portfolio::STRATEGIES
+                .iter()
+                .flat_map(|&s| entry(s))
+                .collect(),
+            weights: portfolio::WEIGHTS.iter().flatten().copied().collect(),
         }
     }
 
-    /// The plan's table, borrowing `fixed` for a fixed strategy's entry.
-    fn table<'a>(
-        &'a self,
-        fixed: &'a mut ([u8; portfolio::ENTRY], [u8; portfolio::FAMILIES]),
-    ) -> Table<'a> {
+    /// The strategies this plan codes for `frame`, in order: a portfolio's
+    /// first [`portfolio::BUDGET`] entries by the frame family's weights
+    /// (highest first, ties in table order), or the fixed strategy.
+    pub fn strategies(&self, frame: &[u8]) -> Vec<Option<Strategy>> {
         match self {
+            Plan::Fixed(s) => vec![Some(*s)],
             Plan::Portfolio {
                 strategies,
                 weights,
-            } => Table {
-                strategies,
-                weights,
-            },
-            Plan::Fixed(s) => {
-                *fixed = (s.entry(), [1; portfolio::FAMILIES]);
-                Table {
-                    strategies: &fixed.0,
-                    weights: &fixed.1,
-                }
+            } => {
+                let count = strategies.len() / ENTRY;
+                let family = portfolio::family(frame);
+                let weight = |i: usize| weights.get(family * count + i).copied().unwrap_or(0);
+                let mut order: Vec<usize> = (0..count).collect();
+                order.sort_by_key(|&i| std::cmp::Reverse(weight(i)));
+                order
+                    .into_iter()
+                    .take(portfolio::BUDGET)
+                    .map(|i| strategy_of(&strategies[i * ENTRY..(i + 1) * ENTRY]))
+                    .collect()
             }
         }
+    }
+
+    /// The stream of `input` under this plan: framed exactly as the shipped
+    /// encoder frames it (repeats, windows), each coded frame coded by
+    /// [`uorc::compress_with_strategies`], frames on up to `threads` cores.
+    pub fn compress(&self, input: &[u8], threads: usize) -> Vec<u8> {
+        let mut encoder = uorc::FrameEncoder::new();
+        let mut planned = encoder.plan(input);
+        planned.extend(encoder.plan_end());
+        let code = |p: &uorc::Planned| match p {
+            uorc::Planned::Done { archive, .. } => archive.clone(),
+            uorc::Planned::Code {
+                bytes,
+                pieces,
+                window,
+            } => {
+                let window: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
+                uorc::compress_with_strategies(bytes, pieces, &window, &self.strategies(bytes))
+            }
+        };
+        let mut out = Vec::new();
+        for chunk in planned.chunks(threads.max(1)) {
+            let archives: Vec<Vec<u8>> = std::thread::scope(|s| {
+                let handles: Vec<_> = chunk.iter().map(|p| s.spawn(move || code(p))).collect();
+                handles
+                    .into_iter()
+                    .map(|h| h.join().expect("frame thread"))
+                    .collect()
+            });
+            for a in archives {
+                out.extend_from_slice(&a);
+            }
+        }
+        out
     }
 }
 
@@ -312,7 +376,7 @@ impl CodecPoint {
     pub fn plan_text(&self) -> String {
         match &self.plan {
             Plan::Portfolio { strategies, .. } => {
-                format!("portfolio of {}", strategies.len() / portfolio::ENTRY)
+                format!("portfolio of {}", strategies.len() / ENTRY)
             }
             Plan::Fixed(s) => format!("fixed x86={} profile=0x{:05x}", u8::from(s.x86), s.profile),
         }
@@ -341,7 +405,7 @@ impl CodecPoint {
             }
             Plan::Fixed(s) => {
                 h.update([1u8]);
-                h.update(s.entry());
+                h.update(entry(*s));
             }
         }
         h.update(self.state.as_deref().and_then(unhex32).unwrap_or([0; 32]));
@@ -1033,11 +1097,7 @@ pub fn measure(point: &CodecPoint, corpus: &Corpus, files: &[Vec<u8>]) -> Result
     let mut members = Vec::with_capacity(files.len());
     for (m, input) in corpus.members.iter().zip(files) {
         let fail = |what: &str| Error::Codec(format!("{}: {what}", m.name));
-        let mut stream = Vec::new();
-        let mut fixed = ([0; portfolio::ENTRY], [0; portfolio::FAMILIES]);
-        let table = point.plan.table(&mut fixed);
-        uorc::compress_stream_with(&input[..], &mut stream, threads, &table)
-            .map_err(|e| fail(&format!("compress: {e}")))?;
+        let stream = point.plan.compress(input, threads);
         let mut steps = 0u64;
         for frame in uorc::frames(&stream).map_err(|e| fail(&format!("frames: {e}")))? {
             let info = uorc::inspect(frame).map_err(|e| fail(&format!("inspect: {e}")))?;

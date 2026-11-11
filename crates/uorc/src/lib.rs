@@ -66,7 +66,6 @@ pub mod portfolio;
 mod store;
 pub mod tree;
 pub mod ulz;
-pub mod weights;
 pub mod x86;
 
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
@@ -165,14 +164,7 @@ pub fn default_threads() -> usize {
 /// archive when that is not smaller; with `steps > 0` the exported model also searches and keeps the
 /// smallest.
 pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(
-        frame,
-        &[frame.len() as u64],
-        &[],
-        steps,
-        true,
-        &portfolio::SHIPPED,
-    )
+    compress_pieces(frame, &[frame.len() as u64], &[], steps, true)
 }
 
 /// [`compress_frame`] for a frame that follows the frames `window` (at most
@@ -180,14 +172,7 @@ pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
 /// `compress input window steps`: the ncm candidate is the window archive
 /// whose payload reads those frames as history.
 pub fn compress_frame_with(frame: &[u8], window: &[&[u8]], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(
-        frame,
-        &[frame.len() as u64],
-        window,
-        steps,
-        true,
-        &portfolio::SHIPPED,
-    )
+    compress_pieces(frame, &[frame.len() as u64], window, steps, true)
 }
 
 /// [`compress_frame`] with the output split into objects of `lengths`, which
@@ -199,7 +184,6 @@ fn compress_pieces(
     window: &[&[u8]],
     steps: u64,
     side_by_side: bool,
-    table: &portfolio::Table,
 ) -> Result<Vec<u8>, Error> {
     if steps > 0 {
         let archive = on_reference_stack(|| reference_compress(frame, window, steps))?;
@@ -209,106 +193,163 @@ fn compress_pieces(
             frame::relabel(&archive, lengths)
         };
     }
-    let history = window.concat();
-    let identity = (!window.is_empty()).then(|| archive::window_identity(window));
-    // The strategy portfolio (`Client.portfolio`): code the frame by the
-    // first BUDGET strategies its family's schedule orders and keep the
-    // smallest archive, the earlier one on a tie. A filtered strategy codes
-    // the filtered frame after the filtered window.
+    let [first, second] = portfolio::plan(frame);
     let raw = archive::raw_length(lengths);
-    // `code(strategy, learn, bound)`: the strategy's archive, or `None` when
-    // it cannot be shorter than `bound` bytes. An archive is at least its
-    // empty-payload form plus the payload, so the encoder stops once the
-    // payload passes `bound` less that form: an archive it would have
-    // finished could not have been chosen, and every archive it does finish
-    // is the one it always wrote.
-    let code = |strategy: portfolio::Strategy, learn: bool, bound: u64| -> Option<Vec<u8>> {
-        let filtered;
-        let (data, past) = if strategy.x86 {
-            filtered = (
-                x86::filter(frame, false, history.len() as u64).0,
-                x86::filter(&history, false, 0).0,
-            );
-            (&filtered.0[..], &filtered.1[..])
-        } else {
-            (frame, &history[..])
-        };
-        let codec = if strategy.x86 {
-            archive::Codec::NcmX86
-        } else {
-            archive::Codec::Ncm
-        };
-        // The native ncm encoder is byte-identical to the model
-        // (`native_archives_are_the_model_archives`) and every encoder output
-        // decodes to its input, so a self-decode would only repeat its cost.
-        let frame_of = |profile: u32, payload: &[u8]| match &identity {
-            None => archive::linked_archive_profile(codec, profile, lengths, payload),
-            Some(identity) => {
-                archive::window_archive_profile(codec, profile, window, identity, lengths, payload)
-            }
-        };
-        let stop = |profile: u32, bound: u64| -> usize {
-            let form = frame_of(profile, &[]).map_or(0, |a| a.len() as u64);
-            usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX)
-        };
-        if !learn {
-            return ncm::encode_below(past, data, strategy.profile, stop(strategy.profile, bound))
-                .and_then(|payload| frame_of(strategy.profile, &payload));
-        }
-        // The learned profile (`Archive.learnedCandidate`): the strategy's
-        // profile without the contexts that saved nothing on this frame,
-        // coded too and kept when no larger. Fewer contexts decode faster.
-        let (payload, learned) =
-            ncm::encode_learn_below(past, data, strategy.profile, stop(strategy.profile, bound))?;
-        let plain = frame_of(strategy.profile, &payload);
-        if learned == strategy.profile {
-            return plain;
-        }
-        // the pruned frame is kept when no larger than the plain one
-        let keep = plain
-            .as_ref()
-            .map_or(bound, |p| bound.min(p.len() as u64 + 1));
-        let pruned = ncm::encode_below(past, data, learned, stop(learned, keep))
-            .and_then(|p| frame_of(learned, &p));
-        match (plain, pruned) {
-            (Some(p), Some(l)) => Some(if l.len() <= p.len() { l } else { p }),
-            (p, l) => l.or(p),
-        }
-    };
     // The scheduled strategies code side by side (a lone frame then uses two
-    // cores); the choice is the same in any order. The first also learns its
-    // context mask (`Client.portfolioLearned`).
-    // With a core to spare they code side by side, each bounded by the raw
-    // archive; otherwise one after the other, the second bounded by the
-    // first's archive as well (it is kept only when strictly smaller).
-    let plan = table.plan(frame);
-    let (first, second) = (
-        plan.first().copied().flatten(),
-        plan.get(1).copied().flatten(),
-    );
-    let code = |strategy: Option<portfolio::Strategy>, learn: bool, bound: u64| {
-        strategy.and_then(|s| code(s, learn, bound))
-    };
+    // cores); the choice is the same in any order. With a core to spare each
+    // is bounded by the raw archive; otherwise the second is also bounded by
+    // the first's archive (it is kept only when strictly smaller). A bound
+    // never changes an archive, only whether a hopeless one finishes.
     let (a, b) = if side_by_side && cfg!(not(target_family = "wasm")) {
         std::thread::scope(|s| {
-            let other = s.spawn(|| code(second, false, raw));
+            let other = s.spawn(|| code_strategy(frame, lengths, window, second, false, raw));
             (
-                code(first, true, raw),
+                code_strategy(frame, lengths, window, first, true, raw),
                 other.join().expect("strategy thread"),
             )
         })
     } else {
-        let a = code(first, true, raw);
+        let a = code_strategy(frame, lengths, window, first, true, raw);
         let bound = a.as_ref().map_or(raw, |a| raw.min(a.len() as u64));
-        (a, code(second, false, bound))
+        (
+            a,
+            code_strategy(frame, lengths, window, second, false, bound),
+        )
     };
-    let best = match (a, b) {
+    Ok(choose(frame, lengths, a, b))
+}
+
+/// The archive of scheduled strategy `which` (0 or 1, the order of
+/// [`portfolio::plan`]) for a frame with objects of `lengths` after the
+/// frames `window`, bounded by the raw archive: `None` when it cannot be
+/// shorter. Coding both and passing them to [`choose`] gives the archive
+/// [`compress_frame_with`] writes (with `steps == 0`), so callers on
+/// separate cores (the page's workers) write the library's bytes.
+pub fn compress_strategy(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    which: usize,
+) -> Option<Vec<u8>> {
+    let strategy = *portfolio::plan(frame).get(which)?;
+    code_strategy(
+        frame,
+        lengths,
+        window,
+        strategy,
+        which == 0,
+        archive::raw_length(lengths),
+    )
+}
+
+/// The archive a frame gets when the encoder codes `strategies` (in
+/// order, at most [`portfolio::BUDGET`]) instead of the ones
+/// [`portfolio::plan`] schedules: the first learns its context mask, each is
+/// bounded by the raw archive, and [`choose`] keeps the result. With
+/// `portfolio::plan(frame)` it is the archive [`compress_frame_with`] writes
+/// (with `steps == 0`); with other strategies it is the frame at another
+/// point of the codec space (the claim decider, `crates/frontier`). `None`
+/// entries (a strategy the coder cannot apply) yield no candidate.
+pub fn compress_with_strategies(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    strategies: &[Option<portfolio::Strategy>],
+) -> Vec<u8> {
+    let raw = archive::raw_length(lengths);
+    let mut coded = strategies
+        .iter()
+        .take(portfolio::BUDGET)
+        .enumerate()
+        .map(|(k, s)| s.and_then(|s| code_strategy(frame, lengths, window, s, k == 0, raw)));
+    let first = coded.next().flatten();
+    let second = coded.next().flatten();
+    choose(frame, lengths, first, second)
+}
+
+/// The frame's archive from its two strategies' archives (see
+/// [`compress_strategy`]): the second only when strictly shorter than the
+/// first, then the raw archive unless the kept one is strictly shorter.
+pub fn choose(
+    frame: &[u8],
+    lengths: &[u64],
+    first: Option<Vec<u8>>,
+    second: Option<Vec<u8>>,
+) -> Vec<u8> {
+    let best = match (first, second) {
         (Some(a), Some(b)) => Some(if b.len() < a.len() { b } else { a }),
         (a, b) => a.or(b),
     };
     match best {
-        Some(linked) if (linked.len() as u64) < archive::raw_length(lengths) => Ok(linked),
-        _ => Ok(archive::raw_objects(frame, lengths)),
+        Some(linked) if (linked.len() as u64) < archive::raw_length(lengths) => linked,
+        _ => archive::raw_objects(frame, lengths),
+    }
+}
+
+/// One strategy of the portfolio (`Client.portfolio`): its archive, or
+/// `None` when it cannot be shorter than `bound` bytes. A filtered strategy
+/// codes the filtered frame after the filtered window. With `learn`, the
+/// learned profile is coded too and kept when no larger.
+fn code_strategy(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    strategy: portfolio::Strategy,
+    learn: bool,
+    bound: u64,
+) -> Option<Vec<u8>> {
+    let history = window.concat();
+    let identity = (!window.is_empty()).then(|| archive::window_identity(window));
+    let filtered;
+    let (data, past) = if strategy.x86 {
+        filtered = (
+            x86::filter(frame, false, history.len() as u64).0,
+            x86::filter(&history, false, 0).0,
+        );
+        (&filtered.0[..], &filtered.1[..])
+    } else {
+        (frame, &history[..])
+    };
+    let codec = if strategy.x86 {
+        archive::Codec::NcmX86
+    } else {
+        archive::Codec::Ncm
+    };
+    // The native ncm encoder is byte-identical to the model
+    // (`native_archives_are_the_model_archives`) and every encoder output
+    // decodes to its input, so a self-decode would only repeat its cost.
+    let frame_of = |profile: u32, payload: &[u8]| match &identity {
+        None => archive::linked_archive_profile(codec, profile, lengths, payload),
+        Some(identity) => {
+            archive::window_archive_profile(codec, profile, window, identity, lengths, payload)
+        }
+    };
+    let stop = |profile: u32, bound: u64| -> usize {
+        let form = frame_of(profile, &[]).map_or(0, |a| a.len() as u64);
+        usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX)
+    };
+    if !learn {
+        return ncm::encode_below(past, data, strategy.profile, stop(strategy.profile, bound))
+            .and_then(|payload| frame_of(strategy.profile, &payload));
+    }
+    // The learned profile (`Archive.learnedCandidate`): the strategy's
+    // profile without the contexts that saved nothing on this frame,
+    // coded too and kept when no larger. Fewer contexts decode faster.
+    let (payload, learned) =
+        ncm::encode_learn_below(past, data, strategy.profile, stop(strategy.profile, bound))?;
+    let plain = frame_of(strategy.profile, &payload);
+    if learned == strategy.profile {
+        return plain;
+    }
+    // the pruned frame is kept when no larger than the plain one
+    let keep = plain
+        .as_ref()
+        .map_or(bound, |p| bound.min(p.len() as u64 + 1));
+    let pruned = ncm::encode_below(past, data, learned, stop(learned, keep))
+        .and_then(|p| frame_of(learned, &p));
+    match (plain, pruned) {
+        (Some(p), Some(l)) => Some(if l.len() <= p.len() { l } else { p }),
+        (p, l) => l.or(p),
     }
 }
 
@@ -670,7 +711,6 @@ fn compress_frames(
     writer: &mut dyn Write,
     steps: u64,
     threads: usize,
-    table: &portfolio::Table,
 ) -> io::Result<Totals> {
     let threads = threads.max(1);
     let mut totals = Totals::default();
@@ -695,7 +735,6 @@ fn compress_frames(
                 &all[k - frame.window..k],
                 steps,
                 spare,
-                table,
             )
         })
         .into_iter();
@@ -748,28 +787,6 @@ pub fn compress_stream(
         &mut writer,
         steps,
         threads,
-        &portfolio::SHIPPED,
-    )
-}
-
-/// [`compress_stream`] under the portfolio `table` instead of the shipped
-/// one (no search): how the engine and the claim decider code a corpus at a
-/// point of the codec space. Every table writes a stream that decodes to the
-/// input; the table changes its size, never its meaning.
-pub fn compress_stream_with(
-    reader: impl Read,
-    mut writer: impl Write,
-    threads: usize,
-    table: &portfolio::Table,
-) -> io::Result<Totals> {
-    compress_frames(
-        chunk::Framer::plain(),
-        reader,
-        None,
-        &mut writer,
-        0,
-        threads,
-        table,
     )
 }
 
@@ -795,7 +812,6 @@ pub fn compress_objects_stream(
         &mut writer,
         steps,
         threads,
-        &portfolio::SHIPPED,
     )
 }
 
@@ -1247,43 +1263,97 @@ impl FrameEncoder {
     /// The next piece of input: returns the archives of the frames it
     /// completes, back to back (none until more than a frame is pending).
     pub fn push(&mut self, input: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-        let frames = self.framer.push(input);
-        self.code(frames, steps)
+        let planned = self.plan(input);
+        code_all(planned, steps)
     }
 
     /// The end of input: the archives of the remaining frames.
     pub fn finish(&mut self, steps: u64) -> Result<Vec<u8>, Error> {
-        let frames = self.framer.finish();
-        self.code(frames, steps)
+        let planned = self.plan_end();
+        code_all(planned, steps)
     }
 
-    fn code(&mut self, frames: Vec<chunk::Frame>, steps: u64) -> Result<Vec<u8>, Error> {
+    /// [`FrameEncoder::push`] without the coding: the frames it completes,
+    /// each a finished repeat or a frame with the window it reads, so that a
+    /// caller can code them on other cores ([`Planned::code`], or
+    /// [`compress_strategy`] and [`choose`]) and write the archives in order.
+    pub fn plan(&mut self, input: &[u8]) -> Vec<Planned> {
+        let frames = self.framer.push(input);
+        self.planned(frames)
+    }
+
+    /// [`FrameEncoder::finish`] without the coding (see [`FrameEncoder::plan`]).
+    pub fn plan_end(&mut self) -> Vec<Planned> {
+        let frames = self.framer.finish();
+        self.planned(frames)
+    }
+
+    fn planned(&mut self, frames: Vec<chunk::Frame>) -> Vec<Planned> {
         let mut out = Vec::new();
         for frame in frames {
-            let archive = match frame.reference {
-                Some(label) => reference_or_raw(&frame.bytes, &label, &frame.pieces),
-                None => {
-                    let window: Vec<&[u8]> = self.before[self.before.len() - frame.window..]
-                        .iter()
-                        .map(Vec::as_slice)
-                        .collect();
-                    compress_pieces(
-                        &frame.bytes,
-                        &frame.pieces,
-                        &window,
-                        steps,
-                        true,
-                        &portfolio::SHIPPED,
-                    )?
-                }
-            };
-            out.extend_from_slice(&archive);
+            out.push(match frame.reference {
+                Some(label) => Planned::Done {
+                    length: frame.bytes.len() as u64,
+                    archive: reference_or_raw(&frame.bytes, &label, &frame.pieces),
+                },
+                None => Planned::Code {
+                    bytes: frame.bytes.clone(),
+                    pieces: frame.pieces,
+                    window: self.before[self.before.len() - frame.window..].to_vec(),
+                },
+            });
             self.before.push(frame.bytes);
             if self.before.len() > archive::WINDOW {
                 self.before.remove(0);
             }
         }
-        Ok(out)
+        out
+    }
+}
+
+fn code_all(planned: Vec<Planned>, steps: u64) -> Result<Vec<u8>, Error> {
+    let mut out = Vec::new();
+    for frame in planned {
+        out.extend_from_slice(&frame.code(steps)?);
+    }
+    Ok(out)
+}
+
+/// A frame [`FrameEncoder::plan`] has cut.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Planned {
+    /// A repeat of an earlier run, already its archive.
+    Done {
+        /// The frame's input length.
+        length: u64,
+        /// Its archive.
+        archive: Vec<u8>,
+    },
+    /// A frame still to code after the frames of its window (oldest first).
+    Code {
+        /// The frame's input bytes.
+        bytes: Vec<u8>,
+        /// The pieces of objects it holds.
+        pieces: Vec<u64>,
+        /// The frames it reads as history.
+        window: Vec<Vec<u8>>,
+    },
+}
+
+impl Planned {
+    /// The frame's archive, the one [`FrameEncoder::push`] writes for it.
+    pub fn code(&self, steps: u64) -> Result<Vec<u8>, Error> {
+        match self {
+            Planned::Done { archive, .. } => Ok(archive.clone()),
+            Planned::Code {
+                bytes,
+                pieces,
+                window,
+            } => {
+                let window: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
+                compress_pieces(bytes, pieces, &window, steps, true)
+            }
+        }
     }
 }
 

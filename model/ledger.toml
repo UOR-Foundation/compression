@@ -236,3 +236,67 @@ statement = "The Pages client is generated from and conforms to its Prism produc
 evidence_kind = "build_evidence"
 research_disposition = "not_measured"
 feature = "features/suites/pages-client.feature"
+
+[[claim]]
+id = "UC-PERF-02"
+level = "build"
+statement = "For every input length n, the settled frame of Uorc.Performance is no larger than the raw frame and no larger than a coded kernel candidate, and the raw frame is two length varints of at most 10 bytes each, the n input bytes and 41 fixed bytes, so no frame of one object exceeds n + 61 bytes (archiveBound), and a stream of k such frames is within n + 61 * k bytes; the native client keeps the same rule and the same constants."
+evidence_kind = "kernel_theorem"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
+
+[[claim]]
+id = "UC-PERF-03"
+level = "build"
+statement = "For every list of trials, the trial the portfolio keeps (Uorc.Performance best) is no larger in bytes than any coded trial in the list (bestNoLargerThanEvery), so a portfolio archive is no larger than the archive of any strategy it scheduled."
+evidence_kind = "kernel_theorem"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
+
+[[claim]]
+id = "UC-PERF-04"
+level = "build"
+statement = "A step is one model input evaluated for one coded bit. For every profile word the input count lies between 3 and 24 (17 context bits, 3 fixed inputs, 2 for each of the short-match and repeat features), a frame of n bytes costs 8 * n * inputs steps, and for every frame kind (raw, reference, ncm, ncm from a named state) decode takes at most 192 steps per modelled byte (decodeStepsBound); the full profile costs 192 steps per byte and the v0.3 profile 160. The measure counts model inputs, not machine time."
+evidence_kind = "kernel_theorem"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
+
+[[claim]]
+id = "UC-PERF-05"
+level = "build"
+statement = "A trial carries its defect, the count of bytes at which its decode differs from the input. Admission fails every trial with a nonzero defect, keeping never raises a defect above its operands', and the trial kept from any admitted list has defect 0 (bestOfAdmittedIsExact): whatever codec point or named model state produced a trial, it can change the archive's size and never its meaning."
+evidence_kind = "kernel_theorem"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
+
+[[claim]]
+id = "UC-PERF-06"
+level = "build"
+statement = "A candidate dominates an incumbent when it is no larger in bytes and no larger in steps, and its gain is the drop in bytes plus steps. The gain never exceeds the drop in cost (dominanceLowersCost), no trial gains over itself, gains compose (a positive gain of a over b and of b over c gives at least their sum of a over c), and a positive gain implies no growth in bytes or in steps: dominance is a strict partial order, so consolidating winners cannot cycle."
+evidence_kind = "kernel_theorem"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
+
+[[claim]]
+id = "UC-PERF-07"
+level = "build"
+statement = "A trial abandoned at a bound is modelled as a trial of at most the bound's bytes. For every list of trials and every raw length, the portfolio of trials abandoned at the raw length settles to the same size as the portfolio of complete trials (boundedPortfolioSettlesTheSame), and a trial no smaller than one already kept changes neither the kept bytes nor the kept steps (skippedTrial theorems): a search that stops a candidate once it cannot win, or skips one known to be no smaller, writes an archive of the same size for fewer compress steps."
+evidence_kind = "kernel_theorem"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
+
+[[claim]]
+id = "UC-PERF-08"
+level = "build"
+statement = "Choosing by fewer bytes and then fewer steps, from the raw frame and any list of trials, keeps a trial that is no later in that order than every trial in the list and than the raw frame (chosenIsLeast, chosenIsNoWorseThanRaw), has exactly the size the bytes-only rule settles to (chosenKeepsTheSize), and is dominated by no trial it is no later than (leastIsUndominated); a trial no earlier than the kept one changes nothing (excludedTrial theorems). The rule lowers decode steps on byte ties at no cost in size. The released client breaks byte ties by schedule order until its model export adopts this rule."
+evidence_kind = "kernel_theorem"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
+
+[[claim]]
+id = "UC-PERF-09"
+level = "build"
+statement = "The potential of a codec point is its bytes plus its steps. Consolidating a candidate into an incumbent lowers the potential by exactly the candidate's gain (consolidationSpendsItsGain), which is positive exactly when the candidate dominates, and over any sequence of candidates the potential never rises (potentialNeverRises). The potential is a natural number, so an engine that consolidates only dominating candidates never regresses and consolidates at most as many times as its first potential."
+evidence_kind = "kernel_theorem"
+research_disposition = "not_measured"
+feature = "features/suites/performance-theorems.feature"
