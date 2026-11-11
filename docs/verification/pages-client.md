@@ -75,8 +75,11 @@ archive against `uorc::compress` (differingArchives 0), and the wasm test
 `planned_frames_coded_by_strategy_are_the_library_stream` checks the same path
 in Node.
 
-Progress moves within a frame: ncm reports every 64 KiB it codes, so the bar
-never stands still for long on an 8 MiB frame (measure `progressGap`).
+Progress moves within a frame: ncm reports every 16 KiB it codes, so the bar
+never stands still for long on an 8 MiB frame (measure `progressGap`). The gate
+found two stalls of over 2 s, both fixed: the first file waited behind the pool
+workers' start (the page's worker now codes alone until two have loaded), and a
+short last frame, coded when the stream ends, reported nothing.
 
 Same 10 MiB of generated prose, 4 vCPU, headless Chromium:
 
@@ -94,19 +97,24 @@ same 5,731 bytes in both rows.
 | Measure | Value | Gate |
 | --- | --- | --- |
 | Cores the page may use without a pool worker | 0 | 0 |
-| Longest time the progress bar stands still | 1,859 ms | ≤ 2000 ms |
+| Longest time the progress bar stands still | 552 ms | ≤ 2000 ms |
 | Longest page task while an operation runs | 0 ms | ≤ 200 ms |
-| Cancel to ready | 132 ms | ≤ 3000 ms |
-| Navigation to ready | 337 ms | ≤ 5000 ms |
+| Cancel to ready | 155 ms | ≤ 3000 ms |
+| Navigation to ready | 340 ms | ≤ 5000 ms |
 | Page archives differing from the library's | 0 | 0 |
 | WebAssembly memory, largest worker | 227 MiB | ≤ 256 MiB |
 | Controls without an accessible name | 0 | 0 |
-| Compress, the acceptance's 10 MiB of prose | 359 KB/s | measured |
-| Decompress, the acceptance's 10 MiB of prose | 899 KB/s | measured |
+| Compress, the acceptance's 10 MiB of prose | 376 KB/s | measured |
+| Decompress, the acceptance's 10 MiB of prose | 875 KB/s | measured |
 
-Decode memory is bounded: in Node, decoding streams of 3, 6 and 12 distinct
-8 MiB frames peaks at 241, 257 and 257 MiB, flat once the two-frame window is
-full (the 64 MiB stack is part of it).
+Decode memory is bounded. Measured in Node (same V8, SIMD128 build) on streams
+of distinct 8 MiB frames: 226 MiB for 3 frames and 250 MiB for 6 or 12, flat once
+the two-frame window is full (241, 257 and 257 MiB before). Two changes, same
+bytes: ncm's model reads the window's frames in place instead of a joined copy,
+and in WebAssembly, whose memory never shrinks, a model's tables (about 100 MiB
+for an 8 MiB frame) are kept for the next frame's model instead of being
+allocated again, which had left the allocator's free space in pieces. The 64 MiB
+stack the exported reference code needs is part of every figure.
 
 Node (same V8) on 2 MB of repository text: 0.21 MB/s both ways without SIMD128,
 0.29 MB/s with it, against 0.53 MB/s for one native core. Random input

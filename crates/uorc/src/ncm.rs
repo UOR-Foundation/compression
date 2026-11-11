@@ -350,6 +350,81 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
 #[repr(C, align(64))]
 struct Bucket([u32; 16]);
 
+/// A model table. In WebAssembly, whose memory never shrinks, a dropped
+/// table is kept for the next frame's model of the same size: allocating
+/// ~100 MiB of fresh tables per frame left the allocator's free space in
+/// pieces, and the memory grew with the number of frames.
+struct Table<T: Spare>(Vec<T>);
+
+trait Spare: Copy + 'static {
+    fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>>;
+}
+
+thread_local! {
+    static SPARE_BUCKETS: std::cell::RefCell<Vec<Vec<Bucket>>> = const { std::cell::RefCell::new(Vec::new()) };
+    static SPARE_WORDS: std::cell::RefCell<Vec<Vec<u32>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+impl Spare for Bucket {
+    fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
+        &SPARE_BUCKETS
+    }
+}
+
+impl Spare for u32 {
+    fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
+        &SPARE_WORDS
+    }
+}
+
+impl<T: Spare> Table<T> {
+    /// `len` entries of `value`.
+    fn new(len: usize, value: T) -> Table<T> {
+        if cfg!(target_family = "wasm") && len > 0 {
+            let kept = T::spares().with(|s| {
+                let mut s = s.borrow_mut();
+                let at = s.iter().position(|t| t.len() == len)?;
+                Some(s.swap_remove(at))
+            });
+            if let Some(mut t) = kept {
+                t.fill(value);
+                return Table(t);
+            }
+        }
+        Table(vec![value; len])
+    }
+}
+
+impl<T: Spare> Drop for Table<T> {
+    fn drop(&mut self) {
+        if cfg!(target_family = "wasm") && !self.0.is_empty() {
+            let t = std::mem::take(&mut self.0);
+            T::spares().with(|s| {
+                let mut s = s.borrow_mut();
+                // a model holds one bucket table and two word tables
+                if s.len() < 2 {
+                    s.push(t);
+                }
+            });
+        }
+    }
+}
+
+impl<T: Spare> std::ops::Deref for Table<T> {
+    type Target = [T];
+    #[inline(always)]
+    fn deref(&self) -> &[T] {
+        &self.0
+    }
+}
+
+impl<T: Spare> std::ops::DerefMut for Table<T> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut [T] {
+        &mut self.0
+    }
+}
+
 const SLOT_FRESH: u32 = 32768;
 
 /// [`adapt`] on a packed slot (probability low, count above it).
@@ -381,7 +456,7 @@ struct Model {
     /// the low 16 bits and its count in the next 8, so a bucket is one 64-byte
     /// line and a lookup touches one line (slot 0's count is the bucket's
     /// check byte).
-    sl: Vec<Bucket>,
+    sl: Table<Bucket>,
     hist: Vec<u8>,
     /// History bytes ahead of the coded ones in `hist` (a window frame's
     /// preceding outputs): the match model reaches into them.
@@ -393,9 +468,9 @@ struct Model {
     word1: u32,
     c0: u32,
     bit: u32,
-    mtab: Vec<u32>,
+    mtab: Table<u32>,
     profile: u32,
-    m2tab: Vec<u32>,
+    m2tab: Table<u32>,
     m2ptr: u32,
     m2len: u32,
     m2exp: u32,
@@ -483,7 +558,7 @@ impl Model {
             stride,
             mask,
             mb,
-            sl: vec![Bucket([SLOT_FRESH; 16]); (mask as usize + 1) / 16],
+            sl: Table::new((mask as usize + 1) / 16, Bucket([SLOT_FRESH; 16])),
             hist: Vec::with_capacity(before + n as usize),
             hoff: before as u32,
             pos: 0,
@@ -493,9 +568,9 @@ impl Model {
             word1: 0,
             c0: 1,
             bit: 0,
-            mtab: vec![0; 1 << mb],
+            mtab: Table::new(1 << mb, 0),
             profile,
-            m2tab: if short { vec![0; 1 << mb] } else { Vec::new() },
+            m2tab: Table::new(if short { 1 << mb } else { 0 }, 0),
             m2ptr: 0,
             m2len: 0,
             m2exp: 0,
@@ -1509,8 +1584,10 @@ mod wasm {
     }
 }
 
-/// Input bytes between two calls of the progress hook.
-pub const TICK: usize = 1 << 16;
+/// Input bytes between two calls of the progress hook: 16 KiB, about a
+/// tenth of a second of coding in the browser, so the page's bar moves
+/// within a frame and soon after a file starts.
+pub const TICK: usize = 1 << 14;
 
 /// A progress hook: bytes done, and the length of the pass.
 pub type Progress = fn(u64, u64);

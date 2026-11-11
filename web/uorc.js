@@ -91,15 +91,18 @@ function chooseRequest(pieces, frame, first, second) {
   return out;
 }
 
-// A frame's coding runs a few passes (the scheduled strategies and a learned
-// re-encode): its share done is the passes begun plus the current pass's
-// part, over the three a frame usually takes, and never moves back.
+// A frame's coding runs a few passes (the scheduled strategies, a learned
+// re-encode, and in small schedules the v0.3 entry), how many is known only
+// as they run. After x passes (whole and part) the share done is
+// 1 - (passes / (passes + 1))^x: under 1/passes per pass, then smaller
+// steps, so the bar keeps moving through any extra pass and never moves back.
 export function frameShare(passes = 3) {
   let begun = 0, last = 0, best = 0;
+  const left = passes / (passes + 1);
   return (done, total) => {
     if (done < last) begun++;
     last = done;
-    best = Math.max(best, Math.min(0.99, (begun + done / Math.max(total, 1)) / passes));
+    best = Math.max(best, Math.min(0.99, 1 - left ** (begun + done / Math.max(total, 1))));
     return best;
   };
 }
@@ -159,16 +162,23 @@ export async function load(source) {
   // library's.
   const codeStream = async (blob, steps, progress, pool) => {
     const total = blob.size;
-    if (!pool || pool.size < 2) {
+    // Until two pool workers have loaded, the page's worker codes alone, so
+    // the first file does not wait behind their start.
+    if (!pool || pool.ready < 2) {
       const parts = [];
-      for (let at = 0; at < total; at += frame) {
+      // A whole frame is coded as it is given; a shorter last one is coded
+      // when the stream ends.
+      const coding = (at, length) => {
         const share = frameShare();
-        onPass = (done, length) => progress(at + Math.floor(Math.min(frame, total - at) * share(done, length)), total);
+        onPass = (done, of) => progress(at + Math.floor(length * share(done, of)), total);
+      };
+      for (let at = 0; at < total; at += frame) {
+        coding(at, Math.min(frame, total - at));
         parts.push(call(await bytesOf(blob.slice(at, at + frame)), () => x.compress_frame(BigInt(steps))));
-        progress(Math.min(at + frame, total), total);
       }
-      onPass = () => {};
+      coding(total - (total % frame), total % frame);
       parts.push(call(new Uint8Array(0), () => x.compress_end(BigInt(steps))));
+      onPass = () => {};
       progress(total, total);
       return new Blob(parts);
     }
@@ -362,7 +372,7 @@ async function serve() {
   // A pool worker codes a little text once, so that its first frame runs on
   // optimized code rather than the engine's first tier.
   if (inPool) uorc.compress(EXAMPLES.text(1 << 16, "uorc pool worker warm-up "));
-  const pool = inPool ? { size: 0, memory: 0, warm() {} } : workers(uorc.module);
+  const pool = inPool ? { size: 0, memory: 0, ready: 0, warm() {} } : workers(uorc.module);
   const run = {
     async compress({ files }) {
       const tree = files.length > 1 || files.some((f) => f.webkitRelativePath);
@@ -438,14 +448,14 @@ function workers(module) {
   const jobs = new Map();
   let started = false;
   let next = 0;
-  const state = { size: size < 2 ? 0 : size, memory: 0 };
+  const state = { size: size < 2 ? 0 : size, memory: 0, ready: 0 };
   const start = () => {
     started = true;
     for (let i = 0; i < state.size; i++) {
       const w = new Worker(new URL("uorc.js?pool", import.meta.url), { type: "module" });
       w.postMessage({ module });
       w.onmessage = ({ data }) => {
-        if (data.type === "ready") { idle.push(w); pump(); return; }
+        if (data.type === "ready") { state.ready++; idle.push(w); pump(); return; }
         if (data.type === "loadFailed") { fail(w, Object.assign(new Error(data.message), { code: undefined })); return; }
         const job = jobs.get(data.id);
         if (!job) return;
