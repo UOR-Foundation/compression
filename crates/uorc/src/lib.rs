@@ -66,6 +66,7 @@ pub mod portfolio;
 mod store;
 pub mod tree;
 pub mod ulz;
+pub mod weights;
 pub mod x86;
 
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
@@ -193,7 +194,15 @@ fn compress_pieces(
             frame::relabel(&archive, lengths)
         };
     }
-    let [first, second] = portfolio::plan(frame);
+    let plan = portfolio::SHIPPED.plan(frame);
+    let (first, second) = (
+        plan.first().copied().flatten(),
+        plan.get(1).copied().flatten(),
+    );
+    let code_strategy =
+        |frame, lengths, window, strategy: Option<portfolio::Strategy>, learn, bound| {
+            strategy.and_then(|s| code_strategy(frame, lengths, window, s, learn, bound))
+        };
     let raw = archive::raw_length(lengths);
     // The scheduled strategies code side by side (a lone frame then uses two
     // cores); the choice is the same in any order. With a core to spare each
@@ -231,7 +240,7 @@ pub fn compress_strategy(
     window: &[&[u8]],
     which: usize,
 ) -> Option<Vec<u8>> {
-    let strategy = *portfolio::plan(frame).get(which)?;
+    let strategy = (*portfolio::SHIPPED.plan(frame).get(which)?)?;
     code_strategy(
         frame,
         lengths,
@@ -240,6 +249,31 @@ pub fn compress_strategy(
         which == 0,
         archive::raw_length(lengths),
     )
+}
+
+/// The archive a frame gets when the encoder codes `strategies` (in
+/// order, at most [`portfolio::BUDGET`]) instead of the ones
+/// [`portfolio::plan`] schedules: the first learns its context mask, each is
+/// bounded by the raw archive, and [`choose`] keeps the result. With
+/// `portfolio::plan(frame)` it is the archive [`compress_frame_with`] writes
+/// (with `steps == 0`); with other strategies it is the frame at another
+/// point of the codec space (the claim decider, `crates/frontier`). `None`
+/// entries (a strategy the coder cannot apply) yield no candidate.
+pub fn compress_with_strategies(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    strategies: &[Option<portfolio::Strategy>],
+) -> Vec<u8> {
+    let raw = archive::raw_length(lengths);
+    let mut coded = strategies
+        .iter()
+        .take(portfolio::BUDGET)
+        .enumerate()
+        .map(|(k, s)| s.and_then(|s| code_strategy(frame, lengths, window, s, k == 0, raw)));
+    let first = coded.next().flatten();
+    let second = coded.next().flatten();
+    choose(frame, lengths, first, second)
 }
 
 /// The frame's archive from its two strategies' archives (see
