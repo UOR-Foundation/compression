@@ -210,7 +210,7 @@ export async function load(source) {
       settle(f.index, f.length, Promise.all(all).then(async (archives) => {
         const frameBytes = await bytesOf(blob.slice(f.start, f.start + f.length));
         const chosen = call(chooseRequest(f.pieces, frameBytes, archives), () => x.choose_frame());
-        // the context table stepped on the kept archive while it pays and the worker holds it (Client.stepTable)
+        // the window facets, then the context table, stepped on the kept archive while it pays and the worker holds it (Client.stepWindow, Client.stepTable)
         const window = await Promise.all(f.window.map((r) => bytesOf(blob.slice(r.start, r.start + r.length))));
         return call(stepRequest(f.pieces, window, frameBytes, chosen), () => x.step_frame());
       }));
@@ -238,7 +238,7 @@ export async function load(source) {
           split(f);
         }
         recent.push({ start: position, length });
-        if (recent.length > 2) recent.shift();
+        if (recent.length > x.reach()) recent.shift();
         position += length;
       }
     };

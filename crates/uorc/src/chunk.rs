@@ -449,13 +449,15 @@ impl Framer {
         self.emit(n, reference, last)
     }
 
-    /// How many frames before it the next coded frame reads: up to
-    /// [`archive::WINDOW`] frames of its block, none when it starts one.
+    /// How many frames before it the next coded frame may read: every
+    /// earlier frame of its block, none when it starts one. The portfolio
+    /// codes over the last [`archive::WINDOW`] of them and the window step
+    /// over all ([`crate::step_window`]).
     fn reach(&self) -> usize {
         if self.coded_in_block == crate::BLOCK || self.after_reference {
             0
         } else {
-            self.in_block.min(archive::WINDOW)
+            self.in_block
         }
     }
 

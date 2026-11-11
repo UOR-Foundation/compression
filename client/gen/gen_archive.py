@@ -151,12 +151,48 @@ for x, xs in ((0, ''), (1, 'x')):
         D(f'profile{k}{xs.upper()}Prefix', [], 'Bytes', '0x' + GB.PTEMPLATES[c][0].hex())
         D(f'profile{k}{xs.upper()}Tail', [], 'Bytes', '0x' + GB.PTEMPLATES[c][1].hex())
 assert len({len(p) for p, _ in GB.PTEMPLATES.values()}) == 1
+
+
+# A window entry over k >= 1 frames is the one-frame entry with three more nodes per frame (nat r, basis, and from
+# the second frame on the concatenation with the history so far); the call to the coder then reaches the payload
+# and the profile word 3 nodes further back per frame. So any window depth is one entry form, the depth read from
+# it (native archive::window_profile_template).
+def deep_parts(x):
+    pre, tail = GB.PTEMPLATES['ncmp1' + ('x' if x else '')]
+    d = 8 if x else 5
+    rest = tail[6:]
+    at = rest.index(bytes([d, 1, d - 1]))
+    assert rest.count(bytes([d, 1, d - 1])) == 1 and tail[:6] == bytes.fromhex('030000011e01')
+    return pre[3], rest[:at], rest[at + 3:]
+
+
+def deep_template(x, k):
+    one, head, end = deep_parts(x)
+    d = 8 if x else 5
+    more = 3 * (k - 1)
+    frames = bytes.fromhex('00011e01') + b''.join(b'\x00' + wire.uleb(r) + bytes.fromhex('1e011b0301') for r in range(2, k + 1))
+    return (bytes([1, 0, 3]) + wire.uleb(one + more) + bytes([3]),
+            bytes.fromhex('0300') + frames + head + wire.uleb(d + more) + b'\x01' + wire.uleb(d - 1 + more) + end)
+
+
+for x, xs in ((0, ''), (1, 'x')):
+    for k in (1, 2):
+        assert deep_template(x, k) == GB.PTEMPLATES['ncmp%d%s' % (k, xs)], (x, k)
+    one, head, end = deep_parts(x)
+    D(f'deep{xs.upper()}Head', [], 'Bytes', '0x' + head.hex())
+    D(f'deep{xs.upper()}End', [], 'Bytes', '0x' + end.hex())
+    D(f'deep{xs.upper()}Nodes', [], 'Nat', str(one))
+D('windowFrames', ['k : Nat'], 'Bytes',
+  "(match k\n    | Nat.zero => 0x\n    | Nat.succ m => (if (m =? 0) then 0x00011e01 else (cat (windowFrames m) (cat (cat 0x00 (number k)) 0x1e011b0301))))", 'k')
+D('deepPrefix', ['x : Nat', 'k : Nat'], 'Bytes',
+  "(cat (cat 0x010003 (number ((if (x =? 0) then (deepNodes) else (deepXNodes)) + (prim multiply 3 (prim subtract k 1 : Nat) : Nat)))) 0x03)")
+D('deepTail', ['x : Nat', 'k : Nat'], 'Bytes',
+  "(let more : Nat := (prim multiply 3 (prim subtract k 1 : Nat) : Nat); (let d : Nat := ((if (x =? 0) then 5 else 8) + more); "
+  "(cat (cat (cat (cat (cat (cat 0x0300 (windowFrames k)) (if (x =? 0) then (deepHead) else (deepXHead))) (number d)) 0x01) (number (prim subtract d 1 : Nat))) (if (x =? 0) then (deepEnd) else (deepXEnd)))))")
 D('profilePrefix', ['x : Nat', 'k : Nat'], 'Bytes',
-  "(if (x =? 0) then (if (k =? 0) then (profile0Prefix) else (if (k =? 1) then (profile1Prefix) else (profile2Prefix))) "
-  "else (if (k =? 0) then (profile0XPrefix) else (if (k =? 1) then (profile1XPrefix) else (profile2XPrefix))))")
+  "(if (k =? 0) then (if (x =? 0) then (profile0Prefix) else (profile0XPrefix)) else (deepPrefix x k))")
 D('profileTail', ['x : Nat', 'k : Nat'], 'Bytes',
-  "(if (x =? 0) then (if (k =? 0) then (profile0Tail) else (if (k =? 1) then (profile1Tail) else (profile2Tail))) "
-  "else (if (k =? 0) then (profile0XTail) else (if (k =? 1) then (profile1XTail) else (profile2XTail))))")
+  "(if (k =? 0) then (if (x =? 0) then (profile0Tail) else (profile0XTail)) else (deepTail x k))")
 D('profiledBody', ['x : Nat', 'k : Nat', 'profile : Nat', 'payload : Bytes'], 'Bytes',
   "(cat (cat (cat (cat (profilePrefix x k) (number (prim length payload : Nat))) payload) (cat 0x00 (number profile))) (profileTail x k))")
 # a profile word names a subset of the coder's 20 features
@@ -295,7 +331,7 @@ D('windowDecodeV03', ['data : Bytes', 'window : (List Bytes)'], '(Option Bytes)'
 D('profiledIdentity', ['window : (List Bytes)'], '(Option Bytes)',
   "(match window\n    | List.nil => (ctor Option.some [Bytes] (basisIdentity))\n    | List.cons oldest rest => (windowIdentity window))")
 D('profiledArchive', ['x : Nat', 'k : Nat', 'identity : Bytes', 'n : Nat', 'profile : Nat', 'payload : Bytes'], '(Option Bytes)',
-  f"(if ((k <=? 2) && (profileWord profile)) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else {NONE_B})")
+  f"(if (profileWord profile) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else {NONE_B})")
 PDA = (f"(let k : Nat := (windowCount window); (match (linkedHeader data)\n    | Option.none => {NONE_B}\n    | Option.some h => (let at : Nat := (((second h) + 32) + (prim length (profilePrefix x k) : Nat)); (match (readUleb 10 data at 1 0)\n      | Option.none => {NONE_B}\n      | Option.some pl => (match (readUleb 10 data (((second pl) + (first pl)) + 1) 1 0)\n        | Option.none => {NONE_B}\n        | Option.some pw => (let profile : Nat := (first pw); (match (payloadAt data at)\n          | Option.none => {NONE_B}\n          | Option.some payload => (match (profiledIdentity window)\n            | Option.none => {NONE_B}\n            | Option.some identity => (match (profiledArchive x k identity (first h) profile payload)\n              | Option.none => {NONE_B}\n              | Option.some rebuilt => (if (prim equal rebuilt data : Bool) then (let history : Bytes := (windowHistory window); (let out : Bytes := (profiledDecoder x history payload profile); "
        f"(if (((prim length out : Nat) =? (first h)) && (prim equal (profiledEncoder x history out profile) payload : Bool)) then (ctor Option.some [Bytes] out) else {NONE_B}))) else {NONE_B}))))))))))")
 D('profiledDecodeAs', ['x : Nat', 'data : Bytes', 'window : (List Bytes)'], '(Option Bytes)', PDA)
@@ -309,7 +345,7 @@ D('v03Candidate', ['x : Nat', 'window : (List Bytes)', 'n : Nat', 'payload : Byt
 # x86 filter: the candidate the client's strategy portfolio weighs
 D('profileCandidate', ['codec : Nat', 'profile : Nat', 'window : (List Bytes)', 'input : Bytes'], '(Option Bytes)',
   f"(let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); "
-  f"(if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (profile =? 131071) then (v03Candidate x window (prim length input : Nat) payload) else (match (profiledIdentity window)\n    | Option.none => {NONE_B}\n    | Option.some identity => (profiledArchive x (windowCount window) identity (prim length input : Nat) profile payload))) else {NONE_B}))))")
+  f"(if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if ((profile =? 131071) && ((windowCount window) <=? 2)) then (v03Candidate x window (prim length input : Nat) payload) else (match (profiledIdentity window)\n    | Option.none => {NONE_B}\n    | Option.some identity => (profiledArchive x (windowCount window) identity (prim length input : Nat) profile payload))) else {NONE_B}))))")
 # The profile the encoder learns for `input` under `profile` (NcmEncode.learnProfile), over the x86 filter when x = 1,
 # and the candidate that codes it too: the learned frame is kept when it is no larger than the strategy's own.
 D('profiledLearner', ['x : Nat', 'history : Bytes', 'input : Bytes', 'profile : Nat'], 'Nat',

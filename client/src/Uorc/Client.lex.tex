@@ -334,12 +334,86 @@ definition{
 }
 
 definition{
+  name: recentWindow,
+  parameters: [window : (List Bytes)],
+  result: (List Bytes),
+  body: (match window
+    | List.nil => window
+    | List.cons oldest rest => (if ((Uorc.Codec.Archive::windowCount window) <=? 2) then window else (recentWindow rest))),
+  axioms: [],
+  recursive_argument: window
+}
+
+definition{
+  name: lastFrames,
+  parameters: [k : Nat, window : (List Bytes)],
+  result: (List Bytes),
+  body: (match window
+    | List.nil => window
+    | List.cons oldest rest => (if ((Uorc.Codec.Archive::windowCount window) <=? k) then window else (lastFrames k rest))),
+  axioms: [],
+  recursive_argument: window
+}
+
+definition{
+  name: withMatch,
+  parameters: [word : Nat, mb : Nat],
+  result: Nat,
+  body: ((prim subtract word (prim multiply 67108864 (prim remainder (prim quotient word 67108864 0 : Nat) 32 0 : Nat) : Nat) : Nat) + (prim multiply 67108864 mb : Nat)),
+  axioms: []
+}
+
+definition{
+  name: windowTrial,
+  parameters: [x : Nat, w : Nat, k : Nat, window : (List Bytes), input : Bytes, best : Bytes],
+  result: (Option Bytes),
+  body: (let deep : (List Bytes) := (lastFrames k window); (let n : Nat := (prim length input : Nat); (let held : Nat := (prim length (Uorc.Codec.Archive::windowHistory deep) : Nat); (if ((hostMemory) <? (decoderBytes n held n w (Uorc.Codec.NcmEncode::tbOf n w))) then (ctor Option.none [Bytes]) else (match (Uorc.Codec.Archive::profileCandidate (x + 1) w deep input)
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some a => (if ((prim length a : Nat) <? (prim length best : Nat)) then (ctor Option.some [Bytes] a) else (ctor Option.none [Bytes]))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: depthLoop,
+  parameters: [fuel : Nat, x : Nat, word : Nat, k : Nat, window : (List Bytes), input : Bytes, best : Bytes],
+  result: (Bytes * Nat),
+  body: (match fuel
+    | Nat.zero => (best, k)
+    | Nat.succ m => (if ((Uorc.Codec.Archive::windowCount window) <=? k) then (best, k) else (match (windowTrial x word (k + 1) window input best)
+      | Option.none => (best, k)
+      | Option.some a => (depthLoop m x word (k + 1) window input a)))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: matchLoop,
+  parameters: [fuel : Nat, x : Nat, word : Nat, mb : Nat, k : Nat, window : (List Bytes), input : Bytes, best : Bytes],
+  result: (Bytes * Nat),
+  body: (match fuel
+    | Nat.zero => (best, word)
+    | Nat.succ m => (if (31 <=? mb) then (best, word) else (let w : Nat := (withMatch word (mb + 1)); (match (windowTrial x w k window input best)
+      | Option.none => (best, word)
+      | Option.some a => (matchLoop m x w (mb + 1) k window input a))))),
+  axioms: [Quot.sound, propext],
+  recursive_argument: fuel
+}
+
+definition{
+  name: stepWindow,
+  parameters: [point : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
+  result: (Bytes * (Nat * (List Bytes))),
+  body: (let k0 : Nat := (Uorc.Codec.Archive::windowCount (recentWindow window)); (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let x : Nat := (prim remainder (prim quotient point 2147483648 0 : Nat) 2 0 : Nat); (let word : Nat := (prim remainder point 2147483648 0 : Nat); (if (0 <? st) then (chosen, (point, (recentWindow window))) else (let d : (Bytes * Nat) := (depthLoop (Uorc.Codec.Archive::windowCount window) x word k0 window input chosen); (let m : (Bytes * Nat) := (matchLoop 32 x word (Uorc.Codec.NcmEncode::mbOf (prim length input : Nat) word) (second d) window input (first d)); ((first m), (((second m) + (prim multiply 2147483648 x : Nat)), (lastFrames (second d) window)))))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
   name: compress,
   parameters: [strategies : Bytes, weights : Bytes, states : (List Bytes), input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
-  body: (let fam : Nat := (family input); (let linked : (Option (Bytes * (Nat * Nat))) := (portfolio strategies states (budgetFor fam) (schedule strategies weights fam) window input); (let quick : (Option Bytes) := (match linked
+  body: (let fam : Nat := (family input); (let linked : (Option (Bytes * (Nat * Nat))) := (portfolio strategies states (budgetFor fam) (schedule strategies weights fam) (recentWindow window) input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] (stepTable states (second (second kernel)) window input (first kernel))) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))))),
+    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (let stepped : (Bytes * (Nat * (List Bytes))) := (stepWindow (second (second kernel)) window input (first kernel)); (ctor Option.some [Bytes] (stepTable states (first (second stepped)) (second (second stepped)) input (first stepped)))) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))))),
   axioms: [Quot.sound, propext]
 }
 

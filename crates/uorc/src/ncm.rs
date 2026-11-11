@@ -105,7 +105,8 @@ pub const TABLE_SHIFT: u32 = 20;
 /// follow the context table's default size, `Model::sized`).
 pub const MATCH_SHIFT: u32 = 26;
 const TABLE_FIELD: u32 = 63;
-const MATCH_FIELD: u32 = 31;
+/// The largest value the match tables' field holds (five bits).
+pub const MATCH_FIELD: u32 = 31;
 /// Fewest table bits a frame may record: one bucket pair (two 16-slot buckets).
 pub const TABLE_MIN: u32 = 5;
 /// Most table bits a frame may record: a slot index is a 32-bit hash's low bits.
@@ -1763,6 +1764,20 @@ pub fn table_bits(modelled: u64, profile: u32) -> u32 {
 /// the other fields are kept.
 pub fn with_table_bits(profile: u32, tb: u32) -> u32 {
     (profile & !(TABLE_FIELD << TABLE_SHIFT)) | ((tb & TABLE_FIELD) << TABLE_SHIFT)
+}
+
+/// `profile` with the match tables' field set to `mb` bits (0 clears it);
+/// the other fields are kept.
+pub fn with_match_bits(profile: u32, mb: u32) -> u32 {
+    (profile & !(MATCH_FIELD << MATCH_SHIFT)) | ((mb & MATCH_FIELD) << MATCH_SHIFT)
+}
+
+/// The match tables' bits a model coding `n` bytes after `history` bytes
+/// under `profile` uses: the recorded field, else the size the coded length
+/// alone gives (`Model::sized`).
+pub fn match_bits(n: u64, profile: u32) -> u32 {
+    recorded_match_bits(profile)
+        .unwrap_or_else(|| Model::sized(u32::try_from(n).unwrap_or(u32::MAX)).1)
 }
 
 /// Bytes a decoder of this coder holds for a frame of `n` bytes after

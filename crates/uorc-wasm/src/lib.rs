@@ -147,6 +147,13 @@ pub extern "C" fn decompress_frame() -> i32 {
     finish(INPUT.with(|input| DECODER.with(|decoder| decoder.borrow_mut().push(&input.borrow()))))
 }
 
+/// Most frames before it a frame may read ([`uorc::REACH`]): the page keeps
+/// that many frames to hand each frame its window.
+#[no_mangle]
+pub extern "C" fn reach() -> usize {
+    uorc::REACH
+}
+
 /// Input bytes per frame.
 #[no_mangle]
 pub extern "C" fn frame_size() -> usize {
@@ -476,12 +483,15 @@ pub extern "C" fn step_frame() -> i32 {
         let c = f.len()?;
         let chosen = f.take(c)?.to_vec();
         f.end()?;
+        // the window facets, then the table facet, as compress does
+        let host = uorc::performance::PAGE_WORKER;
+        let (stepped, k) = uorc::step_window(frame, &pieces, &window, chosen, host);
         Ok(uorc::step_table(
             frame,
             &pieces,
-            &window,
-            chosen,
-            uorc::performance::PAGE_WORKER,
+            &window[window.len() - k..],
+            stepped,
+            host,
         ))
     }))
 }
