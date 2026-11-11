@@ -37,7 +37,13 @@ structure{
     {name: download, type: String},
     {name: restored, type: String},
     {name: cancelled, type: String},
-    {name: memory, type: String}
+    {name: memory, type: String},
+    {name: model, type: String},
+    {name: modelHelp, type: String},
+    {name: theorems, type: String},
+    {name: claims, type: String},
+    {name: engine, type: String},
+    {name: unpublished, type: String}
   ]
 }
 
@@ -234,7 +240,7 @@ definition{
   name: labels,
   parameters: [],
   result: Labels,
-  body: (record Labels {skipToWorkbench := "Skip to the workbench", workbench := "Use uorc here", operations := "Operation", examples := "Examples", examplesHelp := "Each example compresses a built-in input in this page, decompresses the archive again and checks that the bytes are identical.", usage := "Use uorc elsewhere", links := "More", noscript := "This page runs the uorc client with JavaScript and WebAssembly; enable JavaScript to use it.", version := "Release", progress := "Progress", download := "Save", restored := "Restored files", cancelled := "Cancelled. Ready.", memory := "WebAssembly memory"})
+  body: (record Labels {skipToWorkbench := "Skip to the workbench", workbench := "Use uorc here", operations := "Operation", examples := "Examples", examplesHelp := "Each example compresses a built-in input in this page, decompresses the archive again and checks that the bytes are identical.", usage := "Use uorc elsewhere", links := "More", noscript := "This page runs the uorc client with JavaScript and WebAssembly; enable JavaScript to use it.", version := "Release", progress := "Progress", download := "Save", restored := "Restored files", cancelled := "Cancelled. Ready.", memory := "WebAssembly memory", model := "What the codec claims", modelHelp := "The statements this release makes about its own performance, as the factory decided them: theorems checked for every input, exact sizes and step counts on named corpora, and the state of the engine that searches the codec space. Each codec point and corpus is named by its κ, a SHA-256 identity.", theorems := "Theorems for every input", claims := "Closed claims", engine := "Engine", unpublished := "None recorded in this release."})
 }
 
 definition{
@@ -276,7 +282,7 @@ definition{
   name: inspectArchive,
   parameters: [],
   result: Feature,
-  body: (record Feature {statement := "Read every archive header and integrity seal of a stream without decoding it, as a table.", calls := (cons "uorc.inspect" (nil String)), acceptance := (cons "inspect-archive" (nil String))})
+  body: (record Feature {statement := "Read every archive header and integrity seal of a stream without decoding it, as a table with each frame's codec point: its strategy, profile word, model state, lanes, exact step count and κ, and the recorded claims that name it.", calls := (cons "uorc.inspect" (nil String)), acceptance := (cons "inspect-archive" (cons "inspect-codec-point" (nil String)))})
 }
 
 definition{
@@ -298,6 +304,13 @@ definition{
   parameters: [],
   result: Feature,
   body: (record Feature {statement := "Run built-in inputs through compress and decompress and show their sizes, times and whether the round trip is identical.", calls := (cons "uorc.compress" (cons "uorc.decompress" (nil String))), acceptance := (cons "examples-round-trip" (nil String))})
+}
+
+definition{
+  name: readModel,
+  parameters: [],
+  result: Feature,
+  body: (record Feature {statement := "Show what this release claims about its own performance, as the factory decided it: the theorems checked for every input, each closed claim with its codec point, corpus, exact bytes and steps and whether it was proved or refuted, and the engine's state with its tick, rule30 register and weights.", calls := (cons "model.json" (nil String)), acceptance := (cons "model-theorems" (cons "model-claims" (cons "model-engine" (nil String))))})
 }
 
 definition{
@@ -325,7 +338,7 @@ definition{
   name: judgeFormat,
   parameters: [],
   result: Journey,
-  body: (record Journey {actor := "Uorc.Page::evaluator", steps := (cons "Uorc.Page::runExamples" (cons "Uorc.Page::inspectArchive" (cons "Uorc.Page::verifyArchive" (cons "Uorc.Page::explainFailures" (nil String)))))})
+  body: (record Journey {actor := "Uorc.Page::evaluator", steps := (cons "Uorc.Page::runExamples" (cons "Uorc.Page::readModel" (cons "Uorc.Page::inspectArchive" (cons "Uorc.Page::verifyArchive" (cons "Uorc.Page::explainFailures" (nil String))))))})
 }
 
 definition{
@@ -623,6 +636,132 @@ definition{
 }
 
 definition{
+  name: columnProfile,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "inspect", order := 7, key := "ncm_profile", label := "Profile word"})
+}
+
+definition{
+  name: columnState,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "inspect", order := 8, key := "state", label := "Model state"})
+}
+
+definition{
+  name: columnLanes,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "inspect", order := 9, key := "lanes", label := "Lanes"})
+}
+
+definition{
+  name: columnSteps,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "inspect", order := 10, key := "steps", label := "Steps"})
+}
+
+definition{
+  name: columnCodecPoint,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "inspect", order := 11, key := "codec_point", label := "Codec point κ"})
+}
+
+definition{
+  name: columnClaims,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "inspect", order := 12, key := "claims", label := "Claims"})
+}
+
+definition{
+  name: columnTheoremId,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "theorems", order := 1, key := "id", label := "Claim"})
+}
+
+definition{
+  name: columnTheoremStatement,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "theorems", order := 2, key := "statement", label := "Statement"})
+}
+
+definition{
+  name: columnTheoremEvidence,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "theorems", order := 3, key := "evidence", label := "Evidence"})
+}
+
+definition{
+  name: columnClaimForm,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "claims", order := 1, key := "form", label := "Form"})
+}
+
+definition{
+  name: columnClaimCodec,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "claims", order := 2, key := "codec", label := "Codec point κ"})
+}
+
+definition{
+  name: columnClaimCorpus,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "claims", order := 3, key := "corpus", label := "Corpus κ"})
+}
+
+definition{
+  name: columnClaimBytes,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "claims", order := 4, key := "bytes", label := "Bytes"})
+}
+
+definition{
+  name: columnClaimSteps,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "claims", order := 5, key := "steps", label := "Steps"})
+}
+
+definition{
+  name: columnClaimStatus,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "claims", order := 6, key := "status", label := "Decided"})
+}
+
+definition{
+  name: columnWeightStrategy,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "weights", order := 1, key := "strategy", label := "Strategy"})
+}
+
+definition{
+  name: columnWeightFamily,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "weights", order := 2, key := "family", label := "Family"})
+}
+
+definition{
+  name: columnWeightValue,
+  parameters: [],
+  result: Column,
+  body: (record Column {table := "weights", order := 3, key := "weight", label := "Weight"})
+}
+
+definition{
   name: columnExampleInput,
   parameters: [],
   result: Column,
@@ -710,21 +849,21 @@ definition{
   name: usageCommandLine,
   parameters: [],
   result: Usage,
-  body: (record Usage {order := 1, title := "Command line", language := "shell", code := (cons "uorc compress --stats notes.txt      # writes notes.txt.uorc" (cons "uorc decompress notes.txt.uorc -o notes.restored.txt" (cons "cat data.bin | uorc compress - > data.uorc   # any size: streams through 8 MiB frames" (cons "uorc compress --threads 4 big.tar     # frames compress in parallel" (cons "uorc decompress --threads 4 big.tar.uorc   # blocks of frames decode in parallel" (cons "uorc compress photos/                 # writes photos.uorc (a whole tree)" (cons "uorc decompress photos.uorc -o restore/   # --resume finishes an interrupted restore" (cons "uorc inspect notes.txt.uorc           # header and integrity, no decoding" (cons "uorc verify notes.txt.uorc notes.txt  # decode, check, compare" (cons "# Outputs are written to a temporary file and renamed into place; --force replaces." (cons "# Exit status: 0 ok, 2 usage, 3 I/O, 4 invalid archive or integrity, 5 step budget," (cons "# 6 overflow, 7 differs from the original." (nil String)))))))))))))})
+  body: (record Usage {order := 1, title := "Command line", language := "shell", code := (cons "uorc compress --stats notes.txt      # writes notes.txt.uorc" (cons "uorc decompress notes.txt.uorc -o notes.restored.txt" (cons "cat data.bin | uorc compress - > data.uorc   # any size: streams through 8 MiB frames" (cons "uorc compress --threads 4 big.tar     # frames compress in parallel" (cons "uorc decompress --threads 4 big.tar.uorc   # blocks of frames decode in parallel" (cons "uorc compress photos/                 # writes photos.uorc (a whole tree)" (cons "uorc decompress photos.uorc -o restore/   # --resume finishes an interrupted restore" (cons "uorc inspect notes.txt.uorc           # per frame: header, integrity, codec point and steps; no decoding" (cons "uorc verify notes.txt.uorc notes.txt  # decode, check, compare" (cons "# Outputs are written to a temporary file and renamed into place; --force replaces." (cons "# Exit status: 0 ok, 2 usage, 3 I/O, 4 invalid archive or integrity, 5 step budget," (cons "# 6 overflow, 7 differs from the original." (nil String)))))))))))))})
 }
 
 definition{
   name: usageRust,
   parameters: [],
   result: Usage,
-  body: (record Usage {order := 2, title := "Rust library", language := "rust", code := (cons "let archive = uorc::compress(&bytes, uorc::DEFAULT_STEPS)?;" (cons "let original = uorc::decompress(&archive, uorc::DEFAULT_DECODE_WORK)?;" (cons "assert_eq!(original, bytes);" (cons "let info = uorc::inspect(&archive)?;           // header + integrity, no decode" (cons "uorc::verify(&archive, Some(&bytes), uorc::DEFAULT_DECODE_WORK)?;" (cons "let many = uorc::compress_objects(&[a, b, c], uorc::DEFAULT_STEPS)?;" (cons "let parts = uorc::decompress_objects(&many, uorc::DEFAULT_DECODE_WORK)?;" (cons "// Or stream between any reader and writer, with bounded memory:" (cons "uorc::compress_stream(reader, writer, uorc::DEFAULT_STEPS, uorc::default_threads())?;" (nil String))))))))))})
+  body: (record Usage {order := 2, title := "Rust library", language := "rust", code := (cons "let archive = uorc::compress(&bytes, uorc::DEFAULT_STEPS)?;" (cons "let original = uorc::decompress(&archive, uorc::DEFAULT_DECODE_WORK)?;" (cons "assert_eq!(original, bytes);" (cons "let info = uorc::inspect(&archive)?;           // header + integrity, no decode" (cons "let point = uorc::performance::CodecPoint::of(&info); // basis, profile, state, lanes; point.kappa()" (cons "uorc::verify(&archive, Some(&bytes), uorc::DEFAULT_DECODE_WORK)?;" (cons "let many = uorc::compress_objects(&[a, b, c], uorc::DEFAULT_STEPS)?;" (cons "let parts = uorc::decompress_objects(&many, uorc::DEFAULT_DECODE_WORK)?;" (cons "// Or stream between any reader and writer, with bounded memory:" (cons "uorc::compress_stream(reader, writer, uorc::DEFAULT_STEPS, uorc::default_threads())?;" (nil String)))))))))))})
 }
 
 definition{
   name: usageJavaScript,
   parameters: [],
   result: Usage,
-  body: (record Usage {order := 3, title := "JavaScript (this page's module)", language := "javascript", code := (cons "import { load } from \"./uorc.js\";" (cons "const uorc = await load(\"./uorc_bg.wasm\");" (cons "const archive = uorc.compress(new TextEncoder().encode(\"hello hello hello\"));" (cons "const original = uorc.decompress(archive);" (cons "uorc.inspect(archive);                 // [{ representation, object_lengths, integrity_ok, ... }]" (cons "uorc.verify(archive, original);        // throws if it does not reproduce original" (cons "const bundle = uorc.compressFiles([{ path: \"a.txt\", data }, { path: \"d\", kind: \"directory\" }]);" (cons "const files = uorc.decompressFiles(bundle); // [{ path, kind, data }]" (cons "// Files of any size, one frame in memory at a time:" (cons "const blob = await uorc.compressBlob(file);" (cons "const back = await uorc.decompressBlob(blob);" (cons "// Folders of any size, the same way:" (cons "const tree = await uorc.compressTreeBlob([{ path: \"d\", kind: \"directory\" }, { path: \"d/a.txt\", blob: file }]);" (cons "const entries = await uorc.decompressTreeBlob(tree); // [{ path, kind, blob }]" (nil String)))))))))))))))})
+  body: (record Usage {order := 3, title := "JavaScript (this page's module)", language := "javascript", code := (cons "import { load } from \"./uorc.js\";" (cons "const uorc = await load(\"./uorc_bg.wasm\");" (cons "const archive = uorc.compress(new TextEncoder().encode(\"hello hello hello\"));" (cons "const original = uorc.decompress(archive);" (cons "uorc.inspect(archive);                 // [{ representation, codec_point, steps, integrity_ok, ... }]" (cons "uorc.verify(archive, original);        // throws if it does not reproduce original" (cons "const bundle = uorc.compressFiles([{ path: \"a.txt\", data }, { path: \"d\", kind: \"directory\" }]);" (cons "const files = uorc.decompressFiles(bundle); // [{ path, kind, data }]" (cons "// Files of any size, one frame in memory at a time:" (cons "const blob = await uorc.compressBlob(file);" (cons "const back = await uorc.decompressBlob(blob);" (cons "// Folders of any size, the same way:" (cons "const tree = await uorc.compressTreeBlob([{ path: \"d\", kind: \"directory\" }, { path: \"d/a.txt\", blob: file }]);" (cons "const entries = await uorc.decompressTreeBlob(tree); // [{ path, kind, blob }]" (nil String)))))))))))))))})
 }
 
 definition{
@@ -798,6 +937,13 @@ definition{
 }
 
 definition{
+  name: faithfulModel,
+  parameters: [],
+  result: QualityRequirement,
+  body: (record QualityRequirement {characteristic := "functional suitability", subcharacteristic := "functional correctness", text := "The page shows each frame's codec point and step count exactly as the uorc library reads them, and every theorem, claim and engine value exactly as the release publishes them."})
+}
+
+definition{
   name: longestPageTask,
   parameters: [],
   result: QualityMeasure,
@@ -837,6 +983,20 @@ definition{
   parameters: [],
   result: QualityMeasure,
   body: (record QualityMeasure {requirement := "Uorc.Page::statusMessages", quantity := "controls without an accessible name", unit := "controls", threshold := 0, disposition := "gate"})
+}
+
+definition{
+  name: differingCodecPoints,
+  parameters: [],
+  result: QualityMeasure,
+  body: (record QualityMeasure {requirement := "Uorc.Page::faithfulModel", quantity := "frames whose codec point, steps or claims on the page differ from the library's inspect and the published register", unit := "frames", threshold := 0, disposition := "gate"})
+}
+
+definition{
+  name: differingModelValues,
+  parameters: [],
+  result: QualityMeasure,
+  body: (record QualityMeasure {requirement := "Uorc.Page::faithfulModel", quantity := "theorems, claims and engine values on the page that differ from the published model.json", unit := "values", threshold := 0, disposition := "gate"})
 }
 
 definition{

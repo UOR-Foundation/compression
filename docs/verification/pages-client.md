@@ -1,5 +1,5 @@
 <!-- uorc:non-authoritative -->
-# Pages client against its product model (UC-WEB-01)
+# Pages client against its product model (UC-WEB-01, UC-WEB-02)
 
 `src/Uorc/Page.lex.tex` is the authority. This file records what was found on
 the v0.3 page, the evidence the gate produces and the planted defects that show
@@ -80,3 +80,58 @@ any non-uorc failure as `stopped` and closes, and the page starts a new one.
 Node (same V8) on 2 MB of repository text: 0.21 MB/s both ways without SIMD128,
 0.29 MB/s with it, against 0.53 MB/s for one native core. Random input
 compresses at 0.18 MB/s before being stored raw.
+
+## v0.5: the codec point, the claims and the engine (UC-WEB-02)
+
+The v0.5 Prism model states the codec as a point of a modelled space and
+records claims about it (`Uorc.Performance`, `frontier.toml`,
+`model/engine.toml`). The product now shows that model wherever it shows an
+archive:
+
+- `uorc::Info::to_json` (and so `uorc inspect --json`, the wasm `inspect` and
+  the page) gives each frame's `state`, `lanes`, `steps` and `codec_point`
+  from `uorc::performance`: the step count is exact and read from the header
+  alone (raw: one per byte, reference: none, ncm: eight bits times the inputs
+  the profile word keeps, per byte), and the codec point κ is SHA-256 over
+  `uorc/codec-point/1`, the basis, the profile word, the state κ and the lane
+  count. `uorc inspect` prints the same lines in text.
+- The page's inspect table adds the profile word, model state, lanes, steps,
+  codec point κ and the recorded claims that name that point.
+- `scripts/site.mjs` publishes `model.json` beside the closure (as it does the
+  bench page): the ledger's `UC-PERF-*` rows, the claims of `frontier.toml`
+  and the engine state of `model/engine.toml`. Its reader refuses any TOML it
+  cannot read faithfully, so a register the page would misreport fails the
+  build. The page's model view (`readModel`) shows the three tables and the
+  engine line; the release attaches `model.json` and puts its summary in the
+  release notes.
+- The factory obligation `pages` keys on the three model files, so a new
+  claim or engine tick re-runs the browser acceptance and nothing else.
+
+Gates:
+
+- `inspect_names_each_frames_codec_point_uc_web_02` (crates/uorc/tests/cli.rs):
+  for an ncm and a raw frame, the JSON and text inspect equal the library's
+  `CodecPoint::of(..).kappa()` and `frame_steps`.
+- `the_model_view_holds_every_model_table_uc_web_02` (crates/model): the page
+  holds each model table with the model's columns and the inspect columns.
+- `model.json projects the theorems, claims and engine state`
+  (scripts/site.test.mjs): the projection of fixture files, integers past
+  2^53 kept exact as strings, unreadable TOML refused.
+- Browser: `inspect-codec-point` compares every frame of a three-frame stream
+  with the library's inspect in the same page, against a register that claims
+  the first frame's point (served under `/claimed/`); `model-theorems`,
+  `model-claims` and `model-engine` compare the model view with the published
+  `model.json`. Gated measures `differingCodecPoints` and
+  `differingModelValues`, both 0.
+
+Local run (4 vCPU, headless Chromium): `22 cases, 11 transitions, 10 measures`,
+both new measures 0.
+
+| Plant (built `app.js` edited) | Diagnostic |
+| --- | --- |
+| The inspect table reports no claims for any frame | `judgeFormat: inspect rows [...] differ from the library [...]` |
+| The model view's empty-table note dropped | `judgeFormat: claims rows [[""]] differ from model.json [["None recorded in this release."]]` |
+
+Restored: the unmodified site passes. Measured in that run: an 8 MiB ncm frame
+under profile word 0x7e1ff costs 1,342,177,280 steps (160 per byte), and each
+reference frame of the stream costs 0.

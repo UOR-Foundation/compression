@@ -7,9 +7,12 @@
 // names the SHA-256 of every other closure file. The brand files are the
 // vendored `hologram-brand` dependency (vendor/hologram-brand, byte-identical to
 // PrismPM's at 898dcdf, held by its MANIFEST.sha256). The release's benchmark
-// page (bench.html, bench.json, bench.md) is published beside the closure.
+// page (bench.html, bench.json, bench.md) is published beside the closure, and
+// so is model.json: the release's performance theorems (the UC-PERF rows of the
+// claim ledger), its closed claims (frontier.toml) and its engine state
+// (model/engine.toml), which the page's model view shows.
 //
-//   node scripts/site.mjs <out> --wasm <uorc_wasm.wasm> --version <tag> [--bench <dir>]
+//   node scripts/site.mjs <out> --wasm <uorc_wasm.wasm> --version <tag> [--bench <dir>] [--model-notes <file>]
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -32,6 +35,81 @@ export const BRAND_FILES = {
 };
 export const PAGE_FILES = ['index.html', 'app.css', 'app.js', `${STEM}.js`];
 export const BENCH_FILES = ['bench.html', 'bench.json', 'bench.md'];
+/** Published beside the closure from the repository's own model files. */
+export const MODEL_FILE = 'model.json';
+const BESIDE = [...BENCH_FILES, MODEL_FILE];
+
+/**
+ * The TOML the model files use: tables, arrays of tables, and keys holding
+ * strings, integers, Booleans or one-line arrays of them. Anything else is
+ * refused, so a file the page cannot read faithfully fails the build.
+ */
+export function readToml(text, name = 'toml') {
+  const root = {};
+  let at = root;
+  const scalar = (raw, line) => {
+    const v = raw.trim();
+    if (v.startsWith('"')) {
+      const m = v.match(/^"((?:[^"\\]|\\.)*)"$/);
+      if (!m) throw new Error(`${name}:${line}: unreadable string ${v}`);
+      return JSON.parse(`"${m[1]}"`);
+    }
+    if (v === 'true' || v === 'false') return v === 'true';
+    if (/^[+-]?(0x[0-9a-fA-F_]+|[0-9][0-9_]*)$/.test(v)) {
+      const n = BigInt(v.replace(/_/g, ''));
+      return n <= BigInt(Number.MAX_SAFE_INTEGER) && n >= -BigInt(Number.MAX_SAFE_INTEGER) ? Number(n) : n.toString();
+    }
+    if (v.startsWith('[') && v.endsWith(']')) {
+      const inner = v.slice(1, -1).trim();
+      if (!inner) return [];
+      return (inner.match(/"(?:[^"\\]|\\.)*"|[^,]+/g) ?? []).map((x) => x.trim()).filter((x) => x).map((x) => scalar(x, line));
+    }
+    throw new Error(`${name}:${line}: unsupported value ${v}`);
+  };
+  const strip = (l) => { let q = false; for (let i = 0; i < l.length; i += 1) { if (l[i] === '"' && l[i - 1] !== '\\') q = !q; if (l[i] === '#' && !q) return l.slice(0, i); } return l; };
+  text.split('\n').forEach((rawLine, i) => {
+    const l = strip(rawLine).trim();
+    if (!l) return;
+    let m;
+    if ((m = l.match(/^\[\[([A-Za-z0-9_.-]+)\]\]$/))) {
+      const keys = m[1].split('.');
+      let t = root;
+      for (const k of keys.slice(0, -1)) t = t[k] ??= {};
+      const last = keys.at(-1);
+      (t[last] ??= []).push((at = {}));
+    } else if ((m = l.match(/^\[([A-Za-z0-9_.-]+)\]$/))) {
+      at = root;
+      for (const k of m[1].split('.')) at = at[k] ??= {};
+    } else if ((m = l.match(/^([A-Za-z0-9_-]+|"[^"]+")\s*=\s*(.+)$/))) {
+      at[m[1].replace(/^"|"$/g, '')] = scalar(m[2], i + 1);
+    } else throw new Error(`${name}:${i + 1}: unsupported line ${l}`);
+  });
+  return root;
+}
+
+/**
+ * model.json: the theorems (the ledger's UC-PERF rows), the claims of
+ * frontier.toml and the engine state of model/engine.toml, as the page shows
+ * them. A file that does not exist yet contributes nothing.
+ */
+export function modelState(root = ROOT) {
+  const read = (rel) => (fs.existsSync(path.join(root, rel)) ? readToml(fs.readFileSync(path.join(root, rel), 'utf8'), rel) : {});
+  const ledger = read('model/ledger.toml').claim ?? [];
+  const theorems = ledger.filter((c) => c.id.startsWith('UC-PERF-'))
+    .map((c) => ({ id: c.id, statement: c.statement, evidence: c.evidence_kind }));
+  const claims = (read('frontier.toml').claim ?? []).map((c) => ({
+    id: c.id, form: c.form, codec: c.codec ?? c.candidate ?? '', candidate: c.candidate, incumbent: c.incumbent,
+    family: c.family, corpus: c.corpus ?? c.family ?? '', bytes: c.bytes, steps: c.steps, status: c.status,
+  }));
+  const engine = read('model/engine.toml');
+  const weights = (engine.weight ?? []).map((w) => ({ strategy: w.strategy, family: w.family, weight: w.value }));
+  return {
+    schema: 'uorc/model-state/1',
+    theorems,
+    claims,
+    engine: { tick: engine.tick ?? null, rule30: engine.rule30 ?? null, consolidated: engine.consolidated ?? null, weights },
+  };
+}
 
 /** The closure v2 file names: the six-file page and the ten brand files. */
 export function closureV2() {
@@ -89,6 +167,8 @@ export function build(out, { wasm, version, bench }) {
   files.set('provenance.json', Buffer.from(`${JSON.stringify(provenance, null, 2)}\n`));
   const site = new Set([...files.keys()]);
   if (bench) for (const name of BENCH_FILES) { files.set(name, fs.readFileSync(path.join(bench, name))); site.add(name); }
+  files.set(MODEL_FILE, Buffer.from(`${JSON.stringify(modelState(), null, 2)}\n`));
+  site.add(MODEL_FILE);
   check(files, site);
   for (const [name, bytes] of files) fs.writeFileSync(path.join(out, name), bytes);
   return provenance;
@@ -96,7 +176,7 @@ export function build(out, { wasm, version, bench }) {
 
 /** Refuses a site that is not closure v2, or whose pages load anything remote or outside it. */
 export function check(files, site = new Set(files.keys())) {
-  const closure = [...files.keys()].filter((name) => !BENCH_FILES.includes(name)).sort();
+  const closure = [...files.keys()].filter((name) => !BESIDE.includes(name)).sort();
   if (JSON.stringify(closure) !== JSON.stringify(closureV2())) throw new Error(`not closure v2: ${closure.join(', ')}`);
   for (const name of files.keys()) if (name.includes('/')) throw new Error(`not flat: ${name}`);
   for (const name of [...PAGE_FILES, ...BENCH_FILES.filter((n) => n.endsWith('.html'))]) {
@@ -113,13 +193,27 @@ export function check(files, site = new Set(files.keys())) {
   if (Object.keys(provenance.files).length !== closure.length - 1) throw new Error('provenance.json names a file outside the closure');
 }
 
+/** The release notes' account of model.json, in Markdown. */
+export function modelNotes(m) {
+  const count = (status) => m.claims.filter((c) => c.status === status).length;
+  const lines = ['## What this release claims', ''];
+  lines.push(m.theorems.length ? `Theorems for every input: ${m.theorems.map((t) => `${t.id} (${t.evidence})`).join(', ')}.` : 'Theorems for every input: none recorded.');
+  lines.push('', m.claims.length
+    ? `Closed claims: ${m.claims.length} recorded, ${count('proved')} proved, ${count('refuted')} refuted, ${m.claims.length - count('proved') - count('refuted')} not yet decided. Each names its codec point κ, corpus κ, exact bytes and steps.`
+    : 'Closed claims: none recorded.');
+  lines.push('', m.engine.tick == null ? 'Engine: no tick recorded.' : `Engine: tick ${m.engine.tick}, rule30 register ${m.engine.rule30}, ${m.engine.consolidated} consolidated, ${m.engine.weights.length} weights.`);
+  lines.push('', 'The full register is model.json, on the Pages site and attached to this release.', '');
+  return lines.join('\n');
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [out, ...rest] = process.argv.slice(2);
   const opt = (key) => { const i = rest.indexOf(key); return i < 0 ? undefined : rest[i + 1]; };
   if (!out || !opt('--wasm') || !opt('--version')) {
-    console.error('usage: node scripts/site.mjs <out> --wasm <file> --version <tag> [--bench <dir>]');
+    console.error('usage: node scripts/site.mjs <out> --wasm <file> --version <tag> [--bench <dir>] [--model-notes <file>]');
     process.exit(2);
   }
   const p = build(out, { wasm: opt('--wasm'), version: opt('--version'), bench: opt('--bench') });
+  if (opt('--model-notes')) fs.writeFileSync(opt('--model-notes'), modelNotes(JSON.parse(fs.readFileSync(path.join(out, MODEL_FILE), 'utf8'))));
   console.log(`site: closure v2, ${Object.keys(p.files).length + 1} files, ${p.application} ${p.version}`);
 }

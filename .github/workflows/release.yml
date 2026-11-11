@@ -304,7 +304,8 @@ jobs:
             rm -rf "dist/$name"
           done
           # The site is a browser closure v2: the page, the brand files, provenance.
-          node scripts/site.mjs site --wasm build/wasm/uorc.wasm --version "$TAG" --bench bench
+          # model.json beside it: the theorems, claims and engine state the page shows.
+          node scripts/site.mjs site --wasm build/wasm/uorc.wasm --version "$TAG" --bench bench --model-notes model.md
           name="uorc-${TAG}-wasm"
           mkdir -p "dist/$name"
           cp site/uorc_bg.wasm "dist/$name/uorc.wasm"
@@ -314,6 +315,7 @@ jobs:
           git archive --format=tar.gz --prefix="uorc-${TAG}-src/" -o "dist/uorc-${TAG}-src.tar.gz" HEAD \
             Cargo.toml Cargo.lock rust-toolchain.toml crates/uorc crates/uorc-wasm generated/rust LICENSE-APACHE LICENSE-MIT
           cp bench/bench.json "dist/uorc-${TAG}-bench.json"
+          cp site/model.json "dist/uorc-${TAG}-model.json"
           (cd dist && sha256sum uorc-*-wasm.tar.gz uorc-*-src.tar.gz *.json > SHA256SUMS-wasm-src)
           ls -la dist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -329,7 +331,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          { printf 'uorc %s\n\n' "$TAG"; printf 'Client: https://%s.github.io/%s/\n\n' "${GITHUB_REPOSITORY_OWNER,,}" "${GITHUB_REPOSITORY#*/}"; cat bench/bench.md; } > notes.md
+          { printf 'uorc %s\n\n' "$TAG"; printf 'Client: https://%s.github.io/%s/\n\n' "${GITHUB_REPOSITORY_OWNER,,}" "${GITHUB_REPOSITORY#*/}"; cat model.md bench/bench.md; } > notes.md
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else
