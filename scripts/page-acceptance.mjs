@@ -33,20 +33,12 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uorc-page-'));
 const words = 'archive frame object reference integrity window decode encode model stream byte seal header context mixer weight'.split(' ');
 let seed = 1;
 const prose = Array.from({ length: 40000 }, () => { seed = (seed * 1103515245 + 12345) >>> 0; return words[seed % words.length]; }).join(' ');
-// Sentences of words, `n` bytes.
-function passage(n) {
-  const vocabulary = ['frame', 'archive', 'object', 'label', 'run', 'unit', 'basis', 'window', 'model', 'page'];
-  let x = 12345, s = '';
-  while (s.length < n) { x = (x * 1103515245 + 12345) >>> 0; s += vocabulary[x % vocabulary.length] + ((x >> 8) % 7 ? ' ' : '.\n'); }
-  return s.slice(0, n);
-}
 const file = (name, bytes) => { const p = path.join(dir, name); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes); return p; };
 const inputs = {
   text: file('text.txt', Buffer.from(prose)),
   other: file('other.bin', crypto.randomBytes(3000)),
-  // Three 8 MiB frames of one repeated passage: the first is coded, the
-  // repeats after it are reference frames.
-  frames: file('frames.bin', Buffer.alloc(3 * 8 * 1048576, passage(1048576))),
+  // Three identical 8 MiB frames: the second and third are reference frames.
+  frames: file('frames.bin', Buffer.alloc(3 * 8 * 1048576)),
   folder: path.join(dir, 'folder'),
 };
 file('folder/a.txt', Buffer.from('alpha\n'));
