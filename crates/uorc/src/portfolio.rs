@@ -53,8 +53,9 @@ const fn st(x86: bool, profile: u32, state: u8) -> Strategy {
 }
 
 /// The portfolio, in order: FULL, MID and V03, then the same over the x86
-/// filter, then FULL and MID continuing state 1 (plain before filtered before
-/// warmed, so equal weights schedule the simpler strategy first).
+/// filter, then FULL and MID continuing state 1, then FULL and MID continuing
+/// state 2 (plain before filtered before warmed, so equal weights schedule the
+/// simpler strategy first).
 pub const STRATEGIES: [Strategy; COUNT] = [
     st(false, ncm::FULL, 0),
     st(false, MID, 0),
@@ -64,10 +65,12 @@ pub const STRATEGIES: [Strategy; COUNT] = [
     st(true, ncm::V03, 0),
     st(false, ncm::FULL, 1),
     st(false, MID, 1),
+    st(false, ncm::FULL, 2),
+    st(false, MID, 2),
 ];
 
 /// Strategies in the portfolio.
-pub const COUNT: usize = 8;
+pub const COUNT: usize = 10;
 
 /// Families: x86 code ([`crate::x86::dense`]), tiny (< 4 KiB), small
 /// (< 64 KiB), text, other; numbered tiny 0, small 1, x86 2, text 3, other 4.
@@ -92,11 +95,17 @@ pub const fn budget(family: usize) -> usize {
 /// The learned weight of each strategy (columns, portfolio order) for each
 /// family (rows).
 pub const WEIGHTS: [[u8; COUNT]; FAMILIES] = [
-    [1, 1, 15, 1, 1, 1, 3, 1],
-    [1, 16, 5, 1, 1, 1, 1, 3],
-    [1, 1, 1, 1, 16, 1, 1, 1],
-    [1, 1, 1, 1, 1, 1, 16, 1],
-    [16, 4, 1, 2, 1, 1, 1, 1],
+    [1, 1, 15, 1, 1, 1, 3, 1, 1, 1],
+    [1, 16, 5, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 16, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 14, 5],
+    [16, 1, 1, 2, 1, 1, 1, 1, 1, 1],
+]; FAMILIES] = [
+    [1, 1, 15, 1, 1, 1, 3, 1, 1, 1],
+    [1, 16, 5, 1, 1, 1, 1, 3, 1, 1],
+    [1, 1, 1, 1, 16, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 16, 1, 1, 1],
+    [16, 4, 1, 2, 1, 1, 1, 1, 1, 1],
 ];
 
 /// The strategy table the model reads: per strategy its profile word

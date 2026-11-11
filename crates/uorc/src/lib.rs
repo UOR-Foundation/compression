@@ -470,6 +470,20 @@ fn model_data() -> (
     )
 }
 
+/// The exported model's archive of one frame with no window and no search
+/// (`Client.compress input [] 0`), for checking the native client against it.
+#[doc(hidden)]
+pub fn model_compress_frame(frame: &[u8]) -> Result<Vec<u8>, Error> {
+    on_reference_stack(|| reference_compress(frame, &[], 0))
+}
+
+/// The exported model's decode of one archive with no window
+/// (`Client.decompress`), for checking the native client against it.
+#[doc(hidden)]
+pub fn model_decompress_frame(archive: &[u8]) -> Result<Vec<u8>, Error> {
+    on_reference_stack(|| reference_decompress(archive, &[], DEFAULT_DECODE_WORK))
+}
+
 fn reference_compress(input: &[u8], window: &[&[u8]], steps: u64) -> Result<Vec<u8>, Error> {
     use uorc_compress::{Bytes, List};
     let (strategies, weights, states) = model_data();
@@ -1860,7 +1874,9 @@ mod tests {
             let steps = match info.state {
                 Some(_) => performance::trial_steps(
                     info.ncm_profile.expect("profile"),
-                    n + states::STATE_1.len() as u64,
+                    n + states::state(archive::state_frame(&got).expect("state frame").state)
+                        .expect("named")
+                        .len() as u64,
                 ),
                 None => performance::frame_steps(&info).expect("steps"),
             };
@@ -1893,6 +1909,7 @@ mod tests {
     fn states_change_size_never_meaning() {
         let input = text(3000, 7);
         let lengths = [input.len() as u64];
+        let mut least_state = usize::MAX;
         for (k, st) in portfolio::STRATEGIES.iter().enumerate() {
             let Some(s) = states::state(st.state) else {
                 continue;
@@ -1902,6 +1919,7 @@ mod tests {
             let a =
                 archive::state_archive(st.x86, st.profile, &id, &lengths, &payload).expect("frame");
             assert_eq!(archive::basis_of(&a), Some(id), "strategy {k}");
+            least_state = least_state.min(a.len());
             assert_eq!(archive::window_len(&a), Some(0));
             assert_eq!(decompress_frame(&a, 0).as_ref(), Ok(&input), "strategy {k}");
             let model = on_reference_stack(|| reference_decompress(&a, &[], DEFAULT_DECODE_WORK));
@@ -1911,9 +1929,10 @@ mod tests {
             bad[at] ^= 1;
             assert!(decompress_frame(&bad, 0).is_err());
         }
-        // a small text frame continues state 1, and is smaller for it
+        // a small text frame is smaller continuing a state, and the kept
+        // archive is no larger than any state frame
         let a = compress_frame(&input, 0).expect("codes");
-        assert_eq!(archive::basis_of(&a), states::identity(1));
+        assert!(a.len() <= least_state, "{} vs {least_state}", a.len());
         let alone = archive::linked_archive_profile(
             archive::Codec::Ncm,
             ncm::FULL,
@@ -1921,7 +1940,7 @@ mod tests {
             &ncm::encode_profile(&[], &input, ncm::FULL).expect("codes"),
         )
         .expect("frame");
-        assert!(a.len() < alone.len(), "{} vs {}", a.len(), alone.len());
+        assert!(least_state < alone.len(), "{least_state} vs {}", alone.len());
     }
 
     /// A linked archive whose payload the encoder would not write (one extra
