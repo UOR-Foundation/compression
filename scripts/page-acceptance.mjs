@@ -411,6 +411,14 @@ for (const name of declared) if (!done.has(name)) failures.push(`acceptance case
 for (const t of model.UmlTransition) if (!transitions.has(`${t.source}->${t.target}`)) failures.push(`transition ${t.source} -${t.trigger}-> ${t.target} was not taken`);
 for (const t of transitions) if (!model.UmlTransition.some((m) => `${m.source}->${m.target}` === t)) failures.push(`unmodeled transition ${t}`);
 failures.push(...new Set(violations));
+// Every call a feature names in the client module is defined in the uorc.js
+// the page ships.
+const client = fs.readFileSync(path.join(site, 'uorc.js'), 'utf8');
+for (const f of model.Feature) for (const call of f.calls.filter((c) => c.startsWith('uorc.'))) {
+  const name = call.slice('uorc.'.length);
+  const defined = new RegExp(`^\\s*(export\\s+)?((async\\s+)?function\\s+|const\\s+|async\\s+)?${name}\\s*(\\(|:|=)`, 'm');
+  if (!defined.test(client)) failures.push(`feature ${f.name}: ${call} is not in uorc.js`);
+}
 const unnamed = await evaluate("[...document.querySelectorAll('button, input, a, [role=tab]')].filter((e) => !(e.labels?.[0]?.textContent.trim() || e.getAttribute('aria-label') || e.textContent.trim())).length").catch(() => 1);
 await open();
 raise('unnamedControls', await evaluate("[...document.querySelectorAll('button, input, a, [role=tab]')].filter((e) => !(e.labels?.[0]?.textContent.trim() || e.getAttribute('aria-label') || e.textContent.trim())).length"));

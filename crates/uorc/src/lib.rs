@@ -1115,6 +1115,16 @@ impl FrameEncoder {
         }
     }
 
+    /// A new stream of ordered objects of `lengths`, whose bytes are pushed
+    /// back to back (a file tree's [`tree::Layout`]): the archives are the
+    /// stream [`compress_objects_stream`] writes for the same objects.
+    pub fn objects(lengths: &[u64]) -> Self {
+        FrameEncoder {
+            framer: chunk::Framer::objects(lengths),
+            before: Vec::new(),
+        }
+    }
+
     /// The next piece of input: returns the archives of the frames it
     /// completes, back to back (none until more than a frame is pending).
     pub fn push(&mut self, input: &[u8], steps: u64) -> Result<Vec<u8>, Error> {

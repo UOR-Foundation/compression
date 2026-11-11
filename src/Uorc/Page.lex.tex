@@ -262,14 +262,14 @@ definition{
   name: compressFolder,
   parameters: [],
   result: Feature,
-  body: (record Feature {statement := "Compress several files, or one folder with its relative paths, into one archive of ordered objects.", calls := (cons "uorc.compressFiles" (nil String)), acceptance := (cons "compress-files" (cons "compress-folder" (nil String)))})
+  body: (record Feature {statement := "Compress several files, or one folder with its relative paths, into one archive of ordered objects.", calls := (cons "uorc.compressTreeBlob" (nil String)), acceptance := (cons "compress-files" (cons "compress-folder" (nil String)))})
 }
 
 definition{
   name: decompressArchive,
   parameters: [],
   result: Feature,
-  body: (record Feature {statement := "Restore any .uorc archive this page or the command line wrote, including streams of several frames with reference frames, and offer every restored file as a download.", calls := (cons "uorc.decompressBlob" (cons "uorc.decompressFiles" (nil String))), acceptance := (cons "decompress-file" (cons "decompress-reference-frames" (cons "decompress-folder" (nil String))))})
+  body: (record Feature {statement := "Restore any .uorc archive this page or the command line wrote, including streams of several frames with reference frames, and offer every restored file as a download.", calls := (cons "uorc.decompressBlob" (cons "uorc.decompressTreeBlob" (nil String))), acceptance := (cons "decompress-file" (cons "decompress-reference-frames" (cons "decompress-folder" (nil String))))})
 }
 
 definition{
@@ -724,7 +724,7 @@ definition{
   name: usageJavaScript,
   parameters: [],
   result: Usage,
-  body: (record Usage {order := 3, title := "JavaScript (this page's module)", language := "javascript", code := (cons "import { load } from \"./uorc.js\";" (cons "const uorc = await load(\"./uorc_bg.wasm\");" (cons "const archive = uorc.compress(new TextEncoder().encode(\"hello hello hello\"));" (cons "const original = uorc.decompress(archive);" (cons "uorc.inspect(archive);                 // [{ representation, object_lengths, integrity_ok, ... }]" (cons "uorc.verify(archive, original);        // throws if it does not reproduce original" (cons "const bundle = uorc.compressFiles([{ path: \"a.txt\", data }, { path: \"d\", kind: \"directory\" }]);" (cons "const files = uorc.decompressFiles(bundle); // [{ path, kind, data }]" (cons "// Files of any size, one frame in memory at a time:" (cons "const blob = await uorc.compressBlob(file);" (cons "const back = await uorc.decompressBlob(blob);" (nil String))))))))))))})
+  body: (record Usage {order := 3, title := "JavaScript (this page's module)", language := "javascript", code := (cons "import { load } from \"./uorc.js\";" (cons "const uorc = await load(\"./uorc_bg.wasm\");" (cons "const archive = uorc.compress(new TextEncoder().encode(\"hello hello hello\"));" (cons "const original = uorc.decompress(archive);" (cons "uorc.inspect(archive);                 // [{ representation, object_lengths, integrity_ok, ... }]" (cons "uorc.verify(archive, original);        // throws if it does not reproduce original" (cons "const bundle = uorc.compressFiles([{ path: \"a.txt\", data }, { path: \"d\", kind: \"directory\" }]);" (cons "const files = uorc.decompressFiles(bundle); // [{ path, kind, data }]" (cons "// Files of any size, one frame in memory at a time:" (cons "const blob = await uorc.compressBlob(file);" (cons "const back = await uorc.decompressBlob(blob);" (cons "// Folders of any size, the same way:" (cons "const tree = await uorc.compressTreeBlob([{ path: \"d\", kind: \"directory\" }, { path: \"d/a.txt\", blob: file }]);" (cons "const entries = await uorc.decompressTreeBlob(tree); // [{ path, kind, blob }]" (nil String)))))))))))))))})
 }
 
 definition{

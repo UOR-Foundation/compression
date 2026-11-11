@@ -47,6 +47,19 @@ reports), the same schedule `FrameDecoder` runs.
 
 Restored: the unmodified site passes, `17 cases, 11 transitions, 8 measures`.
 
+The acceptance also requires every `uorc.*` call a feature names to be defined
+in the shipped `uorc.js`.
+
+## Folders stream like files
+
+Folders and multi-file archives go through the frame operations
+(`compressTreeBlob`, `decompressTreeBlob`). The page reads each file a frame at
+a time and splits each decoded frame at its object lengths.
+`tree_exports_stream_the_library_tree` (uorc-wasm) checks that a tree pushed a
+piece at a time writes the library's `compress_tree` bytes and restores the same
+entries. In Node, a folder holding a 24 MiB file round-trips with 217 MiB of
+WebAssembly memory to compress and 189 MiB to decompress.
+
 Planting the v0.3 wasm first showed a page defect: an async trap in the worker
 raised no `error` event, so the page stayed in `running`. The worker now reports
 any non-uorc failure as `stopped` and closes, and the page starts a new one.
@@ -59,7 +72,7 @@ any non-uorc failure as `stopped` and closes, and the page starts a new one.
 | Cancel to ready | 112 ms | ≤ 3000 ms |
 | Navigation to ready | 225 ms | ≤ 5000 ms |
 | Page archives differing from the library's | 0 | 0 |
-| WebAssembly memory after a 3-frame (24 MiB) stream | 154 MiB | ≤ 256 MiB |
+| WebAssembly memory after a 3-frame (24 MiB) stream | 179 MiB | ≤ 256 MiB |
 | Controls without an accessible name | 0 | 0 |
 | Compress, generated prose | 409 KB/s | measured |
 | Decompress, generated prose | 439 KB/s | measured |
