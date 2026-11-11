@@ -7,7 +7,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use uorc::archive::{chain, BASIS_ID};
+use uorc::archive::{chain, BASIS_ID, V03_BASIS_ID};
 use uorc::{
     compress_objects as compress_objects_at, decompress, decompress_objects, inspect, verify,
     Error, Representation, DEFAULT_DECODE_WORK, DEFAULT_STEPS,
@@ -291,24 +291,30 @@ fn compress_returns_the_smallest_checked_candidate_uc_opt_01() {
 }
 
 /// Offset of the basis identity inside a conditional archive's header.
-fn basis_at(archive: &[u8]) -> usize {
+fn basis_at(archive: &[u8], basis: &[u8; 32]) -> usize {
     archive
-        .windows(BASIS_ID.len())
-        .position(|w| w == BASIS_ID)
-        .expect("the archive names the standard basis")
+        .windows(basis.len())
+        .position(|w| w == basis)
+        .expect("the archive names its basis")
 }
 
 #[test]
 fn conditional_archives_bind_the_actual_basis_uc_bas_01() {
+    // A small text takes the v0.3-era entry, a large one the current basis:
+    // each archive names the basis it was coded over and is bound to it.
     let (_, text) = &corpus()[2];
-    {
-        let archive = uorc::compress(text, DEFAULT_STEPS).expect("archive");
+    let large = text.repeat(3);
+    for (input, basis) in [(text, V03_BASIS_ID), (&large, BASIS_ID)] {
+        let archive = uorc::compress(input, DEFAULT_STEPS).expect("archive");
         let info = inspect(&archive).expect("header");
-        assert_eq!(info.basis, Some(BASIS_ID));
-        assert_eq!(decompress(&archive, DEFAULT_DECODE_WORK).as_ref(), Ok(text));
+        assert_eq!(info.basis, Some(basis));
+        assert_eq!(
+            decompress(&archive, DEFAULT_DECODE_WORK).as_ref(),
+            Ok(input)
+        );
         // Another basis identity, resealed so only the identity differs: the
         // archive is not accepted because a tag happens to be well formed.
-        let at = basis_at(&archive);
+        let at = basis_at(&archive, &basis);
         let mut other = archive.clone();
         other[at] ^= 1;
         let end = other.len() - 32;

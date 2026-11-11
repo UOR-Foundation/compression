@@ -41,7 +41,7 @@ pub const ENTRY: usize = 5;
 /// The word's x86 filter bit.
 pub const X86_BIT: u32 = 1 << 31;
 
-/// Families: tiny (< 4 KiB), small (< 64 KiB), x86 code, text, other.
+/// Families: tiny (< 4 KiB), small (< 64 KiB), x86 code (any size), text, other.
 pub const FAMILIES: usize = 5;
 
 /// The families' names, in order.
@@ -141,17 +141,18 @@ pub const fn learn(w: u8, success: bool) -> u8 {
     }
 }
 
-/// The family of a frame: tiny below 4 KiB, small below 64 KiB, then x86
-/// code ([`crate::x86::dense`]), then text (at least 90% of the bytes are
-/// tab, line feed, carriage return or printable ASCII), else other.
+/// The family of a frame: x86 code ([`crate::x86::dense`], at any size, so
+/// a small executable still reaches the filter), then tiny below 4 KiB,
+/// small below 64 KiB, text (at least 90% of the bytes are tab, line feed,
+/// carriage return or printable ASCII), else other.
 pub fn family(frame: &[u8]) -> usize {
     let n = frame.len();
-    if n < 4096 {
+    if crate::x86::dense(frame) {
+        2
+    } else if n < 4096 {
         0
     } else if n < 65536 {
         1
-    } else if crate::x86::dense(frame) {
-        2
     } else if 10 * printable(frame) >= 9 * n {
         3
     } else {
@@ -221,5 +222,11 @@ mod tests {
         assert_eq!(family(&[b'a'; 10_000]), 1);
         assert_eq!(family(&[b'a'; 100_000]), 3);
         assert_eq!(family(&[0; 100_000]), 4);
+        // x86 code is x86 at any size, so a small executable tries the filter
+        let calls: Vec<u8> = (0..400u32)
+            .flat_map(|k| [0xE8, (k % 200) as u8, 0, 0, 0, 0x90])
+            .collect();
+        assert!(calls.len() < 4096);
+        assert_eq!(family(&calls), 2);
     }
 }

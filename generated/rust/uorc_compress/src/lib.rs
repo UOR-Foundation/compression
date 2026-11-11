@@ -3250,18 +3250,18 @@ pub fn f3(v0: Bytes) -> R<u64> {
         let a13 = v0.clone();
         length_bytes(a13)
     };
-    let a14 = v1;
-    let a15 = 4096u64;
-    if nat_lt(a14, a15) {
-        Ok(0u64)
+    if f11(v0.clone())? {
+        Ok(2u64)
     } else {
-        let a16 = v1;
-        let a17 = 65536u64;
-        if nat_lt(a16, a17) {
-            Ok(1u64)
+        let a14 = v1;
+        let a15 = 4096u64;
+        if nat_lt(a14, a15) {
+            Ok(0u64)
         } else {
-            if f11(v0.clone())? {
-                Ok(2u64)
+            let a16 = v1;
+            let a17 = 65536u64;
+            if nat_lt(a16, a17) {
+                Ok(1u64)
             } else {
                 let a22 = {
                     let a18 = 9u64;
@@ -8438,7 +8438,7 @@ pub fn f69(v0: u64, v1: u64, v2: Bytes) -> R<Bytes> {
 }
 
 pub fn f70() -> Bytes {
-    Bytes::lit(&[0x01, 0x01, 0x0f, 0x01, 0x0c, 0x01, 0x01, 0x01, 0x10, 0x01, 0x01, 0x01, 0x05, 0x01, 0x01, 0x0f, 0x01, 0x01, 0x0a, 0x01, 0x0a, 0x01, 0x04, 0x01, 0x09, 0x01, 0x0c, 0x01, 0x01, 0x01])
+    Bytes::lit(&[0x01, 0x01, 0x01, 0x01, 0x10, 0x01, 0x01, 0x01, 0x0e, 0x01, 0x10, 0x01, 0x04, 0x01, 0x01, 0x0f, 0x01, 0x01, 0x0a, 0x01, 0x0a, 0x01, 0x04, 0x01, 0x0c, 0x01, 0x0c, 0x01, 0x01, 0x01])
 }
 
 pub fn f71(v0: (Bytes, (Bytes, (Bytes, Adt224))), v1: u64, v2: u64, v3: u64) -> R<(Bytes, (Bytes, (Bytes, Adt224)))> {

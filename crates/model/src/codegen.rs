@@ -53,6 +53,7 @@ pub fn render_all(graph: &AuthorityGraph) -> Vec<(String, String)> {
         ),
     ];
     out.extend(render_feature_suites(graph));
+    out.push((crate::page::PAGE_PATH.to_string(), graph.page.render()));
     out
 }
 

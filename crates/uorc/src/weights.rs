@@ -16,9 +16,9 @@ pub const STRATEGIES: [u8; 30] = [
 /// One weight in 1..=16 per (family, strategy): byte `family * S + strategy`.
 #[rustfmt::skip]
 pub const WEIGHTS: [u8; 30] = [
-    1, 1, 15, 1, 12, 1,
-    1, 1, 16, 1, 1, 1,
-    5, 1, 1, 15, 1, 1,
+    1, 1, 1, 1, 16, 1,
+    1, 1, 14, 1, 16, 1,
+    4, 1, 1, 15, 1, 1,
     10, 1, 10, 1, 4, 1,
-    9, 1, 12, 1, 1, 1,
+    12, 1, 12, 1, 1, 1,
 ];

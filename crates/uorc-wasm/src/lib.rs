@@ -285,6 +285,84 @@ pub extern "C" fn decompress_tree() -> i32 {
     }))
 }
 
+/// Start a file tree streamed through the frame operations: the input
+/// buffer lists its entries as `u32 count` then, per entry, `u8 kind`,
+/// `u32 pathLength`, path, `u64 length` (zero for a directory). The output is
+/// the manifest, the first object; push it, then every regular file's bytes
+/// in listing order, with [`compress_frame`], then [`compress_end`].
+#[no_mangle]
+pub extern "C" fn tree_start() -> i32 {
+    finish(INPUT.with(|input| {
+        let listing = read_listing(&input.borrow())?;
+        let layout = uorc::tree::layout(listing.iter().map(|(p, k, n)| (p.as_str(), *k, *n)))?;
+        ENCODER
+            .with(|encoder| *encoder.borrow_mut() = uorc::FrameEncoder::objects(&layout.lengths));
+        Ok(layout.manifest)
+    }))
+}
+
+fn read_listing(bytes: &[u8]) -> Result<Vec<(String, uorc::tree::Kind, u64)>, uorc::Error> {
+    use uorc::tree::Kind;
+    let mut at = 0usize;
+    let mut take = |n: usize| -> Result<&[u8], uorc::Error> {
+        let end = at.checked_add(n).ok_or(uorc::Error::Decode)?;
+        let out = bytes.get(at..end).ok_or(uorc::Error::Decode)?;
+        at = end;
+        Ok(out)
+    };
+    let word = |b: &[u8]| u32::from_le_bytes(b.try_into().expect("4 bytes")) as usize;
+    let count = word(take(4)?);
+    let mut out = Vec::new();
+    for _ in 0..count {
+        let kind = match take(1)?[0] {
+            0 => Kind::File,
+            1 => Kind::Executable,
+            2 => Kind::Directory,
+            _ => return Err(uorc::Error::Decode),
+        };
+        let len = word(take(4)?);
+        let path = std::str::from_utf8(take(len)?)
+            .map_err(|_| uorc::Error::Decode)?
+            .to_owned();
+        let length = u64::from_le_bytes(take(8)?.try_into().expect("8 bytes"));
+        out.push((path, kind, if kind == Kind::Directory { 0 } else { length }));
+    }
+    if at != bytes.len() {
+        return Err(uorc::Error::Decode);
+    }
+    Ok(out)
+}
+
+/// The lengths of the object pieces the archive in the input buffer holds,
+/// as a JSON array: its output splits at them, and every frame's first piece
+/// after the first frame continues the object before.
+#[no_mangle]
+pub extern "C" fn frame_objects() -> i32 {
+    finish(INPUT.with(|input| {
+        let lengths = uorc::object_lengths(&input.borrow())?;
+        let all: Vec<String> = lengths.iter().map(u64::to_string).collect();
+        Ok(format!("[{}]", all.join(",")).into_bytes())
+    }))
+}
+
+/// The entries a tree manifest in the input buffer lists, with every path
+/// checked, in the [`read_entries`] layout with empty data.
+#[no_mangle]
+pub extern "C" fn tree_manifest() -> i32 {
+    finish(INPUT.with(|input| {
+        let listed = uorc::tree::read_manifest(&input.borrow())?;
+        let entries: Vec<uorc::tree::Entry> = listed
+            .into_iter()
+            .map(|(path, kind)| uorc::tree::Entry {
+                path,
+                kind,
+                data: Vec::new(),
+            })
+            .collect();
+        Ok(write_entries(&entries))
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,5 +450,107 @@ mod tests {
             back.extend(output);
         }
         assert!(back == input);
+    }
+
+    /// A tree streamed a piece at a time writes the library's bytes, and its
+    /// frames split back into the same files.
+    #[test]
+    fn tree_exports_stream_the_library_tree() {
+        use uorc::tree::{Entry, Kind};
+        let big: Vec<u8> = (0..uorc::FRAME + 70_000)
+            .map(|i| (i * 7 % 251) as u8)
+            .collect();
+        let entries = vec![
+            Entry {
+                path: "d".into(),
+                kind: Kind::Directory,
+                data: vec![],
+            },
+            Entry {
+                path: "d/a.txt".into(),
+                kind: Kind::File,
+                data: b"alpha".to_vec(),
+            },
+            Entry {
+                path: "d/big".into(),
+                kind: Kind::Executable,
+                data: big,
+            },
+            Entry {
+                path: "d/empty".into(),
+                kind: Kind::File,
+                data: vec![],
+            },
+        ];
+        let mut listing = (entries.len() as u32).to_le_bytes().to_vec();
+        for e in &entries {
+            listing.push(match e.kind {
+                Kind::File => 0,
+                Kind::Executable => 1,
+                Kind::Directory => 2,
+            });
+            listing.extend((e.path.len() as u32).to_le_bytes());
+            listing.extend(e.path.as_bytes());
+            listing.extend((e.data.len() as u64).to_le_bytes());
+        }
+        window_reset();
+        let (code, manifest) = run(&listing, || tree_start());
+        assert_eq!(code, OK);
+        let mut stream = run(&manifest, || compress_frame(0)).1;
+        for e in &entries {
+            for piece in e.data.chunks(1_000_000) {
+                let (code, archives) = run(piece, || compress_frame(0));
+                assert_eq!(code, OK);
+                stream.extend(archives);
+            }
+        }
+        stream.extend(run(&[], || compress_end(0)).1);
+        assert_eq!(
+            stream,
+            uorc::compress_tree(&entries, 0).expect("library tree")
+        );
+
+        window_reset();
+        let mut objects: Vec<Vec<u8>> = Vec::new();
+        for (frame, archive) in uorc::frames(&stream)
+            .expect("frames")
+            .into_iter()
+            .enumerate()
+        {
+            let (_, lengths) = run(archive, || frame_objects());
+            let lengths: Vec<usize> = String::from_utf8(lengths)
+                .expect("json")
+                .trim_matches(|c| c == '[' || c == ']')
+                .split(',')
+                .filter(|n| !n.is_empty())
+                .map(|n| n.parse().expect("length"))
+                .collect();
+            let (code, output) = run(archive, || decompress_frame());
+            assert_eq!(code, OK);
+            let mut rest = &output[..];
+            for (i, n) in lengths.into_iter().enumerate() {
+                let (piece, tail) = rest.split_at(n);
+                rest = tail;
+                if frame > 0 && i == 0 {
+                    objects
+                        .last_mut()
+                        .expect("an object to continue")
+                        .extend(piece);
+                } else {
+                    objects.push(piece.to_vec());
+                }
+            }
+        }
+        let (code, listed) = run(&objects[0], || tree_manifest());
+        assert_eq!(code, OK);
+        let listed = read_entries(&listed).expect("listing");
+        let mut files = objects.into_iter().skip(1);
+        for (want, got) in entries.iter().zip(&listed) {
+            assert_eq!((&want.path, want.kind), (&got.path, got.kind));
+            if want.kind != Kind::Directory {
+                assert_eq!(files.next().expect("file"), want.data);
+            }
+        }
+        assert!(files.next().is_none());
     }
 }
