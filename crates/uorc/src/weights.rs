@@ -4,21 +4,22 @@
 /// Five bytes per strategy: the u32 little-endian word (bits 0-19 the ncm
 /// profile word, bit 31 the x86 filter), then the state index (0 for none).
 #[rustfmt::skip]
-pub const STRATEGIES: [u8; 30] = [
+pub const STRATEGIES: [u8; 35] = [
     0xff, 0xff, 0x0f, 0x00, 0x00,
     0xff, 0xff, 0x0f, 0x80, 0x00,
     0xff, 0xff, 0x07, 0x00, 0x00,
     0xff, 0xff, 0x07, 0x80, 0x00,
     0xff, 0xff, 0x01, 0x00, 0x00,
     0xff, 0xff, 0x01, 0x80, 0x00,
+    0xff, 0xbf, 0x0f, 0x00, 0x00,
 ];
 
 /// One weight in 1..=16 per (family, strategy): byte `family * S + strategy`.
 #[rustfmt::skip]
-pub const WEIGHTS: [u8; 30] = [
-    1, 1, 1, 1, 16, 1,
-    1, 1, 14, 1, 16, 1,
-    4, 1, 1, 15, 1, 1,
-    10, 1, 10, 1, 4, 1,
-    12, 1, 12, 1, 1, 1,
+pub const WEIGHTS: [u8; 35] = [
+    1, 1, 1, 1, 16, 1, 1,
+    1, 1, 14, 1, 16, 1, 1,
+    4, 1, 1, 15, 1, 1, 1,
+    9, 1, 10, 1, 4, 1, 12,
+    11, 1, 14, 1, 1, 1, 1,
 ];
