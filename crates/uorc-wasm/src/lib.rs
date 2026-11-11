@@ -452,6 +452,40 @@ pub extern "C" fn choose_frame() -> i32 {
     }))
 }
 
+/// The frame's archive with its context table stepped (`Client.stepTable`)
+/// from the archive [`choose_frame`] kept: the input buffer holds a
+/// [`code_frame`] request (pieces, window, frame) and then `u64
+/// chosenLength, chosen`. Every archive the page writes is stepped for the
+/// page's own worker ([`uorc::performance::PAGE_WORKER`]), so it decodes there.
+#[no_mangle]
+pub extern "C" fn step_frame() -> i32 {
+    finish(INPUT.with(|input| {
+        let input = input.borrow();
+        let mut f = Fields {
+            bytes: &input,
+            at: 0,
+        };
+        let pieces = f.pieces()?;
+        let lengths: Vec<usize> = (0..f.u32()?).map(|_| f.len()).collect::<Result<_, _>>()?;
+        let window: Vec<&[u8]> = lengths
+            .iter()
+            .map(|&n| f.take(n))
+            .collect::<Result<_, _>>()?;
+        let n = usize::try_from(pieces.iter().sum::<u64>()).map_err(|_| uorc::Error::Decode)?;
+        let frame = f.take(n)?;
+        let c = f.len()?;
+        let chosen = f.take(c)?.to_vec();
+        f.end()?;
+        Ok(uorc::step_table(
+            frame,
+            &pieces,
+            &window,
+            chosen,
+            uorc::performance::PAGE_WORKER,
+        ))
+    }))
+}
+
 #[cfg(target_arch = "wasm32")]
 #[link(wasm_import_module = "uorc")]
 extern "C" {

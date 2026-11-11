@@ -207,9 +207,110 @@ fn compress_pieces(
         .rev()
         .fold(None, |kept, head| pick_trial(head, kept));
     match best {
-        Some((linked, _)) if (linked.len() as u64) < raw => Ok(linked),
+        Some((linked, _)) if (linked.len() as u64) < raw => Ok(step_table(
+            frame,
+            lengths,
+            window,
+            linked,
+            performance::declared_host(),
+        )),
         _ => Ok(archive::raw_objects(frame, lengths)),
     }
+}
+
+/// The context table facet stepped on the frame's chosen archive
+/// (`Client.stepTable`): the chosen profile is recoded with one more table
+/// bit at a time, kept while the archive gets strictly shorter (the steps
+/// per byte do not depend on the table), and the stepping ends at the first
+/// table that does not pay or that `host` cannot hold
+/// ([`ncm::decoder_bytes`]). The frame records the table bits it was coded
+/// with in its profile word ([`ncm::TABLE_SHIFT`]), so a frame where no step
+/// pays is the archive the portfolio chose, byte for byte. Raw frames and
+/// frames of the fixed v0.3 entries are returned as they are.
+pub fn step_table(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    chosen: Vec<u8>,
+    host: performance::Host,
+) -> Vec<u8> {
+    let n = frame.len() as u64;
+    // (state, x86, profile word) of the chosen frame
+    let (state, x86, word) = if let Some(f) = archive::state_frame(&chosen) {
+        (f.state, f.x86, f.profile)
+    } else {
+        match archive::frame_codec(&chosen) {
+            Some(archive::Codec::Profile(w)) => (0, false, w),
+            Some(archive::Codec::ProfileX86(w)) => (0, true, w),
+            _ => return chosen,
+        }
+    };
+    let joined;
+    let history: &[u8] = if state != 0 {
+        match states::state(state) {
+            Some(s) => s,
+            None => return chosen,
+        }
+    } else {
+        joined = window.concat();
+        &joined
+    };
+    let filtered;
+    let (data, past) = if x86 {
+        filtered = (
+            x86::filter(frame, false, history.len() as u64).0,
+            x86::filter(history, false, 0).0,
+        );
+        (&filtered.0[..], &filtered.1[..])
+    } else {
+        (frame, history)
+    };
+    let identity = if state != 0 {
+        states::identity(state)
+    } else {
+        (!window.is_empty()).then(|| archive::window_identity(window))
+    };
+    let frame_of = |w: u32, payload: &[u8]| -> Option<Vec<u8>> {
+        if state != 0 {
+            return archive::state_archive(x86, w, identity.as_ref()?, lengths, payload);
+        }
+        let codec = if x86 {
+            archive::Codec::NcmX86
+        } else {
+            archive::Codec::Ncm
+        };
+        match &identity {
+            None => archive::linked_archive_profile(codec, w, lengths, payload),
+            Some(id) => archive::window_archive_profile(codec, w, window, id, lengths, payload),
+        }
+    };
+    let warm = state != 0;
+    let modelled = if warm { n + history.len() as u64 } else { n };
+    let mut best = chosen;
+    let mut tb = ncm::table_bits(modelled, word);
+    while tb < ncm::TABLE_MAX {
+        tb += 1;
+        let w = ncm::with_table_bits(word, tb);
+        if ncm::decoder_bytes(n, history.len() as u64, warm, w) > host.memory {
+            break;
+        }
+        // only a strictly shorter archive is kept, so the encoder stops once
+        // its payload reaches the chosen archive's length less the form
+        let Some(form) = frame_of(w, &[]).map(|a| a.len()) else {
+            break;
+        };
+        let stop = best.len().saturating_sub(form);
+        let payload = if warm {
+            ncm::encode_warm_below(past, data, w, stop)
+        } else {
+            ncm::encode_below(past, data, w, stop)
+        };
+        match payload.and_then(|p| frame_of(w, &p)) {
+            Some(a) if a.len() < best.len() => best = a,
+            _ => break,
+        }
+    }
+    best
 }
 
 /// The trials of `plan` on `frame`, in plan order: each strategy's archive

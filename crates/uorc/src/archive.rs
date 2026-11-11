@@ -226,7 +226,10 @@ impl Codec {
 /// window frames in a basis of `era`: `prefix uleb(len) payload suffix`.
 fn template(codec: Codec, k: usize, era: Era) -> Option<(&'static [u8], Vec<u8>)> {
     if let Codec::Profile(p) | Codec::ProfileX86(p) = codec {
-        if !crate::ncm::valid_profile(p) {
+        // A recorded table field is read by this library's ncm blocks only.
+        if !crate::ncm::valid_profile(p)
+            || (era != Era::Current && crate::ncm::records_tables(p))
+        {
             return None;
         }
         let (prefix, tail) = profile_template(k, codec.x86(), era)?;
@@ -312,6 +315,7 @@ fn parse_body(body: &[u8], k: usize, era: Era) -> Option<(Codec, &[u8])> {
         let p = u32::try_from(p).ok()?;
         let ok = after == uleb_len(u64::from(p))
             && crate::ncm::valid_profile(p)
+            && (era == Era::Current || !crate::ncm::records_tables(p))
             && &rest[after..] == tail;
         ok.then_some((Codec::profiled(p, x86), payload))
     })
@@ -1113,6 +1117,16 @@ pub fn fast_decode(data: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     crate::ulz::decode(payload, n)
+}
+
+/// The codec of a linked or window frame laid out exactly as this client
+/// writes one (`None` for raw, reference and state frames).
+pub fn frame_codec(data: &[u8]) -> Option<Codec> {
+    if let Some((codec, _)) = window_codec(data) {
+        return Some(codec);
+    }
+    let (_, identity, body) = conditional_fields(data)?;
+    linked_codec(&identity, body)
 }
 
 /// The library decoder a body applies over the standard basis named

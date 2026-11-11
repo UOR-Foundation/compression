@@ -160,7 +160,12 @@ D('profileTail', ['x : Nat', 'k : Nat'], 'Bytes',
 D('profiledBody', ['x : Nat', 'k : Nat', 'profile : Nat', 'payload : Bytes'], 'Bytes',
   "(cat (cat (cat (cat (profilePrefix x k) (number (prim length payload : Nat))) payload) (cat 0x00 (number profile))) (profileTail x k))")
 # a profile word names a subset of the coder's 20 features
-D('profileWord', ['profile : Nat'], 'Bool', f"(profile <? {1 << 20})")
+# and the tables' bits when the frame records them: bits 20-25 the context table (0, or 5 to 32:
+# ncm::TABLE_MIN..TABLE_MAX), bits 26-30 the match tables (0, or any)
+D('profileWord', ['profile : Nat'], 'Bool',
+  f"(let t : Nat := (prim remainder (prim quotient profile {1 << 20} 0 : Nat) 64 0 : Nat); ((profile <? {1 << 31}) && ((t =? 0) || ((5 <=? t) && (t <=? 32)))))")
+# a v0.4 frame's word: v0.4's ncm blocks read no table field
+D('v04ProfileWord', ['profile : Nat'], 'Bool', f"(profile <? {1 << 20})")
 D('profiledDecoder', ['x : Nat', 'history : Bytes', 'payload : Bytes', 'profile : Nat'], 'Bytes',
   f"(if (x =? 0) then ({NDEC}::runProfile history payload profile) else "
   f"(Uorc.Codec.X86::run 1 (prim length history : Nat) ({NDEC}::runProfile (Uorc.Codec.X86::run 0 0 history) payload profile)))")
@@ -329,7 +334,7 @@ D('v04ProfileTail', ['x : Nat', 'k : Nat'], 'Bytes',
 D('v04ProfiledIdentity', ['window : (List Bytes)'], '(Option Bytes)',
   "(match window\n    | List.nil => (ctor Option.some [Bytes] (v04Identity))\n    | List.cons oldest rest => (v04WindowIdentity window))")
 D('v04ProfiledArchive', ['x : Nat', 'k : Nat', 'identity : Bytes', 'n : Nat', 'profile : Nat', 'payload : Bytes'], '(Option Bytes)',
-  f"(if ((k <=? 2) && (profileWord profile)) then (seal (windowPreimage identity n (cat (cat (cat (cat (profilePrefix x k) (number (prim length payload : Nat))) payload) (cat 0x00 (number profile))) (v04ProfileTail x k)))) else {NONE_B})")
+  f"(if ((k <=? 2) && (v04ProfileWord profile)) then (seal (windowPreimage identity n (cat (cat (cat (cat (profilePrefix x k) (number (prim length payload : Nat))) payload) (cat 0x00 (number profile))) (v04ProfileTail x k)))) else {NONE_B})")
 PV04 = PDA
 for a, b in [('(profiledIdentity window)', '(v04ProfiledIdentity window)'),
              ('(profiledArchive x k identity (first h) profile payload)', '(v04ProfiledArchive x k identity (first h) profile payload)')]:

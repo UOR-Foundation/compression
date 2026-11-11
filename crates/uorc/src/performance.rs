@@ -35,6 +35,40 @@ pub const POINT_X86: u32 = 1 << 31;
 /// Domain tag of a codec point's identity.
 pub const CODEC_POINT_TAG: &[u8] = b"uorc/codec-point/1";
 
+/// A declared decode host (`Uorc.Performance.Host`): the bytes one frame's
+/// decoder may hold ([`crate::ncm::decoder_bytes`]). A facet that sets decoder
+/// memory (the context table's bits) steps only while the frame still fits
+/// the host the archive is written for, and a decoder on a smaller host
+/// refuses the frame before it allocates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Host {
+    /// Bytes one frame's decoder may hold.
+    pub memory: u64,
+}
+
+/// The product's smallest declared decode host, and the default: the page's
+/// worker (`Uorc.Page.workerMemory`, 256 MiB of WebAssembly memory). Every
+/// archive the client writes by default decodes there.
+pub const PAGE_WORKER: Host = Host { memory: 256 << 20 };
+
+static DECLARED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Declare the decode host the archives this process writes are for (the
+/// CLI's `--host-memory`). Archives for a larger host may not decode on the
+/// page's worker.
+pub fn declare_host(host: Host) {
+    DECLARED.store(host.memory, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The decode host archives are written for: [`PAGE_WORKER`] unless the
+/// process declared another ([`declare_host`]).
+pub fn declared_host() -> Host {
+    match DECLARED.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => PAGE_WORKER,
+        memory => Host { memory },
+    }
+}
+
 /// Model inputs an ncm frame coded under `profile` evaluates per bit.
 pub fn inputs(profile: u32) -> u32 {
     (profile & ((1 << CONTEXT_BITS) - 1)).count_ones()

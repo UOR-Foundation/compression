@@ -92,7 +92,24 @@ const NINP: usize = 24;
 /// The narrow row stride, one 64-byte line per mixer row, for a profile with
 /// at most 16 inputs.
 const NINP_NARROW: usize = 16;
+/// The largest table [`Model::sized`] gives by length alone: index bits plus
+/// the 8-bit check byte span the 32-bit context hash, so a larger table is
+/// a facet the frame records ([`TABLE_SHIFT`]) once stepping it pays.
 const TB_MAX: u32 = 24;
+/// Where a profile word's table field starts: bits 0-19 name the contexts and
+/// features, bits 20-25 the context table's bits when the frame records them
+/// (0: the length's own size, [`default_table_bits`]), and bits 26-30 the
+/// match tables' bits when the frame records them ([`MATCH_SHIFT`]).
+pub const TABLE_SHIFT: u32 = 20;
+/// Where a profile word's match table field starts (0: the match tables
+/// follow the context table's default size, `Model::sized`).
+pub const MATCH_SHIFT: u32 = 26;
+const TABLE_FIELD: u32 = 63;
+const MATCH_FIELD: u32 = 31;
+/// Fewest table bits a frame may record: one bucket pair (two 16-slot buckets).
+pub const TABLE_MIN: u32 = 5;
+/// Most table bits a frame may record: a slot index is a 32-bit hash's low bits.
+pub const TABLE_MAX: u32 = 32;
 const SQT: [i32; 33] = [
     1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047, 2549, 2994, 3348,
     3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094,
@@ -546,7 +563,14 @@ impl Model {
     /// pieces (a window decodes without first joining its frames).
     fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
         let before: usize = history.iter().map(|h| h.len()).sum();
-        let (mask, mb) = Model::sized(n);
+        let (mut mask, mut mb) = Model::sized(n);
+        if let Some(tb) = recorded_table_bits(profile) {
+            mask = ((1u64 << tb) - 1) as u32;
+        }
+        if let Some(bits) = recorded_match_bits(profile) {
+            mb = bits;
+        }
+        let profile = profile & FULL;
         let mut act = [0; NC];
         let mut na = 0;
         for k in 0..NC {
@@ -657,7 +681,10 @@ impl Model {
     /// so the warmed model is computed once per state and profile and cloned.
     fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32) -> Option<Model> {
         let total = n.checked_add(u32::try_from(state.len()).ok()?)?;
-        let (mask, _) = Model::sized(total);
+        let (mut mask, _) = Model::sized(total);
+        if let Some(tb) = recorded_table_bits(profile) {
+            mask = ((1u64 << tb) - 1) as u32;
+        }
         let mut cache = WARMED
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -1691,9 +1718,68 @@ pub fn encode_with(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// Whether `profile` names an ncm profile: a set of the 17 contexts and the
-/// [`F_SHORT`] and [`F_REP`] features.
+/// [`F_SHORT`], [`F_REP`] and [`F_SEL`] features, and a table field that is 0
+/// or records [`TABLE_MIN`] to [`TABLE_MAX`] bits.
 pub fn valid_profile(profile: u32) -> bool {
-    profile & !FULL == 0
+    let tb = (profile >> TABLE_SHIFT) & TABLE_FIELD;
+    profile >> 31 == 0 && (tb == 0 || (TABLE_MIN..=TABLE_MAX).contains(&tb))
+}
+
+/// The context table bits a profile word records, if it records them.
+pub fn recorded_table_bits(profile: u32) -> Option<u32> {
+    let tb = (profile >> TABLE_SHIFT) & TABLE_FIELD;
+    (tb != 0).then_some(tb)
+}
+
+/// The match tables' bits a profile word records, if it records them.
+pub fn recorded_match_bits(profile: u32) -> Option<u32> {
+    let mb = (profile >> MATCH_SHIFT) & MATCH_FIELD;
+    (mb != 0).then_some(mb)
+}
+
+/// Whether a profile word records any table field (only the current
+/// library's ncm blocks read them).
+pub fn records_tables(profile: u32) -> bool {
+    profile >> TABLE_SHIFT != 0
+}
+
+/// The context table bits of a model coding `modelled` bytes (the frame, or
+/// a state and the frame) with no recorded table field: the least `tb` with
+/// 2^tb >= 1024 `modelled`, from 16 to 24 (`Model::sized`).
+pub fn default_table_bits(modelled: u64) -> u32 {
+    let mut tb = 16;
+    while tb < TB_MAX && (1u64 << tb) < modelled.saturating_mul(1024) {
+        tb += 1;
+    }
+    tb
+}
+
+/// The table bits a model coding `modelled` bytes under `profile` uses.
+pub fn table_bits(modelled: u64, profile: u32) -> u32 {
+    recorded_table_bits(profile).unwrap_or_else(|| default_table_bits(modelled))
+}
+
+/// `profile` with the context table field set to `tb` bits (0 clears it);
+/// the other fields are kept.
+pub fn with_table_bits(profile: u32, tb: u32) -> u32 {
+    (profile & !(TABLE_FIELD << TABLE_SHIFT)) | ((tb & TABLE_FIELD) << TABLE_SHIFT)
+}
+
+/// Bytes a decoder of this coder holds for a frame of `n` bytes after
+/// `history` bytes (a window's frames, or with `warm` a model state the
+/// model codes first) under `profile`: the context table (4 bytes a slot),
+/// the match table and, with [`F_SHORT`], the short match table (4 bytes an
+/// entry), and the history and frame bytes themselves. The client compares
+/// it with the declared decode host before it allocates.
+pub fn decoder_bytes(n: u64, history: u64, warm: bool, profile: u32) -> u64 {
+    let modelled = if warm { n.saturating_add(history) } else { n };
+    let tb = table_bits(modelled, profile);
+    let mb = recorded_match_bits(profile)
+        .unwrap_or_else(|| Model::sized(u32::try_from(modelled).unwrap_or(u32::MAX)).1);
+    let matches = 1 + u64::from(profile & F_SHORT != 0);
+    (4u64 << tb)
+        .saturating_add((4u64 << mb) * matches)
+        .saturating_add(n.saturating_add(history))
 }
 
 /// [`encode_with`] under the model `profile` (a [`valid_profile`]; [`V03`] is

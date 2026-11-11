@@ -77,6 +77,16 @@ function frameRequest(pieces, window, frame) {
   return out;
 }
 
+// A frame's request (as frameRequest) followed by the archive choose_frame kept (see step_frame).
+function stepRequest(pieces, window, frame, chosen) {
+  const head = frameRequest(pieces, window, frame);
+  const out = new Uint8Array(head.length + 8 + chosen.length);
+  out.set(head, 0);
+  new DataView(out.buffer).setBigUint64(head.length, BigInt(chosen.length), true);
+  out.set(chosen, head.length + 8);
+  return out;
+}
+
 // The choice among a frame's strategy archives, in `which` order (see choose_frame).
 function chooseRequest(pieces, frame, archives) {
   const parts = [frame, ...archives];
@@ -197,8 +207,13 @@ export async function load(source) {
       const count = x.strategies();
       const parts = new Array(count).fill(0);
       const all = parts.map((_, which) => pool.code(job(f, which), (share) => { parts[which] = share; shares.set(f.index, (f.length * parts.reduce((n, v) => n + v, 0)) / count); report(); }));
-      settle(f.index, f.length, Promise.all(all).then(async (archives) =>
-        call(chooseRequest(f.pieces, await bytesOf(blob.slice(f.start, f.start + f.length)), archives), () => x.choose_frame())));
+      settle(f.index, f.length, Promise.all(all).then(async (archives) => {
+        const frameBytes = await bytesOf(blob.slice(f.start, f.start + f.length));
+        const chosen = call(chooseRequest(f.pieces, frameBytes, archives), () => x.choose_frame());
+        // the context table stepped on the kept archive while it pays and the worker holds it (Client.stepTable)
+        const window = await Promise.all(f.window.map((r) => bytesOf(blob.slice(r.start, r.start + r.length))));
+        return call(stepRequest(f.pieces, window, frameBytes, chosen), () => x.step_frame());
+      }));
     };
     let index = 0;
     let position = 0;

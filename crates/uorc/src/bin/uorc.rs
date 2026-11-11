@@ -7,8 +7,8 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 const USAGE: &str = "usage:
-  uorc compress   [--steps N] [--threads N] [--force] [--stats] <input|-> [-o <output|->]
-  uorc compress   [--steps N] [--threads N] [--force] [--stats] <file|dir>... -o <archive>
+  uorc compress   [--steps N] [--threads N] [--host-memory B] [--force] [--stats] <input|-> [-o <output|->]
+  uorc compress   [--steps N] [--threads N] [--host-memory B] [--force] [--stats] <file|dir>... -o <archive>
   uorc decompress [--work N]  [--threads N] [--force|--resume] [--stats] <input|-> [-o <output|->]
   uorc inspect    [--json] <archive|->
   uorc verify     [--work N]  [--threads N] [--json] <archive|-> [original|-]
@@ -19,6 +19,12 @@ filter, and keeps the raw archive when that is smaller; --steps N also runs
 the program search for N steps and keeps the smallest. --best is accepted for
 earlier scripts and changes nothing. Archives name the built-in decoder basis
 by identity, so they carry no decoder kernel.
+
+Each frame's context table grows one bit at a time past the size its length
+gives while that makes the archive smaller and a decoder on the declared host
+can hold it; the frame records the table it was coded with. The declared host
+is the page's worker (256 MiB), so every archive decodes on the page;
+--host-memory B declares a decoder of B bytes instead.
 
 Input of any size streams through 8 MiB frames, compressed --threads N at a
 time (default: every core) and written back to back; each frame may match
@@ -128,6 +134,17 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, Failure> {
                         .parse::<usize>()
                         .map_err(|_| usage(format!("--threads: not a number: {value}")))?,
                 );
+            }
+            "--host-memory" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| usage("--host-memory needs a number of bytes"))?;
+                let memory = value
+                    .parse::<u64>()
+                    .ok()
+                    .filter(|&m| m > 0)
+                    .ok_or_else(|| usage(format!("--host-memory: not a byte count: {value}")))?;
+                uorc::performance::declare_host(uorc::performance::Host { memory });
             }
             "--stats" => options.stats = true,
             "--best" => {}
