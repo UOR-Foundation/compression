@@ -1652,5 +1652,101 @@ theorem{
   proof: linear_arithmetic{definitions: [width]},
   axioms: [Quot.sound, propext]
 }
+
+structure{
+  name: Facet,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: quantity, type: String},
+    {name: fixedAt, type: String},
+    {name: standing, type: String},
+    {name: measured, type: String}
+  ]
+}
+
+definition{
+  name: contextTableSlots,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "context table slots", fixedAt := "2^24 for every input over 16 KiB", standing := "binding", measured := "8 MiB Python: 2^26 slots 2.1 percent smaller, 2^28 slots 2.9 percent smaller; 4 MiB ELF 0.6 and 0.7 percent smaller"})
+}
+
+definition{
+  name: observationCountLimit,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "observations after which a slot is consolidated", fixedAt := "127", standing := "at boundary", measured := "a limit of 40 is 0.05 percent larger on 8 MiB Python"})
+}
+
+definition{
+  name: refinementMapRows,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "rows of the second probability map", fixedAt := "2^16", standing := "at boundary", measured := "2^20 rows change 8 MiB Python by 0.05 percent"})
+}
+
+definition{
+  name: plasticityHalfLife,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes after which the mixers' plasticity above the floor has halved", fixedAt := "4096", standing := "near boundary", measured := "65536 is 0.16 percent smaller on 8 MiB Python and 0.23 percent on 4 MiB ELF"})
+}
+
+definition{
+  name: frameBytes,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes coded as one frame", fixedAt := "8 MiB", standing := "binding", measured := "32 MiB Python tar: one 32 MiB frame is 2.1 percent smaller than four 8 MiB frames, and 5.3 percent smaller with 2^28 table slots; 2^28 slots alone are 1.8 percent smaller"})
+}
+
+definition{
+  name: windowFrames,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "earlier frames a frame's model reads", fixedAt := "2", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: blockFrames,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "frames in a block that decodes on one thread", fixedAt := "4", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: stateBytes,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes of a named warm state", fixedAt := "256 KiB", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: streamsPerFrame,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "1", standing := "binding for threads", measured := "with ideal sharing, 4 streams of 2 MiB cost 0.8 percent on Python; 16 streams of 128 KiB cost 5.8 percent"})
+}
+
+definition{
+  name: probabilityBits,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bits of a coded probability", fixedAt := "12", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: contextCount,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "hashed contexts", fixedAt := "17", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: scheduleBudget,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "strategies tried per frame", fixedAt := "2 to 4 by family", standing := "unmeasured", measured := ""})
+}
 \end{semanticmodule}
 \end{lexlean}
