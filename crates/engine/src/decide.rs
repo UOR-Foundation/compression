@@ -107,6 +107,7 @@ impl Decider for FrontierDecider {
         let mut m = Measure {
             bytes: closed.bytes,
             steps: closed.steps,
+            members: closed.members.iter().map(|r| r.bytes).collect(),
             ..Measure::default()
         };
         for (f, name) in portfolio::FAMILY_NAMES.iter().enumerate() {
@@ -143,16 +144,17 @@ impl Decider for FrontierDecider {
             .register
             .decide_dominance(&c, &i, Self::family(family), &self.corpus, &self.by)
             .ok_or("a dominance claim without both closed claims")?;
-        // the register decides from the same closed claims the tick read
-        let status = if claim.status == Status::Proved {
-            "proved"
-        } else {
-            "refuted"
-        };
-        if claim.id != hypothesis.kappa || status != hypothesis.status {
+        // the register decides dominance from the same closed claims the
+        // tick read (a consolidation also requires that no member grows,
+        // which the tick checks beside it)
+        let dominance = crate::model::Laws::dominates(
+            (hypothesis.bytes[0], hypothesis.steps[0]),
+            (hypothesis.bytes[1], hypothesis.steps[1]),
+        );
+        if claim.id != hypothesis.kappa || (claim.status == Status::Proved) != dominance {
             return Err(format!(
-                "the register decided {} {status}, the tick {} {}",
-                claim.id, hypothesis.kappa, hypothesis.status
+                "the register decided {} {:?}, the tick read {} {dominance}",
+                claim.id, claim.status, hypothesis.kappa
             ));
         }
         Ok(())

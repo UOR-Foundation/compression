@@ -11,7 +11,7 @@ use uorc::portfolio;
 
 /// What a decided point measures over the corpus: its bytes and steps in all,
 /// and per family.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Measure {
     /// Archive bytes over the whole corpus.
     pub bytes: u64,
@@ -19,6 +19,8 @@ pub struct Measure {
     pub steps: u64,
     /// `(bytes, steps)` of each family's members.
     pub family: [(u64, u64); portfolio::FAMILIES],
+    /// Archive bytes of each member, in corpus order.
+    pub members: Vec<u64>,
 }
 
 /// How the engine decides: the closed-claim decider over a κ-named corpus,
@@ -256,7 +258,11 @@ pub fn tick(
         if !decider.known(&kappa) {
             let c = decider.measure(&cp)?;
             let i = decider.measure(&ip)?;
-            let proved = Laws::dominates((c.bytes, c.steps), (i.bytes, i.steps));
+            // and no member's archive grows: a moved portfolio never makes a
+            // file larger than the shipped one does
+            let proved = Laws::dominates((c.bytes, c.steps), (i.bytes, i.steps))
+                && c.members.len() == i.members.len()
+                && c.members.iter().zip(&i.members).all(|(a, b)| a <= b);
             let row = HypothesisRow {
                 kappa,
                 form: "consolidation".into(),
@@ -269,7 +275,7 @@ pub fn tick(
                 status: if proved { "proved" } else { "refuted" }.into(),
                 tick: number,
                 statement: format!(
-                    "the consolidated portfolio dominates the shipped one on corpus {}: {} vs {} bytes, {} vs {} steps",
+                    "the consolidated portfolio dominates the shipped one on corpus {} with no member larger: {} vs {} bytes, {} vs {} steps",
                     &corpus[..corpus.len().min(16)],
                     c.bytes,
                     i.bytes,
@@ -351,6 +357,7 @@ mod tests {
                 m.family[2] = (code, 8 * inputs * 500);
                 m.bytes = text + code;
                 m.steps = 8 * inputs * 1500;
+                m.members = vec![code, text];
                 m
             };
             Ok(match point {
@@ -370,6 +377,7 @@ mod tests {
                         m.family[f] = one(&e).family[f];
                         m.bytes += m.family[f].0;
                         m.steps += m.family[f].1;
+                        m.members.push(m.family[f].0);
                     }
                     m
                 }
@@ -465,6 +473,7 @@ mod tests {
         let a = d.measure(&end.point()).expect("end");
         let b = d.measure(&start.point()).expect("start");
         assert!(a.bytes <= b.bytes && a.steps <= b.steps);
+        assert!(a.members.iter().zip(&b.members).all(|(x, y)| x <= y));
     }
 
     #[test]
