@@ -27,7 +27,9 @@ jobs:
   # formal legs, the merge of an up-to-date pull request for all of them) finds
   # the receipt and does not repeat the work; a formal leg that failed on the
   # same inputs is refuted in seconds instead of failing again an hour later
-  # (re-run the job to observe it anyway). Each leg uploads only its outcome;
+  # (re-run the job to observe it anyway). Before it runs, a leg deletes every
+  # file it does not declare, so an undeclared input fails the leg instead of
+  # proving a receipt it should not. Each leg uploads only its outcome;
   # factory.yml turns outcomes into receipts from the default branch.
   template-gate:
     name: acceptance / ${{ matrix.leg }} / ${{ matrix.runner }}
@@ -64,6 +66,12 @@ jobs:
         if: steps.route.outputs.route != 'observe' && steps.route.outputs.route != 'proved'
         shell: bash
         run: exit 1
+      - name: Keep only this leg's declared inputs
+        if: steps.route.outputs.route == 'observe'
+        shell: bash
+        env:
+          OBLIGATION: ${{ matrix.leg }}-${{ matrix.runner }}
+        run: node scripts/factory.mjs materialize "$OBLIGATION"
       - name: Pull the locked SDK, retrying the registry
         if: steps.route.outputs.route == 'observe'
         shell: bash
