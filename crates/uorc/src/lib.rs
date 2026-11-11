@@ -165,14 +165,7 @@ pub fn default_threads() -> usize {
 /// archive when that is not smaller; with `steps > 0` the exported model also searches and keeps the
 /// smallest.
 pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(
-        frame,
-        &[frame.len() as u64],
-        &[],
-        steps,
-        true,
-        &portfolio::SHIPPED,
-    )
+    compress_pieces(frame, &[frame.len() as u64], &[], steps, true)
 }
 
 /// [`compress_frame`] for a frame that follows the frames `window` (at most
@@ -180,14 +173,7 @@ pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
 /// `compress input window steps`: the ncm candidate is the window archive
 /// whose payload reads those frames as history.
 pub fn compress_frame_with(frame: &[u8], window: &[&[u8]], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(
-        frame,
-        &[frame.len() as u64],
-        window,
-        steps,
-        true,
-        &portfolio::SHIPPED,
-    )
+    compress_pieces(frame, &[frame.len() as u64], window, steps, true)
 }
 
 /// [`compress_frame`] with the output split into objects of `lengths`, which
@@ -199,7 +185,6 @@ fn compress_pieces(
     window: &[&[u8]],
     steps: u64,
     side_by_side: bool,
-    table: &portfolio::Table,
 ) -> Result<Vec<u8>, Error> {
     if steps > 0 {
         let archive = on_reference_stack(|| reference_compress(frame, window, steps))?;
@@ -209,7 +194,7 @@ fn compress_pieces(
             frame::relabel(&archive, lengths)
         };
     }
-    let plan = table.plan(frame);
+    let plan = portfolio::SHIPPED.plan(frame);
     let (first, second) = (
         plan.first().copied().flatten(),
         plan.get(1).copied().flatten(),
@@ -264,6 +249,31 @@ pub fn compress_strategy(
         which == 0,
         archive::raw_length(lengths),
     )
+}
+
+/// The archive a frame gets when the encoder codes `strategies` (in
+/// order, at most [`portfolio::BUDGET`]) instead of the ones
+/// [`portfolio::plan`] schedules: the first learns its context mask, each is
+/// bounded by the raw archive, and [`choose`] keeps the result. With
+/// `portfolio::plan(frame)` it is the archive [`compress_frame_with`] writes
+/// (with `steps == 0`); with other strategies it is the frame at another
+/// point of the codec space (the claim decider, `crates/frontier`). `None`
+/// entries (a strategy the coder cannot apply) yield no candidate.
+pub fn compress_with_strategies(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    strategies: &[Option<portfolio::Strategy>],
+) -> Vec<u8> {
+    let raw = archive::raw_length(lengths);
+    let mut coded = strategies
+        .iter()
+        .take(portfolio::BUDGET)
+        .enumerate()
+        .map(|(k, s)| s.and_then(|s| code_strategy(frame, lengths, window, s, k == 0, raw)));
+    let first = coded.next().flatten();
+    let second = coded.next().flatten();
+    choose(frame, lengths, first, second)
 }
 
 /// The frame's archive from its two strategies' archives (see
@@ -710,7 +720,6 @@ fn compress_frames(
     writer: &mut dyn Write,
     steps: u64,
     threads: usize,
-    table: &portfolio::Table,
 ) -> io::Result<Totals> {
     let threads = threads.max(1);
     let mut totals = Totals::default();
@@ -735,7 +744,6 @@ fn compress_frames(
                 &all[k - frame.window..k],
                 steps,
                 spare,
-                table,
             )
         })
         .into_iter();
@@ -788,28 +796,6 @@ pub fn compress_stream(
         &mut writer,
         steps,
         threads,
-        &portfolio::SHIPPED,
-    )
-}
-
-/// [`compress_stream`] under the portfolio `table` instead of the shipped
-/// one (no search): how the engine and the claim decider code a corpus at a
-/// point of the codec space. Every table writes a stream that decodes to the
-/// input; the table changes its size, never its meaning.
-pub fn compress_stream_with(
-    reader: impl Read,
-    mut writer: impl Write,
-    threads: usize,
-    table: &portfolio::Table,
-) -> io::Result<Totals> {
-    compress_frames(
-        chunk::Framer::plain(),
-        reader,
-        None,
-        &mut writer,
-        0,
-        threads,
-        table,
     )
 }
 
@@ -835,7 +821,6 @@ pub fn compress_objects_stream(
         &mut writer,
         steps,
         threads,
-        &portfolio::SHIPPED,
     )
 }
 
@@ -1375,7 +1360,7 @@ impl Planned {
                 window,
             } => {
                 let window: Vec<&[u8]> = window.iter().map(Vec::as_slice).collect();
-                compress_pieces(bytes, pieces, &window, steps, true, &portfolio::SHIPPED)
+                compress_pieces(bytes, pieces, &window, steps, true)
             }
         }
     }
