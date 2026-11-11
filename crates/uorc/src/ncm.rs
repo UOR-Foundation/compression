@@ -452,7 +452,10 @@ impl Model {
     /// The model for `n` bytes coded after `history` (a window frame's
     /// preceding outputs): the match model starts holding every history
     /// position, and every other model starts fresh.
-    fn new(n: u32, history: &[u8], profile: u32) -> Model {
+    /// A model for `n` bytes coded after `history`, the concatenation of its
+    /// pieces (a window decodes without first joining its frames).
+    fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
+        let before: usize = history.iter().map(|h| h.len()).sum();
         let (mask, mb) = Model::sized(n);
         let mut act = [0; NC];
         let mut na = 0;
@@ -481,8 +484,8 @@ impl Model {
             mask,
             mb,
             sl: vec![Bucket([SLOT_FRESH; 16]); (mask as usize + 1) / 16],
-            hist: Vec::with_capacity(history.len() + n as usize),
-            hoff: history.len() as u32,
+            hist: Vec::with_capacity(before + n as usize),
+            hoff: before as u32,
             pos: 0,
             c4: 0,
             c8: 0,
@@ -539,7 +542,9 @@ impl Model {
             a1: Apm::new(256 * 9),
             a2: Apm::new(1 << APM2_BITS),
         };
-        m.hist.extend_from_slice(history);
+        for piece in history {
+            m.hist.extend_from_slice(piece);
+        }
         for p in 7..m.hoff {
             let k = m.match_key(p);
             m.mtab[k] = p;
@@ -1242,7 +1247,7 @@ mod x86 {
     /// The decoder loop compiled for AVX2.
     #[target_feature(enable = "avx2")]
     pub(super) fn decoder(
-        history: &[u8],
+        history: &[&[u8]],
         payload: &[u8],
         limit: u64,
         canonical: bool,
@@ -1609,7 +1614,7 @@ fn encoder<K: Kernel>(
     stop: usize,
 ) -> Option<(Vec<u8>, u32)> {
     let n = u32::try_from(data.len()).ok()?;
-    let mut m = Model::new(n, history, profile);
+    let mut m = Model::new(n, &[history], profile);
     if learn {
         m.gain = Some(Box::new([0; NC]));
     }
@@ -1715,6 +1720,20 @@ pub fn decode_canonical_profile(
     run_profile(history, payload, n, true, profile)
 }
 
+/// [`decode_canonical_profile`] after the frames of a window, without
+/// joining them first: the model holds the only copy of the history.
+pub fn decode_canonical_window(
+    window: &[&[u8]],
+    payload: &[u8],
+    n: u64,
+    profile: u32,
+) -> Option<Vec<u8>> {
+    if declared_length(payload).map(u64::from) != Some(n) {
+        return None;
+    }
+    run_pieces(window, payload, n, true, profile)
+}
+
 fn run_decoder(history: &[u8], payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
     run_profile(history, payload, limit, canonical, V03)
 }
@@ -1723,6 +1742,17 @@ fn run_decoder(history: &[u8], payload: &[u8], limit: u64, canonical: bool) -> O
 /// [`valid_profile`].
 pub(crate) fn run_profile(
     history: &[u8],
+    payload: &[u8],
+    limit: u64,
+    canonical: bool,
+    profile: u32,
+) -> Option<Vec<u8>> {
+    run_pieces(&[history], payload, limit, canonical, profile)
+}
+
+/// [`run_profile`] after a history given as pieces.
+fn run_pieces(
+    history: &[&[u8]],
     payload: &[u8],
     limit: u64,
     canonical: bool,
@@ -1741,7 +1771,7 @@ pub fn decode_profile(history: &[u8], payload: &[u8], limit: u64, profile: u32) 
 
 #[inline(always)]
 fn decoder<K: Kernel>(
-    history: &[u8],
+    history: &[&[u8]],
     payload: &[u8],
     limit: u64,
     canonical: bool,
@@ -1752,10 +1782,11 @@ fn decoder<K: Kernel>(
         return None;
     }
     let m = Model::new(n, history, profile);
+    let before = m.hoff as usize;
     if m.stride == NINP_NARROW {
-        decode_bits::<K, NINP_NARROW>(m, history.len(), payload, canonical)
+        decode_bits::<K, NINP_NARROW>(m, before, payload, canonical)
     } else {
-        decode_bits::<K, NINP>(m, history.len(), payload, canonical)
+        decode_bits::<K, NINP>(m, before, payload, canonical)
     }
 }
 
@@ -1814,6 +1845,9 @@ fn decode_bits<K: Kernel, const W: usize>(
     }
     let mut out = m.hist;
     out.drain(..history);
+    // Give back the history's share of the buffer: the output outlives the
+    // model (the next frame's window holds it).
+    out.shrink_to_fit();
     Some(out)
 }
 
