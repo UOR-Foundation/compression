@@ -1,5 +1,6 @@
 //! The performance vocabulary of the Prism model (`Uorc.Performance`), as the
-//! native client computes it: the step measure and the codec point.
+//! native client computes it: the step measure, the codec point and the
+//! choice rules (least in bytes then steps, dominance, consolidation).
 //!
 //! A **step** is one model input evaluated for one coded bit. It is exact and
 //! deterministic, and it is read from a frame's header alone: a raw frame
@@ -27,6 +28,10 @@ pub const MAX_INPUTS: u32 = CONTEXT_BITS + FIXED_INPUTS + 2 * FEATURE_INPUTS;
 /// The bound of `Uorc.Performance.decodeStepsBound`: no frame costs more
 /// steps per output byte than this (the full model).
 pub const MAX_STEPS_PER_BYTE: u64 = BITS_PER_BYTE * MAX_INPUTS as u64;
+/// The bit of a codec point's profile word that says the frame is coded over
+/// the x86 filter (the strategy table's encoding: bits 0-19 the ncm profile,
+/// bit 31 the filter). The filter changes the bytes a frame codes, not its steps.
+pub const POINT_X86: u32 = 1 << 31;
 /// Domain tag of a codec point's identity.
 pub const CODEC_POINT_TAG: &[u8] = b"uorc/codec-point/1";
 
@@ -64,7 +69,8 @@ pub struct CodecPoint {
     /// The basis identity the frame names (the export's library), zeros when
     /// the frame is self-contained.
     pub basis: [u8; 32],
-    /// The ncm profile word, 0 when the frame applies no ncm decoder.
+    /// The ncm profile word, with [`POINT_X86`] set when the frame is coded
+    /// over the x86 filter; 0 when the frame applies no ncm decoder.
     pub profile: u32,
     /// κ of the consolidated model state the frame starts from, zeros for none.
     pub state: [u8; 32],
@@ -77,7 +83,12 @@ impl CodecPoint {
     pub fn of(info: &Info) -> CodecPoint {
         CodecPoint {
             basis: info.basis.unwrap_or([0; 32]),
-            profile: info.ncm_profile.unwrap_or(0),
+            profile: info.ncm_profile.unwrap_or(0)
+                | if info.representation == Representation::NcmX86 {
+                    POINT_X86
+                } else {
+                    0
+                },
             state: [0; 32],
             lanes: 1,
         }
@@ -108,6 +119,73 @@ pub fn corpus_kappa<'a>(objects: impl IntoIterator<Item = (&'a str, [u8; 32], u6
         h.update(len.to_le_bytes());
     }
     h.finalize().into()
+}
+
+/// A coded trial as the model's choice rules see it: its archive bytes and
+/// its decode steps (`Uorc.Performance.Trial.coded`, without the defect).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Trial {
+    /// Archive bytes.
+    pub bytes: u64,
+    /// Decode steps.
+    pub steps: u64,
+}
+
+impl Trial {
+    /// `cost`: the potential the engine lowers, bytes plus steps.
+    pub fn cost(self) -> u64 {
+        self.bytes + self.steps
+    }
+}
+
+/// `gainOf`: how far `candidate` dominates `incumbent` (no larger in bytes
+/// and in steps): the drop in cost, 0 when it does not dominate.
+pub fn gain(candidate: Trial, incumbent: Trial) -> u64 {
+    if candidate.bytes <= incumbent.bytes && candidate.steps <= incumbent.steps {
+        incumbent.cost() - candidate.cost()
+    } else {
+        0
+    }
+}
+
+/// `lexGap`: 0 exactly when `a` is no later than `c` in the order "fewer
+/// bytes, then fewer steps".
+pub fn lex_gap(a: Trial, c: Trial) -> u64 {
+    a.bytes.saturating_sub(c.bytes)
+        + a.steps
+            .saturating_sub(c.steps)
+            .min(1)
+            .saturating_sub(c.bytes.saturating_sub(a.bytes))
+}
+
+/// `pick`: the kept trial after `head` is considered. A failed trial (`None`)
+/// changes nothing; a coded one replaces the kept trial when it has fewer
+/// bytes, or the same bytes and fewer steps.
+pub fn pick(head: Option<Trial>, kept: Trial) -> Trial {
+    match head {
+        Some(h) if h.bytes < kept.bytes || (h.bytes == kept.bytes && h.steps < kept.steps) => h,
+        _ => kept,
+    }
+}
+
+/// `chosen`: the trial kept from the raw frame and the scheduled trials
+/// (`chosenIsLeast`: least in bytes, then steps; `leastIsUndominated`).
+pub fn chosen(raw: Trial, trials: &[Option<Trial>]) -> Trial {
+    trials
+        .iter()
+        .rev()
+        .fold(raw, |kept, &head| pick(head, kept))
+}
+
+/// `consolidate`: the incumbent after `candidate` is decided: the candidate
+/// when it dominates with a positive gain, else the incumbent
+/// (`consolidationSpendsItsGain`: the cost drops by exactly the gain).
+pub fn consolidate(candidate: Trial, incumbent: Trial) -> Trial {
+    if gain(candidate, incumbent) > 0 {
+        candidate
+    } else {
+        incumbent
+    }
 }
 
 #[cfg(test)]
@@ -151,6 +229,14 @@ mod tests {
             p.kappa(),
             CodecPoint {
                 profile: ncm::V03,
+                ..p
+            }
+            .kappa()
+        );
+        assert_ne!(
+            p.kappa(),
+            CodecPoint {
+                profile: ncm::FULL | POINT_X86,
                 ..p
             }
             .kappa()

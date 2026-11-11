@@ -125,6 +125,39 @@ impl<'a> Table<'a> {
     }
 }
 
+/// Entries in the shipped table.
+const SHIPPED_COUNT: usize = weights::STRATEGIES.len() / ENTRY;
+
+/// The shipped table's strategies, in table order.
+pub const STRATEGIES: [Strategy; SHIPPED_COUNT] = {
+    let mut out = [Strategy {
+        x86: false,
+        profile: 0,
+    }; SHIPPED_COUNT];
+    let mut i = 0;
+    while i < SHIPPED_COUNT {
+        let e = &weights::STRATEGIES;
+        let word = u32::from_le_bytes([
+            e[i * ENTRY],
+            e[i * ENTRY + 1],
+            e[i * ENTRY + 2],
+            e[i * ENTRY + 3],
+        ]);
+        out[i] = Strategy {
+            x86: word & X86_BIT != 0,
+            profile: word & !X86_BIT,
+        };
+        i += 1;
+    }
+    out
+};
+
+/// The strategies the client codes for `frame` under the shipped table, in
+/// schedule order (see [`Table::plan`]).
+pub fn plan(frame: &[u8]) -> Vec<Strategy> {
+    SHIPPED.plan(frame).into_iter().flatten().collect()
+}
+
 /// The rule30 learning rule: a success adds 2 up to 16, a failure takes 1
 /// down to 1.
 pub const fn learn(w: u8, success: bool) -> u8 {
