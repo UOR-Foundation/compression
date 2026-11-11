@@ -15,19 +15,37 @@ that orders remaining work. Here the decisions are a small Node host
 | Obligation | Kind | Reads | Carried out by |
 | --- | --- | --- | --- |
 | `rest-<runner>` (2) | fetch | everything | bootstrap `template-gate` |
-| `artifacts`, `claims`, `varint`, `reproducibility`, `integrity` | hermetic | the formal set | bootstrap `template-gate` |
+| `artifacts` | hermetic | the LexLean project: `src/` and its project files | bootstrap `template-gate` |
+| `varint` | hermetic | the import closure of `Uorc.Varint`, `Uorc.VarintContract`; the project files, xtask, scripts | bootstrap `template-gate` |
+| `integrity` | hermetic | the import closure of every `Uorc.Integrity` module, `Uorc.Wire.ArchiveIntegrity`, `Uorc.Wire.OwnedRead` (99 of 340 modules); `validation/integrity/`, `standards/`; the project files, xtask, scripts | bootstrap `template-gate` |
+| `claims`, `reproducibility` | hermetic | the formal set | bootstrap `template-gate` |
 | `offline` | fetch | the formal set | offline-validation |
-| `export` | fetch, host | the import closure of `Uorc.Client`, the LexLean project files, the export scripts | `node scripts/client-export.mjs` on a workstation |
+| `export` | fetch, host | the import closure of `Uorc.Client` (client/src over src), the LexLean project files, the export scripts | `node scripts/client-export.mjs` on a workstation |
 | `pages` | fetch | the client set, `crates/uorc-wasm/`, `web/`, the brand files, `scripts/site.mjs`, `scripts/page-acceptance.mjs`, its workflow | pages-client `acceptance` (UC-WEB-01) |
 | `gate` | gate | the identities of the seven bootstrap legs and `pages` | proved when all eight are |
 | `native-<target>` (2), `wasm` | fetch | the client set (+ `crates/uorc-wasm/`) | release `native`, `wasm` |
 | `bench` | fetch | `scripts/bench.mjs`, release.yml, `native-x86_64` | release `bench` |
 | `publish` | fetch | everything, `@mode`, `@run` | release `publish`, `pages` |
 
-The formal set is the tree without the product client and the release plumbing
-(the same scope the formal legs had before). The client set is what `cargo build
--p uorc` reads: the workspace manifests and lock, the toolchain, `.cargo/`,
-`crates/uorc/` and `generated/rust/`.
+The formal set is the tree without the product client and the release plumbing.
+The legs that build xtask (every formal leg but `artifacts`) read the product
+crates' Cargo manifests only (`manifest:` inputs): the closure copy gives their
+targets empty files, so cargo resolves the workspace without reading their code.
+The client set is what `cargo build -p uorc` reads: the workspace manifests and
+lock, the toolchain, `.cargo/`, `crates/uorc/` and `generated/rust/`.
+
+A registry or claims edit therefore re-runs `artifacts`, `claims` and
+`reproducibility` (they read all of `src/` or the model), not `integrity` or
+`varint`; a change to `model/`, `features/` or `CONFORMANCE.md` does not re-run
+`artifacts`, `integrity` or `varint`.
+
+## Closure copy
+
+Before a bootstrap leg runs, `factory.mjs materialize` deletes every tracked
+file the leg does not declare (PrismPM runs each obligation in a copy of its
+closure). An undeclared input fails the leg instead of proving a receipt it
+should not. Adding the copy found one: `just model-write` reads `README.md`,
+which the old κ scope left out.
 
 ## Identity
 
@@ -39,7 +57,8 @@ name <name>
 kind hermetic|fetch|gate
 environment <runner>
 run <command>
-input <prefix>            one line per declared input (`!prefix` excludes, `@key` is a context, `closure:Module` an import closure)
+input <prefix>            one line per declared input (`!prefix` excludes, `@key` is a context,
+                          `closure:ROOTS@DIRS` an import closure, `manifest:PATH` a Cargo manifest only)
 needs <name> <identity>   one line per need
 closure <sha256 of the closure>
 ```

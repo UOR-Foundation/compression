@@ -60,3 +60,10 @@ test('weights stay in 1..16: a failure raises priority, a pass lowers it, and sc
   const r = route(graph, ids, parseStore(''));
   assert.deepEqual(schedule(graph, r, w).map(s => s.name), ['leg', 'build', 'bench', 'net']);
 });
+
+test('a manifest input covers only that manifest, even under an exclusion', () => {
+  const inputs = ['', '!crates/uorc/', 'manifest:crates/uorc/Cargo.toml'];
+  assert.equal(covered(inputs, 'crates/uorc/Cargo.toml', new Set()), true);
+  assert.equal(covered(inputs, 'crates/uorc/src/lib.rs', new Set()), false);
+  assert.equal(covered(inputs, 'crates/model/src/lib.rs', new Set()), true);
+});
