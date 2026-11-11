@@ -27,14 +27,14 @@ model:
     cargo run --locked -q -p xtask -- validate
 
 # The hand-reviewed trust root is checked independently of generated project
-# content, and PrismPM validates the canonical contract and both locks.
-# PrismPM's template check runs first: its native regeneration builds a fresh
-# copy of the tree in the SDK's 2 GiB /tmp (0.85 GB at peak), and the xtask
-# build that audit-bootstrap leaves in /tmp/prismpm-cargo-* takes 1.2 GB more.
+# content. PrismPM then validates the canonical contract and both locks.
+# PrismPM's native regeneration rebuilds a copy of the tree staged in the SDK's
+# /tmp, a 2 GiB tmpfs that already holds CARGO_HOME (1.1 GiB); its build goes
+# to the workspace's own target directory on disk, where audit-bootstrap's
+# dependencies are already compiled, instead of beside the copy.
 template-check:
-    df -k /tmp && (du -xsk /tmp/* /tmp/.[!.]* * .[!.]* 2>/dev/null | sort -n | tail -12 || true) && env | grep -E '^(CARGO|RUST)' || true
-    prismpm template check
     cargo run --locked -q -p xtask -- audit-bootstrap
+    CARGO_TARGET_DIR="{{justfile_directory()}}/target" prismpm template check
     prismpm lock check
 
 # Regenerate every model/document projection owned by the LexLean authority graph.
