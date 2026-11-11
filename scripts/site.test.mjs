@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { build, check, closureV2, references, webManifest } from './site.mjs';
+import { build, check, closureV2, modelState, readToml, references, webManifest } from './site.mjs';
 
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'uorc-site-'));
 const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -31,7 +31,8 @@ test('the site is exactly closure v2 plus the bench page, flat', () => {
   const provenance = build(out, { wasm, version: 'v0.0.0-test', bench });
   const names = fs.readdirSync(out).sort();
   assert.equal(closureV2().length, 16);
-  assert.deepEqual(names, [...closureV2(), 'bench.html', 'bench.json', 'bench.md'].sort());
+  assert.deepEqual(names, [...closureV2(), 'bench.html', 'bench.json', 'bench.md', 'model.json'].sort());
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(out, 'model.json'))), modelState());
   for (const name of Object.keys(provenance.files)) {
     assert.equal(provenance.files[name], sha256(fs.readFileSync(path.join(out, name))), name);
   }
@@ -72,4 +73,26 @@ test('a site that is not closure v2 is refused', () => {
 
 test('the web app manifest is the bytes PrismPM writes', () => {
   assert.equal(webManifest('A').toString(), '{"name":"A","short_name":"A","start_url":"./","scope":"./","display":"standalone","background_color":"#151312","theme_color":"#151312","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}\n');
+});
+
+// UC-WEB-02: model.json carries the ledger's UC-PERF rows, frontier.toml's
+// claims and model/engine.toml's state, and a TOML the page cannot read
+// faithfully fails the build.
+test('model.json projects the theorems, claims and engine state', () => {
+  const root = scratch();
+  fs.mkdirSync(path.join(root, 'model'));
+  fs.writeFileSync(path.join(root, 'model/ledger.toml'), '[[claim]]\nid = "UC-PERF-02"\nstatement = "an archive never exceeds its input plus a constant"\nevidence_kind = "kernel_theorem"\n\n[[claim]]\nid = "UC-WEB-01"\nstatement = "x"\nevidence_kind = "build_evidence"\n');
+  fs.writeFileSync(path.join(root, 'frontier.toml'), '# claims\n[[claim]]\nid = "c1"\nform = "closed"\ncodec = "ab"\ncorpus = "cd"\nbytes = 1_000\nsteps = 9007199254740993\nstatus = "proved"\n\n[[claim.members]]\nname = "a"\nbytes = 3\n\n[[claim]]\nid = "c2"\nform = "closed"\nstatus = "refuted"\n');
+  fs.writeFileSync(path.join(root, 'model/engine.toml'), 'spec = "uorc/engine/1"\ntick = 3\nrule30_state = "0x0123"\n\n[[strategy]]\nword = "0x800fffff"\nstate = 0\n\n[[weight]]\nstrategy = 0\nfamily = "text"\nvalue = 12\n\n[[generator]]\ngenerator = "x86"\nfamily = "tiny"\nvalue = 8\n');
+  const m = modelState(root);
+  assert.deepEqual(m.theorems, [{ id: 'UC-PERF-02', statement: 'an archive never exceeds its input plus a constant', evidence: 'kernel_theorem' }]);
+  assert.equal(m.claims.length, 2);
+  assert.equal(m.claims[1].status, 'refuted');
+  assert.equal(m.claims[0].bytes, 1000);
+  assert.equal(m.claims[0].steps, '9007199254740993');
+  assert.equal(m.claims[0].status, 'proved');
+  assert.deepEqual(m.engine, { tick: 3, rule30: '0x0123', strategies: 1, weights: [{ strategy: '0x800fffff', family: 'text', weight: 12 }, { strategy: 'generator x86', family: 'tiny', weight: 8 }] });
+  assert.deepEqual(modelState(scratch()), { schema: 'uorc/model-state/1', theorems: [], claims: [], engine: { tick: null, rule30: null, strategies: 0, weights: [] } });
+  assert.throws(() => readToml('a = 1.5\n', 'bad.toml'), /bad.toml:1/);
+  assert.throws(() => readToml('a = { b = 1 }\n', 'bad.toml'), /unsupported/);
 });
