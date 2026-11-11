@@ -2,7 +2,7 @@
 //! `Uorc.Performance` proves. The theorems are kernel-checked by
 //! `lexlean verify`; this test holds the native constants equal to the
 //! model's, the theorem inventory complete, and the native frames within the
-//! bounds the theorems state for the model.
+//! bounds the theorems state for the model. One test per registered row.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -92,8 +92,85 @@ fn strategy_frame(frame: &[u8], strategy: portfolio::Strategy) -> Option<Vec<u8>
     archive::linked_archive_profile(codec, strategy.profile, &[frame.len() as u64], &payload)
 }
 
+fn proved(names: &[&str]) {
+    let source = module();
+    let have: Vec<&str> = source
+        .split("theorem{")
+        .skip(1)
+        .filter_map(|decl| field(decl, "name"))
+        .collect();
+    for name in names {
+        assert!(have.contains(name), "theorem {name}");
+    }
+}
+
 #[test]
-fn native_constants_are_the_models_uc_perf_04() {
+fn no_native_frame_exceeds_its_input_plus_the_models_overhead_uc_perf_02() {
+    proved(&[
+        "ulebLengthBound",
+        "rawLengthBound",
+        "settleNoLargerThanRaw",
+        "settleNoLargerThanKernel",
+        "archiveBound",
+    ]);
+    let c = constants(&module());
+    let native = [
+        ("ulebLimit", archive::uleb_len(u64::MAX) as u64),
+        ("rawFixed", archive::raw_length(&[0]) - 2),
+        (
+            "rawOverhead",
+            archive::raw_length(&[0]) - 2 + 2 * archive::uleb_len(u64::MAX) as u64,
+        ),
+    ];
+    for (name, value) in native {
+        assert_eq!(c.get(name), Some(&value), "{name}");
+    }
+    for frame in samples() {
+        let n = frame.len() as u64;
+        // rawLength n = 2 * ulebLength n + n + rawFixed
+        let raw = archive::raw_archive(&frame);
+        assert_eq!(
+            raw.len() as u64,
+            2 * archive::uleb_len(n) as u64 + n + c["rawFixed"]
+        );
+        assert_eq!(raw.len() as u64, archive::raw_length(&[n]));
+        // archiveBound: settled against the raw frame, within n + rawOverhead
+        let kept = uorc::compress_frame(&frame, 0).unwrap();
+        assert!(kept.len() <= raw.len(), "{n}: larger than raw");
+        assert!(kept.len() as u64 <= n + c["rawOverhead"], "{n}");
+    }
+}
+
+#[test]
+fn the_native_portfolio_frame_is_no_larger_than_any_scheduled_strategys_uc_perf_03() {
+    proved(&[
+        "keepStaysNoLarger",
+        "keepNoLargerThanHead",
+        "keepNoLargerThanKept",
+        "bestNoLargerThanEvery",
+    ]);
+    for frame in samples() {
+        let kept = uorc::compress_frame(&frame, 0).unwrap();
+        for strategy in portfolio::plan(&frame) {
+            if let Some(alone) = strategy_frame(&frame, strategy) {
+                assert!(kept.len() <= alone.len(), "{}: {strategy:?}", frame.len());
+            }
+        }
+    }
+}
+
+#[test]
+fn native_decode_steps_are_the_models_and_within_its_bound_uc_perf_04() {
+    proved(&[
+        "countBitsBound",
+        "contextsBound",
+        "inputsBound",
+        "inputsFloor",
+        "frameStepsBound",
+        "decodeStepsBound",
+        "fullModelSteps",
+        "releasedModelSteps",
+    ]);
     let c = constants(&module());
     let native = [
         ("bitsPerByte", performance::BITS_PER_BYTE),
@@ -102,12 +179,6 @@ fn native_constants_are_the_models_uc_perf_04() {
         ("featureInputs", performance::FEATURE_INPUTS.into()),
         ("maxInputs", performance::MAX_INPUTS.into()),
         ("maxStepsPerByte", performance::MAX_STEPS_PER_BYTE),
-        ("ulebLimit", archive::uleb_len(u64::MAX) as u64),
-        ("rawFixed", archive::raw_length(&[0]) - 2),
-        (
-            "rawOverhead",
-            archive::raw_length(&[0]) - 2 + 2 * archive::uleb_len(u64::MAX) as u64,
-        ),
     ];
     for (name, value) in native {
         assert_eq!(c.get(name), Some(&value), "{name}");
@@ -126,82 +197,44 @@ fn native_constants_are_the_models_uc_perf_04() {
         let inputs = performance::inputs(profile);
         assert!((performance::FIXED_INPUTS..=performance::MAX_INPUTS).contains(&inputs));
     }
-}
-
-#[test]
-fn every_native_frame_is_within_the_models_bounds_uc_perf_02_03_04_05() {
-    let c = constants(&module());
+    // decodeStepsBound on the frames the client writes
     for frame in samples() {
-        let n = frame.len() as u64;
-        // rawLength n = 2 * ulebLength n + n + rawFixed
-        let raw = archive::raw_archive(&frame);
-        assert_eq!(
-            raw.len() as u64,
-            2 * archive::uleb_len(n) as u64 + n + c["rawFixed"]
-        );
-        assert_eq!(raw.len() as u64, archive::raw_length(&[n]));
-        // archiveBound: settled against the raw frame, within n + rawOverhead
         let kept = uorc::compress_frame(&frame, 0).unwrap();
-        assert!(kept.len() <= raw.len(), "{n}: larger than raw");
-        assert!(kept.len() as u64 <= n + c["rawOverhead"], "{n}");
-        // bestNoLargerThanEvery: no larger than any strategy it scheduled
-        for strategy in portfolio::plan(&frame) {
-            if let Some(alone) = strategy_frame(&frame, strategy) {
-                assert!(kept.len() <= alone.len(), "{n}: {strategy:?}");
-                // bestOfAdmittedIsExact: whichever point coded it, the meaning holds
-                assert_eq!(uorc::decompress_frame(&alone, u64::MAX).unwrap(), frame);
-            }
-        }
-        assert_eq!(uorc::decompress_frame(&kept, u64::MAX).unwrap(), frame);
-        // decodeStepsBound
         let info = uorc::inspect(&kept).unwrap();
         let steps = performance::frame_steps(&info).expect("a measured representation");
-        assert!(steps <= c["maxStepsPerByte"] * n);
-        // a codec point is read from the header alone
-        let point = performance::CodecPoint::of(&info);
-        assert_eq!(
-            point.profile & performance::POINT_X86 != 0,
-            info.representation == Representation::NcmX86
-        );
+        assert!(steps <= c["maxStepsPerByte"] * frame.len() as u64);
     }
 }
 
 #[test]
-fn the_model_proves_every_stated_theorem_uc_perf_02_to_06() {
-    let source = module();
-    let names: Vec<&str> = source
-        .split("theorem{")
-        .skip(1)
-        .filter_map(|decl| field(decl, "name"))
-        .collect();
-    for name in [
-        // UC-PERF-02
-        "ulebLengthBound",
-        "rawLengthBound",
-        "settleNoLargerThanRaw",
-        "settleNoLargerThanKernel",
-        "archiveBound",
-        // UC-PERF-03
-        "keepNoLargerThanHead",
-        "keepNoLargerThanKept",
-        "bestNoLargerThanEvery",
-        // UC-PERF-04
-        "inputsBound",
-        "inputsFloor",
-        "frameStepsBound",
-        "decodeStepsBound",
-        "fullModelSteps",
-        "releasedModelSteps",
-        // UC-PERF-05
+fn a_frame_coded_at_any_point_decodes_to_its_input_uc_perf_05() {
+    proved(&[
         "admittedIsExact",
         "keepPreservesExact",
         "bestOfAdmittedIsExact",
-        // UC-PERF-06
+    ]);
+    for frame in samples() {
+        // every strategy of the portfolio, scheduled for this frame or not
+        for strategy in portfolio::STRATEGIES {
+            if let Some(alone) = strategy_frame(&frame, strategy) {
+                assert_eq!(uorc::decompress_frame(&alone, u64::MAX).unwrap(), frame);
+                // the point is read from the header alone
+                let info = uorc::inspect(&alone).unwrap();
+                let point = performance::CodecPoint::of(&info);
+                assert_eq!(point.profile & performance::POINT_X86 != 0, strategy.x86);
+            }
+        }
+        let kept = uorc::compress_frame(&frame, 0).unwrap();
+        assert_eq!(uorc::decompress_frame(&kept, u64::MAX).unwrap(), frame);
+    }
+}
+
+#[test]
+fn the_model_proves_dominance_is_a_strict_order_uc_perf_06() {
+    proved(&[
         "dominanceLowersCost",
         "dominanceIsIrreflexive",
         "dominanceIsTransitive",
         "dominanceNeverGrows",
-    ] {
-        assert!(names.contains(&name), "theorem {name}");
-    }
+    ]);
 }
