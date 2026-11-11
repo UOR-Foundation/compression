@@ -1598,7 +1598,7 @@ definition{
   name: stateIdentity,
   parameters: [state : Bytes],
   result: (Option Bytes),
-  body: (windowIdentity (cons state (nil Bytes))),
+  body: (if (0 <? (prim length state : Nat)) then (digest (cat (cat (cat (cat (basisTag) (number (2 + (prim multiply 0 (prim length state : Nat) : Nat)))) (number (prim length (libraryRoot) : Nat))) (libraryRoot)) (windowRoots (cons state (nil Bytes))))) else (ctor Option.none [Bytes])),
   executable: true,
   axioms: [Quot.sound, propext]
 }

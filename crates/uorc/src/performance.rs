@@ -43,6 +43,13 @@ pub fn inputs(profile: u32) -> u32 {
         + FEATURE_INPUTS * u32::from(profile & ncm::F_REP != 0)
 }
 
+/// Decode steps of an ncm trial coding `n` modelled bytes under `profile`
+/// (`Client.trialSteps`): 8 bits, each evaluating [`inputs`] model inputs.
+/// A state frame models n + |S| bytes (the reference measure).
+pub fn trial_steps(profile: u32, n: u64) -> u64 {
+    BITS_PER_BYTE * u64::from(inputs(profile)) * n
+}
+
 /// Steps to decode `n` output bytes of a frame of this representation and
 /// profile word; `None` for a representation the model states no measure for
 /// (the ulz decoders kept for earlier archives, and searched programs).

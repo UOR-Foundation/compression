@@ -349,7 +349,10 @@ D('warmPrefixOf', ['x : Nat'], 'Bytes', "(if (x =? 0) then (warmPrefix) else (wa
 D('warmTailOf', ['x : Nat'], 'Bytes', "(if (x =? 0) then (warmTail) else (warmXTail))")
 D('stateBody', ['x : Nat', 'profile : Nat', 'payload : Bytes'], 'Bytes',
   "(cat (cat (cat (cat (warmPrefixOf x) (number (prim length payload : Nat))) payload) (cat 0x00 (number profile))) (warmTailOf x))")
-D('stateIdentity', ['state : Bytes'], '(Option Bytes)', "(windowIdentity (cons state (nil Bytes)))")
+# windowIdentity [state], written out: an empty state names nothing, and the window count is stated as
+# 1 + 0 * |state| so the kernel cannot reduce it. With a literal count the identity's prefix (tag, count, root
+# length, the 40 KB library root) is a closed term, and the export's certificate evaluates it.
+D('stateIdentity', ['state : Bytes'], '(Option Bytes)', f"(if (0 <? (prim length state : Nat)) then (digest (cat (cat (cat (cat (basisTag) (number (2 + (prim multiply 0 (prim length state : Nat) : Nat)))) (number (prim length (libraryRoot) : Nat))) (libraryRoot)) (windowRoots (cons state (nil Bytes))))) else {NONE_B})")
 D('stateArchive', ['x : Nat', 'identity : Bytes', 'n : Nat', 'profile : Nat', 'payload : Bytes'], '(Option Bytes)',
   f"(if (profileWord profile) then (seal (windowPreimage identity n (stateBody x profile payload))) else {NONE_B})")
 D('stateDecoder', ['x : Nat', 'state : Bytes', 'payload : Bytes', 'profile : Nat'], 'Bytes',

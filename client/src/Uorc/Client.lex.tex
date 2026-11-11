@@ -16,6 +16,7 @@
 \importmodule{Uorc.Codec.LzEncode}
 \importmodule{Uorc.Codec.NcmDecode}
 \importmodule{Uorc.Codec.NcmEncode}
+\importmodule{Uorc.Codec.X86}
 \title{Parameters}
 \begin{semanticmodule}
 definition{
@@ -209,30 +210,76 @@ definition{
 }
 
 definition{
-  name: strategyCandidate,
-  parameters: [strategies : Bytes, states : (List Bytes), strategy : Nat, window : (List Bytes), input : Bytes],
-  result: (Option Bytes),
-  body: (let word : Nat := (strategyWord strategies strategy); (let x : Nat := (if (2147483648 <=? word) then 1 else 0); (let profile : Nat := (prim remainder word 2147483648 0 : Nat); (let st : Nat := (strategyState strategies strategy); (if (Uorc.Codec.Archive::profileWord profile) then (if (st =? 0) then (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) else (match (stateAt states (prim subtract st 1 : Nat))
-    | Option.none => (ctor Option.none [Bytes])
-    | Option.some state => (Uorc.Codec.Archive::stateCandidate x profile state input))) else (ctor Option.none [Bytes])))))),
+  name: profileInputs,
+  parameters: [profile : Nat],
+  result: Nat,
+  body: (((((((prim remainder (prim quotient profile 1 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 2 0 : Nat) 2 0 : Nat)) + ((prim remainder (prim quotient profile 4 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 8 0 : Nat) 2 0 : Nat))) + (((prim remainder (prim quotient profile 16 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 32 0 : Nat) 2 0 : Nat)) + ((prim remainder (prim quotient profile 64 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 128 0 : Nat) 2 0 : Nat)))) + ((((prim remainder (prim quotient profile 256 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 512 0 : Nat) 2 0 : Nat)) + ((prim remainder (prim quotient profile 1024 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 2048 0 : Nat) 2 0 : Nat))) + (((prim remainder (prim quotient profile 4096 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 8192 0 : Nat) 2 0 : Nat)) + ((prim remainder (prim quotient profile 16384 0 : Nat) 2 0 : Nat) + ((prim remainder (prim quotient profile 32768 0 : Nat) 2 0 : Nat) + (prim remainder (prim quotient profile 65536 0 : Nat) 2 0 : Nat)))))) + 3) + ((prim multiply 2 (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat) : Nat) + (prim multiply 2 (prim remainder (prim quotient profile 262144 0 : Nat) 2 0 : Nat) : Nat))),
+  axioms: []
+}
+
+definition{
+  name: trialSteps,
+  parameters: [profile : Nat, n : Nat],
+  result: Nat,
+  body: (prim multiply 8 (prim multiply (profileInputs profile) n : Nat) : Nat),
+  axioms: []
+}
+
+definition{
+  name: trial,
+  parameters: [archive : (Option Bytes), steps : Nat],
+  result: (Option (Bytes * Nat)),
+  body: (match archive
+    | Option.none => (ctor Option.none [(Bytes * Nat)])
+    | Option.some a => (ctor Option.some [(Bytes * Nat)] (a, steps))),
+  axioms: []
+}
+
+definition{
+  name: pick,
+  parameters: [head : (Option (Bytes * Nat)), kept : (Option (Bytes * Nat))],
+  result: (Option (Bytes * Nat)),
+  body: (match head
+    | Option.none => kept
+    | Option.some h => (match kept
+      | Option.none => head
+      | Option.some k => (let hb : Nat := (prim length (first h) : Nat); (let kb : Nat := (prim length (first k) : Nat); (if ((hb <? kb) || ((hb =? kb) && ((second h) <? (second k)))) then head else kept))))),
+  axioms: []
+}
+
+definition{
+  name: excluded,
+  parameters: [x : Nat, input : Bytes],
+  result: Bool,
+  body: ((x =? 1) && ((Uorc.Codec.X86::hits input) =? 0)),
   axioms: [Quot.sound, propext]
 }
 
 definition{
-  name: learnedStrategy,
+  name: strategyTrial,
   parameters: [strategies : Bytes, states : (List Bytes), strategy : Nat, window : (List Bytes), input : Bytes],
-  result: (Option Bytes),
-  body: (let word : Nat := (strategyWord strategies strategy); (let profile : Nat := (prim remainder word 2147483648 0 : Nat); (if (((strategyState strategies strategy) =? 0) && (Uorc.Codec.Archive::profileWord profile)) then (Uorc.Codec.Archive::learnedCandidate (if (2147483648 <=? word) then 2 else 1) profile window input) else (strategyCandidate strategies states strategy window input)))),
+  result: (Option (Bytes * Nat)),
+  body: (let word : Nat := (strategyWord strategies strategy); (let x : Nat := (if (2147483648 <=? word) then 1 else 0); (let profile : Nat := (prim remainder word 2147483648 0 : Nat); (let st : Nat := (strategyState strategies strategy); (let n : Nat := (prim length input : Nat); (if ((Uorc.Codec.Archive::profileWord profile) && (not (excluded x input))) then (if (st =? 0) then (trial (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) (trialSteps profile n)) else (match (stateAt states (prim subtract st 1 : Nat))
+    | Option.none => (ctor Option.none [(Bytes * Nat)])
+    | Option.some state => (trial (Uorc.Codec.Archive::stateCandidate x profile state input) (trialSteps profile (n + (prim length state : Nat)))))) else (ctor Option.none [(Bytes * Nat)]))))))),
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: learnedTrial,
+  parameters: [strategies : Bytes, states : (List Bytes), strategy : Nat, window : (List Bytes), input : Bytes],
+  result: (Option (Bytes * Nat)),
+  body: (let word : Nat := (strategyWord strategies strategy); (let x : Nat := (if (2147483648 <=? word) then 1 else 0); (let profile : Nat := (prim remainder word 2147483648 0 : Nat); (if (((strategyState strategies strategy) =? 0) && ((Uorc.Codec.Archive::profileWord profile) && (not (excluded x input)))) then (let n : Nat := (prim length input : Nat); (let plain : (Option (Bytes * Nat)) := (trial (Uorc.Codec.Archive::profileCandidate (x + 1) profile window input) (trialSteps profile n)); (let learned : Nat := (Uorc.Codec.Archive::profiledLearner x (Uorc.Codec.Archive::windowHistory window) input profile); (if (learned =? profile) then plain else (pick (trial (Uorc.Codec.Archive::profileCandidate (x + 1) learned window input) (trialSteps learned n)) plain))))) else (strategyTrial strategies states strategy window input))))),
   axioms: [Quot.sound, propext]
 }
 
 definition{
   name: portfolio,
   parameters: [strategies : Bytes, states : (List Bytes), budget : Nat, scheduled : (List Nat), window : (List Bytes), input : Bytes],
-  result: (Option Bytes),
+  result: (Option (Bytes * Nat)),
   body: (match scheduled
-    | List.nil => (ctor Option.none [Bytes])
-    | List.cons head tail => (if (budget =? 0) then (ctor Option.none [Bytes]) else (smaller (learnedStrategy strategies states head window input) (portfolio strategies states (prim subtract budget 1 : Nat) tail window input)))),
+    | List.nil => (ctor Option.none [(Bytes * Nat)])
+    | List.cons head tail => (if (budget =? 0) then (ctor Option.none [(Bytes * Nat)]) else (pick (learnedTrial strategies states head window input) (portfolio strategies states (prim subtract budget 1 : Nat) tail window input)))),
   axioms: [Quot.sound, propext],
   recursive_argument: scheduled
 }
@@ -241,9 +288,9 @@ definition{
   name: compress,
   parameters: [strategies : Bytes, weights : Bytes, states : (List Bytes), input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
-  body: (let fam : Nat := (family input); (let linked : (Option Bytes) := (portfolio strategies states (budgetFor fam) (schedule strategies weights fam) window input); (let quick : (Option Bytes) := (match linked
+  body: (let fam : Nat := (family input); (let linked : (Option (Bytes * Nat)) := (portfolio strategies states (budgetFor fam) (schedule strategies weights fam) window input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length kernel : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] kernel) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))))),
+    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] (first kernel)) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))))),
   axioms: [Quot.sound, propext]
 }
 
