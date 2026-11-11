@@ -28,18 +28,20 @@ model:
 
 # The hand-reviewed trust root is checked independently of generated project
 # content. PrismPM then validates the canonical contract and both locks.
-# PrismPM's native regeneration rebuilds a copy of the tree staged in the SDK's
-# /tmp, a 2 GiB tmpfs that already holds CARGO_HOME (1.1 GiB); its build goes
-# to the workspace's own target directory on disk, where audit-bootstrap's
-# dependencies are already compiled, instead of beside the copy.
+# PrismPM's native regeneration runs model-write in a copy of the tree staged
+# in the SDK's /tmp, a 2 GiB tmpfs of which CARGO_HOME already holds 1.1 GiB,
+# with a cleared environment. The note .tmp/model-write-target travels with
+# the copy and sends its build to this workspace's target directory on disk.
 template-check:
     cargo run --locked -q -p xtask -- audit-bootstrap
-    CARGO_TARGET_DIR="{{justfile_directory()}}/target" prismpm template check
+    mkdir -p .tmp && printf '%s' "{{justfile_directory()}}/target" > .tmp/model-write-target
+    prismpm template check
+    rm -f .tmp/model-write-target
     prismpm lock check
 
 # Regenerate every model/document projection owned by the LexLean authority graph.
 model-write:
-    cargo run --locked -q -p xtask -- check-model --write
+    cargo run --locked -q -p xtask --target-dir "$(cat .tmp/model-write-target 2>/dev/null || echo target)" -- check-model --write
 
 # Direct R1 report: project prose cannot become a second UORC authority.
 source-authority:
