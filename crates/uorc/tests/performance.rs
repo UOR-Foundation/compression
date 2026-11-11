@@ -238,3 +238,119 @@ fn the_model_proves_dominance_is_a_strict_order_uc_perf_06() {
         "dominanceNeverGrows",
     ]);
 }
+
+/// Every pair of small keys, and `None` for a failed trial.
+fn small_trials() -> Vec<Option<performance::Trial>> {
+    let mut out = vec![None];
+    for bytes in 0..5 {
+        for steps in 0..5 {
+            out.push(Some(performance::Trial { bytes, steps }));
+        }
+    }
+    out
+}
+
+#[test]
+fn a_bounded_trial_is_the_unbounded_one_or_cannot_win_uc_perf_07() {
+    proved(&[
+        "boundedSettlesTheSame",
+        "settleOfKeep",
+        "boundedPortfolioSettlesTheSame",
+        "skippedTrialKeepsBytes",
+        "skippedTrialKeepsSteps",
+    ]);
+    for frame in samples() {
+        let raw = archive::raw_length(&[frame.len() as u64]);
+        for strategy in portfolio::plan(&frame) {
+            let Some(full) = ncm::encode_profile(&[], &frame, strategy.profile) else {
+                continue;
+            };
+            // abandoned at any bound: the same payload, or none once the
+            // payload reaches the bound
+            for stop in [0, 1, full.len() / 2, full.len(), full.len() + 1, usize::MAX] {
+                match ncm::encode_below(&[], &frame, strategy.profile, stop) {
+                    Some(payload) => assert_eq!(payload, full),
+                    None => assert!(full.len() >= stop, "{}: {stop}", frame.len()),
+                }
+            }
+        }
+        // settled against the raw frame, the bounded portfolio writes what an
+        // unbounded one settles to: no scheduled frame below raw is lost
+        let kept = uorc::compress_frame(&frame, 0).unwrap();
+        let least = portfolio::plan(&frame)
+            .into_iter()
+            .filter_map(|s| strategy_frame(&frame, s))
+            .map(|a| a.len() as u64)
+            .fold(raw, u64::min);
+        assert!(kept.len() as u64 <= least);
+    }
+}
+
+#[test]
+fn the_chosen_trial_is_least_and_undominated_uc_perf_08() {
+    proved(&[
+        "pickIsLeastOfKept",
+        "pickIsLeastOfHead",
+        "pickBytesAreSettled",
+        "pickStaysLeast",
+        "chosenIsLeast",
+        "pickStaysUnderRaw",
+        "chosenIsNoWorseThanRaw",
+        "chosenKeepsTheSize",
+        "leastIsUndominated",
+        "excludedTrialKeepsBytes",
+        "excludedTrialKeepsSteps",
+    ]);
+    let trials = small_trials();
+    let raw = performance::Trial { bytes: 3, steps: 3 };
+    // every list of three trials over the small keys
+    for a in &trials {
+        for b in &trials {
+            for c in &trials {
+                let list = [*a, *b, *c];
+                let kept = performance::chosen(raw, &list);
+                assert_eq!(performance::lex_gap(kept, raw), 0);
+                // chosenKeepsTheSize: the bytes the size rule alone settles to
+                let least = list
+                    .iter()
+                    .flatten()
+                    .map(|t| t.bytes)
+                    .fold(raw.bytes, u64::min);
+                assert_eq!(kept.bytes, least);
+                for t in list.iter().flatten().chain([&raw]) {
+                    assert_eq!(performance::lex_gap(kept, *t), 0, "{list:?}");
+                    assert_eq!(performance::gain(*t, kept), 0, "{list:?}");
+                    // an excluded trial (no earlier than the kept one) changes nothing
+                    assert_eq!(performance::pick(Some(*t), kept), kept);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_consolidation_spends_exactly_its_gain_uc_perf_09() {
+    proved(&[
+        "consolidationSpendsItsGain",
+        "consolidationStaysUnder",
+        "potentialNeverRises",
+    ]);
+    let trials: Vec<_> = small_trials().into_iter().flatten().collect();
+    for &incumbent in &trials {
+        for &candidate in &trials {
+            let next = performance::consolidate(candidate, incumbent);
+            let gain = performance::gain(candidate, incumbent);
+            assert_eq!(next.cost() + gain, incumbent.cost());
+            assert!(next.bytes <= incumbent.bytes && next.steps <= incumbent.steps);
+            assert_eq!(gain > 0, next != incumbent);
+        }
+        // any sequence of candidates: the potential never rises
+        let mut shipped = incumbent;
+        for &candidate in trials.iter().rev() {
+            let before = shipped.cost();
+            shipped = performance::consolidate(candidate, shipped);
+            assert!(shipped.cost() <= before);
+        }
+        assert!(shipped.cost() <= incumbent.cost());
+    }
+}
