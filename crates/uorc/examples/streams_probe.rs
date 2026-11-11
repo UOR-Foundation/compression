@@ -19,18 +19,20 @@ fn main() {
         let k: usize = it.next().unwrap().parse().unwrap();
         let e: usize = it.next().unwrap().parse().unwrap();
         let th: usize = it.next().unwrap_or("4").parse().unwrap();
-        let plan = streams::Plan { streams: k, epoch: e };
+        let plan = streams::Plan {
+            streams: k,
+            epoch: e,
+        };
         let t = std::time::Instant::now();
-        let out = streams::encode(&[], data, ncm::FULL, plan, th).unwrap();
+        let (out, steps) = streams::encode_counted(&[], data, ncm::FULL, plan, th).unwrap();
         let enc = t.elapsed().as_secs_f64();
-        let me = streams::MERGE_NS.swap(0, std::sync::atomic::Ordering::Relaxed) as f64 / 1e9;
-        let sec: Vec<f64> = streams::SECT.iter().map(|x| x.swap(0, std::sync::atomic::Ordering::Relaxed) as f64 / 1e9).collect();
-        println!("  encode merge={me:.2}s buckets={:.2} tables+hist={:.2} words={:.2} setup={:.2}", sec[0], sec[1], sec[2], sec[3]);
+        println!(
+            "  merge steps={steps} ({:.3}/byte)",
+            steps as f64 / n as f64
+        );
         let t = std::time::Instant::now();
         let back = streams::decode(&[], &out, u64::MAX, ncm::FULL, plan, th, true).unwrap();
         let dec = t.elapsed().as_secs_f64();
-        streams::MERGE_NS.swap(0, std::sync::atomic::Ordering::Relaxed);
-        for x in &streams::SECT { x.swap(0, std::sync::atomic::Ordering::Relaxed); }
         assert_eq!(back, data);
         println!(
             "{} n={} streams={} epoch={} threads={} serial={} streams={} ({:+.2}%) enc={:.2}s dec={:.2}s",

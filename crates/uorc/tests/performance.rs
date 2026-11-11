@@ -89,7 +89,12 @@ fn strategy_frame(frame: &[u8], strategy: portfolio::Strategy) -> Option<Vec<u8>
         Codec::Ncm
     };
     let payload = ncm::encode_profile(&[], &data, strategy.profile)?;
-    archive::linked_archive_profile(codec, strategy.profile, &[frame.len() as u64], &payload)
+    archive::linked_archive_profile(
+        codec,
+        u64::from(strategy.profile),
+        &[frame.len() as u64],
+        &payload,
+    )
 }
 
 fn proved(names: &[&str]) {
