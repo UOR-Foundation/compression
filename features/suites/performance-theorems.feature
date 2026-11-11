@@ -1,0 +1,50 @@
+# @generated from src/Uorc/Registry.lex.tex by `cargo xtask check-model --write`.
+Feature: performance-theorems
+
+  @UC-PERF-02 @build
+  Scenario: For every input length n, the settled frame of Uorc.Performance is no larger than the raw frame and no larger than a coded kernel candidate, and the raw frame is two length varints of at most 10 bytes each, the n input bytes and 41 fixed bytes, so no frame of one object exceeds n + 61 bytes (archiveBound), and a stream of k such frames is within n + 61 * k bytes; the native client keeps the same rule and the same constants.
+    Given the Uorc.Performance module and the native client's frame writer
+    When the locked SDK verifies the module and the native test compresses inputs of several lengths and kinds, including incompressible ones
+    Then archiveBound and its lemmas are kernel-checked, every native raw frame has the model's length, and every native frame is within n + 61 bytes
+
+  @UC-PERF-03 @build
+  Scenario: For every list of trials, the trial the portfolio keeps (Uorc.Performance best) is no larger in bytes than any coded trial in the list (bestNoLargerThanEvery), so a portfolio archive is no larger than the archive of any strategy it scheduled.
+    Given the Uorc.Performance module and the native client's strategy portfolio
+    When the locked SDK verifies the module and the native test codes sample frames under each scheduled strategy and under the portfolio
+    Then bestNoLargerThanEvery is kernel-checked and the native portfolio frame is no larger than the frame of every strategy it scheduled
+
+  @UC-PERF-04 @build
+  Scenario: A step is one model input evaluated for one coded bit. For every profile word the input count lies between 3 and 24 (17 context bits, 3 fixed inputs, 2 for each of the short-match and repeat features), a frame of n bytes costs 8 * n * inputs steps, and for every frame kind (raw, reference, ncm, ncm from a named state) decode takes at most 192 steps per modelled byte (decodeStepsBound); the full profile costs 192 steps per byte and the v0.3 profile 160. The measure counts model inputs, not machine time.
+    Given the Uorc.Performance module and the native step measure in uorc::performance
+    When the locked SDK verifies the module and the native test compares the native measure with the model's constants and closed vectors for sample profiles
+    Then the step bound theorems are kernel-checked, every native constant equals the model's, and the native step count of every sampled frame is within 192 steps per byte
+
+  @UC-PERF-05 @build
+  Scenario: A trial carries its defect, the count of bytes at which its decode differs from the input. Admission fails every trial with a nonzero defect, keeping never raises a defect above its operands', and the trial kept from any admitted list has defect 0 (bestOfAdmittedIsExact): whatever codec point or named model state produced a trial, it can change the archive's size and never its meaning.
+    Given the Uorc.Performance module and the native client's candidate admission
+    When the locked SDK verifies the module and the native test decodes every frame it produced under each strategy
+    Then bestOfAdmittedIsExact and its lemmas are kernel-checked and every native frame decodes to its input
+
+  @UC-PERF-06 @build
+  Scenario: A candidate dominates an incumbent when it is no larger in bytes and no larger in steps, and its gain is the drop in bytes plus steps. The gain never exceeds the drop in cost (dominanceLowersCost), no trial gains over itself, gains compose (a positive gain of a over b and of b over c gives at least their sum of a over c), and a positive gain implies no growth in bytes or in steps: dominance is a strict partial order, so consolidating winners cannot cycle.
+    Given the Uorc.Performance module
+    When the locked SDK verifies the module and the native test reads the module's theorem inventory
+    Then the four dominance theorems are kernel-checked and present
+
+  @UC-PERF-07 @build
+  Scenario: A trial abandoned at a bound is modelled as a trial of at most the bound's bytes. For every list of trials and every raw length, the portfolio of trials abandoned at the raw length settles to the same size as the portfolio of complete trials (boundedPortfolioSettlesTheSame), and a trial no smaller than one already kept changes neither the kept bytes nor the kept steps (skippedTrial theorems): a search that stops a candidate once it cannot win, or skips one known to be no smaller, writes an archive of the same size for fewer compress steps.
+    Given the Uorc.Performance module and the native encoder's bound
+    When the locked SDK verifies the module and the native test abandons each scheduled strategy at several bounds
+    Then the bounded search theorems are kernel-checked, a native payload abandoned at a bound is the complete payload or is absent only when the complete payload reaches the bound, and the native frame is no larger than any complete scheduled frame or the raw frame
+
+  @UC-PERF-08 @build
+  Scenario: Choosing by fewer bytes and then fewer steps, from the raw frame and any list of trials, keeps a trial that is no later in that order than every trial in the list and than the raw frame (chosenIsLeast, chosenIsNoWorseThanRaw), has exactly the size the bytes-only rule settles to (chosenKeepsTheSize), and is dominated by no trial it is no later than (leastIsUndominated); a trial no earlier than the kept one changes nothing (excludedTrial theorems). The rule lowers decode steps on byte ties at no cost in size. The released client breaks byte ties by schedule order until its model export adopts this rule.
+    Given the Uorc.Performance module and the native choice functions in uorc::performance
+    When the locked SDK verifies the module and the native test runs the native choice over every list of three small trials
+    Then the choice theorems are kernel-checked and the native choice is least in bytes then steps, has the bytes-only size, and is dominated by no listed trial
+
+  @UC-PERF-09 @build
+  Scenario: The potential of a codec point is its bytes plus its steps. Consolidating a candidate into an incumbent lowers the potential by exactly the candidate's gain (consolidationSpendsItsGain), which is positive exactly when the candidate dominates, and over any sequence of candidates the potential never rises (potentialNeverRises). The potential is a natural number, so an engine that consolidates only dominating candidates never regresses and consolidates at most as many times as its first potential.
+    Given the Uorc.Performance module and the native consolidation in uorc::performance
+    When the locked SDK verifies the module and the native test consolidates every pair and sequence of small trials
+    Then the potential theorems are kernel-checked and every native consolidation lowers bytes plus steps by exactly its gain

@@ -61,6 +61,7 @@ pub mod archive;
 pub mod chunk;
 mod frame;
 pub mod ncm;
+pub mod performance;
 pub mod portfolio;
 mod store;
 pub mod tree;
