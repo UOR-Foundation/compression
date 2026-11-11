@@ -495,7 +495,9 @@ impl PageModel {
         };
         let per_gib = host.nat("workersPerGiB");
         if per_gib == 0 || host.nat("coreLimit") == 0 || host.nat("unreportedGiB") == 0 {
-            return Err(inconsistent("the page's host rule starts no worker".to_string()));
+            return Err(inconsistent(
+                "the page's host rule starts no worker".to_string(),
+            ));
         }
         let share = 1024 / per_gib;
         for measure in self.of("QualityMeasure") {
