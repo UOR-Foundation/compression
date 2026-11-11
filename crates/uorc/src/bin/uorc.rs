@@ -43,7 +43,8 @@ restore keeps the files it completed). An existing output is never replaced
 unless --force is given.
 
 inspect reads every frame header and checks each integrity seal without
-decoding. verify decodes without keeping the output and checks integrity and
+decoding, and names each frame's codec point (basis, profile word, model
+state, lanes, and its κ) and the exact steps its decode takes. verify decodes without keeping the output and checks integrity and
 declared lengths, and, given an original, that the archive reproduces it byte
 for byte. All commands stream, so memory stays bounded whatever the size.
 
@@ -758,10 +759,38 @@ fn describe(info: &uorc::Info) -> String {
             }
         },
     );
+    let point = uorc::performance::CodecPoint::of(info);
+    let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+    let codec = format!(
+        "profile word    {}\n\
+         model state     {}\n\
+         lanes           {}\n\
+         steps           {}\n\
+         codec point     {}",
+        info.ncm_profile.map_or_else(
+            || "none".to_owned(),
+            |p| match info.representation {
+                uorc::Representation::NcmX86 => format!("0x{p:05x} x86"),
+                _ => format!("0x{p:05x}"),
+            }
+        ),
+        if point.state == [0; 32] {
+            "none".to_owned()
+        } else {
+            hex(&point.state)
+        },
+        point.lanes,
+        uorc::performance::frame_steps(info).map_or_else(
+            || "not modelled for this representation".to_owned(),
+            |s| s.to_string()
+        ),
+        hex(&point.kappa()),
+    );
     format!(
         "format          {} (machine profile {})\n\
          scope           {scope}\n\
          representation  {}\n\
+         {codec}\n\
          objects         {} ({} bytes)\n\
          body            {} bytes\n\
          archive         {} bytes\n\

@@ -104,11 +104,13 @@ impl Info {
 
     /// One JSON object describing the archive (no external JSON dependency).
     pub fn to_json(&self) -> String {
+        let point = crate::performance::CodecPoint::of(self);
         let lengths: Vec<String> = self.object_lengths.iter().map(u64::to_string).collect();
         format!(
             "{{\"format\":{},\"profile\":{},\"scope\":\"{}\",\"basis\":{},\"representation\":\"{}\",\"ncm_profile\":{},\"window\":{},\
              \"objects\":{},\"object_lengths\":[{}],\"output_bytes\":{},\"body_bytes\":{},\
-             \"archive_bytes\":{},\"integrity\":\"{}\",\"digest\":\"{}\",\"integrity_ok\":{},\"steps\":{}}}",
+             \"archive_bytes\":{},\"integrity\":\"{}\",\"digest\":\"{}\",\"integrity_ok\":{},\
+             \"state\":{},\"lanes\":{},\"steps\":{},\"codec_point\":\"{}\"}}",
             self.format,
             self.profile,
             if self.basis.is_some() { "conditional" } else { "self-contained" },
@@ -125,7 +127,15 @@ impl Info {
             self.integrity_profile(),
             self.digest_hex(),
             self.integrity_ok,
-            crate::performance::frame_steps(self).map_or_else(|| "null".to_owned(), |n| n.to_string()),
+            if point.state == [0; 32] {
+                "null".to_owned()
+            } else {
+                format!("\"{}\"", hex(&point.state))
+            },
+            point.lanes,
+            crate::performance::frame_steps(self)
+                .map_or_else(|| "null".to_owned(), |s| s.to_string()),
+            hex(&point.kappa()),
         )
     }
 }
