@@ -45,7 +45,8 @@ test('the site is exactly closure v2 plus the bench page, flat', () => {
 test('the page loads only same-origin closure files', () => {
   const { local, remote } = references(fs.readFileSync(new URL('../web/index.html', import.meta.url), 'utf8')
     + fs.readFileSync(new URL('../web/app.css', import.meta.url), 'utf8')
-    + fs.readFileSync(new URL('../web/app.js', import.meta.url), 'utf8'));
+    + fs.readFileSync(new URL('../web/app.js', import.meta.url), 'utf8')
+    + fs.readFileSync(new URL('../web/uorc.js', import.meta.url), 'utf8'));
   for (const name of ['manifest.webmanifest', 'icon.svg', 'icon-512.png', 'Geist-Regular.woff2', 'uorc_bg.wasm', 'provenance.json']) {
     assert.ok(local.includes(name), name);
   }

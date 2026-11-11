@@ -13,6 +13,7 @@
 pub mod authority;
 pub mod claims;
 pub mod codegen;
+pub mod page;
 pub mod registry;
 pub mod varint;
 
