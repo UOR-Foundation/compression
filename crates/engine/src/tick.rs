@@ -381,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn ticks_decide_new_claims_only_and_consolidate_winners() {
+    fn ticks_decide_each_kappa_once_and_ship_only_dominating_portfolios_uc_eng_01() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let laws = Laws::load(&root).expect("laws");
         let mut engine = seeded(&laws);
