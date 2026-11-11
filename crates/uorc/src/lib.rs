@@ -66,6 +66,7 @@ pub mod portfolio;
 mod store;
 pub mod tree;
 pub mod ulz;
+pub mod weights;
 pub mod x86;
 
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
@@ -164,7 +165,14 @@ pub fn default_threads() -> usize {
 /// archive when that is not smaller; with `steps > 0` the exported model also searches and keeps the
 /// smallest.
 pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], &[], steps, true)
+    compress_pieces(
+        frame,
+        &[frame.len() as u64],
+        &[],
+        steps,
+        true,
+        &portfolio::SHIPPED,
+    )
 }
 
 /// [`compress_frame`] for a frame that follows the frames `window` (at most
@@ -172,7 +180,14 @@ pub fn compress_frame(frame: &[u8], steps: u64) -> Result<Vec<u8>, Error> {
 /// `compress input window steps`: the ncm candidate is the window archive
 /// whose payload reads those frames as history.
 pub fn compress_frame_with(frame: &[u8], window: &[&[u8]], steps: u64) -> Result<Vec<u8>, Error> {
-    compress_pieces(frame, &[frame.len() as u64], window, steps, true)
+    compress_pieces(
+        frame,
+        &[frame.len() as u64],
+        window,
+        steps,
+        true,
+        &portfolio::SHIPPED,
+    )
 }
 
 /// [`compress_frame`] with the output split into objects of `lengths`, which
@@ -184,6 +199,7 @@ fn compress_pieces(
     window: &[&[u8]],
     steps: u64,
     side_by_side: bool,
+    table: &portfolio::Table,
 ) -> Result<Vec<u8>, Error> {
     if steps > 0 {
         let archive = on_reference_stack(|| reference_compress(frame, window, steps))?;
@@ -265,7 +281,14 @@ fn compress_pieces(
     // With a core to spare they code side by side, each bounded by the raw
     // archive; otherwise one after the other, the second bounded by the
     // first's archive as well (it is kept only when strictly smaller).
-    let [first, second] = portfolio::plan(frame);
+    let plan = table.plan(frame);
+    let (first, second) = (
+        plan.first().copied().flatten(),
+        plan.get(1).copied().flatten(),
+    );
+    let code = |strategy: Option<portfolio::Strategy>, learn: bool, bound: u64| {
+        strategy.and_then(|s| code(s, learn, bound))
+    };
     let (a, b) = if side_by_side && cfg!(not(target_family = "wasm")) {
         std::thread::scope(|s| {
             let other = s.spawn(|| code(second, false, raw));
@@ -647,6 +670,7 @@ fn compress_frames(
     writer: &mut dyn Write,
     steps: u64,
     threads: usize,
+    table: &portfolio::Table,
 ) -> io::Result<Totals> {
     let threads = threads.max(1);
     let mut totals = Totals::default();
@@ -671,6 +695,7 @@ fn compress_frames(
                 &all[k - frame.window..k],
                 steps,
                 spare,
+                table,
             )
         })
         .into_iter();
@@ -723,6 +748,28 @@ pub fn compress_stream(
         &mut writer,
         steps,
         threads,
+        &portfolio::SHIPPED,
+    )
+}
+
+/// [`compress_stream`] under the portfolio `table` instead of the shipped
+/// one (no search): how the engine and the claim decider code a corpus at a
+/// point of the codec space. Every table writes a stream that decodes to the
+/// input; the table changes its size, never its meaning.
+pub fn compress_stream_with(
+    reader: impl Read,
+    mut writer: impl Write,
+    threads: usize,
+    table: &portfolio::Table,
+) -> io::Result<Totals> {
+    compress_frames(
+        chunk::Framer::plain(),
+        reader,
+        None,
+        &mut writer,
+        0,
+        threads,
+        table,
     )
 }
 
@@ -748,6 +795,7 @@ pub fn compress_objects_stream(
         &mut writer,
         steps,
         threads,
+        &portfolio::SHIPPED,
     )
 }
 
@@ -1192,7 +1240,14 @@ impl FrameEncoder {
                         .iter()
                         .map(Vec::as_slice)
                         .collect();
-                    compress_pieces(&frame.bytes, &frame.pieces, &window, steps, true)?
+                    compress_pieces(
+                        &frame.bytes,
+                        &frame.pieces,
+                        &window,
+                        steps,
+                        true,
+                        &portfolio::SHIPPED,
+                    )?
                 }
             };
             out.extend_from_slice(&archive);
