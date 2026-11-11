@@ -286,6 +286,15 @@ pub struct Framer {
     /// rather than where `pending` or the frame ran out.
     settled: bool,
     index: Index,
+    /// The κ-label of every frame written, whole: a frame that repeats one
+    /// is a reference to it whatever its units (the v0.3 floor). Units of
+    /// self-similar content repeat inside a frame, so the run index, which
+    /// keeps the latest occurrences of each unit, may not lead back to a
+    /// whole frame's start.
+    wholes: HashSet<[u8; 32]>,
+    /// The label of the pending frame's bytes, whole, when [`Framer::step`]
+    /// computed it: `(length, label)`.
+    whole: Option<(usize, [u8; 32])>,
     pieces: Pieces,
     frames: u64,
     /// Frames since the current block began, and coded (not reference)
@@ -306,6 +315,8 @@ impl Framer {
             units: Vec::new(),
             settled: true,
             index: Index::default(),
+            wholes: HashSet::new(),
+            whole: None,
             pieces,
             frames: 0,
             in_block: 0,
@@ -381,6 +392,12 @@ impl Framer {
         // frame becomes a reference there, which leaves the framing of what
         // follows unchanged.
         let near = self.frames - self.reach() as u64;
+        let window = self.pending.len().min(FRAME);
+        let label = archive::frame_label(&self.pending[..window]);
+        self.whole = Some((window, label));
+        if self.wholes.contains(&label) {
+            return self.take(firm, Some(label), end && !more);
+        }
         for i in 0..firm {
             let Some(run) = self.index.run(&labels[i..firm], near) else {
                 continue;
@@ -444,6 +461,11 @@ impl Framer {
 
     fn emit(&mut self, n: usize, reference: Option<[u8; 32]>, last: bool) -> Frame {
         let bytes: Vec<u8> = self.pending.drain(..n).collect();
+        let label = match self.whole.take() {
+            Some((len, label)) if len == n => label,
+            _ => archive::frame_label(&bytes),
+        };
+        self.wholes.insert(label);
         let pieces = self.pieces.cut(n as u64, self.frames == 0, last);
         let window = match reference {
             Some(_) => 0,
@@ -560,6 +582,40 @@ mod tests {
                 .iter()
                 .map(|f| (&f.bytes, &f.pieces, f.reference))
                 .eq(frames.iter().map(|f| (&f.bytes, &f.pieces, f.reference))));
+        }
+    }
+
+    /// A frame that repeats a whole earlier frame is a reference to it, even
+    /// for content whose units repeat inside a frame (zeros, a short passage
+    /// repeated), as v0.3 wrote it.
+    #[test]
+    fn repeated_whole_frames_stay_references() {
+        let words: Vec<&[u8]> = [
+            "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india",
+            "juliet", "kilo", "lima", "mike", "november", "oscar", "papa",
+        ]
+        .iter()
+        .map(|w| w.as_bytes())
+        .collect();
+        let mut passage = Vec::new();
+        let mut i = 0usize;
+        while passage.len() < 1 << 20 {
+            passage.extend_from_slice(words[i % 16]);
+            passage.push(b' ');
+            i = i.wrapping_mul(31).wrapping_add(7) % 1009;
+        }
+        passage.truncate(1 << 20);
+        for input in [vec![0u8; 3 * FRAME], passage.repeat(24)] {
+            let frames = frames_of(&mut Framer::plain(), &input, FRAME);
+            let kinds: Vec<(usize, bool)> = frames
+                .iter()
+                .map(|f| (f.bytes.len(), f.reference.is_some()))
+                .collect();
+            assert_eq!(
+                kinds,
+                vec![(FRAME, false), (FRAME, true), (FRAME, true)],
+                "{kinds:?}"
+            );
         }
     }
 
