@@ -312,9 +312,12 @@ fn portfolio_trials(
         }
         // The learned profile (`Client.learnedTrial`): the strategy's profile
         // without the contexts that saved nothing on this frame, coded too and
-        // kept when fewer bytes, or as many bytes and fewer steps.
+        // kept when fewer bytes, or as many bytes and fewer steps. The learning
+        // pass is bounded by the raw archive only: the learned profile can be
+        // shorter than a bound its own pass exceeds, and stopping that pass
+        // would lose it (the model always codes both).
         let (payload, learned) =
-            ncm::encode_learn_below(past, data, strategy.profile, stop(strategy.profile, bound))?;
+            ncm::encode_learn_below(past, data, strategy.profile, stop(strategy.profile, raw))?;
         let plain = frame_of(strategy.profile, &payload);
         if learned == strategy.profile {
             return plain;

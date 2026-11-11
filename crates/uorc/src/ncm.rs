@@ -685,9 +685,13 @@ impl Model {
         Some(m)
     }
 
-    /// Codes `state`'s bits through the whole model without a coder.
+    /// Codes `state`'s bits through the whole model without a coder: a pass
+    /// over the state that reports progress like any other.
     fn warm<K: Kernel, const W: usize>(&mut self, state: &[u8]) {
-        for &byte in state {
+        for (i, &byte) in state.iter().enumerate() {
+            if i % TICK == 0 {
+                tick(i, state.len());
+            }
             for k in (0..8).rev() {
                 self.predict::<K, W>();
                 self.update::<K, W>((byte >> k) & 1 == 1);
