@@ -2289,6 +2289,38 @@ mod tests {
         assert_eq!(encode_profile(&[], &text, FULL + 1), None);
     }
 
+    #[test]
+    fn recorded_tables_are_the_tables_the_frame_codes_with() {
+        let text: Vec<u8> = (0..40_000u32)
+            .flat_map(|i| format!("row {} of {}\n", i % 977, i % 31).into_bytes())
+            .take(60_000)
+            .collect();
+        let n = text.len() as u64;
+        assert_eq!(default_table_bits(n), 24);
+        assert!(valid_profile(with_table_bits(FULL, TABLE_MIN)));
+        assert!(!valid_profile(with_table_bits(FULL, TABLE_MIN - 1)));
+        assert!(!valid_profile(with_table_bits(FULL, TABLE_MAX + 1)));
+        assert!(!valid_profile(FULL | 1 << 31));
+        // recording the default size is the default frame; another size codes differently
+        let plain = encode_profile(&[], &text, FULL).expect("fits");
+        assert_eq!(encode_profile(&[], &text, with_table_bits(FULL, 24)), Some(plain.clone()));
+        for word in [
+            with_table_bits(FULL, 12),
+            with_table_bits(FULL, 25),
+            FULL | 9 << MATCH_SHIFT,
+            with_table_bits(V03, 20) | 18 << MATCH_SHIFT,
+        ] {
+            let p = encode_profile(&[], &text, word).expect("fits");
+            assert_ne!(p, plain);
+            assert_eq!(decode_canonical_profile(&[], &p, n, word).as_deref(), Some(&text[..]));
+            assert_ne!(decode_canonical_profile(&[], &p, n, FULL).as_deref(), Some(&text[..]));
+        }
+        // the footprint counts the tables the word names
+        let base = decoder_bytes(n, 0, false, FULL);
+        assert_eq!(decoder_bytes(n, 0, false, with_table_bits(FULL, 25)) - base, 4 << 24);
+        assert_eq!(base, (4 << 24) + 2 * (4 << 22) + n);
+    }
+
     /// A bounded encode returns exactly the unbounded payload when that is
     /// shorter than the bound, and nothing otherwise.
     #[test]
