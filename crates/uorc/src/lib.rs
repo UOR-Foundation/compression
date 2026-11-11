@@ -67,6 +67,7 @@ pub mod states;
 mod store;
 pub mod tree;
 pub mod ulz;
+pub mod weights;
 pub mod x86;
 
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
@@ -368,7 +369,7 @@ fn portfolio_trials(
 }
 
 /// The archive of scheduled strategy `which` (an index into
-/// [`portfolio::plan`], fewer than [`portfolio::MAX_BUDGET`]) for a frame
+/// [`portfolio::plan`], fewer than [`portfolio::MAX_PLAN`]) for a frame
 /// with objects of `lengths` after the frames `window`, bounded by the raw
 /// archive: `None` when there is no such strategy, it is excluded, or it
 /// cannot be shorter. Coding every scheduled strategy and passing the
@@ -386,6 +387,31 @@ pub fn compress_strategy(
         .pop()
         .flatten()
         .map(|(a, _)| a)
+}
+
+/// The archive a frame gets when the encoder codes `strategies` (in order)
+/// instead of the ones [`portfolio::plan`] schedules, each bounded by the
+/// raw archive and each without a state learning its context mask, keeping
+/// the least in bytes, then in decode steps. With `portfolio::SHIPPED.plan(frame)`
+/// it is the archive [`compress_frame_with`] writes (with `steps == 0`); with
+/// other strategies it is the frame at another point of the codec space (the
+/// claim decider, `crates/frontier`). `None` entries (a strategy the coder
+/// cannot apply) yield no candidate.
+pub fn compress_with_strategies(
+    frame: &[u8],
+    lengths: &[u64],
+    window: &[&[u8]],
+    strategies: &[Option<portfolio::Strategy>],
+) -> Vec<u8> {
+    let plan: Vec<portfolio::Strategy> = strategies.iter().flatten().copied().collect();
+    let best = portfolio_trials(frame, lengths, window, &plan, true)
+        .into_iter()
+        .rev()
+        .fold(None, |kept, head| pick_trial(head, kept));
+    match best {
+        Some((linked, _)) if (linked.len() as u64) < archive::raw_length(lengths) => linked,
+        _ => archive::raw_objects(frame, lengths),
+    }
 }
 
 /// The frame's archive from its scheduled strategies' archives, in plan
@@ -461,8 +487,8 @@ fn model_data() -> (
 ) {
     use uorc_compress::{Bytes, List};
     (
-        Bytes::lit(&portfolio::strategy_bytes()),
-        Bytes::lit(&portfolio::weight_bytes()),
+        Bytes::lit(portfolio::SHIPPED.strategies),
+        Bytes::lit(portfolio::SHIPPED.weights),
         states::ALL
             .iter()
             .rev()
@@ -1940,7 +1966,11 @@ mod tests {
             &ncm::encode_profile(&[], &input, ncm::FULL).expect("codes"),
         )
         .expect("frame");
-        assert!(least_state < alone.len(), "{least_state} vs {}", alone.len());
+        assert!(
+            least_state < alone.len(),
+            "{least_state} vs {}",
+            alone.len()
+        );
     }
 
     /// A linked archive whose payload the encoder would not write (one extra

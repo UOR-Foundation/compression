@@ -78,7 +78,10 @@ mod tests {
     #[test]
     fn states_are_their_kappa() {
         for (s, k) in [STATE_1, STATE_2].iter().zip(KAPPA) {
-            let hex: String = Sha256::digest(s).iter().map(|b| format!("{b:02x}")).collect();
+            let hex: String = Sha256::digest(s)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect();
             assert_eq!(hex, k);
         }
         assert_eq!(ALL.len(), KAPPA.len());

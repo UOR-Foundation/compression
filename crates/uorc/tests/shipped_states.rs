@@ -5,7 +5,14 @@
 //! portfolio schedules for a small text frame.
 
 fn text(n: usize, seed: u32) -> Vec<u8> {
-    let words = [&b"archive "[..], b"frame ", b"state ", b"model ", b"byte ", b"window\n"];
+    let words = [
+        &b"archive "[..],
+        b"frame ",
+        b"state ",
+        b"model ",
+        b"byte ",
+        b"window\n",
+    ];
     let mut x = seed;
     let mut out = Vec::with_capacity(n + 8);
     while out.len() < n {
@@ -25,5 +32,8 @@ fn shipped_states_native_is_the_model() {
     let model = uorc::model_compress_frame(&input).expect("model");
     assert_eq!(native, model);
     assert_eq!(uorc::model_decompress_frame(&native).as_ref(), Ok(&input));
-    assert_eq!(uorc::decompress(&native, uorc::DEFAULT_DECODE_WORK).as_ref(), Ok(&input));
+    assert_eq!(
+        uorc::decompress(&native, uorc::DEFAULT_DECODE_WORK).as_ref(),
+        Ok(&input)
+    );
 }

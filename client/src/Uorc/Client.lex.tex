@@ -199,6 +199,61 @@ definition{
 }
 
 definition{
+  name: v04Pair,
+  parameters: [fam : Nat],
+  result: Bytes,
+  body: (if (fam =? 0) then 0xffff010000ffff0f0000 else (if (fam =? 1) then 0xffff010000ffff070000 else (if (fam =? 2) then 0xffff078000ffff0f0000 else 0xffff0f0000ffff070000))),
+  axioms: []
+}
+definition{
+  name: takeNat,
+  parameters: [n : Nat, list : (List Nat)],
+  result: (List Nat),
+  body: (match list
+    | List.nil => (nil Nat)
+    | List.cons head tail => (if (n =? 0) then (nil Nat) else (cons head (takeNat (prim subtract n 1 : Nat) tail)))),
+  axioms: [],
+  recursive_argument: list
+}
+definition{
+  name: appendNat,
+  parameters: [list : (List Nat), more : (List Nat)],
+  result: (List Nat),
+  body: (match list
+    | List.nil => more
+    | List.cons head tail => (cons head (appendNat tail more))),
+  axioms: [],
+  recursive_argument: list
+}
+definition{
+  name: covers,
+  parameters: [table : Bytes, scheduled : (List Nat), entry : Bytes],
+  result: Bool,
+  body: (match scheduled
+    | List.nil => false
+    | List.cons head tail => (match (prim slice table (prim multiply 5 head : Nat) 5 : (Option Bytes))
+      | Option.none => (covers table tail entry)
+      | Option.some e => (if (prim equal e entry : Bool) then true else (covers table tail entry)))),
+  axioms: [],
+  recursive_argument: scheduled
+}
+definition{
+  name: pairMissing,
+  parameters: [table : Bytes, scheduled : (List Nat), count : Nat, k : Nat],
+  result: (List Nat),
+  body: (match (prim slice table (prim multiply 5 (count + k) : Nat) 5 : (Option Bytes))
+    | Option.none => (nil Nat)
+    | Option.some e => (if (covers table scheduled e) then (nil Nat) else (cons (count + k) (nil Nat)))),
+  axioms: []
+}
+definition{
+  name: planned,
+  parameters: [table : Bytes, count : Nat, scheduled : (List Nat)],
+  result: (List Nat),
+  body: (appendNat scheduled (appendNat (pairMissing table scheduled count 0) (pairMissing table scheduled count 1))),
+  axioms: []
+}
+definition{
   name: stateAt,
   parameters: [states : (List Bytes), k : Nat],
   result: (Option Bytes),
@@ -288,9 +343,11 @@ definition{
   name: compress,
   parameters: [strategies : Bytes, weights : Bytes, states : (List Bytes), input : Bytes, window : (List Bytes), steps : Nat],
   result: (Option Bytes),
-  body: (let fam : Nat := (family input); (let linked : (Option (Bytes * Nat)) := (portfolio strategies states (budgetFor fam) (schedule strategies weights fam) window input); (let quick : (Option Bytes) := (match linked
+  body: (let fam : Nat := (family input); (let count : Nat := (strategyCount strategies); (let table : Bytes := (Uorc.Codec.Archive::cat (match (prim slice strategies 0 (prim multiply 5 count : Nat) : (Option Bytes))
+    | Option.none => strategies
+    | Option.some whole => whole) (v04Pair fam)); (let coded : (List Nat) := (planned table count (takeNat (budgetFor fam) (schedule strategies weights fam))); (let linked : (Option (Bytes * Nat)) := (portfolio table states (count + 2) coded window input); (let quick : (Option Bytes) := (match linked
     | Option.none => (Uorc.Codec.Archive::rawArchive input)
-    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] (first kernel)) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps)))))),
+    | Option.some kernel => (if ((prim length (first kernel) : Nat) <? (rawLength (prim length input : Nat))) then (ctor Option.some [Bytes] (first kernel)) else (Uorc.Codec.Archive::rawArchive input))); (if (steps =? 0) then quick else (smaller quick (search input steps))))))))),
   axioms: [Quot.sound, propext]
 }
 
