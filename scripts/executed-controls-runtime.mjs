@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {controlModules, driver} from './product-machine-runtime.mjs';
+import {controlModules, driver} from './executed-controls.mjs';
 import {dataForm, stageRuntime} from './semantic-source.mjs';
 const requireFact=(b,m)=>{if(!b)throw new Error(m);};
 function run(command,args,cwd,env={}){

@@ -17,7 +17,7 @@ that orders remaining work. Here the decisions are a small Node host
 | `rest-<runner>` (2) | fetch | everything | bootstrap `template-gate` |
 | `artifacts` | hermetic | the LexLean project: `src/` and its project files | bootstrap `template-gate` |
 | `varint` | hermetic | the import closure of `Uorc.Varint`, `Uorc.VarintContract`; the project files, xtask, scripts | bootstrap `template-gate` |
-| `integrity` | hermetic | the import closure of every `Uorc.Integrity` module, `Uorc.Wire.ArchiveIntegrity`, `Uorc.Wire.OwnedRead` (99 of 340 modules); `validation/integrity/`, `standards/`; the project files, xtask, scripts | bootstrap `template-gate` |
+| `integrity` | hermetic | the import closure of every `Uorc.Integrity` module (SHA-256, the bounded chain and their contract); `standards/`; the project files, xtask, scripts | bootstrap `template-gate` |
 | `claims`, `reproducibility` | hermetic | the formal set | bootstrap `template-gate` |
 | `offline` | fetch | the formal set | offline-validation |
 | `export` | fetch, host | the import closure of `Uorc.Client` (client/src over src), the LexLean project files, the export scripts | `node scripts/client-export.mjs` on a workstation |
