@@ -1401,6 +1401,28 @@ mod tests {
         );
     }
 
+    /// Streams the released v0.2.0 and v0.3.0 binaries wrote for one input
+    /// (an 8 MiB frame, the same frame again, then a 4 KiB frame) decode
+    /// under the appended library: v0.2.0's ulz frame and ulz window frames;
+    /// v0.3.0's ncm frame, its reference frame (labelled over the v0.3
+    /// library) and an ncm window frame over the two frames before.
+    #[test]
+    fn released_streams_decode() {
+        let frame: Vec<u8> = (0..FRAME)
+            .map(|i| ((((i >> 4) * 7 + (i >> 12)) & 0x3f) + 0x20) as u8)
+            .collect();
+        let input = [&frame[..], &frame[..], &frame[1000..5096]].concat();
+        for stream in [
+            &include_bytes!("../tests/compat/stream-v0.2.0.uorc")[..],
+            include_bytes!("../tests/compat/stream-v0.3.0.uorc"),
+        ] {
+            let mut out = Vec::new();
+            decompress_stream(io::Cursor::new(stream), &mut out, DEFAULT_DECODE_WORK, 2)
+                .expect("decodes");
+            assert!(out == input);
+        }
+    }
+
     /// The portfolio's choices depend on each frame and its window only (the
     /// weights are the committed table), so a stream of frames from every
     /// family is the same bytes for any number of threads.
