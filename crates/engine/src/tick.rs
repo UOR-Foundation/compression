@@ -33,10 +33,21 @@ pub trait Decider {
     /// The closed claim of `point` on the corpus: recorded once, then read
     /// back by its κ, never run again.
     fn measure(&mut self, point: &Point) -> Result<Measure, String>;
+    /// κ of "candidate dominates incumbent on `family`" (`None`: the whole
+    /// corpus).
+    fn claim(&self, candidate: &Point, incumbent: &Point, family: Option<usize>) -> String;
     /// Whether a claim of this κ is decided.
     fn known(&self, kappa: &str) -> bool;
-    /// Record a decided dominance, exclusion or consolidation claim.
-    fn record(&mut self, hypothesis: &HypothesisRow) -> Result<(), String>;
+    /// Record a decided dominance claim (`hypothesis` holds its answer).
+    fn record(
+        &mut self,
+        hypothesis: &HypothesisRow,
+        candidate: &Point,
+        incumbent: &Point,
+        family: Option<usize>,
+    ) -> Result<(), String>;
+    /// Record `point` as excluded (dominated, never decided again); its κ.
+    fn exclude(&mut self, point: &Point) -> Result<String, String>;
 }
 
 /// κ of a claim: SHA-256 over the tag, its form, family, the two points and
@@ -138,12 +149,10 @@ pub fn tick(
         if candidate == incumbent {
             continue;
         }
-        let kappa = claim_kappa(
-            "dominance",
-            portfolio::FAMILY_NAMES[family],
-            &decider.point(&Point::Fixed(candidate)),
-            &decider.point(&Point::Fixed(incumbent)),
-            &corpus,
+        let kappa = decider.claim(
+            &Point::Fixed(candidate),
+            &Point::Fixed(incumbent),
+            Some(family),
         );
         let seen = decider.known(&kappa) || minted.iter().any(|m| m.kappa == kappa);
         match admit_mint(seen, remaining) {
@@ -190,10 +199,15 @@ pub fn tick(
                 space::describe(m.generator)
             ),
         };
-        decider.record(&row)?;
+        decider.record(
+            &row,
+            &Point::Fixed(m.candidate),
+            &Point::Fixed(m.incumbent),
+            Some(m.family),
+        )?;
         if !proved && Laws::dominates((ib, is), (cb, cs)) {
             let exclusion = HypothesisRow {
-                kappa: claim_kappa("exclusion", fam, &row.incumbent, &row.candidate, &corpus),
+                kappa: decider.exclude(&Point::Fixed(m.candidate))?,
                 form: "exclusion".into(),
                 status: "proved".into(),
                 statement: format!(
@@ -203,7 +217,7 @@ pub fn tick(
                 ),
                 ..row.clone()
             };
-            decider.record(&exclusion)?;
+            hypotheses.hypothesis.push(exclusion);
         }
         let g = space::generator_weight(engine, laws, m.generator, m.family);
         space::set_generator_weight(engine, m.generator, m.family, laws.learn(g, proved));
@@ -238,7 +252,7 @@ pub fn tick(
     if table != shipped {
         let (cp, ip) = (table.point(), shipped.point());
         let (ck, ik) = (decider.point(&cp), decider.point(&ip));
-        let kappa = claim_kappa("consolidation", "all", &ck, &ik, &corpus);
+        let kappa = decider.claim(&cp, &ip, None);
         if !decider.known(&kappa) {
             let c = decider.measure(&cp)?;
             let i = decider.measure(&ip)?;
@@ -263,7 +277,7 @@ pub fn tick(
                     i.steps
                 ),
             };
-            decider.record(&row)?;
+            decider.record(&row, &cp, &ip, None)?;
             if proved {
                 table.store(engine);
                 outcome = "consolidated";
@@ -361,12 +375,37 @@ mod tests {
                 }
             })
         }
+        fn claim(&self, c: &Point, i: &Point, family: Option<usize>) -> String {
+            let fam = family.map_or("all", |f| portfolio::FAMILY_NAMES[f]);
+            claim_kappa(
+                "dominance",
+                fam,
+                &self.point(c),
+                &self.point(i),
+                &self.corpus(),
+            )
+        }
         fn known(&self, kappa: &str) -> bool {
             self.register.contains_key(kappa)
         }
-        fn record(&mut self, h: &HypothesisRow) -> Result<(), String> {
+        fn record(
+            &mut self,
+            h: &HypothesisRow,
+            _: &Point,
+            _: &Point,
+            _: Option<usize>,
+        ) -> Result<(), String> {
             self.register.insert(h.kappa.clone(), h.clone());
             Ok(())
+        }
+        fn exclude(&mut self, p: &Point) -> Result<String, String> {
+            Ok(claim_kappa(
+                "exclusion",
+                "",
+                &self.point(p),
+                "",
+                &self.corpus(),
+            ))
         }
     }
 

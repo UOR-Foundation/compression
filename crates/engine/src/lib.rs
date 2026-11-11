@@ -9,6 +9,7 @@
 //! shipped one. A claim known by its κ is never decided again. No LLM is in
 //! the loop: the model states the laws and the decider runs the shipped code.
 
+pub mod decide;
 pub mod model;
 pub mod render;
 pub mod space;
