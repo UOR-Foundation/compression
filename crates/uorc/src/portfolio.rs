@@ -7,9 +7,10 @@
 //! comes from cheap statistics of its bytes ([`family`]). Every (family,
 //! strategy) pair carries a bounded integer weight in 1..=16; the schedule of
 //! a family is every strategy ordered by weight (ties by portfolio order), so
-//! no strategy is ever unreachable. The encoder codes the first [`budget`]
-//! strategies of the schedule and, after them, each strategy of the family's
-//! v0.4 pair ([`V04_PAIR`]) the schedule did not reach, and keeps the least
+//! no strategy is ever unreachable. The encoder codes every strategy of the
+//! schedule the frame can code, in schedule order, and after them each
+//! strategy of the family's v0.4 pair ([`V04_PAIR`]) the table does not
+//! hold, and keeps the least
 //! archive in bytes, then in decode steps (raw when that is smaller). The
 //! coded strategies always include the ones v0.4 coded for the family, and
 //! every strategy without a state learns its context mask, so no frame is
@@ -55,23 +56,9 @@ pub const FAMILIES: usize = 5;
 /// The families' names, in order.
 pub const FAMILY_NAMES: [&str; FAMILIES] = ["tiny", "small", "x86", "text", "other"];
 
-/// Scheduled strategies the encoder codes for a frame of `family`
-/// (`Client.budgetFor`): four for tiny and small frames, three for text,
-/// two for x86 and other frames.
-pub const fn budget(family: usize) -> usize {
-    match family {
-        0 | 1 => 4,
-        3 => 3,
-        _ => 2,
-    }
-}
-
-/// The most scheduled strategies any family codes ([`budget`]).
-pub const BUDGET: usize = 4;
-
-/// The most strategies the encoder codes for a frame: [`BUDGET`] scheduled
-/// ones and the two of the family's v0.4 pair.
-pub const MAX_PLAN: usize = BUDGET + 2;
+/// The most strategies the encoder codes for a frame under the shipped
+/// table: every entry, and the two of the family's v0.4 pair.
+pub const MAX_PLAN: usize = SHIPPED_COUNT + 2;
 
 const fn plain(x86: bool, profile: u32) -> Strategy {
     Strategy {
@@ -160,13 +147,12 @@ impl<'a> Table<'a> {
     }
 
     /// The strategies the encoder codes for `frame`, in order
-    /// (`Client.planned`): the first [`budget`] scheduled entries (an entry
-    /// the coder cannot apply keeps its place and yields no candidate), then
-    /// each strategy of the family's [`V04_PAIR`] whose entry bytes no
-    /// scheduled entry has.
+    /// (`Client.planned`): every scheduled entry (an entry the coder cannot
+    /// apply yields no candidate), then each strategy of the family's
+    /// [`V04_PAIR`] whose entry bytes no entry has.
     pub fn plan(&self, frame: &[u8]) -> Vec<Option<Strategy>> {
         let f = family(frame);
-        let scheduled: Vec<usize> = self.schedule(f).into_iter().take(budget(f)).collect();
+        let scheduled: Vec<usize> = self.schedule(f);
         let entry = |i: usize| &self.strategies[i * ENTRY..(i + 1) * ENTRY];
         let mut plan: Vec<Option<Strategy>> = scheduled.iter().map(|&i| self.strategy(i)).collect();
         for s in V04_PAIR[f] {

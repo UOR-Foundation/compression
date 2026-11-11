@@ -92,8 +92,8 @@ impl Plan {
     }
 
     /// The strategies this plan codes for `frame`, in order: a portfolio's
-    /// [`portfolio::Table::plan`] (the first [`portfolio::BUDGET`] entries
-    /// by the frame family's weights, highest first, ties in table order),
+    /// [`portfolio::Table::plan`] (every entry by the frame family's
+    /// weights, highest first, ties in table order, then the v0.4 pair),
     /// or the fixed strategy.
     pub fn strategies(&self, frame: &[u8]) -> Vec<Option<Strategy>> {
         match self {
