@@ -32,6 +32,7 @@ model:
 # copy of the tree in the SDK's 2 GiB /tmp (0.85 GB at peak), and the xtask
 # build that audit-bootstrap leaves in /tmp/prismpm-cargo-* takes 1.2 GB more.
 template-check:
+    df -k /tmp && (du -xsk /tmp/* /tmp/.[!.]* * .[!.]* 2>/dev/null | sort -n | tail -12 || true) && env | grep -E '^(CARGO|RUST)' || true
     prismpm template check
     cargo run --locked -q -p xtask -- audit-bootstrap
     prismpm lock check
