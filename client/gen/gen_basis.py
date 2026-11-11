@@ -36,18 +36,27 @@ def libraries():
     nwith = ncmgraph.window_library(g)
     _, x86 = x86graph.library(g)
     g.x86 = x86
-    runs = {'ulz': urun, 'ncm': nrun, 'ulz1': uwith, 'ulz2': uwith, 'ncm1': nwith, 'ncm2': nwith}
+    # every block above is the v0.3 library, unchanged; the profiled coder (ncm_model) follows
+    g.v03_blocks = len(g.blocks)
+    nprof = ncmgraph.profile_library(g)
+    runs = {'ulz': urun, 'ncm': nrun, 'ulz1': uwith, 'ulz2': uwith, 'ncm1': nwith, 'ncm2': nwith,
+            'ncmp': nprof, 'ncmp1': nprof, 'ncmp2': nprof}
     runs.update({c + 'x': r for c, r in list(runs.items()) if c.startswith('ncm')})
     return g, runs
 
 
 # Window entries: roots 1..K of the basis are the outputs of the K preceding frames, oldest first.
-WINDOWS = {'ulz1': 1, 'ulz2': 2, 'ncm1': 1, 'ncm2': 2}
+WINDOWS = {'ulz1': 1, 'ulz2': 2, 'ncm1': 1, 'ncm2': 2, 'ncmp1': 1, 'ncmp2': 2}
 WINDOWS.update({c + 'x': k for c, k in list(WINDOWS.items()) if c.startswith('ncm')})
 # The client compresses with ncm only; the ulz entries stay so earlier archives keep their meaning.
 # Codecs ending in x code the x86-filtered bytes (x86_model): the entry undoes the filter on the
 # decoder's output, and a window entry filters the history first, the frame placed after it.
 CODECS = ['ulz', 'ncm', 'ulz1', 'ulz2', 'ncm1', 'ncm2', 'ncmx', 'ncm1x', 'ncm2x']
+# Profiled codecs (ncmp*): the entry applies ncmRunProfile to the payload, the history (empty without a window)
+# and the frame's profile word, a natural constant right after the payload: the template is
+# prefix ++ uleb(len) ++ payload ++ 00 ++ uleb(profile) ++ tail.
+PCODECS = ['ncmp', 'ncmp1', 'ncmp2', 'ncmpx', 'ncmp1x', 'ncmp2x']
+PROFILE_MARK = 0x7ffff
 
 
 G, RUN = libraries()
@@ -66,9 +75,34 @@ V02_ID = _hex('basis-id.hex')
 assert V02_ID == wire.chain(TAG + wire.uleb(1) + wire.uleb(len(V02_LIB)) + V02_LIB)
 assert V02_LIB == wire.uleb(G.v02_blocks) + b''.join(block_bytes(b) for b in G.blocks[:G.v02_blocks]), 'the v0.2 blocks changed'
 
+# The v0.3 basis (client/gen/v03): its library is this one's first v03_blocks blocks, byte for byte, so v0.3
+# archives keep their meaning too. The client accepts its identity beside STD_ID.
+def _hex3(name):
+    return bytes.fromhex(open(os.path.join(HERE, 'v03', name)).read().replace('\n', ''))
+V03_LIB = _hex3('basis-library.hex')
+V03_ID = _hex3('basis-id.hex')
+assert V03_ID == wire.chain(TAG + wire.uleb(1) + wire.uleb(len(V03_LIB)) + V03_LIB)
+assert V03_LIB == wire.uleb(G.v03_blocks) + b''.join(block_bytes(b) for b in G.blocks[:G.v03_blocks]), 'the v0.3 blocks changed'
+# a v0.3 entry: its frozen suffix with the current prefix (prefixes reference no block)
+V03_TEMPLATES = None
 
-def entry(g, run, payload, k=0, x86=False):
+
+def entry(g, run, payload, k=0, x86=False, profile=None):
     e = g.block('entry', [], S)
+    if profile is not None:
+        pl = e.seq(payload)
+        pf = e.nat(profile)
+        history = e.seq(b'')
+        if k > 0:
+            history = e.basis(1)
+            for r in range(2, k + 1):
+                history = e.sconcat(history, e.basis(r))
+        if not x86:
+            e.returns(e.apply(run, [pl, history, pf]))
+            return e
+        out = e.apply(run, [pl, e.apply(g.x86, [history, e.nat(0), e.nat(0)]), pf])
+        e.returns(e.apply(g.x86, [out, e.nat(1), e.slen(history)]))
+        return e
     if k == 0:
         out = e.apply(run, [e.seq(payload)])
         e.returns(e.apply(g.x86, [out, e.nat(1), e.nat(0)]) if x86 else out)
@@ -104,6 +138,22 @@ def template(codec):
 
 
 TEMPLATES = {c: template(c) for c in CODECS}
+V03_TEMPLATES = {c: (TEMPLATES[c][0], _hex3(f'linked-{c}-suffix.hex')) for c in CODECS}
+
+
+def profile_template(codec):
+    """(prefix, tail) of a profiled codec: its body is prefix ++ uleb(len) ++ payload ++ 00 ++ uleb(profile) ++ tail."""
+    e = entry(G, RUN[codec], PH, WINDOWS.get(codec, 0), codec.endswith('x'), PROFILE_MARK)
+    eb = block_bytes(e)
+    G.blocks.pop()
+    body = wire.uleb(1) + eb + wire.uleb(0)
+    mark = bytes([3, 2]) + PH + bytes([0]) + wire.uleb(PROFILE_MARK)
+    assert body.count(mark) == 1, codec
+    cut = body.index(mark)
+    return body[:cut + 1], body[cut + len(mark):]
+
+
+PTEMPLATES = {c: profile_template(c) for c in PCODECS}
 
 
 def reference_body():
@@ -120,7 +170,10 @@ def reference_body():
 REF_BODY = reference_body()
 
 
-def linked_body(codec, payload):
+def linked_body(codec, payload, profile=None):
+    if profile is not None:
+        pre, tail = PTEMPLATES[codec]
+        return pre + wire.uleb(len(payload)) + payload + bytes([0]) + wire.uleb(profile) + tail
     pre, suf = TEMPLATES[codec]
     return pre + wire.uleb(len(payload)) + payload + suf
 
@@ -131,8 +184,8 @@ def materialize(body):
     return wire.uleb(L + 1) + LIBB + body[1:-1] + wire.uleb(L)
 
 
-def linked_archive(codec, n, payload, window=()):
-    body = linked_body(codec, payload)
+def linked_archive(codec, n, payload, window=(), profile=None):
+    body = linked_body(codec, payload, profile)
     ident = basis_id(window) if window else STD_ID
     pre = b'UORC' + bytes([2, 1, 1, 1]) + wire.uleb(1) + wire.uleb(n) + wire.uleb(len(body)) + ident + body
     return wire.sealed(pre)
@@ -157,15 +210,28 @@ if __name__ == '__main__':
             write_hex(f'linked-{c}-prefix.hex', pre)
         write_hex(f'linked-{c}-suffix.hex', suf)
     write_hex('linked-ref.hex', REF_BODY)
+    write_hex('basis-v03-id.hex', V03_ID)
+    write_hex('basis-v03-library.hex', V03_LIB)
+    # v0.3 entries: the same prefixes; their suffixes name the run blocks at their v0.3 (relative) distance
+    for c in CODECS:
+        assert TEMPLATES[c][0] == V03_TEMPLATES[c][0], c
+        write_hex(f'v03-linked-{c}-suffix.hex', V03_TEMPLATES[c][1])
+    for c, (pre, tail) in PTEMPLATES.items():
+        write_hex(f'linked-{c}-prefix.hex', pre)
+        write_hex(f'linked-{c}-tail.hex', tail)
     print('library blocks', L, 'bytes', len(LIB), 'identity', STD_ID.hex())
     for c, (pre, suf) in TEMPLATES.items():
         print(c, 'linked prefix', pre.hex(), 'suffix', suf.hex())
+    for c, (pre, tail) in PTEMPLATES.items():
+        print(c, 'profiled prefix', pre.hex(), 'tail', tail.hex())
     if '--check' in sys.argv:
         import ulz, ncm_model, x86_model
         text = b'the standard basis carries the kernels; archives name it by identity. ' * 3
         text = text[:100] + bytes([0xE8, 0x10, 0, 0, 0, 0xE8, 0xF0, 0xFF, 0xFF, 0xFF]) + text[100:]
         xf = lambda d, base=0: x86_model.py_filter(d, 0, base)
-        for c, enc in (('ulz', ulz.compress), ('ncm', ncm_model.py_encode), ('ncmx', lambda d: ncm_model.py_encode(xf(d)))):
+        V03 = ncm_model.V03
+        for c, enc in (('ulz', ulz.compress), ('ncm', lambda d: ncm_model.py_encode(d, b'', V03)),
+                       ('ncmx', lambda d: ncm_model.py_encode(xf(d), b'', V03))):
             payload = enc(text)
             # the materialized graph is the libraries plus the entry, exactly as built structurally
             g, runs = libraries()
@@ -187,8 +253,10 @@ if __name__ == '__main__':
         frames = [b'window frame one: the standard basis carries the kernels. ' * 4 + call,
                   b'window frame two: archives name the kernels by identity. ' * 4 + call,
                   b'window frame three: the standard basis carries the kernels; archives name it by identity. ' * 2 + call]
-        wenc = {'ulz': ulz.compress_with, 'ncm': lambda h, d: ncm_model.py_encode(d, h)}
+        wenc = {'ulz': ulz.compress_with, 'ncm': lambda h, d: ncm_model.py_encode(d, h, V03)}
         for c, k in WINDOWS.items():
+            if c not in CODECS:
+                continue
             window = frames[2 - k:2]
             hist = b''.join(window)
             if c.endswith('x'):
@@ -202,3 +270,19 @@ if __name__ == '__main__':
             assert out == frames[2], (c, out[:60])
             alone = wenc[c[:3]](b'', frames[2])  # the window's gain
             print(c, 'window payload', len(payload), 'vs alone', len(alone), '; decodes on the mirror')
+        # profiled entries: the payload coded under the profile word the entry carries
+        for c in PCODECS:
+            k = WINDOWS.get(c, 0)
+            window = frames[2 - k:2]
+            hist = b''.join(window)
+            for prof in (ncm_model.FULL, 0x1059e | ncm_model.F_REP):
+                if c.endswith('x'):
+                    payload = ncm_model.py_encode(xf(frames[2], len(hist)), xf(hist), prof)
+                else:
+                    payload = ncm_model.py_encode(frames[2], hist, prof)
+                g, runs = libraries()
+                e = entry(g, runs[c], payload, k, c.endswith('x'), prof)
+                assert materialize(linked_body(c, payload, prof)) == wire.graph_bytes(g, e), c
+                out = evaluate(g, e, basis=[LIB] + window)
+                assert out == frames[2], (c, hex(prof), out[:60])
+                print(c, hex(prof), 'profiled payload', len(payload), '; decodes on the mirror')

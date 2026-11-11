@@ -4,7 +4,8 @@ vv = "run --package xtask -- validate"
 
 # The exported uorc code recurses structurally over archives and byte ropes;
 # the default 1 MiB WebAssembly stack is too small for it. 2 KiB inputs run in
-# 16 MiB, and 64 MiB leaves room for deeper inputs. SIMD128 (in every current
-# browser) speeds the ncm coder 1.34x in the browser, with the same bytes.
+# 16 MiB, and 64 MiB leaves room for deeper inputs.
+# simd128 lets ncm's mixers run on the WebAssembly SIMD kernel (every browser
+# the page supports has it).
 [target.wasm32-unknown-unknown]
 rustflags = ["-C", "link-arg=-zstack-size=67108864", "-C", "target-feature=+simd128"]
