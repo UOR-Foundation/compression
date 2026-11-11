@@ -1377,39 +1377,6 @@ definition{
 }
 
 definition{
-  name: profileCandidate,
-  parameters: [codec : Nat, profile : Nat, window : (List Bytes), input : Bytes],
-  result: (Option Bytes),
-  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (profile =? 131071) then (v03Candidate x window (prim length input : Nat) payload) else (match (profiledIdentity window)
-    | Option.none => (ctor Option.none [Bytes])
-    | Option.some identity => (profiledArchive x (windowCount window) identity (prim length input : Nat) profile payload))) else (ctor Option.none [Bytes]))))),
-  executable: true,
-  axioms: [Quot.sound, propext]
-}
-
-definition{
-  name: profiledLearner,
-  parameters: [x : Nat, history : Bytes, input : Bytes, profile : Nat],
-  result: Nat,
-  body: (if (x =? 0) then (Uorc.Codec.NcmEncode::learnProfile history input profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (Uorc.Codec.NcmEncode::learnProfile h f profile)))),
-  executable: true,
-  axioms: [Quot.sound, propext]
-}
-
-definition{
-  name: learnedCandidate,
-  parameters: [codec : Nat, profile : Nat, window : (List Bytes), input : Bytes],
-  result: (Option Bytes),
-  body: (let plain : (Option Bytes) := (profileCandidate codec profile window input); (let learned : Nat := (profiledLearner (if (codec =? 2) then 1 else 0) (windowHistory window) input profile); (if (learned =? profile) then plain else (match (profileCandidate codec learned window input)
-    | Option.none => plain
-    | Option.some l => (match plain
-      | Option.none => (ctor Option.some [Bytes] l)
-      | Option.some p => (if ((prim length l : Nat) <=? (prim length p : Nat)) then (ctor Option.some [Bytes] l) else plain)))))),
-  executable: true,
-  axioms: [Quot.sound, propext]
-}
-
-definition{
   name: v04Root,
   parameters: [],
   result: Bytes,
@@ -1527,6 +1494,39 @@ definition{
             | Option.some identity => (match (v04ProfiledArchive x k identity (first h) profile payload)
               | Option.none => (ctor Option.none [Bytes])
               | Option.some rebuilt => (if (prim equal rebuilt data : Bool) then (let history : Bytes := (windowHistory window); (let out : Bytes := (profiledDecoder x history payload profile); (if (((prim length out : Nat) =? (first h)) && (prim equal (profiledEncoder x history out profile) payload : Bool)) then (ctor Option.some [Bytes] out) else (ctor Option.none [Bytes])))) else (ctor Option.none [Bytes]))))))))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: profileCandidate,
+  parameters: [codec : Nat, profile : Nat, window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (profile =? 131071) then (v03Candidate x window (prim length input : Nat) payload) else (match (v04ProfiledIdentity window)
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some identity => (v04ProfiledArchive x (windowCount window) identity (prim length input : Nat) profile payload))) else (ctor Option.none [Bytes]))))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: profiledLearner,
+  parameters: [x : Nat, history : Bytes, input : Bytes, profile : Nat],
+  result: Nat,
+  body: (if (x =? 0) then (Uorc.Codec.NcmEncode::learnProfile history input profile) else (let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (Uorc.Codec.NcmEncode::learnProfile h f profile)))),
+  executable: true,
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: learnedCandidate,
+  parameters: [codec : Nat, profile : Nat, window : (List Bytes), input : Bytes],
+  result: (Option Bytes),
+  body: (let plain : (Option Bytes) := (profileCandidate codec profile window input); (let learned : Nat := (profiledLearner (if (codec =? 2) then 1 else 0) (windowHistory window) input profile); (if (learned =? profile) then plain else (match (profileCandidate codec learned window input)
+    | Option.none => plain
+    | Option.some l => (match plain
+      | Option.none => (ctor Option.some [Bytes] l)
+      | Option.some p => (if ((prim length l : Nat) <=? (prim length p : Nat)) then (ctor Option.some [Bytes] l) else plain)))))),
   executable: true,
   axioms: [Quot.sound, propext]
 }

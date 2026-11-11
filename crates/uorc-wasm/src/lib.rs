@@ -400,10 +400,12 @@ pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
             return Err(uorc::Error::Decode);
         }
         match which {
-            k if (0..uorc::portfolio::MAX_BUDGET as i32).contains(&k) => Ok(
-                uorc::compress_strategy(frame, &pieces, &window, which as usize)
-                    .unwrap_or_default(),
-            ),
+            k if (0..uorc::portfolio::MAX_PLAN as i32).contains(&k) => {
+                Ok(
+                    uorc::compress_strategy(frame, &pieces, &window, which as usize)
+                        .unwrap_or_default(),
+                )
+            }
             _ => uorc::Planned::Code {
                 bytes: frame.to_vec(),
                 pieces,
@@ -418,7 +420,7 @@ pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
 /// one strategy for.
 #[no_mangle]
 pub extern "C" fn strategies() -> i32 {
-    uorc::portfolio::MAX_BUDGET as i32
+    uorc::portfolio::MAX_PLAN as i32
 }
 
 /// The frame's archive from its strategies' outputs of [`code_frame`], in
@@ -444,7 +446,7 @@ pub extern "C" fn choose_frame() -> i32 {
         }
         f.end()?;
         if pieces.iter().sum::<u64>() != frame.len() as u64
-            || archives.len() > uorc::portfolio::MAX_BUDGET
+            || archives.len() > uorc::portfolio::MAX_PLAN
         {
             return Err(uorc::Error::Decode);
         }

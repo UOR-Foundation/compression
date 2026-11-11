@@ -542,7 +542,12 @@ fn linked_header(lengths: &[u64], body_len: u64) -> Vec<u8> {
 }
 
 fn body_len(codec: Codec, k: usize, p: u64) -> Option<u64> {
-    let (prefix, suffix) = template(codec, k, Era::Current)?;
+    // profiled frames are written over the v0.4 basis ([`linked_archive_profile`])
+    let era = match codec {
+        Codec::Profile(_) | Codec::ProfileX86(_) => Era::V04,
+        _ => Era::Current,
+    };
+    let (prefix, suffix) = template(codec, k, era)?;
     Some(prefix.len() as u64 + uleb_len(p) as u64 + p + suffix.len() as u64)
 }
 
@@ -550,8 +555,14 @@ fn body_len(codec: Codec, k: usize, p: u64) -> Option<u64> {
 /// entry applies `codec`'s decoder to `payload`, reconstructing objects of
 /// `lengths` (one object in the model; several when the client relabels).
 /// `None` for a profile word that is not a [`crate::ncm::valid_profile`].
+/// Profiled entries are written over the v0.4 basis ([`linked_archive_profile`]).
 pub fn linked_archive(codec: Codec, lengths: &[u64], payload: &[u8]) -> Option<Vec<u8>> {
-    entry_archive(codec, 0, Era::Current, &BASIS_ID, lengths, payload)
+    match codec {
+        Codec::Profile(_) | Codec::ProfileX86(_) => {
+            entry_archive(codec, 0, Era::V04, &V04_BASIS_ID, lengths, payload)
+        }
+        _ => entry_archive(codec, 0, Era::Current, &BASIS_ID, lengths, payload),
+    }
 }
 
 /// The archive over the basis named `identity` (`era`'s library and the `k`
@@ -591,6 +602,10 @@ fn plain(codec: Codec) -> Codec {
 /// [`Codec::NcmX86`], whose x86 filter it keeps) under `profile`
 /// (`Archive.profileCandidate` with no window). Profile [`crate::ncm::V03`] is the
 /// v0.3 coder, so its frame is the v0.3 archive itself (`Archive.v03Candidate`).
+/// Every other profiled frame is written over the v0.4 basis (`Archive.v04ProfiledArchive`):
+/// it needs no block added since, and the v0.4 entry tails are never longer than
+/// the current ones (the x86 tails are 2 bytes shorter), so a state-free frame is
+/// exactly the frame v0.4 writes for the same payload.
 pub fn linked_archive_profile(
     codec: Codec,
     profile: u32,
@@ -606,7 +621,8 @@ pub fn linked_archive_profile(
 /// [`window_archive`] of the profiled entry for `codec` under `profile`
 /// (`Archive.profileCandidate` over the frames of `window`, whose current
 /// [`window_identity`] is `identity`). Profile [`crate::ncm::V03`] writes the v0.3
-/// window frame over the v0.3 library.
+/// window frame over the v0.3 library; every other profile the v0.4 window frame
+/// (`Archive.v04ProfiledArchive`), as [`linked_archive_profile`].
 pub fn window_archive_profile(
     codec: Codec,
     profile: u32,
@@ -619,13 +635,10 @@ pub fn window_archive_profile(
         let v03 = window_identity_over(&V03_LIBRARY, window);
         return entry_archive(plain(codec), window.len(), Era::V03, &v03, lengths, payload);
     }
-    window_archive(
-        Codec::profiled(profile, codec.x86()),
-        window.len(),
-        identity,
-        lengths,
-        payload,
-    )
+    let _ = identity;
+    let v04 = window_identity_over(&V04_LIBRARY, window);
+    let codec = Codec::profiled(profile, codec.x86());
+    entry_archive(codec, window.len(), Era::V04, &v04, lengths, payload)
 }
 
 /// Exact length of [`linked_archive`] for objects of `lengths` and a `p`-byte payload.
@@ -1339,7 +1352,7 @@ mod tests {
                 let (expect, era) = if v03 {
                     (codec, Era::V03)
                 } else {
-                    (Codec::profiled(profile, x86), Era::Current)
+                    (Codec::profiled(profile, x86), Era::V04)
                 };
                 let linked = linked_archive_profile(codec, profile, &[n], &p).expect("profile");
                 assert_eq!(fast_decode(&linked).as_ref(), Some(&b));

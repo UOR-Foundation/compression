@@ -108,7 +108,7 @@ impl Info {
         format!(
             "{{\"format\":{},\"profile\":{},\"scope\":\"{}\",\"basis\":{},\"representation\":\"{}\",\"ncm_profile\":{},\"window\":{},\
              \"objects\":{},\"object_lengths\":[{}],\"output_bytes\":{},\"body_bytes\":{},\
-             \"archive_bytes\":{},\"integrity\":\"{}\",\"digest\":\"{}\",\"integrity_ok\":{}}}",
+             \"archive_bytes\":{},\"integrity\":\"{}\",\"digest\":\"{}\",\"integrity_ok\":{},\"steps\":{}}}",
             self.format,
             self.profile,
             if self.basis.is_some() { "conditional" } else { "self-contained" },
@@ -125,6 +125,7 @@ impl Info {
             self.integrity_profile(),
             self.digest_hex(),
             self.integrity_ok,
+            crate::performance::frame_steps(self).map_or_else(|| "null".to_owned(), |n| n.to_string()),
         )
     }
 }

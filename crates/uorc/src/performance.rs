@@ -153,7 +153,8 @@ pub struct CodecPoint {
 }
 
 impl CodecPoint {
-    /// The point of the frame a header describes (no state, one lane).
+    /// The point of the frame a header describes: its basis, profile word,
+    /// the κ of the state it continues (zero for none) and one lane.
     pub fn of(info: &Info) -> CodecPoint {
         CodecPoint {
             basis: info.basis.unwrap_or([0; 32]),
@@ -163,7 +164,7 @@ impl CodecPoint {
                 } else {
                     0
                 },
-            state: [0; 32],
+            state: info.state.unwrap_or([0; 32]),
             lanes: 1,
         }
     }

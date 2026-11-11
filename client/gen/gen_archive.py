@@ -305,19 +305,6 @@ D('profiledDecodeCurrent', ['data : Bytes', 'window : (List Bytes)'], '(Option B
 # entry over the v0.3 identity, which every v0.3 decoder reads and which carries no profile word
 D('v03Candidate', ['x : Nat', 'window : (List Bytes)', 'n : Nat', 'payload : Bytes'], '(Option Bytes)',
   "(match window\n    | List.nil => (if (x =? 1) then (v03Archive (x86Prefix) (v03NcmxSuffix) n payload) else (v03Archive (linkedPrefix) (v03NcmSuffix) n payload))\n    | List.cons oldest rest => (match (v03WindowIdentity window)\n      | Option.none => " + NONE_B + "\n      | Option.some identity => (v03WindowArchive (x + 1) (windowCount window) identity n payload)))")
-# the archive coding `input` (after the frames of `window`) under `profile`, with codec 1 ncm or 2 ncm over the
-# x86 filter: the candidate the client's strategy portfolio weighs
-D('profileCandidate', ['codec : Nat', 'profile : Nat', 'window : (List Bytes)', 'input : Bytes'], '(Option Bytes)',
-  f"(let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); "
-  f"(if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (profile =? 131071) then (v03Candidate x window (prim length input : Nat) payload) else (match (profiledIdentity window)\n    | Option.none => {NONE_B}\n    | Option.some identity => (profiledArchive x (windowCount window) identity (prim length input : Nat) profile payload))) else {NONE_B}))))")
-# The profile the encoder learns for `input` under `profile` (NcmEncode.learnProfile), over the x86 filter when x = 1,
-# and the candidate that codes it too: the learned frame is kept when it is no larger than the strategy's own.
-D('profiledLearner', ['x : Nat', 'history : Bytes', 'input : Bytes', 'profile : Nat'], 'Nat',
-  f"(if (x =? 0) then ({NENC}::learnProfile history input profile) else "
-  f"(let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); ({NENC}::learnProfile h f profile))))")
-D('learnedCandidate', ['codec : Nat', 'profile : Nat', 'window : (List Bytes)', 'input : Bytes'], '(Option Bytes)',
-  f"(let plain : (Option Bytes) := (profileCandidate codec profile window input); (let learned : Nat := (profiledLearner (if (codec =? 2) then 1 else 0) (windowHistory window) input profile); "
-  f"(if (learned =? profile) then plain else (match (profileCandidate codec learned window input)\n    | Option.none => plain\n    | Option.some l => (match plain\n      | Option.none => (ctor Option.some [Bytes] l)\n      | Option.some p => (if ((prim length l : Nat) <=? (prim length p : Nat)) then (ctor Option.some [Bytes] l) else plain))))))")
 # The v0.4 basis (gen_basis V04_*): its library is the first v04Blocks blocks of this one. v0.4 wrote profiled frames
 # (and its V03 frames as v0.3 archives): the same prefixes, the frozen v0.4 tails that reach ncmRunProfile at the v0.4
 # distance, over the v0.4 identity (alone, or over a window).
@@ -341,6 +328,20 @@ for a, b in [('(profiledIdentity window)', '(v04ProfiledIdentity window)'),
     assert PV04.count(a) == 1, a
     PV04 = PV04.replace(a, b)
 D('v04ProfiledDecodeAs', ['x : Nat', 'data : Bytes', 'window : (List Bytes)'], '(Option Bytes)', PV04)
+# the archive coding `input` (after the frames of `window`) under `profile`, with codec 1 ncm or 2 ncm over the
+# x86 filter: the candidate the client's strategy portfolio weighs. A profiled frame needs no block added after v0.4,
+# so it is written over the v0.4 basis, whose x86 tails are 2 bytes shorter: exactly the frame v0.4 writes.
+D('profileCandidate', ['codec : Nat', 'profile : Nat', 'window : (List Bytes)', 'input : Bytes'], '(Option Bytes)',
+  f"(let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); "
+  f"(if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (profile =? 131071) then (v03Candidate x window (prim length input : Nat) payload) else (match (v04ProfiledIdentity window)\n    | Option.none => {NONE_B}\n    | Option.some identity => (v04ProfiledArchive x (windowCount window) identity (prim length input : Nat) profile payload))) else {NONE_B}))))")
+# The profile the encoder learns for `input` under `profile` (NcmEncode.learnProfile), over the x86 filter when x = 1,
+# and the candidate that codes it too: the learned frame is kept when it is no larger than the strategy's own.
+D('profiledLearner', ['x : Nat', 'history : Bytes', 'input : Bytes', 'profile : Nat'], 'Nat',
+  f"(if (x =? 0) then ({NENC}::learnProfile history input profile) else "
+  f"(let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); ({NENC}::learnProfile h f profile))))")
+D('learnedCandidate', ['codec : Nat', 'profile : Nat', 'window : (List Bytes)', 'input : Bytes'], '(Option Bytes)',
+  f"(let plain : (Option Bytes) := (profileCandidate codec profile window input); (let learned : Nat := (profiledLearner (if (codec =? 2) then 1 else 0) (windowHistory window) input profile); "
+  f"(if (learned =? profile) then plain else (match (profileCandidate codec learned window input)\n    | Option.none => plain\n    | Option.some l => (match plain\n      | Option.none => (ctor Option.some [Bytes] l)\n      | Option.some p => (if ((prim length l : Nat) <=? (prim length p : Nat)) then (ctor Option.some [Bytes] l) else plain))))))")
 
 # ---- kappa-named model states: a state frame is a linked archive over the basis [library, S], S a model state ----
 # (bytes the ncm coder codes first, gen_state.py), named by the identity of that basis like any one-root window. Its
