@@ -460,6 +460,10 @@ pub enum Form {
     Dominance,
     /// A refuted point, recorded so that it is never rerun.
     Exclusion,
+    /// A point excluded on every corpus by a named kernel theorem (a
+    /// template and its parameter): recorded with no corpus, so its κ
+    /// blocks the point everywhere without a run.
+    Universal,
 }
 
 /// A claim's status.
@@ -540,7 +544,8 @@ pub struct Claim {
     /// `factory:<obligation identity>` (the factory obligation `frontier`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub receipt: Option<String>,
-    /// The corpus κ.
+    /// The corpus κ; empty for a universal claim (every corpus).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub corpus: String,
     /// The codec point κ (closed, bound, exclusion).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -554,6 +559,12 @@ pub struct Claim {
     /// The family (dominance); absent for the whole corpus.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,
+    /// The kernel theorem that decides a universal claim (its template).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theorem: Option<String>,
+    /// The theorem template's parameter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameter: Option<String>,
     /// The comparator a bound comes from (`xz -9e`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub against: Option<String>,
@@ -589,6 +600,8 @@ impl Claim {
             candidate: None,
             incumbent: None,
             family: None,
+            theorem: None,
+            parameter: None,
             against: None,
             bound: None,
             bytes: None,
@@ -620,7 +633,8 @@ impl Claim {
 
 /// The κ of a claim's question: SHA-256 of `uorc/claim/1`, the form, and the
 /// question's fields (codec or candidate and incumbent, corpus, family, the
-/// comparator and bound), one `key value` line each.
+/// theorem and its parameter, the comparator and bound), one `key value` line
+/// each; an absent field (a universal claim's corpus) has no line.
 pub fn claim_kappa(claim: &Claim) -> String {
     let mut text = format!("uorc/claim/1\nform {:?}\n", claim.form).to_lowercase();
     let mut line = |k: &str, v: Option<String>| {
@@ -631,8 +645,13 @@ pub fn claim_kappa(claim: &Claim) -> String {
     line("codec", claim.codec.clone());
     line("candidate", claim.candidate.clone());
     line("incumbent", claim.incumbent.clone());
-    line("corpus", Some(claim.corpus.clone()));
+    line(
+        "corpus",
+        (!claim.corpus.is_empty()).then(|| claim.corpus.clone()),
+    );
     line("family", claim.family.clone());
+    line("theorem", claim.theorem.clone());
+    line("parameter", claim.parameter.clone());
     line("against", claim.against.clone());
     line("bound", claim.bound.map(|b| b.to_string()));
     sha256_hex(text.as_bytes())
@@ -742,7 +761,16 @@ impl Register {
             if seen.insert(c.id.clone(), ()).is_some() {
                 return bad(format!("claim {} appears twice", c.id));
             }
-            if self.corpus_by_kappa(&c.corpus).is_none() {
+            if (c.form == Form::Universal) != c.corpus.is_empty() {
+                return bad(format!(
+                    "claim {}: exactly the universal claims name no corpus",
+                    c.id
+                ));
+            }
+            if c.form == Form::Universal && c.theorem.is_none() {
+                return bad(format!("universal claim {} names no theorem", c.id));
+            }
+            if !c.corpus.is_empty() && self.corpus_by_kappa(&c.corpus).is_none() {
                 return bad(format!("claim {} names an unknown corpus", c.id));
             }
             for p in [&c.codec, &c.candidate, &c.incumbent].into_iter().flatten() {
@@ -951,6 +979,37 @@ impl Register {
         q.receipt = Some(by.to_owned());
         self.put(q).clone()
     }
+
+    /// Record `point` as excluded on every corpus by the kernel theorem
+    /// `theorem` at `parameter` (a universal claim: no corpus, no run).
+    pub fn exclude_universal(
+        &mut self,
+        point: &CodecPoint,
+        theorem: &str,
+        parameter: &str,
+        by: &str,
+    ) -> Claim {
+        self.add_point(point, None);
+        let mut q = Claim::question(Form::Universal, "");
+        q.codec = Some(point.kappa());
+        q.theorem = Some(theorem.to_owned());
+        q.parameter = Some(parameter.to_owned());
+        q.status = Status::Proved;
+        q.receipt = Some(by.to_owned());
+        self.put(q).clone()
+    }
+
+    /// Whether `point` is excluded on `corpus`: by an exclusion on that
+    /// corpus, or by a universal claim on any.
+    pub fn excluded(&self, point: &CodecPoint, corpus: &Corpus) -> bool {
+        let k = point.kappa();
+        self.claim.iter().any(|c| {
+            c.status == Status::Proved
+                && c.codec.as_deref() == Some(k.as_str())
+                && (c.form == Form::Universal
+                    || (c.form == Form::Exclusion && c.corpus == corpus.kappa))
+        })
+    }
 }
 
 /// Run the codec at `point` over the corpus members `files`: compress each
@@ -1120,6 +1179,12 @@ mod tests {
         assert_eq!(bounds.len(), 1);
         assert_eq!(bounds[0].status, Status::Proved);
         reg.check().expect("consistent");
+        assert!(!reg.excluded(&v03, &corpus));
+        let u = reg.exclude_universal(&v03, "Uorc.Performance.dominated", "0x1ffff", "local");
+        assert!(u.corpus.is_empty());
+        assert!(reg.excluded(&v03, &corpus));
+        let text = reg.to_text().expect("text");
+        assert_eq!(Register::parse(&text).expect("parse"), reg);
     }
 
     #[test]
