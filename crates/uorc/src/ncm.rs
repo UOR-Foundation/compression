@@ -1504,6 +1504,30 @@ mod wasm {
     }
 }
 
+/// Input bytes between two calls of the progress hook.
+pub const TICK: usize = 1 << 16;
+
+/// A progress hook: bytes done, and the length of the pass.
+pub type Progress = fn(u64, u64);
+
+std::thread_local! {
+    static PROGRESS: std::cell::Cell<Option<Progress>> = const { std::cell::Cell::new(None) };
+}
+
+/// Set (or clear) this thread's progress hook: every coding or decoding
+/// pass over a frame calls it with the bytes done and the pass's length, at
+/// the start and once per [`TICK`] bytes. It never changes a payload.
+pub fn set_progress(hook: Option<Progress>) {
+    PROGRESS.with(|p| p.set(hook));
+}
+
+#[inline(never)]
+fn tick(done: usize, total: usize) {
+    if let Some(hook) = PROGRESS.with(std::cell::Cell::get) {
+        hook(done as u64, total as u64);
+    }
+}
+
 /// Encode `data` as an ncm payload, or `None` when the coder output would pass
 /// `2 * len + 64` bytes (the model abandons the encoding there) or the input
 /// does not fit the 4-byte length.
@@ -1607,7 +1631,10 @@ fn encode_bits<K: Kernel, const W: usize>(
     let mut out = Vec::with_capacity(data.len() / 2 + 16);
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
     let (mut x1, mut x2) = (0u32, u32::MAX);
-    for &byte in data {
+    for (i, &byte) in data.iter().enumerate() {
+        if i % TICK == 0 {
+            tick(i, data.len());
+        }
         for k in (0..8).rev() {
             let y = (byte >> k) & 1 == 1;
             let p = m.predict::<K, W>();
@@ -1750,7 +1777,10 @@ fn decode_bits<K: Kernel, const W: usize>(
     // coder bytes the encoder has emitted so far
     let mut emitted = 0usize;
     let (mut x1, mut x2) = (0u32, u32::MAX);
-    for _ in 0..n {
+    for i in 0..n as usize {
+        if i % TICK == 0 {
+            tick(i, n as usize);
+        }
         for _ in 0..8 {
             let p = m.predict::<K, W>();
             let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
