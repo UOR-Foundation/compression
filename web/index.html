@@ -1,84 +1,95 @@
 <!doctype html>
+<!-- @generated from src/Uorc/Page.lex.tex, the Prism product model of this page; do not edit. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>uorc client</title>
+<meta name="description" content="Compress files and folders into .uorc archives, and restore, inspect or verify any .uorc archive, in this browser.">
 <link rel="stylesheet" href="app.css">
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon-512.png"><meta name="theme-color" content="#f3f3ee" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#151312" media="(prefers-color-scheme: dark)">
 </head>
-<body>
+<body data-state="loading" data-color-scheme="system" data-density="comfortable" data-width="balanced">
+<a class="skip" href="#workbench">Skip to the workbench</a>
 <header>
-  <h1>uorc</h1>
-  <p>Universal Object Reference Compression. Each archive is an exact executable
-  object reference that this page decodes and verifies in your browser through
-  WebAssembly. Nothing is uploaded.</p>
-  <p class="version" id="version"></p>
+<h1>uorc</h1>
+<p class="purpose">Compress files and folders into .uorc archives, and restore, inspect or verify any .uorc archive, in this browser.</p>
+<p class="privacy">Your files stay on this device: the page reads them, runs the uorc WebAssembly client in a background worker and hands the result back as a download. Nothing is uploaded.</p>
+<p class="version" id="version" data-label="Release"></p>
 </header>
-
 <main>
-<section aria-labelledby="try">
-  <h2 id="try">Try it</h2>
-  <div class="row">
-    <label for="file">Files to compress, or an archive</label>
-    <input id="file" type="file" multiple>
-  </div>
-  <div class="row">
-    <label for="folder">Or a folder to compress</label>
-    <input id="folder" type="file" webkitdirectory>
-  </div>
-  <div class="row">
-    <label for="original">Original to verify against (optional)</label>
-    <input id="original" type="file">
-  </div>
-  <div class="row">
-    <label for="steps">Extra program-search steps (compress, 0 = none)</label>
-    <input id="steps" type="number" min="0" step="1000000" value="0" inputmode="numeric">
-  </div>
-  <div class="row buttons">
-    <button id="compress" type="button" disabled>Compress</button>
-    <button id="decompress" type="button" disabled>Decompress</button>
-    <button id="inspect" type="button" class="secondary" disabled>Inspect</button>
-    <button id="verify" type="button" class="secondary" disabled>Verify</button>
-  </div>
-  <p id="status" role="status" aria-live="polite">Loading the WebAssembly client…</p>
-  <div id="download"></div>
-  <pre id="report" hidden></pre>
-  <p>Several files or a folder become one archive of ordered objects: a manifest
-  of relative paths, then each file. Decompressing it lists every file for
-  download. Inspect reads the frame header and checks the integrity seal without
-  decoding; Verify decodes in memory and, given an original, compares the bytes.</p>
+<section id="workbench" aria-labelledby="workbench-title">
+<h2 id="workbench-title">Use uorc here</h2>
+<ol class="guidance">
+<li>Pick what to do: Compress, Decompress, Inspect or Verify.</li>
+<li>Choose the files, folder or archive it asks for.</li>
+<li>Press the button under the fields, then save the result. Cancel stops a running operation at once.</li>
+</ol>
+<noscript><p class="noscript">This page runs the uorc client with JavaScript and WebAssembly; enable JavaScript to use it.</p></noscript>
+<div class="tabs" role="tablist" aria-label="Operation">
+<button type="button" role="tab" id="tab-compress" data-operation="compress" aria-controls="panel" aria-selected="true" tabindex="0" disabled>Compress</button>
+<button type="button" role="tab" id="tab-decompress" data-operation="decompress" aria-controls="panel" aria-selected="false" tabindex="-1" disabled>Decompress</button>
+<button type="button" role="tab" id="tab-inspect" data-operation="inspect" aria-controls="panel" aria-selected="false" tabindex="-1" disabled>Inspect</button>
+<button type="button" role="tab" id="tab-verify" data-operation="verify" aria-controls="panel" aria-selected="false" tabindex="-1" disabled>Verify</button>
+</div>
+<div id="panel" role="tabpanel" aria-labelledby="tab-compress">
+<div class="operation" data-operation="compress"><p class="summary">Make a .uorc archive from files or a folder.</p><p class="help">One file becomes NAME.uorc with exactly the bytes the uorc command line writes. Several files or a folder become one archive that keeps their relative paths.</p></div>
+<div class="operation" data-operation="decompress" hidden><p class="summary">Restore the files a .uorc archive holds.</p><p class="help">Any archive the page or the command line wrote. An archive of one file restores that file; an archive of several files or a folder lists every file to save.</p></div>
+<div class="operation" data-operation="inspect" hidden><p class="summary">See what an archive holds without decoding it.</p><p class="help">Reads each archive header of the stream and checks its integrity seal. Fast for any size.</p></div>
+<div class="operation" data-operation="verify" hidden><p class="summary">Check that an archive decodes, and optionally that it reproduces an original.</p><p class="help">Decodes the whole archive without saving anything. Give the original file too and every byte is compared.</p></div>
+<div class="field" data-field="files"><label for="field-files">Files</label><input id="field-files" type="file" multiple aria-describedby="help-files" disabled><p class="help" id="help-files">One or more files. Choosing files clears a chosen folder.</p><p class="chosen" id="chosen-files"></p></div>
+<div class="field" data-field="folder"><label for="field-folder">Or a folder</label><input id="field-folder" type="file" webkitdirectory aria-describedby="help-folder" disabled><p class="help" id="help-folder">Every file under one folder, with its relative paths. Choosing a folder clears chosen files.</p><p class="chosen" id="chosen-folder"></p></div>
+<div class="field" data-field="archive" hidden><label for="field-archive">Archive</label><input id="field-archive" type="file" accept=".uorc,application/octet-stream" aria-describedby="help-archive" disabled><p class="help" id="help-archive">A .uorc file written by this page or the uorc command line.</p><p class="chosen" id="chosen-archive"></p></div>
+<div class="field" data-field="original" hidden><label for="field-original">Original (optional)</label><input id="field-original" type="file" aria-describedby="help-original" disabled><p class="help" id="help-original">The file the archive should reproduce. Leave empty to check only that the archive decodes.</p><p class="chosen" id="chosen-original"></p></div>
+<div class="actions"><button type="button" id="run" disabled>Compress</button><button type="button" id="cancel" class="secondary" disabled>Cancel</button></div>
+<progress id="progress" aria-label="Progress" max="1" value="0" hidden></progress>
+<p id="status" role="status" aria-live="polite">Loading the uorc WebAssembly client…</p>
+<div id="error" class="error" hidden><p class="error-title" id="error-title"></p><p id="error-explanation"></p><p id="error-recovery"></p></div>
+<div id="result" hidden></div>
+</div>
 </section>
-
-<section aria-labelledby="examples">
-  <h2 id="examples">Examples</h2>
-  <p>Each example compresses in the page, decodes the archive again and checks the
-  bytes are identical.</p>
-  <div class="row buttons" id="example-buttons"></div>
-  <div class="table-wrap"><table id="example-results">
-    <thead><tr><th scope="col">Input</th><th scope="col">Bytes</th><th scope="col">Archive</th><th scope="col">Round trip</th><th scope="col">Time</th></tr></thead>
-    <tbody></tbody>
-  </table></div>
+<section id="examples" aria-labelledby="examples-title">
+<h2 id="examples-title">Examples</h2>
+<p>Each example compresses a built-in input in this page, decompresses the archive again and checks that the bytes are identical.</p>
+<div class="buttons">
+<button type="button" class="secondary" data-example="text" aria-describedby="example-text" disabled>English text</button>
+<button type="button" class="secondary" data-example="zeros" aria-describedby="example-zeros" disabled>Zero bytes</button>
+<button type="button" class="secondary" data-example="counter" aria-describedby="example-counter" disabled>Counter bytes</button>
+<button type="button" class="secondary" data-example="random" aria-describedby="example-random" disabled>Random bytes</button>
+<button type="button" class="secondary" data-example="empty" aria-describedby="example-empty" disabled>Empty input</button>
+</div>
+<ul class="example-notes">
+<li id="example-text"><strong>English text</strong>: This page's own guidance and purpose, repeated: prose compresses well. (16384 bytes)</li>
+<li id="example-zeros"><strong>Zero bytes</strong>: One run of a single byte value. (65536 bytes)</li>
+<li id="example-counter"><strong>Counter bytes</strong>: Every byte value 0 to 255 in order, repeated. (4096 bytes)</li>
+<li id="example-random"><strong>Random bytes</strong>: Bytes from the browser's random source: they do not compress, and the archive stores them as they are. (16384 bytes)</li>
+<li id="example-empty"><strong>Empty input</strong>: No bytes at all. (0 bytes)</li>
+</ul>
+<div class="table-wrap"><table id="example-results"><thead><tr><th scope="col">Input</th><th scope="col">Bytes</th><th scope="col">Archive bytes</th><th scope="col">Round trip</th><th scope="col">Seconds</th></tr></thead><tbody></tbody></table></div>
 </section>
-
-<section aria-labelledby="use">
-  <h2 id="use">Use it</h2>
-  <h3>Command line</h3>
-<pre><code>uorc compress --stats notes.txt      # writes notes.txt.uorc
+<section id="about" aria-labelledby="about-title">
+<h2 id="about-title">What the page does</h2>
+<p>uorc is Universal Object Reference Compression. Each archive is an exact executable object reference: it carries the program that rebuilds the original, and an integrity seal over itself.</p>
+<p>This page runs the same uorc client as the command line, compiled to WebAssembly. Compress writes the same bytes, Decompress reads every archive the command line writes, and Verify checks an archive without saving anything.</p>
+<p>Large inputs stream through 8 MiB frames, so a file of any size goes through a few frames of memory at a time. Several files or a folder are compressed together in memory as one archive of ordered objects: a manifest of relative paths, then each file.</p>
+</section>
+<section id="usage" aria-labelledby="usage-title">
+<h2 id="usage-title">Use uorc elsewhere</h2>
+<h3>Command line</h3>
+<pre><code class="language-shell">uorc compress --stats notes.txt      # writes notes.txt.uorc
 uorc decompress notes.txt.uorc -o notes.restored.txt
 cat data.bin | uorc compress - &gt; data.uorc   # any size: streams through 8 MiB frames
 uorc compress --threads 4 big.tar     # frames compress in parallel
-uorc decompress --threads 4 big.tar.uorc   # blocks of 4 frames decode in parallel
+uorc decompress --threads 4 big.tar.uorc   # blocks of frames decode in parallel
 uorc compress photos/                 # writes photos.uorc (a whole tree)
 uorc decompress photos.uorc -o restore/   # --resume finishes an interrupted restore
 uorc inspect notes.txt.uorc           # header and integrity, no decoding
-uorc verify notes.txt.uorc notes.txt  # decode, check, compare</code></pre>
-  <p>Outputs are written to a temporary file and renamed into place; an existing
-  file is only replaced with <code>--force</code>. Exit status: 0 ok, 2 usage,
-  3 I/O, 4 invalid archive or integrity, 5 step budget, 6 overflow, 7 differs
-  from the original.</p>
-  <h3>Rust library</h3>
-<pre><code>let archive = uorc::compress(&amp;bytes, uorc::DEFAULT_STEPS)?;
+uorc verify notes.txt.uorc notes.txt  # decode, check, compare
+# Outputs are written to a temporary file and renamed into place; --force replaces.
+# Exit status: 0 ok, 2 usage, 3 I/O, 4 invalid archive or integrity, 5 step budget,
+# 6 overflow, 7 differs from the original.</code></pre>
+<h3>Rust library</h3>
+<pre><code class="language-rust">let archive = uorc::compress(&amp;bytes, uorc::DEFAULT_STEPS)?;
 let original = uorc::decompress(&amp;archive, uorc::DEFAULT_DECODE_WORK)?;
 assert_eq!(original, bytes);
 let info = uorc::inspect(&amp;archive)?;           // header + integrity, no decode
@@ -87,22 +98,32 @@ let many = uorc::compress_objects(&amp;[a, b, c], uorc::DEFAULT_STEPS)?;
 let parts = uorc::decompress_objects(&amp;many, uorc::DEFAULT_DECODE_WORK)?;
 // Or stream between any reader and writer, with bounded memory:
 uorc::compress_stream(reader, writer, uorc::DEFAULT_STEPS, uorc::default_threads())?;</code></pre>
-  <h3>JavaScript (this page's module)</h3>
-<pre><code>import { load } from "./uorc.js";
-const uorc = await load("./uorc_bg.wasm");
-const archive = uorc.compress(new TextEncoder().encode("hello hello hello"));
+<h3>JavaScript (this page's module)</h3>
+<pre><code class="language-javascript">import { load } from &quot;./uorc.js&quot;;
+const uorc = await load(&quot;./uorc_bg.wasm&quot;);
+const archive = uorc.compress(new TextEncoder().encode(&quot;hello hello hello&quot;));
 const original = uorc.decompress(archive);
 uorc.inspect(archive);                 // [{ representation, object_lengths, integrity_ok, ... }]
 uorc.verify(archive, original);        // throws if it does not reproduce original
-const bundle = uorc.compressFiles([{ path: "a.txt", data }, { path: "d", kind: "directory" }]);
+const bundle = uorc.compressFiles([{ path: &quot;a.txt&quot;, data }, { path: &quot;d&quot;, kind: &quot;directory&quot; }]);
 const files = uorc.decompressFiles(bundle); // [{ path, kind, data }]
 // Files of any size, one frame in memory at a time:
-const blob = await uorc.compressBlob(file);</code></pre>
-  <p>Binaries, the library source bundle and this WebAssembly module are attached to each
-  <a href="https://github.com/UOR-Foundation/compression/releases">GitHub release</a>.
-  Benchmark results for the release are on the <a href="bench.html">benchmarks page</a>.</p>
+const blob = await uorc.compressBlob(file);
+const back = await uorc.decompressBlob(blob);
+// Folders of any size, the same way:
+const tree = await uorc.compressTreeBlob([{ path: &quot;d&quot;, kind: &quot;directory&quot; }, { path: &quot;d/a.txt&quot;, blob: file }]);
+const entries = await uorc.decompressTreeBlob(tree); // [{ path, kind, blob }]</code></pre>
+</section>
+<section id="links" aria-labelledby="links-title">
+<h2 id="links-title">More</h2>
+<ul>
+<li><a href="https://github.com/UOR-Foundation/compression/releases">Releases: binaries, the library source and this WebAssembly module</a></li>
+<li><a href="bench.html">Benchmarks for this release</a></li>
+<li><a href="https://github.com/UOR-Foundation/compression">Source code</a></li>
+</ul>
 </section>
 </main>
+<script type="application/json" id="page-model">{"Column":[{"key":"index","label":"Archive","name":"columnArchive","order":1,"table":"inspect"},{"key":"representation","label":"Coding","name":"columnRepresentation","order":2,"table":"inspect"},{"key":"objects","label":"Objects","name":"columnObjects","order":3,"table":"inspect"},{"key":"output_bytes","label":"Restored bytes","name":"columnOutput","order":4,"table":"inspect"},{"key":"archive_bytes","label":"Archive bytes","name":"columnArchiveBytes","order":5,"table":"inspect"},{"key":"integrity_ok","label":"Integrity seal","name":"columnIntegrity","order":6,"table":"inspect"},{"key":"label","label":"Input","name":"columnExampleInput","order":1,"table":"examples"},{"key":"bytes","label":"Bytes","name":"columnExampleBytes","order":2,"table":"examples"},{"key":"archive","label":"Archive bytes","name":"columnExampleArchive","order":3,"table":"examples"},{"key":"roundTrip","label":"Round trip","name":"columnExampleRoundTrip","order":4,"table":"examples"},{"key":"seconds","label":"Seconds","name":"columnExampleTime","order":5,"table":"examples"}],"Control":[{"enabledIn":["ready","done","failed"],"id":"run","label":"Run the chosen operation","name":"controlRun","trigger":"run"},{"enabledIn":["running"],"id":"cancel","label":"Cancel","name":"controlCancel","trigger":"cancel"},{"enabledIn":["ready","done","failed"],"id":"operation","label":"Operation","name":"controlOperation","trigger":"edit"},{"enabledIn":["ready","done","failed"],"id":"field","label":"Field","name":"controlField","trigger":"edit"},{"enabledIn":["ready","done","failed"],"id":"example","label":"Example","name":"controlExample","trigger":"run"}],"ErrorHint":[{"code":"budget","explanation":"Decoding stops at a fixed work limit so a damaged or hostile archive cannot run forever. Archives uorc writes stay far below it.","fields":["archive"],"name":"errorBudget","recovery":"Check that the file is a .uorc archive from a trusted source, or decode it with the uorc command line and a larger --work value.","title":"The archive needs more decoding work than allowed"},{"code":"overflow","explanation":"A length or count in the archive does not fit in 64 bits, which no archive uorc writes does.","fields":["archive"],"name":"errorOverflow","recovery":"The file is damaged or is not a uorc archive. Use the original archive.","title":"The archive asks for numbers too large to decode"},{"code":"decode","explanation":"The file does not decode as a stream of .uorc archives: its header, body or integrity seal does not check.","fields":["archive"],"name":"errorDecode","recovery":"Choose the .uorc file itself. To make an archive from this file, use Compress.","title":"This is not a uorc archive, or it is damaged"},{"code":"mismatch","explanation":"The archive decodes, but its bytes differ from the original you chose.","fields":["original"],"name":"errorMismatch","recovery":"Check that you chose the original the archive was made from.","title":"The archive does not reproduce the original"},{"code":"stopped","explanation":"The background worker running uorc ended before finishing, most often because the browser refused it more memory.","fields":[],"name":"errorStopped","recovery":"Try again; for very large inputs use the uorc command line, which streams with bounded memory.","title":"The browser stopped the operation"},{"code":"load","explanation":"This browser could not load the uorc WebAssembly module in a worker. It needs module workers and WebAssembly SIMD (current Chrome, Edge, Firefox and Safari 16.4 or later).","fields":[],"name":"errorLoad","recovery":"Reload the page, or open it in a current browser.","title":"The uorc client could not start"}],"Example":[{"bytes":16384,"description":"This page's own guidance and purpose, repeated: prose compresses well.","expectedResponse":"identical","id":"text","input":"text","label":"English text","name":"exampleText","order":1},{"bytes":65536,"description":"One run of a single byte value.","expectedResponse":"identical","id":"zeros","input":"zeros","label":"Zero bytes","name":"exampleZeros","order":2},{"bytes":4096,"description":"Every byte value 0 to 255 in order, repeated.","expectedResponse":"identical","id":"counter","input":"counter","label":"Counter bytes","name":"exampleCounter","order":3},{"bytes":16384,"description":"Bytes from the browser's random source: they do not compress, and the archive stores them as they are.","expectedResponse":"identical","id":"random","input":"random","label":"Random bytes","name":"exampleRandom","order":4},{"bytes":0,"description":"No bytes at all.","expectedResponse":"identical","id":"empty","input":"empty","label":"Empty input","name":"exampleEmpty","order":5}],"Feature":[{"acceptance":["compress-file","compress-matches-library"],"calls":["uorc.compressBlob"],"name":"compressFile","statement":"Compress one file of any size into a .uorc archive with exactly the bytes the uorc command line writes for it."},{"acceptance":["compress-files","compress-folder"],"calls":["uorc.compressTreeBlob"],"name":"compressFolder","statement":"Compress several files, or one folder with its relative paths, into one archive of ordered objects."},{"acceptance":["decompress-file","decompress-reference-frames","decompress-folder","decompress-released"],"calls":["uorc.decompressBlob","uorc.decompressTreeBlob"],"name":"decompressArchive","statement":"Restore any .uorc archive this page or the command line wrote, including archives of earlier releases and streams of several frames with reference frames, and offer every restored file as a download."},{"acceptance":["inspect-archive"],"calls":["uorc.inspect"],"name":"inspectArchive","statement":"Read every archive header and integrity seal of a stream without decoding it, as a table."},{"acceptance":["verify-archive","verify-original","verify-original-differs"],"calls":["uorc.verify"],"name":"verifyArchive","statement":"Decode an archive without keeping its output and, given the original file, check that the bytes are identical."},{"acceptance":["cancel-running"],"calls":["Worker.terminate"],"name":"cancelOperation","statement":"Stop a running operation at once, discard its partial result and keep the page ready for the next one."},{"acceptance":["examples-round-trip"],"calls":["uorc.compress","uorc.decompress"],"name":"runExamples","statement":"Run built-in inputs through compress and decompress and show their sizes, times and whether the round trip is identical."},{"acceptance":["error-decode","error-mismatch","error-stopped","error-load"],"calls":["uorc.ERRORS"],"name":"explainFailures","statement":"Explain every failure with its cause and the next step, and keep the page usable afterwards."}],"Field":[{"help":"One or more files. Choosing files clears a chosen folder.","id":"files","kind":"files","label":"Files","name":"fieldFiles","replaces":"folder","required":true},{"help":"Every file under one folder, with its relative paths. Choosing a folder clears chosen files.","id":"folder","kind":"folder","label":"Or a folder","name":"fieldFolder","replaces":"files","required":true},{"help":"A .uorc file written by this page or the uorc command line.","id":"archive","kind":"archive","label":"Archive","name":"fieldArchive","replaces":"","required":true},{"help":"The file the archive should reproduce. Leave empty to check only that the archive decodes.","id":"original","kind":"file","label":"Original (optional)","name":"fieldOriginal","replaces":"","required":false}],"Journey":[{"actor":"Uorc.Page::visitor","name":"compressThenRestore","steps":["Uorc.Page::compressFile","Uorc.Page::decompressArchive","Uorc.Page::cancelOperation"]},{"actor":"Uorc.Page::visitor","name":"packFolder","steps":["Uorc.Page::compressFolder","Uorc.Page::decompressArchive"]},{"actor":"Uorc.Page::evaluator","name":"judgeFormat","steps":["Uorc.Page::runExamples","Uorc.Page::inspectArchive","Uorc.Page::verifyArchive","Uorc.Page::explainFailures"]}],"Labels":[{"cancelled":"Cancelled. Ready.","download":"Save","examples":"Examples","examplesHelp":"Each example compresses a built-in input in this page, decompresses the archive again and checks that the bytes are identical.","links":"More","memory":"WebAssembly memory","name":"labels","noscript":"This page runs the uorc client with JavaScript and WebAssembly; enable JavaScript to use it.","operations":"Operation","progress":"Progress","restored":"Restored files","skipToWorkbench":"Skip to the workbench","usage":"Use uorc elsewhere","version":"Release","workbench":"Use uorc here"}],"Link":[{"href":"https://github.com/UOR-Foundation/compression/releases","label":"Releases: binaries, the library source and this WebAssembly module","name":"linkReleases","order":1},{"href":"bench.html","label":"Benchmarks for this release","name":"linkBenchmarks","order":2},{"href":"https://github.com/UOR-Foundation/compression","label":"Source code","name":"linkSource","order":3}],"Operation":[{"fields":["files","folder"],"help":"One file becomes NAME.uorc with exactly the bytes the uorc command line writes. Several files or a folder become one archive that keeps their relative paths.","id":"compress","label":"Compress","name":"operationCompress","order":1,"result":"The archive, ready to save, with its size against the input.","runLabel":"Compress","running":"Compressing","summary":"Make a .uorc archive from files or a folder."},{"fields":["archive"],"help":"Any archive the page or the command line wrote. An archive of one file restores that file; an archive of several files or a folder lists every file to save.","id":"decompress","label":"Decompress","name":"operationDecompress","order":2,"result":"Every restored file, ready to save.","runLabel":"Decompress","running":"Decompressing","summary":"Restore the files a .uorc archive holds."},{"fields":["archive"],"help":"Reads each archive header of the stream and checks its integrity seal. Fast for any size.","id":"inspect","label":"Inspect","name":"operationInspect","order":3,"result":"One row per archive of the stream.","runLabel":"Inspect","running":"Inspecting","summary":"See what an archive holds without decoding it."},{"fields":["archive","original"],"help":"Decodes the whole archive without saving anything. Give the original file too and every byte is compared.","id":"verify","label":"Verify","name":"operationVerify","order":4,"result":"Whether the archive decodes and, with an original, whether the bytes are identical.","runLabel":"Verify","running":"Verifying","summary":"Check that an archive decodes, and optionally that it reproduces an original."}],"QualityMeasure":[{"disposition":"gate","name":"longestPageTask","quantity":"longest task on the page's thread while an operation runs","requirement":"Uorc.Page::responsiveWhileRunning","threshold":200,"unit":"ms"},{"disposition":"gate","name":"cancelLatency","quantity":"time from Cancel to the page being ready again","requirement":"Uorc.Page::cancelAtOnce","threshold":3000,"unit":"ms"},{"disposition":"gate","name":"readyTime","quantity":"time from navigation to the page being ready","requirement":"Uorc.Page::startQuickly","threshold":5000,"unit":"ms"},{"disposition":"gate","name":"differingArchives","quantity":"page archives that differ from the library's for the same input","requirement":"Uorc.Page::sameBytesAsLibrary","threshold":0,"unit":"archives"},{"disposition":"gate","name":"workerMemory","quantity":"WebAssembly memory after decompressing a stream of three 8 MiB frames","requirement":"Uorc.Page::boundedMemory","threshold":256,"unit":"MiB"},{"disposition":"gate","name":"unnamedControls","quantity":"controls without an accessible name","requirement":"Uorc.Page::statusMessages","threshold":0,"unit":"controls"},{"disposition":"measured","name":"compressThroughput","quantity":"compress throughput on text","requirement":"Uorc.Page::browserThroughput","threshold":0,"unit":"KB/s"},{"disposition":"measured","name":"decompressThroughput","quantity":"decompress throughput on text","requirement":"Uorc.Page::browserThroughput","threshold":0,"unit":"KB/s"}],"QualityRequirement":[{"characteristic":"performance efficiency","name":"responsiveWhileRunning","subcharacteristic":"time behaviour","text":"The page answers input while an operation runs: the codec runs in a worker, never on the page's thread."},{"characteristic":"interaction capability","name":"cancelAtOnce","subcharacteristic":"user error protection","text":"Cancel stops a running operation at once, whatever the input size."},{"characteristic":"performance efficiency","name":"startQuickly","subcharacteristic":"time behaviour","text":"The page is ready to use soon after it loads."},{"characteristic":"functional suitability","name":"sameBytesAsLibrary","subcharacteristic":"functional correctness","text":"An archive the page writes is byte-identical to the archive the uorc library and command line write for the same input."},{"characteristic":"performance efficiency","name":"boundedMemory","subcharacteristic":"resource utilization","text":"Compressing or decompressing one file holds a few frames in memory, not the whole file."},{"characteristic":"interaction capability","name":"statusMessages","subcharacteristic":"inclusivity","text":"WCAG 2.2 4.1.3 and 4.1.2: progress and results are announced through one status region, and every control has an accessible name."},{"characteristic":"performance efficiency","name":"browserThroughput","subcharacteristic":"time behaviour","text":"Compress and decompress throughput in the browser, measured and reported; the release sets no target."}],"Section":[{"id":"about","name":"sectionAbout","order":1,"paragraphs":["uorc is Universal Object Reference Compression. Each archive is an exact executable object reference: it carries the program that rebuilds the original, and an integrity seal over itself.","This page runs the same uorc client as the command line, compiled to WebAssembly. Compress writes the same bytes, Decompress reads every archive the command line writes, and Verify checks an archive without saving anything.","Large inputs stream through 8 MiB frames, so a file of any size goes through a few frames of memory at a time. Several files or a folder are compressed together in memory as one archive of ordered objects: a manifest of relative paths, then each file."],"title":"What the page does"}],"Stakeholder":[{"name":"Visitor","text":"Someone who wants to compress files or open a .uorc archive without installing anything."},{"name":"Evaluator","text":"A developer judging the uorc format and client: what an archive holds, whether it decodes, how the page and the command line agree."}],"UmlState":[{"initial":true,"name":"stateLoading","state":"loading","status":"Loading the uorc WebAssembly client…"},{"initial":false,"name":"stateUnavailable","state":"unavailable","status":"The uorc client could not start in this browser."},{"initial":false,"name":"stateReady","state":"ready","status":"Ready."},{"initial":false,"name":"stateRunning","state":"running","status":"Working…"},{"initial":false,"name":"stateCancelling","state":"cancelling","status":"Cancelling…"},{"initial":false,"name":"stateDone","state":"done","status":"Done."},{"initial":false,"name":"stateFailed","state":"failed","status":"Failed."}],"UmlTransition":[{"name":"whenLoaded","order":1,"source":"loading","target":"ready","trigger":"loaded"},{"name":"whenLoadFails","order":2,"source":"loading","target":"unavailable","trigger":"loadFailed"},{"name":"runFromReady","order":3,"source":"ready","target":"running","trigger":"run"},{"name":"whenFinished","order":4,"source":"running","target":"done","trigger":"finished"},{"name":"whenFailed","order":5,"source":"running","target":"failed","trigger":"failed"},{"name":"cancelRunning","order":6,"source":"running","target":"cancelling","trigger":"cancel"},{"name":"whenRestarted","order":7,"source":"cancelling","target":"ready","trigger":"restarted"},{"name":"runFromDone","order":8,"source":"done","target":"running","trigger":"run"},{"name":"runFromFailed","order":9,"source":"failed","target":"running","trigger":"run"},{"name":"editAfterDone","order":10,"source":"done","target":"ready","trigger":"edit"},{"name":"editAfterFailure","order":11,"source":"failed","target":"ready","trigger":"edit"}],"Usage":[{"code":["uorc compress --stats notes.txt      # writes notes.txt.uorc","uorc decompress notes.txt.uorc -o notes.restored.txt","cat data.bin | uorc compress - > data.uorc   # any size: streams through 8 MiB frames","uorc compress --threads 4 big.tar     # frames compress in parallel","uorc decompress --threads 4 big.tar.uorc   # blocks of frames decode in parallel","uorc compress photos/                 # writes photos.uorc (a whole tree)","uorc decompress photos.uorc -o restore/   # --resume finishes an interrupted restore","uorc inspect notes.txt.uorc           # header and integrity, no decoding","uorc verify notes.txt.uorc notes.txt  # decode, check, compare","# Outputs are written to a temporary file and renamed into place; --force replaces.","# Exit status: 0 ok, 2 usage, 3 I/O, 4 invalid archive or integrity, 5 step budget,","# 6 overflow, 7 differs from the original."],"language":"shell","name":"usageCommandLine","order":1,"title":"Command line"},{"code":["let archive = uorc::compress(&bytes, uorc::DEFAULT_STEPS)?;","let original = uorc::decompress(&archive, uorc::DEFAULT_DECODE_WORK)?;","assert_eq!(original, bytes);","let info = uorc::inspect(&archive)?;           // header + integrity, no decode","uorc::verify(&archive, Some(&bytes), uorc::DEFAULT_DECODE_WORK)?;","let many = uorc::compress_objects(&[a, b, c], uorc::DEFAULT_STEPS)?;","let parts = uorc::decompress_objects(&many, uorc::DEFAULT_DECODE_WORK)?;","// Or stream between any reader and writer, with bounded memory:","uorc::compress_stream(reader, writer, uorc::DEFAULT_STEPS, uorc::default_threads())?;"],"language":"rust","name":"usageRust","order":2,"title":"Rust library"},{"code":["import { load } from \"./uorc.js\";","const uorc = await load(\"./uorc_bg.wasm\");","const archive = uorc.compress(new TextEncoder().encode(\"hello hello hello\"));","const original = uorc.decompress(archive);","uorc.inspect(archive);                 // [{ representation, object_lengths, integrity_ok, ... }]","uorc.verify(archive, original);        // throws if it does not reproduce original","const bundle = uorc.compressFiles([{ path: \"a.txt\", data }, { path: \"d\", kind: \"directory\" }]);","const files = uorc.decompressFiles(bundle); // [{ path, kind, data }]","// Files of any size, one frame in memory at a time:","const blob = await uorc.compressBlob(file);","const back = await uorc.decompressBlob(blob);","// Folders of any size, the same way:","const tree = await uorc.compressTreeBlob([{ path: \"d\", kind: \"directory\" }, { path: \"d/a.txt\", blob: file }]);","const entries = await uorc.decompressTreeBlob(tree); // [{ path, kind, blob }]"],"language":"javascript","name":"usageJavaScript","order":3,"title":"JavaScript (this page's module)"}],"Workbench":[{"audience":"Anyone with files to compress or an archive to open, and developers judging the uorc format before installing the command line.","colorScheme":"system","density":"comfortable","guidance":["Pick what to do: Compress, Decompress, Inspect or Verify.","Choose the files, folder or archive it asks for.","Press the button under the fields, then save the result. Cancel stops a running operation at once."],"heading":"uorc","initialOperation":"compress","name":"workbench","privacy":"Your files stay on this device: the page reads them, runs the uorc WebAssembly client in a background worker and hands the result back as a download. Nothing is uploaded.","purpose":"Compress files and folders into .uorc archives, and restore, inspect or verify any .uorc archive, in this browser.","title":"uorc client","width":"balanced"}]}</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
