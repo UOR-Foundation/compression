@@ -331,9 +331,10 @@ D('v04ProfiledDecodeAs', ['x : Nat', 'data : Bytes', 'window : (List Bytes)'], '
 # the archive coding `input` (after the frames of `window`) under `profile`, with codec 1 ncm or 2 ncm over the
 # x86 filter: the candidate the client's strategy portfolio weighs. A profiled frame needs no block added after v0.4,
 # so it is written over the v0.4 basis, whose x86 tails are 2 bytes shorter: exactly the frame v0.4 writes.
+# A word that records table bits (>= 2^20) is read by the current blocks only, so its frame is the current era's.
 D('profileCandidate', ['codec : Nat', 'profile : Nat', 'window : (List Bytes)', 'input : Bytes'], '(Option Bytes)',
   f"(let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); "
-  f"(if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (profile =? 131071) then (v03Candidate x window (prim length input : Nat) payload) else (match (v04ProfiledIdentity window)\n    | Option.none => {NONE_B}\n    | Option.some identity => (v04ProfiledArchive x (windowCount window) identity (prim length input : Nat) profile payload))) else {NONE_B}))))")
+  f"(if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (profile =? 131071) then (v03Candidate x window (prim length input : Nat) payload) else (if (profile <? 1048576) then (match (v04ProfiledIdentity window)\n    | Option.none => {NONE_B}\n    | Option.some identity => (v04ProfiledArchive x (windowCount window) identity (prim length input : Nat) profile payload)) else (match (profiledIdentity window)\n    | Option.none => {NONE_B}\n    | Option.some identity => (profiledArchive x (windowCount window) identity (prim length input : Nat) profile payload)))) else {NONE_B}))))")
 # The profile the encoder learns for `input` under `profile` (NcmEncode.learnProfile), over the x86 filter when x = 1,
 # and the candidate that codes it too: the learned frame is kept when it is no larger than the strategy's own.
 D('profiledLearner', ['x : Nat', 'history : Bytes', 'input : Bytes', 'profile : Nat'], 'Nat',

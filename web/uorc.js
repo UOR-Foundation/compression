@@ -206,13 +206,16 @@ export async function load(source) {
     const split = (f) => {
       const count = x.strategies();
       const parts = new Array(count).fill(0);
-      const all = parts.map((_, which) => pool.code(job(f, which), (share) => { parts[which] = share; shares.set(f.index, (f.length * parts.reduce((n, v) => n + v, 0)) / count); report(); }));
+      // the strategies and the table step after them each count as one share of the frame's bar
+      const all = parts.map((_, which) => pool.code(job(f, which), (share) => { parts[which] = share; shares.set(f.index, (f.length * parts.reduce((n, v) => n + v, 0)) / (count + 1)); report(); }));
       settle(f.index, f.length, Promise.all(all).then(async (archives) => {
         const frameBytes = await bytesOf(blob.slice(f.start, f.start + f.length));
         const chosen = call(chooseRequest(f.pieces, frameBytes, archives), () => x.choose_frame());
         // the context table stepped on the kept archive while it pays and the worker holds it (Client.stepTable)
         const window = await Promise.all(f.window.map((r) => bytesOf(blob.slice(r.start, r.start + r.length))));
-        return call(stepRequest(f.pieces, window, frameBytes, chosen), () => x.step_frame());
+        const share = frameShare();
+        onPass = (done, of) => { shares.set(f.index, (f.length * (count + share(done, of))) / (count + 1)); report(); };
+        try { return call(stepRequest(f.pieces, window, frameBytes, chosen), () => x.step_frame()); } finally { onPass = () => {}; }
       }));
     };
     let index = 0;

@@ -541,10 +541,7 @@ fn linked_header(lengths: &[u64], body_len: u64) -> Vec<u8> {
 
 fn body_len(codec: Codec, k: usize, p: u64) -> Option<u64> {
     // profiled frames are written over the v0.4 basis ([`linked_archive_profile`])
-    let era = match codec {
-        Codec::Profile(_) | Codec::ProfileX86(_) => Era::V04,
-        _ => Era::Current,
-    };
+    let era = profiled_era(codec);
     let (prefix, suffix) = template(codec, k, era)?;
     Some(prefix.len() as u64 + uleb_len(p) as u64 + p + suffix.len() as u64)
 }
@@ -555,11 +552,19 @@ fn body_len(codec: Codec, k: usize, p: u64) -> Option<u64> {
 /// `None` for a profile word that is not a [`crate::ncm::valid_profile`].
 /// Profiled entries are written over the v0.4 basis ([`linked_archive_profile`]).
 pub fn linked_archive(codec: Codec, lengths: &[u64], payload: &[u8]) -> Option<Vec<u8>> {
-    match codec {
-        Codec::Profile(_) | Codec::ProfileX86(_) => {
-            entry_archive(codec, 0, Era::V04, &V04_BASIS_ID, lengths, payload)
-        }
+    match profiled_era(codec) {
+        Era::V04 => entry_archive(codec, 0, Era::V04, &V04_BASIS_ID, lengths, payload),
         _ => entry_archive(codec, 0, Era::Current, &BASIS_ID, lengths, payload),
+    }
+}
+
+/// The era a frame of `codec` is written in: a profiled frame over the v0.4
+/// basis unless its word records table bits, which only the current blocks
+/// read (`Archive.profileCandidate`); every other frame the current basis.
+fn profiled_era(codec: Codec) -> Era {
+    match codec {
+        Codec::Profile(p) | Codec::ProfileX86(p) if !crate::ncm::records_tables(p) => Era::V04,
+        _ => Era::Current,
     }
 }
 
@@ -633,9 +638,18 @@ pub fn window_archive_profile(
         let v03 = window_identity_over(&V03_LIBRARY, window);
         return entry_archive(plain(codec), window.len(), Era::V03, &v03, lengths, payload);
     }
-    let _ = identity;
-    let v04 = window_identity_over(&V04_LIBRARY, window);
     let codec = Codec::profiled(profile, codec.x86());
+    if profiled_era(codec) == Era::Current {
+        return entry_archive(
+            codec,
+            window.len(),
+            Era::Current,
+            identity,
+            lengths,
+            payload,
+        );
+    }
+    let v04 = window_identity_over(&V04_LIBRARY, window);
     entry_archive(codec, window.len(), Era::V04, &v04, lengths, payload)
 }
 
