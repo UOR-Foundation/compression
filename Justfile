@@ -30,6 +30,8 @@ model:
 # content. PrismPM then validates the canonical contract and both locks.
 template-check:
     cargo run --locked -q -p xtask -- audit-bootstrap
+    # Native regeneration stages a copy of the tree in the SDK's 2 GiB /tmp.
+    df -k /tmp && (du -xsk /tmp/* /tmp/.[!.]* /tmp/prismpm-home/* /tmp/prismpm-home/.[!.]* 2>/dev/null | sort -n | tail -12 || true)
     prismpm template check
     prismpm lock check
 
