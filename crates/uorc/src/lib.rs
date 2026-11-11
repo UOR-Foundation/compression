@@ -66,6 +66,7 @@ pub mod portfolio;
 mod store;
 pub mod tree;
 pub mod ulz;
+pub mod weights;
 pub mod x86;
 
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
@@ -193,7 +194,15 @@ fn compress_pieces(
             frame::relabel(&archive, lengths)
         };
     }
-    let [first, second] = portfolio::plan(frame);
+    let plan = portfolio::SHIPPED.plan(frame);
+    let (first, second) = (
+        plan.first().copied().flatten(),
+        plan.get(1).copied().flatten(),
+    );
+    let code_strategy =
+        |frame, lengths, window, strategy: Option<portfolio::Strategy>, learn, bound| {
+            strategy.and_then(|s| code_strategy(frame, lengths, window, s, learn, bound))
+        };
     let raw = archive::raw_length(lengths);
     // The scheduled strategies code side by side (a lone frame then uses two
     // cores); the choice is the same in any order. With a core to spare each
@@ -231,7 +240,7 @@ pub fn compress_strategy(
     window: &[&[u8]],
     which: usize,
 ) -> Option<Vec<u8>> {
-    let strategy = *portfolio::plan(frame).get(which)?;
+    let strategy = (*portfolio::SHIPPED.plan(frame).get(which)?)?;
     code_strategy(
         frame,
         lengths,
