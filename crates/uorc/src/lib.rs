@@ -664,7 +664,13 @@ fn compress_frames(
         let spare = 2 * jobs.len() <= threads;
         let mut coded = parallel(&jobs, threads, |&k| {
             let frame = &batch[k - before.len()];
-            compress_pieces(all[k], &frame.pieces, &all[k - frame.window..k], steps, spare)
+            compress_pieces(
+                all[k],
+                &frame.pieces,
+                &all[k - frame.window..k],
+                steps,
+                spare,
+            )
         })
         .into_iter();
         drop(all);
@@ -1473,8 +1479,13 @@ mod tests {
         }
         for (stream, frame) in one.iter().zip(&frames) {
             let mut back = Vec::new();
-            decompress_stream(io::Cursor::new(&stream[..]), &mut back, DEFAULT_DECODE_WORK, 2)
-                .expect("decodes");
+            decompress_stream(
+                io::Cursor::new(&stream[..]),
+                &mut back,
+                DEFAULT_DECODE_WORK,
+                2,
+            )
+            .expect("decodes");
             assert!(&back == frame);
         }
     }
