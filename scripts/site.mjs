@@ -74,12 +74,13 @@ export function readToml(text, name = 'toml') {
     if ((m = l.match(/^\[\[([A-Za-z0-9_.-]+)\]\]$/))) {
       const keys = m[1].split('.');
       let t = root;
-      for (const k of keys.slice(0, -1)) t = t[k] ??= {};
+      // [[a.b]] appends to b of the last [[a]] table.
+      for (const k of keys.slice(0, -1)) { t = t[k] ??= {}; if (Array.isArray(t)) t = t.at(-1); }
       const last = keys.at(-1);
       (t[last] ??= []).push((at = {}));
     } else if ((m = l.match(/^\[([A-Za-z0-9_.-]+)\]$/))) {
       at = root;
-      for (const k of m[1].split('.')) at = at[k] ??= {};
+      for (const k of m[1].split('.')) { at = at[k] ??= {}; if (Array.isArray(at)) at = at.at(-1); }
     } else if ((m = l.match(/^([A-Za-z0-9_-]+|"[^"]+")\s*=\s*(.+)$/))) {
       at[m[1].replace(/^"|"$/g, '')] = scalar(m[2], i + 1);
     } else throw new Error(`${name}:${i + 1}: unsupported line ${l}`);
@@ -101,13 +102,20 @@ export function modelState(root = ROOT) {
     id: c.id, form: c.form, codec: c.codec ?? c.candidate ?? '', candidate: c.candidate, incumbent: c.incumbent,
     family: c.family, corpus: c.corpus ?? c.family ?? '', bytes: c.bytes, steps: c.steps, status: c.status,
   }));
+  // model/engine.toml (uorc/engine/1): [[weight]] names a [[strategy]] by
+  // index (its point profile word, bit 31 the x86 filter); [[generator]]
+  // weights order the engine's search.
   const engine = read('model/engine.toml');
-  const weights = (engine.weight ?? []).map((w) => ({ strategy: w.strategy, family: w.family, weight: w.value }));
+  const strategies = engine.strategy ?? [];
+  const weights = [
+    ...(engine.weight ?? []).map((w) => ({ strategy: strategies[w.strategy]?.word ?? String(w.strategy), family: w.family, weight: w.value })),
+    ...(engine.generator ?? []).map((g) => ({ strategy: `generator ${g.generator}`, family: g.family, weight: g.value })),
+  ];
   return {
     schema: 'uorc/model-state/1',
     theorems,
     claims,
-    engine: { tick: engine.tick ?? null, rule30: engine.rule30 ?? null, consolidated: engine.consolidated ?? null, weights },
+    engine: { tick: engine.tick ?? null, rule30: engine.rule30_state ?? null, strategies: strategies.length, weights },
   };
 }
 
@@ -197,11 +205,11 @@ export function check(files, site = new Set(files.keys())) {
 export function modelNotes(m) {
   const count = (status) => m.claims.filter((c) => c.status === status).length;
   const lines = ['## What this release claims', ''];
-  lines.push(m.theorems.length ? `Theorems for every input: ${m.theorems.map((t) => `${t.id} (${t.evidence})`).join(', ')}.` : 'Theorems for every input: none recorded.');
+  lines.push(m.theorems.length ? `Performance rows: ${m.theorems.map((t) => `${t.id} (${t.evidence})`).join(', ')}.` : 'Performance rows: none recorded.');
   lines.push('', m.claims.length
-    ? `Closed claims: ${m.claims.length} recorded, ${count('proved')} proved, ${count('refuted')} refuted, ${m.claims.length - count('proved') - count('refuted')} not yet decided. Each names its codec point κ, corpus κ, exact bytes and steps.`
-    : 'Closed claims: none recorded.');
-  lines.push('', m.engine.tick == null ? 'Engine: no tick recorded.' : `Engine: tick ${m.engine.tick}, rule30 register ${m.engine.rule30}, ${m.engine.consolidated} consolidated, ${m.engine.weights.length} weights.`);
+    ? `Claims: ${m.claims.length} recorded, ${count('proved')} proved, ${count('refuted')} refuted, ${m.claims.length - count('proved') - count('refuted')} not yet decided. Each names its codec point κ, corpus κ, exact bytes and steps.`
+    : 'Claims: none recorded.');
+  lines.push('', m.engine.tick == null ? 'Engine: no tick recorded.' : `Engine: tick ${m.engine.tick}, rule30 register ${m.engine.rule30}, ${m.engine.strategies} strategies in the portfolio, ${m.engine.weights.length} weights.`);
   lines.push('', 'The full register is model.json, on the Pages site and attached to this release.', '');
   return lines.join('\n');
 }

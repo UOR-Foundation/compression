@@ -37,6 +37,8 @@ const prose = Array.from({ length: 40000 }, () => { seed = (seed * 1103515245 + 
 const file = (name, bytes) => { const p = path.join(dir, name); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes); return p; };
 const inputs = {
   text: file('text.txt', Buffer.from(prose)),
+  // 10 MiB of text: two frames, for the throughput measures.
+  large: file('large.txt', Buffer.from(prose.repeat(40)).subarray(0, 10 * 1048576)),
   other: file('other.bin', crypto.randomBytes(3000)),
   // Three identical 8 MiB frames: the second and third are reference frames.
   frames: file('frames.bin', Buffer.alloc(3 * 8 * 1048576)),
@@ -191,10 +193,19 @@ const setFiles = async (id, files) => {
 const click = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
 const tab = (op) => click(`#tab-${op}`);
 const text = (id) => evaluate(`document.getElementById(${JSON.stringify(id)}).textContent`);
+// Run the chosen operation to its end, watching the progress bar: the
+// longest time it stands still is the progressGap measure.
 async function runAndWait() {
   const t = Date.now();
   await click('#run');
-  await waitFor("document.body.dataset.state !== 'running'", 600000);
+  let value, moved = Date.now();
+  for (;;) {
+    const [now, running, at] = [Date.now(), ...await evaluate("[document.body.dataset.state === 'running', document.getElementById('progress').value]")];
+    if (!running) break;
+    if (at !== value) { value = at; moved = now; } else raise('progressGap', now - moved);
+    if (now - t > 600000) throw new Error('the operation did not end within 10 minutes');
+    await sleep(100);
+  }
   return { state: await state(), ms: Date.now() - t };
 }
 // The files the result offers: name and bytes.
@@ -234,8 +245,16 @@ async function compressAndCompare(input, name) {
 
 const cases = {
   async 'compress-file'() {
-    const r = await compressAndCompare(inputs.text, 'text');
-    measured.compressThroughput = Math.round(fs.statSync(inputs.text).size / r.ms);
+    await compressAndCompare(inputs.text, 'text');
+    // A visitor's first file comes a few seconds after the page loads, once
+    // the pool has started.
+    await sleep(3000);
+    const r = await compressAndCompare(inputs.large, 'large');
+    measured.compressThroughput = Math.round(fs.statSync(inputs.large).size / r.ms);
+    const workers = Number(await evaluate("document.querySelector('#result .memory').dataset.workers"));
+    const memory = await evaluate('navigator.deviceMemory');
+    const may = Math.min(await evaluate('navigator.hardwareConcurrency'), 16, memory ? Math.floor(memory * 2) : 4);
+    raise('coresUnused', may < 2 ? 0 : Math.max(0, may - workers));
   },
   async 'compress-matches-library'() {
     await compressAndCompare(inputs.frames, 'frames');
@@ -249,7 +268,12 @@ const cases = {
     expect(r.state === 'done', `decompress: ${await text('status')}`);
     const [out] = await downloads();
     expect(out.name === 'text.txt' && sha(out.bytes) === sha(fs.readFileSync(inputs.text)), `decompress restored ${out.name} with other bytes`);
-    measured.decompressThroughput = Math.round(fs.statSync(inputs.text).size / r.ms);
+    await setFiles('field-archive', [saved.large]);
+    const big = await runAndWait();
+    expect(big.state === 'done', `decompress large: ${await text('status')}`);
+    const [restored] = await downloads();
+    expect(restored.name === 'large.txt' && sha(restored.bytes) === sha(fs.readFileSync(inputs.large)), `decompress restored ${restored.name} with other bytes`);
+    measured.decompressThroughput = Math.round(fs.statSync(inputs.large).size / big.ms);
   },
   async 'decompress-reference-frames'() {
     await need('compress-matches-library');
@@ -377,7 +401,7 @@ const cases = {
     const e = published.engine;
     const line = await text('model-engine');
     const want = e.tick == null ? await evaluate("document.getElementById('model').dataset.empty")
-      : `Tick ${e.tick.toLocaleString('en-US')}, rule30 register ${e.rule30}, ${e.consolidated.toLocaleString('en-US')} consolidated.`;
+      : `Tick ${e.tick.toLocaleString('en-US')}, rule30 register ${e.rule30}, ${e.strategies.toLocaleString('en-US')} strategies in the portfolio.`;
     raise('differingModelValues', (gates.differingModelValues ?? 0) + (line === want ? 0 : 1));
     expect(line === want, `engine line ${line} differs from model.json (${want})`);
   },

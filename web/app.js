@@ -195,6 +195,7 @@ function showResult(result, nodes) {
   const memory = document.createElement("p");
   memory.className = "memory";
   memory.textContent = `${labels.memory}: ${fmt(Math.round(result.memory / 1048576))} MiB`;
+  memory.dataset.workers = String(result.workers ?? 0);
   $("result").replaceChildren(...nodes, memory);
   $("result").hidden = false;
 }
@@ -280,7 +281,7 @@ function fillModel(m) {
   fill("weights", m.engine.weights);
   $("model-engine").textContent = m.engine.tick == null
     ? empty
-    : `Tick ${fmt(m.engine.tick)}, rule30 register ${m.engine.rule30}, ${fmt(m.engine.consolidated)} consolidated.`;
+    : `Tick ${fmt(m.engine.tick)}, rule30 register ${m.engine.rule30}, ${fmt(m.engine.strategies)} strategies in the portfolio.`;
 }
 
 function runExample(example) {
