@@ -1608,59 +1608,24 @@ theorem{
 }
 
 definition{
-  name: sizeAgainstTheField,
+  name: leastArchive,
   parameters: [],
   result: Requirement,
-  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "capacity", text := "On each public corpus the archives are no larger in total than those of the best general-purpose compressor the release bench runs."})
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "capacity", text := "For every input the archive is the least over the whole modelled codec space, not over a schedule drawn from it, and its length is the information the chosen model assigns to the input plus a proved constant."})
 }
 
 definition{
-  name: decodeRate,
+  name: wholeHost,
   parameters: [],
   result: Requirement,
-  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "Decompression on one core reaches the required rate on each public corpus."})
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "On a host with any number of threads the steps of compressing and of decompressing are spread over all of them: the longest chain of dependent steps is the total divided by the threads, up to one unit of work, and the total does not grow with the threads."})
 }
 
 definition{
-  name: compressRate,
+  name: hostCeiling,
   parameters: [],
   result: Requirement,
-  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "Compression on four cores reaches the required rate on each public corpus."})
-}
-
-definition{
-  name: workingMemory,
-  parameters: [],
-  result: Requirement,
-  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Compressing or decompressing any input stays inside the required memory."})
-}
-
-definition{
-  name: corpusBytes,
-  parameters: [],
-  result: Measure,
-  body: (record Measure {requirement := "Uorc.Performance::sizeAgainstTheField", quantity := "total archive bytes on a corpus, per thousand bytes of the smaller of xz -9e and zpaq -m5 on the same corpus", unit := "per mille", sense := "at most", threshold := 1000, command := "scripts/bench.mjs", disposition := "draft"})
-}
-
-definition{
-  name: decodeKilobytesPerSecond,
-  parameters: [],
-  result: Measure,
-  body: (record Measure {requirement := "Uorc.Performance::decodeRate", quantity := "decompressed bytes per second on one core, over a corpus", unit := "KB/s", sense := "at least", threshold := 10000, command := "scripts/bench.mjs", disposition := "draft"})
-}
-
-definition{
-  name: compressKilobytesPerSecond,
-  parameters: [],
-  result: Measure,
-  body: (record Measure {requirement := "Uorc.Performance::compressRate", quantity := "compressed input bytes per second on four cores, over a corpus", unit := "KB/s", sense := "at least", threshold := 2000, command := "scripts/bench.mjs", disposition := "draft"})
-}
-
-definition{
-  name: peakMemory,
-  parameters: [],
-  result: Measure,
-  body: (record Measure {requirement := "Uorc.Performance::workingMemory", quantity := "peak resident memory while compressing or decompressing a corpus file", unit := "MiB", sense := "at most", threshold := 256, command := "scripts/bench.mjs", disposition := "draft"})
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Throughput on a host is that host's ceiling for the steps the chosen point costs: the bound is derived from the host's model (cores, vector width, memory rate), and the measure is the distance to it."})
 }
 \end{semanticmodule}
 \end{lexlean}
