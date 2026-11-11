@@ -5,9 +5,9 @@
 //! deterministic, and it is read from a frame's header alone: a raw frame
 //! costs one step per output byte (the copy), a reference frame costs none
 //! (its bytes were produced once already), and an ncm frame costs eight bits
-//! times the inputs its profile word keeps, per output byte, plus one step per
-//! byte when the x86 filter runs. The constants are the model's; the test
-//! in `tests/performance.rs` reads them from the module text.
+//! times the inputs its profile word keeps, per output byte, with or without
+//! the x86 filter. The constants are the model's; `tests/performance.rs`
+//! reads them from the module text.
 
 use crate::frame::{Info, Representation};
 use crate::ncm;
@@ -25,8 +25,8 @@ pub const CONTEXT_BITS: u32 = 17;
 /// The most inputs any profile evaluates: 17 contexts, the fixed 3, two features.
 pub const MAX_INPUTS: u32 = CONTEXT_BITS + FIXED_INPUTS + 2 * FEATURE_INPUTS;
 /// The bound of `Uorc.Performance.decodeStepsBound`: no frame costs more
-/// steps per output byte than this (the full model over the x86 filter).
-pub const MAX_STEPS_PER_BYTE: u64 = BITS_PER_BYTE * MAX_INPUTS as u64 + 1;
+/// steps per output byte than this (the full model).
+pub const MAX_STEPS_PER_BYTE: u64 = BITS_PER_BYTE * MAX_INPUTS as u64;
 /// Domain tag of a codec point's identity.
 pub const CODEC_POINT_TAG: &[u8] = b"uorc/codec-point/1";
 
@@ -45,11 +45,8 @@ pub fn steps(representation: Representation, profile: Option<u32>, n: u64) -> Op
     match representation {
         Representation::Raw => Some(n),
         Representation::Reference => Some(0),
-        Representation::Ncm => {
+        Representation::Ncm | Representation::NcmX86 => {
             Some(BITS_PER_BYTE * u64::from(inputs(profile.unwrap_or(ncm::V03))) * n)
-        }
-        Representation::NcmX86 => {
-            Some((BITS_PER_BYTE * u64::from(inputs(profile.unwrap_or(ncm::V03))) + 1) * n)
         }
         Representation::Ulz | Representation::UlzKernel | Representation::Program => None,
     }
