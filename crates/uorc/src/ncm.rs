@@ -182,6 +182,7 @@ fn tables() -> &'static Tables {
 
 /// An adaptive probability map: a probability, refined by interpolating
 /// between learned points of its row for the context.
+#[derive(Clone)]
 struct Apm {
     t: Vec<u16>,
     idx: usize,
@@ -356,6 +357,12 @@ struct Bucket([u32; 16]);
 /// pieces, and the memory grew with the number of frames.
 struct Table<T: Spare>(Vec<T>);
 
+impl<T: Spare> Clone for Table<T> {
+    fn clone(&self) -> Self {
+        Table(self.0.clone())
+    }
+}
+
 trait Spare: Copy + 'static {
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>>;
 }
@@ -437,6 +444,7 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
     *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
 }
 
+#[derive(Clone)]
 struct Model {
     t: &'static Tables,
     /// The profile's contexts, in order (`act[..na]`): the mixers read them as
@@ -462,6 +470,13 @@ struct Model {
     /// preceding outputs): the match model reaches into them.
     hoff: u32,
     pos: u32,
+    /// Bytes the model has learned from (its plasticity's clock): `pos` for
+    /// one stream; for a stream of a laned frame, every stream's bytes merged
+    /// into the shared state plus its own since.
+    seen: u32,
+    /// Whether `hist` is laid out whole (a laned frame: every stream writes
+    /// its bytes in place) rather than grown by each coded byte.
+    laid: bool,
     c4: u32,
     c8: u32,
     wordh: u32,
@@ -562,6 +577,8 @@ impl Model {
             hist: Vec::with_capacity(before + n as usize),
             hoff: before as u32,
             pos: 0,
+            seen: 0,
+            laid: false,
             c4: 0,
             c8: 0,
             wordh: 0,
@@ -1142,7 +1159,7 @@ impl Model {
         if self.m2len > 0 {
             adapt(&mut self.m2sp[self.m2i], &mut self.m2sn[self.m2i], y, rate);
         }
-        let lr = standard::plasticity(self.pos);
+        let lr = standard::plasticity(self.seen);
         let yb = i32::from(y) << 12;
         // |err| <= 4096 and lr <= 128, so err * lr <= 2^19 and x * err * lr
         // (|x| <= 2047) stays inside i32 (`laneFitHolds`): the kernels learn
@@ -1163,8 +1180,13 @@ impl Model {
         self.bit += 1;
         if self.bit == 8 {
             let b = self.c0 & 255;
-            self.hist.push(b as u8);
+            if self.laid {
+                self.hist[(self.hoff + self.pos) as usize] = b as u8;
+            } else {
+                self.hist.push(b as u8);
+            }
             self.pos += 1;
+            self.seen += 1;
             self.c8 = (self.c8 << 8) | (self.c4 >> 24);
             self.c4 = (self.c4 << 8) | b;
             if (b as u8).is_ascii_alphabetic() || b >= 128 {
@@ -1299,6 +1321,8 @@ macro_rules! dispatch {
         }
     }};
 }
+
+pub mod streams;
 
 #[cfg(target_arch = "x86_64")]
 mod x86 {
