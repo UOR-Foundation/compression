@@ -12,8 +12,9 @@
 //! work, and the measured sizes decide.
 //!
 //! [`WEIGHTS`] is learned by the rule30 rule ([`learn`]: +2 for the strategy
-//! that coded a frame smallest, -1 for every other, bounded to 1..=16) over
-//! the measured outcomes in `portfolio-outcomes.tsv`, starting from 8; the
+//! whose archive was smallest, -1 for every other, bounded to 1..=16) over
+//! the measured archive lengths in `portfolio-outcomes.tsv` (V03 writes the
+//! v0.3 entry, 7-8 B shorter than a profiled one), starting from 8; the
 //! test `weights_are_learned_from_the_outcomes` repeats that learning. The
 //! table is part of the client's model, so the output is a function of the
 //! input alone, whatever `--threads` is.
@@ -61,7 +62,7 @@ pub const STRATEGIES: [Strategy; 6] = [
     },
 ];
 
-/// Families: tiny (< 4 KiB), small (< 64 KiB), x86 code, text, other.
+/// Families: tiny (< 4 KiB), small (< 64 KiB), x86 code (any size), text, other.
 pub const FAMILIES: usize = 5;
 
 /// Strategies the encoder codes per frame.
@@ -70,11 +71,11 @@ pub const BUDGET: usize = 2;
 /// The learned weight of each strategy (columns, portfolio order) for each
 /// family (rows).
 pub const WEIGHTS: [[u8; 6]; FAMILIES] = [
-    [1, 1, 15, 1, 12, 1],
-    [1, 1, 16, 1, 1, 1],
-    [5, 1, 1, 15, 1, 1],
+    [1, 1, 1, 1, 16, 1],
+    [1, 1, 14, 1, 16, 1],
+    [4, 1, 1, 15, 1, 1],
     [10, 1, 10, 1, 4, 1],
-    [9, 1, 12, 1, 1, 1],
+    [12, 1, 12, 1, 1, 1],
 ];
 
 /// The rule30 learning rule: a success adds 2 up to 16, a failure takes 1
@@ -93,17 +94,18 @@ pub const fn learn(w: u8, success: bool) -> u8 {
     }
 }
 
-/// The family of a frame: tiny below 4 KiB, small below 64 KiB, then x86
-/// code ([`crate::x86::dense`]), then text (at least 90% of the bytes are
-/// tab, line feed, carriage return or printable ASCII), else other.
+/// The family of a frame: x86 code ([`crate::x86::dense`], at any size, so
+/// a small executable still reaches the filter), then tiny below 4 KiB,
+/// small below 64 KiB, text (at least 90% of the bytes are tab, line feed,
+/// carriage return or printable ASCII), else other.
 pub fn family(frame: &[u8]) -> usize {
     let n = frame.len();
-    if n < 4096 {
+    if crate::x86::dense(frame) {
+        2
+    } else if n < 4096 {
         0
     } else if n < 65536 {
         1
-    } else if crate::x86::dense(frame) {
-        2
     } else if 10 * printable(frame) >= 9 * n {
         3
     } else {
@@ -204,5 +206,11 @@ mod tests {
         assert_eq!(family(&[b'a'; 10_000]), 1);
         assert_eq!(family(&[b'a'; 100_000]), 3);
         assert_eq!(family(&[0; 100_000]), 4);
+        // x86 code is x86 at any size, so a small executable tries the filter
+        let calls: Vec<u8> = (0..400u32)
+            .flat_map(|k| [0xE8, (k % 200) as u8, 0, 0, 0, 0x90])
+            .collect();
+        assert!(calls.len() < 4096);
+        assert_eq!(family(&calls), 2);
     }
 }
