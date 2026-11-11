@@ -8,7 +8,7 @@ identity text (`prism-factory/obligation/1`), receipts on a `factory-receipts`
 branch, refutation of hermetic failures, retried fetches, and a 16-level weight
 that orders remaining work. Here the decisions are a small Node host
 (`scripts/factory.mjs`, tests in `scripts/factory.test.mjs`) over the graph in
-`graph.json`, not a kernel-checked model: uorc's graph is fifteen rows.
+`graph.json`, not a kernel-checked model: uorc's graph is sixteen rows.
 
 ## The graph
 
@@ -21,7 +21,8 @@ that orders remaining work. Here the decisions are a small Node host
 | `claims`, `reproducibility` | hermetic | the formal set | bootstrap `template-gate` |
 | `offline` | fetch | the formal set | offline-validation |
 | `export` | fetch, host | the import closure of `Uorc.Client` (client/src over src), the LexLean project files, the export scripts | `node scripts/client-export.mjs` on a workstation |
-| `gate` | gate | the identities of the seven bootstrap legs | proved when all seven are |
+| `pages` | fetch | the client set, `crates/uorc-wasm/`, `web/`, the brand files, `scripts/site.mjs`, `scripts/page-acceptance.mjs`, its workflow | pages-client `acceptance` (UC-WEB-01) |
+| `gate` | gate | the identities of the seven bootstrap legs and `pages` | proved when all eight are |
 | `native-<target>` (2), `wasm` | fetch | the client set (+ `crates/uorc-wasm/`) | release `native`, `wasm` |
 | `bench` | fetch | `scripts/bench.mjs`, release.yml, `native-x86_64` | release `bench` |
 | `publish` | fetch | everything, `@mode`, `@run` | release `publish`, `pages` |

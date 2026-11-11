@@ -1,0 +1,81 @@
+# UC-WEB-01: the Pages client, built as the release builds it, driven through
+# every journey of its Prism product model (src/Uorc/Page.lex.tex) in headless
+# Chrome by scripts/page-acceptance.mjs.
+#
+# A factory obligation (`pages` in factory/graph.json): its identity covers only
+# what the page reads (the client set, the wasm crate, web/, the brand files and
+# the two scripts), so a change elsewhere finds its receipt and skips the work.
+# The release gate needs it, so no release ships a page that fails its model.
+name: pages client
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-client-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  route:
+    name: pages client / factory route
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      route: ${{ steps.route.outputs.route }}
+      identity: ${{ steps.route.outputs.identity }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Route the page acceptance by its own inputs
+        id: route
+        run: node scripts/factory.mjs route pages | tee -a "$GITHUB_OUTPUT"
+
+  acceptance:
+    name: pages client / product model acceptance
+    needs: route
+    if: needs.route.outputs.route == 'observe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build the site and walk every journey of the product model in Chrome
+        id: run
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --release -p uorc-wasm --target wasm32-unknown-unknown
+          mkdir -p .tmp/bench
+          for f in bench.html bench.json bench.md; do printf 'benchmarks are published with each release\n' > ".tmp/bench/$f"; done
+          node scripts/site.mjs .tmp/site --wasm target/wasm32-unknown-unknown/release/uorc_wasm.wasm --version "$(git describe --tags --always)-dev" --bench .tmp/bench
+          node scripts/page-acceptance.mjs .tmp/site --chrome "$(command -v google-chrome)" --report .tmp/page-acceptance.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: page-acceptance
+          path: .tmp/page-acceptance.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Record the outcome
+        if: always() && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
+        env:
+          IDENTITY: ${{ needs.route.outputs.identity }}
+          OUTCOME: ${{ steps.run.outcome }}
+        run: node scripts/factory.mjs outcome pages "$IDENTITY" "$OUTCOME" .tmp/factory
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && (steps.run.outcome == 'success' || steps.run.outcome == 'failure')
+        with:
+          name: factory-outcome-pages
+          path: .tmp/factory/
+          if-no-files-found: error
+          retention-days: 3
