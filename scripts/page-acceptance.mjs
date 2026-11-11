@@ -343,7 +343,7 @@ const cases = {
       const claims = library[0].codec_point === f.codec_point ? '1 proved' : 'none';
       if (row[at('codec_point')] !== f.codec_point || row[at('steps')] !== f.steps.toLocaleString('en-US')
         || row[at('lanes')] !== String(f.lanes) || row[at('state')] !== (f.state ?? 'none')
-        || row[at('ncm_profile')] !== (f.ncm_profile ?? 'none') || row[at('claims')] !== claims) differing += 1;
+        || row[at('ncm_profile')] !== (f.ncm_profile == null ? 'none' : `${f.ncm_profile}${f.representation === 'ncm-x86' ? ' x86' : ''}`) || row[at('claims')] !== claims) differing += 1;
     });
     raise('differingCodecPoints', differing + Math.abs(rows.length - library.length));
     expect(gates.differingCodecPoints === 0, `inspect rows ${JSON.stringify(rows)} differ from the library ${JSON.stringify(library)}`);

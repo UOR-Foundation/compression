@@ -241,7 +241,7 @@ function frameRow(row, i) {
     ...row,
     index: i + 1,
     integrity_ok: row.integrity_ok ? "intact" : "broken",
-    ncm_profile: row.ncm_profile ?? "none",
+    ncm_profile: row.ncm_profile == null ? "none" : `${row.ncm_profile}${row.representation === "ncm-x86" ? " x86" : ""}`,
     state: row.state ?? "none",
     steps: row.steps == null ? "not modelled" : fmt(row.steps),
     claims: claimsNaming(row.codec_point),

@@ -767,8 +767,13 @@ fn describe(info: &uorc::Info) -> String {
          lanes           {}\n\
          steps           {}\n\
          codec point     {}",
-        info.ncm_profile
-            .map_or_else(|| "none".to_owned(), |p| format!("0x{p:05x}")),
+        info.ncm_profile.map_or_else(
+            || "none".to_owned(),
+            |p| match info.representation {
+                uorc::Representation::NcmX86 => format!("0x{p:05x} x86"),
+                _ => format!("0x{p:05x}"),
+            }
+        ),
         if point.state == [0; 32] {
             "none".to_owned()
         } else {
