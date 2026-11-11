@@ -445,6 +445,8 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
 }
 
 #[derive(Clone)]
+// streams of a frame keep their models side by side: no cache line spans two
+#[repr(align(128))]
 struct Model {
     t: &'static Tables,
     /// The profile's contexts, in order (`act[..na]`): the mixers read them as
@@ -474,9 +476,9 @@ struct Model {
     /// one stream; for a stream of a laned frame, every stream's bytes merged
     /// into the shared state plus its own since.
     seen: u32,
-    /// Whether `hist` is laid out whole (a laned frame: every stream writes
-    /// its bytes in place) rather than grown by each coded byte.
-    laid: bool,
+    /// A stream of a laned frame: the shared state it reads and its own
+    /// changes since the epoch began (`None` for one stream).
+    lane: Option<Box<streams::Lane>>,
     c4: u32,
     c8: u32,
     wordh: u32,
@@ -578,7 +580,7 @@ impl Model {
             hoff: before as u32,
             pos: 0,
             seen: 0,
-            laid: false,
+            lane: None,
             c4: 0,
             c8: 0,
             wordh: 0,
@@ -663,13 +665,54 @@ impl Model {
     /// The byte at coded position `i`.
     #[inline]
     fn at(&self, i: u32) -> u32 {
-        u32::from(self.hist[(self.hoff + i) as usize])
+        self.abs(self.hoff + i)
     }
 
     /// The byte at absolute position `i` (history first).
     #[inline]
     fn abs(&self, i: u32) -> u32 {
-        u32::from(self.hist[i as usize])
+        match &self.lane {
+            None => u32::from(self.hist[i as usize]),
+            Some(l) => l.abs(i),
+        }
+    }
+
+    /// The match table entry `k`.
+    #[inline]
+    fn mt(&self, k: usize) -> u32 {
+        match (&self.lane, self.mtab[k]) {
+            (Some(l), 0) => l.shared().mtab[k],
+            (_, v) => v,
+        }
+    }
+
+    #[inline]
+    fn set_mt(&mut self, k: usize, v: u32) {
+        if let Some(l) = &mut self.lane {
+            if self.mtab[k] == 0 {
+                l.mt.push(k as u32);
+            }
+        }
+        self.mtab[k] = v;
+    }
+
+    /// The short match table entry `k`.
+    #[inline]
+    fn mt2(&self, k: usize) -> u32 {
+        match (&self.lane, self.m2tab[k]) {
+            (Some(l), 0) => l.shared().m2tab[k],
+            (_, v) => v,
+        }
+    }
+
+    #[inline]
+    fn set_mt2(&mut self, k: usize, v: u32) {
+        if let Some(l) = &mut self.lane {
+            if self.m2tab[k] == 0 {
+                l.m2t.push(k as u32);
+            }
+        }
+        self.m2tab[k] = v;
     }
 
     /// The match-model key of absolute position `p`: the hash of the 7 bytes before it.
@@ -733,7 +776,7 @@ impl Model {
         if pa >= 7 {
             let k = self.match_key(pa);
             if self.mlen == 0 {
-                let cand = self.mtab[k];
+                let cand = self.mt(k);
                 if cand > 0 {
                     let l = self.agree(cand, pa);
                     if l >= 7 {
@@ -746,7 +789,7 @@ impl Model {
                     }
                 }
             }
-            self.mtab[k] = pa;
+            self.set_mt(k, pa);
         }
         if self.profile & F_SHORT != 0 {
             if self.m2len > 0 {
@@ -758,7 +801,7 @@ impl Model {
             if pa >= 4 {
                 let k = self.short_key(pa);
                 if self.m2len == 0 {
-                    let cand = self.m2tab[k];
+                    let cand = self.mt2(k);
                     if cand > 0 {
                         let l = self.agree(cand, pa);
                         if l >= 4 {
@@ -771,7 +814,7 @@ impl Model {
                         }
                     }
                 }
-                self.m2tab[k] = pa;
+                self.set_mt2(k, pa);
             }
             if self.m2len > 0 {
                 self.m2exp = self.abs(self.m2ptr);
@@ -907,7 +950,11 @@ impl Model {
             });
             self.prefetch_buckets(&hb, 0);
             if pa + 1 >= 7 {
-                prefetch(&self.mtab[self.match_key_by(pa + 1, abs)]);
+                let k = self.match_key_by(pa + 1, abs);
+                prefetch(&self.mtab[k]);
+                if let Some(l) = &self.lane {
+                    prefetch(&l.shared().mtab[k]);
+                }
             }
             self.spec_key = key;
             self.spec_hb = hb;
@@ -943,6 +990,10 @@ impl Model {
             let b = ((hh & self.mask) & !31) as usize;
             prefetch(&self.sl[b >> 4]);
             prefetch(&self.sl[(b >> 4) + 1]);
+            if let Some(l) = &self.lane {
+                prefetch(&l.shared().sl[b >> 4]);
+                prefetch(&l.shared().sl[(b >> 4) + 1]);
+            }
         }
     }
 
@@ -951,6 +1002,9 @@ impl Model {
     /// (by slot 1's count), cleared and tagged.
     #[inline]
     fn bucket(&mut self, hh: u32) -> u32 {
+        if let Some(l) = &mut self.lane {
+            return l.bucket(hh, self.mask, &mut self.sl);
+        }
         let ck = ((hh >> 24) | 1) as u8;
         let b0 = (hh & self.mask) & !15;
         let alt = b0 ^ 16;
@@ -1180,10 +1234,9 @@ impl Model {
         self.bit += 1;
         if self.bit == 8 {
             let b = self.c0 & 255;
-            if self.laid {
-                self.hist[(self.hoff + self.pos) as usize] = b as u8;
-            } else {
-                self.hist.push(b as u8);
+            match &mut self.lane {
+                None => self.hist.push(b as u8),
+                Some(l) => l.buf.push(b as u8),
             }
             self.pos += 1;
             self.seen += 1;
