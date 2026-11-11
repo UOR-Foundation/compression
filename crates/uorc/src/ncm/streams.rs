@@ -81,7 +81,8 @@ pub(super) struct Shared {
 #[derive(Clone)]
 pub(super) struct Lane {
     shared: Option<Arc<Shared>>,
-    /// The stream's bytes coded this epoch, from absolute position `lo`.
+    /// The stream's bytes coded this epoch, from absolute position `lo`
+    /// (moved out of the thread's history when its run ends).
     pub(super) buf: Vec<u8>,
     lo: u32,
     /// The buckets the stream copied into its own table this epoch (its
@@ -91,6 +92,12 @@ pub(super) struct Lane {
     /// The match table entries the stream wrote this epoch (likewise).
     pub(super) mt: Vec<u32>,
     pub(super) m2t: Vec<u32>,
+    /// What the stream changed this epoch, compact, once its run ends: its
+    /// buckets and match table entries (the thread's tables are then clean
+    /// for the next stream it runs).
+    delta: Vec<(u32, Bucket)>,
+    mtd: Vec<(u32, u32)>,
+    m2d: Vec<(u32, u32)>,
 }
 
 impl Lane {
@@ -99,17 +106,6 @@ impl Lane {
         self.shared
             .as_deref()
             .expect("a stream reads the shared state")
-    }
-
-    /// The byte at absolute position `i` as this stream sees it.
-    #[inline(always)]
-    pub(super) fn abs(&self, i: u32) -> u32 {
-        let d = i.wrapping_sub(self.lo) as usize;
-        if d < self.buf.len() {
-            u32::from(self.buf[d])
-        } else {
-            u32::from(self.shared().hist[i as usize])
-        }
     }
 
     /// The stream's copy of shared bucket `b`, made on first use (a
@@ -188,6 +184,66 @@ impl Coder {
 
 type Part = std::ops::Range<usize>;
 
+/// A thread's working tables: the copies of shared buckets and match table
+/// entries made by the stream it is running (0 everywhere else). A stream
+/// runs on them and leaves them clean, so a thread needs one set however
+/// many streams it runs.
+struct Own {
+    sl: Table<Bucket>,
+    mtab: Table<u32>,
+    m2tab: Table<u32>,
+    /// the history as merged (bytes no stream has finished read 0)
+    hist: Vec<u8>,
+}
+
+impl Own {
+    fn new(s: &Shared) -> Own {
+        Own {
+            sl: Table::new(s.sl.len(), Bucket([0; 16])),
+            mtab: Table::new(s.mtab.len(), 0),
+            m2tab: Table::new(s.m2tab.len(), 0),
+            hist: s.hist.clone(),
+        }
+    }
+}
+
+/// Run `work` for stream `m` on the thread's tables `own`, then move what the
+/// stream changed into its compact delta and leave the tables clean.
+fn run_on<F>(own: &mut Own, m: &mut Model, work: F)
+where
+    F: FnOnce(&mut Model),
+{
+    std::mem::swap(&mut own.sl, &mut m.sl);
+    std::mem::swap(&mut own.mtab, &mut m.mtab);
+    std::mem::swap(&mut own.m2tab, &mut m.m2tab);
+    std::mem::swap(&mut own.hist, &mut m.hist);
+    work(m);
+    let l = m.lane.as_mut().expect("a stream");
+    let (lo, hi) = (l.lo as usize, (m.hoff + m.pos) as usize);
+    l.buf.clear();
+    l.buf.extend_from_slice(&m.hist[lo..hi]);
+    m.hist[lo..hi].fill(0);
+    l.btouched.sort_unstable();
+    for &b in &l.btouched {
+        let v = &mut m.sl[b as usize];
+        l.delta.push((b, *v));
+        *v = Bucket([0; 16]);
+    }
+    for &k in &l.mt {
+        l.mtd.push((k, std::mem::take(&mut m.mtab[k as usize])));
+    }
+    for &k in &l.m2t {
+        l.m2d.push((k, std::mem::take(&mut m.m2tab[k as usize])));
+    }
+    l.btouched.clear();
+    l.mt.clear();
+    l.m2t.clear();
+    std::mem::swap(&mut own.sl, &mut m.sl);
+    std::mem::swap(&mut own.mtab, &mut m.mtab);
+    std::mem::swap(&mut own.m2tab, &mut m.m2tab);
+    std::mem::swap(&mut own.hist, &mut m.hist);
+}
+
 /// Merge sections (probe).
 pub static SECT: [std::sync::atomic::AtomicU64; 4] = [const { std::sync::atomic::AtomicU64::new(0) }; 4];
 /// Time spent merging (probe).
@@ -203,8 +259,8 @@ struct Frame {
     n: usize,
     /// bytes of every stream merged so far
     coded: usize,
-    /// per shared bucket: how many streams copied it this epoch
-    mark: Vec<u32>,
+    /// one set of working tables per thread
+    own: Vec<Own>,
 }
 
 impl Frame {
@@ -226,12 +282,14 @@ impl Frame {
             m2tab: std::mem::replace(&mut base.m2tab, Table(Vec::new())),
             hist,
         });
+        let mut own = Own::new(&shared);
         let mut lanes = Vec::with_capacity(plan.streams);
         for i in 0..plan.streams {
             let mut m = base.clone();
-            m.sl = Table::new(shared.sl.len(), Bucket([0; 16]));
-            m.mtab = Table::new(shared.mtab.len(), 0);
-            m.m2tab = Table::new(shared.m2tab.len(), 0);
+            m.sl = Table(Vec::new());
+            m.hist = Vec::new();
+            m.mtab = Table(Vec::new());
+            m.m2tab = Table(Vec::new());
             let start = before + plan.range(n, i).start;
             m.lane = Some(Box::new(Lane {
                 shared: Some(Arc::clone(&shared)),
@@ -240,14 +298,16 @@ impl Frame {
                 btouched: Vec::new(),
                 mt: Vec::new(),
                 m2t: Vec::new(),
+                delta: Vec::new(),
+                mtd: Vec::new(),
+                m2d: Vec::new(),
             }));
             if i > 0 {
                 m.hoff = start as u32;
-                m.new_byte();
+                run_on(&mut own, &mut m, Model::new_byte);
             }
             lanes.push(m);
         }
-        let nb = shared.sl.len();
         Frame {
             base,
             shared,
@@ -256,7 +316,7 @@ impl Frame {
             before,
             n,
             coded: 0,
-            mark: vec![0; nb],
+            own: vec![own],
         }
     }
 
@@ -281,6 +341,10 @@ impl Frame {
             l.buf.clear();
         }
         let threads = threads.clamp(1, self.lanes.len());
+        let threads = if cfg!(target_family = "wasm") { 1 } else { threads };
+        while self.own.len() < threads {
+            self.own.push(Own::new(&self.shared));
+        }
         let jobs: Vec<(usize, &mut Model, &mut Coder)> = self
             .lanes
             .iter_mut()
@@ -288,25 +352,27 @@ impl Frame {
             .enumerate()
             .map(|(i, (m, c))| (i, m, c))
             .collect();
-        if threads == 1 || cfg!(target_family = "wasm") {
-            for (i, m, c) in jobs {
-                work(i, m, c, parts[i].clone());
+        // stream i runs on thread i % threads: the same work either way
+        let mut per: Vec<Vec<(usize, &mut Model, &mut Coder)>> =
+            (0..threads).map(|_| Vec::new()).collect();
+        for j in jobs {
+            per[j.0 % threads].push(j);
+        }
+        let (work, parts) = (&work, &parts);
+        let run = |own: &mut Own, batch: Vec<(usize, &mut Model, &mut Coder)>| {
+            for (i, m, c) in batch {
+                run_on(own, m, |m| work(i, m, c, parts[i].clone()));
+            }
+        };
+        if threads == 1 {
+            for (own, batch) in self.own.iter_mut().zip(per) {
+                run(own, batch);
             }
         } else {
-            // stream i runs on thread i % threads: the same work either way
-            let mut per: Vec<Vec<(usize, &mut Model, &mut Coder)>> =
-                (0..threads).map(|_| Vec::new()).collect();
-            for j in jobs {
-                per[j.0 % threads].push(j);
-            }
-            let (work, parts) = (&work, &parts);
+            let run = &run;
             std::thread::scope(|s| {
-                for batch in per {
-                    s.spawn(move || {
-                        for (i, m, c) in batch {
-                            work(i, m, c, parts[i].clone());
-                        }
-                    });
+                for (own, batch) in self.own.iter_mut().zip(per) {
+                    s.spawn(move || run(own, batch));
                 }
             });
         }
@@ -325,100 +391,71 @@ impl Frame {
         // context buckets: every bucket a stream copied, merged from all its
         // versions, the buckets split among the threads by range
         let nb = shared.sl.len();
-        if std::env::var("STREAMS_COUNT").is_ok() {
-            let t: usize = self.lanes.iter().map(|m| m.lane.as_ref().expect("s").btouched.len()).sum();
-            let mt: usize = self.lanes.iter().map(|m| m.lane.as_ref().expect("s").mt.len()).sum();
-            eprintln!("epoch bytes={} touched buckets={} per byte={:.1} mt={}", parts.iter().map(|p| p.len()).sum::<usize>(), t, t as f64 / parts.iter().map(|p| p.len()).sum::<usize>() as f64, mt);
-        }
         let threads = threads.clamp(1, nb);
         let span = nb.div_ceil(threads);
-        // mark[b]: 0 untouched, 1 + the one stream that copied it, or MANY
-        const MANY: u32 = u32::MAX;
-        let mut work: Vec<Vec<u32>> = vec![Vec::new(); threads];
-        for (j, m) in self.lanes.iter().enumerate() {
-            let l = m.lane.as_ref().expect("a stream");
-            for &b in &l.btouched {
-                let seen = &mut self.mark[b as usize];
-                if *seen == 0 {
-                    *seen = j as u32 + 1;
-                    work[b as usize / span].push(b);
-                } else {
-                    *seen = MANY;
-                }
-            }
-        }
-        // every table split at the same bucket ranges, one range per thread
-        let mut jobs: Vec<(&mut [Bucket], &mut [u32], Vec<&mut [Bucket]>, &[u32])> = shared
-            .sl
-            .chunks_mut(span)
-            .zip(self.mark.chunks_mut(span))
-            .zip(&work)
-            .map(|((sl, mark), w)| (sl, mark, Vec::new(), &w[..]))
+        let deltas: Vec<&[(u32, Bucket)]> = self
+            .lanes
+            .iter()
+            .map(|m| &m.lane.as_ref().expect("a stream").delta[..])
             .collect();
-        for m in &mut self.lanes {
-            for (t, c) in m.sl.chunks_mut(span).enumerate() {
-                jobs[t].2.push(c);
-            }
-        }
-        let job = |t: usize, (sl, mark, lanes, work): (&mut [Bucket], &mut [u32], Vec<&mut [Bucket]>, &[u32])| {
-            let mut lanes = lanes;
-            let mut versions: Vec<[u32; 16]> = Vec::with_capacity(lanes.len());
-            let ahead = 8;
-            for (i, &b) in work.iter().enumerate() {
-                if let Some(&n) = work.get(i + ahead) {
-                    let n = n as usize - t * span;
-                    super::prefetch(&sl[n]);
-                    match mark[n] {
-                        MANY => {}
-                        j => super::prefetch(&lanes[j as usize - 1][n]),
+        let k = deltas.len();
+        // every stream's delta is in bucket order: each thread merges the
+        // buckets of its range, walking the deltas side by side
+        let job = |t: usize, sl: &mut [Bucket]| {
+            let lo = (t * span) as u32;
+            let hi = lo + sl.len() as u32;
+            let mut at: Vec<usize> = deltas
+                .iter()
+                .map(|d| d.partition_point(|&(b, _)| b < lo))
+                .collect();
+            let mut versions: Vec<[u32; 16]> = Vec::with_capacity(k);
+            let mut groups: Vec<Group> = Vec::new();
+            loop {
+                let mut b = hi;
+                let (mut first, mut count) = (0, 0);
+                for (j, d) in deltas.iter().enumerate() {
+                    if let Some(&(x, _)) = d.get(at[j]) {
+                        if x < b {
+                            (b, first, count) = (x, j, 1);
+                        } else if x == b {
+                            count += 1;
+                        }
                     }
                 }
-                let i = b as usize - t * span;
+                if b >= hi {
+                    break;
+                }
+                let i = (b - lo) as usize;
                 let x = sl[i].0;
-                let v = match mark[i] {
-                    MANY => {
-                        versions.clear();
-                        for l in lanes.iter_mut() {
-                            let v = l[i].0;
-                            versions.push(if v[0] == 0 { x } else { v });
-                            l[i] = Bucket([0; 16]);
-                        }
-                        merge_bucket(&x, &versions)
-                    }
-                    j => {
-                        // one stream changed the bucket: if it kept the
-                        // context, its copy is the merge (a sum with one term)
-                        let l = &mut lanes[j as usize - 1][i];
-                        let v = l.0;
-                        *l = Bucket([0; 16]);
-                        if same_context(&x, &v) {
-                            v
-                        } else {
-                            versions.clear();
-                            versions.resize(lanes.len(), x);
-                            versions[j as usize - 1] = v;
-                            merge_bucket(&x, &versions)
+                let v = if count == 1 {
+                    let v = deltas[first][at[first]].1 .0;
+                    at[first] += 1;
+                    single(&x, &v, k)
+                } else {
+                    versions.clear();
+                    for (j, d) in deltas.iter().enumerate() {
+                        match d.get(at[j]) {
+                            Some(&(y, v)) if y == b => {
+                                versions.push(v.0);
+                                at[j] += 1;
+                            }
+                            _ => versions.push(x),
                         }
                     }
+                    merge_bucket(&x, &versions, &mut groups)
                 };
                 sl[i] = Bucket(v);
-                mark[i] = 0;
             }
         };
         if threads == 1 || cfg!(target_family = "wasm") {
-            for (t, j) in jobs.into_iter().enumerate() {
-                job(t, j);
-            }
+            job(0, &mut shared.sl);
         } else {
             let job = &job;
             std::thread::scope(|sc| {
-                for (t, j) in jobs.into_iter().enumerate() {
-                    sc.spawn(move || job(t, j));
+                for (t, sl) in shared.sl.chunks_mut(span).enumerate() {
+                    sc.spawn(move || job(t, sl));
                 }
             });
-        }
-        for m in &mut self.lanes {
-            m.lane.as_mut().expect("a stream").btouched.clear();
         }
         SECT[0].fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
         let t0 = std::time::Instant::now();
@@ -427,11 +464,11 @@ impl Frame {
         // writing the streams' entries in stream order leaves the furthest.
         for m in &self.lanes {
             let l = m.lane.as_ref().expect("a stream");
-            for &key in &l.mt {
-                shared.mtab[key as usize] = m.mtab[key as usize];
+            for &(key, v) in &l.mtd {
+                shared.mtab[key as usize] = v;
             }
-            for &key in &l.m2t {
-                shared.m2tab[key as usize] = m.m2tab[key as usize];
+            for &(key, v) in &l.m2d {
+                shared.m2tab[key as usize] = v;
             }
         }
         // the epoch's bytes, in place
@@ -439,6 +476,9 @@ impl Frame {
             let l = m.lane.as_ref().expect("a stream");
             let lo = self.before + p.start;
             shared.hist[lo..lo + l.buf.len()].copy_from_slice(&l.buf);
+            for o in &mut self.own {
+                o.hist[lo..lo + l.buf.len()].copy_from_slice(&l.buf);
+            }
         }
         SECT[1].fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
         let t0 = std::time::Instant::now();
@@ -464,14 +504,9 @@ impl Frame {
         for m in lanes.iter_mut() {
             m.seen = self.coded as u32;
             let l = m.lane.as_mut().expect("a stream");
-            for &key in &l.mt {
-                m.mtab[key as usize] = 0;
-            }
-            for &key in &l.m2t {
-                m.m2tab[key as usize] = 0;
-            }
-            l.mt.clear();
-            l.m2t.clear();
+            l.delta.clear();
+            l.mtd.clear();
+            l.m2d.clear();
             l.buf.clear();
             l.shared = Some(Arc::clone(&self.shared));
         }
@@ -554,13 +589,32 @@ where
 /// One slot (probability in the low 16 bits, count above) merged from the
 /// base and the streams' versions of it.
 fn merge_slot(b: u32, ls: &[u32]) -> u32 {
-    let (pb, nb) = (i64::from(b & 0xffff), i64::from(b >> 16));
-    let (mut sum, mut dn, mut dp, mut sat, mut changed) = (0i64, 0i64, 0i64, nb >= 127, 0i64);
+    let mut acc = Acc::default();
     for &l in ls {
+        acc.add(b, l);
+    }
+    acc.done(b)
+}
+
+/// A slot's merge in progress: the streams' added sums and counts.
+#[derive(Clone, Copy, Default)]
+struct Acc {
+    sum: i64,
+    dn: i64,
+    dp: i64,
+    sat: bool,
+    changed: i64,
+}
+
+impl Acc {
+    /// Add a stream's version `l` of the slot whose base is `b`.
+    #[inline]
+    fn add(&mut self, b: u32, l: u32) {
         if l == b {
-            continue;
+            return;
         }
-        changed += 1;
+        let (pb, nb) = (i64::from(b & 0xffff), i64::from(b >> 16));
+        self.changed += 1;
         let (p, n) = (i64::from(l & 0xffff), i64::from(l >> 16));
         // a stream whose count fell below the base's cleared the slot (its
         // bucket was recycled and came back): it adds what it learned since
@@ -569,21 +623,52 @@ fn merge_slot(b: u32, ls: &[u32]) -> u32 {
         } else {
             (pb, nb)
         };
-        sat |= n >= 127;
-        sum += p * (2 * n + 1) - op * (2 * on + 1);
-        dn += n - on;
-        dp += p - op;
+        self.sat |= n >= 127 || nb >= 127;
+        self.sum += p * (2 * n + 1) - op * (2 * on + 1);
+        self.dn += n - on;
+        self.dp += p - op;
     }
-    if changed == 0 {
-        return b;
+
+    /// The merged slot over base `b`.
+    #[inline]
+    fn done(&self, b: u32) -> u32 {
+        if self.changed == 0 {
+            return b;
+        }
+        let (pb, nb) = (i64::from(b & 0xffff), i64::from(b >> 16));
+        let tot = nb + self.dn;
+        let p = if self.sat {
+            pb + self.dp / self.changed
+        } else {
+            (pb * (2 * nb + 1) + self.sum) / (2 * tot.max(0) + 1)
+        };
+        (p.clamp(0, 65535) as u32) | ((tot.clamp(0, 127) as u32) << 16)
     }
-    let tot = nb + dn;
-    let p = if sat {
-        pb + dp / changed
+}
+
+/// One candidate context of a bucket being merged: its origin (the base's
+/// bucket, or a fresh one with the tag a stream gave it) and the streams'
+/// added sums per slot.
+#[derive(Clone)]
+struct Group {
+    fresh: bool,
+    origin: [u32; 16],
+    acc: [Acc; 16],
+}
+
+/// [`merge_bucket`] when one stream of `k` changed the bucket to `v`: a sum
+/// with one term is that term, and a context the stream put in the bucket
+/// competes with the base's (which the other streams still hold) by use.
+fn single(x: &[u32; 16], v: &[u32; 16], k: usize) -> [u32; 16] {
+    if k == 1 || same_context(x, v) {
+        return *v;
+    }
+    let key = |m: &[u32; 16]| (m[1] >> 16, u32::MAX - tag(m));
+    if key(v) > key(x) {
+        *v
     } else {
-        (pb * (2 * nb + 1) + sum) / (2 * tot.max(0) + 1)
-    };
-    (p.clamp(0, 65535) as u32) | ((tot.clamp(0, 127) as u32) << 16)
+        *x
+    }
 }
 
 /// Whether `l` holds the context `base` holds, learned further (its tag,
@@ -597,37 +682,47 @@ fn tag(x: &[u32; 16]) -> u32 {
 }
 
 /// A bucket merged from the base and the streams' versions.
-fn merge_bucket(base: &[u32; 16], ls: &[[u32; 16]]) -> [u32; 16] {
+fn merge_bucket(base: &[u32; 16], ls: &[[u32; 16]], groups: &mut Vec<Group>) -> [u32; 16] {
     // groups by tag: the base's context stays a candidate only while some
     // stream holds it; every other tag a stream gave the bucket starts fresh
     // (a stream that recycled the bucket and came back to the base's tag
     // holds a fresh context, not the base's: one of its counts fell)
-    let mut groups: Vec<(bool, [u32; 16], Vec<&[u32; 16]>)> = Vec::new();
+    groups.clear();
     if ls.iter().any(|l| same_context(base, l)) {
-        groups.push((false, *base, Vec::new()));
+        groups.push(Group {
+            fresh: false,
+            origin: *base,
+            acc: [Acc::default(); 16],
+        });
     }
     for l in ls {
         if l == base {
             continue;
         }
-        if same_context(base, l) {
-            groups[0].2.push(l);
-        } else if let Some(g) = groups.iter_mut().find(|g| g.0 && tag(&g.1) == tag(l)) {
-            g.2.push(l);
+        let g = if same_context(base, l) {
+            0
+        } else if let Some(g) = groups.iter().position(|g| g.fresh && tag(&g.origin) == tag(l)) {
+            g
         } else {
-            let mut fresh = [SLOT_FRESH; 16];
-            fresh[0] |= tag(l) << 16;
-            groups.push((true, fresh, vec![l]));
+            let mut origin = [SLOT_FRESH; 16];
+            origin[0] |= tag(l) << 16;
+            groups.push(Group {
+                fresh: true,
+                origin,
+                acc: [Acc::default(); 16],
+            });
+            groups.len() - 1
+        };
+        let g = &mut groups[g];
+        for s in 1..16 {
+            g.acc[s].add(g.origin[s], l[s]);
         }
     }
     let mut best: Option<((u32, u32), [u32; 16])> = None;
-    let mut v = Vec::with_capacity(ls.len());
-    for (_, origin, members) in &groups {
-        let mut m = *origin;
+    for g in groups.iter() {
+        let mut m = g.origin;
         for s in 1..16 {
-            v.clear();
-            v.extend(members.iter().map(|x| x[s]));
-            m[s] = merge_slot(origin[s], &v);
+            m[s] = g.acc[s].done(g.origin[s]);
         }
         // the more used context keeps the bucket (by its first slot's count,
         // then the smaller tag), as the replacement rule decides

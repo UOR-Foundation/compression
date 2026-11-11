@@ -576,7 +576,7 @@ impl Model {
             mask,
             mb,
             sl: Table::new((mask as usize + 1) / 16, Bucket([SLOT_FRESH; 16])),
-            hist: Vec::with_capacity(before + n as usize),
+            hist: vec![0; before + n as usize],
             hoff: before as u32,
             pos: 0,
             seen: 0,
@@ -636,8 +636,10 @@ impl Model {
             a1: Apm::new(256 * 9),
             a2: Apm::new(1 << APM2_BITS),
         };
+        let mut at = 0;
         for piece in history {
-            m.hist.extend_from_slice(piece);
+            m.hist[at..at + piece.len()].copy_from_slice(piece);
+            at += piece.len();
         }
         for p in 7..m.hoff {
             let k = m.match_key(p);
@@ -671,10 +673,7 @@ impl Model {
     /// The byte at absolute position `i` (history first).
     #[inline]
     fn abs(&self, i: u32) -> u32 {
-        match &self.lane {
-            None => u32::from(self.hist[i as usize]),
-            Some(l) => l.abs(i),
-        }
+        u32::from(self.hist[i as usize])
     }
 
     /// The match table entry `k`.
@@ -1234,10 +1233,7 @@ impl Model {
         self.bit += 1;
         if self.bit == 8 {
             let b = self.c0 & 255;
-            match &mut self.lane {
-                None => self.hist.push(b as u8),
-                Some(l) => l.buf.push(b as u8),
-            }
+            self.hist[(self.hoff + self.pos) as usize] = b as u8;
             self.pos += 1;
             self.seen += 1;
             self.c8 = (self.c8 << 8) | (self.c4 >> 24);
