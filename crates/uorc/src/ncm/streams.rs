@@ -122,46 +122,137 @@ pub fn split(word: u64) -> Option<(u32, Plan)> {
     Some((profile, plan))
 }
 
-/// How the encoder cuts frames into streams, model data like the
-/// portfolio's strategies: a frame of `n` bytes gets one stream per `grain`
-/// bytes (rounded up), epochs of `2^epoch_log` bytes, and blocks of `block`
-/// coded frames (the frame that starts a block reads no window).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Rule {
-    /// Bytes per stream; `0` codes every frame as one stream.
-    pub grain: u64,
-    /// The epoch's base-2 logarithm (streams only).
-    pub epoch_log: u32,
-    /// Coded frames per block ([`crate::BLOCK`]).
-    pub block: usize,
+/// Threads one frame's decoder runs on at the product's default decode host,
+/// one of the page's WebAssembly workers (`Uorc.Page`): a worker runs one
+/// thread, and the page's pool decodes separate blocks on separate workers.
+pub const PAGE_WORKER_THREADS: usize = 1;
+
+static DECLARED_THREADS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Declare that the archives this process writes are for a decode host
+/// whose frame decoder runs on `threads` threads (the CLI's
+/// `--host-threads`). The archive is a function of the input and the
+/// declared host only, never of the machine that compresses or of the
+/// threads it compresses on.
+pub fn declare_threads(threads: usize) {
+    DECLARED_THREADS.store(threads, std::sync::atomic::Ordering::Relaxed);
 }
 
-impl Rule {
-    /// The plan of an `n`-byte frame.
-    #[must_use]
-    pub fn plan(&self, n: usize) -> Plan {
-        if self.grain == 0 {
-            return Plan::ONE;
-        }
-        let k = (n as u64).div_ceil(self.grain).clamp(1, 1 << 16) as usize;
-        if k == 1 {
-            Plan::ONE
-        } else {
-            Plan {
-                streams: k,
-                epoch: 1 << self.epoch_log.min(31),
-            }
-        }
+/// Threads of the declared decode host's frame decoder:
+/// [`PAGE_WORKER_THREADS`] unless the process declared a host
+/// ([`declare_threads`]).
+#[must_use]
+pub fn host_threads() -> usize {
+    match DECLARED_THREADS.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => PAGE_WORKER_THREADS,
+        t => t,
     }
 }
 
-/// The rule the client ships: one stream per frame and blocks of four
-/// frames, the v0.4 coder's bytes.
-pub const SHIPPED: Rule = Rule {
-    grain: 0,
-    epoch_log: 0,
-    block: 4,
-};
+/// A frame cut into streams for a decode host: its plan, payload and merge
+/// steps.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Derived {
+    /// The plan the payload is coded under.
+    pub plan: Plan,
+    /// The streams payload ([`encode`]).
+    pub payload: Vec<u8>,
+    /// The merge's steps ([`merge_steps`]).
+    pub merge: u64,
+}
+
+/// The streams of `data` after `history` under `profile` for a decode host
+/// of `host` threads, derived from the requirement that the longest chain of
+/// dependent steps is the total over the host's threads: the stream count
+/// steps up from one while the counted chain, coding steps `coding` plus
+/// merge steps over `min(k, host)`, falls, and a stream holds at least one
+/// [`Plan::stride`] unit; once the count reaches the host's threads the
+/// chain's divisor is fixed, and a further stream is kept only when it codes
+/// fewer bytes (then fewer steps). For each count the epoch is decided by the least
+/// archive, then steps: it starts at one epoch per stream and halves while
+/// the payload shrinks. `None` when one stream is the derivation (the serial
+/// coder): always on a one-thread host, where the chain of `k > 1` streams
+/// is `coding` plus their merge steps, more than `coding` once a second
+/// stream changes anything.
+#[must_use]
+pub fn derive(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    host: usize,
+    coding: u64,
+    threads: usize,
+) -> Option<Derived> {
+    if host <= 1 || !super::valid_profile(profile) {
+        return None;
+    }
+    let n = data.len();
+    // the chain of the best count so far, as (steps, threads) over which they run
+    let (mut steps, mut over) = (u128::from(coding), 1u128);
+    let mut best: Option<Derived> = None;
+    for k in 2..=(1 << 16) {
+        let plan = Plan {
+            streams: k,
+            epoch: 1,
+        };
+        // every stream holds at least one stride unit
+        if plan.stride(n) * (k - 1) >= n {
+            break;
+        }
+        let trial = epochs(history, data, profile, k, threads)?;
+        let (s, o) = (
+            u128::from(coding) + u128::from(trial.merge),
+            k.min(host) as u128,
+        );
+        // Past the host's threads the divisor no longer changes, so the
+        // chain does not order the counts: there the product's own order
+        // decides, fewer bytes, then fewer steps.
+        let keep = if o == over {
+            let b = best.as_ref().map_or(usize::MAX, |b| b.payload.len());
+            trial.payload.len() < b || (trial.payload.len() == b && s < steps)
+        } else {
+            s * over < steps * o
+        };
+        if !keep {
+            break;
+        }
+        (steps, over) = (s, o);
+        best = Some(trial);
+    }
+    best
+}
+
+/// The epoch of `k` streams by the least payload, then steps: one epoch per
+/// stream first, then halved while the payload shrinks.
+fn epochs(history: &[u8], data: &[u8], profile: u32, k: usize, threads: usize) -> Option<Derived> {
+    let stride = Plan {
+        streams: k,
+        epoch: 1,
+    }
+    .stride(data.len());
+    let mut epoch = stride.next_power_of_two();
+    let trial = |epoch, stop| {
+        let plan = Plan { streams: k, epoch };
+        encode_below(history, data, profile, plan, threads, stop).map(|(payload, merge)| Derived {
+            plan,
+            payload,
+            merge,
+        })
+    };
+    let mut best = trial(epoch, usize::MAX)?;
+    while epoch > 1 {
+        epoch /= 2;
+        // a trial whose coders reach the best payload cannot be kept
+        let Some(t) = trial(epoch, best.payload.len()) else {
+            break;
+        };
+        if t.payload.len() >= best.payload.len() {
+            break;
+        }
+        best = t;
+    }
+    Some(best)
+}
 
 /// Threads a frame's streams run on: one per stream, at most the host's.
 #[must_use]
@@ -495,7 +586,7 @@ impl Frame {
             });
         }
         self.coded += parts.iter().map(|p| p.end - p.start).sum::<usize>();
-        self.merge(&parts, threads);
+        self.merge(parts, threads);
     }
 
     /// Merge every stream's changes into the shared state and back. Its
@@ -863,15 +954,15 @@ fn merge_bucket(base: &[u32; 16], ls: &[[u32; 16]], groups: &mut Vec<Group>) -> 
             groups.len() - 1
         };
         let g = &mut groups[g];
-        for s in 1..16 {
-            g.acc[s].add(g.origin[s], l[s]);
+        for ((a, &o), &v) in g.acc.iter_mut().zip(&g.origin).zip(l).skip(1) {
+            a.add(o, v);
         }
     }
     let mut best: Option<((u32, u32), [u32; 16])> = None;
     for g in groups.iter() {
         let mut m = g.origin;
-        for s in 1..16 {
-            m[s] = g.acc[s].done(g.origin[s]);
+        for ((m, a), &o) in m.iter_mut().zip(&g.acc).zip(&g.origin).skip(1) {
+            *m = a.done(o);
         }
         // the more used context keeps the bucket (by its first slot's count,
         // then the smaller tag), as the replacement rule decides
@@ -909,26 +1000,39 @@ pub fn encode_counted(
     plan: Plan,
     threads: usize,
 ) -> Option<(Vec<u8>, u64)> {
+    encode_below(history, data, profile, plan, threads, usize::MAX)
+}
+
+/// [`encode_counted`], or `None` once the coders' output reaches `stop`
+/// bytes (a payload that long cannot be kept).
+fn encode_below(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    plan: Plan,
+    threads: usize,
+    stop: usize,
+) -> Option<(Vec<u8>, u64)> {
     if !super::valid_profile(profile) || !plan.valid() {
         return None;
     }
     u32::try_from(data.len()).ok()?;
-    let a = (history, data, profile, plan, threads);
+    let a = (history, data, profile, plan, threads, stop);
     #[cfg(target_arch = "x86_64")]
     {
         if std::arch::is_x86_feature_detected!("avx2") {
             // SAFETY: AVX2 was detected on this processor just above.
-            return Some(unsafe { encode_avx2(a) });
+            return unsafe { encode_avx2(a) };
         }
-        Some(encode_k::<super::Scalar>(a))
+        encode_k::<super::Scalar>(a)
     }
     #[cfg(target_arch = "aarch64")]
     {
-        Some(encode_k::<super::arm::Neon>(a))
+        encode_k::<super::arm::Neon>(a)
     }
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
     {
-        Some(encode_k::<super::wasm::Simd128>(a))
+        encode_k::<super::wasm::Simd128>(a)
     }
     #[cfg(not(any(
         target_arch = "x86_64",
@@ -936,31 +1040,38 @@ pub fn encode_counted(
         all(target_arch = "wasm32", target_feature = "simd128")
     )))]
     {
-        Some(encode_k::<super::Scalar>(a))
+        encode_k::<super::Scalar>(a)
     }
 }
 
-type EncodeArgs<'a> = (&'a [u8], &'a [u8], u32, Plan, usize);
+type EncodeArgs<'a> = (&'a [u8], &'a [u8], u32, Plan, usize, usize);
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
-fn encode_avx2(a: EncodeArgs<'_>) -> (Vec<u8>, u64) {
+fn encode_avx2(a: EncodeArgs<'_>) -> Option<(Vec<u8>, u64)> {
     encode_k::<super::x86::Avx2>(a)
 }
 
 #[inline(always)]
-fn encode_k<K: Kernel>((history, data, profile, plan, threads): EncodeArgs<'_>) -> (Vec<u8>, u64) {
+fn encode_k<K: Kernel>(
+    (history, data, profile, plan, threads, stop): EncodeArgs<'_>,
+) -> Option<(Vec<u8>, u64)> {
     let mut f = Frame::new(&[history], data.len(), profile, plan);
     let out = if f.base.stride == NINP_NARROW {
-        encode_frame::<K, NINP_NARROW>(&mut f, data, threads)
+        encode_frame::<K, NINP_NARROW>(&mut f, data, threads, stop)
     } else {
-        encode_frame::<K, NINP>(&mut f, data, threads)
+        encode_frame::<K, NINP>(&mut f, data, threads, stop)
     };
-    (out, f.steps)
+    Some((out?, f.steps))
 }
 
 #[inline(always)]
-fn encode_frame<K: Kernel, const W: usize>(f: &mut Frame, data: &[u8], threads: usize) -> Vec<u8> {
+fn encode_frame<K: Kernel, const W: usize>(
+    f: &mut Frame,
+    data: &[u8],
+    threads: usize,
+    stop: usize,
+) -> Option<Vec<u8>> {
     let k = f.plan.streams;
     let r = f.plan.stride(f.n);
     let mut coders: Vec<Coder> = (0..k).map(|_| Coder::new()).collect();
@@ -971,6 +1082,9 @@ fn encode_frame<K: Kernel, const W: usize>(f: &mut Frame, data: &[u8], threads: 
             code::<K, W>(m, c, &data[part]);
         });
         at = end;
+        if coders.iter().map(|c| c.out.len()).sum::<usize>() >= stop {
+            return None;
+        }
     }
     let mut out = Vec::new();
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
@@ -983,7 +1097,7 @@ fn encode_frame<K: Kernel, const W: usize>(f: &mut Frame, data: &[u8], threads: 
     for c in &coders {
         out.extend_from_slice(&c.out);
     }
-    out
+    Some(out)
 }
 
 #[inline(always)]
@@ -1179,7 +1293,7 @@ mod tests {
             x ^= x >> 17;
             x ^= x << 5;
             v.extend_from_slice(words[(x % words.len() as u32) as usize].as_bytes());
-            if x % 7 == 0 {
+            if x.is_multiple_of(7) {
                 v.push((x >> 24) as u8);
             }
         }

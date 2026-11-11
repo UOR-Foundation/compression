@@ -81,7 +81,7 @@ pub const FRAME: usize = 8 << 20;
 /// decoder finds blocks from the frame headers alone (a frame that reads no
 /// window starts one) and decodes them on separate cores, so any block
 /// length decodes, including a v0.2 stream, which is one block.
-pub const BLOCK: usize = ncm::streams::SHIPPED.block;
+pub const BLOCK: usize = 4;
 
 /// Search steps spent by [`compress`] when the caller names no budget. With
 /// none, compress takes the smaller of the linked ncm archive and the raw one;
@@ -201,8 +201,17 @@ fn compress_pieces(
     );
     let code_strategy =
         |frame, lengths, window, strategy: Option<portfolio::Strategy>, learn, bound| {
-            strategy
-                .and_then(|s| code_strategy(frame, lengths, window, s, learn, bound, SHIPPED_RULE))
+            strategy.and_then(|s| {
+                code_strategy(
+                    frame,
+                    lengths,
+                    window,
+                    s,
+                    learn,
+                    bound,
+                    ncm::streams::host_threads(),
+                )
+            })
         };
     let raw = archive::raw_length(lengths);
     // The scheduled strategies code side by side (a lone frame then uses two
@@ -249,19 +258,16 @@ pub fn compress_strategy(
         strategy,
         which == 0,
         archive::raw_length(lengths),
-        SHIPPED_RULE,
+        ncm::streams::host_threads(),
     )
 }
 
-const SHIPPED_RULE: ncm::streams::Rule = ncm::streams::SHIPPED;
-
-/// The archive [`compress_frame_with`] writes (with `steps == 0`) when the
-/// encoder cuts frames into streams by `rule` instead of the shipped
-/// [`ncm::streams::SHIPPED`]: the frame at another point of the stream
-/// facet, for measuring a rule before it ships. Every such archive decodes
-/// natively ([`decompress_frame_with`]); the exported decoder reads one
-/// stream.
-pub fn compress_frame_rule(frame: &[u8], window: &[&[u8]], rule: ncm::streams::Rule) -> Vec<u8> {
+/// The archive [`compress_frame_with`] writes (with `steps == 0`) for a
+/// decode host whose frame decoder runs on `host` threads instead of the
+/// declared one ([`ncm::streams::host_threads`]): the frame at another point
+/// of the stream facet. Every such archive decodes natively
+/// ([`decompress_frame_with`]); the exported decoder reads one stream.
+pub fn compress_frame_for(frame: &[u8], window: &[&[u8]], host: usize) -> Vec<u8> {
     let lengths = [frame.len() as u64];
     let raw = archive::raw_length(&lengths);
     let plan = portfolio::SHIPPED.plan(frame);
@@ -269,7 +275,7 @@ pub fn compress_frame_rule(frame: &[u8], window: &[&[u8]], rule: ncm::streams::R
         .iter()
         .take(portfolio::BUDGET)
         .enumerate()
-        .map(|(k, s)| s.and_then(|s| code_strategy(frame, &lengths, window, s, k == 0, raw, rule)));
+        .map(|(k, s)| s.and_then(|s| code_strategy(frame, &lengths, window, s, k == 0, raw, host)));
     let first = coded.next().flatten();
     let second = coded.next().flatten();
     choose(frame, &lengths, first, second)
@@ -295,7 +301,17 @@ pub fn compress_with_strategies(
         .take(portfolio::BUDGET)
         .enumerate()
         .map(|(k, s)| {
-            s.and_then(|s| code_strategy(frame, lengths, window, s, k == 0, raw, SHIPPED_RULE))
+            s.and_then(|s| {
+                code_strategy(
+                    frame,
+                    lengths,
+                    window,
+                    s,
+                    k == 0,
+                    raw,
+                    ncm::streams::host_threads(),
+                )
+            })
         });
     let first = coded.next().flatten();
     let second = coded.next().flatten();
@@ -332,7 +348,7 @@ fn code_strategy(
     strategy: portfolio::Strategy,
     learn: bool,
     bound: u64,
-    rule: ncm::streams::Rule,
+    host: usize,
 ) -> Option<Vec<u8>> {
     let history = window.concat();
     let identity = (!window.is_empty()).then(|| archive::window_identity(window));
@@ -364,14 +380,19 @@ fn code_strategy(
         let form = frame_of(u64::from(profile), &[]).map_or(0, |a| a.len() as u64);
         usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX)
     };
-    // A frame the rule cuts into streams codes them over one shared state
-    // (`ncm::streams`); the payload does not depend on the threads.
-    let streams = rule.plan(data.len());
-    if streams.streams > 1 {
-        let word = ncm::streams::word(strategy.profile, streams)?;
-        let threads = ncm::streams::threads(streams);
-        let payload = ncm::streams::encode(past, data, strategy.profile, streams, threads)?;
-        return frame_of(word, &payload).filter(|a| a.len() as u64 <= bound);
+    // A frame the declared decode host runs on several threads is cut into
+    // streams over one shared state (`ncm::streams::derive`); the payload
+    // does not depend on the threads that compress it.
+    let coding = performance::BITS_PER_BYTE
+        * u64::from(performance::inputs(strategy.profile))
+        * data.len() as u64;
+    let threads = ncm::streams::threads(ncm::streams::Plan {
+        streams: host,
+        epoch: 1,
+    });
+    if let Some(d) = ncm::streams::derive(past, data, strategy.profile, host, coding, threads) {
+        let word = ncm::streams::word(strategy.profile, d.plan)?;
+        return frame_of(word, &d.payload).filter(|a| a.len() as u64 <= bound);
     }
     if !learn {
         return ncm::encode_below(past, data, strategy.profile, stop(strategy.profile, bound))
@@ -2329,25 +2350,20 @@ mod tests {
     fn stream_frames_round_trip_natively() {
         let text: Vec<u8> = (0..40_000u32)
             .flat_map(|i| format!("line {} of {}\n", i % 977, i / 13).into_bytes())
-            .take(150_000)
+            .take(48_000)
             .collect();
-        let rule = ncm::streams::Rule {
-            grain: 40_000,
-            epoch_log: 12,
-            block: BLOCK,
-        };
         let one = compress_frame(&text, 0).expect("frame");
-        let coded = compress_frame_rule(&text, &[], rule);
-        assert_ne!(coded, one, "four streams name another frame word");
+        let coded = compress_frame_for(&text, &[], 4);
+        assert_ne!(coded, one, "streams name another frame word");
         assert_eq!(
             decompress_frame(&coded, DEFAULT_DECODE_WORK).expect("decodes"),
             text
         );
-        // the shipped rule is one stream: the frame compress_frame writes
-        assert_eq!(compress_frame_rule(&text, &[], ncm::streams::SHIPPED), one);
+        // the default host runs one thread: the frame compress_frame writes
+        assert_eq!(compress_frame_for(&text, &[], 1), one);
         // a window frame of streams reads its window
-        let (a, b) = text.split_at(60_000);
-        let w = compress_frame_rule(b, &[a], rule);
+        let (a, b) = text.split_at(20_000);
+        let w = compress_frame_for(b, &[a], 4);
         assert_eq!(
             decompress_frame_with(&w, &[a], DEFAULT_DECODE_WORK).expect("decodes"),
             b

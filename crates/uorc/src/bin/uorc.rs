@@ -7,8 +7,8 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 const USAGE: &str = "usage:
-  uorc compress   [--steps N] [--threads N] [--force] [--stats] <input|-> [-o <output|->]
-  uorc compress   [--steps N] [--threads N] [--force] [--stats] <file|dir>... -o <archive>
+  uorc compress   [--steps N] [--threads N] [--host-threads N] [--force] [--stats] <input|-> [-o <output|->]
+  uorc compress   [--steps N] [--threads N] [--host-threads N] [--force] [--stats] <file|dir>... -o <archive>
   uorc decompress [--work N]  [--threads N] [--force|--resume] [--stats] <input|-> [-o <output|->]
   uorc inspect    [--json] <archive|->
   uorc verify     [--work N]  [--threads N] [--json] <archive|-> [original|-]
@@ -23,7 +23,12 @@ by identity, so they carry no decoder kernel.
 Input of any size streams through 8 MiB frames, compressed --threads N at a
 time (default: every core) and written back to back; each frame may match
 into up to two frames before it in its block of four, and blocks decompress
-on separate cores. Content repeated anywhere in the input (64 KiB or more,
+on separate cores. Archives are written for a decode host that runs a frame
+on one thread (one of the page's workers); --host-threads N writes them for a
+host that runs a frame on N threads, cutting each frame into as many streams
+as shorten its longest chain of decode steps there (any host decodes them).
+The archive depends on the input and the declared host, never on --threads.
+Content repeated anywhere in the input (64 KiB or more,
 found by content-defined anchors) is stored once, as a reference to its
 earlier copy. Without -o, compress writes <input>.uorc and decompress
 strips a .uorc suffix (or writes <input>.out). '-' reads stdin or writes
@@ -129,6 +134,17 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, Failure> {
                         .parse::<usize>()
                         .map_err(|_| usage(format!("--threads: not a number: {value}")))?,
                 );
+            }
+            "--host-threads" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| usage("--host-threads needs a number"))?;
+                let threads = value
+                    .parse::<usize>()
+                    .ok()
+                    .filter(|&t| t > 0)
+                    .ok_or_else(|| usage(format!("--host-threads: not a count: {value}")))?;
+                uorc::ncm::streams::declare_threads(threads);
             }
             "--stats" => options.stats = true,
             "--best" => {}
