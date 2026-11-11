@@ -350,6 +350,81 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
 #[repr(C, align(64))]
 struct Bucket([u32; 16]);
 
+/// A model table. In WebAssembly, whose memory never shrinks, a dropped
+/// table is kept for the next frame's model of the same size: allocating
+/// ~100 MiB of fresh tables per frame left the allocator's free space in
+/// pieces, and the memory grew with the number of frames.
+struct Table<T: Spare>(Vec<T>);
+
+trait Spare: Copy + 'static {
+    fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>>;
+}
+
+thread_local! {
+    static SPARE_BUCKETS: std::cell::RefCell<Vec<Vec<Bucket>>> = const { std::cell::RefCell::new(Vec::new()) };
+    static SPARE_WORDS: std::cell::RefCell<Vec<Vec<u32>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+impl Spare for Bucket {
+    fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
+        &SPARE_BUCKETS
+    }
+}
+
+impl Spare for u32 {
+    fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
+        &SPARE_WORDS
+    }
+}
+
+impl<T: Spare> Table<T> {
+    /// `len` entries of `value`.
+    fn new(len: usize, value: T) -> Table<T> {
+        if cfg!(target_family = "wasm") && len > 0 {
+            let kept = T::spares().with(|s| {
+                let mut s = s.borrow_mut();
+                let at = s.iter().position(|t| t.len() == len)?;
+                Some(s.swap_remove(at))
+            });
+            if let Some(mut t) = kept {
+                t.fill(value);
+                return Table(t);
+            }
+        }
+        Table(vec![value; len])
+    }
+}
+
+impl<T: Spare> Drop for Table<T> {
+    fn drop(&mut self) {
+        if cfg!(target_family = "wasm") && !self.0.is_empty() {
+            let t = std::mem::take(&mut self.0);
+            T::spares().with(|s| {
+                let mut s = s.borrow_mut();
+                // a model holds one bucket table and two word tables
+                if s.len() < 2 {
+                    s.push(t);
+                }
+            });
+        }
+    }
+}
+
+impl<T: Spare> std::ops::Deref for Table<T> {
+    type Target = [T];
+    #[inline(always)]
+    fn deref(&self) -> &[T] {
+        &self.0
+    }
+}
+
+impl<T: Spare> std::ops::DerefMut for Table<T> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut [T] {
+        &mut self.0
+    }
+}
+
 const SLOT_FRESH: u32 = 32768;
 
 /// [`adapt`] on a packed slot (probability low, count above it).
@@ -381,7 +456,7 @@ struct Model {
     /// the low 16 bits and its count in the next 8, so a bucket is one 64-byte
     /// line and a lookup touches one line (slot 0's count is the bucket's
     /// check byte).
-    sl: Vec<Bucket>,
+    sl: Table<Bucket>,
     hist: Vec<u8>,
     /// History bytes ahead of the coded ones in `hist` (a window frame's
     /// preceding outputs): the match model reaches into them.
@@ -393,9 +468,9 @@ struct Model {
     word1: u32,
     c0: u32,
     bit: u32,
-    mtab: Vec<u32>,
+    mtab: Table<u32>,
     profile: u32,
-    m2tab: Vec<u32>,
+    m2tab: Table<u32>,
     m2ptr: u32,
     m2len: u32,
     m2exp: u32,
@@ -452,7 +527,10 @@ impl Model {
     /// The model for `n` bytes coded after `history` (a window frame's
     /// preceding outputs): the match model starts holding every history
     /// position, and every other model starts fresh.
-    fn new(n: u32, history: &[u8], profile: u32) -> Model {
+    /// A model for `n` bytes coded after `history`, the concatenation of its
+    /// pieces (a window decodes without first joining its frames).
+    fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
+        let before: usize = history.iter().map(|h| h.len()).sum();
         let (mask, mb) = Model::sized(n);
         let mut act = [0; NC];
         let mut na = 0;
@@ -480,9 +558,9 @@ impl Model {
             stride,
             mask,
             mb,
-            sl: vec![Bucket([SLOT_FRESH; 16]); (mask as usize + 1) / 16],
-            hist: Vec::with_capacity(history.len() + n as usize),
-            hoff: history.len() as u32,
+            sl: Table::new((mask as usize + 1) / 16, Bucket([SLOT_FRESH; 16])),
+            hist: Vec::with_capacity(before + n as usize),
+            hoff: before as u32,
             pos: 0,
             c4: 0,
             c8: 0,
@@ -490,9 +568,9 @@ impl Model {
             word1: 0,
             c0: 1,
             bit: 0,
-            mtab: vec![0; 1 << mb],
+            mtab: Table::new(1 << mb, 0),
             profile,
-            m2tab: if short { vec![0; 1 << mb] } else { Vec::new() },
+            m2tab: Table::new(if short { 1 << mb } else { 0 }, 0),
             m2ptr: 0,
             m2len: 0,
             m2exp: 0,
@@ -539,7 +617,9 @@ impl Model {
             a1: Apm::new(256 * 9),
             a2: Apm::new(1 << APM2_BITS),
         };
-        m.hist.extend_from_slice(history);
+        for piece in history {
+            m.hist.extend_from_slice(piece);
+        }
         for p in 7..m.hoff {
             let k = m.match_key(p);
             m.mtab[k] = p;
@@ -1242,7 +1322,7 @@ mod x86 {
     /// The decoder loop compiled for AVX2.
     #[target_feature(enable = "avx2")]
     pub(super) fn decoder(
-        history: &[u8],
+        history: &[&[u8]],
         payload: &[u8],
         limit: u64,
         canonical: bool,
@@ -1504,6 +1584,32 @@ mod wasm {
     }
 }
 
+/// Input bytes between two calls of the progress hook: 16 KiB, about a
+/// tenth of a second of coding in the browser, so the page's bar moves
+/// within a frame and soon after a file starts.
+pub const TICK: usize = 1 << 14;
+
+/// A progress hook: bytes done, and the length of the pass.
+pub type Progress = fn(u64, u64);
+
+std::thread_local! {
+    static PROGRESS: std::cell::Cell<Option<Progress>> = const { std::cell::Cell::new(None) };
+}
+
+/// Set (or clear) this thread's progress hook: every coding or decoding
+/// pass over a frame calls it with the bytes done and the pass's length, at
+/// the start and once per [`TICK`] bytes. It never changes a payload.
+pub fn set_progress(hook: Option<Progress>) {
+    PROGRESS.with(|p| p.set(hook));
+}
+
+#[inline(never)]
+fn tick(done: usize, total: usize) {
+    if let Some(hook) = PROGRESS.with(std::cell::Cell::get) {
+        hook(done as u64, total as u64);
+    }
+}
+
 /// Encode `data` as an ncm payload, or `None` when the coder output would pass
 /// `2 * len + 64` bytes (the model abandons the encoding there) or the input
 /// does not fit the 4-byte length.
@@ -1585,7 +1691,7 @@ fn encoder<K: Kernel>(
     stop: usize,
 ) -> Option<(Vec<u8>, u32)> {
     let n = u32::try_from(data.len()).ok()?;
-    let mut m = Model::new(n, history, profile);
+    let mut m = Model::new(n, &[history], profile);
     if learn {
         m.gain = Some(Box::new([0; NC]));
     }
@@ -1607,7 +1713,10 @@ fn encode_bits<K: Kernel, const W: usize>(
     let mut out = Vec::with_capacity(data.len() / 2 + 16);
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
     let (mut x1, mut x2) = (0u32, u32::MAX);
-    for &byte in data {
+    for (i, &byte) in data.iter().enumerate() {
+        if i % TICK == 0 {
+            tick(i, data.len());
+        }
         for k in (0..8).rev() {
             let y = (byte >> k) & 1 == 1;
             let p = m.predict::<K, W>();
@@ -1688,6 +1797,20 @@ pub fn decode_canonical_profile(
     run_profile(history, payload, n, true, profile)
 }
 
+/// [`decode_canonical_profile`] after the frames of a window, without
+/// joining them first: the model holds the only copy of the history.
+pub fn decode_canonical_window(
+    window: &[&[u8]],
+    payload: &[u8],
+    n: u64,
+    profile: u32,
+) -> Option<Vec<u8>> {
+    if declared_length(payload).map(u64::from) != Some(n) {
+        return None;
+    }
+    run_pieces(window, payload, n, true, profile)
+}
+
 fn run_decoder(history: &[u8], payload: &[u8], limit: u64, canonical: bool) -> Option<Vec<u8>> {
     run_profile(history, payload, limit, canonical, V03)
 }
@@ -1696,6 +1819,17 @@ fn run_decoder(history: &[u8], payload: &[u8], limit: u64, canonical: bool) -> O
 /// [`valid_profile`].
 pub(crate) fn run_profile(
     history: &[u8],
+    payload: &[u8],
+    limit: u64,
+    canonical: bool,
+    profile: u32,
+) -> Option<Vec<u8>> {
+    run_pieces(&[history], payload, limit, canonical, profile)
+}
+
+/// [`run_profile`] after a history given as pieces.
+fn run_pieces(
+    history: &[&[u8]],
     payload: &[u8],
     limit: u64,
     canonical: bool,
@@ -1714,7 +1848,7 @@ pub fn decode_profile(history: &[u8], payload: &[u8], limit: u64, profile: u32) 
 
 #[inline(always)]
 fn decoder<K: Kernel>(
-    history: &[u8],
+    history: &[&[u8]],
     payload: &[u8],
     limit: u64,
     canonical: bool,
@@ -1725,10 +1859,11 @@ fn decoder<K: Kernel>(
         return None;
     }
     let m = Model::new(n, history, profile);
+    let before = m.hoff as usize;
     if m.stride == NINP_NARROW {
-        decode_bits::<K, NINP_NARROW>(m, history.len(), payload, canonical)
+        decode_bits::<K, NINP_NARROW>(m, before, payload, canonical)
     } else {
-        decode_bits::<K, NINP>(m, history.len(), payload, canonical)
+        decode_bits::<K, NINP>(m, before, payload, canonical)
     }
 }
 
@@ -1750,7 +1885,10 @@ fn decode_bits<K: Kernel, const W: usize>(
     // coder bytes the encoder has emitted so far
     let mut emitted = 0usize;
     let (mut x1, mut x2) = (0u32, u32::MAX);
-    for _ in 0..n {
+    for i in 0..n as usize {
+        if i % TICK == 0 {
+            tick(i, n as usize);
+        }
         for _ in 0..8 {
             let p = m.predict::<K, W>();
             let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
@@ -1784,6 +1922,9 @@ fn decode_bits<K: Kernel, const W: usize>(
     }
     let mut out = m.hist;
     out.drain(..history);
+    // Give back the history's share of the buffer: the output outlives the
+    // model (the next frame's window holds it).
+    out.shrink_to_fit();
     Some(out)
 }
 
