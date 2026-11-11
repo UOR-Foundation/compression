@@ -21,7 +21,8 @@ that orders remaining work. Here the decisions are a small Node host
 | `claims`, `reproducibility` | hermetic | the formal set | bootstrap `template-gate` |
 | `offline` | fetch | the formal set | offline-validation |
 | `export` | fetch, host | the import closure of `Uorc.Client` (client/src over src), the LexLean project files, the export scripts | `node scripts/client-export.mjs` on a workstation |
-| `gate` | gate | the identities of the seven bootstrap legs | proved when all seven are |
+| `pages` | fetch | the client set, `crates/uorc-wasm/`, `web/`, the brand files, `scripts/site.mjs`, `scripts/page-acceptance.mjs`, its workflow | pages-client `acceptance` (UC-WEB-01) |
+| `gate` | gate | the identities of the seven bootstrap legs and `pages` | proved when all eight are |
 | `native-<target>` (2), `wasm` | fetch | the client set (+ `crates/uorc-wasm/`) | release `native`, `wasm` |
 | `bench` | fetch | `scripts/bench.mjs`, release.yml, `native-x86_64` | release `bench` |
 | `frontier` | hermetic | the client set, `crates/frontier/`, `frontier.toml`, release.yml; needs `native-x86_64` | release `frontier`: decides the closed claims of the release's codec point over every κ-named corpus in `frontier.toml` |
