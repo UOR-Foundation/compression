@@ -8,7 +8,7 @@ identity text (`prism-factory/obligation/1`), receipts on a `factory-receipts`
 branch, refutation of hermetic failures, retried fetches, and a 16-level weight
 that orders remaining work. Here the decisions are a small Node host
 (`scripts/factory.mjs`, tests in `scripts/factory.test.mjs`) over the graph in
-`graph.json`, not a kernel-checked model: uorc's graph is fifteen rows.
+`graph.json`, not a kernel-checked model: uorc's graph is sixteen rows.
 
 ## The graph
 
@@ -24,6 +24,7 @@ that orders remaining work. Here the decisions are a small Node host
 | `gate` | gate | the identities of the seven bootstrap legs | proved when all seven are |
 | `native-<target>` (2), `wasm` | fetch | the client set (+ `crates/uorc-wasm/`) | release `native`, `wasm` |
 | `bench` | fetch | `scripts/bench.mjs`, release.yml, `native-x86_64` | release `bench` |
+| `frontier` | hermetic | the client set, `crates/frontier/`, `frontier.toml`, release.yml; needs `native-x86_64` | release `frontier`: decides the closed claims of the release's codec point over every κ-named corpus in `frontier.toml` |
 | `publish` | fetch | everything, `@mode`, `@run` | release `publish`, `pages` |
 
 The formal set is the tree without the product client and the release plumbing.
