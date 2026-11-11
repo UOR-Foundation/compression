@@ -72,18 +72,19 @@ export async function load(url) {
     // Frame header and integrity seal of every archive in a stream, without
     // decoding: one description per archive.
     inspect: (archive) => json(call(archive, () => x.inspect())),
-    // Stream a File or Blob of any size through frames, one in wasm memory at
-    // a time; the result is a Blob of the concatenated archives, the same
+    // Stream a File or Blob of any size through frames, a few in wasm memory
+    // at a time; the result is a Blob of the concatenated archives, the same
     // bytes the native client writes.
     async compressBlob(blob, steps = 0n, progress = () => {}) {
       const parts = [];
       x.window_reset();
-      for (let at = 0; at < blob.size || at === 0; at += frame) {
+      for (let at = 0; at < blob.size; at += frame) {
         const piece = await bytesOf(blob.slice(at, at + frame));
         parts.push(call(piece, () => x.compress_frame(BigInt(steps))));
         progress(Math.min(at + frame, blob.size), blob.size);
-        if (blob.size === 0) break;
       }
+      parts.push(call(new Uint8Array(0), () => x.compress_end(BigInt(steps))));
+      progress(blob.size, blob.size);
       return new Blob(parts);
     },
     async decompressBlob(blob, progress = () => {}) {

@@ -1,13 +1,16 @@
-//! The frames a stream names again, held by κ-label while a later reference
+//! The runs a stream names again, held by κ-label while a later reference
 //! frame still needs them.
 //!
-//! A reference frame ([`crate::archive::reference_archive`]) reproduces an
-//! earlier frame of the same stream, named by that frame's κ-label
-//! ([`crate::archive::frame_label`]). The decoder learns which labels are named,
-//! and how often, from the archive headers before it decodes (see
-//! [`Store::want`]), so it labels and keeps a frame only when a reference will
-//! read it, and drops it after the last one. A stream with no reference frames
-//! labels nothing and keeps nothing.
+//! A reference frame ([`crate::archive::reference_archive`]) reproduces a run
+//! of content-defined units of an earlier frame of the same stream (a whole
+//! frame, for v0.3 streams), named by the run's κ-label
+//! ([`crate::archive::frame_label`]). The decoder learns which labels are
+//! named, how long each run is and how often it is read, from the archive
+//! headers before it decodes (see [`Store::want`]); it then cuts each decoded
+//! frame into units, labels only the runs of a wanted length
+//! ([`crate::chunk::runs`]), keeps a run only when a reference will read it,
+//! and drops it after the last one. A stream with no reference frames labels
+//! nothing and keeps nothing.
 //!
 //! Blocks of a stream decode on separate cores, so the store is shared
 //! ([`Shared`]): a reference frame whose frame another block is still decoding
@@ -38,6 +41,8 @@ enum Slot {
 pub(crate) struct Store {
     /// References still to come, per label.
     wanted: HashMap<[u8; 32], u64>,
+    /// The length of the run each wanted label names.
+    lengths: HashMap<[u8; 32], u64>,
     held: HashMap<[u8; 32], Slot>,
     in_memory: usize,
     #[cfg(not(target_family = "wasm"))]
@@ -47,8 +52,9 @@ pub(crate) struct Store {
 impl Store {
     /// Note the reference frame `archive`, if it is one: its label will be read once more.
     pub(crate) fn want(&mut self, archive: &[u8]) {
-        if let Some(label) = archive::reference_of(archive) {
+        if let Some((label, len)) = archive::reference_target(archive) {
             *self.wanted.entry(label).or_insert(0) += 1;
+            self.lengths.insert(label, len);
         }
     }
 
@@ -62,16 +68,31 @@ impl Store {
         store
     }
 
-    /// Offer a decoded frame: kept if a reference still to come names it.
+    /// Offer a decoded frame: the runs of it that a reference still to come
+    /// names are kept.
     #[cfg(test)]
     pub(crate) fn offer(&mut self, frame: &[u8]) -> io::Result<()> {
-        if self.wanted.is_empty() {
-            return Ok(());
+        for (label, run) in crate::chunk::runs(frame, self.missing()) {
+            self.offer_labelled(label, &frame[run])?;
         }
-        self.offer_labelled(archive::frame_label(frame), frame)
+        Ok(())
     }
 
-    /// [`Store::offer`] with the frame's label already computed.
+    /// The wanted labels not yet held, by the length of their run.
+    fn missing(&self) -> HashMap<u64, HashSet<[u8; 32]>> {
+        let mut missing: HashMap<u64, HashSet<[u8; 32]>> = HashMap::new();
+        for label in self.wanted.keys() {
+            if !self.held.contains_key(label) {
+                missing
+                    .entry(self.lengths[label])
+                    .or_default()
+                    .insert(*label);
+            }
+        }
+        missing
+    }
+
+    /// Keep `frame` under `label` if a reference still to come names it.
     fn offer_labelled(&mut self, label: [u8; 32], frame: &[u8]) -> io::Result<()> {
         if !self.wanted.contains_key(&label) || self.held.contains_key(&label) {
             return Ok(());
@@ -103,6 +124,7 @@ impl Store {
         let last = *left == 0;
         if last {
             self.wanted.remove(label);
+            self.lengths.remove(label);
         }
         let slot = if last {
             self.held.remove(label)
@@ -171,20 +193,20 @@ impl Shared {
         self.lock().store.want(archive);
     }
 
-    /// Frame `index` has decoded to `frame`: keep it if a reference names it.
-    /// The frame is labelled outside the lock, and only when some reference
-    /// still waits for a frame.
+    /// Frame `index` has decoded to `frame`: keep the runs of it that a
+    /// reference names. Runs are cut and labelled outside the lock, and only
+    /// those of a length some reference still waits for.
     pub(crate) fn finish(&self, index: usize, frame: &[u8]) -> io::Result<()> {
-        let label = if self.lock().store.wanted.is_empty() {
-            None
+        let missing = self.lock().store.missing();
+        let found = if missing.is_empty() {
+            Vec::new()
         } else {
-            Some(archive::frame_label(frame))
+            crate::chunk::runs(frame, missing)
         };
         let mut state = self.lock();
-        let kept = match label {
-            Some(label) => state.store.offer_labelled(label, frame),
-            None => Ok(()),
-        };
+        let kept = found
+            .into_iter()
+            .try_for_each(|(label, run)| state.store.offer_labelled(label, &frame[run]));
         state.finished.insert(index);
         loop {
             let next = state.frontier;
