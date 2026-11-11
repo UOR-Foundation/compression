@@ -2322,7 +2322,10 @@ mod tests {
         assert!(!valid_profile(FULL | 1 << 31));
         // recording the default size is the default frame; another size codes differently
         let plain = encode_profile(&[], &text, FULL).expect("fits");
-        assert_eq!(encode_profile(&[], &text, with_table_bits(FULL, 24)), Some(plain.clone()));
+        assert_eq!(
+            encode_profile(&[], &text, with_table_bits(FULL, 24)),
+            Some(plain.clone())
+        );
         for word in [
             with_table_bits(FULL, 12),
             with_table_bits(FULL, 25),
@@ -2331,12 +2334,21 @@ mod tests {
         ] {
             let p = encode_profile(&[], &text, word).expect("fits");
             assert_ne!(p, plain);
-            assert_eq!(decode_canonical_profile(&[], &p, n, word).as_deref(), Some(&text[..]));
-            assert_ne!(decode_canonical_profile(&[], &p, n, FULL).as_deref(), Some(&text[..]));
+            assert_eq!(
+                decode_canonical_profile(&[], &p, n, word).as_deref(),
+                Some(&text[..])
+            );
+            assert_ne!(
+                decode_canonical_profile(&[], &p, n, FULL).as_deref(),
+                Some(&text[..])
+            );
         }
         // the footprint counts the tables the word names
         let base = decoder_bytes(n, 0, false, FULL);
-        assert_eq!(decoder_bytes(n, 0, false, with_table_bits(FULL, 25)) - base, 4 << 24);
+        assert_eq!(
+            decoder_bytes(n, 0, false, with_table_bits(FULL, 25)) - base,
+            4 << 24
+        );
         assert_eq!(base, (4 << 24) + 2 * (4 << 22) + n);
     }
 

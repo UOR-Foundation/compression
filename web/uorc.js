@@ -206,13 +206,16 @@ export async function load(source) {
     const split = (f) => {
       const count = x.strategies();
       const parts = new Array(count).fill(0);
-      const all = parts.map((_, which) => pool.code(job(f, which), (share) => { parts[which] = share; shares.set(f.index, (f.length * parts.reduce((n, v) => n + v, 0)) / count); report(); }));
+      // the strategies and the table step after them each count as one share of the frame's bar
+      const all = parts.map((_, which) => pool.code(job(f, which), (share) => { parts[which] = share; shares.set(f.index, (f.length * parts.reduce((n, v) => n + v, 0)) / (count + 1)); report(); }));
       settle(f.index, f.length, Promise.all(all).then(async (archives) => {
         const frameBytes = await bytesOf(blob.slice(f.start, f.start + f.length));
         const chosen = call(chooseRequest(f.pieces, frameBytes, archives), () => x.choose_frame());
         // the window facets, then the context table, stepped on the kept archive while it pays and the worker holds it (Client.stepWindow, Client.stepTable)
         const window = await Promise.all(f.window.map((r) => bytesOf(blob.slice(r.start, r.start + r.length))));
-        return call(stepRequest(f.pieces, window, frameBytes, chosen), () => x.step_frame());
+        const share = frameShare();
+        onPass = (done, of) => { shares.set(f.index, (f.length * (count + share(done, of))) / (count + 1)); report(); };
+        try { return call(stepRequest(f.pieces, window, frameBytes, chosen), () => x.step_frame()); } finally { onPass = () => {}; }
       }));
     };
     let index = 0;
@@ -362,10 +365,14 @@ const EXAMPLES = {
 
 async function serve() {
   let uorc;
+  let host;
   try {
     // A pool worker instantiates the module its page worker sends first.
-    const sent = () => new Promise((resolve) => { self.onmessage = ({ data }) => resolve(data.module); });
-    uorc = inPool ? await load(await sent()) : await load("./uorc_bg.wasm");
+    // The page worker's first message is the page's host rule (Uorc.Page::pageWorker).
+    const sent = () => new Promise((resolve) => { self.onmessage = ({ data }) => resolve(data); });
+    const first = sent();
+    if (inPool) uorc = await load((await first).module);
+    else { uorc = await load("./uorc_bg.wasm"); host = (await first).host; }
   } catch (error) {
     self.postMessage({ type: "loadFailed", message: String(error?.message ?? error) });
     return;
@@ -389,7 +396,7 @@ async function serve() {
   // A pool worker codes a little text once, so that its first frame runs on
   // optimized code rather than the engine's first tier.
   if (inPool) uorc.compress(EXAMPLES.text(1 << 16, "uorc pool worker warm-up "));
-  const pool = inPool ? { size: 0, memory: 0, ready: 0, warm() {} } : workers(uorc.module);
+  const pool = inPool ? { size: 0, memory: 0, ready: 0, warm() {} } : workers(uorc.module, host);
   const run = {
     async compress({ files }) {
       const tree = files.length > 1 || files.some((f) => f.webkitRelativePath);
@@ -454,12 +461,15 @@ async function serve() {
 }
 
 // The page worker's pool: one more uorc worker per core it may use, started
-// once the page's worker is ready. Each holds its own module (a few frames of memory), so the
-// count is also bounded by the device memory the browser reports, at about
-// 512 MiB per worker. With fewer than two cores there is no pool.
-function workers(module) {
+// once the page's worker is ready. Each holds its own module, so the count is
+// the page's host rule (Uorc.Page::pageWorker) applied to the device the
+// browser reports: at most host.coreLimit workers and host.workersPerGiB per
+// GiB of device memory (host.unreportedGiB when the browser reports none).
+// With fewer than two cores there is no pool.
+function workers(module, host) {
   const memory = self.navigator?.deviceMemory;
-  const size = Math.max(0, Math.min(self.navigator?.hardwareConcurrency ?? 1, 16, memory ? Math.floor(memory * 2) : 4));
+  const cores = self.navigator?.hardwareConcurrency ?? 1;
+  const size = Math.max(0, Math.min(cores, host.coreLimit, Math.floor((memory || host.unreportedGiB) * host.workersPerGiB)));
   const idle = [];
   const waiting = [];
   const jobs = new Map();

@@ -22,7 +22,7 @@ def sizing(D):
     D('tbOf', ['n : Nat', 'profile : Nat'], 'Nat',
       f"(let t : Nat := (prim remainder (prim quotient profile {ncm_model.TABLE_UNIT} 0 : Nat) 64 0 : Nat); (if (0 <? t) then t else (tbFor n)))")
     D('mbOf', ['n : Nat', 'profile : Nat'], 'Nat',
-      f"(let m : Nat := (prim remainder (prim quotient profile {ncm_model.MATCH_UNIT} 0 : Nat) 32 0 : Nat); (if (0 <? m) then m else (mbFor (tbFor n))))"
+      f"(let m : Nat := (prim remainder (prim quotient profile {ncm_model.MATCH_UNIT} 0 : Nat) 32 0 : Nat); (if (0 <? m) then m else (mbFor (tbFor n))))")
     D('zeros', ['depth : Nat'], 'Bytes', f"({TB}::fill 1 depth 0)")
 
 

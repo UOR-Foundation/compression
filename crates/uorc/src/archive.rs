@@ -231,9 +231,7 @@ impl Codec {
 fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec<u8>)> {
     if let Codec::Profile(p) | Codec::ProfileX86(p) = codec {
         // A recorded table field is read by this library's ncm blocks only.
-        if !crate::ncm::valid_profile(p)
-            || (era != Era::Current && crate::ncm::records_tables(p))
-        {
+        if !crate::ncm::valid_profile(p) || (era != Era::Current && crate::ncm::records_tables(p)) {
             return None;
         }
         let (prefix, tail) = profile_template(k, codec.x86(), era)?;
@@ -595,10 +593,7 @@ fn linked_header(lengths: &[u64], body_len: u64) -> Vec<u8> {
 
 fn body_len(codec: Codec, k: usize, p: u64) -> Option<u64> {
     // profiled frames are written over the v0.4 basis ([`linked_archive_profile`])
-    let era = match codec {
-        Codec::Profile(_) | Codec::ProfileX86(_) => Era::V04,
-        _ => Era::Current,
-    };
+    let era = profiled_era(codec);
     let (prefix, suffix) = template(codec, k, era)?;
     Some(prefix.len() as u64 + uleb_len(p) as u64 + p + suffix.len() as u64)
 }
@@ -609,15 +604,19 @@ fn body_len(codec: Codec, k: usize, p: u64) -> Option<u64> {
 /// `None` for a profile word that is not a [`crate::ncm::valid_profile`].
 /// Profiled entries are written over the v0.4 basis ([`linked_archive_profile`]).
 pub fn linked_archive(codec: Codec, lengths: &[u64], payload: &[u8]) -> Option<Vec<u8>> {
-    match codec {
-        // a recorded table field is read by the current library only
-        Codec::Profile(p) | Codec::ProfileX86(p) if crate::ncm::records_tables(p) => {
-            entry_archive(codec, 0, Era::Current, &BASIS_ID, lengths, payload)
-        }
-        Codec::Profile(_) | Codec::ProfileX86(_) => {
-            entry_archive(codec, 0, Era::V04, &V04_BASIS_ID, lengths, payload)
-        }
+    match profiled_era(codec) {
+        Era::V04 => entry_archive(codec, 0, Era::V04, &V04_BASIS_ID, lengths, payload),
         _ => entry_archive(codec, 0, Era::Current, &BASIS_ID, lengths, payload),
+    }
+}
+
+/// The era a frame of `codec` is written in: a profiled frame over the v0.4
+/// basis unless its word records table bits, which only the current blocks
+/// read (`Archive.profileCandidate`); every other frame the current basis.
+fn profiled_era(codec: Codec) -> Era {
+    match codec {
+        Codec::Profile(p) | Codec::ProfileX86(p) if !crate::ncm::records_tables(p) => Era::V04,
+        _ => Era::Current,
     }
 }
 
@@ -693,10 +692,16 @@ pub fn window_archive_profile(
         return entry_archive(plain(codec), window.len(), Era::V03, &v03, lengths, payload);
     }
     let codec = Codec::profiled(profile, codec.x86());
-    // a recorded facet (a table field, or a window deeper than the fixed
-    // entries) is read by the current library only
-    if crate::ncm::records_tables(profile) || window.len() > WINDOW {
-        return entry_archive(codec, window.len(), Era::Current, identity, lengths, payload);
+    // a window deeper than the fixed entries is read by the current library only
+    if profiled_era(codec) == Era::Current || window.len() > WINDOW {
+        return entry_archive(
+            codec,
+            window.len(),
+            Era::Current,
+            identity,
+            lengths,
+            payload,
+        );
     }
     let v04 = window_identity_over(&V04_LIBRARY, window);
     entry_archive(codec, window.len(), Era::V04, &v04, lengths, payload)

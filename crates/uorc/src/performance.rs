@@ -48,6 +48,9 @@ pub struct Host {
     /// page's WebAssembly worker does, so the next frame allocates nothing)
     /// and a copy of the frame's output.
     pub keeps_tables: bool,
+    /// Frames the host decodes at once, each holding its own decoder (one
+    /// for a page worker: the page's pool gives each frame its own worker).
+    pub threads: u64,
 }
 
 impl Host {
@@ -68,17 +71,27 @@ impl Host {
 
     /// Whether this host holds the frame's decoder.
     pub fn holds(self, n: u64, history: u64, warm: bool, profile: u32) -> bool {
-        self.footprint(n, history, warm, profile) <= self.memory
+        self.footprint(n, history, warm, profile)
+            .saturating_mul(self.threads.max(1))
+            <= self.memory
     }
 }
 
+/// Page workers per GiB of device memory: the page's host rule
+/// (`Uorc.Page::pageWorker`, field `workersPerGiB`; held equal by the test
+/// `page_worker_is_the_pages_host_rule`). Stated by the page, not yet
+/// derived from the device.
+pub const WORKERS_PER_GIB: u64 = 2;
+
 /// The product's smallest declared decode host, and the default: one of the
-/// page's WebAssembly workers, with the memory the page budgets a worker
-/// (`Uorc.Page.workerBytes`, 512 MiB). Every archive the client writes by
-/// default decodes there.
+/// page's WebAssembly workers, whose share of the device is
+/// 1 GiB / [`WORKERS_PER_GIB`] under the page's host rule
+/// (`Uorc.Page::pageWorker`). Every archive the client writes by default
+/// decodes there.
 pub const PAGE_WORKER: Host = Host {
-    memory: 512 << 20,
+    memory: (1 << 30) / WORKERS_PER_GIB,
     keeps_tables: true,
+    threads: 1,
 };
 
 static DECLARED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -98,6 +111,7 @@ pub fn declared_host() -> Host {
         memory => Host {
             memory,
             keeps_tables: false,
+            threads: 1,
         },
     }
 }
@@ -265,6 +279,38 @@ pub fn consolidate(candidate: Trial, incumbent: Trial) -> Trial {
 
 #[cfg(test)]
 mod tests {
+    /// The value of `key` in the body of the definition `name` of a model
+    /// module (`key := value`, or the whole literal body when `key` is empty).
+    fn stated(module: &str, name: &str, key: &str) -> u64 {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(module);
+        let text =
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let decl = text
+            .split("definition{")
+            .find(|d| d.contains(&format!("name: {name},")))
+            .unwrap_or_else(|| panic!("{module} defines no {name}"));
+        let body = &decl[decl.find("body: ").expect("a body") + 6..];
+        let value = if key.is_empty() {
+            body
+        } else {
+            &body[body.find(&format!("{key} := ")).expect("the field") + key.len() + 4..]
+        };
+        let end = value
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(value.len());
+        value[..end].parse().expect("a natural")
+    }
+
+    #[test]
+    fn page_worker_is_the_pages_host_rule() {
+        let per_gib = stated("../../src/Uorc/Page.lex.tex", "pageWorker", "workersPerGiB");
+        assert_eq!(super::WORKERS_PER_GIB, per_gib);
+        let client = stated("../../client/src/Uorc/Client.lex.tex", "hostMemory", "");
+        assert_eq!(super::PAGE_WORKER.memory, client);
+        let gate = stated("../../src/Uorc/Page.lex.tex", "workerMemory", "threshold");
+        assert_eq!(super::PAGE_WORKER.memory, gate << 20);
+    }
+
     use super::*;
 
     #[test]
