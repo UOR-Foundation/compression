@@ -303,6 +303,7 @@ mod tests {
             "dominanceIsAsymmetric",
             "dominanceIsTransitive",
             "dominanceNeverCostsBytes",
+            "dominanceLowersPotential",
             "knownResultIsNeverRerun",
             "shippedWorkflowIsValid",
         ] {
