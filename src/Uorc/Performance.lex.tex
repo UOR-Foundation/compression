@@ -1927,7 +1927,21 @@ definition{
   name: scheduleBudget,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "strategies tried per frame", fixedAt := "2 to 4 by family", standing := "unmeasured", measured := ""})
+  body: (record Facet {quantity := "strategies tried per frame", fixedAt := "none: every strategy the frame can code, in weight order (Client.planned)", standing := "at boundary", measured := "39 files (Canterbury and source files) against the budget of 2 to 4 by family: 0.48 percent fewer bytes in total, no file larger; the time this costs is planCompressTime"})
+}
+
+definition{
+  name: planCompressTime,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "compress time of every strategy a frame can code, against the host's ceiling (Uorc.Performance::hostCeiling)", fixedAt := "each strategy coded once, twins in one shared pass, bounded by the least archive so far", standing := "unmet", measured := "39 files, native, one process per file: 2.58 times the time of the budgeted plan in total; tiny 2.68, small 4.42, text 1.86, x86 3.83, other 2.55 times"})
+}
+
+definition{
+  name: stateReplayTime,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "decode time a process spends replaying a model state before the first state frame (Uorc.Performance::hostCeiling)", fixedAt := "once per process; later frames read a kept warmed model (Uorc.Page::warmedKept)", standing := "unmet", measured := "a process that decodes one state frame pays 0.50 s of 0.57 s to replay S1 (fields.c); the 13 small-family files of the 39 (4 KiB to 64 KiB) decode in 6.52 s against 1.00 s under the budgeted plan. An image of the warmed model is 96 MiB per state and profile at the default tables and reads in 20 ms from the page cache; the remedy is a property of the host: a host that declares persistent storage keeps the image"})
 }
 
 definition{
