@@ -183,7 +183,7 @@ for x, xs in ((0, ''), (1, 'x')):
     D(f'deep{xs.upper()}End', [], 'Bytes', '0x' + end.hex())
     D(f'deep{xs.upper()}Nodes', [], 'Nat', str(one))
 D('windowFrames', ['k : Nat'], 'Bytes',
-  "(match k\n    | Nat.zero => 0x\n    | Nat.succ m => (if (m =? 0) then 0x00011e01 else (cat (windowFrames m) (cat (cat 0x00 (number k)) 0x1e011b0301))))", 'k')
+  "(match k\n    | Nat.zero => 0x\n    | Nat.succ m => (if (m =? 0) then 0x00011e01 else (cat (windowFrames m) (cat (cat 0x00 (number (m + 1))) 0x1e011b0301))))", 'k')
 D('deepPrefix', ['x : Nat', 'k : Nat'], 'Bytes',
   "(cat (cat 0x010003 (number ((if (x =? 0) then (deepNodes) else (deepXNodes)) + (prim multiply 3 (prim subtract k 1 : Nat) : Nat)))) 0x03)")
 D('deepTail', ['x : Nat', 'k : Nat'], 'Bytes',
@@ -204,8 +204,9 @@ D('profileWord', ['profile : Nat'], 'Bool',
 # streams - 1 in bits 37-52 and the log2 of the epoch in bits 53-57, one stream carrying no epoch
 S_AT, E_AT = 1 << 37, 1 << 53
 D('frameWord', ['word : Nat'], 'Bool',
-  f"(let e : Nat := (prim quotient word {E_AT} 0 : Nat); (let k : Nat := (prim remainder (prim quotient word {S_AT} 0 : Nat) 65536 0 : Nat); "
-  f"((((e <? 32) && ((prim remainder (prim quotient word {1 << 32} 0 : Nat) 32 0 : Nat) =? 0)) && (profileWord (prim remainder word {1 << 32} 0 : Nat))) && ((0 <? k) || (e =? 0)))))")
+  f"(let e : Nat := (prim quotient word {E_AT} 0 : Nat); (let streams : Nat := (prim remainder (prim quotient word {S_AT} 0 : Nat) 65536 0 : Nat); "
+  f"(if (e <? 32) then (if ((prim remainder (prim quotient word {1 << 32} 0 : Nat) 32 0 : Nat) =? 0) then (if (profileWord (prim remainder word {1 << 32} 0 : Nat)) then "
+  "(if (0 <? streams) then true else (e =? 0)) else false) else false) else false)))")
 # a v0.4 frame's word: v0.4's ncm blocks read no table field
 D('v04ProfileWord', ['profile : Nat'], 'Bool', f"(profile <? {1 << 20})")
 # a frame of one stream is coded by the frame's coder, a frame of more by the streams coder

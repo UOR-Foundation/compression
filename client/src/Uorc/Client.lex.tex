@@ -383,8 +383,8 @@ definition{
   parameters: [window : (List Bytes)],
   result: (List Bytes),
   body: (match window
-    | List.nil => window
-    | List.cons oldest rest => (if ((Uorc.Codec.Archive::windowCount window) <=? 2) then window else (recentWindow rest))),
+    | List.nil => (nil Bytes)
+    | List.cons oldest rest => (if ((Uorc.Codec.Archive::windowCount (cons oldest rest)) <=? 2) then (cons oldest rest) else (recentWindow rest))),
   axioms: [],
   recursive_argument: window
 }
@@ -394,8 +394,8 @@ definition{
   parameters: [k : Nat, window : (List Bytes)],
   result: (List Bytes),
   body: (match window
-    | List.nil => window
-    | List.cons oldest rest => (if ((Uorc.Codec.Archive::windowCount window) <=? k) then window else (lastFrames k rest))),
+    | List.nil => (nil Bytes)
+    | List.cons oldest rest => (if ((Uorc.Codec.Archive::windowCount (cons oldest rest)) <=? k) then (cons oldest rest) else (lastFrames k rest))),
   axioms: [],
   recursive_argument: window
 }
@@ -509,11 +509,11 @@ definition{
   result: (Option (Bytes * Nat)),
   body: (match fuel
     | Nat.zero => best
-    | Nat.succ m => (let n : Nat := (prim length data : Nat); (if ((n <=? (prim multiply (Uorc.Codec.NcmEncode::strideOf n k) (prim subtract k 1 : Nat) : Nat)) || (not (holdsStreams n held profile k))) then best else (match (streamEpochs past data profile k)
+    | Nat.succ m => (let n : Nat := (prim length data : Nat); (let o : Nat := (if (k <? (hostThreads)) then k else (hostThreads)); (let next : Nat := (k + 1); (let word : Nat := (streamWord profile k 0); (if ((n <=? (prim multiply (Uorc.Codec.NcmEncode::strideOf n k) (prim subtract k 1 : Nat) : Nat)) || (not (holdsStreams n held profile k))) then best else (match (streamEpochs past data profile k)
       | Option.none => (ctor Option.none [(Bytes * Nat)])
-      | Option.some tried => (let s : Nat := (coding + (first (second tried))); (let o : Nat := (if (k <? (hostThreads)) then k else (hostThreads)); (let size : Nat := (prim length (first tried) : Nat); (let keep : Bool := (if (o =? over) then (match best
+      | Option.some tried => (let s : Nat := (coding + (first (second tried))); (let size : Nat := (prim length (first tried) : Nat); (let keep : Bool := (if (o =? over) then (match best
         | Option.none => true
-        | Option.some b => ((size <? (prim length (first b) : Nat)) || ((size =? (prim length (first b) : Nat)) && (s <? steps)))) else ((prim multiply s over : Nat) <? (prim multiply steps o : Nat))); (if keep then (deriveLoop m past data held profile coding (k + 1) s o (ctor Option.some [(Bytes * Nat)] ((first tried), (streamWord profile k (second (second tried)))))) else best))))))))),
+        | Option.some b => ((size <? (prim length (first b) : Nat)) || ((size =? (prim length (first b) : Nat)) && (s <? steps)))) else ((prim multiply s over : Nat) <? (prim multiply steps o : Nat))); (if keep then (deriveLoop m past data held profile coding next s o (ctor Option.some [(Bytes * Nat)] ((first tried), (word + (prim multiply 9007199254740992 (second (second tried)) : Nat))))) else best))))))))))),
   axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
@@ -522,13 +522,13 @@ definition{
   name: stepStreams,
   parameters: [point : Nat, window : (List Bytes), input : Bytes, chosen : Bytes],
   result: Bytes,
-  body: (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let x : Nat := (prim remainder (prim quotient point 2147483648 0 : Nat) 2 0 : Nat); (let profile : Nat := (prim remainder point 2147483648 0 : Nat); (let k : Nat := (Uorc.Codec.Archive::windowCount window); (if ((((hostThreads) <=? 1) || (0 <? st)) || ((profile =? 131071) && (k <=? 2))) then chosen else (let history : Bytes := (Uorc.Codec.Archive::windowHistory window); (let past : Bytes := (if (x =? 0) then history else (Uorc.Codec.X86::run 0 0 history)); (let data : Bytes := (if (x =? 0) then input else (Uorc.Codec.X86::run 0 (prim length history : Nat) input)); (match (deriveLoop 65535 past data (prim length history : Nat) profile (trialSteps profile (prim length input : Nat)) 2 (trialSteps profile (prim length input : Nat)) 1 (ctor Option.none [(Bytes * Nat)]))
+  body: (let st : Nat := (prim quotient point 4294967296 0 : Nat); (let x : Nat := (prim remainder (prim quotient point 2147483648 0 : Nat) 2 0 : Nat); (let profile : Nat := (prim remainder point 2147483648 0 : Nat); (if ((((hostThreads) <=? 1) || (0 <? st)) || ((profile =? 131071) && ((Uorc.Codec.Archive::windowCount window) <=? 2))) then chosen else (let history : Bytes := (Uorc.Codec.Archive::windowHistory window); (let past : Bytes := (if (x =? 0) then history else (Uorc.Codec.X86::run 0 0 history)); (let data : Bytes := (if (x =? 0) then input else (Uorc.Codec.X86::run 0 (prim length history : Nat) input)); (match (deriveLoop 65535 past data (prim length history : Nat) profile (trialSteps profile (prim length input : Nat)) 2 (trialSteps profile (prim length input : Nat)) 1 (ctor Option.none [(Bytes * Nat)]))
     | Option.none => chosen
     | Option.some d => (match (Uorc.Codec.Archive::profiledIdentity window)
       | Option.none => chosen
-      | Option.some identity => (match (Uorc.Codec.Archive::profiledArchive x k identity (prim length input : Nat) (second d) (first d))
+      | Option.some identity => (match (Uorc.Codec.Archive::profiledArchive x (Uorc.Codec.Archive::windowCount window) identity (prim length input : Nat) (second d) (first d))
         | Option.none => chosen
-        | Option.some a => a))))))))))),
+        | Option.some a => a)))))))))),
   axioms: [Quot.sound, propext]
 }
 
