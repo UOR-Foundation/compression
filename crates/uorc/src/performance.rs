@@ -85,7 +85,7 @@ impl Host {
     pub fn warmed_kept(self, n: u64, state: u64, profile: u32) -> u64 {
         let decoders = self
             .footprint(n, state, true, profile)
-            .saturating_mul(self.threads.max(1));
+            .saturating_mul(self.workers.max(1));
         let each = crate::ncm::warmed_bytes(n, state, profile).max(1);
         self.memory.saturating_sub(decoders) / each
     }
@@ -384,12 +384,13 @@ mod tests {
                 Host {
                     memory: 1 << 33,
                     keeps_tables: false,
+                    workers: 1,
                     threads: 1,
                 },
             ] {
                 let n = 4096;
                 let kept = host.warmed_kept(n, state, profile);
-                let decoders = host.footprint(n, state, true, profile) * host.threads;
+                let decoders = host.footprint(n, state, true, profile) * host.workers;
                 let each = ncm::warmed_bytes(n, state, profile);
                 assert_eq!(kept, host.memory.saturating_sub(decoders) / each);
                 eprintln!(
@@ -404,6 +405,7 @@ mod tests {
         let full = Host {
             memory: 1 << 20,
             keeps_tables: false,
+            workers: 1,
             threads: 1,
         };
         assert_eq!(full.warmed_kept(4096, state, ncm::FULL), 0);
