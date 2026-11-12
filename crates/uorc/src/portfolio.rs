@@ -334,8 +334,9 @@ mod tests {
 
     #[test]
     fn an_entry_the_coder_cannot_apply_is_skipped() {
+        // a context table field of 1 bit (below ncm::TABLE_MIN), then an unnamed state
         let bad = Table {
-            strategies: &[0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0x0f, 0x00, 0xee],
+            strategies: &[0xff, 0xff, 0x1f, 0x00, 0x00, 0xff, 0xff, 0x0f, 0x00, 0xee],
             weights: &[1; 10],
         };
         assert_eq!(bad.strategy(0), None);
