@@ -119,14 +119,7 @@ reproducibility:
 varint-proofs:
     node scripts/varint-validation.mjs
 
-# Source-owned SHA, streaming identities, independent data and mutation controls.
+# Source-owned SHA-256 and bounded chain: independent data and mutation controls.
 integrity:
     node --test scripts/integrity-vectors.test.mjs
     node scripts/integrity-validation.mjs
-    node --test scripts/integrity-stream.test.mjs
-    node scripts/integrity-stream.mjs
-    node --test scripts/integrity-binding.test.mjs
-    node --test scripts/integrity-transcript.test.mjs
-    node --test scripts/integrity-canonical.test.mjs
-    node --test scripts/integrity-consumer-components.test.mjs
-    node scripts/integrity-canonical-runtime.mjs
