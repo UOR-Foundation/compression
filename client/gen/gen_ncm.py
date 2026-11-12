@@ -17,16 +17,22 @@ def sizing(D):
       "(match fuel\n    | Nat.zero => tb\n    | Nat.succ m => (if ((pow2 tb) <? (prim multiply 1024 n : Nat)) then (tbLoop m n (tb + 1)) else tb))", 'fuel')
     D('tbFor', ['n : Nat'], 'Nat', "(tbLoop 8 n 16)")
     D('mbFor', ['tb : Nat'], 'Nat', "(if (22 <? tb) then 22 else (prim subtract tb 2 : Nat))")
+    # the context table's bits: the ones the profile word records in bits 20-25 (TABLE_SHIFT), else the length's own;
+    # the match tables' bits: the ones it records in bits 26-30 (MATCH_SHIFT), else the default context table's
+    D('tbOf', ['n : Nat', 'profile : Nat'], 'Nat',
+      f"(let t : Nat := (prim remainder (prim quotient profile {ncm_model.TABLE_UNIT} 0 : Nat) 64 0 : Nat); (if (0 <? t) then t else (tbFor n)))")
+    D('mbOf', ['n : Nat', 'profile : Nat'], 'Nat',
+      f"(let m : Nat := (prim remainder (prim quotient profile {ncm_model.MATCH_UNIT} 0 : Nat) 32 0 : Nat); (if (0 <? m) then m else (mbFor (tbFor n))))")
     D('zeros', ['depth : Nat'], 'Bytes', f"({TB}::fill 1 depth 0)")
 
 
-def tables(L, n, extra, history='0x'):
+def tables(L, n, extra, history='0x', profile='profile'):
     # Every table's depth names n: the certificate kernel evaluates whatever is closed, and a closed state
     # would have it run the model's whole setup (thousands of table writes) at check time.
-    t = {'glob': f'(zeros (8 + (prim multiply 0 {n} : Nat)))', 'mem': f'(zeros (22 + (prim multiply 0 {n} : Nat)))', 'T': f'({TB}::fill 3 (tbFor {n}) 0)', 'MT': f'({TB}::fill 4 (mbFor (tbFor {n})) 0)',
+    t = {'glob': f'(zeros (8 + (prim multiply 0 {n} : Nat)))', 'mem': f'(zeros (22 + (prim multiply 0 {n} : Nat)))', 'T': f'({TB}::fill 3 (tbOf {n} {profile}) 0)', 'MT': f'({TB}::fill 4 (mbOf {n} {profile}) 0)',
          'H': f'(prim append {history} (zeros (depthFor 40 {n} 0)) : Bytes)', 'A2': f'({TB}::fill 2 (22 + (prim multiply 0 {n} : Nat)) 0)',
          # the short match table, and the short match and repeat models' 64 and 128 slots
-         'M2T': f'({TB}::fill 4 (mbFor (tbFor {n})) 0)', 'M2S': f'({TB}::fill 3 (6 + (prim multiply 0 {n} : Nat)) 0)',
+         'M2T': f'({TB}::fill 4 (mbOf {n} {profile}) 0)', 'M2S': f'({TB}::fill 3 (6 + (prim multiply 0 {n} : Nat)) 0)',
          'RS': f'({TB}::fill 3 (7 + (prim multiply 0 {n} : Nat)) 0)'}
     t.update(extra)
     return t
@@ -62,26 +68,26 @@ open(os.path.join(OUTDIR, 'NcmDecode.lex.tex'), 'w').write(dec.source([TB]))
 # encoder
 enc = irlex.Lex(ncm_model.P, 'NcmEncode', ['encodeProfile', 'encodeLearn', 'encodeWarm'], BIG + ['OUT'])
 sizing(enc.D)
-enc.D('start', ['history : Bytes', 'input : Bytes', 'n : Nat', 'cap : Nat'], enc.St,
+enc.D('start', ['history : Bytes', 'input : Bytes', 'n : Nat', 'cap : Nat', 'profile : Nat'], enc.St,
       enc.L.make(tables(enc.L, 'n', {'OUT': '(zeros (depthFor 40 cap 0))'}, 'history'), scalars(enc.L, 'input')))
 enc.D('finish', ['s1 : ' + enc.St, 'n : Nat'], 'Bytes',
       f"(if (0 <? {enc.gread('s1', 'ovf')}) then 0x else (let head : Bytes := (putAt 4 (zeros 2) 0 n); "
       f"(match (prim slice {enc.L.P('s1', 'OUT')} 0 {enc.gread('s1', 'op')} : (Option Bytes))\n    | Option.none => 0x\n"
       f"    | Option.some b => (prim append head b : Bytes))))")
 body = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim multiply 2 n : Nat) + 64); "
-        "(finish (encodeProfile (start history input n cap) n cap (prim length history : Nat) profile) n)))")
+        "(finish (encodeProfile (start history input n cap profile) n cap (prim length history : Nat) profile) n)))")
 # encode `input` against the window `history` under a profile word: the match model starts holding every
 # history position
 enc.D('runProfile', ['history : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4294967296) then {body} else 0x)")
 enc.D('runWith', ['history : Bytes', 'input : Bytes'], 'Bytes', f"(runProfile history input {V03})")
 # the profile the encoder learns coding `input` under `profile`: without the contexts that saved nothing
 learn = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim multiply 2 n : Nat) + 64); "
-         f"(let s1 : {enc.St} := (encodeLearn (start history input n cap) n cap (prim length history : Nat) profile); "
+         f"(let s1 : {enc.St} := (encodeLearn (start history input n cap profile) n cap (prim length history : Nat) profile); "
          f"(if (0 <? {enc.gread('s1', 'ovf')}) then profile else {enc.gread('s1', 'lmask')}))))")
 enc.D('learnProfile', ['history : Bytes', 'input : Bytes', 'profile : Nat'], 'Nat', f"(if ((prim length input : Nat) <? 4294967296) then {learn} else profile)")
 # encode `input` as the continuation of the kappa-named model state `state`, which the whole model codes first
 wenc = ("(let n : Nat := (prim length input : Nat); (let cap : Nat := ((prim multiply 2 n : Nat) + 64); (let w : Nat := (prim length state : Nat); "
-        "(finish (encodeWarm (start state input (w + n) cap) n cap w profile) n))))")
+        "(finish (encodeWarm (start state input (w + n) cap profile) n cap w profile) n))))")
 enc.D('runWarm', ['state : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4294967296) then {wenc} else 0x)")
 enc.D('run', ['input : Bytes'], 'Bytes', "(runWith 0x input)")
 open(os.path.join(OUTDIR, 'NcmEncode.lex.tex'), 'w').write(enc.source([TB]))

@@ -653,10 +653,94 @@ definition{
 }
 
 definition{
+  name: deepHead,
+  parameters: [],
+  result: Bytes,
+  body: 0x236a03,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deepEnd,
+  parameters: [],
+  result: Bytes,
+  body: 0x0100,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deepNodes,
+  parameters: [],
+  result: Nat,
+  body: 6,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deepXHead,
+  parameters: [],
+  result: Bytes,
+  body: 0x0000000023d30103030201236a03,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deepXEnd,
+  parameters: [],
+  result: Bytes,
+  body: 0x0001180623d301030302010100,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deepXNodes,
+  parameters: [],
+  result: Nat,
+  body: 12,
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: windowFrames,
+  parameters: [k : Nat],
+  result: Bytes,
+  body: (match k
+    | Nat.zero => 0x
+    | Nat.succ m => (if (m =? 0) then 0x00011e01 else (cat (windowFrames m) (cat (cat 0x00 (number (m + 1))) 0x1e011b0301)))),
+  executable: true,
+  axioms: [],
+  recursive_argument: k
+}
+
+definition{
+  name: deepPrefix,
+  parameters: [x : Nat, k : Nat],
+  result: Bytes,
+  body: (cat (cat 0x010003 (number ((if (x =? 0) then (deepNodes) else (deepXNodes)) + (prim multiply 3 (prim subtract k 1 : Nat) : Nat)))) 0x03),
+  executable: true,
+  axioms: []
+}
+
+definition{
+  name: deepTail,
+  parameters: [x : Nat, k : Nat],
+  result: Bytes,
+  body: (let more : Nat := (prim multiply 3 (prim subtract k 1 : Nat) : Nat); (let d : Nat := ((if (x =? 0) then 5 else 8) + more); (cat (cat (cat (cat (cat (cat 0x0300 (windowFrames k)) (if (x =? 0) then (deepHead) else (deepXHead))) (number d)) 0x01) (number (prim subtract d 1 : Nat))) (if (x =? 0) then (deepEnd) else (deepXEnd))))),
+  executable: true,
+  axioms: []
+}
+
+definition{
   name: profilePrefix,
   parameters: [x : Nat, k : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (if (k =? 0) then (profile0Prefix) else (if (k =? 1) then (profile1Prefix) else (profile2Prefix))) else (if (k =? 0) then (profile0XPrefix) else (if (k =? 1) then (profile1XPrefix) else (profile2XPrefix)))),
+  body: (if (k =? 0) then (if (x =? 0) then (profile0Prefix) else (profile0XPrefix)) else (deepPrefix x k)),
   executable: true,
   axioms: []
 }
@@ -665,7 +749,7 @@ definition{
   name: profileTail,
   parameters: [x : Nat, k : Nat],
   result: Bytes,
-  body: (if (x =? 0) then (if (k =? 0) then (profile0Tail) else (if (k =? 1) then (profile1Tail) else (profile2Tail))) else (if (k =? 0) then (profile0XTail) else (if (k =? 1) then (profile1XTail) else (profile2XTail)))),
+  body: (if (k =? 0) then (if (x =? 0) then (profile0Tail) else (profile0XTail)) else (deepTail x k)),
   executable: true,
   axioms: []
 }
@@ -1326,7 +1410,7 @@ definition{
   name: profiledArchive,
   parameters: [x : Nat, k : Nat, identity : Bytes, n : Nat, profile : Nat, payload : Bytes],
   result: (Option Bytes),
-  body: (if ((k <=? 2) && (profileWord profile)) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else (ctor Option.none [Bytes])),
+  body: (if (profileWord profile) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else (ctor Option.none [Bytes])),
   executable: true,
   axioms: [Quot.sound, propext]
 }
@@ -1502,9 +1586,11 @@ definition{
   name: profileCandidate,
   parameters: [codec : Nat, profile : Nat, window : (List Bytes), input : Bytes],
   result: (Option Bytes),
-  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if (profile =? 131071) then (v03Candidate x window (prim length input : Nat) payload) else (match (v04ProfiledIdentity window)
+  body: (let x : Nat := (if (codec =? 2) then 1 else 0); (let history : Bytes := (windowHistory window); (let payload : Bytes := (profiledEncoder x history input profile); (if ((0 <? (prim length payload : Nat)) && (prim equal (profiledDecoder x history payload profile) input : Bool)) then (if ((profile =? 131071) && ((windowCount window) <=? 2)) then (v03Candidate x window (prim length input : Nat) payload) else (if ((profile <? 1048576) && ((windowCount window) <=? 2)) then (match (v04ProfiledIdentity window)
     | Option.none => (ctor Option.none [Bytes])
-    | Option.some identity => (v04ProfiledArchive x (windowCount window) identity (prim length input : Nat) profile payload))) else (ctor Option.none [Bytes]))))),
+    | Option.some identity => (v04ProfiledArchive x (windowCount window) identity (prim length input : Nat) profile payload)) else (match (profiledIdentity window)
+    | Option.none => (ctor Option.none [Bytes])
+    | Option.some identity => (profiledArchive x (windowCount window) identity (prim length input : Nat) profile payload)))) else (ctor Option.none [Bytes]))))),
   executable: true,
   axioms: [Quot.sound, propext]
 }

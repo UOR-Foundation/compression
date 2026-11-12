@@ -229,6 +229,20 @@ structure{
   ]
 }
 
+structure{
+  name: DecodeHost,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: workersPerGiB, type: Nat},
+    {name: coreLimit, type: Nat},
+    {name: unreportedGiB, type: Nat},
+    {name: keepsTables, type: Bool},
+    {name: frameThreads, type: Nat},
+    {name: text, type: String}
+  ]
+}
+
 definition{
   name: workbench,
   parameters: [],
@@ -919,7 +933,7 @@ definition{
   name: boundedMemory,
   parameters: [],
   result: QualityRequirement,
-  body: (record QualityRequirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Compressing or decompressing one file holds a few frames in memory, not the whole file. Decoding a stream of distinct 8 MiB frames in WebAssembly peaks at 226 MiB for three frames and at 250 MiB for six or twelve: the model reads the window's frames in place and its tables are kept for the next frame (241, 257 and 257 MiB before)."})
+  body: (record QualityRequirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Compressing or decompressing one file holds a few frames in memory, not the whole file, and one worker holds at most its share of the device (Uorc.Page::pageWorker). During a frame the worker holds one set of the coder's tables, the window's frames read in place and the output; between frames it keeps the tables as spares for the next frame, so the next frame allocates nothing, and it keeps every warmed model state the frame's decoders leave room for (Uorc.Performance::warmedKept: the worker's share less the decoders' bytes, over one warmed model's tables and state), so a later frame continuing the same state replays nothing. The encoder counts all of these against the worker's share before it grows a frame's tables. At v0.4.0, decoding distinct 8 MiB frames peaked at 226 MiB for three frames and 250 MiB for six or twelve; what the worker retains beyond the decoder is follow-up for the page."})
 }
 
 definition{
@@ -1000,10 +1014,17 @@ definition{
 }
 
 definition{
+  name: pageWorker,
+  parameters: [],
+  result: DecodeHost,
+  body: (record DecodeHost {workersPerGiB := 2, coreLimit := 16, unreportedGiB := 2, keepsTables := true, frameThreads := 1, text := "The page's host rule, as a function of the device the browser reports: it starts one worker per core, at most coreLimit and at most workersPerGiB per GiB of navigator.deviceMemory (unreportedGiB when the browser reports none), so each worker may hold 1 GiB / workersPerGiB of WebAssembly memory (512 MiB). That is the decode host every archive is written for by default (uorc performance::PAGE_WORKER, Client.hostMemory): a frame's tables grow only while its decoder, the spare set of tables the worker keeps between frames, and the frame's window and output fit it. One worker decodes a frame, on frameThreads threads (uorc performance::PAGE_WORKER.threads, Client.hostThreads): one, and in v0.5 every frame is one stream (the frame word's streams fields are reserved). workersPerGiB, coreLimit and unreportedGiB are stated, not yet derived from the device."})
+}
+
+definition{
   name: workerMemory,
   parameters: [],
   result: QualityMeasure,
-  body: (record QualityMeasure {requirement := "Uorc.Page::boundedMemory", quantity := "WebAssembly memory after decompressing a stream of three 8 MiB frames", unit := "MiB", threshold := 256, disposition := "gate"})
+  body: (record QualityMeasure {requirement := "Uorc.Page::boundedMemory", quantity := "WebAssembly memory after decompressing the 10 MiB text archive, at most one page worker's share (Uorc.Page::pageWorker: 1 GiB / workersPerGiB)", unit := "MiB", threshold := 512, disposition := "gate"})
 }
 
 definition{

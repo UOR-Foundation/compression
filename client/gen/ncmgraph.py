@@ -7,7 +7,7 @@ import os
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from g import Graph, N, Y, S, T
-import irgraph, ncm_model, ncm_v02, ncm_v03
+import irgraph, ncm_model, ncm_v02, ncm_v03, ncm_v04
 
 
 def library(g=None):
@@ -56,13 +56,14 @@ def window_library(g):
     return b
 
 
-def profile_library(g, prefix='ncmP'):
-    """ncmRunProfile(payload, history, profile), appended after the v0.3 blocks: the decode of the current
-    coder (ncm_model) against a window, with the frame's profile word."""
-    c = irgraph.Compiler(ncm_model.P, g)
+def profile_library(g, prefix='ncmP', model=ncm_v04, name='ncmRunProfile'):
+    """ncmRunProfile(payload, history, profile): the decode of a profiled coder against a window, with the
+    frame's profile word. Appended after the v0.3 blocks over the v0.4 coder (frozen in ncm_v04), and again
+    after the v0.4 blocks over the current coder (ncm_model, which reads the profile word's table fields)."""
+    c = irgraph.Compiler(model.P, g)
     roms = c.load_roms()
     inp = c.input_loader()
-    H = ncm_model.P.tables['H']
+    H = model.P.tables['H']
     b = c.g.block(prefix + 'HistoryByte', [N, T, S], T)
     b.returns(b.swrite(b.arg(1), b.add(H, b.arg(0)), b.sidx(b.arg(2), b.arg(0))))
     hb = b
@@ -70,14 +71,14 @@ def profile_library(g, prefix='ncmP'):
     b.returns(b.sread(b.arg(1), b.add(b.add(H, b.arg(2)), b.arg(0))))
     oat = b
     decp = c.function('decodeProfile')
-    b = c.g.block('ncmRunProfile', [S, S, N], S)
+    b = c.g.block(name, [S, S, N], S)
     pl, hs, pf = b.arg(0), b.arg(1), b.arg(2)
     st = b.fold(b.slen(pl), b.snew(b.byte(0)), inp, [pl])
     st = b.apply(roms, [st])
     h = b.slen(hs)
     st = b.fold(h, st, hb, [hs])
     st = b.apply(decp, [st, h, pf])
-    n = c.get(b, st, c.gkey['n'], ncm_model.P.globals['n'])
+    n = c.get(b, st, c.gkey['n'], model.P.globals['n'])
     b.returns(b.tabulate(n, oat, [st, h]))
     return b
 

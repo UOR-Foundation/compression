@@ -96,7 +96,12 @@ fn strategy_frame(frame: &[u8], strategy: portfolio::Strategy) -> Option<Vec<u8>
         Codec::Ncm
     };
     let payload = ncm::encode_profile(&[], &data, strategy.profile)?;
-    archive::linked_archive_profile(codec, strategy.profile, &[frame.len() as u64], &payload)
+    archive::linked_archive_profile(
+        codec,
+        u64::from(strategy.profile),
+        &[frame.len() as u64],
+        &payload,
+    )
 }
 
 fn proved(names: &[&str]) {
@@ -442,6 +447,25 @@ fn a_shared_pass_writes_each_twins_own_payload_uc_perf_11() {
             let (a, b) = ncm::encode_pairs_learn_below(&history, &data, profile, [usize::MAX; 2]);
             assert_eq!(a, own(profile), "{profile:#x}");
             assert_eq!(b, own(profile ^ ncm::F_SEL), "{profile:#x}");
+        }
+    }
+    // twins continuing one model state share its replay and the pass: each
+    // payload is the one its own warm pass writes, and either side abandoned
+    // leaves the other unchanged
+    for (state, data) in [(text(9_000), text(20_000)), (text(4_000), noise(12_000, 7))] {
+        for profile in [ncm::FULL, mid] {
+            let own = |p: u32| ncm::encode_warm_below(&state, &data, p, usize::MAX);
+            let (a, b) = (own(profile), own(profile ^ ncm::F_SEL));
+            assert_eq!(
+                ncm::encode_pair_warm_below(&state, &data, profile, [usize::MAX; 2]),
+                (a.clone(), b.clone()),
+                "{profile:#x}"
+            );
+            let half = a.as_ref().map_or(0, |p| p.len() / 2);
+            assert_eq!(
+                ncm::encode_pair_warm_below(&state, &data, profile, [half, usize::MAX]),
+                (None, b)
+            );
         }
     }
     // the client codes twins in one pass when no core is spare: the archives

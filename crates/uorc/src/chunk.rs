@@ -387,11 +387,13 @@ impl Framer {
         // bytes, and a frame that takes it ends there, so it matches too.
         let labels: Vec<[u8; 32]> = self.units.iter().map(|u| u.1).collect();
         let firm = labels.len();
-        // The frames the next frame reads as its window: the ncm match model
-        // already codes a repeat of them, so only a repeat of that whole
-        // frame becomes a reference there, which leaves the framing of what
-        // follows unchanged.
-        let near = self.frames - self.reach() as u64;
+        // The frames the next frame surely reads as its window (the
+        // portfolio's, [`archive::WINDOW`]): the ncm match model already
+        // codes a repeat of them, so only a repeat of that whole frame
+        // becomes a reference there, which leaves the framing of what follows
+        // unchanged. Frames the window step may add further back are not
+        // relied on, since the declared host may refuse them.
+        let near = self.frames - self.reach().min(archive::WINDOW) as u64;
         let window = self.pending.len().min(FRAME);
         let label = archive::frame_label(&self.pending[..window]);
         self.whole = Some((window, label));
@@ -449,13 +451,15 @@ impl Framer {
         self.emit(n, reference, last)
     }
 
-    /// How many frames before it the next coded frame reads: up to
-    /// [`archive::WINDOW`] frames of its block, none when it starts one.
+    /// How many frames before it the next coded frame may read: every
+    /// earlier frame of its block, none when it starts one. The portfolio
+    /// codes over the last [`archive::WINDOW`] of them and the window step
+    /// over all ([`crate::step_window`]).
     fn reach(&self) -> usize {
         if self.coded_in_block == crate::BLOCK || self.after_reference {
             0
         } else {
-            self.in_block.min(archive::WINDOW)
+            self.in_block
         }
     }
 
@@ -567,13 +571,14 @@ mod tests {
             assert_eq!(f.reference, Some(archive::frame_label(&f.bytes)));
             assert_eq!(f.window, 0);
         }
-        // Blocks hold four coded frames; reference frames do not count.
+        // Blocks hold four coded frames; reference frames do not count; a
+        // coded frame may read every earlier frame of its block.
         let coded: Vec<usize> = frames
             .iter()
             .filter(|f| f.reference.is_none())
             .map(|f| f.window)
             .collect();
-        assert_eq!(&coded[..5], &[0, 1, 2, 2, 0]);
+        assert_eq!(&coded[..5], &[0, 1, 2, 3, 0]);
         let joined: Vec<u8> = frames.iter().flat_map(|f| f.bytes.clone()).collect();
         assert!(joined == input);
         for step in [1 << 16, 3 << 20, input.len()] {

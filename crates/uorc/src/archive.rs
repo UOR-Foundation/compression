@@ -14,6 +14,7 @@
 //! applies a library decoder to the payload, so a small file carries no kernel.
 
 use sha2::{Digest, Sha256};
+use std::borrow::Cow;
 
 const PREFIX_HEX: &str = include_str!("kernel-prefix.hex");
 const SUFFIX_HEX: &str = include_str!("kernel-suffix.hex");
@@ -174,7 +175,10 @@ impl Era {
     }
 }
 
-/// Most preceding frames a window frame reads (`Archive.windowPrefix`).
+/// Most preceding frames the fixed window entries read (the v0.2 and v0.3
+/// entries, and the v0.4 profiled ones): the portfolio codes a frame over at
+/// most this many, and a current profiled entry reads any number
+/// ([`window_profile_template`]), up to every earlier frame of its block.
 pub const WINDOW: usize = 2;
 
 /// A decoder of the standard basis that a linked archive applies.
@@ -187,11 +191,13 @@ pub enum Codec {
     Ncm,
     /// [`Codec::Ncm`] over the x86 branch filter ([`crate::x86`]).
     NcmX86,
-    /// The context-mixing coder under the profile word it carries
-    /// ([`crate::ncm::valid_profile`]), which the entry names.
-    Profile(u32),
+    /// The context-mixing coder under the frame word it carries: the model
+    /// profile ([`crate::ncm::valid_profile`]); the word's streams and epoch
+    /// fields ([`crate::ncm::streams::split`]) are reserved and zero
+    /// ([`frame_word`]), which the entry names.
+    Profile(u64),
     /// [`Codec::Profile`] over the x86 branch filter.
-    ProfileX86(u32),
+    ProfileX86(u64),
 }
 
 impl Codec {
@@ -203,17 +209,22 @@ impl Codec {
         matches!(self, Codec::NcmX86 | Codec::ProfileX86(_))
     }
 
-    /// The ncm profile word the payload is coded under (`None` for ulz).
+    /// The ncm model profile the payload is coded under (`None` for ulz).
     pub fn ncm_profile(self) -> Option<u32> {
+        self.ncm_word().map(|(p, _)| p)
+    }
+
+    /// The ncm model profile and the frame's streams (`None` for ulz).
+    pub fn ncm_word(self) -> Option<(u32, crate::ncm::streams::Plan)> {
         match self {
             Codec::Ulz => None,
-            Codec::Ncm | Codec::NcmX86 => Some(crate::ncm::V03),
-            Codec::Profile(p) | Codec::ProfileX86(p) => Some(p),
+            Codec::Ncm | Codec::NcmX86 => Some((crate::ncm::V03, crate::ncm::streams::Plan::ONE)),
+            Codec::Profile(w) | Codec::ProfileX86(w) => frame_word(w),
         }
     }
 
-    /// The profiled codec coding `profile`, over the x86 filter when `x86`.
-    pub fn profiled(profile: u32, x86: bool) -> Codec {
+    /// The profiled codec coding frame word `profile`, over the x86 filter when `x86`.
+    pub fn profiled(profile: u64, x86: bool) -> Codec {
         if x86 {
             Codec::ProfileX86(profile)
         } else {
@@ -222,17 +233,29 @@ impl Codec {
     }
 }
 
+/// The model profile and plan of a frame word this client reads and writes:
+/// in v0.5 the streams and epoch fields are reserved and must be zero (one
+/// stream), as in the exported decoder (`Archive.profileWord`), so every
+/// archive decodes alike in both clients. The streams coder
+/// ([`crate::ncm::streams`]) is tested here but not yet shipped: its
+/// exported model does not build within the export's bounds.
+pub fn frame_word(word: u64) -> Option<(u32, crate::ncm::streams::Plan)> {
+    crate::ncm::streams::split(word).filter(|(_, plan)| plan.streams == 1)
+}
+
 /// The bytes around the payload of an entry that applies `codec` over `k`
 /// window frames in a basis of `era`: `prefix uleb(len) payload suffix`.
-fn template(codec: Codec, k: usize, era: Era) -> Option<(&'static [u8], Vec<u8>)> {
+fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec<u8>)> {
     if let Codec::Profile(p) | Codec::ProfileX86(p) = codec {
-        if !crate::ncm::valid_profile(p) {
+        // A recorded table field or streams are read by this library's ncm blocks only.
+        let (model, plan) = frame_word(p)?;
+        if era != Era::Current && (crate::ncm::records_tables(model) || plan.streams > 1) {
             return None;
         }
         let (prefix, tail) = profile_template(k, codec.x86(), era)?;
         let mut suffix = vec![0];
-        push_uleb(&mut suffix, u64::from(p));
-        suffix.extend_from_slice(tail);
+        push_uleb(&mut suffix, p);
+        suffix.extend_from_slice(&tail);
         return Some((prefix, suffix));
     }
     let (prefix, suffix): (&[u8], &[u8]) = match (era, codec, k) {
@@ -261,26 +284,77 @@ fn template(codec: Codec, k: usize, era: Era) -> Option<(&'static [u8], Vec<u8>)
         (Era::Current, Codec::NcmX86, 2) => (&WINDOW2X_PREFIX, &NCM2X_SUFFIX),
         _ => return None,
     };
-    Some((prefix, suffix.to_vec()))
+    Some((Cow::Borrowed(prefix), suffix.to_vec()))
 }
 
+/// Entry bytes, borrowed from the basis or built for a window depth.
+type Bytes = Cow<'static, [u8]>;
+
 /// (prefix, tail) of the profiled entry over `k` window frames in a basis of
-/// `era` (profiled entries exist from v0.4 on).
-fn profile_template(k: usize, x86: bool, era: Era) -> Option<(&'static [u8], &'static [u8])> {
+/// `era` (profiled entries exist from v0.4 on). A current-basis entry reads
+/// any number of frames ([`window_profile_template`]); v0.4 entries read at
+/// most two.
+fn profile_template(k: usize, x86: bool, era: Era) -> Option<(Bytes, Bytes)> {
     let current = era == Era::Current;
     if !current && era != Era::V04 {
         return None;
     }
     let pick = |now: &'static [u8], v04: &'static [u8]| if current { now } else { v04 };
-    Some(match (k, x86) {
+    let fixed: (&'static [u8], &'static [u8]) = match (k, x86) {
         (0, false) => (&NCMP_PREFIX[..], pick(&NCMP_TAIL, &V04_NCMP_TAIL)),
         (1, false) => (&NCMP1_PREFIX[..], pick(&NCMP1_TAIL, &V04_NCMP1_TAIL)),
         (2, false) => (&NCMP2_PREFIX[..], pick(&NCMP2_TAIL, &V04_NCMP2_TAIL)),
         (0, true) => (&NCMPX_PREFIX[..], pick(&NCMPX_TAIL, &V04_NCMPX_TAIL)),
         (1, true) => (&NCMP1X_PREFIX[..], pick(&NCMP1X_TAIL, &V04_NCMP1X_TAIL)),
         (2, true) => (&NCMP2X_PREFIX[..], pick(&NCMP2X_TAIL, &V04_NCMP2X_TAIL)),
+        _ if current => {
+            let (prefix, tail) = window_profile_template(k, x86);
+            return Some((Cow::Owned(prefix), Cow::Owned(tail)));
+        }
         _ => return None,
-    })
+    };
+    Some((Cow::Borrowed(fixed.0), Cow::Borrowed(fixed.1)))
+}
+
+/// The current basis's profiled entry over `k >= 1` window frames
+/// (`Archive.profilePrefix`, `Archive.profileTail`): the one-frame entry with
+/// three more nodes per frame. Frame `r` is the nodes `nat r`, `basis`, and
+/// (from the second frame on) the concatenation of the history so far with
+/// it, so the history is basis roots 1..k in order; the call to the coder
+/// then reaches the payload and the profile word 3 nodes further back per
+/// frame.
+pub(crate) fn window_profile_template(k: usize, x86: bool) -> (Vec<u8>, Vec<u8>) {
+    debug_assert!(k >= 1);
+    let (p1, t1): (&[u8], &[u8]) = if x86 {
+        (&NCMP1X_PREFIX, &NCMP1X_TAIL)
+    } else {
+        (&NCMP1_PREFIX, &NCMP1_TAIL)
+    };
+    let more = 3 * (k as u64 - 1);
+    // `01 00 03 uleb(nodes) 03`: one block, its node count, its result type
+    let mut prefix = p1[..3].to_vec();
+    push_uleb(&mut prefix, u64::from(p1[3]) + more);
+    prefix.extend_from_slice(&p1[4..]);
+    // `03 00` (the empty history), frame 1 (`00 01 1e 01`), frames 2..k
+    let mut tail = t1[..6].to_vec();
+    for r in 2..=k as u64 {
+        tail.push(0);
+        push_uleb(&mut tail, r);
+        tail.extend_from_slice(&[0x1e, 0x01, 0x1b, 0x03, 0x01]);
+    }
+    // the coder's call: payload at distance d, history 1, profile d - 1
+    let d = if x86 { 8 } else { 5 };
+    let rest = &t1[6..];
+    let at = rest
+        .windows(3)
+        .position(|w| w == [d, 1, d - 1])
+        .expect("the one-frame entry calls the coder");
+    tail.extend_from_slice(&rest[..at]);
+    push_uleb(&mut tail, u64::from(d) + more);
+    tail.push(1);
+    push_uleb(&mut tail, u64::from(d - 1) + more);
+    tail.extend_from_slice(&rest[at + 3..]);
+    (prefix, tail)
 }
 
 /// The codec and payload of a body over `k` window frames in a basis of
@@ -298,7 +372,7 @@ fn parse_body(body: &[u8], k: usize, era: Era) -> Option<(Codec, &[u8])> {
     };
     let fixed = Codec::ALL.into_iter().find_map(|c| {
         let (prefix, suffix) = template(c, k, era)?;
-        let (payload, rest) = split(prefix)?;
+        let (payload, rest) = split(&prefix)?;
         (rest == &suffix[..]).then_some((c, payload))
     });
     if fixed.is_some() {
@@ -306,13 +380,14 @@ fn parse_body(body: &[u8], k: usize, era: Era) -> Option<(Codec, &[u8])> {
     }
     [false, true].into_iter().find_map(|x86| {
         let (prefix, tail) = profile_template(k, x86, era)?;
-        let (payload, rest) = split(prefix)?;
+        let (payload, rest) = split(&prefix)?;
         let rest = rest.strip_prefix(&[0])?;
         let (p, after) = read_uleb(rest, 0)?;
-        let p = u32::try_from(p).ok()?;
-        let ok = after == uleb_len(u64::from(p))
-            && crate::ncm::valid_profile(p)
-            && &rest[after..] == tail;
+        let ok = after == uleb_len(p)
+            && frame_word(p).is_some_and(|(model, plan)| {
+                era == Era::Current || (!crate::ncm::records_tables(model) && plan.streams == 1)
+            })
+            && rest[after..] == tail[..];
         ok.then_some((Codec::profiled(p, x86), payload))
     })
 }
@@ -539,10 +614,7 @@ fn linked_header(lengths: &[u64], body_len: u64) -> Vec<u8> {
 
 fn body_len(codec: Codec, k: usize, p: u64) -> Option<u64> {
     // profiled frames are written over the v0.4 basis ([`linked_archive_profile`])
-    let era = match codec {
-        Codec::Profile(_) | Codec::ProfileX86(_) => Era::V04,
-        _ => Era::Current,
-    };
+    let era = profiled_era(codec);
     let (prefix, suffix) = template(codec, k, era)?;
     Some(prefix.len() as u64 + uleb_len(p) as u64 + p + suffix.len() as u64)
 }
@@ -553,11 +625,24 @@ fn body_len(codec: Codec, k: usize, p: u64) -> Option<u64> {
 /// `None` for a profile word that is not a [`crate::ncm::valid_profile`].
 /// Profiled entries are written over the v0.4 basis ([`linked_archive_profile`]).
 pub fn linked_archive(codec: Codec, lengths: &[u64], payload: &[u8]) -> Option<Vec<u8>> {
-    match codec {
-        Codec::Profile(_) | Codec::ProfileX86(_) => {
-            entry_archive(codec, 0, Era::V04, &V04_BASIS_ID, lengths, payload)
-        }
+    match profiled_era(codec) {
+        Era::V04 => entry_archive(codec, 0, Era::V04, &V04_BASIS_ID, lengths, payload),
         _ => entry_archive(codec, 0, Era::Current, &BASIS_ID, lengths, payload),
+    }
+}
+
+/// The era a frame of `codec` is written in: a profiled frame over the v0.4
+/// basis unless its word records table bits, which only the current blocks
+/// read (`Archive.profileCandidate`); every other frame the current basis.
+fn profiled_era(codec: Codec) -> Era {
+    match codec {
+        Codec::Profile(p) | Codec::ProfileX86(p)
+            if frame_word(p)
+                .is_some_and(|(m, plan)| !crate::ncm::records_tables(m) && plan.streams == 1) =>
+        {
+            Era::V04
+        }
+        _ => Era::Current,
     }
 }
 
@@ -578,7 +663,7 @@ fn entry_archive(
     pre[6] = 1;
     pre.extend_from_slice(identity);
     pre.reserve(body_len as usize + SEAL);
-    pre.extend_from_slice(prefix);
+    pre.extend_from_slice(&prefix);
     push_uleb(&mut pre, p);
     pre.extend_from_slice(payload);
     pre.extend_from_slice(&suffix);
@@ -604,11 +689,11 @@ fn plain(codec: Codec) -> Codec {
 /// exactly the frame v0.4 writes for the same payload.
 pub fn linked_archive_profile(
     codec: Codec,
-    profile: u32,
+    profile: u64,
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
-    if profile == crate::ncm::V03 {
+    if profile == u64::from(crate::ncm::V03) {
         return entry_archive(plain(codec), 0, Era::V03, &V03_BASIS_ID, lengths, payload);
     }
     linked_archive(Codec::profiled(profile, codec.x86()), lengths, payload)
@@ -621,19 +706,30 @@ pub fn linked_archive_profile(
 /// (`Archive.v04ProfiledArchive`), as [`linked_archive_profile`].
 pub fn window_archive_profile(
     codec: Codec,
-    profile: u32,
+    profile: u64,
     window: &[&[u8]],
     identity: &[u8; 32],
     lengths: &[u64],
     payload: &[u8],
 ) -> Option<Vec<u8>> {
-    if profile == crate::ncm::V03 {
+    // v0.3 entries read at most two frames; a deeper window is a profiled entry
+    if profile == u64::from(crate::ncm::V03) && window.len() <= WINDOW {
         let v03 = window_identity_over(&V03_LIBRARY, window);
         return entry_archive(plain(codec), window.len(), Era::V03, &v03, lengths, payload);
     }
-    let _ = identity;
-    let v04 = window_identity_over(&V04_LIBRARY, window);
     let codec = Codec::profiled(profile, codec.x86());
+    // a window deeper than the fixed entries is read by the current library only
+    if profiled_era(codec) == Era::Current || window.len() > WINDOW {
+        return entry_archive(
+            codec,
+            window.len(),
+            Era::Current,
+            identity,
+            lengths,
+            payload,
+        );
+    }
+    let v04 = window_identity_over(&V04_LIBRARY, window);
     entry_archive(codec, window.len(), Era::V04, &v04, lengths, payload)
 }
 
@@ -888,7 +984,7 @@ pub fn state_frame(data: &[u8]) -> Option<StateFrame<'_>> {
         let w = u32::try_from(w).ok()?;
         let ok = after == uleb_len(u64::from(w))
             && crate::ncm::valid_profile(w)
-            && &rest[after..] == tail;
+            && rest[after..] == tail[..];
         ok.then(|| StateFrame {
             state,
             x86,
@@ -957,6 +1053,7 @@ pub fn window_len(data: &[u8]) -> Option<usize> {
         at = read_uleb(data, at)?.1;
     }
     let body = data.get(read_uleb(data, at)?.1 + 32..)?;
+    let deep = deep_window_len(body.get(..body.len().checked_sub(SEAL)?)?);
     [
         (&WINDOW1_PREFIX[..], 1),
         (&WINDOW1X_PREFIX[..], 1),
@@ -968,7 +1065,34 @@ pub fn window_len(data: &[u8]) -> Option<usize> {
         (&NCMP2X_PREFIX[..], 2),
     ]
     .into_iter()
-    .find_map(|(prefix, k)| body.starts_with(prefix).then_some(k))
+    .find_map(|(prefix, k)| {
+        // a deep entry's prefix may equal a shallow one's (three nodes per
+        // frame, six more for the x86 filter), so a deep entry is told first
+        (body.starts_with(prefix) && deep.is_none()).then_some(k)
+    })
+    .or(deep)
+}
+
+/// The window count of a current-basis profiled entry over three or more
+/// frames ([`window_profile_template`]): its node count names it, and the
+/// body must parse as that entry.
+fn deep_window_len(body: &[u8]) -> Option<usize> {
+    let rest = body.strip_prefix(&NCMP1_PREFIX[..3])?;
+    let (nodes, _) = read_uleb(rest, 0)?;
+    [
+        (u64::from(NCMP1_PREFIX[3]), false),
+        (u64::from(NCMP1X_PREFIX[3]), true),
+    ]
+    .into_iter()
+    .find_map(|(one, x86)| {
+        let more = nodes.checked_sub(one)?;
+        let k = usize::try_from(more / 3 + 1).ok()?;
+        if more % 3 != 0 || k < 3 {
+            return None;
+        }
+        let (codec, _) = parse_body(body, k, Era::Current)?;
+        (codec.x86() == x86).then_some(k)
+    })
 }
 
 /// The codec, basis era and payload of a window body over `k` frames laid
@@ -995,7 +1119,7 @@ pub fn window_codec(data: &[u8]) -> Option<(Codec, usize)> {
 /// core while the payload decodes.
 pub fn window_decode(data: &[u8], window: &[&[u8]]) -> Option<Vec<u8>> {
     let k = window.len();
-    if !(1..=WINDOW).contains(&k) {
+    if k == 0 {
         return None;
     }
     if data.len() < 8 + 32 + SEAL || data[..6] != MAGIC[..] || data[6] != 1 || data[7] != 1 {
@@ -1028,9 +1152,9 @@ pub fn window_decode(data: &[u8], window: &[&[u8]]) -> Option<Vec<u8>> {
     let (codec, era, payload) = window_payload(&pre[start..], k)?;
     let decode = || {
         if !codec.x86() {
-            return match codec.ncm_profile() {
+            return match codec.ncm_word() {
                 // The model reads the window's frames in place.
-                Some(p) => crate::ncm::decode_canonical_window(window, payload, n, p),
+                Some(w) => ncm_decode(window, payload, n, w),
                 None => crate::ulz::decode_with(&window.concat(), payload, n),
             };
         }
@@ -1059,10 +1183,24 @@ pub fn window_decode(data: &[u8], window: &[&[u8]]) -> Option<Vec<u8>> {
 /// The bytes a window payload codes (before any x86 inverse), with the native
 /// decoder's guarantee that the payload is the encoder's.
 fn decode_with(codec: Codec, history: &[u8], payload: &[u8], n: u64) -> Option<Vec<u8>> {
-    match codec.ncm_profile() {
+    match codec.ncm_word() {
         None => crate::ulz::decode_with(history, payload, n),
-        Some(p) => crate::ncm::decode_canonical_profile(history, payload, n, p),
+        Some(w) => ncm_decode(&[history], payload, n, w),
     }
+}
+
+/// The `n` bytes an ncm payload codes after the frames `window` under the
+/// model profile and plan `(profile, plan)`, with the native decoder's
+/// guarantee that the payload is the encoder's.
+fn ncm_decode(
+    window: &[&[u8]],
+    payload: &[u8],
+    n: u64,
+    (profile, plan): (u32, crate::ncm::streams::Plan),
+) -> Option<Vec<u8>> {
+    // one stream ([`frame_word`])
+    let _ = plan;
+    crate::ncm::decode_canonical_window(window, payload, n, profile)
 }
 
 /// `Archive.fastDecode`, natively: the output of an archive this client wrote
@@ -1128,6 +1266,16 @@ pub fn fast_decode(data: &[u8]) -> Option<Vec<u8>> {
     crate::ulz::decode(payload, n)
 }
 
+/// The codec of a linked or window frame laid out exactly as this client
+/// writes one (`None` for raw, reference and state frames).
+pub fn frame_codec(data: &[u8]) -> Option<Codec> {
+    if let Some((codec, _)) = window_codec(data) {
+        return Some(codec);
+    }
+    let (_, identity, body) = conditional_fields(data)?;
+    linked_codec(&identity, body)
+}
+
 /// The library decoder a body applies over the standard basis named
 /// `identity` (this one or an earlier one), when it is laid out exactly as
 /// [`linked_archive`] writes it.
@@ -1141,9 +1289,9 @@ pub fn linked_codec(identity: &[u8], body: &[u8]) -> Option<Codec> {
 /// reference decoder.
 fn linked_decode(body: &[u8], n: u64, era: Era) -> Option<Vec<u8>> {
     let (codec, payload) = parse_body(body, 0, era)?;
-    let out = match codec.ncm_profile() {
+    let out = match codec.ncm_word() {
         None => crate::ulz::decode(payload, n),
-        Some(p) => crate::ncm::decode_canonical_profile(&[], payload, n, p),
+        Some(w) => ncm_decode(&[], payload, n, w),
     }?;
     Some(if codec.x86() {
         crate::x86::filter(&out, true, 0).0
@@ -1338,9 +1486,10 @@ mod tests {
                 let (expect, era) = if v03 {
                     (codec, Era::V03)
                 } else {
-                    (Codec::profiled(profile, x86), Era::V04)
+                    (Codec::profiled(u64::from(profile), x86), Era::V04)
                 };
-                let linked = linked_archive_profile(codec, profile, &[n], &p).expect("profile");
+                let linked =
+                    linked_archive_profile(codec, u64::from(profile), &[n], &p).expect("profile");
                 assert_eq!(fast_decode(&linked).as_ref(), Some(&b));
                 if !v03 {
                     assert_eq!(
@@ -1353,7 +1502,8 @@ mod tests {
                 let w = crate::ncm::encode_profile(&history, &data, profile).expect("fits");
                 let id = window_identity(&[&a]);
                 let windowed =
-                    window_archive_profile(codec, profile, &[&a], &id, &[n], &w).expect("profile");
+                    window_archive_profile(codec, u64::from(profile), &[&a], &id, &[n], &w)
+                        .expect("profile");
                 assert_eq!(window_len(&windowed), Some(1));
                 assert_eq!(window_codec(&windowed), Some((expect, 1)));
                 assert_eq!(window_decode(&windowed, &[&a]).as_ref(), Some(&b));
@@ -1363,7 +1513,8 @@ mod tests {
                 } else {
                     crate::ncm::FULL
                 };
-                let wrong = linked_archive_profile(codec, other, &[n], &p).expect("profile");
+                let wrong =
+                    linked_archive_profile(codec, u64::from(other), &[n], &p).expect("profile");
                 assert_eq!(fast_decode(&wrong), None);
             }
         }

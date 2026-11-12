@@ -60,7 +60,7 @@ fn shipped_states_make_small_text_smaller() {
         .expect("a state strategy");
     let alone = archive::linked_archive_profile(
         archive::Codec::Ncm,
-        ncm::FULL,
+        u64::from(ncm::FULL),
         &lengths,
         &ncm::encode_profile(&[], &input, ncm::FULL).expect("codes"),
     )
