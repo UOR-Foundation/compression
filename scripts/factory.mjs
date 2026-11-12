@@ -543,6 +543,13 @@ export async function mergeTrain({repository, base, token, run = '', sleep = ms 
     const r = await call('POST', `issues/${pr.number}/comments`, {body: `Left the merge train${where}: ${why}. Add the \`${TRAIN_LABEL}\` label again to rejoin at the back.`});
     if (!r.ok) fail(`commenting on #${pr.number}: ${r.status}`);
   };
+  // The label is part of the route: the first train run creates it.
+  const label = await call('GET', `labels/${encodeURIComponent(TRAIN_LABEL)}`);
+  if (label.status === 404) {
+    const made = await call('POST', 'labels', {name: TRAIN_LABEL, color: '0e8a16', description: 'Ride the factory merge train: kept current with main, merged in order when green'});
+    if (!made.ok && made.status !== 422) fail(`creating the ${TRAIN_LABEL} label: ${made.status} ${made.data?.message ?? ''}`);
+    log(`merge-train: created the ${TRAIN_LABEL} label`);
+  } else if (!label.ok) fail(`reading the ${TRAIN_LABEL} label: ${label.status}`);
   for (let moves = 0; moves < 50; moves++) {
     const open = (await all('pulls?state=open')).filter(p => p.labels.some(l => l.name === TRAIN_LABEL));
     const prs = [];

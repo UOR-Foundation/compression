@@ -115,7 +115,7 @@ test('the head of the train is updated, tested, then merged; a failure, conflict
 });
 
 // A fake GitHub API holding two riders, labelled in number order.
-function fakeGitHub({conclusion = 'success', behind = {b1: 1}, runs = () => [{status: 'completed'}]} = {}) {
+function fakeGitHub({conclusion = 'success', behind = {b1: 1}, runs = () => [{status: 'completed'}], label = true} = {}) {
   const calls = [];
   const pull = (n, ref, sha, body) => ({number: n, title: `PR ${n}`, body, draft: false, state: 'open', base: {ref: 'main'}, head: {ref, sha, repo: {full_name: 'o/r'}}, labels: [{name: TRAIN_LABEL}], mergeable: true});
   const pulls = {1: pull(1, 'one', 'a1', 'one'), 2: pull(2, 'two', 'b1', null)};
@@ -124,6 +124,8 @@ function fakeGitHub({conclusion = 'success', behind = {b1: 1}, runs = () => [{st
     const [path, query = ''] = url.replace('https://api.github.com/repos/o/r/', '').split('?');
     calls.push(`${method} ${path}${body ? ' ' + body : ''}`);
     const sha = path.split('/')[1];
+    if (method === 'GET' && path === `labels/${TRAIN_LABEL}`) return label ? reply(200, {name: TRAIN_LABEL}) : reply(404, {message: 'Not Found'});
+    if (method === 'POST' && path === 'labels') { label = true; return reply(201, {name: TRAIN_LABEL}); }
     if (method === 'GET' && path === 'pulls') return reply(200, Object.values(pulls).filter(p => p.state === 'open'));
     if (method === 'GET' && /^issues\/\d+\/events$/.test(path)) return reply(200, [{event: 'labeled', label: {name: TRAIN_LABEL}, created_at: `2026-11-0${path.split('/')[1]}T00:00:00Z`}]);
     if (method === 'GET' && /^pulls\/\d+$/.test(path)) return reply(200, pulls[path.split('/')[1]]);
@@ -164,4 +166,10 @@ test('a merge train run drops a failed head with one comment and tests the next 
   assert.equal(writes[0], `DELETE issues/1/labels/${TRAIN_LABEL}`);
   assert.match(writes[1], /^POST issues\/1\/comments .*Left the merge train: acceptance \/ ubuntu-24.04 is failure/);
   assert.equal(writes[2], 'POST actions/workflows/bootstrap.yml/dispatches {"ref":"two"}');
+});
+
+test('a merge train run creates its label when the repository has none', async () => {
+  const {writes} = await ride({label: false});
+  assert.match(writes[0], new RegExp(`^POST labels .*"name":"${TRAIN_LABEL}"`));
+  assert.equal(writes.filter(w => w.startsWith('POST labels')).length, 1);
 });

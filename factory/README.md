@@ -136,8 +136,9 @@ the back), then by number. A draft waits until it is ready; a stacked request
 branches can ride: the train must push to them.
 
 factory.yml's `merge-train` job runs `factory.mjs merge-train` after each
-bootstrap run completes, when a request is labelled, and on dispatch. It looks
-only at the head of the train:
+bootstrap run completes, when a request is labelled, and on dispatch. Its first
+run creates the label when the repository has none. It looks only at the head
+of the train:
 
 - **update**: the head lacks commits of the default branch. It merges the
   default branch into the request (the REST update-branch call), then
