@@ -272,7 +272,7 @@ function hosts() {
 
 function ab() {
   if (!args.ref) fail('ab needs --ref <git rev | path to a uorc binary>');
-  const A = binary(args.uorc), B = reference(args.ref).bin, ins = inputs(), runs = Number(args.runs ?? 3), dir = work();
+  const A = binary(args.uorc), ref = reference(args.ref), B = ref.bin, ins = inputs(), runs = Number(args.runs ?? 3), dir = work();
   const sides = {A, B}, results = [], rows = [], sizeRows = [];
   let differ = 0, broken = 0;
   for (const input of ins) for (const threads of threadList()) {
@@ -304,12 +304,12 @@ function ab() {
     sizeRows.push([input.name, threads, input.bytes, sa ?? 'n/a', sb ?? 'n/a', sa != null && sb != null ? sa - sb : 'n/a', identical ? 'identical' : `differ at ${firstDiff ?? '?'}`, ok ? 'ok' : 'FAIL']);
   }
   fs.rmSync(dir, {recursive: true, force: true});
-  console.log(`A: ${args.uorc ?? 'working tree'}  B: ${args.ref}  runs: ${runs} each, interleaved A,B,B,A,...\n`);
+  console.log(`A: ${args.uorc ?? 'working tree'}  B: ${args.ref}${ref.commit ? ` (${ref.commit.slice(0, 12)})` : ''}  runs: ${runs} each, interleaved A,B,B,A,...\n`);
   console.log(table(['input', 'threads', 'op', 'A wall s (spread)', 'B wall s (spread)', 'A vs B', 'cpu s A / B', 'busy A / B', 'peak RSS MiB A / B'], rows));
   console.log('');
   console.log(table(['input', 'threads', 'input bytes', 'A archive', 'B archive', 'A − B', 'bytes', 'round trips'], sizeRows));
   console.log(`\nmedians over ${runs} runs; spread is (max − min) / median. ${differ ? `${differ} archive set(s) differ.` : 'Every archive is byte-identical.'}${broken ? ` ${broken} round-trip failure(s).` : ''}`);
-  writeJson('ab', {spec: 'uorc/lab-ab/1', host: host(), A: {spec: args.uorc ?? 'working tree', ...describe(A)}, B: {...reference(args.ref), ...describe(B)},
+  writeJson('ab', {spec: 'uorc/lab-ab/1', host: host(), A: {spec: args.uorc ?? 'working tree', ...describe(A)}, B: {...ref, ...describe(B)},
     steps: Number(args.steps ?? 0), runs, inputs: ins.map(({file, ...i}) => i), identical: differ === 0, results});
   if (broken || (args.identical && differ)) process.exit(1);
 }
