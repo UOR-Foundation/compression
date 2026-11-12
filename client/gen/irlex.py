@@ -86,6 +86,10 @@ class Lex:
                          f"(let a{j} : Nat := (prim remainder (m{j} + (prim quotient m{j} {1 << s} 0 : Nat)) 4294967296 0 : Nat); ")
             body = f'a{j}'
         D('hash', ['a : Nat'], 'Nat', ''.join(steps) + body + ')' * (2 * len(ir.HK)))
+        # one writer per table: moves the table out of the state, writes it in place, rebuilds the state
+        for t in self.tables:
+            D(self.writer(t), [f's : {self.St}', 'w : Nat', 'k : Nat', 'v : Nat'], self.St,
+              self.L.upd('s', **{t: f"(putAt w {self.L.P('s', t)} k v)"}))
         lanes = getattr(self.p, 'lane_globals', 0)
         if lanes and self.p.lane_table in self.tables:
             self.lane_bytes = sum(list(self.p.globals.values())[:lanes])
@@ -93,13 +97,9 @@ class Lex:
             for d, src, dst in (('Save', 'glob', lt), ('Load', lt, 'glob')):
                 at_src = 'i' if src == 'glob' else '(base + i)'
                 at_dst = '(base + i)' if dst == lt else 'i'
-                D(f'lane{d}', ['fuel : Nat', 'i : Nat', f's : {self.St}', 'base : Nat'], self.St,
+                D(f'gcopy{d}', ['fuel : Nat', 'i : Nat', f's : {self.St}', 'base : Nat'], self.St,
                   f"(match fuel\n    | Nat.zero => s\n    | Nat.succ m => (let v : Nat := (getAt 1 {self.L.P('s', src)} {at_src}); "
-                  f"(lane{d} m (i + 1) ({self.writer(dst)} s 1 {at_dst} v) base)))", 'fuel')
-        # one writer per table: moves the table out of the state, writes it in place, rebuilds the state
-        for t in self.tables:
-            D(self.writer(t), [f's : {self.St}', 'w : Nat', 'k : Nat', 'v : Nat'], self.St,
-              self.L.upd('s', **{t: f"(putAt w {self.L.P('s', t)} k v)"}))
+                  f"(gcopy{d} m (i + 1) ({self.writer(dst)} s 1 {at_dst} v) base)))", 'fuel')
 
     # ---- expressions: (text, type) ----
     def nat(self, r):
@@ -241,7 +241,7 @@ class Lex:
             # a lane's globals (glob's first lane_bytes bytes) saved to, or loaded from, the lane table at a byte
             at = self.nat(self.ex(st[2], env, s))
             s2 = self.fresh('s')
-            return f"(let {s2} : {self.St} := (lane{st[1].capitalize()} ({self.lane_bytes} + (prim multiply 0 (getAt 1 {self.L.P(s, 'glob')} 0) : Nat)) 0 {s} {at}); {self.stmts(rest, env, s2, name)})"
+            return f"(let {s2} : {self.St} := (gcopy{st[1].capitalize()} ({self.lane_bytes} + (prim multiply 0 (getAt 1 {self.L.P(s, 'glob')} 0) : Nat)) 0 {s} {at}); {self.stmts(rest, env, s2, name)})"
         if k == 'call':
             args = ' '.join(self.nat(self.ex(a, env, s)) for a in st[2])
             s2 = self.fresh('s')
