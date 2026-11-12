@@ -130,3 +130,16 @@ integrity:
     node --test scripts/integrity-canonical.test.mjs
     node --test scripts/integrity-consumer-components.test.mjs
     node scripts/integrity-canonical-runtime.mjs
+
+# Developer and agent measurements (scripts/lab.mjs; no CI job runs them).
+# Host use: wall, CPU, busy cores over time and peak RSS at 1 and N threads.
+lab-hosts *ARGS:
+    node scripts/lab.mjs hosts {{ARGS}}
+
+# A/B against a reference rev or binary: `just lab-ab --ref main [--identical]`.
+lab-ab *ARGS:
+    node scripts/lab.mjs ab {{ARGS}}
+
+# Per-line instruction cost of a 512 KiB decode under cachegrind.
+lab-cost *ARGS:
+    node scripts/lab.mjs cost {{ARGS}}
