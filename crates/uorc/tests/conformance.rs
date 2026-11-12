@@ -266,7 +266,10 @@ fn decode_work_is_charged_and_refused_whole_uc_mach_02() {
 
 #[test]
 fn search_keeps_only_checked_candidates_uc_syn_01() {
-    let input = vec![0u8; 200];
+    // A small frame (4 KiB to 64 KiB) whose plan continues no model state:
+    // with `steps > 0` the whole compress runs on the exported model, which
+    // replays a state at about 40 µs a bit (minutes for a shipped state).
+    let input = vec![0u8; 5_000];
     let mut previous = usize::MAX;
     for steps in [0, 10_000, 200_000] {
         let archive = compress(&input, steps).expect("archive");
