@@ -98,6 +98,7 @@ function start(onReady) {
     unavailable(String(error?.message ?? error));
     return;
   }
+  worker.postMessage({ host: one("DecodeHost") });
   worker.onmessage = ({ data }) => {
     if (data.type === "ready") onReady();
     else if (data.type === "loadFailed") unavailable(data.message);

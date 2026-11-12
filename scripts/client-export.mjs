@@ -41,7 +41,7 @@ import {loadGraph, identities, workingTree} from './factory.mjs';
 const root = process.cwd();
 const out = path.join(root, 'generated/rust');
 const entry = 'src/Uorc/Client.lex.tex'; // staged path
-const roots = [['uorc_compress', 'Uorc.Uorc.Client.compress'], ['uorc_decompress', 'Uorc.Uorc.Client.decompress']];
+const roots = [['uorc_compress', 'Uorc.Uorc.Client.compress'], ['uorc_decompress', 'Uorc.Uorc.Client.decompress'], ['uorc_search', 'Uorc.Uorc.Client.search']];
 const LEXLEAN_REPO = 'https://github.com/UOR-Foundation/LexLean';
 const LEXLEAN_REV = '4c41d395286826faf568817f46e181c22b09cba1';
 const fail = m => { throw new Error(m); };
@@ -83,7 +83,7 @@ function markExecutable(file) {
   fs.writeFileSync(file, result.join('\n'));
 }
 
-// The client's two roots become production roots only in the staged export:
+// The client's roots become production roots only in the staged export:
 // the authority graph keeps the closure non-executable, so it cannot carry them.
 function markRoots(file, names) {
   const lines = fs.readFileSync(file, 'utf8').split('\n');
@@ -158,7 +158,7 @@ try {
     .replace(/^child_timeout_ms = .*$/m, 'child_timeout_ms = 5400000'));
   const modules = closure(stage);
   for (const m of modules) markExecutable(moduleFile(stage, m));
-  markRoots(moduleFile(stage, 'Uorc.Client'), ['compress', 'decompress']);
+  markRoots(moduleFile(stage, 'Uorc.Client'), ['compress', 'decompress', 'search']);
   wrapBoxedReturns(stage, modules);
   run(lexlean, ['lock'], stage);
   run(lexlean, ['check'], stage);

@@ -92,8 +92,8 @@ impl Plan {
     }
 
     /// The strategies this plan codes for `frame`, in order: a portfolio's
-    /// [`portfolio::Table::plan`] (the first [`portfolio::BUDGET`] entries
-    /// by the frame family's weights, highest first, ties in table order),
+    /// [`portfolio::Table::plan`] (every entry by the frame family's
+    /// weights, highest first, ties in table order, then the v0.4 pair),
     /// or the fixed strategy.
     pub fn strategies(&self, frame: &[u8]) -> Vec<Option<Strategy>> {
         match self {
@@ -364,7 +364,12 @@ impl CodecPoint {
             Plan::Portfolio { strategies, .. } => {
                 format!("portfolio of {}", strategies.len() / ENTRY)
             }
-            Plan::Fixed(s) => format!("fixed x86={} profile=0x{:05x}", u8::from(s.x86), s.profile),
+            Plan::Fixed(s) => format!(
+                "fixed x86={} profile=0x{:05x} state={}",
+                u8::from(s.x86),
+                s.profile,
+                s.state
+            ),
         }
     }
 
@@ -401,16 +406,17 @@ impl CodecPoint {
 
     /// The register record of this point.
     pub fn record(&self, label: Option<&str>) -> Point {
-        let (strategies, weights, x86, profile) = match &self.plan {
+        let (strategies, weights, x86, profile, from_state) = match &self.plan {
             Plan::Portfolio {
                 strategies,
                 weights,
-            } => (Some(hex(strategies)), Some(hex(weights)), None, None),
+            } => (Some(hex(strategies)), Some(hex(weights)), None, None, None),
             Plan::Fixed(s) => (
                 None,
                 None,
                 Some(s.x86),
                 Some(format!("0x{:05x}", s.profile)),
+                (s.state > 0).then_some(s.state),
             ),
         };
         Point {
@@ -426,6 +432,7 @@ impl CodecPoint {
             weights,
             x86,
             profile,
+            from_state,
             state: self.state.clone(),
             lanes: self.lanes,
         }
@@ -456,6 +463,11 @@ pub struct Point {
     /// A fixed strategy's ncm profile word.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
+    /// The κ-named model state a fixed strategy's frames continue
+    /// ([`Strategy::state`]); none for a fresh model. Part of the point's
+    /// entry, so its κ recomputes from the record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_state: Option<u8>,
     /// The consolidated model state κ.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state: Option<String>,
@@ -483,7 +495,7 @@ impl Point {
                 Plan::Fixed(Strategy {
                     x86: self.x86.ok_or_else(bad)?,
                     profile,
-                    state: 0,
+                    state: self.from_state.unwrap_or(0),
                 })
             }
             _ => return Err(bad()),
@@ -1131,6 +1143,31 @@ pub fn export_identity(repo: &Path) -> Result<String, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_fixed_point_from_a_state_recomputes_its_kappa() {
+        for state in [0, 1, 2] {
+            let point = CodecPoint {
+                export: "00".repeat(32),
+                plan: Plan::Fixed(Strategy {
+                    x86: false,
+                    profile: uorc::ncm::FULL,
+                    state,
+                }),
+                state: None,
+                lanes: 1,
+            };
+            let record = point.record(None);
+            assert_eq!(record.point().expect("a valid plan").kappa(), record.kappa);
+            let mut register = Register {
+                schema: SCHEMA.to_owned(),
+                ..Register::default()
+            };
+            register.add_point(&point, None);
+            let text = register.to_text().expect("text");
+            assert_eq!(Register::parse(&text).expect("consistent"), register);
+        }
+    }
 
     fn tiny_corpus() -> (Corpus, Vec<Vec<u8>>) {
         let files: Vec<Vec<u8>> = vec![
