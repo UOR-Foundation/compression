@@ -136,6 +136,8 @@ def free_vars(stmts, bound=()):
             elif k == 'call':
                 for a in s[2]:
                     ex(a, b)
+            elif k == 'gcopy':
+                ex(s[2], b)
     st(stmts, bound)
     return out
 
@@ -230,6 +232,17 @@ class Machine:
                 params, body = self.p.funcs[s[1]]
                 args = [int(self.ev(a, env)) for a in s[2]]
                 self.run(body, dict(zip(params, args)))
+            elif k == 'gcopy':
+                # a lane's globals (the first prog.lane_globals of them) saved to, or loaded from, its copy
+                j = self.ev(s[2], env)
+                lanes = self.__dict__.setdefault('lanes', {})
+                names = list(self.p.globals)[:self.p.lane_globals]
+                if s[1] == 'save':
+                    lanes[j] = {g: self.g[g] for g in names}
+                else:
+                    saved = lanes.get(j, {})
+                    for g in names:
+                        self.g[g] = saved.get(g, 0)
             else:
                 raise KeyError(k)
 

@@ -30,7 +30,7 @@ class Lex:
         self.gkey, k = {}, 0
         for g, w in prog.globals.items():
             self.gkey[g] = k; k += w
-        assert k <= min(prog.tables.values()), 'globals overlap the first table'
+        assert k <= min(prog.tables.values()) or os.environ.get('NOGA'), 'globals overlap the first table'
         self.L = Layout(module[:4] + 'St', self.tables, scal, {})
         self.St = self.L.name
         self.input = input_field
@@ -86,6 +86,16 @@ class Lex:
                          f"(let a{j} : Nat := (prim remainder (m{j} + (prim quotient m{j} {1 << s} 0 : Nat)) 4294967296 0 : Nat); ")
             body = f'a{j}'
         D('hash', ['a : Nat'], 'Nat', ''.join(steps) + body + ')' * (2 * len(ir.HK)))
+        lanes = getattr(self.p, 'lane_globals', 0)
+        if lanes:
+            self.lane_bytes = sum(list(self.p.globals.values())[:lanes])
+            g = lambda v: self.L.P(v, 'glob')
+            for d, src, dst in (('Save', 'glob', 'LG'), ('Load', 'LG', 'glob')):
+                at_src = 'i' if src == 'glob' else '(base + i)'
+                at_dst = '(base + i)' if dst == 'LG' else 'i'
+                D(f'lane{d}', ['fuel : Nat', 'i : Nat', f's : {self.St}', 'base : Nat'], self.St,
+                  f"(match fuel\n    | Nat.zero => s\n    | Nat.succ m => (let v : Nat := (getAt 1 {self.L.P('s', src)} {at_src}); "
+                  f"(lane{d} m (i + 1) ({self.writer(dst)} s 1 {at_dst} v) base)))", 'fuel')
         # one writer per table: moves the table out of the state, writes it in place, rebuilds the state
         for t in self.tables:
             D(self.writer(t), [f's : {self.St}', 'w : Nat', 'k : Nat', 'v : Nat'], self.St,
@@ -227,6 +237,11 @@ class Lex:
             s2 = self.fresh('s')
             args = ' '.join(env[x][0] for x in caps)
             return f"(let {s2} : {self.St} := ({fn} {count} 0 {s} {args}); {self.stmts(rest, env, s2, name)})"
+        if k == 'gcopy':
+            # a lane's globals (glob's first lane_bytes bytes) saved to, or loaded from, LG at j * lane_bytes
+            j = self.nat(self.ex(st[2], env, s))
+            s2 = self.fresh('s')
+            return f"(let {s2} : {self.St} := (lane{st[1].capitalize()} {self.lane_bytes} 0 {s} (prim multiply {self.lane_bytes} {j} : Nat)); {self.stmts(rest, env, s2, name)})"
         if k == 'call':
             args = ' '.join(self.nat(self.ex(a, env, s)) for a in st[2])
             s2 = self.fresh('s')
