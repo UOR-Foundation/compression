@@ -35,7 +35,7 @@
 //! With one stream the merge is the identity and the payload is the serial
 //! coder's, byte for byte, after the 4-byte length.
 
-use super::{Bucket, Kernel, Model, Table, NINP, NINP_NARROW, SLOT_FRESH, WEIGHT_LIMIT};
+use super::{Bucket, Kernel, Model, Table, APM_ROW, NINP, NINP_NARROW, SLOT_FRESH, WEIGHT_LIMIT};
 use std::sync::Arc;
 
 /// How a frame is cut into streams.
@@ -227,6 +227,254 @@ fn epochs(history: &[u8], data: &[u8], profile: u32, k: usize, threads: usize) -
         best = t;
     }
     Some(best)
+}
+
+/// Site counts of `k` streams for every power-of-two epoch, from one pass
+/// over the data that codes nothing ([`count`]).
+#[derive(Clone, Debug)]
+pub struct Counts {
+    /// The stream count counted.
+    pub streams: usize,
+    /// Per epoch `1 << L` (index `L`, up to one epoch per stream), per kind
+    /// ([`KINDS`]): the (stream, site) changes, the shared sites and their
+    /// versions (the merge's steps, [`merge_steps`]).
+    pub levels: Vec<[[u64; 3]; 5]>,
+}
+
+impl Counts {
+    /// The merge's steps counted at epoch `1 << level`.
+    #[must_use]
+    pub fn steps(&self, level: usize) -> u64 {
+        self.levels[level].iter().map(|k| k[2]).sum()
+    }
+}
+
+/// The sites `k` streams of `data` after `history` under `profile` change,
+/// counted for every power-of-two epoch at once in one pass that codes
+/// nothing: the streams advance byte by byte side by side over one shared
+/// set of buckets and match tables, each touch recording, per site, the
+/// last position (within its stream) each stream touched it at. A touch at
+/// position `t` by stream `s` is in epoch `t >> L` of epoch `1 << L`; it
+/// adds stream `s` to that epoch's group of the site when `s`'s last touch
+/// lies in an earlier epoch, and the group's other streams are the ones
+/// whose last touch lies in the same epoch, so the levels at which the
+/// group turns shared (a second stream: two versions) or grows (one more)
+/// are where the touch's position and the last positions part. What
+/// coding decides by probabilities is not counted exactly: a word of a
+/// mixer row counts as changed when the row is trained (the profile's
+/// inputs per row), an APM row as one entry, and a stream reads the other
+/// streams' changes at once rather than at the epoch's end. `None` for an
+/// invalid profile, no streams, or an input that does not fit.
+#[must_use]
+pub fn count(history: &[u8], data: &[u8], profile: u32, k: usize) -> Option<Counts> {
+    if !super::valid_profile(profile) || k == 0 {
+        return None;
+    }
+    let n = u32::try_from(data.len()).ok()?;
+    let plan = Plan {
+        streams: k,
+        epoch: 1,
+    };
+    let stride = plan.stride(data.len());
+    let levels = stride.max(1).next_power_of_two().trailing_zeros() as usize + 1;
+    let mut base = Model::new(n, &[history], profile);
+    let before = base.hoff as usize;
+    base.hist[before..].copy_from_slice(data);
+    let mut sl = std::mem::replace(&mut base.sl, Table(Vec::new()));
+    let mut mtab = std::mem::replace(&mut base.mtab, Table(Vec::new()));
+    let mut m2tab = std::mem::replace(&mut base.m2tab, Table(Vec::new()));
+    let mut hist = std::mem::take(&mut base.hist);
+    let rows = row_counts(&base);
+    let sites = [
+        sl.len(),
+        mtab.len(),
+        m2tab.len(),
+        rows[0],
+        rows[1] / 8,
+        rows[2] / 8,
+        rows[3],
+        base.msp.len(),
+        base.m2sp.len(),
+        base.rsp.len(),
+    ];
+    let inputs = u64::from(crate::performance::inputs(profile));
+    // the kinds a table's touch counts in, with the sites it changes
+    let kinds: [&[(usize, u64)]; 10] = [
+        &[(0, 1)],
+        &[(1, 1)],
+        &[(1, 1)],
+        &[(2, inputs), (3, 1)],
+        &[(2, 8 * inputs)],
+        &[(2, 8 * inputs)],
+        &[(3, 1)],
+        &[(4, 1)],
+        &[(4, 1)],
+        &[(4, 1)],
+    ];
+    let ranges: Vec<Part> = (0..k).map(|i| plan.range(data.len(), i)).collect();
+    let mut models: Vec<Model> = Vec::with_capacity(k);
+    for r in &ranges {
+        let mut m = base.clone();
+        if r.start > 0 {
+            m.hoff = (before + r.start) as u32;
+            std::mem::swap(&mut sl, &mut m.sl);
+            std::mem::swap(&mut mtab, &mut m.mtab);
+            std::mem::swap(&mut m2tab, &mut m.m2tab);
+            std::mem::swap(&mut hist, &mut m.hist);
+            m.new_byte();
+            std::mem::swap(&mut sl, &mut m.sl);
+            std::mem::swap(&mut mtab, &mut m.mtab);
+            std::mem::swap(&mut m2tab, &mut m.m2tab);
+            std::mem::swap(&mut hist, &mut m.hist);
+        }
+        models.push(m);
+    }
+    drop(base);
+    // per table, per site, each stream's last touch (u32::MAX: none yet)
+    let mut last: Vec<Vec<u32>> = sites.iter().map(|&s| vec![u32::MAX; s * k]).collect();
+    // per kind and count, a difference array over the levels
+    let mut diff = vec![[[0i64; 3]; 5]; levels + 1];
+    let bitlen = |x: u32| 32 - x.leading_zeros();
+    for t in 0..stride {
+        let tu = t as u32;
+        for (s, (m, r)) in models.iter_mut().zip(&ranges).enumerate() {
+            if r.start + t >= r.end {
+                continue;
+            }
+            let mut record = |table: usize, is: &[u32]| {
+                // the sites' records asked for first (a lookup waits on memory)
+                for &i in is {
+                    super::prefetch(&last[table][i as usize * k]);
+                }
+                for &i in is {
+                    let row = &mut last[table][i as usize * k..(i as usize + 1) * k];
+                    // the levels below `own` are where stream s is new to the group
+                    let own = bitlen(tu ^ row[s]) as usize;
+                    if own == 0 {
+                        continue;
+                    }
+                    let (mut a1, mut a2) = (32usize, 32usize);
+                    for (j, &x) in row.iter().enumerate() {
+                        if j != s {
+                            let a = bitlen(tu ^ x) as usize;
+                            if a < a1 {
+                                (a1, a2) = (a, a1);
+                            } else if a < a2 {
+                                a2 = a;
+                            }
+                        }
+                    }
+                    row[s] = tu;
+                    let mut add = |kind: usize, c: usize, lo: usize, hi: usize, w: i64| {
+                        let hi = hi.min(levels);
+                        if lo < hi {
+                            diff[lo][kind][c] += w;
+                            diff[hi][kind][c] -= w;
+                        }
+                    };
+                    for &(kind, w) in kinds[table] {
+                        let w = w as i64;
+                        add(kind, 0, 0, own, w);
+                        // one other stream in the group: it turns shared, two versions
+                        add(kind, 1, a1, a2.min(own), w);
+                        add(kind, 2, a1, a2.min(own), 2 * w);
+                        // two or more: one more version
+                        add(kind, 2, a2, own, w);
+                    }
+                }
+            };
+            std::mem::swap(&mut sl, &mut m.sl);
+            std::mem::swap(&mut mtab, &mut m.mtab);
+            std::mem::swap(&mut m2tab, &mut m.m2tab);
+            std::mem::swap(&mut hist, &mut m.hist);
+            m.touch_byte(u32::from(data[r.start + t]), &mut record);
+            std::mem::swap(&mut sl, &mut m.sl);
+            std::mem::swap(&mut mtab, &mut m.mtab);
+            std::mem::swap(&mut m2tab, &mut m.m2tab);
+            std::mem::swap(&mut hist, &mut m.hist);
+        }
+    }
+    let mut acc = [[0i64; 3]; 5];
+    let levels = (0..levels)
+        .map(|l| {
+            let mut out = [[0u64; 3]; 5];
+            for (kind, o) in out.iter_mut().enumerate() {
+                for (c, o) in o.iter_mut().enumerate() {
+                    acc[kind][c] += diff[l][kind][c];
+                    *o = acc[kind][c] as u64;
+                }
+            }
+            out
+        })
+        .collect();
+    Some(Counts { streams: k, levels })
+}
+
+/// The plan of `data` after `history` under `profile` for a decode host of
+/// `host` threads, from one-pass counts ([`count`]) instead of trial
+/// encodes: of the stream counts `2..=host` whose streams each hold a
+/// [`Plan::stride`] unit and the power-of-two epochs up to one per stream,
+/// the one whose counted longest chain, coding steps `coding` plus the
+/// counted merge steps over `k` threads, is least (then the longer epoch:
+/// fewer synchronization points). A count past the host's threads is not
+/// considered: its chain's divisor stays the host's while its merge can
+/// only gain sites. The counts run on up to `threads` threads; the plan
+/// does not depend on them. `None` when one stream is the derivation (a
+/// one-thread host, or an input too short for two streams).
+#[must_use]
+pub fn derive_counted(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    host: usize,
+    coding: u64,
+    threads: usize,
+) -> Option<(Plan, u64)> {
+    if host <= 1 || !super::valid_profile(profile) {
+        return None;
+    }
+    let n = data.len();
+    let ks: Vec<usize> = (2..=host.min(1 << 16))
+        .take_while(|&k| {
+            Plan {
+                streams: k,
+                epoch: 1,
+            }
+            .stride(n)
+                * (k - 1)
+                < n
+        })
+        .collect();
+    let mut counts: Vec<Option<Counts>> = vec![None; ks.len()];
+    let threads = threads.max(1);
+    for (batch, out) in ks.chunks(threads).zip(counts.chunks_mut(threads)) {
+        std::thread::scope(|s| {
+            for (&k, o) in batch.iter().zip(out.iter_mut()) {
+                s.spawn(move || *o = count(history, data, profile, k));
+            }
+        });
+    }
+    // the least chain (coding + merge) / k, as a fraction, then the longer epoch
+    let mut best: Option<(Plan, u64)> = None;
+    for c in counts.into_iter().flatten() {
+        let k = c.streams;
+        for l in 0..c.levels.len() {
+            let steps = c.steps(l);
+            let plan = Plan {
+                streams: k,
+                epoch: 1 << l,
+            };
+            let better = best.is_none_or(|(b, bs)| {
+                let x = (u128::from(coding) + u128::from(steps)) * b.streams as u128;
+                let y = (u128::from(coding) + u128::from(bs)) * k as u128;
+                x < y || (x == y && plan.epoch > b.epoch)
+            });
+            if better {
+                best = Some((plan, steps));
+            }
+        }
+    }
+    best
 }
 
 /// Threads a frame's streams run on: one per stream, at most the host's.
@@ -516,6 +764,17 @@ struct Frame {
     sites: Option<Box<Sites>>,
     /// a count per match table entry (zero between merges)
     mark: Vec<u32>,
+}
+
+/// The rows of `m`'s row tables: mixer 1's weights and the first map (both
+/// by `c1`), mixer 2's weights, mixer 3's, the second map.
+fn row_counts(m: &Model) -> [usize; 4] {
+    [
+        m.w1.len() / m.stride,
+        m.w2.len() / m.stride,
+        m.w3.len() / m.stride,
+        m.a2.t.len() / APM_ROW,
+    ]
 }
 
 impl Frame {
@@ -1539,6 +1798,28 @@ mod tests {
             epoch: 4096,
         };
         assert_eq!(encode(&w, &d, FULL, plan, 1), Some(serial));
+    }
+
+    /// One stream shares no site; the counted derivation is the serial
+    /// coder on a one-thread host and otherwise a plan the host runs, the
+    /// same on any thread count.
+    #[test]
+    fn counted_derivation() {
+        let d = sample(70_001, 0x2545_F491);
+        let one = count(&[], &d, FULL, 1).expect("counts");
+        assert!(one
+            .levels
+            .iter()
+            .all(|l| l.iter().all(|k| k[1] == 0 && k[2] == 0)));
+        let two = count(&[], &d, FULL, 2).expect("counts");
+        assert!((0..two.levels.len()).any(|l| two.steps(l) > 0));
+        assert_eq!(derive_counted(&[], &d, FULL, 1, 1 << 30, 4), None);
+        let (plan, _) = derive_counted(&[], &d, FULL, 3, 1 << 30, 4).expect("a plan");
+        assert!(plan.streams <= 3 && plan.epoch.is_power_of_two());
+        assert_eq!(
+            derive_counted(&[], &d, FULL, 3, 1 << 30, 1).map(|p| p.0),
+            Some(plan)
+        );
     }
 
     /// Streams round-trip, and neither the payload nor the output depends on

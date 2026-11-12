@@ -1485,6 +1485,15 @@ impl Model {
         self.c0 = (self.c0 << 1) | u32::from(y);
         self.bit += 1;
         if self.bit == 8 {
+            self.end_byte();
+        }
+    }
+
+    /// The byte in `c0` is coded: the history, the order and word contexts,
+    /// the record model, then the next byte's contexts.
+    #[inline(always)]
+    fn end_byte(&mut self) {
+        {
             let b = self.c0 & 255;
             // a laned stream writes its range of the frame in place; a model
             // that codes past the length it was sized for (a warm state's
@@ -1517,6 +1526,103 @@ impl Model {
             self.c0 = 1;
             self.bit = 0;
             self.new_byte();
+        }
+    }
+
+    /// The sites coding `byte` touches, without coding it: `f(table, index)`
+    /// for every context bucket looked up (table 0), match and short match
+    /// table entry written (1, 2), mixer and map row trained (3: `w1` and
+    /// `a1` by `c1`, 6: `a2`; 4: `w2` and 5: `w3` by their group of eight
+    /// rows, one per bit of the byte) and match-model slot adapted
+    /// (7: match, 8: short match, 9: repeat). The buckets a lookup chooses,
+    /// their tags, counts and clears and the match tables are what coding
+    /// leaves (none depends on a probability); the probabilities are not
+    /// kept. On a model without a lane.
+    pub(super) fn touch_byte(&mut self, byte: u32, f: &mut impl FnMut(usize, &[u32])) {
+        // a byte trains all eight rows of mixer 2's and mixer 3's row group
+        f(4, &[self.c4 & 255]);
+        f(5, &[(self.c4 >> 8) & 255]);
+        for k in (0..8).rev() {
+            if self.bit == 0 || self.bit == 4 {
+                let nc = if self.bit == 0 {
+                    0
+                } else {
+                    (self.c0 & 15) | 16
+                };
+                // every lookup's pair asked for first, then looked up
+                let mut hh = [0u32; NC];
+                for j in 0..self.na {
+                    hh[j] = h(self.hb[self.act[j]].wrapping_add(nc.wrapping_mul(0x2F0B_4C27)));
+                    let b = ((hh[j] & self.mask) & !31) as usize >> 4;
+                    prefetch(&self.sl[b]);
+                    prefetch(&self.sl[b + 1]);
+                }
+                let mut bs = [0u32; NC];
+                for j in 0..self.na {
+                    let b = self.bucket(hh[j]);
+                    // the nibble's first bit adapts slot 1, whose count the
+                    // replacement rule reads
+                    let s = &mut self.sl[b as usize >> 4].0[1];
+                    if *s >> 16 < u32::from(standard::COUNT_LIMIT) {
+                        *s += 1 << 16;
+                    }
+                    bs[j] = b >> 4;
+                }
+                f(0, &bs[..self.na]);
+            }
+            let bp = 7 - self.bit;
+            let mut eb = 0;
+            if self.mlen > 0 {
+                if ((self.mexp | 256) >> (bp + 1)) == self.c0 {
+                    eb = (self.mexp >> bp) & 1;
+                } else {
+                    self.mlen = 0;
+                    self.mbucket = 0;
+                }
+            }
+            let mut eb2 = 0;
+            if self.m2len > 0 {
+                if ((self.m2exp | 256) >> (bp + 1)) == self.c0 {
+                    eb2 = (self.m2exp >> bp) & 1;
+                } else {
+                    self.m2len = 0;
+                    self.m2b = 0;
+                }
+            }
+            self.ra = self.rok && ((self.rexp | 256) >> (bp + 1)) == self.c0;
+            let ebr = if self.ra { (self.rexp >> bp) & 1 } else { 0 };
+            let msel = if self.profile & F_SEL == 0 {
+                0
+            } else {
+                (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 })
+            };
+            f(3, &[self.c0 + 256 * msel]);
+            f(
+                6,
+                &[h((self.c4 & 0xff_ffff)
+                    .wrapping_mul(0x2F0B_4C27)
+                    .wrapping_add(self.c0))
+                    >> (32 - APM2_BITS)],
+            );
+            if self.mlen > 0 {
+                f(7, &[self.mbucket * 2 + eb]);
+            }
+            if self.profile & F_SHORT != 0 && self.m2len > 0 {
+                f(8, &[self.m2b * 2 + eb2]);
+            }
+            if self.profile & F_REP != 0 && self.ra {
+                f(9, &[self.rrun * 2 + ebr]);
+            }
+            self.c0 = (self.c0 << 1) | ((byte >> k) & 1);
+            self.bit += 1;
+        }
+        self.end_byte();
+        let pa = self.hoff + self.pos;
+        if pa >= 7 {
+            f(1, &[self.match_key(pa) as u32]);
+        }
+        if self.profile & F_SHORT != 0 && pa >= 4 {
+            f(2, &[self.short_key(pa) as u32]);
         }
     }
 }
