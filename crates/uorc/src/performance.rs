@@ -83,11 +83,18 @@ impl Host {
     /// where nothing is left (`Uorc.Performance::warmedKept`). Keeping one changes
     /// the time a decode takes, never its bytes.
     pub fn warmed_kept(self, n: u64, state: u64, profile: u32) -> u64 {
+        let each = crate::ncm::warmed_bytes(n, state, profile).max(1);
+        self.warmed_room(n, state, profile) / each
+    }
+
+    /// Bytes the warmed models kept beside this frame's decoders may hold,
+    /// whatever frame and table size each was warmed for: the host's memory
+    /// less the frame's decoders.
+    pub fn warmed_room(self, n: u64, state: u64, profile: u32) -> u64 {
         let decoders = self
             .footprint(n, state, true, profile)
             .saturating_mul(self.workers.max(1));
-        let each = crate::ncm::warmed_bytes(n, state, profile).max(1);
-        self.memory.saturating_sub(decoders) / each
+        self.memory.saturating_sub(decoders)
     }
 
     /// Whether this host holds the frame's decoder.

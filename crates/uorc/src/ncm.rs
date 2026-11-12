@@ -370,9 +370,10 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
 struct Bucket([u32; 16]);
 
 /// A model table. In WebAssembly, whose memory never shrinks, a dropped
-/// table is kept for the next frame's model of the same size: allocating
-/// ~100 MiB of fresh tables per frame left the allocator's free space in
-/// pieces, and the memory grew with the number of frames.
+/// table is kept, as many as one model holds, and the next model's table of
+/// that size or smaller uses it: allocating ~100 MiB of fresh tables per
+/// frame, or per table size the table facet tries, left the allocator's free
+/// space in pieces, and the memory grew with every frame and size.
 struct Table<T: Spare>(Vec<T>);
 
 impl<T: Spare> Clone for Table<T> {
@@ -382,6 +383,8 @@ impl<T: Spare> Clone for Table<T> {
 }
 
 trait Spare: Copy + 'static {
+    /// Tables of this type one model holds, so the spares a worker keeps.
+    const HELD: usize;
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>>;
 }
 
@@ -391,12 +394,16 @@ thread_local! {
 }
 
 impl Spare for Bucket {
+    // the context table
+    const HELD: usize = 1;
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
         &SPARE_BUCKETS
     }
 }
 
 impl Spare for u32 {
+    // the match table and the short match table
+    const HELD: usize = 2;
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
         &SPARE_WORDS
     }
@@ -406,15 +413,26 @@ impl<T: Spare> Table<T> {
     /// `len` entries of `value`.
     fn new(len: usize, value: T) -> Table<T> {
         if cfg!(target_family = "wasm") && len > 0 {
+            // the least spare that holds `len` entries; a larger one is
+            // used in part, so stepping a table's size down allocates
+            // nothing and the heap is never left with a freed table that
+            // its next, larger allocation cannot reuse
             let kept = T::spares().with(|s| {
                 let mut s = s.borrow_mut();
-                let at = s.iter().position(|t| t.len() == len)?;
+                let at = (0..s.len())
+                    .filter(|&i| s[i].capacity() >= len)
+                    .min_by_key(|&i| s[i].capacity())?;
                 Some(s.swap_remove(at))
             });
             if let Some(mut t) = kept {
-                t.fill(value);
+                t.clear();
+                t.resize(len, value);
                 return Table(t);
             }
+            // No spare holds it: the spares are smaller, and are released
+            // before this one is allocated, so the worker keeps one set of
+            // tables, not one per size the table facet tried.
+            T::spares().with(|s| s.borrow_mut().clear());
         }
         Table(vec![value; len])
     }
@@ -426,9 +444,13 @@ impl<T: Spare> Drop for Table<T> {
             let t = std::mem::take(&mut self.0);
             T::spares().with(|s| {
                 let mut s = s.borrow_mut();
-                // a model holds one bucket table and two word tables
-                if s.len() < 2 {
+                // the largest ones are kept
+                if s.len() < T::HELD {
                     s.push(t);
+                } else if let Some(at) = (0..s.len()).min_by_key(|&i| s[i].capacity()) {
+                    if s[at].capacity() < t.capacity() {
+                        s[at] = t;
+                    }
                 }
             });
         }
@@ -462,12 +484,15 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
     *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
 }
 
-/// Warmed models kept for reuse (state bytes, profile, table mask, model):
-/// the most recently used last. How many the process keeps is the declared
-/// decode host's rule ([`crate::performance::Host::warmed_kept`]): every one
-/// the frame's decoder leaves room for, so a later frame continuing the same
-/// state replays nothing and decodes the same bytes.
-type Warmed = Vec<(Box<[u8]>, u32, u32, Model)>;
+/// Warmed models kept for reuse (state bytes, profile, table mask, bytes
+/// held, model): the most recently used last. What the process keeps is the
+/// declared decode host's rule ([`crate::performance::Host::warmed_kept`]):
+/// the most recent ones whose bytes ([`warmed_bytes`]), whatever table size
+/// each was warmed for, fit the room the frame's decoder leaves
+/// ([`crate::performance::Host::warmed_room`]), so a later frame continuing
+/// the same state replays nothing and decodes the same bytes.
+/// Decoders keep them; an encoder reads them and keeps none.
+type Warmed = Vec<(Box<[u8]>, u32, u32, u64, Model)>;
 static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
 
 /// Bytes a warmed model kept for reuse holds: the tables sized for the state
@@ -705,7 +730,7 @@ impl Model {
     /// is coded as their continuation. The tables are sized for `w + n` bytes,
     /// which for a state of 16 KiB or more is the largest size whatever `n`,
     /// so the warmed model is computed once per state and profile and cloned.
-    fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32) -> Option<Model> {
+    fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32, keep: bool) -> Option<Model> {
         let total = n.checked_add(u32::try_from(state.len()).ok()?)?;
         let (mut mask, _) = Model::sized(total);
         if let Some(tb) = recorded_table_bits(profile) {
@@ -716,12 +741,36 @@ impl Model {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(i) = cache
             .iter()
-            .position(|(s, p, k, _)| *p == profile && *k == mask && s[..] == *state)
+            .position(|(s, p, k, _, _)| *p == profile && *k == mask && s[..] == *state)
         {
             let hit = cache.remove(i);
-            let m = hit.3.clone();
+            let m = hit.4.clone();
             cache.push(hit);
             return Some(m);
+        }
+        let (n, w) = (u64::from(n), state.len() as u64);
+        let room = crate::performance::declared_host().warmed_room(n, w, profile);
+        let each = warmed_bytes(n, w, profile);
+        // A decoder keeps its warmed model; an encoder's model is one trial
+        // of a portfolio or a facet, kept by nobody, so it neither keeps one
+        // nor evicts the decoders'.
+        if keep {
+            // before the model is allocated, least recently used first out,
+            // until this one fits beside those kept (or, when it does not fit
+            // at all, until none is held): the models kept for other frame or
+            // table sizes count by their bytes
+            let mut held = each.min(room);
+            let mut kept = cache.len();
+            while kept > 0 {
+                match held.checked_add(cache[kept - 1].3) {
+                    Some(b) if b <= room => {
+                        held = b;
+                        kept -= 1;
+                    }
+                    _ => break,
+                }
+            }
+            cache.drain(..kept);
         }
         let mut m = Model::new(total, &[], profile);
         if m.stride == NINP_NARROW {
@@ -729,19 +778,8 @@ impl Model {
         } else {
             m.warm::<K, NINP>(state);
         }
-        let keep = crate::performance::declared_host().warmed_kept(
-            u64::from(n),
-            state.len() as u64,
-            profile,
-        );
-        let keep = usize::try_from(keep).unwrap_or(usize::MAX);
-        // least recently used first out, until this one fits (or, keeping
-        // none, until none is held)
-        let held = cache.len().min(keep.saturating_sub(1));
-        let over = cache.len() - held;
-        cache.drain(..over);
-        if keep > 0 {
-            cache.push((state.into(), profile, mask, m.clone()));
+        if keep && each <= room {
+            cache.push((state.into(), profile, mask, each, m.clone()));
         }
         Some(m)
     }
@@ -2125,7 +2163,7 @@ fn encoder<K: Kernel>(
     let m = if state.is_empty() {
         Model::new(n, &[history], profile)
     } else {
-        Model::warmed::<K>(n, state, profile)?
+        Model::warmed::<K>(n, state, profile, false)?
     };
     run_encoder::<K>(m, data, learn, [stop, 0]).0
 }
@@ -2448,7 +2486,7 @@ fn decoder<K: Kernel>(
         let before = m.hoff as usize;
         (m, before)
     } else {
-        (Model::warmed::<K>(n, state, profile)?, state.len())
+        (Model::warmed::<K>(n, state, profile, true)?, state.len())
     };
     if m.stride == NINP_NARROW {
         decode_bits::<K, NINP_NARROW>(m, ahead, payload, canonical)
