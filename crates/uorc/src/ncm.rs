@@ -184,7 +184,7 @@ fn tables() -> &'static Tables {
 /// between learned points of its row for the context.
 #[derive(Clone)]
 struct Apm {
-    t: Vec<u16>,
+    t: Table<u16>,
     idx: usize,
 }
 
@@ -194,7 +194,7 @@ impl Apm {
             .map(|j| (squash((j - 16) * 128) * 16) as u16)
             .collect();
         Apm {
-            t: row.repeat(rows),
+            t: Table::repeat(&row, rows),
             idx: 0,
         }
     }
@@ -355,15 +355,25 @@ struct Bucket([u32; 16]);
 /// table is kept for the next frame's model of the same size: allocating
 /// ~100 MiB of fresh tables per frame left the allocator's free space in
 /// pieces, and the memory grew with the number of frames.
-struct Table<T: Spare>(Vec<T>);
+struct Table<T: Spare>(Store<T>);
+
+/// Where a table's entries live: an ordinary vector in WebAssembly, whose
+/// memory has no pages to place, and a host region elsewhere
+/// ([`crate::region`]), placed by the table's working set.
+#[cfg(target_family = "wasm")]
+type Store<T> = Vec<T>;
+#[cfg(not(target_family = "wasm"))]
+type Store<T> = crate::region::Region<T>;
 
 trait Spare: Copy + 'static {
+    #[cfg_attr(not(target_family = "wasm"), allow(dead_code))]
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>>;
 }
 
 thread_local! {
     static SPARE_BUCKETS: std::cell::RefCell<Vec<Vec<Bucket>>> = const { std::cell::RefCell::new(Vec::new()) };
     static SPARE_WORDS: std::cell::RefCell<Vec<Vec<u32>>> = const { std::cell::RefCell::new(Vec::new()) };
+    static SPARE_HALVES: std::cell::RefCell<Vec<Vec<u16>>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 impl Spare for Bucket {
@@ -378,10 +388,17 @@ impl Spare for u32 {
     }
 }
 
+impl Spare for u16 {
+    fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
+        &SPARE_HALVES
+    }
+}
+
 impl<T: Spare> Table<T> {
     /// `len` entries of `value`.
+    #[cfg(target_family = "wasm")]
     fn new(len: usize, value: T) -> Table<T> {
-        if cfg!(target_family = "wasm") && len > 0 {
+        if len > 0 {
             let kept = T::spares().with(|s| {
                 let mut s = s.borrow_mut();
                 let at = s.iter().position(|t| t.len() == len)?;
@@ -394,11 +411,27 @@ impl<T: Spare> Table<T> {
         }
         Table(vec![value; len])
     }
+
+    /// `len` entries of `value`.
+    #[cfg(not(target_family = "wasm"))]
+    fn new(len: usize, value: T) -> Table<T> {
+        Table(crate::region::Region::new(len, value))
+    }
+
+    /// `len` entries, each the corresponding entry of `row` repeated.
+    fn repeat(row: &[T], rows: usize) -> Table<T> {
+        let mut t = Table::new(row.len() * rows, row[0]);
+        for chunk in t.chunks_exact_mut(row.len()) {
+            chunk.copy_from_slice(row);
+        }
+        t
+    }
 }
 
+#[cfg(target_family = "wasm")]
 impl<T: Spare> Drop for Table<T> {
     fn drop(&mut self) {
-        if cfg!(target_family = "wasm") && !self.0.is_empty() {
+        if !self.0.is_empty() {
             let t = std::mem::take(&mut self.0);
             T::spares().with(|s| {
                 let mut s = s.borrow_mut();

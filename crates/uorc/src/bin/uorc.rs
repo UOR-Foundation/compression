@@ -12,6 +12,7 @@ const USAGE: &str = "usage:
   uorc decompress [--work N]  [--threads N] [--force|--resume] [--stats] <input|-> [-o <output|->]
   uorc inspect    [--json] <archive|->
   uorc verify     [--work N]  [--threads N] [--json] <archive|-> [original|-]
+  uorc host
   uorc --version
 
 Compress codes with the context-mixing coder (ncm), x86 code over a branch
@@ -28,6 +29,11 @@ found by content-defined anchors) is stored once, as a reference to its
 earlier copy. Without -o, compress writes <input>.uorc and decompress
 strips a .uorc suffix (or writes <input>.out). '-' reads stdin or writes
 stdout.
+
+uorc host prints the machine as the client reads it: threads, memory, base
+and large page, cache line and cache levels. Each model table is placed on
+large pages when its working set spans one; placement never changes an
+archive's bytes.
 
 Given a directory or several paths, compress stores them as one archive of
 ordered objects: a manifest of relative paths, then every file in order
@@ -896,6 +902,10 @@ fn main() -> ExitCode {
     match args.peek().map(String::as_str) {
         Some("--version") => {
             println!("uorc {}", env!("CARGO_PKG_VERSION"));
+            return ExitCode::SUCCESS;
+        }
+        Some("host") => {
+            println!("{}", uorc::region::Host::current().json());
             return ExitCode::SUCCESS;
         }
         Some("--help" | "-h") | None => {
