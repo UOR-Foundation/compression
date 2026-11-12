@@ -859,7 +859,13 @@ mod tests {
                         choice.extend((part.len() as u64).to_le_bytes());
                         choice.extend(part);
                     }
-                    let (code, archive) = run(&choice, || choose_frame());
+                    let (code, chosen) = run(&choice, || choose_frame());
+                    assert_eq!(code, OK);
+                    // the page steps the chosen archive's facets, as compress does
+                    let mut step = request.clone();
+                    step.extend((chosen.len() as u64).to_le_bytes());
+                    step.extend(&chosen);
+                    let (code, archive) = run(&step, || step_frame());
                     assert_eq!(code, OK);
                     assert_eq!(archive, run(&request, || code_frame(-1, 0)).1);
                     stream.extend(archive);
