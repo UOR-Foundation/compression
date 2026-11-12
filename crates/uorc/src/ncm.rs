@@ -182,6 +182,7 @@ fn tables() -> &'static Tables {
 
 /// An adaptive probability map: a probability, refined by interpolating
 /// between learned points of its row for the context.
+#[derive(Clone)]
 struct Apm {
     t: Vec<u16>,
     idx: usize,
@@ -410,6 +411,12 @@ impl<T: Spare> Drop for Table<T> {
     }
 }
 
+impl<T: Spare> Clone for Table<T> {
+    fn clone(&self) -> Table<T> {
+        Table(self.0.clone())
+    }
+}
+
 impl<T: Spare> std::ops::Deref for Table<T> {
     type Target = [T];
     #[inline(always)]
@@ -437,6 +444,14 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
     *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
 }
 
+/// Warmed models kept for reuse (state bytes, profile, table mask, model):
+/// the most recently used last. Each holds full-size tables (about 100 MiB),
+/// so the WebAssembly page, which runs under a memory bound, keeps none.
+type Warmed = Vec<(Box<[u8]>, u32, u32, Model)>;
+static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
+const WARMED_KEEP: usize = if cfg!(target_family = "wasm") { 0 } else { 2 };
+
+#[derive(Clone)]
 struct Model {
     t: &'static Tables,
     /// The profile's contexts, in order (`act[..na]`): the mixers read them as
@@ -521,6 +536,10 @@ struct Model {
     gain: Option<Box<[i64; NC]>>,
     a1: Apm,
     a2: Apm,
+    /// The twin of a shared pass: the profile with [`F_SEL`] flipped reads
+    /// the same contexts, slots, match and repeat state and mixers 2 and 3,
+    /// so only its mixer 1, its two APMs and its coder are its own.
+    twin: Option<Box<Twin>>,
 }
 
 impl Model {
@@ -616,6 +635,7 @@ impl Model {
             pm3: 0,
             a1: Apm::new(256 * 9),
             a2: Apm::new(1 << APM2_BITS),
+            twin: None,
         };
         for piece in history {
             m.hist.extend_from_slice(piece);
@@ -632,6 +652,56 @@ impl Model {
         }
         m.new_byte();
         m
+    }
+
+    /// The model for `n` bytes coded after the κ-named model state `state`
+    /// (`Ncm.decodeWarm`): the whole model codes the state's bytes first, as
+    /// though they opened the frame, and emits nothing for them, so the frame
+    /// is coded as their continuation. The tables are sized for `w + n` bytes,
+    /// which for a state of 16 KiB or more is the largest size whatever `n`,
+    /// so the warmed model is computed once per state and profile and cloned.
+    fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32) -> Option<Model> {
+        let total = n.checked_add(u32::try_from(state.len()).ok()?)?;
+        let (mask, _) = Model::sized(total);
+        let mut cache = WARMED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(i) = cache
+            .iter()
+            .position(|(s, p, k, _)| *p == profile && *k == mask && s[..] == *state)
+        {
+            let hit = cache.remove(i);
+            let m = hit.3.clone();
+            cache.push(hit);
+            return Some(m);
+        }
+        let mut m = Model::new(total, &[], profile);
+        if m.stride == NINP_NARROW {
+            m.warm::<K, NINP_NARROW>(state);
+        } else {
+            m.warm::<K, NINP>(state);
+        }
+        if WARMED_KEEP > 0 {
+            if cache.len() >= WARMED_KEEP {
+                cache.remove(0);
+            }
+            cache.push((state.into(), profile, mask, m.clone()));
+        }
+        Some(m)
+    }
+
+    /// Codes `state`'s bits through the whole model without a coder: a pass
+    /// over the state that reports progress like any other.
+    fn warm<K: Kernel, const W: usize>(&mut self, state: &[u8]) {
+        for (i, &byte) in state.iter().enumerate() {
+            if i % TICK == 0 {
+                tick(i, state.len());
+            }
+            for k in (0..8).rev() {
+                self.predict::<K, W>();
+                self.update::<K, W>((byte >> k) & 1 == 1);
+            }
+        }
     }
 
     /// (table mask, match table bits) for `n` coded bytes.
@@ -1049,11 +1119,9 @@ impl Model {
             };
         }
         // mixer 1 and the first APM: the partial byte and the two match states
-        let msel = if self.profile & F_SEL == 0 {
-            0
-        } else {
-            (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 })
-        };
+        let mstate =
+            (if self.m2len > 0 { 1 + eb2 } else { 0 }) + 3 * (if self.ra { 1 + ebr } else { 0 });
+        let msel = if self.profile & F_SEL == 0 { 0 } else { mstate };
         let c1 = (self.c0 + 256 * msel) as usize;
         self.s1 = c1 * W;
         self.s2 = ((self.c4 & 255) * 8 + self.bit) as usize * W;
@@ -1081,6 +1149,18 @@ impl Model {
             >> (32 - APM2_BITS);
         let q2 = self.a2.refine(&t.stretch, p, cx2 as usize);
         let pr = ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32;
+        if let Some(tw) = self.twin.as_deref_mut() {
+            let c1 = (self.c0 + 256 * if tw.sel { mstate } else { 0 }) as usize;
+            tw.s1 = c1 * W;
+            let a = K::dot1::<W>(row(&self.st, 0), row(&tw.w1, tw.s1));
+            tw.dot1 = a;
+            let d1 = (a >> 16).clamp(-2047, 2047) as i32;
+            tw.pm1 = sq(d1);
+            let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
+            let q1 = tw.a1.refine(&t.stretch, p, c1);
+            let q2 = tw.a2.refine(&t.stretch, p, cx2 as usize);
+            tw.pr = ((p as i32 + q1 + 2 * q2) / 4).clamp(1, 4095) as u32;
+        }
         self.prefetch_next(pr);
         pr
     }
@@ -1096,25 +1176,49 @@ impl Model {
             sq((((c(d[0]) + c(d[1]) + c(d[2]) + 6144) * 21846) >> 16) - 2048).clamp(1, 4095)
         };
         let cost = |p: i32| i64::from(t.cost[if y { p } else { 4096 - p } as usize]);
-        let base = cost(mean(self.dots));
-        let Some(gain) = self.gain.as_mut() else {
-            return;
-        };
-        for j in 0..self.na {
-            let x = i64::from(self.st[j]);
-            let without = [
-                self.dots[0] - i64::from(self.w1[self.s1 + j]) * x,
-                self.dots[1] - i64::from(self.w2[self.s2 + j]) * x,
-                self.dots[2] - i64::from(self.w3[self.s3 + j]) * x,
-            ];
-            gain[self.act[j]] += cost(mean(without)) - base;
+        if let Some(gain) = self.gain.as_mut() {
+            let base = cost(mean(self.dots));
+            for j in 0..self.na {
+                let x = i64::from(self.st[j]);
+                let without = [
+                    self.dots[0] - i64::from(self.w1[self.s1 + j]) * x,
+                    self.dots[1] - i64::from(self.w2[self.s2 + j]) * x,
+                    self.dots[2] - i64::from(self.w3[self.s3 + j]) * x,
+                ];
+                gain[self.act[j]] += cost(mean(without)) - base;
+            }
+        }
+        // the twin's mixer 1 in place of this profile's, mixers 2 and 3 shared
+        if let Some(tw) = self.twin.as_deref_mut() {
+            if let Some(gain) = tw.gain.as_mut() {
+                let dots = [tw.dot1, self.dots[1], self.dots[2]];
+                let base = cost(mean(dots));
+                for j in 0..self.na {
+                    let x = i64::from(self.st[j]);
+                    let without = [
+                        dots[0] - i64::from(tw.w1[tw.s1 + j]) * x,
+                        dots[1] - i64::from(self.w2[self.s2 + j]) * x,
+                        dots[2] - i64::from(self.w3[self.s3 + j]) * x,
+                    ];
+                    gain[self.act[j]] += cost(mean(without)) - base;
+                }
+            }
         }
     }
 
     /// The profile without the contexts that saved nothing (gain <= 0).
     fn learned(&self) -> u32 {
-        let mut profile = self.profile;
-        if let Some(gain) = &self.gain {
+        self.pruned(self.profile, self.gain.as_deref())
+    }
+
+    /// The twin's profile without the contexts that saved nothing under it.
+    fn twin_learned(&self) -> u32 {
+        let twin = self.twin.as_deref();
+        self.pruned(self.profile ^ F_SEL, twin.and_then(|t| t.gain.as_deref()))
+    }
+
+    fn pruned(&self, mut profile: u32, gain: Option<&[i64; NC]>) -> u32 {
+        if let Some(gain) = gain {
             for j in 0..self.na {
                 if gain[self.act[j]] <= 0 {
                     profile &= !(1 << self.act[j]);
@@ -1159,6 +1263,15 @@ impl Model {
             row_mut(&mut self.w3, self.s3),
             e,
         );
+        if let Some(tw) = self.twin.as_deref_mut() {
+            tw.a1.learn(y);
+            tw.a2.learn(y);
+            K::train1::<W>(
+                row(&self.st, 0),
+                row_mut(&mut tw.w1, tw.s1),
+                (yb - tw.pm1) * lr,
+            );
+        }
         self.c0 = (self.c0 << 1) | u32::from(y);
         self.bit += 1;
         if self.bit == 8 {
@@ -1189,6 +1302,24 @@ impl Model {
             self.new_byte();
         }
     }
+}
+
+/// The parts of a profile that differ from its [`F_SEL`] twin's: mixer 1's
+/// weights and selection, the two APMs, and the probability they give.
+#[derive(Clone)]
+struct Twin {
+    sel: bool,
+    w1: Vec<i32>,
+    a1: Apm,
+    a2: Apm,
+    s1: usize,
+    pm1: i32,
+    pr: u32,
+    /// mixer 1's dot product for the bit being coded
+    dot1: i64,
+    /// With the twin learning: what each context saved under the twin's
+    /// mixer 1 (see [`Model::learn`]).
+    gain: Option<Box<[i64; NC]>>,
 }
 
 /// Fresh mixer weights for `rows` contexts in rows of `stride`: 1/4 on the
@@ -1224,6 +1355,25 @@ trait Kernel {
         w3: &mut [i32; W],
         e: [i32; 3],
     );
+
+    /// The exact dot product of the inputs with one weight row (a shared
+    /// pass's twin mixer 1): the same integers as the first of [`Kernel::dot`].
+    #[inline(always)]
+    fn dot1<const W: usize>(x: &[i32; W], w: &[i32; W]) -> i64 {
+        let mut a = 0i64;
+        for i in 0..W {
+            a += i64::from(x[i]) * i64::from(w[i]);
+        }
+        a
+    }
+
+    /// The bounded Hebbian step on one weight row, as [`Kernel::train`].
+    #[inline(always)]
+    fn train1<const W: usize>(x: &[i32; W], w: &mut [i32; W], e: i32) {
+        for i in 0..W {
+            w[i] = (w[i] + ((x[i] * e) >> 16)).clamp(-WEIGHT_LIMIT, WEIGHT_LIMIT);
+        }
+    }
 }
 
 /// The portable kernel (x86_64 without AVX2, and wasm without simd128).
@@ -1311,24 +1461,38 @@ mod x86 {
     #[target_feature(enable = "avx2")]
     pub(super) fn encoder(
         history: &[u8],
+        state: &[u8],
         data: &[u8],
         profile: u32,
         learn: bool,
         stop: usize,
     ) -> Option<(Vec<u8>, u32)> {
-        super::encoder::<Avx2>(history, data, profile, learn, stop)
+        super::encoder::<Avx2>(history, state, data, profile, learn, stop)
+    }
+
+    /// The shared-pass encoder loop compiled for AVX2.
+    #[target_feature(enable = "avx2")]
+    pub(super) fn encoder_pair(
+        history: &[u8],
+        data: &[u8],
+        profile: u32,
+        learn: [bool; 2],
+        stops: [usize; 2],
+    ) -> super::Pairs {
+        super::encoder_pair::<Avx2>(history, data, profile, learn, stops)
     }
 
     /// The decoder loop compiled for AVX2.
     #[target_feature(enable = "avx2")]
     pub(super) fn decoder(
         history: &[&[u8]],
+        state: &[u8],
         payload: &[u8],
         limit: u64,
         canonical: bool,
         profile: u32,
     ) -> Option<Vec<u8>> {
-        super::decoder::<Avx2>(history, payload, limit, canonical, profile)
+        super::decoder::<Avx2>(history, state, payload, limit, canonical, profile)
     }
 
     /// Eight lanes of a row.
@@ -1658,7 +1822,7 @@ fn encode_any(
     learn: bool,
     stop: usize,
 ) -> Option<(Vec<u8>, u32)> {
-    dispatch!(encoder(history, data, profile, learn, stop))
+    dispatch!(encoder(history, &[], data, profile, learn, stop))
 }
 
 /// [`encode_profile`], and the profile the encoder learned for this input:
@@ -1682,69 +1846,248 @@ pub fn encode_learn_below(
     encode_any(history, data, profile, true, stop)
 }
 
+/// One pass that codes `data` under `profile` (learning its mask with
+/// `learn`, as [`encode_learn_below`]) and under its twin `profile ^ F_SEL`
+/// (as [`encode_below`]), each abandoned at its own stop. The two profiles
+/// read the same contexts, slots, match and repeat models and mixers 2 and 3;
+/// the twin keeps its own mixer 1, APMs and coder, so each payload is the one
+/// its own pass writes, for one pass of the shared work.
+pub fn encode_pair_below(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    learn: bool,
+    stops: [usize; 2],
+) -> Pair {
+    let (a, b) = encode_pairs(history, data, profile, [learn, false], stops);
+    (a, b.map(|(payload, _)| payload))
+}
+
+/// [`encode_pair_below`] with both profiles learning their masks, as
+/// [`encode_learn_below`] does for each: the twin learns from its own mixer 1
+/// over the shared mixers 2 and 3, so each learned profile is the one its own
+/// learning pass finds.
+pub fn encode_pairs_learn_below(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    stops: [usize; 2],
+) -> Pairs {
+    encode_pairs(history, data, profile, [true, true], stops)
+}
+
+fn encode_pairs(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    learn: [bool; 2],
+    stops: [usize; 2],
+) -> Pairs {
+    if !valid_profile(profile) {
+        return (None, None);
+    }
+    dispatch!(encoder_pair(history, data, profile, learn, stops))
+}
+
 #[inline(always)]
 fn encoder<K: Kernel>(
     history: &[u8],
+    state: &[u8],
     data: &[u8],
     profile: u32,
     learn: bool,
     stop: usize,
 ) -> Option<(Vec<u8>, u32)> {
     let n = u32::try_from(data.len()).ok()?;
+    let m = if state.is_empty() {
+        Model::new(n, &[history], profile)
+    } else {
+        Model::warmed::<K>(n, state, profile)?
+    };
+    run_encoder::<K>(m, data, learn, [stop, 0]).0
+}
+
+/// The payloads of `profile` (learning its mask with `learn`) and of its
+/// [`F_SEL`] twin, from one pass, each abandoned at its own stop.
+pub type Pair = (Option<(Vec<u8>, u32)>, Option<Vec<u8>>);
+
+/// The payloads and learned profiles of a profile and of its [`F_SEL`] twin
+/// (see [`encode_pairs_learn_below`]).
+pub type Pairs = (Option<(Vec<u8>, u32)>, Option<(Vec<u8>, u32)>);
+
+#[inline(always)]
+fn encoder_pair<K: Kernel>(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    learn: [bool; 2],
+    stops: [usize; 2],
+) -> Pairs {
+    let Ok(n) = u32::try_from(data.len()) else {
+        return (None, None);
+    };
     let mut m = Model::new(n, &[history], profile);
+    m.twin = Some(Box::new(Twin {
+        sel: profile & F_SEL == 0,
+        w1: weights(256 * 9, m.na + 3, m.stride),
+        a1: Apm::new(256 * 9),
+        a2: Apm::new(1 << APM2_BITS),
+        s1: 0,
+        pm1: 0,
+        pr: 2048,
+        dot1: 0,
+        gain: learn[1].then(|| Box::new([0; NC])),
+    }));
+    run_encoder::<K>(m, data, learn[0], stops)
+}
+
+#[inline(always)]
+fn run_encoder<K: Kernel>(mut m: Model, data: &[u8], learn: bool, stops: [usize; 2]) -> Pairs {
     if learn {
         m.gain = Some(Box::new([0; NC]));
     }
     if m.stride == NINP_NARROW {
-        encode_bits::<K, NINP_NARROW>(m, data, stop)
+        encode_bits::<K, NINP_NARROW>(m, data, stops)
     } else {
-        encode_bits::<K, NINP>(m, data, stop)
+        encode_bits::<K, NINP>(m, data, stops)
+    }
+}
+
+/// One binary arithmetic coder: its interval, its output and the cap past
+/// which its payload is abandoned.
+struct Coder {
+    x1: u32,
+    x2: u32,
+    out: Vec<u8>,
+    cap: usize,
+    live: bool,
+}
+
+impl Coder {
+    fn new(len: usize, stop: usize, live: bool) -> Coder {
+        let mut out = Vec::with_capacity(if live { len / 2 + 16 } else { 0 });
+        out.extend_from_slice(&(len as u32).to_be_bytes());
+        Coder {
+            x1: 0,
+            x2: u32::MAX,
+            out,
+            // the payload ends one byte longer than the bytes emitted so far
+            cap: (2 * len + 64).min(stop.saturating_sub(5)),
+            live,
+        }
+    }
+
+    /// Codes bit `y` at probability `p` (of a 1, in 4096ths); a coder whose
+    /// output reaches its cap is abandoned.
+    #[inline(always)]
+    fn code(&mut self, y: bool, p: u32) {
+        let (mut x1, mut x2) = (self.x1, self.x2);
+        let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
+        if y {
+            x2 = xm;
+        } else {
+            x1 = xm + 1;
+        }
+        while (x1 ^ x2) >> 24 == 0 {
+            if self.out.len() - 4 >= self.cap {
+                self.live = false;
+                return;
+            }
+            self.out.push((x2 >> 24) as u8);
+            x1 <<= 8;
+            x2 = (x2 << 8) | 255;
+        }
+        self.x1 = x1;
+        self.x2 = x2;
+    }
+
+    fn finish(mut self) -> Option<Vec<u8>> {
+        if !self.live || self.out.len() - 4 >= self.cap {
+            return None;
+        }
+        self.out.push((self.x1 >> 24) as u8);
+        Some(self.out)
     }
 }
 
 #[inline(always)]
-fn encode_bits<K: Kernel, const W: usize>(
-    mut m: Model,
-    data: &[u8],
-    stop: usize,
-) -> Option<(Vec<u8>, u32)> {
-    // the payload ends one byte longer than the bytes emitted so far
-    let cap = (2 * data.len() + 64).min(stop.saturating_sub(5));
-    let mut out = Vec::with_capacity(data.len() / 2 + 16);
-    out.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    let (mut x1, mut x2) = (0u32, u32::MAX);
+fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8], stops: [usize; 2]) -> Pairs {
+    let twin = m.twin.is_some();
+    let learning = m.gain.is_some() || m.twin.as_ref().is_some_and(|t| t.gain.is_some());
+    let mut main = Coder::new(data.len(), stops[0], true);
+    let mut other = Coder::new(data.len(), stops[1], twin);
     for (i, &byte) in data.iter().enumerate() {
         if i % TICK == 0 {
             tick(i, data.len());
         }
+        if !main.live && !other.live {
+            return (None, None);
+        }
         for k in (0..8).rev() {
             let y = (byte >> k) & 1 == 1;
             let p = m.predict::<K, W>();
-            let xm = x1 + ((u64::from(x2 - x1) * u64::from(p)) >> 12) as u32;
-            if y {
-                x2 = xm;
-            } else {
-                x1 = xm + 1;
+            if main.live {
+                main.code(y, p);
             }
-            while (x1 ^ x2) >> 24 == 0 {
-                if out.len() - 4 >= cap {
-                    return None;
-                }
-                out.push((x2 >> 24) as u8);
-                x1 <<= 8;
-                x2 = (x2 << 8) | 255;
+            if other.live {
+                let q = m.twin.as_deref().map_or(2048, |t| t.pr);
+                other.code(y, q);
             }
-            if m.gain.is_some() {
+            if learning {
                 m.learn::<W>(y);
             }
             m.update::<K, W>(y);
         }
     }
-    if out.len() - 4 >= cap {
+    let (learned, twin_learned) = (m.learned(), m.twin_learned());
+    (
+        main.finish().map(|p| (p, learned)),
+        other.finish().map(|p| (p, twin_learned)),
+    )
+}
+
+/// [`encode_profile`] from the κ-named model state `state` (`Ncm.runWarm`):
+/// `data` is coded as the continuation of the state's bytes, which the whole
+/// model learns first. The payload decodes only from the same state and profile.
+pub fn encode_warm(state: &[u8], data: &[u8], profile: u32) -> Option<Vec<u8>> {
+    encode_warm_below(state, data, profile, usize::MAX)
+}
+
+/// [`encode_warm`] abandoned at `stop` payload bytes, as [`encode_below`].
+pub fn encode_warm_below(state: &[u8], data: &[u8], profile: u32, stop: usize) -> Option<Vec<u8>> {
+    if !valid_profile(profile) || state.is_empty() {
         return None;
     }
-    out.push((x1 >> 24) as u8);
-    Some((out, m.learned()))
+    warm_encoder(state, data, profile, stop).map(|(payload, _)| payload)
+}
+
+fn warm_encoder(state: &[u8], data: &[u8], profile: u32, stop: usize) -> Option<(Vec<u8>, u32)> {
+    dispatch!(encoder(&[], state, data, profile, false, stop))
+}
+
+/// Decode a payload [`encode_warm`] wrote from `state` under `profile`.
+pub fn decode_warm(state: &[u8], payload: &[u8], limit: u64, profile: u32) -> Option<Vec<u8>> {
+    if !valid_profile(profile) || state.is_empty() {
+        return None;
+    }
+    dispatch!(decoder(&[], state, payload, limit, false, profile))
+}
+
+/// [`decode_warm`] of a payload of exactly `n` bytes that [`encode_warm`]
+/// writes for its own output, checked in the same pass ([`decode_canonical`]).
+pub fn decode_canonical_warm(
+    state: &[u8],
+    payload: &[u8],
+    n: u64,
+    profile: u32,
+) -> Option<Vec<u8>> {
+    if !valid_profile(profile)
+        || state.is_empty()
+        || declared_length(payload).map(u64::from) != Some(n)
+    {
+        return None;
+    }
+    dispatch!(decoder(&[], state, payload, n, true, profile))
 }
 
 /// The output length a payload declares, if it has its 4-byte header.
@@ -1838,7 +2181,7 @@ fn run_pieces(
     if !valid_profile(profile) {
         return None;
     }
-    dispatch!(decoder(history, payload, limit, canonical, profile))
+    dispatch!(decoder(history, &[], payload, limit, canonical, profile))
 }
 
 /// Decode a payload [`encode_profile`] wrote under `profile`.
@@ -1849,6 +2192,7 @@ pub fn decode_profile(history: &[u8], payload: &[u8], limit: u64, profile: u32) 
 #[inline(always)]
 fn decoder<K: Kernel>(
     history: &[&[u8]],
+    state: &[u8],
     payload: &[u8],
     limit: u64,
     canonical: bool,
@@ -1858,12 +2202,17 @@ fn decoder<K: Kernel>(
     if u64::from(n) > limit {
         return None;
     }
-    let m = Model::new(n, history, profile);
-    let before = m.hoff as usize;
-    if m.stride == NINP_NARROW {
-        decode_bits::<K, NINP_NARROW>(m, before, payload, canonical)
+    let (m, ahead) = if state.is_empty() {
+        let m = Model::new(n, history, profile);
+        let before = m.hoff as usize;
+        (m, before)
     } else {
-        decode_bits::<K, NINP>(m, before, payload, canonical)
+        (Model::warmed::<K>(n, state, profile)?, state.len())
+    };
+    if m.stride == NINP_NARROW {
+        decode_bits::<K, NINP_NARROW>(m, ahead, payload, canonical)
+    } else {
+        decode_bits::<K, NINP>(m, ahead, payload, canonical)
     }
 }
 
@@ -1933,6 +2282,41 @@ mod tests {
     use super::*;
 
     #[test]
+    fn warm_state_is_the_model_coder() {
+        // client/gen/ncm_model.py py_encode_warm: FULL then V03
+        let hex = |t: &str| -> Vec<u8> {
+            (0..t.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&t[i..i + 2], 16).unwrap())
+                .collect()
+        };
+        let fx: Vec<Vec<u8>> = include_str!("../tests/ncm-warm.fixture")
+            .lines()
+            .map(hex)
+            .collect();
+        let (state, x) = (&fx[0], &fx[1]);
+        for (payload, profile) in [(&fx[2], FULL), (&fx[3], V03)] {
+            assert_eq!(encode_warm(state, x, profile).as_ref(), Some(payload));
+            for _ in 0..2 {
+                assert_eq!(
+                    decode_canonical_warm(state, payload, x.len() as u64, profile).as_ref(),
+                    Some(x)
+                );
+            }
+            assert_eq!(
+                encoder::<Scalar>(&[], state, x, profile, false, usize::MAX)
+                    .map(|r| r.0)
+                    .as_ref(),
+                Some(payload)
+            );
+        }
+        assert_ne!(
+            decode_warm(&state[1..], &fx[2], u64::MAX, FULL).as_ref(),
+            Some(x)
+        );
+    }
+
+    #[test]
     fn round_trips() {
         let text = b"the quick brown fox jumps over the lazy dog; ".repeat(50);
         for data in [&b""[..], b"a", b"abcabcabcabc", &text[..], &[0u8; 5000][..]] {
@@ -1963,25 +2347,25 @@ mod tests {
             .collect();
         let text = b"Sing, O goddess, the anger of Achilles son of Peleus. ".repeat(300);
         for data in [&b""[..], b"z", &noise[..], &rows[..], &text[..]] {
-            let p = encoder::<Scalar>(&[], data, V03, false, usize::MAX)
+            let p = encoder::<Scalar>(&[], &[], data, V03, false, usize::MAX)
                 .expect("fits")
                 .0;
             assert_eq!(encode(data).as_deref(), Some(&p[..]));
             let n = data.len() as u64;
             assert_eq!(decode(&p, n).as_deref(), Some(data));
             assert_eq!(
-                decoder::<Scalar>(&[], &p, n, true, V03).as_deref(),
+                decoder::<Scalar>(&[], &[], &p, n, true, V03).as_deref(),
                 Some(data)
             );
             // and after a window history
-            let w = encoder::<Scalar>(&text[..999], data, V03, false, usize::MAX)
+            let w = encoder::<Scalar>(&text[..999], &[], data, V03, false, usize::MAX)
                 .expect("fits")
                 .0;
             assert_eq!(encode_with(&text[..999], data).as_deref(), Some(&w[..]));
             assert_eq!(decode_with(&text[..999], &w, n).as_deref(), Some(data));
             // and under narrow and wide profiles
             for profile in [0x1059e, 0x1e79f, 1, FULL, 0x1059e | F_REP, V03 | F_SHORT] {
-                let p = encoder::<Scalar>(&text[..999], data, profile, false, usize::MAX)
+                let p = encoder::<Scalar>(&text[..999], &[], data, profile, false, usize::MAX)
                     .expect("fits")
                     .0;
                 assert_eq!(

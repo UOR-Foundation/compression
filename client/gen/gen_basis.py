@@ -39,9 +39,12 @@ def libraries():
     # every block above is the v0.3 library, unchanged; the profiled coder (ncm_model) follows
     g.v03_blocks = len(g.blocks)
     nprof = ncmgraph.profile_library(g)
-    runs = {'ulz': urun, 'ncm': nrun, 'ulz1': uwith, 'ulz2': uwith, 'ncm1': nwith, 'ncm2': nwith,
+    # every block above is the v0.4 library, unchanged; the warm-state coder follows
+    g.v04_blocks = len(g.blocks)
+    nwarm = ncmgraph.warm_library(g)
+    runs = {'ncmw': nwarm, 'ulz': urun, 'ncm': nrun, 'ulz1': uwith, 'ulz2': uwith, 'ncm1': nwith, 'ncm2': nwith,
             'ncmp': nprof, 'ncmp1': nprof, 'ncmp2': nprof}
-    runs.update({c + 'x': r for c, r in list(runs.items()) if c.startswith('ncm')})
+    runs.update({c + 'x': r for c, r in list(runs.items()) if c.startswith('ncm') and not c.endswith('x')})
     return g, runs
 
 
@@ -57,6 +60,9 @@ CODECS = ['ulz', 'ncm', 'ulz1', 'ulz2', 'ncm1', 'ncm2', 'ncmx', 'ncm1x', 'ncm2x'
 # prefix ++ uleb(len) ++ payload ++ 00 ++ uleb(profile) ++ tail.
 PCODECS = ['ncmp', 'ncmp1', 'ncmp2', 'ncmpx', 'ncmp1x', 'ncmp2x']
 PROFILE_MARK = 0x7ffff
+# State codecs (ncmw*): the entry applies ncmRunWarm to the payload, basis root 1 (a kappa-named model state: bytes
+# the whole model codes first) and the frame's profile word; the template has the profiled shape.
+WCODECS = ['ncmw', 'ncmwx']
 
 
 G, RUN = libraries()
@@ -83,12 +89,33 @@ V03_LIB = _hex3('basis-library.hex')
 V03_ID = _hex3('basis-id.hex')
 assert V03_ID == wire.chain(TAG + wire.uleb(1) + wire.uleb(len(V03_LIB)) + V03_LIB)
 assert V03_LIB == wire.uleb(G.v03_blocks) + b''.join(block_bytes(b) for b in G.blocks[:G.v03_blocks]), 'the v0.3 blocks changed'
+# The v0.4 basis (client/gen/v04): its library is this one's first v04_blocks blocks, byte for byte, so v0.4
+# archives keep their meaning (their entries reach the profiled blocks at the same relative distance only when
+# nothing is inserted before them; blocks are appended).
+def _hex4(name):
+    return bytes.fromhex(open(os.path.join(HERE, 'v04', name)).read().replace('\n', ''))
+V04_LIB = _hex4('basis-library.hex')
+V04_ID = _hex4('basis-id.hex')
+assert V04_ID == wire.chain(TAG + wire.uleb(1) + wire.uleb(len(V04_LIB)) + V04_LIB)
+assert V04_LIB == wire.uleb(G.v04_blocks) + b''.join(block_bytes(b) for b in G.blocks[:G.v04_blocks]), 'the v0.4 blocks changed'
+# v0.4 wrote profiled entries only (its V03 frames are v0.3 archives): their tails, frozen, with this basis's prefixes
+V04_PTAILS = {c: _hex4(f'linked-{c}-tail.hex') for c in PCODECS}
 # a v0.3 entry: its frozen suffix with the current prefix (prefixes reference no block)
 V03_TEMPLATES = None
 
 
-def entry(g, run, payload, k=0, x86=False, profile=None):
+def entry(g, run, payload, k=0, x86=False, profile=None, warm=False):
     e = g.block('entry', [], S)
+    if warm:
+        pl = e.seq(payload)
+        pf = e.nat(profile)
+        state = e.basis(1)
+        if not x86:
+            e.returns(e.apply(run, [pl, state, pf]))
+            return e
+        out = e.apply(run, [pl, e.apply(g.x86, [state, e.nat(0), e.nat(0)]), pf])
+        e.returns(e.apply(g.x86, [out, e.nat(1), e.slen(state)]))
+        return e
     if profile is not None:
         pl = e.seq(payload)
         pf = e.nat(profile)
@@ -143,7 +170,7 @@ V03_TEMPLATES = {c: (TEMPLATES[c][0], _hex3(f'linked-{c}-suffix.hex')) for c in 
 
 def profile_template(codec):
     """(prefix, tail) of a profiled codec: its body is prefix ++ uleb(len) ++ payload ++ 00 ++ uleb(profile) ++ tail."""
-    e = entry(G, RUN[codec], PH, WINDOWS.get(codec, 0), codec.endswith('x'), PROFILE_MARK)
+    e = entry(G, RUN[codec], PH, WINDOWS.get(codec, 0), codec.endswith('x'), PROFILE_MARK, codec in WCODECS)
     eb = block_bytes(e)
     G.blocks.pop()
     body = wire.uleb(1) + eb + wire.uleb(0)
@@ -153,7 +180,7 @@ def profile_template(codec):
     return body[:cut + 1], body[cut + len(mark):]
 
 
-PTEMPLATES = {c: profile_template(c) for c in PCODECS}
+PTEMPLATES = {c: profile_template(c) for c in PCODECS + WCODECS}
 
 
 def reference_body():
@@ -212,6 +239,10 @@ if __name__ == '__main__':
     write_hex('linked-ref.hex', REF_BODY)
     write_hex('basis-v03-id.hex', V03_ID)
     write_hex('basis-v03-library.hex', V03_LIB)
+    write_hex('basis-v04-id.hex', V04_ID)
+    write_hex('basis-v04-library.hex', V04_LIB)
+    for c, tail in V04_PTAILS.items():
+        write_hex(f'v04-linked-{c}-tail.hex', tail)
     # v0.3 entries: the same prefixes; their suffixes name the run blocks at their v0.3 (relative) distance
     for c in CODECS:
         assert TEMPLATES[c][0] == V03_TEMPLATES[c][0], c
@@ -286,3 +317,17 @@ if __name__ == '__main__':
                 out = evaluate(g, e, basis=[LIB] + window)
                 assert out == frames[2], (c, hex(prof), out[:60])
                 print(c, hex(prof), 'profiled payload', len(payload), '; decodes on the mirror')
+        # state entries: the payload coded as the continuation of a kappa-named state, basis root 1
+        state = b''.join(frames[:2])
+        for c in WCODECS:
+            prof = ncm_model.FULL
+            if c.endswith('x'):
+                payload = ncm_model.py_encode_warm(xf(frames[2], len(state)), xf(state), prof)
+            else:
+                payload = ncm_model.py_encode_warm(frames[2], state, prof)
+            g, runs = libraries()
+            e = entry(g, runs[c], payload, 0, c.endswith('x'), prof, True)
+            assert materialize(linked_body(c, payload, prof)) == wire.graph_bytes(g, e), c
+            out = evaluate(g, e, basis=[LIB, state])
+            assert out == frames[2], (c, out[:60])
+            print(c, 'state payload', len(payload), 'vs alone', len(ncm_model.py_encode(frames[2])), '; decodes on the mirror')

@@ -1,0 +1,1387 @@
+s are feasible with current tools. The graph has no complete artifact inventory or selected versions, role interfaces, licenses, and argument contracts for the requested sources. This change imports no facts or artifacts on their behalf. |
+| #9: honesty ledger | Implemented by this change with source-owned classification, generated summaries, closed kernel cases, and executed promotion negatives. No new SDK primitive is required. |
+| #10: ULEB128 | Implemented in the new LexLean varint graph: explicit U64 domain, shortest base-128 encoding, bounded prefix/exact decoding, typed errors/offsets, general round trips/size/minimality/prefix proofs, and 236 exact vectors. [Generated contract](../../UORC-VARINT.md). |
+| #11: archive frame | Exact field encoding/order, integrity rules, and C.1–C.6 vectors are absent from the graph. Generated binary transport also remains a separate SDK acceptance concern. |
+| #12: graph encoding/static validation | The issue names value types and an opcode range, but the source lacks the complete opcode operand/signature table and wire layout needed for exact validation. |
+| #13: reference semantics | Pure mathematical authoring is supported. The complete source definitions and theorem inventory needed to establish the requested semantic/resource model are absent. |
+| #14: StepMachine | Depends on complete reference semantics, resource events, release schedule, and indexed/checked generated runtime operations. The locked SDK's capability PR does not yet pass those runtime obligations. |
+| #15: store and Scan | Needs exact source-owned store/Scan accounting and refinement statements, plus passing generated-runtime store tests at all requested scales. PR #72's required store probe remains unsuccessful. |
+| #16: last-use/heap | Needs the complete operand/capture inventory and allocation/root event model to establish exact release safety and peak accounting. These are not defined in the current graph. |
+| #17: resource ledger | The closed event vocabulary, recipes, costs, and scale-point exte(['naturalConstant','byteConstant','predicateConstant','sequenceConstant','naturalAdd','naturalSubtract','naturalMultiply','naturalDivide','naturalRemainder','naturalAnd','naturalOr','naturalXor','naturalNot','naturalShiftLeft','naturalShiftRight','naturalEqual','naturalLess','byteEqual','byteLess','naturalToByte','byteToNatural','predicateNot','predicateAnd','predicateOr','sequenceLength','sequenceIndex','sequenceSlice','sequenceConcat','sequenceEqual','singletonSequence','basisGet','storeNew','storeRead','storeWrite','choose','apply','tabulate','fold','scan'])}
+TC = {'natural': 0, 'byte': 1, 'predicate': 2, 'sequence': 3, 'store': 4}
+def uleb(n):
+    out = bytearray()
+    while True:
+        if n < 128: out.append(n); return bytes(out)
+        out.append(n % 128 + 128); n //= 128
+def instr(t):
+    op = t[0]; o = bytearray([OPC[op]])
+    if op == 'naturalConstant': o += uleb(t[1])
+    elif op == 'byteConstant': o.append(t[1])
+    elif op == 'predicateConstant': o.append(1 if t[1] else 0)
+    elif op == 'sequenceConstant': o += uleb(len(t[1])) + bytes(t[1])
+    elif op == 'apply': o += uleb(t[1]) + uleb(len(t[2])) + b''.join(uleb(x) for x in t[2])
+    elif op == 'tabulate': o += uleb(t[1]) + uleb(t[2]) + uleb(len(t[3])) + b''.join(uleb(x) for x in t[3])
+    elif op == 'fold': o += uleb(t[1]) + uleb(t[2]) + uleb(t[3]) + uleb(len(t[4])) + b''.join(uleb(x) for x in t[4])
+    else: o += b''.join(uleb(x) for x in t[1:])
+    return bytes(o)
+def graph_bytes(g, entry):
+    o = bytearray(uleb(len(g.blocks)))
+    for b in g.blocks:
+        ins, ret = b.lowered()
+        o += uleb(len(b.params)) + bytes(TC[t] for t in b.params) + bytes([TC[b.result]]) + uleb(len(ins)) + b''.join(instr(t) for t in ins) + uleb(ret)
+    return bytes(o + uleb(entry.index))
+def archive(g, entry, lengths):
+    body = graph_bytes(g, entry)
+    return b'UORC' + bytes([2, 1, 0, 1]) + uleb(len(lengths)) + b''.join(uleb(n) for n in lengths) + uleb(len(body)) + body
+import hashlib
+DOM = bytes.fromhex('554f52432d5348413235362d434841494e2d763100')
+def chain(data):
+    c = hashlib.sha256(DOM + b'\x00').digest()
+    full = (len(data) // 64) * 64
+    if len(data) % 64 == 0 and len(data) > 0:
+        pass
+    i = 0
+    # absorbByte: a full frame is hashed when the 64th byte arrives
+    while len(data) - i >= 64:
+        c = hashlib.sha256(DOM + b'\x01' + c + data[i:i + 64]).digest(); i += 64
+    rest = data[i:]
+    return hashlib.sha256(DOM + b'\x02' + c + bytes([len(rest)]) + rest).digest()
+def sealed(pre):
+    return pre + chain(pre)
+# The x86 branch filter (uorc's code filter) as an ir.Prog: one description that irlex compiles to
+# LexLean (Uorc.Codec.X86) and irgraph to the kernel graph block that undoes it.
+#
+# x86 code is full of near calls and jumps (E8/E9 rel32) whose targets repeat at different offsets;
+# rewriting each displacement as an absolute target makes the repeats literal. At every opcode E8 or
+# E9 with four bytes after it, a displacement v whose top byte is 00 or FF (|v| < 2^24) becomes
+# sext25(v + (base + i + 5)), and decoding subtracts instead; the four bytes are then skipped either
+# way. The opcode bytes never change and a rewritten displacement keeps a top byte of 00 or FF, so
+# both directions scan the same positions and decode(encode(x)) = encode(decode(x)) = x for every x.
+# `base` places the bytes in a longer stream: a window frame is filtered at the offset that follows
+# its (filtered) history, so a target reads the same in both. `hits` counts the rewritten displacements.
+import sys
+import os
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from ir import *
+
+P = Prog()
+for name, w in [('n', 4), ('dir', 1), ('skip', 1), ('base', 4), ('hits', 4)]:
+    P.glob(name, w)
+P.table('OUT', 1 << 33)
+P.rom('POW2', 4, [1 << k for k in range(33)])
+
+M32 = 1 << 32
+step = [
+    ('if', lt(0, G('skip')), [('set', 'skip', sub(G('skip'), 1))],
+     [('let', 'b', IN(V('i'))),
+      ('store', 'OUT', 1, V('i'), V('b')),
+      ('if', AND(OR(eq(V('b'), 0xE8), eq(V('b'), 0xE9)), le(add(V('i'), 5), G('n'))),
+       [('let', 'top', IN(adbc7fec9a5070cd68e87288c864f4cdabb229041c48377f1905da23",
+    "diagnostic_script_sha256": "0a87db4db812a7ddd916d2ccb659c9220583f00bae32d0568b68c9233c8d175e",
+    "parsed_runtime_cache_sha256": "19388f9d77aae3d04486816e25eb48e968a0dbc9f7b7c45b92666a3df79afb8e",
+    "root_closures": {
+      "Uorc.Search.OwnedEnumerationModel": [
+        "Uorc.Search.OwnedEnumerationModel"
+      ],
+      "Uorc.Search.OwnedEnumerationProofs": [
+        "Uorc.Core.Bytes",
+        "Uorc.Core.Heap",
+        "Uorc.Core.Resources",
+        "Uorc.Core.RuntimeByteBuilder",
+        "Uorc.Core.RuntimeImage",
+        "Uorc.Core.RuntimeResources",
+        "Uorc.Core.RuntimeSequence",
+        "Uorc.Core.RuntimeValue",
+        "Uorc.Core.RuntimeWork",
+        "Uorc.Core.Store",
+        "Uorc.Core.Types",
+        "Uorc.Search.EnumerationFunding",
+        "Uorc.Search.OwnedEnumeration",
+        "Uorc.Search.OwnedEnumerationModel",
+        "Uorc.Search.OwnedEnumerationProofs"
+      ]
+    },
+    "source_import_closure": {
+      "Uorc.Core.Bytes": {
+        "imports": [
+          "Uorc.Core.Resources"
+        ],
+        "path": "src/Uorc/Core/Bytes.lex.tex",
+        "sha256": "3fe740c7f06b6215b981046d52cb828b166292c556222142f1474d60b8457cb6"
+      },
+      "Uorc.Core.Heap": {
+        "imports": [
+          "Uorc.Core.RuntimeValue"
+        ],
+        "path": "src/Uorc/Core/Heap.lex.tex",
+        "sha256": "ee41c3fb11c1f60fc767448760e8020d934c253fc31eec2146413ec1a98b0e1b"
+      },
+      "Uorc.Core.Resources": {
+        "imports": [],
+        "path": "src/Uorc/Core/Resources.lex.tex",
+        "sha256": "f51997aec99a3ae29c39f55a8c7040ce96efcfe6b28a04c019179d6dddc102b3"
+      },
+      "Uorc.Core.RuntimeByteBuilder": {
+        "imports": [
+          "Uorc.Core.Heap",
+          "Uorc.Core.RuntimeSequence",
+          "Uorc.Core.RuntimeValue"
+        ],
+        "path": "src/Uorc/Core/RuntimeByteBuilder.lex.tex",
+        "sha256": "c7f67542e9f7a4f05f6161fe5fc23b26cf85769c3538d89f0e69f35990eac00d"
+      },
+      "Uorc.Core.RuntimeImage": {
+        "imports": [
+  pected results must be authored in LexLean alongside the components they account for. Their implementation and generated-runtime agreement remain outstanding. |
+| #18: envelope/basis | Depends on source-defined raw framing, event costs, limits, cumulative basis accounting, and the checked generated runtime. Those requirements are not yet complete. |
+
+These findings do not classify all remaining M1 work as unsupported by PrismPM
+or LexLean. They distinguish missing product definitions and dependent components
+from observed SDK failures. New product definitions belong in reviewed LexLean
+changes with their own registered scenarios and acceptance evidence. No local
+Markdown brief was used as behavioral <!-- uorc:non-authoritative -->
+# SDK offline reproduction evidence (issue #6)
+
+This document describes the validation procedure and the exact-revision results
+recorded below. Actual results come from the `SDK offline reproducibility`
+workflow and its uploaded `offline-setup`, `offline-evidence-*` and `offline-comparison` artifacts. A candidate projection artifact is
+review material only; the acceptance job never installs it to make a check pass.
+
+## Declared pipeline
+
+The current product slice is the charter, registry, claim-disposition, and bounded varint
+authority rooted in `lexlean.toml`.
+There is no root PrismPM product manifest or complete compression implementation. Its
+pipeline is the existing full `just vv`, strengthened by locked Cargo calls,
+`lexlean build --all`, `lexlean verify --all`, and always-executed clean-root
+reproduction and dependency/tool negatives. No TaskScorer example stands in for
+UORC evidence. `prismpm lock check` and `prismpm template check` remain the SDK's
+own lock/template validators.
+
+`just reproducibility` is part of every `just vv`. It creates two distinct clean
+absolute roots, copies source without proof/build/acquisition outputs, and runs
+model generation plus LexLean lock/format/check/build in each. It compares
+every renderer-declared projection against the committed original and compares
+every file in the returned build artifact trees. It rejects extra
+content-addressed result trees, missing/wrong artifact paths, symlinked artifact
+or projection parents, empty/duplicate projection inventories, differing bytes,
+and embedded checkout paths. It does not invoke `just vv` recursively. The full
+`lexlean verify` runs once per push in the bootstrap `artifacts` leg; two-root
+identity of the verified trees is established by the offline workflow below.
+
+The offline workflow runs inside the exact image from `prismpm.lock`, in three
+stages:
+
+1. `offline-setup` runs `node scripts/offline-validation.mjs acquire`: explicit
+   online acquisition (`cargo fetch --locked` and `cargo deny --locked
+   --all-features fetch`) with the SDK's binaries, sealing source, actual SDK
+   inventory, and every acquisition-cache file into `setup.json`. It executes
+   the missing/stale/damaged setup negatives in no-network SDK containers. The
+   sealed acquisition is handed on as one tarball, because `cargo deny fetch`
+   follows the live advisory database and two separate setups need not match.
+2. Two parallel `offline` jobs (`first`, `second-distinct-root`) each run
+   `isolated <root> <acquisition>`: check the sealed setup, then build and
+   verify a distinct clean root with `--network=none`, no Docker socket, no
+   credentials or adjacent-checkout mount, and its own application/proof output
+   paths, verifying that only the loopback interface is visible.
+3. `offline-compare` compares the two complete current-build canonical
+   inventories (build and verified trees) and execution identity byte for byte,
+   and uploads `offline-comparison.json`. Reusing dependencies never replaces
+   proof construction or replay.
+
+The orchestrator alone sees a Docker daemon for launching containers. Online
+universal bootstrap remains supported; it runs the same always-on reproduction
+and negative gates. Its network availability is not reported as offline evidence.
+
+## Canonical inventory and normalization
+
+The renderer exports its own ed(V('i'), 4))),
+        ('let', 'v', add(add(IN(add(V('i'), 1)), mul(256, IN(add(V('i'), 2)))), add(mul(65536, IN(add(V('i'), 3))), mul(1 << 24, V('top'))))),
+        ('let', 'pos', mod(add(add(G('base'), V('i')), 5), M32)),
+        ('let', 'wsum', mod(sel(eq(G('dir'), 0), add(V('v'), V('pos')), sub(add(V('v'), M32), V('pos'))), M32)),
+        ('let', 'wlow', mod(V('wsum'), 1 << 25)),
+        ('let', 'hit', sel(OR(eq(V('top'), 0), eq(V('top'), 255)), 1, 0)),
+        ('let', 'w', sel(eq(V('hit'), 1), sel(lt(V('wlow'), 1 << 24), V('wlow'), add(V('wlow'), 0xFE000000)), V('v'))),
+        ('set', 'hits', add(G('hits'), V('hit'))),
+        ('loop', 4, 'k', [('store', 'OUT', 1, add(add(V('i'), 1), V('k')), mod(div(V('w'), rom('POW2', 4, mul(8, V('k')))), 256))]),
+        ('set', 'skip', 4)], [])])]
+# dir 0 encodes (relative to absolute), 1 decodes; OUT holds the n output bytes
+P.func('filter', ['size', 'd', 'at'], [('set', 'n', V('size')), ('set', 'dir', V('d')), ('set', 'base', V('at')),
+                                       ('set', 'skip', 0), ('set', 'hits', 0), ('loop', G('n'), 'i', step)])
+
+
+def py_run(data, d, base=0):
+    m = Machine(P, bytes(data))
+    m.call('filter', len(data), d, base)
+    return bytes(m.t['OUT'].get(k, 0) for k in range(len(data))), m.g['hits']
+
+
+def py_filter(data, d, base=0):
+    return py_run(data, d, base)[0]
+
+
+if __name__ == '__main__':
+    import random
+    r = random.Random(3)
+    for n in (0, 1, 4, 5, 6, 64, 3000):
+        x = bytes(r.choice([0xE8, 0xE9, 0, 255, r.randrange(256)]) for _ in range(n))
+        for base in (0, 7, M32 - 3):
+            y = py_filter(x, 0, base)
+            assert py_filter(y, 1, base) == x, n
+            assert py_filter(py_filter(x, 1, base), 0, base) == x, n
+    print('x86 filter round-trips')
+# The x86 filter's decoding direction as a UORC program graph block, compiled from x86_model by irgraph
+# (scratch writing aid). library(g) adds x86Run(sequence, dir, base) -> sequence: dir 0 applies the
+# filter, 1 undoes it, with the bytes placed at `base` in the stream.
+import sys
+import os
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from g import Graph, N, Y, S, T
+import irgraph, x86_model
+
+
+def library(g=None):
+    c = irgraph.Compiler(x86_model.P, g)
+    roms = c.load_roms()
+    inp = c.input_loader()
+    f = c.function('filter')
+    b = c.g.block('x86Byte', [N, T], Y)
+    b.returns(b.sread(b.arg(1), b.add(x86_model.P.tables['OUT'], b.arg(0))))
+    out = b
+    b = c.g.block('x86Run', [S, N, N], S)
+    sq = b.arg(0)
+    n = b.slen(sq)
+    st = b.fold(n, b.snew(b.byte(0)), inp, [sq])
+    st = b.apply(roms, [st])
+    st = b.apply(f, [st, n, b.arg(1), b.arg(2)])
+    b.returns(b.tabulate(n, out, [st]))
+    return c.g, b
+//! The BDD runner and the honesty meta-gate (R2, R3, `CM-02`, `CM-03`).
+//!
+//! Two jobs, and they are different in kind.
+//!
+//! **R3, feature-first.** Every capability begins as a Gherkin scenario. The
+//! runner below reads `features/suites/*.feature`, extracts the conformance IDs
+//! the scenarios are tagged with, and cross-checks them against the register
+//! and against the test names in the workspace. An ID with no scenario, a
+//! scenario with no ID, and an ID with no test are all failures. There are no
+//! pending or skipped steps, because a pending step is a claim with nothing
+//! behind it.
+//!
+//! **R2, the meta-gate.** The honesty levels only mean something if the suite
+//! respects them. The gate proves that no `open` claim is asserted as
+//! established and that no `some-true` claim is presented as though this
+//! repository had established it. That is a check on the *documentation and the
+//! test names*, not on the arithmetic --- which is why it lives here rather
+//! than in a numerical crate.
+
+#![deny(missing_docs)]
+
+pub mod meta;
+pub mod runner;
+
+pub use meta::{assertive_term, check_honesty, HonestyReport};
+pub use runner::{scenarios_in, Scenario, SuiteReport};
+//! The honesty meta-gate (R2).
+//!
+//! Three levels only mean something if the suite respects them, and nothing in
+//! the arithmetic can enforcbc7fec9a5070cd68e87288c864f4cdabb229041c48377f1905da23",
+    "diagnostic_script_sha256": "0a87db4db812a7ddd916d2ccb659c9220583f00bae32d0568b68c9233c8d175e",
+    "parsed_runtime_cache_sha256": "19388f9d77aae3d04486816e25eb48e968a0dbc9f7b7c45b92666a3df79afb8e",
+    "root_closures": {
+      "Uorc.Search.OwnedEnumerationModel": [
+        "Uorc.Search.OwnedEnumerationModel"
+      ],
+      "Uorc.Search.OwnedEnumerationProofs": [
+        "Uorc.Core.Bytes",
+        "Uorc.Core.Heap",
+        "Uorc.Core.Resources",
+        "Uorc.Core.RuntimeByteBuilder",
+        "Uorc.Core.RuntimeImage",
+        "Uorc.Core.RuntimeResources",
+        "Uorc.Core.RuntimeSequence",
+        "Uorc.Core.RuntimeValue",
+        "Uorc.Core.RuntimeWork",
+        "Uorc.Core.Store",
+        "Uorc.Core.Types",
+        "Uorc.Search.EnumerationFunding",
+        "Uorc.Search.OwnedEnumeration",
+        "Uorc.Search.OwnedEnumerationModel",
+        "Uorc.Search.OwnedEnumerationProofs"
+      ]
+    },
+    "source_import_closure": {
+      "Uorc.Core.Bytes": {
+        "imports": [
+          "Uorc.Core.Resources"
+        ],
+        "path": "src/Uorc/Core/Bytes.lex.tex",
+        "sha256": "3fe740c7f06b6215b981046d52cb828b166292c556222142f1474d60b8457cb6"
+      },
+      "Uorc.Core.Heap": {
+        "imports": [
+          "Uorc.Core.RuntimeValue"
+        ],
+        "path": "src/Uorc/Core/Heap.lex.tex",
+        "sha256": "ee41c3fb11c1f60fc767448760e8020d934c253fc31eec2146413ec1a98b0e1b"
+      },
+      "Uorc.Core.Resources": {
+        "imports": [],
+        "path": "src/Uorc/Core/Resources.lex.tex",
+        "sha256": "f51997aec99a3ae29c39f55a8c7040ce96efcfe6b28a04c019179d6dddc102b3"
+      },
+      "Uorc.Core.RuntimeByteBuilder": {
+        "imports": [
+          "Uorc.Core.Heap",
+          "Uorc.Core.RuntimeSequence",
+          "Uorc.Core.RuntimeValue"
+        ],
+        "path": "src/Uorc/Core/RuntimeByteBuilder.lex.tex",
+        "sha256": "c7f67542e9f7a4f05f6161fe5fc23b26cf85769c3538d89f0e69f35990eac00d"
+      },
+      "Uorc.Core.RuntimeImage": {
+        "imports": [
+  xact projection list with `cargo xtask
+projection-inventory`; the harness has no duplicate hand-maintained list.
+`lexlean/command-result/1` supplies the exact build and attestation IDs and
+artifact roots. Every file beneath both roots is compared, including manifests,
+Lean, normalized source, maps, coverage, proof artifacts, and attestations.
+No fields or bytes are normalized by this harness. This intentionally fails if
+an SDK change introduces host-bound bytes that need a separately reviewed,
+field-specific policy. The same architecture and image are used for each pair;
+this is not a claim of cross-architecture byte identity.
+
+Raw command logs retain host roots and are retained as operational eviden<!-- uorc:non-authoritative -->
+# Product API and View component evidence
+
+The implementation is in the source modules below. This document records the
+component boundary and executed evidence; the LexLean graph remains authoritative.
+
+| Source | Implemented component |
+| --- | --- |
+| `Uorc.Product.Api` | Typed requests for all ten operations, limits, resource/span leases, failures, accounting, result details, report admission and evidence projection |
+| `Uorc.Product.InputModel` | Ordered object and arbitrary-byte-span control, empty objects and explicit EOF |
+| `Uorc.Product.Control` | Operation roots, run ownership, transitions/effects, work extension, checkpoints, staged output, publication authorization/receipts and cleanup |
+| `Uorc.Product.Workspace` | File-selection tokens, retained draft resources, request construction, dispatch, checkpoint continuation and shutdown |
+| `Uorc.Product.Presentation` | Generated typed labels, actions, file fields, enabled states, exact metrics, evidence/scope/search values, focus and live-region behavior |
+| `Uorc.Product.Scenarios` | Typed trace owners, positive/negative cases, generated presentation observations and mutation ownership |
+| `Uorc.Product.Storage` | Per-category and total requested quotas, reservations, achieved writes/deletions, transfer accounting and typed refusal |
+| `Uorc.Product.ResourceIO` | Run-bound bounded read/write demands, retained image tickets, unknown-length spool/seal, partial failure, cancellation and cleanup receipts |
+| `Uorc.Product.Selection` | Ordered unique item IDs, display metadata, removal and reordering |
+| `Uorc.Product.HostContract` | Self-contained source-owned generic adapter/root/renderer contract projected to JSON |
+
+The existing `Session`, `Evidence`, `StreamProtocol` and `CompletionModel` files
+are unchanged. The controller calls their actual admission, input, completion and
+publication functions. `Details` carries operation-specific archive, basis,
+frontier, comparison and developer reports. `compareExactArchiveBytes` compares
+the archive field; `archivePlusBasisTransfer` exposes the separate charged sum.
+
+Selected object rows expose safe display names, observed lengths, empty objects,
+order and source-owned removal/reordering controls. Immutable collection changes
+retain the previous owner until a matching callback, restore it on failure and
+reject stale replies. Display names are separate from archive semantics: this
+archive model preserves ordered bytes and boundaries, without implying restored
+filenames, directory paths or filesystem metadata.
+
+Ordinary operations request no additional output-size quota. Advanced numeric
+fields expose work, output, logical arena and external storage requests. Their
+natural-number parser, formatting, optional clearing, stale-binding checks,
+messages and focus are modeled. Real host capacity and runtime addressability
+remain separate admission boundaries. A transport quantum is never a total
+input or product feature limit.
+
+The bounded preparation owner reads and writes a single chunk at a time, spools
+single-pass or unknown-length sources under storage admission, then seals the
+same lease at its exact achieved length for reread. Known immutable seekable
+sources can be reread directly. Partial failed writes retain achieved storage;
+cancellation waits for a valid achieved write reply before releasine that. What can is a check on the *names* and the
+//! *prose*: an `open` claim that a test asserts, or a `some-true` authority
+//! that the README presents as this repository's own result, is exactly the
+//! blurring of registers the discipline exists to prevent.
+//!
+//! The gate is deliberately about language, because that is where the failure
+//! mode lives. Nobody sets out to claim they proved an upstream theorem; they
+//! write "proves" where they meant "is evidence for", and six months later the
+//! sentence is load-bearing.
+
+use std::collections::BTreeSet;
+use std::path::Path;
+
+use repo_model::{Level, Model};
+
+use crate::runner::SuiteReport;
+
+/// What the meta-gate found.
+#[derive(Clone, Debug, Default)]
+pub struct HonestyReport {
+    /// Every problem, each naming the rule it breaks.
+    pub violations: Vec<String>,
+    /// How many registered IDs were checked.
+    pub ids_checked: usize,
+    /// How many scenarios were read.
+    pub scenarios_checked: usize,
+}
+
+impl HonestyReport {
+    /// Did everything hold?
+    pub fn is_clean(&self) -> bool {
+        self.violations.is_empty()
+    }
+}
+
+/// Word stems that assert a claim as established.
+///
+/// A `build` claim may use them --- it *is* evidence, constructed here. An
+/// `open` claim may not, because it is a measurement, and a `some-true` claim
+/// may not, because it belongs to someone else.
+///
+/// Stems, matched against the start of a whole word: `prove` covers "proves",
+/// "proved", and "proven" without also matching "improves", which a substring
+/// search does.
+const ASSERTIVE_STEMS: &[&str] = &[
+    "prove",
+    "proof",
+    "guarantee",
+    "establish",
+    "demonstrat",
+    "confirm",
+    "verif",
+    "certif",
+    "validated",
+    "settled",
+    "achieve",
+    "beats",
+    "outperform",
+    "surpass",
+    "superior",
+];
+
+/// Phrases that assert, where no single word does.
+const ASSERTIVE_PHRASES: &[&str] = &["shows that", "is true", "holds for", "world record"];
+
+/// The assertive word or phrase in `line`, if it has one.
+pub fn assertive_term(line: &str) -> Option<&'static str> {
+    let lower = line.to_lowercase();
+    if let Some(phrase) = ASSERTIVE_PHRASES.iter().find(|p| lower.contains(*p)) {
+        return Some(phrase);
+    }
+    lower
+        .split(|c: char| !c.is_alphanumeric())
+        .find_map(|word| ASSERTIVE_STEMS.iter().find(|s| word.starts_with(*s)))
+        .copied()
+}
+
+/// Every Markdown document in the repository, as root-relative paths.
+///
+/// Discovered rather than listed: a document nobody scans reports nothing, and
+/// a fixed list goes stale the first time one is added.
+fn markdown_documents(root: &Path) -> std::io::Result<Vec<String>> {
+    const SKIPPED: &[&str] = &[
+        ".git",
+        ".lake",
+        ".lexlean",
+        ".prism",
+        "target",
+        "vendor",
+        "node_modules",
+    ];
+    let mut out = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                if !path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| SKIPPED.contains(&n))
+                {
+                    stack.push(path);
+                }
+            } else if path.extension().is_some_and(|e| e == "md") {
+                let relative = path.strip_prefix(root).unwrap_or(&path);
+                out.push(relative.display().to_string().replace('\\', "/"));
+            }
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
+/// The registered-looking ID a test name ends in, if it is not registered.
+///
+/// A registered ID `UC-CHR-01` is discharged by a test whose name ends in
+/// `uc_chr_01`. A name ending in the same shape --- the same leading prefix, the
+/// same number of parts, a numeric last part --- names an ID too, whatever the
+/// register's scheme is: two parts//! Reading `features/suites/*.feature` (R3).
+
+use std::collections::BTreeSet;
+use std::path::Path;
+
+/// One scenario, and the conformance ID it ments_rank and restored\n"
+  },
+  "claim_boundaries": [
+    "The mathematical model and exact UInt8-list inverse preserve every list cell, every byte, empty words and all-zero words of every finite length; no zero stripping or numeric canonical encoding substitutes for the word universe.",
+    "Abstract rank/successor/coverage and faithful embedding remain separate from actual OwnedEnumeration byte denotation, reachability, rightmost-pivot invariant, RuntimeByteBuilder simulation and successful installation refinement.",
+    "Source-local predecessor means current handle and length only, not liveness, byte equality or whole-arena preservation.",
+    "The rejected acknowledgment funding law concerns fundObserved after arena observation, not the complete fund wrapper.",
+    "Declared axiom policies are source expectations only, not observed kernel audits.",
+    "All proof helper definitions omit executable and are non-production proof/model helpers under the current source default; no production root is redirected to them.",
+    "Pure model reverse-rank coverage is not yet a proof of forward-shortlex order equivalence or production-machine completeness. Natural root separation changes imports only, never selects away project obligations."
+  ],
+  "command_boundary": "These are the existing project commands, not executed by this review. The unchanged project language1.1/native-source mismatch is still known to reject before proof acceptance. A retained official executor may record its supported scoped commands with exact source/config/closure identities; it must not weaken acceptance or claim a scope is full-project acceptance. Root commands above are transfer requests for the retained official executor, not executed acceptance evidence. verify must report actual kernel/axiom results; if unsupported, report exact command and blocker. Both roots and all full-project roots remain mandatory.",
+  "declarations": {
+    "Uorc.Search.OwnedEnumerationModel": [
+      {
+        "kind": "definition",
+        "name": "Uorc.Searcg the held
+image ticket. Deletion receipts account actual freed bytes and allow partial
+cleanup retry. Retired jobs retain run-targeted storage accounting without
+regaining publication authority. Cleanup cannot forget nonzero reservations or
+retained storage. Logical arena bytes, staging/spool/spill/copy storage, archive
+bytes, basis transfer and optional scoped physical observations stay separate.
+
+In-app panel navigation retains current jobs and results. Input edits,
+cancellation, detachment and shutdown revoke ownership before cleanup.
+
+The operation roots return `Transition`, including the typed command that starts
+the actual operation. They do not fabricate an executor or a successful archive.
+`<!-- uorc:non-authoritative -->
+# Product operation and host binding evidence
+
+The authority is `Product.MachineBinding`, `OwnedCompare`, `ComparisonOwner`,
+`ReadImage`, the product control,
+resource and presentation modules, and their typed source scenarios. This
+checkpoint composes integration `5a01915fb467652b28a9fa11339bbea614f8b280`, preserves
+its integrity Registry rows, and regenerates the actual model projections.
+`Core.RuntimeImage` is the unchanged published shared accessor from `cf840ba`,
+SHA256 `7a3dbde81e2e3e08a3e59f0d2ab6a6f0f3f6fab5714991ddecd65894230ef77f`.
+
+`MachineBinding.start/tick/extend/cancel` call the actual owned engine. The owner
+sum contains one engine or Ready carrier. Its separately transferred output
+image/sequence ticket stays inventoried throughout cleanup. `moveTerminal`
+transfers the arena, output and frozen receipts once. A terminal machine still
+owns these resources. No successful archive Report follows from decoding alone.
+
+`OwnedCompare` traverses the actual immutable sequence owners, compares every
+byte through the shared checked scalar accessor, and distinguishes exact length
+mismatch, differing byte, read failure, cancellation and unfinished work. The source tests require `lengthMismatch(3,0)` and exercise actual getter
+prepayment, zero-work refusal, retained-prefix extension, cancellation,
+unfinished-result rejection and charged comparison-owner lifecycle. The current
+38-module source closure kernel-compiles; 33 typed VM controls pass, five actual
+planted defects fail at their intended owners, and 115 product declaration axiom
+policies match direct kernel queries. Exact current source/dependency hashes,
+annotation-only generated-code equality and limits are recorded in
+`validation/product/charged-comparison-evidence.json`.
+
+The earlier 16/16 receipt in `machine-vm-evidence.json` remains a historical
+closure record. Neither result qualifies the newer shared integration graph's
+changed RuntimeMachine, RuntimeMachineEngine or RuntimeSequence sources. All
+these controls are finite VM execution, not a universal reconstruction theorem,
+accepted production export or complete operation qualification.
+
+The registered UC-EXE-01 test executes `scripts/product-machine-runtime.mjs`;
+a committed receipt cannot satisfy it. The script obtains the actual verified compiler artifact, kernel-compiles its
+generated closure and executes the typed owner; mutations rebuild and compile
+the actual changed source against the same SDK runtime. It plants stalled length
+mismatch, invented byte equality, missing output tickets, unpaid initialization
+and getter prepayment defects. Its full
+execution remains blocked: the current official diagnostic verifier rejects inherited
+`Core.RuntimeByteBuilder.step` certificate B at 7,530,370 bytes against the
+unchanged 4,194,304-byte limit. No compiler, policy or limit was changed to
+accept it. The component mutation runtime execution is recorded separately.
+
+Read cancellation now keeps the exact pending run/source/ticket/offset until a
+stopped receipt or actual late reply. Late nonempty spans still produce one
+owned-ticket release effect. Spool creation and sealing remain in flight across
+cancellation. Cleanup waits for these receipts, retains achieved/reserved
+storage, and records only actual deletion. Every preparation phase adopts its
+matching achieved reader state; stale cdischarges.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Scenario {
+    /// The conformance ID from the scenario's tag.
+    pub id: String,
+    /// The honesty level from the scenario's tag.
+    pub level: String,
+    /// The scenario's one-line statement.
+    pub statement: String,
+    /// Which suite file it came from.
+    pub suite: String,
+    /// The steps, in order.
+    pub steps: Vec<String>,
+}
+
+/// What a suite directory contains.
+#[derive(Clone, Debug, Default)]
+pub struct SuiteReport {
+    /// Every scenario found.
+    pub scenarios: Vec<Scenario>,
+    /// Files that were read.
+    pub files: usize,
+}
+
+/// Parse every `.feature` file in `dir`.
+///
+/// A deliberately small parser. Cucumber's full grammar buys nothing here: the
+/// scenarios are generated from the register and their job is to be *readable*
+/// and to carry the ID, not to be executed by a step-definition engine. What
+/// executes the claims are the tests, and `CM-02` is what ties the two together.
+pub fn scenarios_in(dir: &Path) -> std::io::Result<SuiteReport> {
+    let mut report = SuiteReport::default();
+    let mut entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
+    entries.sort_by_key(|e| e.path());
+
+    for entry in entries {
+        let path = entry.path();
+        if path.extension().is_none_or(|e| e != "feature") {
+            continue;
+        }
+        report.files += 1;
+        let suite = path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let text = std::fs::read_to_string(&path)?;
+
+        let mut pending_tags: Vec<String> = Vec::new();
+        let mut current: Option<Scenario> = None;
+        for raw in text.lines() {
+            let line = raw.trim();
+            if line.starts_with('@') {
+                pending_tags = line
+                    .split_whitespace()
+                    .map(|t| t.trim_start_matches('@').to_string())
+                    .collect();
+            } else if let Some(rest) = line.strip_prefix("Scenario:") {
+                if let Some(done) = current.take() {
+                    report.scenarios.push(done);
+                }
+                let id = pending_tags.first().cloned().unwrap_or_default();
+                let level = pending_tags.get(1).cloned().unwrap_or_default();
+                current = Some(Scenario {
+                    id,
+                    level,
+                    statement: rest.trim().to_string(),
+                    suite: suite.clone(),
+                    steps: Vec::new(),
+                });
+                pending_tags.clear();
+            } else if let Some(scenario) = current.as_mut() {
+                for keyword in ["Given ", "When ", "Then ", "And ", "But "] {
+                    if let Some(step) = line.strip_prefix(keyword) {
+                        scenario.steps.push(format!("{keyword}{step}"));
+                        break;
+                    }
+                }
+            }
+        }
+        if let Some(done) = current.take() {
+            report.scenarios.push(done);
+        }
+    }
+    Ok(report)
+}
+
+impl SuiteReport {
+    /// The set of IDs the suites cover.
+    pub fn ids(&self) -> BTreeSet<&str> {
+        self.scenarios.iter().map(|s| s.id.as_str()).collect()
+    }
+}
+//! `CM-02`, `CM-03`, and R2's behavioural half.
+//!
+//! Runs the meta-gate against the actual workspace: the register, the feature
+//! suites, and the test names `cargo test -- --list` reports. An ID with no
+//! scenario, a scenario with no ID, an ID with no test, or a mislabelled
+//! honesty level all fail here.
+
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+
+use repo_conformance::{check_honesty, scenarios_in};
+use repo_model::{Level, Model};
+
+fn root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("crates/conformance is two below the root")
+        .to_path_buf()
+}
+
+/// Every `#[test]` function name in the workspace.
+///
+/// Read from the source rather than from `cargo test -- --list`, becauses_types_binders_ownership_argument_order_unchanged": true,
+  "exact_four_site_type_erasure_recovers_complete_original_bytes": true,
+  "gate_path": "tests/enumeration/result_constructor_equivalence.py",
+  "gate_sha256": "6a01e91b54773a49a3fa780a02cd7aed9adef98cf3dd18d48c94c1ff714d80b7",
+  "observed_diagnostic": {
+    "code": "LLT4001",
+    "context": "builderResult third argument, Result.ok built",
+    "declaration": "appendStep",
+    "independently_reran_or_remeasured_receipt": false,
+    "message": "constructor `Result.ok` requires explicit success and error type arguments",
+    "required_type_arguments": [
+      {
+        "arguments": [],
+        "kind": "named",
+        "member": {
+          "module": "Uorc.Core.RuntimeByteBuilder",
+          "name": "BuilderTransition"
+        }
+      },
+      {
+        "arguments": [],
+        "kind": "named",
+        "member": {
+          "module": "Uorc.Core.RuntimeByteBuilder",
+          "name": "BuilderFailure"
+        }
+      }
+    ],
+    "root": "Uorc.Search.OwnedEnumerationProofs",
+    "site_localization_from_observed_error": "/declarations/23/body/branches/1/body/arguments/2",
+    "source": "retained qualifier terminal report forwarded by parent"
+  },
+  "preserved_helper_and_proof_sources": [
+    {
+      "complete_theorems": [],
+      "path": "src/Uorc/Search/UnsignedByteConversion.lex.tex",
+      "sha256": "881306b4a7b71345e5a673f808e4165a8aa06b887748fab3742253c27013713f",
+      "theorem_count": 0
+    },
+    {
+      "complete_theorems": [
+        {
+          "full_theorem_sha256": "543c2b2776ede099422922d262d6c0afe4a40e1561d029cb5abefd2f12f03a09",
+          "name": "model_byte_stays_within_unsigned_range"
+        },
+        {
+          "full_theorem_sha256": "2c319e03c8d038492778939e1034a7212e151d9ca56719793a223204c05e9088",
+          "name": "model_byte_is_identity_on_every_byte"
+        },
+        {
+          "full_theorem_sha256": "7741025ceccb7fb5d1ae504be55bc2ca46b03d50b84d900bf1c1445d8ac152ef",
+          "name": "model_reverse_successor_increments_rank"
+     reation/seal failures cannot poison a
+later phase. Reader/writer/preparation Steps retain custody while effects or
+borrow acknowledgments remain undelivered.
+
+`Api.ReleaseDisposition` and the actual Workspace/resource/machine roots supply
+source-owned retirement decisions. `Effect.requestInstanceRelease` requests
+retirement; it does not authorize unconditional destruction. The generic adapter
+must keep every registered actual child owner and external lease until its own
+disposition and effects settle. Invocation and Update remain distinct generated
+types. The current complete endpoint descriptor and renderer/keyboard/focus
+requirements are projected from `HostContract`, without handwritten UI behavio<!-- uorc:non-authoritative -->
+# UORC Project Identity Hardening Evidence (Issue #3)
+
+Scope:
+- Repository: `UOR-Foundation/compression`
+- Issue: #3 "Complete UORC project identity hardening without modifying universal policy"
+- Base authority model: LexLean sources under `src/Uorc/`
+
+This file records validation evidence only. It is not UORC semantic, claim, or
+acceptance authority.
+
+## Identity checks
+
+- Canonical repository identity: `UOR-Foundation/compression`.
+- Workspace package metadata in `Cargo.toml` uses:
+  - repository: `https://github.com/UOR-Foundation/compression`
+  - homepage: `https://github.com/UOR-Foundation/compression`
+  - authors: `UOR Foundation`
+- The LexLean charter identifies the product as UORC — Universal Object
+  Reference Compression.
+- `README.md` is generated from the LexLean authority graph rather than
+  maintained as an independent identity or semantic source.
+
+## Authority-boundary checks
+
+- Project semantics and claim boundaries originate in
+  `src/Uorc/Specification.lex.tex` and `src/Uorc/Registry.lex.tex`.
+- `model/*.toml`, `CONFORMANCE.md`, `README.md`,
+  `UORC-VERIFICATION.md`, and generated feature suites are checked
+  projections, not independent sources.
+- Handwritten planning and governance prose is explicitly marked
+  non-authoritative.
+- Inherited universal-policy paths remain owned by the template contract and
+  are not modified by this issue.
+
+## Stale-identity audit
+
+Project-owned prose and metadata were reviewed for:
+- unresolved template placeholder identity,
+- obsolete external implementation-brief references,
+- repository or homepage URLs that do not resolve to the canonical repository,
+- prose that would create a competing semantic or proof authority.
+
+The reviewed project-owned surfaces contain no remaining instance in those
+categories.
+
+## Validation
+
+The authoritative acceptance path is `just vv`. In particular, the relevant
+gates are:
+- `lexlean lock --check`
+- `lexlean fmt --check --all`
+- `lexlean check --all`
+- `cargo xtask check-model`
+- `cargo xtask audit-source-authority`
+- `prismpm template check`
+- `prismpm lock check`
+
+The CI workflow runs the complete acceptance gate on both declared Linux
+architectures. Issue #3 is complete only when those checks pass for the PR head
+and the branch is mergeable with `main`.
+<!-- uorc:non-authoritative -->
+# Repository Hardening Evidence (Issue #1)
+
+Scope:
+- Repository: `UOR-Foundation/compression`
+- Issue: #1 "Harden the existing compression repository and enforce baseline protections"
+- Date: 2026-10-03
+
+This document is project-owned governance evidence. It does not define product
+semantics and does not modify template-owned universal policy files except by
+locked template-compatible updates.
+
+## Implemented controls
+
+1. Branch protection on `main`
+- Require pull request before merge: enabled.
+- Required approving reviews: >= 1.
+- Dismiss stale reviews: enabled.
+- Require code owner reviews: enabled.
+- Required status checks: bootstrap acceptance checks.
+- Require conversation resolution: enabled.
+- Restrict force pushes: enabled.
+- Restrict branch deletion: enabled.
+
+2. Actions least-privilege defaults
+- Repository default workflow token permission: `read`.
+- Workflow approval for PR reviews by Actions: disabled.
+- Actions policy: selected actions + reusable workflows from explicit allowlist.
+- Full-length SHA pinning re this
+/// runs *inside* `cargo test` and a nested invocation blocks on the target
+/// directory lock. The scan is exact for the shape the workspace uses: a
+/// `#[test]` attribute followed, possibly after further attributes, by the
+/// function it annotates.
+fn workspace_test_names(root: &Path) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    let mut stack = vec![root.join("crates"), root.join("xtask")];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if path.file_name().is_some_and(|n| n == "target") {
+                    continue;
+                }
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                let mut armed = false;
+                for line in text.lines() {
+                    let line = line.trim();
+                    if line == "#[test]" {
+                        armed = true;
+                    } else if armed {
+                        if let Some(rest) = line.strip_prefix("fn ") {
+                            let name: String = rest
+                                .chars()
+                                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                                .collect();
+                            if !name.is_empty() {
+                                names.insert(name);
+                            }
+                            armed = false;
+                        } else if !line.starts_with('#') && !line.is_empty() {
+                            armed = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    names
+}
+
+/// `CM-02`: every registered ID has a scenario and a test, and every scenario
+/// and test names a registered ID.
+#[test]
+fn every_id_has_a_scenario_and_a_test_cm_02() {
+    let root = root();
+    let tests = workspace_test_names(&root);
+    assert!(!tests.is_empty(), "the test list must not be empty");
+
+    let report = check_honesty(&root, &tests).expect("the meta-gate runs");
+    assert!(
+        report.is_clean(),
+        "the honesty meta-gate failed:\n\n{}",
+        report.violations.join("\n\n")
+    );
+    eprintln!(
+        "CM-02: {} registered IDs, {} scenarios, {} test names",
+        report.ids_checked,
+        report.scenarios_checked,
+        tests.len()
+    );
+}
+
+/// R3: there are no pending or skipped steps.
+///
+/// The non-emptiness guard is armed by the *register*, not asserted outright. A
+/// repository that has claimed nothing yet has no scenarios to write and no
+/// suite for them to live in, and that is a legitimate state. A repository with
+/// registered IDs and no feature files is the defect this catches, and the guard
+/// re-arms the moment the first row is added to `model/ids.toml`.
+#[test]
+fn no_scenario_is_pending_cm_02() {
+    let model = Model::load(&root().join("model")).expect("model loads");
+    let suites = scenarios_in(&root().join("features/suites")).expect("suites read");
+    assert!(
+        model.ids.id.is_//! The UORC LexLean authority graph.
+//!
+//! `src/Uorc/Specification.lex.tex` owns the project charter and evidence
+//! boundaries. `src/Uorc/Registry.lex.tex` owns the project claim register.
+//! `src/Uorc/Claims.lex.tex` owns evidence classification and research dispositions.
+//! `model/*.toml` and project Markdown are generated projections of this graph,
+//! never a second source of UORC semantics.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
+
+use serde_json::Value;
+
+use crate::{Authorities, Claim, ClaimPolicy, IdRow, Ids, Ledger, Level, Model, ModelError};
+
+/// The LexLean module that owns the product charter.
+pub const SPECIFICATION_PATH: &str = "src/Uorc/Specification.lex.tex";
+/// The LexLean module that owns the claim register.
+pub const REGISTRY_P   "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "configuration_hashes": {
+    "lake-manifest.json": "7bd051c282eca7ece0d657e38be7a1e1621ae799cda43ce6597d55bd90c86e2f",
+    "lean-toolchain": "8e3538e0ab5f81a3ee04927d8838c8c674e0e112838b4b3ce87ec218143276af",
+    "lexlean.lock": "bfc16a26a77f07e3691d720f27af2fe04538cea5a0b506cb50c203dfab3905b4",
+    "lexlean.toml": "c382da4b5003d697067b70f882d29a7a4ef0f9f0bae035b0860d6ca717914deb",
+    "prismpm.lock": "ca3b25e9d80ac77e7e49101bc4d7c3642d84a39be4d44ec79b879031e27b9633"
+  },
+  "diagnostic_evaluator_sha256": "6ad499ad95bc7fec9a5070cd68e87288c864f4cdabb229041c48377f1905da23",
+  "exact_equivalence_audit": {
+    "baseline_commit": "9ca824709b0c6ffe4dbb647cb11a050b04247c19",
+    "boundary": "Structural/byte equivalence only. Not source elaboration, proof checking, kernel replay, observed axiom audit, native execution or SDK acceptance.",
+    "canonical_statement_contracts_new_sha256": "52be777c3ce1be80963d07576f1d79a9fa87b069caa848daa8202ff192e5d9b6",
+    "canonical_statement_contracts_old_sha256": "52be777c3ce1be80963d07576f1d79a9fa87b069caa848daa8202ff192e5d9b6",
+    "diagnostic": {
+      "path": "tests/enumeration/source_format_equivalence.py",
+      "sha256": "d8d9c90934b52e4c626317c67822c452173c5cd8c3df288f8524059317fddde7"
+    },
+    "empty_linear_arithmetic_fields_omitted": [
+      {
+        "path": [
+          "declarations",
+          8,
+          "proof",
+          "definitions"
+        ],
+        "theorem": "model_adjacent_ranks_have_no_intermediate_rank"
+      },
+      {
+        "path": [
+          "declarations",
+          15,
+          "proof",
+          "definitions"
+        ],
+        "theorem": "model_decoder_quotient_strictly_decreases"
+      }
+    ],
+    "model_all_other_bytes_and_ast_identical": true,
+    "negative_controls": {
+      "global_function_reference_control": "pass",
+      "lexical_shadowing_control": "pass",
+      "rejected_defects": [
+        "reintroduce-empty-proof-field",
+        "removequirement: enabled.
+
+3. CODEOWNERS and review routing
+- Added `.github/CODEOWNERS` with default owner and explicit ownership for
+  `.github/`, `bootstrap/`, and `model/` paths.
+
+4. Metadata and visibility
+- Repository remains `https://github.com/UOR-Foundation/compression`.
+- Visibility remains public.
+- License files present and visible in repository.
+
+5. Template and lock consistency
+- Added missing lock files required by universal gate: `prismpm.lock`,
+  `template.lock`, `standards.lock`.
+- Synchronized `.devcontainer/devcontainer.json` to match locked template
+  lineage referenced by `template.lock` policy hashes.
+
+## Verification evidence
+
+External authoritative oracle used:
+- GitHub REST API (`gh api`) for branch protection and actions policy state.
+
+Evidence checks performed:
+- `GET /repos/UOR-Foundation/compression/branches/main/protection` returns
+  active policy instead of 404.
+- `GET /repos/UOR-Foundation/compression/actions/permissions` and
+  `.../actions/permissions/workflow` show least-privilege defaults.
+- `gh run` confirms bootstrap checks are active and enforced on PR.
+
+Policy-violation rejection test:
+- A direct push to protected `main` from a non-exempt actor should be rejected
+  by GitHub authorization policy.
+- If actor is admin-exempt, equivalent validation is by attempted force-push or
+  branch-deletion operation and GitHub policy response.
+
+<!-- uorc:non-authoritative -->
+# Negative-only SDK source-format preflight (issue #86)
+
+This is operational CI evidence, not a source of product semantics or an SDK
+acceptance result. The actual locked compiler and complete `just vv` remain the
+acceptance boundary.
+
+## Observed incompatibility and authority
+
+At source revision `5a01915fb467652b28a9fa11339bbea614f8b280`,
+[bootstrap run 41931828522](https://github.com/UOR-Foundation/compression/actions/runs/41931828522)
+and [offline run 41931828519](https://github.com/UOR-Foundation/compression/actions/runs/41931828519)
+pulled SDK index
+`sha256:60226bc791d4c0e5613402a6be7e63f4963d3faf7f327befcf56fc0e41d0ce21`
+and failed `lexlean fmt` with `LLP2003: expected semanticdata, found inductive`
+at `src/Uorc/Wire/ProgramParseScenarios.lex.tex:15`. The project selects
+language 1.1, whereas this module begins its semantic body with native notation.
+
+The official [LexLean specification, section 17.21.1](https://github.com/UOR-Foundation/LexLean/blob/71defb4c663aaec5b9a3aab04cbc6a03e7106227/SPEC.md#17211-where-it-is-written)
+states that language 1.1 admits the data form only and refuses native notation
+with `LLP2003`. This is a documented language distinction, not a claim that a
+newer compiler or a source conversion has been qualified here. Official
+[source discovery](https://github.com/UOR-Foundation/LexLean/blob/71defb4c663aaec5b9a3aab04cbc6a03e7106227/crates/lexlean/src/project.rs#L417-L479)
+rejects source-root symlinks before checking the `.lex.tex` suffix.
+
+## Deliberately incomplete prediction
+
+`scripts/sdk-source-format-preflight.py` uses Python's standard TOML reader to
+identify `lexlean/project/1`, language 1.1 and its configured source roots. It
+recognizes only a complete anchored conventional header: `begin{lexlean}` with
+an ASCII module name, zero or more `importmodule` lines, the exact
+`title{Parameters}`, and `begin{semanticmodule}`, followed by spaces/newlines
+and an initial `inductive{`, `structure{`, or `definition{` declaration.
+
+It does not search arbitrary prose or payloads, strip comments, decode module
+schemas, check declaration bodies, or decide whether any source is accepted.
+The initial declaration token predicts the language refusal regardless of the
+rest of that declaration. A different title/header, comments before a token,
+quoted examples, unfamiliar declarations, malformed/unknown configuration,
+other language versions and an incomplete inspected prefix delegate unchanged
+to the real compiler. In particular, language 1.2 receives no source-format
+verdict from this guard. A zero exit status never means format or semantic
+acceptance.
+
+The guard reports the first recognized mismatch in its boundeATH: &str = "src/Uorc/Registry.lex.tex";
+
+/// Product scope and source-ownership policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Charter {
+    /// Human-readable product name.
+    pub product_name: String,
+    /// Product purpose.
+    pub purpose: String,
+    /// Current implementation status of this authority slice.
+    pub implementation_status: String,
+    /// Which source graph is authoritative.
+    pub authority_source: String,
+    /// Version-one scope.
+    pub scope: String,
+    /// Explicit non-scope.
+    pub non_scope: String,
+    /// Authority precedence.
+    pub precedence: String,
+    /// Source-ownership boundary.
+    pub source_ownership: String,
+}
+
+/// The five claim classes that must never be conflated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClaimBoundaries {
+    /// Complete implementation acceptance.
+    pub implementation_acceptance: String,
+    /// Formal losslessness.
+    pub losslessness: String,
+    /// Scoped minimum certification.
+    pub scoped_minimum: String,
+    /// Measured benchmark improvement.
+    pub benchmark_improvement: String,
+    /// External record acceptance.
+    pub external_record_acceptance: String,
+}
+
+/// Production, validation, measurement, and open-research boundaries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceBoundaries {
+    /// Dependencies permitted in shipped execution.
+    pub production_dependencies: String,
+    /// Validation-only imported authorities.
+    pub validation_authorities: String,
+    /// Whether and where exact external-authority bindings exist.
+    pub authority_bindings: String,
+    /// Empirical measurement evidence.
+    pub measurements: String,
+    /// Claims which remain open research questions.
+    pub open_research_claims: String,
+}
+
+/// Prior-art and research-hypothesis positioning.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResearchPosition {
+    /// Relevant prior-art boundary.
+    pub prior_art: String,
+    /// The research hypothesis under test.
+    pub hypothesis: String,
+    /// What is and is not claimed as novel.
+    pub novelty_status: String,
+    /// What is and is not claimed about compression performance.
+    pub performance_status: String,
+}
+
+/// Source-audit policy authored in LexLean rather than in the Rust gate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceAuthorityPolicy {
+    /// Exact first-line marker required on handwritten non-authoritative prose.
+    pub non_authority_marker: String,
+    /// Product subject token used when detecting handwritten normative rules.
+    pub normative_subject: String,
+}
+
+/// One generated conformance scenario owned by the LexLean registry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScenarioProjection {
+    /// Conformance ID.
+    pub id: String,
+    /// Honesty-level token.
+    pub level: String,
+    /// Suite name.
+    pub suite: String,
+    /// Scenario statement.
+    pub statement: String,
+    /// Given step text without the Gherkin keyword.
+    pub given: String,
+    /// When step text without the Gherkin keyword.
+    pub when: String,
+    /// Then step text without the Gherkin keyword.
+    pub then: String,
+}
+
+/// The complete project-owned authority graph needed by the repository model.
+#[derive(Debug, Clone)]
+pub struct AuthorityGraph {
+    /// Exact immut//! Mechanical projections and consistency checks for the LexLean claim policy.
+//! Classification decisions and their closed kernel cases live in `Uorc.Claims`.
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::{authority, Level, ModelError};
+
+/// Generated evidence-classification register.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimPolicy {
+    /// Versioned projection schema.
+    pub spec: String,
+    /// Source-owned explanation of the classification/evidence boundary.
+    pub summary: String,
+    /// Source-owned evidence constructors.
+    pub evidence_kinds: Vec<String>,
+    /// Source-owned claim constructors.
+    pub claim_kinds: Vece49bc558d38d0414b69a3e27c0380dfaf0f768fce968cb271a8f5f1637ee88",
+  "wire_official_reader": {
+    "repository": "https://github.com/UOR-Foundation/PrismPM",
+    "commit": "33953384ea84a6196a907982dc30f6a3c0d1a955",
+    "helper_source": "crates/conformance/src/bin/prismpm-semantic-source.rs",
+    "helper_source_sha256": "54fe3a32d1ba75f752df3c802e2fe91ee143fe1d0e01f5c8f32c2cab4d187603",
+    "helper_binary_sha256": "e10afd4f75b6fe239caaab391d75f529e43b88bb4371c536d731d90d0941fde7",
+    "cargo_lock_sha256": "b562b068eb404bf701f23baf4822f2bc0ad2e036391a01aeca57580c83a3ce39",
+    "vendored_lexlean_crate_sha256": "f2d579289052493d2c68274b10015d2cce544a78fbb876d73062184f09fb0a18",
+    "build_command": "cargo build --offline --locked -p repo-conformance --bin prismpm-semantic-source",
+    "read_command": "prismpm-semantic-source read < SOURCE",
+    "round_trip_command": "prismpm-semantic-source write < {\"source\":SOURCE_TEXT,\"value\":PARSED_MODULE}",
+    "api": "lexlean::sdk::read_module",
+    "round_trip_api": "lexlean::sdk::write_module"
+  },
+  "verified_wire_modules": [
+    {
+      "module": "Uorc.Wire.OwnedRead",
+      "source_path": "src/Uorc/Wire/OwnedRead.lex.tex",
+      "source_bytes": 8686,
+      "source_sha256": "50b6b1d412b507fb490b177e9faee2e7979d0fbad9c4116e7860ef3a438ef8fc",
+      "source_git_blob": "c6eceb1280dec4468074830faf5e6a8969e359d9",
+      "imports": [
+        "Uorc.Core.Heap",
+        "Uorc.Core.RuntimeValue"
+      ],
+      "parser_output_sha256": "4bda8b9b862d3add2ba66cf432f6a879175da08c85f653b3383dc4a61392886d",
+      "repeat_read": "byte_exact",
+      "notation_round_trip": "byte_exact",
+      "declaration_policies": [
+        {
+          "name": "begin",
+          "kind": "definition",
+          "executable": true,
+          "executable_explicit": true,
+          "axioms": [
+            "Quot.sound",
+            "propext"
+          ],
+          "production": null
+        },
+        {
+          "name": "step",
+          "kind": "definition",
+          "executable": true,
+          "executable_d sorted walk.
+For this revision it finds the same incompatibility earlier at
+`src/Uorc/Core/Heap.lex.tex:5`; the saved independent fixture retains the
+original `ProgramParseScenarios.lex.tex:15` failure.
+
+## Inspection bounds and safety
+
+Default inspection budgets are 64 KiB of configuration, at most 16 KiB per
+source prefix, 4 MiB of total bytes read, 4,096 directory entries and depth 64.
+Directory inventory is stopped before materializing unbounded entries.
+Exhausting any inspection budget delegates to the unchanged SDK rather than
+rejecting an input for its size. These are costs of this optional prediction,
+not new product limits, and they do not change configured LexLean limits.
+
+Source paths are opened relative to held directory descriptors with
+`O_NOFOLLOW`; symlink ancestors, escaping/absolute/noncanonical root paths and
+special source-root files are refused, without reading their target. Missing,
+unreadable or resource-unavailable paths delegate rather than being labeled a
+format mismatch. No proof/build/acquisition artifact is consumed as evidence.
+
+Operational diagnostics are distinct:
+
+- `UCF001`, exit 1: exact relative path, line and known language-1.1/native
+  incompatibility. This is a negative prediction of `LLP2003`.
+- `UCF002`, exit 2: unsafe path/type refusal, not a compiler format verdict.
+- `UCF003`, exit 2: invalid preflight invocation; filters<!-- uorc:non-authoritative -->
+# Bounded ULEB128 verification evidence (issue #10)
+
+The authorized specification is the repository LexLean graph. The missing codec
+semantics have been authored there from the issue requirements. The generated
+[UORC-VARINT.md](../../UORC-VARINT.md) is the reviewable contract projection.
+This evidence record supplies no independent wire-format rule.
+
+## Source and implementation
+
+`Uorc.Varint` contains the actual encoder, bounded prefix scanner, exact decoder,
+mathematical reference encoder, and general proof terms in LexLean's closed
+native-core representation. `Uorc.VarintContract` owns the contract summaries,
+typed-failure inventory, proof roots, and planted mutations. Registry ownership,
+the scenario, ledger, model projection, README, verification summary, and
+conformance table are updated together.
+
+Every acceptance invocation reconstructs the native declarations from LexLean
+source with the exact SDK. No handwritten Lean file, external product object,
+compiler replacement, or host implementation is an acceptance input. The six
+computational entry/helper roots have exact empty axiom sets. Each proof records
+its actual subset of the standard Lean foundations `propext`, `Quot.sound`, and
+`Classical.choice`; other axioms, including admitted proofs, are rejected.
+
+The mathematical encoder uses decreasing division. The executable encoder uses
+a ten-step structurally recursive implementation; `fuel_eq` and `bounded_eq`
+connect them for every admitted U64 value. The public domain check and refinement
+proof prevent fuel exhaustion from producing a truncated successful encoding.
+The prefix scanner also has a ten-byte allowance and preserves the untouched
+suffix. Exact decoding checks that suffix after validating the consumed prefix.
+All six failures have a distinct typed constructor and a byte offset.
+
+## General proofs and closed observations
+
+The proof inventory includes both public round trips, exact length, the
+one-to-ten-byte bound, minimum representation length, scanner reconstruction,
+prefix/suffix preservation, and executable/reference encoder refinement. These
+quantify over arbitrary inputs in their stated domains. They are not a finite
+sample advertised as a universal theorem.
+
+The 236 closed vectors are independent literal observations checked by kernel
+reflexivity against the computational definitions. They cover encode/decode
+pairs for 36 values, including every seven-bit width transition and U64 maximum;
+ten truncation lengths; nine overlong spellings; every overflowing terminal
+payload 2–127 in byte ten; continuation overflow; invalid byte positions; trailing
+suffixes; and inputs above the encoder domain. The genera<String>,
+    /// Source-owned research dispositions.
+    pub research_dispositions: Vec<String>,
+    /// Exact closed kernel case inventory.
+    pub theorem_roots: Vec<String>,
+    /// One classification record per evidence constructor.
+    pub evidence: Vec<EvidenceRule>,
+    /// Current research claims and their explicit source disposition.
+    pub open_claim: Vec<OpenClaim>,
+    /// Source-authored mutations executed against the actual kernel gate.
+    pub mutation: Vec<ClaimMutation>,
+}
+
+/// One source-owned negative test of an evidence promotion.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimMutation {
+    /// Stable test identifier.
+    pub id: String,
+    /// Closed source record to mutate.
+    pub definition: String,
+    /// Field to replace.
+    pub field: String,
+    /// Replacement constructor or string.
+    pub replacement: String,
+    /// Exact theorem whose kernel check must reject the promotion.
+    pub owner: String,
+}
+
+/// One LexLean-authored evidence classification.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceRule {
+    /// Evidence-kind constructor.
+    pub kind: String,
+    /// The claim this evidence supports, within its own scope only.
+    pub claim: String,
+    /// Existing template honesty level; a theorem does not invent a fourth level.
+    pub level: String,
+    /// Research disposition, independent of implementation evidence.
+    pub disposition: String,
+    /// Eligibility as implementation evidence, never whole-release acceptance.
+    pub implementation_evidence: bool,
+}
+
+/// A currently unevidenced research claim, protected by closed source proofs.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct OpenClaim {
+    /// Registered claim ID.
+    pub id: String,
+    /// Template honesty level.
+    pub level: String,
+    /// Current evidence kind.
+    pub evidence: String,
+    /// Current research disposition.
+    pub disposition: String,
+}
+
+fn bad(m

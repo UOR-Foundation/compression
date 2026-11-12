@@ -377,9 +377,10 @@ pub extern "C" fn plan_end() -> i32 {
 
 /// Code one planned frame. The input buffer holds `u32 pieceCount, u64
 /// piece*, u32 window, u64 windowLength*`, then the window frames and the
-/// frame, back to back. With `which` 0 or 1 the output is that scheduled
-/// strategy's archive, or empty when it cannot beat the raw archive (pass
-/// both to [`choose_frame`]); with any other `which`, the frame's archive.
+/// frame, back to back. With `which` from 0 to [`strategies`] less one the
+/// output is that scheduled strategy's archive, or empty when the frame
+/// schedules no such strategy or it cannot beat the raw archive (pass them
+/// all to [`choose_frame`]); with any other `which`, the frame's archive.
 #[no_mangle]
 pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
     finish(INPUT.with(|input| {
@@ -399,10 +400,12 @@ pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
             return Err(uorc::Error::Decode);
         }
         match which {
-            0 | 1 => Ok(
-                uorc::compress_strategy(frame, &pieces, &window, which as usize)
-                    .unwrap_or_default(),
-            ),
+            k if (0..uorc::portfolio::MAX_PLAN as i32).contains(&k) => {
+                Ok(
+                    uorc::compress_strategy(frame, &pieces, &window, which as usize)
+                        .unwrap_or_default(),
+                )
+            }
             _ => uorc::Planned::Code {
                 bytes: frame.to_vec(),
                 pieces,
@@ -413,10 +416,18 @@ pub extern "C" fn code_frame(which: i32, steps: u64) -> i32 {
     }))
 }
 
-/// The frame's archive from its two strategies' outputs of [`code_frame`]:
-/// the input buffer holds `u32 pieceCount, u64 piece*, u64 frameLength,
-/// frame, u64 firstLength, first, u64 secondLength, second` (an empty archive
-/// for a strategy that could not beat raw).
+/// Strategies a frame can schedule: the `which` values [`code_frame`] codes
+/// one strategy for.
+#[no_mangle]
+pub extern "C" fn strategies() -> i32 {
+    uorc::portfolio::MAX_PLAN as i32
+}
+
+/// The frame's archive from its strategies' outputs of [`code_frame`], in
+/// `which` order: the input buffer holds `u32 pieceCount, u64 piece*, u64
+/// frameLength, frame`, then `u64 archiveLength, archive` for each strategy
+/// (an empty archive for a strategy that is not scheduled or could not beat
+/// raw).
 #[no_mangle]
 pub extern "C" fn choose_frame() -> i32 {
     finish(INPUT.with(|input| {
@@ -428,16 +439,18 @@ pub extern "C" fn choose_frame() -> i32 {
         let pieces = f.pieces()?;
         let n = f.len()?;
         let frame = f.take(n)?;
-        let mut archive = || -> Result<Option<Vec<u8>>, uorc::Error> {
+        let mut archives = Vec::new();
+        while f.at < f.bytes.len() {
             let n = f.len()?;
-            Ok(Some(f.take(n)?.to_vec()).filter(|a| !a.is_empty()))
-        };
-        let (first, second) = (archive()?, archive()?);
+            archives.push(Some(f.take(n)?.to_vec()).filter(|a| !a.is_empty()));
+        }
         f.end()?;
-        if pieces.iter().sum::<u64>() != frame.len() as u64 {
+        if pieces.iter().sum::<u64>() != frame.len() as u64
+            || archives.len() > uorc::portfolio::MAX_PLAN
+        {
             return Err(uorc::Error::Decode);
         }
-        Ok(uorc::choose(frame, &pieces, first, second))
+        Ok(uorc::choose(frame, &pieces, archives))
     }))
 }
 
@@ -790,11 +803,15 @@ mod tests {
                         request.extend(*w);
                     }
                     request.extend(frame);
-                    let (c0, first) = run(&request, || code_frame(0, 0));
-                    let (c1, second) = run(&request, || code_frame(1, 0));
-                    assert_eq!((c0, c1), (OK, OK));
+                    let parts: Vec<Vec<u8>> = (0..strategies())
+                        .map(|k| {
+                            let (c, part) = run(&request, || code_frame(k, 0));
+                            assert_eq!(c, OK);
+                            part
+                        })
+                        .collect();
                     let mut choice = head;
-                    for part in [frame, &first[..], &second[..]] {
+                    for part in std::iter::once(frame).chain(parts.iter().map(|p| &p[..])) {
                         choice.extend((part.len() as u64).to_le_bytes());
                         choice.extend(part);
                     }

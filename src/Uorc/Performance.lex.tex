@@ -1653,6 +1653,159 @@ theorem{
   axioms: [Quot.sound, propext]
 }
 
+inductive{
+  name: CoderEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: bit, fields: []}, {name: byte, fields: []}]
+}
+
+definition{
+  name: emittedBytes,
+  parameters: [events : (List CoderEvent)],
+  result: Nat,
+  body: (match events
+    | List.nil => 0
+    | List.cons head tail => (match head
+      | CoderEvent.bit => (emittedBytes tail)
+      | CoderEvent.byte => ((emittedBytes tail) + 1))),
+  recursive_argument: events
+}
+
+definition{
+  name: saturate,
+  parameters: [count : Nat, limit : Nat],
+  result: Nat,
+  body: (prim subtract count (prim subtract count limit : Nat) : Nat)
+}
+
+definition{
+  name: seenBelow,
+  parameters: [cap : Nat, events : (List CoderEvent)],
+  result: Nat,
+  body: (match events
+    | List.nil => 0
+    | List.cons head tail => (match head
+      | CoderEvent.bit => (seenBelow cap tail)
+      | CoderEvent.byte => (saturate ((seenBelow cap tail) + 1) (cap + 1)))),
+  recursive_argument: events
+}
+
+theorem{
+  name: saturateStep,
+  parameters: [count : Nat, limit : Nat],
+  statement: ((saturate ((saturate count limit) + 1) limit) = (saturate (count + 1) limit)),
+  proof: linear_arithmetic{definitions: [saturate]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: ledgerSaturatesAtTheCap,
+  parameters: [cap : Nat, events : (List CoderEvent)],
+  statement: ((seenBelow cap events) = (saturate (emittedBytes events) (cap + 1))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [emittedBytes, saturate, seenBelow]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: simplify{definitions: [emittedBytes, ih, seenBelow]},
+              binders: [],
+              constructor: bit
+            },
+            {
+              proof: simplify{definitions: [emittedBytes, ih, saturateStep, seenBelow]},
+              binders: [],
+              constructor: byte
+            }
+          ],
+          scrutinee: x
+        },
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: events
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encodedPayload,
+  parameters: [cap : Nat, count : Nat],
+  result: Nat,
+  body: (if (count <? cap) then (count + 5) else 0)
+}
+
+theorem{
+  name: stopKeepsEveryPayloadBelowTheCap,
+  parameters: [cap : Nat, emitted : Nat],
+  statement: ((emitted < cap) -> ((encodedPayload cap (saturate emitted (cap + 1))) = (emitted + 5))),
+  proof: linear_arithmetic{definitions: [encodedPayload, saturate]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: stopAbandonsExactlyAtTheCap,
+  parameters: [cap : Nat, emitted : Nat],
+  statement: ((cap <= emitted) -> ((encodedPayload cap (saturate emitted (cap + 1))) = 0)),
+  proof: linear_arithmetic{definitions: [encodedPayload, saturate]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{name: oneSide, parameters: [w : Nat, part : Nat], result: Nat, body: (part + 1)}
+
+definition{
+  name: zeroSide,
+  parameters: [w : Nat, part : Nat],
+  result: Nat,
+  body: (prim subtract (prim subtract w 1 : Nat) part : Nat)
+}
+
+theorem{
+  name: aOneNarrowsTheWidth,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> (((prim multiply 4096 part : Nat) <= (prim multiply 4095 (prim subtract w 1 : Nat) : Nat)) -> ((oneSide w part) < w))),
+  proof: linear_arithmetic{definitions: [oneSide]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: aOneSpendsAFraction,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> (((prim multiply 4096 part : Nat) <= (prim multiply 4095 (prim subtract w 1 : Nat) : Nat)) -> ((prim subtract w 1 : Nat) <= (prim multiply 4096 (prim subtract w (oneSide w part) : Nat) : Nat)))),
+  proof: linear_arithmetic{definitions: [oneSide]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: aZeroNarrowsTheWidth,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> ((zeroSide w part) < w)),
+  proof: linear_arithmetic{definitions: [zeroSide]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: aZeroSpendsAFraction,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> (((prim subtract w 1 : Nat) < (prim multiply 4096 (part + 1) : Nat)) -> ((prim subtract w 1 : Nat) < (prim multiply 4096 (prim subtract w (zeroSide w part) : Nat) : Nat)))),
+  proof: linear_arithmetic{definitions: [zeroSide]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: exactRawDecision,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "A frame is stored raw exactly when every scheduled candidate's coder ledger reaches the raw archive less the candidate's form; the encoder abandons a candidate at that byte and at no other (stopKeepsEveryPayloadBelowTheCap, stopAbandonsExactlyAtTheCap), so no decision is made from a statistic of the input. No exact rule decides earlier: until the ledger reaches the cap, a continuation the model codes in few bytes still makes the coded frame the smaller. A coded bit narrows the width by at least one part in 4096 (the spend theorems), so the rest of a frame costs at least that much; measured, every profile codes random bytes to 0.28 to 0.30 percent over raw, so the earliest exact stop on random input is at about 99.7 percent of the frame. The cost of input the model cannot shrink is therefore the cost of the coder's pass over it, and is lowered only by passes that write the same bytes in less time."})
+}
+
 structure{
   name: Facet,
   type_parameters: [],

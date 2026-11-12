@@ -483,6 +483,7 @@ impl Point {
                 Plan::Fixed(Strategy {
                     x86: self.x86.ok_or_else(bad)?,
                     profile,
+                    state: 0,
                 })
             }
             _ => return Err(bad()),
@@ -1204,6 +1205,7 @@ mod tests {
             plan: Plan::Fixed(Strategy {
                 x86: false,
                 profile: uorc::ncm::V03,
+                state: 0,
             }),
             ..shipped.clone()
         };

@@ -62,6 +62,7 @@ impl FrontierDecider {
                 Plan::Fixed(Strategy {
                     x86: word & portfolio::X86_BIT != 0,
                     profile: word & !portfolio::X86_BIT,
+                    state: e[portfolio::ENTRY - 1],
                 })
             }
             Point::Portfolio {

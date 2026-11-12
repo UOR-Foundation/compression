@@ -78,6 +78,13 @@ fn samples() -> Vec<Vec<u8>> {
 
 /// The frame a scheduled strategy writes for `frame` on its own.
 fn strategy_frame(frame: &[u8], strategy: portfolio::Strategy) -> Option<Vec<u8>> {
+    if strategy.state > 0 {
+        let state = uorc::states::state(strategy.state)?;
+        let id = uorc::states::identity(strategy.state)?;
+        let payload = ncm::encode_warm(state, frame, strategy.profile)?;
+        let lengths = [frame.len() as u64];
+        return archive::state_archive(false, strategy.profile, &id, &lengths, &payload);
+    }
     let data = if strategy.x86 {
         x86::filter(frame, false, 0).0
     } else {
@@ -222,6 +229,9 @@ fn a_frame_coded_at_any_point_decodes_to_its_input_uc_perf_05() {
                 let info = uorc::inspect(&alone).unwrap();
                 let point = performance::CodecPoint::of(&info);
                 assert_eq!(point.profile & performance::POINT_X86 != 0, strategy.x86);
+                // and names the κ of the state the frame continues
+                let kappa = uorc::states::kappa_bytes(strategy.state).unwrap_or([0; 32]);
+                assert_eq!(point.state, kappa);
             }
         }
         let kept = uorc::compress_frame(&frame, 0).unwrap();
@@ -353,4 +363,94 @@ fn a_consolidation_spends_exactly_its_gain_uc_perf_09() {
         }
         assert!(shipped.cost() <= incumbent.cost());
     }
+}
+
+#[test]
+fn the_encoder_stops_exactly_at_its_ledger_cap_uc_perf_10() {
+    proved(&[
+        "saturateStep",
+        "ledgerSaturatesAtTheCap",
+        "stopKeepsEveryPayloadBelowTheCap",
+        "stopAbandonsExactlyAtTheCap",
+        "aOneNarrowsTheWidth",
+        "aOneSpendsAFraction",
+        "aZeroNarrowsTheWidth",
+        "aZeroSpendsAFraction",
+    ]);
+    assert!(module().contains("name: exactRawDecision,"));
+    let mid = portfolio::MID;
+    for data in [text(20_000), noise(20_000, 7)] {
+        for profile in [ncm::FULL, mid, ncm::V03] {
+            let full = ncm::encode_below(&[], &data, profile, usize::MAX).expect("payload");
+            // payload = 4 header bytes + emitted + 1 final byte, so the cap
+            // (stop - 5) is reached exactly when stop <= payload length
+            let l = full.len();
+            for stop in l - 3..=l + 3 {
+                let bounded = ncm::encode_below(&[], &data, profile, stop);
+                if stop > l {
+                    assert_eq!(bounded.as_deref(), Some(&full[..]), "{profile:#x} {stop}");
+                } else {
+                    assert_eq!(bounded, None, "{profile:#x} {stop}");
+                }
+            }
+        }
+    }
+    // the model cannot shrink random bytes: every shipped profile codes them
+    // to more than raw, so the raw frame is decided by the ledger alone
+    let random = noise(1 << 16, 11);
+    for profile in [ncm::FULL, mid, ncm::V03] {
+        let payload = ncm::encode_below(&[], &random, profile, usize::MAX).expect("payload");
+        assert!(payload.len() > random.len(), "{profile:#x}");
+    }
+}
+
+#[test]
+fn a_shared_pass_writes_each_twins_own_payload_uc_perf_11() {
+    let mid = portfolio::MID;
+    assert_eq!(ncm::FULL ^ mid, ncm::F_SEL);
+    for data in [text(30_000), noise(30_000, 3)] {
+        let full = ncm::encode_learn_below(&[], &data, ncm::FULL, usize::MAX);
+        let alone = ncm::encode_below(&[], &data, mid, usize::MAX);
+        let (a, b) = ncm::encode_pair_below(&[], &data, ncm::FULL, true, [usize::MAX; 2]);
+        assert_eq!(a, full);
+        assert_eq!(b, alone);
+        // the other direction, without learning
+        let (b2, a2) = ncm::encode_pair_below(&[], &data, mid, false, [usize::MAX; 2]);
+        assert_eq!(b2.map(|p| p.0), alone);
+        assert_eq!(a2, ncm::encode_below(&[], &data, ncm::FULL, usize::MAX));
+        // either side abandoned, the other is unchanged
+        let la = full.as_ref().map_or(0, |p| p.0.len());
+        let lb = alone.as_ref().map_or(0, |p| p.len());
+        assert_eq!(
+            ncm::encode_pair_below(&[], &data, ncm::FULL, true, [la / 2, usize::MAX]),
+            (None, alone.clone())
+        );
+        assert_eq!(
+            ncm::encode_pair_below(&[], &data, ncm::FULL, true, [usize::MAX, lb / 2]),
+            (full.clone(), None)
+        );
+    }
+    // both twins learning in one pass: each payload and learned profile is
+    // the one its own learning pass finds, in both directions, after a window
+    for (history, data) in [
+        (Vec::new(), text(30_000)),
+        (text(9_000), text(20_000)),
+        (Vec::new(), noise(30_000, 3)),
+    ] {
+        for profile in [ncm::FULL, mid] {
+            let own = |p: u32| ncm::encode_learn_below(&history, &data, p, usize::MAX);
+            let (a, b) = ncm::encode_pairs_learn_below(&history, &data, profile, [usize::MAX; 2]);
+            assert_eq!(a, own(profile), "{profile:#x}");
+            assert_eq!(b, own(profile ^ ncm::F_SEL), "{profile:#x}");
+        }
+    }
+    // the client codes twins in one pass when no core is spare: the archives
+    // are the same at every thread count
+    let input: Vec<u8> = text(300_000).into_iter().chain(noise(200_000, 5)).collect();
+    let mut one = Vec::new();
+    let mut four = Vec::new();
+    uorc::compress_stream(&input[..], &mut one, 0, 1).expect("compress");
+    uorc::compress_stream(&input[..], &mut four, 0, 4).expect("compress");
+    assert_eq!(one, four);
+    assert_eq!(uorc::decompress(&one, u64::MAX).expect("decode"), input);
 }
