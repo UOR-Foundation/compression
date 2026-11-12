@@ -39,8 +39,10 @@ def libraries():
     # every block above is the v0.3 library, unchanged; the profiled coder (ncm_model) follows
     g.v03_blocks = len(g.blocks)
     nprof = ncmgraph.profile_library(g)
-    # every block above is the v0.4 library, unchanged; the warm-state coder follows
+    # every block above is the v0.4 library, unchanged; the current profiled coder (ncm_model: the profile word's
+    # table fields) and the warm-state coder follow
     g.v04_blocks = len(g.blocks)
+    nprof = ncmgraph.profile_library(g, prefix='ncmT', model=ncmgraph.ncm_model, name='ncmRunTables')
     nwarm = ncmgraph.warm_library(g)
     runs = {'ncmw': nwarm, 'ulz': urun, 'ncm': nrun, 'ulz1': uwith, 'ulz2': uwith, 'ncm1': nwith, 'ncm2': nwith,
             'ncmp': nprof, 'ncmp1': nprof, 'ncmp2': nprof}

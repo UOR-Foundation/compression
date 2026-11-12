@@ -15,6 +15,8 @@ structure{
   fields: [
     {name: threads, type: Nat},
     {name: memory, type: Nat},
+    {name: workers, type: Nat},
+    {name: keepsTables, type: Bool},
     {name: page, type: Nat},
     {name: largePage, type: Nat},
     {name: line, type: Nat},
@@ -109,6 +111,13 @@ structure{
     {name: subcharacteristic, type: String},
     {name: text, type: String}
   ]
+}
+
+definition{
+  name: twoHosts,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "compatibility", subcharacteristic := "interoperability", text := "One Host structure has two values in the client. The declared decode host (uorc performance::Host, PAGE_WORKER by default, --host-memory otherwise; Uorc.Page::pageWorker) sets threads, memory, workers and keepsTables, and is the only host an archive's facets are derived from: the archive never depends on the machine that compressed it. The running host (uorc region::Host::current, printed by uorc host) fills every field from the machine and only places regions, which moves where a table's entries live and never their values."})
 }
 
 definition{

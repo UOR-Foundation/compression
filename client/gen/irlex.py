@@ -30,7 +30,7 @@ class Lex:
         self.gkey, k = {}, 0
         for g, w in prog.globals.items():
             self.gkey[g] = k; k += w
-        assert k <= min(prog.tables.values()), 'globals overlap the first table'
+        self.gbytes = k   # the bytes of `glob`
         self.L = Layout(module[:4] + 'St', self.tables, scal, {})
         self.St = self.L.name
         self.input = input_field

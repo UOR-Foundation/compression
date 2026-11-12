@@ -136,7 +136,7 @@ definition{
   name: uc_opt_01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-OPT-01", level := "build", suite := "scoped-optimality", statement := "Compress returns the smallest of the archives it checked, which are the raw archive, the ncm archive (over the x86 branch filter for x86 code) and any search candidate within the step budget; no minimum beyond that candidate set is claimed.", given := "empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs", when := "uorc compress chooses its archive", expected := "the archive is never larger than the raw archive of the same length, and compressible text takes a strictly smaller archive", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-OPT-01", level := "build", suite := "scoped-optimality", statement := "For each frame, compress returns the least of the archives it checked, by bytes and then by decode steps: the raw archive, the trials its frame's portfolio schedules (coder profiles, named model states, and the x86 branch filter where the filter changes the input) and any search candidate within the step budget; no minimum beyond that candidate set is claimed.", given := "empty, single-byte, text, structured binary, noise and invalid UTF-8 inputs", when := "uorc compress chooses its archive", expected := "the archive is never larger than the raw archive of the same length, and compressible text takes a strictly smaller archive", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
@@ -172,41 +172,6 @@ definition{
   parameters: [],
   result: ConformanceRow,
   body: (record ConformanceRow {id := "AUTH-NIST-SHA256-LONG", level := "some-true", suite := "integrity", statement := "The locked NIST CAVP SHA-256 long byte-oriented response data supplies 64 independent expected digests, reproduced as finite oracle checks.", given := "the original response bytes attributed to NIST and acquired through the pinned public mirror", when := "the complete importer and source-generated integrity runtime execute the locked long corpus", expected := "all 64 declared digest cases are reproduced without promoting informal test evidence into CAVP certification or a universal proof", evidenceKind := "imported_fact", researchDisposition := "not_measured"})
-}
-
-definition{
-  name: streamMaxIntegrity,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-SHA-02", level := "build", suite := "integrity", statement := "The distinct UORC-SHA256-STREAM-MAX-v1 construction streams arbitrary finite input with standard-domain frame bounds, typed cancellation, explicit terminal framing and independently checked reduced-capacity segmentation controls.", given := "the source-owned maximum-frame profile, separate diagnostic profile and independent framing fixtures", when := "the integrity gate executes boundary, partition, cancellation and compression-call controls and rejects framing defects", expected := "stream bytes bind under the stated SHA-256 collision-resistance assumption, exact framing bytes and measured calls agree, and production capacity remains distinct from diagnostic limits", evidenceKind := "fixture_result", researchDisposition := "not_measured"})
-}
-
-definition{
-  name: ownedArchiveIntegrity,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-INT-02", level := "build", suite := "archive-integrity", statement := "Format3/machine1 explicitly binds STREAM-MAX-v1 to charged image spans, preserves format2 CHAIN-v1 semantics, and seals input, basis and checkpoint identity domains without replacing exact reconstruction comparison.", given := "the explicit integrity profile map, charged ownership transitions and independent byte fixtures", when := "source-generated runtime controls, actual reconstruction and planted integrity defects execute", expected := "profile and ownership mismatches reject, chunking preserves digests, exact bytes reconstruct, and restored controls pass", evidenceKind := "fixture_result", researchDisposition := "not_measured"})
-}
-
-definition{
-  name: collisionEvidence,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-INT-03", level := "build", suite := "archive-integrity", statement := "Source-owned checker soundness and constructive finite backward reduction are kernel checked for actual canonical framed messages and shape-valid source-SHA-authenticated traces, without global hash injectivity or an assumed frame codec. The decoder-to-authenticated-trace bridge and full product acceptance remain distinct.", given := "the byte equality bridge, actual candidate checker, canonical framing and finite source-SHA-authenticated reverse traces", when := "the saved official component compiler verifies and replays the scoped proof source, then digest-guard, returned-witness and counter defects are planted and restored", expected := "the scoped proofs and exact axiom policies pass; actual false checksum/witness/counter behavior rejects at new proof owners; restored attestations agree without promoting this to original pinned product acceptance", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
-}
-
-definition{
-  name: orderedIntegrityTranscript,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-INT-04", level := "build", suite := "archive-integrity", statement := "Source-owned actual-call relations establish ordered hash admissions, drained selected-view EOF and checked cumulative basis/main work; composed generated-model controls reject failed-prefix resets and late corruption. Consumer snapshot preservation, canonical digest refinement and complete archive EOF remain separate obligations.", given := "retained immutable input snapshots, actual producer spans and charged hash operations", when := "ordered source transcripts, undrained-span EOF, cancellation, cumulative basis/main work and late-corruption controls execute through generated source models", expected := "only actual ordered source byte admissions and drained boundaries qualify; failed prefixes remain charged once, exhausted counters fail without reset, and corrupt late bytes reject with owned cleanup", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
-}
-
-definition{
-  name: canonicalIntegrityRefinement,
-  parameters: [],
-  result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-INT-05", level := "build", suite := "archive-integrity", statement := "Source-owned completed-view and continuous publication proofs derive the actual chosen-profile digest and emitted-image reads, discharging canonical driver termination and OwnedHash control/cleanup lifetime for both explicit format identities and arbitrary finite source input. Initial source-layout correspondence and full product acceptance remain separate consumer obligations.", given := "actual completed ordered views, continuous actual finish/publication transitions and source-derived profile progress and lifetime laws", when := "the composed source theorem, all-declaration audits, exact source mutations and restored generated-model controls are replayed", expected := "canonical digest equality and emitted-image reads follow without caller-supplied hash success or preservation flags; source-layout and full byte reconstruction claims require their own consumer proofs", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{
@@ -276,7 +241,7 @@ definition{
   name: performanceUndominatedChoice,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-PERF-08", level := "build", suite := "performance-theorems", statement := "Choosing by fewer bytes and then fewer steps, from the raw frame and any list of trials, keeps a trial that is no later in that order than every trial in the list and than the raw frame (chosenIsLeast, chosenIsNoWorseThanRaw), has exactly the size the bytes-only rule settles to (chosenKeepsTheSize), and is dominated by no trial it is no later than (leastIsUndominated); a trial no earlier than the kept one changes nothing (excludedTrial theorems). The rule lowers decode steps on byte ties at no cost in size. The released client breaks byte ties by schedule order until its model export adopts this rule.", given := "the Uorc.Performance module and the native choice functions in uorc::performance", when := "the locked SDK verifies the module and the native test runs the native choice over every list of three small trials", expected := "the choice theorems are kernel-checked and the native choice is least in bytes then steps, has the bytes-only size, and is dominated by no listed trial", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+  body: (record ConformanceRow {id := "UC-PERF-08", level := "build", suite := "performance-theorems", statement := "Choosing by fewer bytes and then fewer steps, from the raw frame and any list of trials, keeps a trial that is no later in that order than every trial in the list and than the raw frame (chosenIsLeast, chosenIsNoWorseThanRaw), has exactly the size the bytes-only rule settles to (chosenKeepsTheSize), and is dominated by no trial it is no later than (leastIsUndominated); a trial no earlier than the kept one changes nothing (excludedTrial theorems). The rule lowers decode steps on byte ties at no cost in size. The client's choice is this rule, in the model (Client.pick) and natively (compress_is_the_chosen_trial_uc_perf_08).", given := "the Uorc.Performance module and the native choice functions in uorc::performance", when := "the locked SDK verifies the module and the native test runs the native choice over every list of three small trials", expected := "the choice theorems are kernel-checked and the native choice is least in bytes then steps, has the bytes-only size, and is dominated by no listed trial", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
 }
 
 definition{
@@ -298,6 +263,20 @@ definition{
   parameters: [],
   result: ConformanceRow,
   body: (record ConformanceRow {id := "UC-PERF-11", level := "build", suite := "performance-theorems", statement := "Input the model cannot shrink costs one coder pass per scheduled candidate, so that cost falls only through passes that write the same bytes in less time. Strategies whose profiles differ only in mixer selection read the same contexts, slots, match and repeat state and mixers 2 and 3, so when no core is spare they are coded in one shared pass that writes each strategy's own payload (ncm::encode_pair_below). It changes no byte: the shared pass equals the two separate passes in both directions of the pair and when either side is abandoned, and the client's archives do not depend on the thread count.", given := "the native ncm encoder and the client's portfolio", when := "the native test codes text and random bytes under each twin pair in one shared pass and in separate passes, with each side abandoned in turn, and compresses with one thread and with several", expected := "every shared-pass payload equals its separate pass and the archives are the same at every thread count", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceWindowStep,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-16", level := "build", suite := "performance-theorems", statement := "A frame's window facets step on its chosen archive (Client.stepWindow): its coding is recoded over one more earlier frame of its block at a time, then with one more match table bit at a time, and each step is kept only while the archive gets strictly shorter and the decoder fits the declared decode host; each facet stops at the first step that does not pay or does not fit, so no depth or table size is fixed. A frame is therefore the portfolio's archive byte for byte or a strictly shorter one, and it decodes to the frame.", given := "the native client's window step and its decoders", when := "the native test compresses a frame that repeats the oldest frame of its block and a frame no earlier frame holds", expected := "the first is coded over all three earlier frames and is strictly smaller than over the last two, the second is the portfolio's archive or a strictly shorter one, and both decode", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceWindowEntry,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-17", level := "build", suite := "performance-theorems", statement := "The profiled window entry over k earlier frames is one form for every k of at least 1 (Archive.profilePrefix, Archive.profileTail): three graph nodes per frame concatenate basis roots 1 to k in order, and the call to the coder reaches its payload and profile word three nodes further back per frame. For one and two frames it is the fixed entry byte for byte, and the decoder reads k from the entry, so window depth is a facet of the archive rather than a constant of the format.", given := "the native window entry template and the native window decoder", when := "the native test builds entries over 1 to 6 frames, with and without the x86 filter", expected := "the one- and two-frame entries equal the fixed ones, and every deeper entry names its depth and decodes to its frame", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 
 definition{

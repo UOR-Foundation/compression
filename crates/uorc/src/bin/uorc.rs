@@ -7,8 +7,8 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 const USAGE: &str = "usage:
-  uorc compress   [--steps N] [--threads N] [--force] [--stats] <input|-> [-o <output|->]
-  uorc compress   [--steps N] [--threads N] [--force] [--stats] <file|dir>... -o <archive>
+  uorc compress   [--steps N] [--threads N] [--host-memory B] [--force] [--stats] <input|-> [-o <output|->]
+  uorc compress   [--steps N] [--threads N] [--host-memory B] [--force] [--stats] <file|dir>... -o <archive>
   uorc decompress [--work N]  [--threads N] [--force|--resume] [--stats] <input|-> [-o <output|->]
   uorc inspect    [--json] <archive|->
   uorc verify     [--work N]  [--threads N] [--json] <archive|-> [original|-]
@@ -21,10 +21,20 @@ the program search for N steps and keeps the smallest. --best is accepted for
 earlier scripts and changes nothing. Archives name the built-in decoder basis
 by identity, so they carry no decoder kernel.
 
+Each frame's context table grows one bit at a time past the size its length
+gives while that makes the archive smaller and a decoder on the declared host
+can hold it; the frame records the table it was coded with. The declared host
+is one of the page's workers (512 MiB, with the tables it keeps between
+frames), so every archive decodes on the page; --host-memory B declares a
+native decoder of B bytes instead.
+
 Input of any size streams through 8 MiB frames, compressed --threads N at a
 time (default: every core) and written back to back; each frame may match
 into up to two frames before it in its block of four, and blocks decompress
-on separate cores. Content repeated anywhere in the input (64 KiB or more,
+on separate cores. Archives are written for a decode host that runs a frame
+on one thread (one of the page's workers).
+The archive depends on the input and the declared host, never on --threads.
+Content repeated anywhere in the input (64 KiB or more,
 found by content-defined anchors) is stored once, as a reference to its
 earlier copy. Without -o, compress writes <input>.uorc and decompress
 strips a .uorc suffix (or writes <input>.out). '-' reads stdin or writes
@@ -135,6 +145,17 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, Failure> {
                         .parse::<usize>()
                         .map_err(|_| usage(format!("--threads: not a number: {value}")))?,
                 );
+            }
+            "--host-memory" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| usage("--host-memory needs a number of bytes"))?;
+                let memory = value
+                    .parse::<u64>()
+                    .ok()
+                    .filter(|&m| m > 0)
+                    .ok_or_else(|| usage(format!("--host-memory: not a byte count: {value}")))?;
+                uorc::performance::declare_host(memory);
             }
             "--stats" => options.stats = true,
             "--best" => {}

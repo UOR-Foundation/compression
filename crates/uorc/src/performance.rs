@@ -35,6 +35,125 @@ pub const POINT_X86: u32 = 1 << 31;
 /// Domain tag of a codec point's identity.
 pub const CODEC_POINT_TAG: &[u8] = b"uorc/codec-point/1";
 
+/// A declared decode host (`Uorc.Performance.Host`): the bytes one frame's
+/// decoder may hold there, counted as that host holds them
+/// ([`Host::footprint`]). A facet that sets decoder memory (the tables'
+/// bits) steps only while the frame still fits the host the archive is
+/// written for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Host {
+    /// Bytes one frame's decoder may hold.
+    pub memory: u64,
+    /// The host keeps a spare set of the coder's tables between frames (the
+    /// page's WebAssembly worker does, so the next frame allocates nothing)
+    /// and a copy of the frame's output.
+    pub keeps_tables: bool,
+    /// Frames the host decodes at once, each holding its own decoder (one
+    /// for a page worker: the page's pool gives each frame its own worker).
+    pub workers: u64,
+    /// Threads one frame's decoder runs on: a frame is cut into streams
+    /// ([`crate::ncm::streams`]) only for a host with more than one. Unlike
+    /// memory this boundary is not hard: a host with fewer threads still
+    /// decodes the frame, with more work, and one with more is not fully
+    /// used.
+    pub threads: u64,
+}
+
+impl Host {
+    /// Bytes this host holds decoding a frame of `n` bytes after `history`
+    /// bytes (with `warm`, a model state) under `profile`:
+    /// [`crate::ncm::decoder_bytes`], and on a host that keeps them, the
+    /// spare tables ([`crate::ncm::table_bytes`]) and the output copy.
+    pub fn footprint(self, n: u64, history: u64, warm: bool, profile: u32) -> u64 {
+        let decoder = crate::ncm::decoder_bytes(n, history, warm, profile);
+        if self.keeps_tables {
+            decoder
+                .saturating_add(crate::ncm::table_bytes(n, history, warm, profile))
+                .saturating_add(n)
+        } else {
+            decoder
+        }
+    }
+
+    /// Warmed models (a model state replayed through the coder, kept so a
+    /// later frame continuing the same state replays nothing) this host keeps
+    /// beside the decoder of a frame of `n` bytes coded after a state of
+    /// `state` bytes under `profile`: as many as the memory the frame's
+    /// decoders leave fits, each holding [`crate::ncm::warmed_bytes`]; none
+    /// where nothing is left (`Uorc.Performance::warmedKept`). Keeping one changes
+    /// the time a decode takes, never its bytes.
+    pub fn warmed_kept(self, n: u64, state: u64, profile: u32) -> u64 {
+        let each = crate::ncm::warmed_bytes(n, state, profile).max(1);
+        self.warmed_room(n, state, profile) / each
+    }
+
+    /// Bytes the warmed models kept beside this frame's decoders may hold,
+    /// whatever frame and table size each was warmed for: the host's memory
+    /// less the frame's decoders.
+    pub fn warmed_room(self, n: u64, state: u64, profile: u32) -> u64 {
+        let decoders = self
+            .footprint(n, state, true, profile)
+            .saturating_mul(self.workers.max(1));
+        self.memory.saturating_sub(decoders)
+    }
+
+    /// Whether this host holds the frame's decoder.
+    pub fn holds(self, n: u64, history: u64, warm: bool, profile: u32) -> bool {
+        self.footprint(n, history, warm, profile)
+            .saturating_mul(self.workers.max(1))
+            <= self.memory
+    }
+}
+
+/// Page workers per GiB of device memory: the page's host rule
+/// (`Uorc.Page::pageWorker`, field `workersPerGiB`; held equal by the test
+/// `page_worker_is_the_pages_host_rule`). Stated by the page, not yet
+/// derived from the device.
+pub const WORKERS_PER_GIB: u64 = 2;
+
+/// The product's smallest declared decode host, and the default: one of the
+/// page's WebAssembly workers, whose share of the device is
+/// 1 GiB / [`WORKERS_PER_GIB`] under the page's host rule
+/// (`Uorc.Page::pageWorker`). Every archive the client writes by default
+/// decodes there.
+pub const PAGE_WORKER: Host = Host {
+    memory: (1 << 30) / WORKERS_PER_GIB,
+    keeps_tables: true,
+    workers: 1,
+    // a WebAssembly worker runs one thread (`Uorc.Page::pageWorker`, field
+    // `frameThreads`; `Client.hostThreads`)
+    threads: 1,
+};
+
+static DECLARED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Declare a native decoder of `memory` bytes as the host the archives this
+/// process writes are for (the CLI's `--host-memory`). Archives for a larger host may not decode on the
+/// page's worker.
+pub fn declare_host(memory: u64) {
+    DECLARED.store(memory, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The decode host archives are written for: [`PAGE_WORKER`] unless the
+/// process declared a native decoder of some bytes ([`declare_host`]).
+/// Its frame decoder runs on one thread: in v0.5 a frame is one stream
+/// (the frame word's streams and epoch fields are reserved).
+pub fn declared_host() -> Host {
+    let threads = PAGE_WORKER.threads;
+    match DECLARED.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => Host {
+            threads,
+            ..PAGE_WORKER
+        },
+        memory => Host {
+            memory,
+            keeps_tables: false,
+            workers: 1,
+            threads,
+        },
+    }
+}
+
 /// Model inputs an ncm frame coded under `profile` evaluates per bit.
 pub fn inputs(profile: u32) -> u32 {
     (profile & ((1 << CONTEXT_BITS) - 1)).count_ones()
@@ -198,7 +317,82 @@ pub fn consolidate(candidate: Trial, incumbent: Trial) -> Trial {
 
 #[cfg(test)]
 mod tests {
+    /// The value of `key` in the body of the definition `name` of a model
+    /// module (`key := value`, or the whole literal body when `key` is empty).
+    fn stated(module: &str, name: &str, key: &str) -> u64 {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(module);
+        let text =
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let decl = text
+            .split("definition{")
+            .find(|d| d.contains(&format!("name: {name},")))
+            .unwrap_or_else(|| panic!("{module} defines no {name}"));
+        let body = &decl[decl.find("body: ").expect("a body") + 6..];
+        let value = if key.is_empty() {
+            body
+        } else {
+            &body[body.find(&format!("{key} := ")).expect("the field") + key.len() + 4..]
+        };
+        let end = value
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(value.len());
+        value[..end].parse().expect("a natural")
+    }
+
+    #[test]
+    fn page_worker_is_the_pages_host_rule() {
+        let per_gib = stated("../../src/Uorc/Page.lex.tex", "pageWorker", "workersPerGiB");
+        assert_eq!(super::WORKERS_PER_GIB, per_gib);
+        let client = stated("../../client/src/Uorc/Client.lex.tex", "hostMemory", "");
+        assert_eq!(super::PAGE_WORKER.memory, client);
+        let gate = stated("../../src/Uorc/Page.lex.tex", "workerMemory", "threshold");
+        assert_eq!(super::PAGE_WORKER.memory, gate << 20);
+        let threads = stated("../../src/Uorc/Page.lex.tex", "pageWorker", "frameThreads");
+        assert_eq!(super::PAGE_WORKER.threads, threads);
+        let client = stated("../../client/src/Uorc/Client.lex.tex", "hostThreads", "");
+        assert_eq!(super::PAGE_WORKER.threads, client);
+    }
+
     use super::*;
+
+    /// The kept warmed models are the page's rule (`Uorc.Performance::warmedKept`):
+    /// the host's memory less the frame's decoders, over one warmed model.
+    #[test]
+    fn warmed_models_kept_are_the_hosts_room() {
+        let state = crate::states::STATE_1.len() as u64;
+        for tb in [0, 22, 24, 25, 26] {
+            let profile = ncm::with_table_bits(ncm::FULL, tb);
+            for host in [
+                PAGE_WORKER,
+                Host {
+                    memory: 1 << 33,
+                    keeps_tables: false,
+                    workers: 1,
+                    threads: 1,
+                },
+            ] {
+                let n = 4096;
+                let kept = host.warmed_kept(n, state, profile);
+                let decoders = host.footprint(n, state, true, profile) * host.workers;
+                let each = ncm::warmed_bytes(n, state, profile);
+                assert_eq!(kept, host.memory.saturating_sub(decoders) / each);
+                eprintln!(
+                    "tb {tb} host {} MiB: decoder {} MiB, warmed {} MiB, kept {kept}",
+                    host.memory >> 20,
+                    decoders >> 20,
+                    each >> 20
+                );
+            }
+        }
+        // a host the frame's decoder fills keeps none
+        let full = Host {
+            memory: 1 << 20,
+            keeps_tables: false,
+            workers: 1,
+            threads: 1,
+        };
+        assert_eq!(full.warmed_kept(4096, state, ncm::FULL), 0);
+    }
 
     #[test]
     fn steps_follow_the_profile_word() {

@@ -25,6 +25,8 @@ F_SHORT = 1 << 17     # profile bit: the short match model
 F_REP = 1 << 18       # profile bit: the repeat-distance model (its inputs and context 13)
 F_SEL = 1 << 19       # profile bit: mixer 1 and the first APM selected by the match states too
 TBMAX = 24
+TABLE_UNIT = 1 << 20  # the profile word's context table field (6 bits) starts here (ncm::TABLE_SHIFT)
+MATCH_UNIT = 1 << 26  # and its match table field (5 bits) here (ncm::MATCH_SHIFT)
 SQT = [1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047,
        2549, 2994, 3348, 3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094]
 WINIT = (1 << 22) + (1 << 14)
@@ -52,10 +54,12 @@ for name, base in [('HB', 1 << 8), ('BB', 1 << 9), ('IX', 1 << 10), ('ST', 1 << 
                    ('LD', 1 << 14), ('STR', 1 << 15), ('RC', 1 << 18), ('W1', 1 << 19), ('W2', 1 << 20), ('W3', 1 << 21),
                    ('A1', (1 << 21) + (1 << 18)), ('GN', (1 << 21) + (1 << 19)), ('COST', (1 << 21) + (1 << 19) + (1 << 12)),
                    ('A2', 1 << 23), ('MT', 1 << 26),
-                   ('T', 1 << 27), ('M2T', 1 << 30), ('M2S', 1 << 31), ('RS', (1 << 31) + (1 << 12)),
-                   ('H', 1 << 33), ('OUT', 1 << 34)]:
+                   ('M2T', 1 << 30), ('M2S', 1 << 31), ('RS', (1 << 31) + (1 << 12)),
+                   ('H', 1 << 33), ('OUT', 1 << 34),
+                   # the context table last, above everything else: 3 bytes a slot for up to 2^32 slots
+                   ('T', 1 << 40)]:
     P.table(name, base)
-P.rom('POW2', 4, [1 << k for k in range(25)])
+P.rom('POW2', 5, [1 << k for k in range(33)])
 
 _tmp = [0]
 def fresh(base):
@@ -106,10 +110,13 @@ def match_key(p, body):
 
 # ---- one-time setup ----
 init = []
-# table size: the smallest 2^tb >= 1024 n, between 2^16 and 2^24
+# table size: the smallest 2^tb >= 1024 n, between 2^16 and 2^24 (the match tables follow it), unless the profile
+# word records the context table's bits in bits 20-25 (TABLE_SHIFT) or the match tables' in bits 26-30 (MATCH_SHIFT)
 init += [('set', 'tb', 16),
          ('loop', TBMAX - 16, 'k', [('if', lt(rom('POW2', 4, G('tb')), mul(1024, G('n'))), [('set', 'tb', add(G('tb'), 1))], [])]),
          ('set', 'mb', sel(lt(22, G('tb')), 22, sub(G('tb'), 2))),
+         ('if', lt(0, mod(div(G('prof'), TABLE_UNIT), 64)), [('set', 'tb', mod(div(G('prof'), TABLE_UNIT), 64))], []),
+         ('if', lt(0, mod(div(G('prof'), MATCH_UNIT), 32)), [('set', 'mb', mod(div(G('prof'), MATCH_UNIT), 32))], []),
          ('set', 'c0', 1), ('set', 'x2', M32 - 1)]
 # stretch: STR[j] = the least x with squash(x) >= j, else 2047 (offset form)
 sb = []

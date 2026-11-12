@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {controlModules, driver} from './product-machine-runtime.mjs';
+import {controlModules, driver} from './executed-controls.mjs';
 import {dataForm, stageRuntime} from './semantic-source.mjs';
 const requireFact=(b,m)=>{if(!b)throw new Error(m);};
 function run(command,args,cwd,env={}){
@@ -48,7 +48,7 @@ try{
   for(const [module,count] of expected){
    const harness=path.join(runtime,`Run${module.replace('/','')}.lean`);fs.writeFileSync(harness,driver(undefined,module));
    const execution=run('lean',['--run',harness],root,{LEAN_PATH:runtime});
-   requireFact(execution.status===0&&execution.stdout.trim()===`${count}/${count} actual product-machine binding controls passed`,`${module}: ${execution.stdout}${execution.stderr}`);
+   requireFact(execution.status===0&&execution.stdout.trim()===`${count}/${count} executed controls passed`,`${module}: ${execution.stdout}${execution.stderr}`);
    console.log(`${module}: ${count}/${count} executed controls passed`);
   }
  }finally{fs.rmSync(runtime,{recursive:true,force:true});}

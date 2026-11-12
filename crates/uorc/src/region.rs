@@ -26,7 +26,12 @@ pub struct Cache {
     pub bytes: u64,
 }
 
-/// The host as `Uorc.Host` models it.
+/// The running host: the value of `Uorc.Host` read from this machine. The
+/// declared decode host ([`crate::performance::Host`]) is the other value of
+/// that structure and the only one an archive's facets are derived from;
+/// this one only places regions, so it never changes a byte, and its
+/// padding (under one granule per table) is not counted in
+/// [`crate::ncm::decoder_bytes`], which must not depend on the machine.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Host {
     /// Threads the host runs at once.
@@ -306,6 +311,16 @@ fn map(bytes: usize) -> Option<(std::ptr::NonNull<u8>, usize)> {
         }
     }
     std::ptr::NonNull::new(at as *mut u8).map(|p| (p, len))
+}
+
+impl<T: Copy> Default for Region<T> {
+    fn default() -> Region<T> {
+        Region {
+            ptr: std::ptr::NonNull::dangling(),
+            len: 0,
+            mapped: 0,
+        }
+    }
 }
 
 impl<T: Copy> Drop for Region<T> {
