@@ -1864,7 +1864,7 @@ definition{
   name: blockFrames,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "frames in a block that decodes on one thread", fixedAt := "4", standing := "unmeasured", measured := ""})
+  body: (record Facet {quantity := "frames in a block that decodes on one thread", fixedAt := "4", standing := "unmet: not yet derived from the input and the declared host", measured := ""})
 }
 
 definition{
@@ -1878,7 +1878,28 @@ definition{
   name: streamsPerFrame,
   parameters: [],
   result: Facet,
-  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "1", standing := "binding for threads", measured := "with ideal sharing, 4 streams of 2 MiB cost 0.8 percent on Python; 16 streams of 128 KiB cost 5.8 percent"})
+  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "derived (Client.stepStreams): streams step up from one while the counted chain, coding steps plus merge steps over the declared decode host's threads, falls; past the host's threads a further stream is kept only on fewer bytes, then fewer steps; bounded by one 64-byte stride unit a stream and by the host's memory. One on the page worker (one thread)", standing := "derived", measured := "declared 4-thread host: 7.8 MB Python, 4 streams of 64 KiB epochs, 1.09 percent larger than one stream, merge steps 3.5 percent of the coding steps; 8 MiB ELF, 4 streams of 32 KiB epochs, 1.83 percent larger, merge 10.2 percent"})
+}
+
+definition{
+  name: streamEpoch,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes a stream codes between merges of the shared state", fixedAt := "derived: one epoch per stream first, halved while the payload shrinks (bytes, then steps)", standing := "unmet: derived by trials, each a full coding of the frame; the merge steps of every power-of-two epoch can be counted in one pass, the bytes cannot yet", measured := "the trials make compressing for a declared 4-thread host 209 s on 7.8 MB Python and 351 s on 8 MiB ELF, against 11.5 s and 15.7 s for one stream"})
+}
+
+definition{
+  name: archiveWidth,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "threads an archive's frames decode on", fixedAt := "the declared decode host's: a frame's streams are fixed when it is written", standing := "unmet for wholeHost: a host with more threads than the archive was written for runs each frame on at most its streams", measured := ""})
+}
+
+definition{
+  name: matchFromPast,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "positions the match models reach", fixedAt := "only positions before the one coded: a stream reading the shared state may find a later stream's position in a match table and ignores it; with one stream every position is in the past, so the frame's bytes are unchanged", standing := "rule", measured := "held by the test serial_bytes_are_unchanged_by_the_past_rule"})
 }
 
 definition{

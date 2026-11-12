@@ -238,6 +238,7 @@ structure{
     {name: coreLimit, type: Nat},
     {name: unreportedGiB, type: Nat},
     {name: keepsTables, type: Bool},
+    {name: frameThreads, type: Nat},
     {name: text, type: String}
   ]
 }
@@ -1016,7 +1017,7 @@ definition{
   name: pageWorker,
   parameters: [],
   result: DecodeHost,
-  body: (record DecodeHost {workersPerGiB := 2, coreLimit := 16, unreportedGiB := 2, keepsTables := true, text := "The page's host rule, as a function of the device the browser reports: it starts one worker per core, at most coreLimit and at most workersPerGiB per GiB of navigator.deviceMemory (unreportedGiB when the browser reports none), so each worker may hold 1 GiB / workersPerGiB of WebAssembly memory (512 MiB). That is the decode host every archive is written for by default (uorc performance::PAGE_WORKER, Client.hostMemory): a frame's tables grow only while its decoder, the spare set of tables the worker keeps between frames, and the frame's window and output fit it. One worker decodes a frame. workersPerGiB, coreLimit and unreportedGiB are stated, not yet derived from the device."})
+  body: (record DecodeHost {workersPerGiB := 2, coreLimit := 16, unreportedGiB := 2, keepsTables := true, frameThreads := 1, text := "The page's host rule, as a function of the device the browser reports: it starts one worker per core, at most coreLimit and at most workersPerGiB per GiB of navigator.deviceMemory (unreportedGiB when the browser reports none), so each worker may hold 1 GiB / workersPerGiB of WebAssembly memory (512 MiB). That is the decode host every archive is written for by default (uorc performance::PAGE_WORKER, Client.hostMemory): a frame's tables grow only while its decoder, the spare set of tables the worker keeps between frames, and the frame's window and output fit it. One worker decodes a frame, on frameThreads threads (uorc performance::PAGE_WORKER.threads, Client.hostThreads): a frame's streams are derived for that many (Client.stepStreams), one here, so the page's archives are coded as one stream. workersPerGiB, coreLimit and unreportedGiB are stated, not yet derived from the device."})
 }
 
 definition{

@@ -88,7 +88,8 @@ class Layout:
                 + ",\n".join("    {name: %s, type: %s}" % tuple(f.split(':', 1)) for f in self.scalars) + "\n  ]\n}\n")
 
     def finish(self, text):
-        for i in range(1, len(self.tables)):
+        # the longest names first: Rest1 is a prefix of Rest10
+        for i in reversed(range(1, len(self.tables))):
             text = text.replace(f"{self.name}Rest{i}", self.real_type(i))
         return re.sub(r'(?<![\w.:])%s(?![\w])' % self.name, self.full_type(), text)
 

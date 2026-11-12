@@ -28,7 +28,7 @@ def sizing(D):
     # stride of 64-byte units; the merged tables' entry space
     D('streamsOf', ['word : Nat'], 'Nat', f"((prim remainder (prim quotient word {1 << ncm_streams.STREAMS_AT} 0 : Nat) 65536 0 : Nat) + 1)")
     D('strideOf', ['n : Nat', 'sk : Nat'], 'Nat',
-      "(prim multiply 64 (prim quotient ((prim quotient ((n + sk) - 1) sk 0 : Nat) + 63) 64 0 : Nat) : Nat)")
+      "(prim multiply 64 (prim quotient ((prim quotient (prim subtract (n + sk) 1 : Nat) sk 0 : Nat) + 63) 64 0 : Nat) : Nat)")
     D('spaceOf', ['n : Nat', 'h : Nat', 'word : Nat'], 'Nat',
       f"((((pow2 (tbOf n word)) + (prim multiply 2 (pow2 (mbOf n word)) : Nat)) + {ncm_streams.STATIC}) + (h + n))")
 

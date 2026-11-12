@@ -110,7 +110,8 @@ pub const PAGE_WORKER: Host = Host {
     memory: (1 << 30) / WORKERS_PER_GIB,
     keeps_tables: true,
     workers: 1,
-    // a WebAssembly worker runs one thread
+    // a WebAssembly worker runs one thread (`Uorc.Page::pageWorker`, field
+    // `frameThreads`; `Client.hostThreads`)
     threads: 1,
 };
 
@@ -348,6 +349,10 @@ mod tests {
         assert_eq!(super::PAGE_WORKER.memory, client);
         let gate = stated("../../src/Uorc/Page.lex.tex", "workerMemory", "threshold");
         assert_eq!(super::PAGE_WORKER.memory, gate << 20);
+        let threads = stated("../../src/Uorc/Page.lex.tex", "pageWorker", "frameThreads");
+        assert_eq!(super::PAGE_WORKER.threads, threads);
+        let client = stated("../../client/src/Uorc/Client.lex.tex", "hostThreads", "");
+        assert_eq!(super::PAGE_WORKER.threads, client);
     }
 
     use super::*;

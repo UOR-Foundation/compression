@@ -3101,6 +3101,28 @@ mod tests {
     }
 
     #[test]
+    fn serial_bytes_are_unchanged_by_the_past_rule() {
+        // The match models reach only positions before the one coded
+        // (`Uorc.Performance::matchFromPast`): a stream may find a later
+        // stream's position in the shared match table and ignores it. With one
+        // stream every position a match table holds is in the past, so the
+        // frame's coder writes the exported model's bytes, whose frame coder
+        // has no such test, alone and after a window.
+        let base = text(1500, 41);
+        let mut input = base.clone();
+        for k in 0..6 {
+            input.extend_from_slice(&base[k * 100..k * 100 + 400]);
+        }
+        let native = compress_frame(&input, 0).expect("native");
+        let model = on_reference_stack(|| reference_compress(&input, &[], 0)).expect("model");
+        assert_eq!(native, model);
+        let (a, b) = input.split_at(1500);
+        let native = compress_frame_with(b, &[a], 0).expect("native");
+        let model = on_reference_stack(|| reference_compress(b, &[a], 0)).expect("model");
+        assert_eq!(native, model);
+    }
+
+    #[test]
     fn stream_frames_round_trip_natively() {
         let text: Vec<u8> = (0..40_000u32)
             .flat_map(|i| format!("line {} of {}\n", i % 977, i / 13).into_bytes())

@@ -511,9 +511,9 @@ definition{
     | Nat.zero => best
     | Nat.succ m => (let n : Nat := (prim length data : Nat); (if ((n <=? (prim multiply (Uorc.Codec.NcmEncode::strideOf n k) (prim subtract k 1 : Nat) : Nat)) || (not (holdsStreams n held profile k))) then best else (match (streamEpochs past data profile k)
       | Option.none => (ctor Option.none [(Bytes * Nat)])
-      | Option.some trial => (let s : Nat := (coding + (first (second trial))); (let o : Nat := (if (k <? (hostThreads)) then k else (hostThreads)); (let size : Nat := (prim length (first trial) : Nat); (let keep : Bool := (if (o =? over) then (match best
+      | Option.some tried => (let s : Nat := (coding + (first (second tried))); (let o : Nat := (if (k <? (hostThreads)) then k else (hostThreads)); (let size : Nat := (prim length (first tried) : Nat); (let keep : Bool := (if (o =? over) then (match best
         | Option.none => true
-        | Option.some b => ((size <? (prim length (first b) : Nat)) || ((size =? (prim length (first b) : Nat)) && (s <? steps)))) else ((prim multiply s over : Nat) <? (prim multiply steps o : Nat))); (if keep then (deriveLoop m past data held profile coding (k + 1) s o (ctor Option.some [(Bytes * Nat)] ((first trial), (streamWord profile k (second (second trial)))))) else best)))))))),
+        | Option.some b => ((size <? (prim length (first b) : Nat)) || ((size =? (prim length (first b) : Nat)) && (s <? steps)))) else ((prim multiply s over : Nat) <? (prim multiply steps o : Nat))); (if keep then (deriveLoop m past data held profile coding (k + 1) s o (ctor Option.some [(Bytes * Nat)] ((first tried), (streamWord profile k (second (second tried)))))) else best))))))))),
   axioms: [Quot.sound, propext],
   recursive_argument: fuel
 }
@@ -528,7 +528,7 @@ definition{
       | Option.none => chosen
       | Option.some identity => (match (Uorc.Codec.Archive::profiledArchive x k identity (prim length input : Nat) (second d) (first d))
         | Option.none => chosen
-        | Option.some a => a)))))))))),
+        | Option.some a => a))))))))))),
   axioms: [Quot.sound, propext]
 }
 

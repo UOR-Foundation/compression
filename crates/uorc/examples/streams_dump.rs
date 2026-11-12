@@ -11,6 +11,7 @@ fn main() {
         streams: k,
         epoch: e,
     };
-    let out = streams::encode(&data[..h], &data[h..h + n], ncm::FULL, plan, 1).unwrap();
+    let (out, steps) = streams::encode_counted(&data[..h], &data[h..h + n], ncm::FULL, plan, 1).unwrap();
+    println!("{steps}");
     std::fs::write(&a[6], out).unwrap();
 }
