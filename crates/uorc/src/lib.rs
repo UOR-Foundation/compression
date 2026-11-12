@@ -218,7 +218,13 @@ fn compress_pieces(
     match best {
         Some((linked, _)) if (linked.len() as u64) < raw => {
             let (stepped, k) = step_window(frame, lengths, reach, linked, host);
-            Ok(step_table(frame, lengths, &reach[reach.len() - k..], stepped, host))
+            Ok(step_table(
+                frame,
+                lengths,
+                &reach[reach.len() - k..],
+                stepped,
+                host,
+            ))
         }
         _ => Ok(archive::raw_objects(frame, lengths)),
     }
@@ -2088,7 +2094,12 @@ mod tests {
         let deep = compress_frame_with(&a, &window, 0).expect("deep");
         let shallow = compress_frame_with(&a, &window[1..], 0).expect("shallow");
         assert_eq!(archive::window_len(&deep), Some(3));
-        assert!(deep.len() < shallow.len(), "{} {}", deep.len(), shallow.len());
+        assert!(
+            deep.len() < shallow.len(),
+            "{} {}",
+            deep.len(),
+            shallow.len()
+        );
         assert_eq!(decompress_frame_with(&deep, &window, 0).as_ref(), Ok(&a));
         // any other frame: the portfolio's archive, or a strictly shorter one
         let d: Vec<u8> = a.iter().rev().copied().collect();
@@ -2106,9 +2117,8 @@ mod tests {
     fn window_entry_is_one_form_for_every_depth_uc_perf_17() {
         for x86 in [false, true] {
             for k in 1..=2 {
-                let fixed = |c: archive::Codec| {
-                    archive::window_archive(c, k, &[0; 32], &[5], &[1, 2, 3])
-                };
+                let fixed =
+                    |c: archive::Codec| archive::window_archive(c, k, &[0; 32], &[5], &[1, 2, 3]);
                 let p = ncm::FULL;
                 let generic = archive::window_profile_template(k, x86);
                 let built = fixed(archive::Codec::profiled(p, x86)).expect("entry");
@@ -2120,21 +2130,37 @@ mod tests {
         }
         let text = include_bytes!("../../../README.md");
         for k in 3..=6usize {
-            let frames: Vec<Vec<u8>> = (0..k).map(|i| text[i * 500..i * 500 + 3000].to_vec()).collect();
+            let frames: Vec<Vec<u8>> = (0..k)
+                .map(|i| text[i * 500..i * 500 + 3000].to_vec())
+                .collect();
             let window: Vec<&[u8]> = frames.iter().map(Vec::as_slice).collect();
             let frame = &text[100..2600];
             for x86 in [false, true] {
-                let codec = if x86 { archive::Codec::NcmX86 } else { archive::Codec::Ncm };
+                let codec = if x86 {
+                    archive::Codec::NcmX86
+                } else {
+                    archive::Codec::Ncm
+                };
                 let history = window.concat();
                 let (data, past) = if x86 {
-                    (x86::filter(frame, false, history.len() as u64).0, x86::filter(&history, false, 0).0)
+                    (
+                        x86::filter(frame, false, history.len() as u64).0,
+                        x86::filter(&history, false, 0).0,
+                    )
                 } else {
                     (frame.to_vec(), history.clone())
                 };
                 let payload = ncm::encode_profile(&past, &data, ncm::FULL).expect("payload");
                 let id = archive::window_identity(&window);
-                let a = archive::window_archive_profile(codec, ncm::FULL, &window, &id, &[frame.len() as u64], &payload)
-                    .expect("archive");
+                let a = archive::window_archive_profile(
+                    codec,
+                    ncm::FULL,
+                    &window,
+                    &id,
+                    &[frame.len() as u64],
+                    &payload,
+                )
+                .expect("archive");
                 assert_eq!(archive::window_len(&a), Some(k));
                 assert_eq!(archive::window_decode(&a, &window).as_deref(), Some(frame));
             }

@@ -13,8 +13,8 @@
 //! [`BASIS_ID`] (`client/gen/gen_basis.py`). Their body is one entry block that
 //! applies a library decoder to the payload, so a small file carries no kernel.
 
-use std::borrow::Cow;
 use sha2::{Digest, Sha256};
+use std::borrow::Cow;
 
 const PREFIX_HEX: &str = include_str!("kernel-prefix.hex");
 const SUFFIX_HEX: &str = include_str!("kernel-suffix.hex");
@@ -273,7 +273,11 @@ fn template(codec: Codec, k: usize, era: Era) -> Option<(Cow<'static, [u8]>, Vec
 /// `era` (profiled entries exist from v0.4 on). A current-basis entry reads
 /// any number of frames ([`window_profile_template`]); v0.4 entries read at
 /// most two.
-fn profile_template(k: usize, x86: bool, era: Era) -> Option<(Cow<'static, [u8]>, Cow<'static, [u8]>)> {
+fn profile_template(
+    k: usize,
+    x86: bool,
+    era: Era,
+) -> Option<(Cow<'static, [u8]>, Cow<'static, [u8]>)> {
     let current = era == Era::Current;
     if !current && era != Era::V04 {
         return None;
@@ -1053,17 +1057,20 @@ pub fn window_len(data: &[u8]) -> Option<usize> {
 fn deep_window_len(body: &[u8]) -> Option<usize> {
     let rest = body.strip_prefix(&NCMP1_PREFIX[..3])?;
     let (nodes, _) = read_uleb(rest, 0)?;
-    [(u64::from(NCMP1_PREFIX[3]), false), (u64::from(NCMP1X_PREFIX[3]), true)]
-        .into_iter()
-        .find_map(|(one, x86)| {
-            let more = nodes.checked_sub(one)?;
-            let k = usize::try_from(more / 3 + 1).ok()?;
-            if more % 3 != 0 || k < 3 {
-                return None;
-            }
-            let (codec, _) = parse_body(body, k, Era::Current)?;
-            (codec.x86() == x86).then_some(k)
-        })
+    [
+        (u64::from(NCMP1_PREFIX[3]), false),
+        (u64::from(NCMP1X_PREFIX[3]), true),
+    ]
+    .into_iter()
+    .find_map(|(one, x86)| {
+        let more = nodes.checked_sub(one)?;
+        let k = usize::try_from(more / 3 + 1).ok()?;
+        if more % 3 != 0 || k < 3 {
+            return None;
+        }
+        let (codec, _) = parse_body(body, k, Era::Current)?;
+        (codec.x86() == x86).then_some(k)
+    })
 }
 
 /// The codec, basis era and payload of a window body over `k` frames laid
