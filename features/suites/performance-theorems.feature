@@ -48,3 +48,15 @@ Feature: performance-theorems
     Given the Uorc.Performance module and the native consolidation in uorc::performance
     When the locked SDK verifies the module and the native test consolidates every pair and sequence of small trials
     Then the potential theorems are kernel-checked and every native consolidation lowers bytes plus steps by exactly its gain
+
+  @UC-PERF-10 @build
+  Scenario: The encoder's stop is a ledger over its coder events: its count of emitted bytes saturates at the cap (ledgerSaturatesAtTheCap), so a payload below the cap is exactly the unbounded payload, four header bytes, the emitted bytes and one final byte (stopKeepsEveryPayloadBelowTheCap), and a candidate is abandoned exactly when its emitted bytes reach the cap and at no other point (stopAbandonsExactlyAtTheCap). A coded bit at a 12-bit probability narrows the coder's width by at least one and by at least one part in 4096 (aOneNarrowsTheWidth, aOneSpendsAFraction, aZeroNarrowsTheWidth, aZeroSpendsAFraction). No exact rule decides a raw frame earlier than its ledger does (exactRawDecision): until a candidate's ledger reaches the cap, a continuation the model codes in few bytes can still make the coded frame the smaller one. Measured: random bytes code to 0.28 to 0.30 percent over raw under every shipped profile, so on random input the earliest exact stop comes at about 99.7 percent of the frame.
+    Given the Uorc.Performance module and the native ncm encoder
+    When the locked SDK verifies the module and the native test abandons each shipped profile at every stop around its payload length and codes random bytes
+    Then the ledger theorems are kernel-checked, the native encoder returns the unbounded payload below the cap and nothing at or past it, and random bytes code to more than raw
+
+  @UC-PERF-11 @build
+  Scenario: Input the model cannot shrink costs one coder pass per scheduled candidate, so that cost falls only through passes that write the same bytes in less time. Strategies whose profiles differ only in mixer selection read the same contexts, slots, match and repeat state and mixers 2 and 3, so when no core is spare they are coded in one shared pass that writes each strategy's own payload (ncm::encode_pair_below). It changes no byte: the shared pass equals the two separate passes in both directions of the pair and when either side is abandoned, and the client's archives do not depend on the thread count.
+    Given the native ncm encoder and the client's portfolio
+    When the native test codes text and random bytes under each twin pair in one shared pass and in separate passes, with each side abandoned in turn, and compresses with one thread and with several
+    Then every shared-pass payload equals its separate pass and the archives are the same at every thread count

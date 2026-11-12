@@ -1484,5 +1484,422 @@ theorem{
   },
   axioms: [Quot.sound, propext]
 }
+
+structure{
+  name: Requirement,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: characteristic, type: String},
+    {name: subcharacteristic, type: String},
+    {name: text, type: String}
+  ]
+}
+
+structure{
+  name: Measure,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: requirement, type: String},
+    {name: quantity, type: String},
+    {name: unit, type: String},
+    {name: sense, type: String},
+    {name: threshold, type: Nat},
+    {name: command, type: String},
+    {name: disposition, type: String}
+  ]
+}
+
+definition{
+  name: excessOver,
+  parameters: [threshold : Nat, observed : Nat],
+  result: Nat,
+  body: (prim subtract observed threshold : Nat)
+}
+
+definition{
+  name: lackUnder,
+  parameters: [threshold : Nat, observed : Nat],
+  result: Nat,
+  body: (prim subtract threshold observed : Nat)
+}
+
+theorem{
+  name: noExcessIsMet,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: (((excessOver threshold observed) = 0) -> (observed <= threshold)),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: metHasNoExcess,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: ((observed <= threshold) -> ((excessOver threshold observed) = 0)),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: noLackIsMet,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: (((lackUnder threshold observed) = 0) -> (threshold <= observed)),
+  proof: linear_arithmetic{definitions: [lackUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: metHasNoLack,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: ((threshold <= observed) -> ((lackUnder threshold observed) = 0)),
+  proof: linear_arithmetic{definitions: [lackUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: excessFallsWithTheObservation,
+  parameters: [threshold : Nat, before : Nat, after : Nat],
+  statement: ((after <= before) -> ((excessOver threshold after) <= (excessOver threshold before))),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: lackFallsAsTheObservationRises,
+  parameters: [threshold : Nat, before : Nat, after : Nat],
+  statement: ((before <= after) -> ((lackUnder threshold after) <= (lackUnder threshold before))),
+  proof: linear_arithmetic{definitions: [lackUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: frameStepsOver,
+  parameters: [profile : Nat, n : Nat],
+  statement: ((3 <= (inputs profile)) -> ((prim multiply 24 n : Nat) <= (frameSteps profile n))),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [frameSteps]}, binders: [], constructor: zero},
+      {
+        proof: linear_arithmetic{definitions: [bitsPerByte, frameSteps]},
+        binders: [k, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: n
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: frameStepsFloor,
+  parameters: [profile : Nat, n : Nat],
+  statement: ((prim multiply 24 n : Nat) <= (frameSteps profile n)),
+  proof: simplify{definitions: [frameStepsOver, inputsFloor]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: budgetUnderTheFloorIsExceeded,
+  parameters: [profile : Nat, n : Nat, budget : Nat],
+  statement: ((3 <= (inputs profile)) -> (((prim multiply 24 n : Nat) <= (frameSteps profile n)) -> ((budget < (prim multiply 24 n : Nat)) -> (0 < (excessOver budget (frameSteps profile n)))))),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: leastArchive,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "capacity", text := "For every input the archive is the least over the whole modelled codec space, not over a schedule drawn from it, and its length is the information the chosen model assigns to the input plus a proved constant."})
+}
+
+definition{
+  name: wholeHost,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "On a host with any number of threads the steps of compressing and of decompressing are spread over all of them: the longest chain of dependent steps is the total divided by the threads, up to one unit of work, and the total does not grow with the threads."})
+}
+
+definition{
+  name: hostCeiling,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Throughput on a host is that host's ceiling for the steps the chosen point costs: the bound is derived from the host's model (cores, vector width, memory rate), and the measure is the distance to it."})
+}
+
+definition{
+  name: width,
+  parameters: [low : Nat, high : Nat],
+  result: Nat,
+  body: (prim subtract (high + 1) low : Nat)
+}
+
+definition{name: cut, parameters: [low : Nat, part : Nat], result: Nat, body: (low + part)}
+
+theorem{
+  name: splitSpendsTheWidth,
+  parameters: [low : Nat, span : Nat, part : Nat],
+  statement: (((width low (cut low part)) + (width ((cut low part) + 1) (low + span))) = ((width low (low + span)) + (prim subtract part span : Nat))),
+  proof: linear_arithmetic{definitions: [cut, width]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: shiftMultipliesTheWidth,
+  parameters: [top : Nat, low : Nat, high : Nat],
+  statement: ((width (prim multiply 256 low : Nat) ((prim multiply 256 high : Nat) + 255)) = (prim multiply 256 (width ((prim multiply 16777216 top : Nat) + low) ((prim multiply 16777216 top : Nat) + high)) : Nat)),
+  proof: linear_arithmetic{definitions: [width]},
+  axioms: [Quot.sound, propext]
+}
+
+inductive{
+  name: CoderEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: bit, fields: []}, {name: byte, fields: []}]
+}
+
+definition{
+  name: emittedBytes,
+  parameters: [events : (List CoderEvent)],
+  result: Nat,
+  body: (match events
+    | List.nil => 0
+    | List.cons head tail => (match head
+      | CoderEvent.bit => (emittedBytes tail)
+      | CoderEvent.byte => ((emittedBytes tail) + 1))),
+  recursive_argument: events
+}
+
+definition{
+  name: saturate,
+  parameters: [count : Nat, limit : Nat],
+  result: Nat,
+  body: (prim subtract count (prim subtract count limit : Nat) : Nat)
+}
+
+definition{
+  name: seenBelow,
+  parameters: [cap : Nat, events : (List CoderEvent)],
+  result: Nat,
+  body: (match events
+    | List.nil => 0
+    | List.cons head tail => (match head
+      | CoderEvent.bit => (seenBelow cap tail)
+      | CoderEvent.byte => (saturate ((seenBelow cap tail) + 1) (cap + 1)))),
+  recursive_argument: events
+}
+
+theorem{
+  name: saturateStep,
+  parameters: [count : Nat, limit : Nat],
+  statement: ((saturate ((saturate count limit) + 1) limit) = (saturate (count + 1) limit)),
+  proof: linear_arithmetic{definitions: [saturate]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: ledgerSaturatesAtTheCap,
+  parameters: [cap : Nat, events : (List CoderEvent)],
+  statement: ((seenBelow cap events) = (saturate (emittedBytes events) (cap + 1))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [emittedBytes, saturate, seenBelow]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: simplify{definitions: [emittedBytes, ih, seenBelow]},
+              binders: [],
+              constructor: bit
+            },
+            {
+              proof: simplify{definitions: [emittedBytes, ih, saturateStep, seenBelow]},
+              binders: [],
+              constructor: byte
+            }
+          ],
+          scrutinee: x
+        },
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: events
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encodedPayload,
+  parameters: [cap : Nat, count : Nat],
+  result: Nat,
+  body: (if (count <? cap) then (count + 5) else 0)
+}
+
+theorem{
+  name: stopKeepsEveryPayloadBelowTheCap,
+  parameters: [cap : Nat, emitted : Nat],
+  statement: ((emitted < cap) -> ((encodedPayload cap (saturate emitted (cap + 1))) = (emitted + 5))),
+  proof: linear_arithmetic{definitions: [encodedPayload, saturate]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: stopAbandonsExactlyAtTheCap,
+  parameters: [cap : Nat, emitted : Nat],
+  statement: ((cap <= emitted) -> ((encodedPayload cap (saturate emitted (cap + 1))) = 0)),
+  proof: linear_arithmetic{definitions: [encodedPayload, saturate]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{name: oneSide, parameters: [w : Nat, part : Nat], result: Nat, body: (part + 1)}
+
+definition{
+  name: zeroSide,
+  parameters: [w : Nat, part : Nat],
+  result: Nat,
+  body: (prim subtract (prim subtract w 1 : Nat) part : Nat)
+}
+
+theorem{
+  name: aOneNarrowsTheWidth,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> (((prim multiply 4096 part : Nat) <= (prim multiply 4095 (prim subtract w 1 : Nat) : Nat)) -> ((oneSide w part) < w))),
+  proof: linear_arithmetic{definitions: [oneSide]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: aOneSpendsAFraction,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> (((prim multiply 4096 part : Nat) <= (prim multiply 4095 (prim subtract w 1 : Nat) : Nat)) -> ((prim subtract w 1 : Nat) <= (prim multiply 4096 (prim subtract w (oneSide w part) : Nat) : Nat)))),
+  proof: linear_arithmetic{definitions: [oneSide]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: aZeroNarrowsTheWidth,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> ((zeroSide w part) < w)),
+  proof: linear_arithmetic{definitions: [zeroSide]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: aZeroSpendsAFraction,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> (((prim subtract w 1 : Nat) < (prim multiply 4096 (part + 1) : Nat)) -> ((prim subtract w 1 : Nat) < (prim multiply 4096 (prim subtract w (zeroSide w part) : Nat) : Nat)))),
+  proof: linear_arithmetic{definitions: [zeroSide]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: exactRawDecision,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "A frame is stored raw exactly when every scheduled candidate's coder ledger reaches the raw archive less the candidate's form; the encoder abandons a candidate at that byte and at no other (stopKeepsEveryPayloadBelowTheCap, stopAbandonsExactlyAtTheCap), so no decision is made from a statistic of the input. No exact rule decides earlier: until the ledger reaches the cap, a continuation the model codes in few bytes still makes the coded frame the smaller. A coded bit narrows the width by at least one part in 4096 (the spend theorems), so the rest of a frame costs at least that much; measured, every profile codes random bytes to 0.28 to 0.30 percent over raw, so the earliest exact stop on random input is at about 99.7 percent of the frame. The cost of input the model cannot shrink is therefore the cost of the coder's pass over it, and is lowered only by passes that write the same bytes in less time."})
+}
+
+structure{
+  name: Facet,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: quantity, type: String},
+    {name: fixedAt, type: String},
+    {name: standing, type: String},
+    {name: measured, type: String}
+  ]
+}
+
+definition{
+  name: contextTableSlots,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "context table slots", fixedAt := "2^24 for every input over 16 KiB", standing := "binding", measured := "8 MiB Python: 2^26 slots 2.1 percent smaller, 2^28 slots 2.9 percent smaller; 4 MiB ELF 0.6 and 0.7 percent smaller"})
+}
+
+definition{
+  name: observationCountLimit,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "observations after which a slot is consolidated", fixedAt := "127", standing := "at boundary", measured := "a limit of 40 is 0.05 percent larger on 8 MiB Python"})
+}
+
+definition{
+  name: refinementMapRows,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "rows of the second probability map", fixedAt := "2^16", standing := "at boundary", measured := "2^20 rows change 8 MiB Python by 0.05 percent"})
+}
+
+definition{
+  name: plasticityHalfLife,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes after which the mixers' plasticity above the floor has halved", fixedAt := "4096", standing := "near boundary", measured := "65536 is 0.16 percent smaller on 8 MiB Python and 0.23 percent on 4 MiB ELF"})
+}
+
+definition{
+  name: frameBytes,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes coded as one frame", fixedAt := "8 MiB", standing := "binding", measured := "32 MiB Python tar: one 32 MiB frame is 2.1 percent smaller than four 8 MiB frames, and 5.3 percent smaller with 2^28 table slots; 2^28 slots alone are 1.8 percent smaller"})
+}
+
+definition{
+  name: windowFrames,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "earlier frames a frame's model reads", fixedAt := "2", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: blockFrames,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "frames in a block that decodes on one thread", fixedAt := "4", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: stateBytes,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes of a named warm state", fixedAt := "256 KiB", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: streamsPerFrame,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "1", standing := "binding for threads", measured := "with ideal sharing, 4 streams of 2 MiB cost 0.8 percent on Python; 16 streams of 128 KiB cost 5.8 percent"})
+}
+
+definition{
+  name: probabilityBits,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bits of a coded probability", fixedAt := "12", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: contextCount,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "hashed contexts", fixedAt := "17", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: scheduleBudget,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "strategies tried per frame", fixedAt := "2 to 4 by family", standing := "unmeasured", measured := ""})
+}
 \end{semanticmodule}
 \end{lexlean}
