@@ -585,40 +585,64 @@ fn portfolio_trials(
             n,
         })
     };
+    // A state strategy (`Archive.stateCandidate`): the frame coded as the
+    // continuation of the κ-named model state, its own basis root; its steps
+    // are the reference measure, n + |S| modelled bytes. `warm_input` gives
+    // the bytes it codes and replays (through the x86 filter or not).
+    let warm_input = |strategy: portfolio::Strategy| -> Option<WarmInput> {
+        let state = states::state(strategy.state)?;
+        let identity = states::identity(strategy.state)?;
+        let (data, from) = if strategy.x86 {
+            let (data, hits) = x86::filter(frame, false, state.len() as u64);
+            if hits == 0 {
+                return None;
+            }
+            (
+                std::borrow::Cow::Owned(data),
+                std::borrow::Cow::Owned(x86::filter(state, false, 0).0),
+            )
+        } else {
+            (
+                std::borrow::Cow::Borrowed(frame),
+                std::borrow::Cow::Borrowed(state),
+            )
+        };
+        Some(WarmInput {
+            data,
+            from,
+            identity,
+        })
+    };
+    let warm_stop = |strategy: portfolio::Strategy, w: &WarmInput, bound: u64| {
+        let form =
+            archive::state_archive(strategy.x86, strategy.profile, &w.identity, lengths, &[])
+                .map_or(0, |a| a.len() as u64);
+        usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX)
+    };
+    let warm_trial = |strategy: portfolio::Strategy, w: &WarmInput, payload: Option<Vec<u8>>| {
+        let steps = performance::trial_steps(strategy.profile, n + w.from.len() as u64);
+        payload
+            .and_then(|payload| {
+                archive::state_archive(
+                    strategy.x86,
+                    strategy.profile,
+                    &w.identity,
+                    lengths,
+                    &payload,
+                )
+            })
+            .map(|a| (a, steps))
+    };
     let code = |strategy: portfolio::Strategy, learn: bool, bound: u64| -> Option<(Vec<u8>, u64)> {
         if strategy.state != 0 {
-            // A state strategy (`Archive.stateCandidate`): the frame coded as
-            // the continuation of the κ-named model state, its own basis root;
-            // its steps are the reference measure, n + |S| modelled bytes.
-            let state = states::state(strategy.state)?;
-            let identity = states::identity(strategy.state)?;
-            let filtered;
-            let (data, from) = if strategy.x86 {
-                let (data, hits) = x86::filter(frame, false, state.len() as u64);
-                if hits == 0 {
-                    return None;
-                }
-                filtered = (data, x86::filter(state, false, 0).0);
-                (&filtered.0[..], &filtered.1[..])
-            } else {
-                (frame, state)
-            };
-            let form =
-                archive::state_archive(strategy.x86, strategy.profile, &identity, lengths, &[])?
-                    .len() as u64;
-            let stop = usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX);
-            let steps = performance::trial_steps(strategy.profile, n + state.len() as u64);
-            return ncm::encode_warm_below(from, data, strategy.profile, stop)
-                .and_then(|payload| {
-                    archive::state_archive(
-                        strategy.x86,
-                        strategy.profile,
-                        &identity,
-                        lengths,
-                        &payload,
-                    )
-                })
-                .map(|a| (a, steps));
+            let w = warm_input(strategy)?;
+            let payload = ncm::encode_warm_below(
+                &w.from,
+                &w.data,
+                strategy.profile,
+                warm_stop(strategy, &w, bound),
+            );
+            return warm_trial(strategy, &w, payload);
         }
         let at = prepared(strategy.x86)?;
         if !learn {
@@ -646,8 +670,10 @@ fn portfolio_trials(
     // mixer selection, `ncm::F_SEL`) learn in one shared pass: the same two
     // learning passes, each bounded by the raw archive, for one pass of the
     // work they share (`ncm::encode_pairs_learn_below`).
+    // Twins continuing the same state share one replay of it and one pass
+    // over the frame (`ncm::encode_pair_warm_below`), each bounded as alone.
     let twins = |f: portfolio::Strategy, s: portfolio::Strategy| {
-        f.state == 0 && s.state == 0 && f.x86 == s.x86 && f.profile ^ s.profile == ncm::F_SEL
+        f.state == s.state && f.x86 == s.x86 && f.profile ^ s.profile == ncm::F_SEL
     };
     let code_twins = |f: portfolio::Strategy, s: portfolio::Strategy| {
         let at = prepared(f.x86)?;
@@ -667,77 +693,98 @@ fn portfolio_trials(
     // fewer steps). Either way the kept archive is the model's right fold of
     // `pick` (`Client.portfolio`, `performance::chosen`).
     let learns = |k: usize| plan[k].state == 0;
+    // Each strategy codes with the first later unpaired twin of the plan in
+    // one pass (`mate`), side by side or one group after the other.
+    let mut mate: Vec<Option<usize>> = vec![None; plan.len()];
+    let mut paired = vec![false; plan.len()];
+    for k in 0..plan.len() {
+        if paired[k] {
+            continue;
+        }
+        if let Some(j) = (k + 1..plan.len()).find(|&j| !paired[j] && twins(plan[k], plan[j])) {
+            mate[k] = Some(j);
+            paired[k] = true;
+            paired[j] = true;
+        }
+    }
+    // `group(k, bound)`: the trials of strategy k and of its mate, if any.
+    let group = |k: usize, bound: u64| -> (Trial, Trial) {
+        let Some(j) = mate[k] else {
+            return (code(plan[k], learns(k), bound), None);
+        };
+        let (s, t) = (plan[k], plan[j]);
+        if s.state != 0 {
+            let Some(w) = warm_input(s) else {
+                return (None, None);
+            };
+            let (a, b) = ncm::encode_pair_warm_below(
+                &w.from,
+                &w.data,
+                s.profile,
+                [warm_stop(s, &w, bound), warm_stop(t, &w, bound)],
+            );
+            return (warm_trial(s, &w, a), warm_trial(t, &w, b));
+        }
+        match code_twins(s, t) {
+            None => (None, None),
+            Some((at, ca, cb)) => at.settle_pair([s.profile, t.profile], [ca, cb], bound),
+        }
+    };
+    let leads: Vec<usize> = (0..plan.len())
+        .filter(|&k| !(0..k).any(|i| mate[i] == Some(k)))
+        .collect();
+    let mut found: Vec<Option<Trial>> = vec![None; plan.len()];
+    let mut place = |k: usize, (a, b): (Trial, Trial)| {
+        if let Some(j) = mate[k] {
+            found[j] = Some(b);
+        }
+        found[k] = Some(a);
+    };
     if side_by_side && cfg!(not(target_family = "wasm")) {
-        std::thread::scope(|s| {
-            let others: Vec<_> = plan[1..]
+        // each group on its own core, bounded by the raw archive
+        let coded: Vec<(Trial, Trial)> = std::thread::scope(|s| {
+            let others: Vec<_> = leads[1..]
                 .iter()
-                .enumerate()
-                .map(|(k, &st)| s.spawn(move || code(st, learns(k + 1), raw)))
+                .map(|&k| s.spawn(move || group(k, raw)))
                 .collect();
-            let first = code(plan[0], learns(0), raw);
-            std::iter::once(first)
+            std::iter::once(group(leads[0], raw))
                 .chain(
                     others
                         .into_iter()
                         .map(|h| h.join().expect("strategy thread")),
                 )
                 .collect()
-        })
-    } else {
-        // each state-free strategy codes with the first later twin of the
-        // plan in one pass; a twin's trial is coded under the bound of its
-        // mate's place, which can only let a trial finish that the fold of
-        // `pick` would not keep (a bound never changes an archive)
-        let mut mate: Vec<Option<usize>> = vec![None; plan.len()];
-        let mut paired = vec![false; plan.len()];
-        for k in 0..plan.len() {
-            if paired[k] {
-                continue;
-            }
-            if let Some(j) = (k + 1..plan.len()).find(|&j| !paired[j] && twins(plan[k], plan[j])) {
-                mate[k] = Some(j);
-                paired[k] = true;
-                paired[j] = true;
-            }
+        });
+        for (&k, c) in leads.iter().zip(coded) {
+            place(k, c);
         }
+    } else {
+        // one group after the other, each bounded by one byte past the least
+        // archive so far; a twin is coded under the bound of its mate's
+        // place, which can only let a trial finish that the fold of `pick`
+        // would not keep (a bound never changes an archive)
         let mut bound = raw;
-        let mut found: Vec<Option<Trial>> = vec![None; plan.len()];
-        for k in 0..plan.len() {
-            if found[k].is_some() {
-                continue;
-            }
-            let a = match mate[k] {
-                Some(j) => {
-                    let (s, t) = (plan[k], plan[j]);
-                    match code_twins(s, t) {
-                        None => {
-                            found[j] = Some(None);
-                            None
-                        }
-                        Some((at, ca, cb)) => {
-                            let a = at.settle(s.profile, ca, bound);
-                            let b = at.settle(t.profile, cb, bound);
-                            found[j] = Some(b);
-                            a
-                        }
-                    }
-                }
-                None => code(plan[k], learns(k), bound),
-            };
-            for t in std::iter::once(&a)
-                .chain(mate[k].and_then(|j| found[j].as_ref()))
-                .flatten()
-            {
+        for &k in &leads {
+            let c = group(k, bound);
+            for t in [&c.0, &c.1].into_iter().flatten() {
                 bound = bound.min(t.0.len() as u64 + 1);
             }
-            found[k] = Some(a);
+            place(k, c);
         }
-        found.into_iter().map(Option::flatten).collect()
     }
+    found.into_iter().map(Option::flatten).collect()
 }
 
 /// A coded trial: the archive and its decode steps.
 type Trial = Option<(Vec<u8>, u64)>;
+
+/// What a state strategy codes: the frame and the state it continues, both
+/// through the x86 filter or not, and the state's identity.
+struct WarmInput<'a> {
+    data: std::borrow::Cow<'a, [u8]>,
+    from: std::borrow::Cow<'a, [u8]>,
+    identity: [u8; 32],
+}
 
 /// A frame prepared for one transform: the bytes the coder reads (the frame
 /// and its window, through the x86 filter or not) and how a payload becomes
@@ -780,6 +827,45 @@ impl Prepared<'_> {
     fn stop(&self, profile: u32, bound: u64) -> usize {
         let form = self.frame_of(profile, &[]).map_or(0, |a| a.0.len() as u64);
         usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX)
+    }
+
+    /// [`Prepared::settle`] for twins coded in one learning pass: when both
+    /// learned profiles are themselves twins (the same contexts pruned), both
+    /// pruned codings share one pass too ([`ncm::encode_pair_below`]); each
+    /// payload is the one its own pass writes, so each trial is `settle`'s.
+    fn settle_pair(
+        &self,
+        profiles: [u32; 2],
+        coded: [Option<(Vec<u8>, u32)>; 2],
+        bound: u64,
+    ) -> (Trial, Trial) {
+        let [a, b] = coded;
+        let learned = |c: &Option<(Vec<u8>, u32)>, p: u32| c.as_ref().map_or(p, |c| c.1);
+        let (la, lb) = (learned(&a, profiles[0]), learned(&b, profiles[1]));
+        let shared = la != profiles[0] && lb != profiles[1] && la ^ lb == ncm::F_SEL;
+        let (Some(a), Some(b), true) = (&a, &b, shared) else {
+            return (
+                self.settle(profiles[0], a, bound),
+                self.settle(profiles[1], b, bound),
+            );
+        };
+        let plain_a = self.frame_of(profiles[0], &a.0);
+        let plain_b = self.frame_of(profiles[1], &b.0);
+        let keep = |plain: &Trial| {
+            plain
+                .as_ref()
+                .map_or(bound, |p| bound.min(p.0.len() as u64 + 1))
+        };
+        let (pa, pb) = ncm::encode_pair_below(
+            &self.past,
+            &self.data,
+            la,
+            false,
+            [self.stop(la, keep(&plain_a)), self.stop(lb, keep(&plain_b))],
+        );
+        let pruned_a = pa.and_then(|(p, _)| self.frame_of(la, &p));
+        let pruned_b = pb.and_then(|p| self.frame_of(lb, &p));
+        (pick_trial(pruned_a, plain_a), pick_trial(pruned_b, plain_b))
     }
 
     /// The learned trial (`Client.learnedTrial`) from a learning pass: the

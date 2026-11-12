@@ -1590,12 +1590,13 @@ mod x86 {
     #[target_feature(enable = "avx2")]
     pub(super) fn encoder_pair(
         history: &[u8],
+        state: &[u8],
         data: &[u8],
         profile: u32,
         learn: [bool; 2],
         stops: [usize; 2],
     ) -> super::Pairs {
-        super::encoder_pair::<Avx2>(history, data, profile, learn, stops)
+        super::encoder_pair::<Avx2>(history, state, data, profile, learn, stops)
     }
 
     /// The decoder loop compiled for AVX2.
@@ -2079,7 +2080,36 @@ fn encode_pairs(
     if !valid_profile(profile) {
         return (None, None);
     }
-    dispatch!(encoder_pair(history, data, profile, learn, stops))
+    dispatch!(encoder_pair(history, &[], data, profile, learn, stops))
+}
+
+/// The payloads of `profile` and of its [`F_SEL`] twin, each coded as the
+/// continuation of the model state `state` ([`encode_warm_below`]), from one
+/// pass: one replay of the state through the work the twins share, then one
+/// pass over `data`, each abandoned at its own stop. Each payload is the one
+/// [`encode_warm_below`] writes for its profile.
+pub fn encode_pair_warm_below(
+    state: &[u8],
+    data: &[u8],
+    profile: u32,
+    stops: [usize; 2],
+) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
+    if !valid_profile(profile) || state.is_empty() {
+        return (None, None);
+    }
+    let (a, b) = warm_pair(state, data, profile, stops);
+    (a.map(|(p, _)| p), b.map(|(p, _)| p))
+}
+
+fn warm_pair(state: &[u8], data: &[u8], profile: u32, stops: [usize; 2]) -> Pairs {
+    dispatch!(encoder_pair(
+        &[],
+        state,
+        data,
+        profile,
+        [false, false],
+        stops
+    ))
 }
 
 #[inline(always)]
@@ -2111,15 +2141,26 @@ pub type Pairs = (Option<(Vec<u8>, u32)>, Option<(Vec<u8>, u32)>);
 #[inline(always)]
 fn encoder_pair<K: Kernel>(
     history: &[u8],
+    state: &[u8],
     data: &[u8],
     profile: u32,
     learn: [bool; 2],
     stops: [usize; 2],
 ) -> Pairs {
-    let Ok(n) = u32::try_from(data.len()) else {
+    let modelled = u32::try_from(data.len())
+        .ok()
+        .zip(u32::try_from(state.len()).ok())
+        .and_then(|(n, w)| n.checked_add(w).map(|total| (n, total)));
+    let Some((n, total)) = modelled else {
         return (None, None);
     };
-    let mut m = Model::new(n, &[history], profile);
+    // with a state, the model `Model::warmed` builds, sized for the state and
+    // the frame; the twin replays the state with it below
+    let mut m = if state.is_empty() {
+        Model::new(n, &[history], profile)
+    } else {
+        Model::new(total, &[], profile)
+    };
     m.twin = Some(Box::new(Twin {
         sel: profile & F_SEL == 0,
         w1: weights(256 * 9, m.na + 3, m.stride),
@@ -2131,6 +2172,13 @@ fn encoder_pair<K: Kernel>(
         dot1: 0,
         gain: learn[1].then(|| Box::new([0; NC])),
     }));
+    if !state.is_empty() {
+        if m.stride == NINP_NARROW {
+            m.warm::<K, NINP_NARROW>(state);
+        } else {
+            m.warm::<K, NINP>(state);
+        }
+    }
     run_encoder::<K>(m, data, learn[0], stops)
 }
 
