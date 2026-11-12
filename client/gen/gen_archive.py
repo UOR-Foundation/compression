@@ -200,26 +200,14 @@ D('profiledBody', ['x : Nat', 'k : Nat', 'profile : Nat', 'payload : Bytes'], 'B
 # ncm::TABLE_MIN..TABLE_MAX), bits 26-30 the match tables (0, or any)
 D('profileWord', ['profile : Nat'], 'Bool',
   f"(let t : Nat := (prim remainder (prim quotient profile {1 << 20} 0 : Nat) 64 0 : Nat); ((profile <? {1 << 31}) && ((t =? 0) || ((5 <=? t) && (t <=? 32)))))")
-# a frame's word: a profile word in bits 0-31, bits 32-36 reserved, and the frame's streams (ncm::streams):
-# streams - 1 in bits 37-52 and the log2 of the epoch in bits 53-57, one stream carrying no epoch
-S_AT, E_AT = 1 << 37, 1 << 53
-D('frameWord', ['word : Nat'], 'Bool',
-  f"(let e : Nat := (prim quotient word {E_AT} 0 : Nat); (let streams : Nat := (prim remainder (prim quotient word {S_AT} 0 : Nat) 65536 0 : Nat); "
-  f"(if (e <? 32) then (if ((prim remainder (prim quotient word {1 << 32} 0 : Nat) 32 0 : Nat) =? 0) then (if (profileWord (prim remainder word {1 << 32} 0 : Nat)) then "
-  "(if (0 <? streams) then true else (e =? 0)) else false) else false) else false)))")
 # a v0.4 frame's word: v0.4's ncm blocks read no table field
 D('v04ProfileWord', ['profile : Nat'], 'Bool', f"(profile <? {1 << 20})")
-# a frame of one stream is coded by the frame's coder, a frame of more by the streams coder
-D('ncmDecoder', ['history : Bytes', 'payload : Bytes', 'word : Nat'], 'Bytes',
-  f"(if (word <? {S_AT}) then ({NDEC}::runProfile history payload word) else ({NDEC}::runStreams history payload word))")
-D('ncmEncoder', ['history : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes',
-  f"(if (word <? {S_AT}) then ({NENC}::runProfile history input word) else ({NENC}::runStreams history input word))")
 D('profiledDecoder', ['x : Nat', 'history : Bytes', 'payload : Bytes', 'profile : Nat'], 'Bytes',
-  f"(if (x =? 0) then (ncmDecoder history payload profile) else "
-  f"(Uorc.Codec.X86::run 1 (prim length history : Nat) (ncmDecoder (Uorc.Codec.X86::run 0 0 history) payload profile)))")
+  f"(if (x =? 0) then ({NDEC}::runProfile history payload profile) else "
+  f"(Uorc.Codec.X86::run 1 (prim length history : Nat) ({NDEC}::runProfile (Uorc.Codec.X86::run 0 0 history) payload profile)))")
 D('profiledEncoder', ['x : Nat', 'history : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes',
-  f"(if (x =? 0) then (ncmEncoder history input profile) else "
-  f"(let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); (ncmEncoder h f profile))))")
+  f"(if (x =? 0) then ({NENC}::runProfile history input profile) else "
+  f"(let h : Bytes := (Uorc.Codec.X86::run 0 0 history); (let f : Bytes := (Uorc.Codec.X86::run 0 (prim length history : Nat) input); ({NENC}::runProfile h f profile))))")
 
 # A linked archive this client writes: the rebuilt archive confirms the basis identity, the template and the
 # seal, and the payload must be the one the encoder writes for its output.
@@ -343,7 +331,7 @@ D('windowDecodeV03', ['data : Bytes', 'window : (List Bytes)'], '(Option Bytes)'
 D('profiledIdentity', ['window : (List Bytes)'], '(Option Bytes)',
   "(match window\n    | List.nil => (ctor Option.some [Bytes] (basisIdentity))\n    | List.cons oldest rest => (windowIdentity window))")
 D('profiledArchive', ['x : Nat', 'k : Nat', 'identity : Bytes', 'n : Nat', 'profile : Nat', 'payload : Bytes'], '(Option Bytes)',
-  f"(if (frameWord profile) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else {NONE_B})")
+  f"(if (profileWord profile) then (seal (windowPreimage identity n (profiledBody x k profile payload))) else {NONE_B})")
 PDA = (f"(let k : Nat := (windowCount window); (match (linkedHeader data)\n    | Option.none => {NONE_B}\n    | Option.some h => (let at : Nat := (((second h) + 32) + (prim length (profilePrefix x k) : Nat)); (match (readUleb 10 data at 1 0)\n      | Option.none => {NONE_B}\n      | Option.some pl => (match (readUleb 10 data (((second pl) + (first pl)) + 1) 1 0)\n        | Option.none => {NONE_B}\n        | Option.some pw => (let profile : Nat := (first pw); (match (payloadAt data at)\n          | Option.none => {NONE_B}\n          | Option.some payload => (match (profiledIdentity window)\n            | Option.none => {NONE_B}\n            | Option.some identity => (match (profiledArchive x k identity (first h) profile payload)\n              | Option.none => {NONE_B}\n              | Option.some rebuilt => (if (prim equal rebuilt data : Bool) then (let history : Bytes := (windowHistory window); (let out : Bytes := (profiledDecoder x history payload profile); "
        f"(if (((prim length out : Nat) =? (first h)) && (prim equal (profiledEncoder x history out profile) payload : Bool)) then (ctor Option.some [Bytes] out) else {NONE_B}))) else {NONE_B}))))))))))")
 D('profiledDecodeAs', ['x : Nat', 'data : Bytes', 'window : (List Bytes)'], '(Option Bytes)', PDA)

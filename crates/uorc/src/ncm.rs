@@ -2512,6 +2512,8 @@ fn decode_bits<K: Kernel, const W: usize>(
     }
     let mut out = m.hist;
     out.drain(..history);
+    // a warmed model kept for reuse was sized for the frame it first coded
+    out.truncate(n as usize);
     // Give back the history's share of the buffer: the output outlives the
     // model (the next frame's window holds it).
     out.shrink_to_fit();

@@ -446,7 +446,10 @@ P.func('merge', [], [('loop', G('lc'), 'q', ml), ('set', 'lc', 0), ('set', 'esta
 
 
 # ---- the regions' sizes, for a lowering that sizes every table by the frame ----
+_W = []
 def _widths():
+    if _W:
+        return _W[0]
     w = {}
     def walk(ss):
         for st in ss:
@@ -466,19 +469,12 @@ STATIC = sum(extent(t) for t in MERGED if isinstance(extent(t), int))
 
 
 def regions(entries):
-    """name -> (width, entries) of every streams region, from entries(name) of the frame's quantities:
-    'zs' (the merged entry space), 'sk' (streams), 'sr' (stride)."""
-    w = _widths()
+    """name -> (width, entries) of every streams table (the grouped regions), from entries(name) of the
+    frame's quantities: 'zs' (the merged entry space), 'sk' (streams), 'sr' (stride)."""
     zs, sk, sr = entries('zs'), entries('sk'), entries('sr')
-    r = {t + 'L': (w[t + 'L'], ('mul', sk, PRIVATE[t])) for t in PRIVATE}
-    for t in ['K', 'U', 'UT', 'UK', 'UO', 'LT', 'LK']:
-        r[t] = (w[t], zs)
-    r['D'] = (w['D'], ('mul', sk, zs))
-    r['E'] = (w['E'], ('mul', sk, zs))
-    r['LG'] = (w['LG'], ('mul', sk, LGSPAN))
-    r['OUTL'] = (1, ('mul', sk, ('add', ('mul', 2, sr), 64)))
-    r['GR'] = (1, ('add', ('mul', 8, ('mul', ('add', sk, 1), GSPAN)), sk))
-    return r
+    return {'PL': (8, ('mul', sk, PB // 8)), 'Z': (8, ('mul', zs, ZW // 8)), 'DE': (8, ('mul', ('mul', sk, zs), DW // 8)),
+            'OUTL': (1, ('mul', sk, ('add', ('mul', 2, sr), 64))),
+            'GR': (1, ('add', ('mul', 8, ('mul', ('add', sk, 1), GSPAN)), sk))}
 
 
 # ---- the frame ----
@@ -562,6 +558,70 @@ cpo = [('let', 'oj', ld('LG', 8, add(mul(V('j'), LGSPAN), LANE_G.index('op')))),
        ('set', 'flen', add(G('flen'), V('oj')))]
 enc += [('loop', G('sk'), 'j', cpo)]
 P.func('encodeStreams', ['size', 'h', 'pf'], enc)
+
+
+# ---- grouped regions ----
+# The lowering gives each table of its own a place in the state, and every table there costs every
+# update a deeper state, so the regions are grouped by their shape, each group one table with its
+# members interleaved at constant offsets (no key reads anything more than before):
+#   PL  per stream one block of PB bytes: its scalars (LG) and its private tables, member t at byte
+#       PO[t] of the block;
+#   Z   per merged entry ZW bytes: K, U, UK, LK, UO, UT, LT at ZO[t];
+#   DE  per stream entry (j * zs + i) 16 bytes: D at 0, E at 8.
+_W.append(_widths())
+_PW = dict((t + 'L', _W[0][t + 'L']) for t in PRIVATE)
+_PW['LG'] = 8
+_PSPAN = dict((t + 'L', PRIVATE[t]) for t in PRIVATE)
+_PSPAN['LG'] = LGSPAN
+def _layout(members, width, span):
+    at, off = 0, {}
+    for t in sorted(members, key=lambda t: -width[t]):
+        off[t] = at
+        at += width[t] * span[t]
+    return off, (at + 7) // 8 * 8
+PO, PB = _layout(list(_PSPAN), _PW, _PSPAN)
+_ZM = ['K', 'U', 'UK', 'LK', 'UO', 'UT', 'LT']
+ZO, ZW = _layout(_ZM, _W[0], dict((t, 1) for t in _ZM))
+DO, DW = {'D': 0, 'E': 8}, 16
+GROUP = dict([(t, 'PL') for t in PO] + [(t, 'Z') for t in ZO] + [(t, 'DE') for t in DO])
+for g in ['PL', 'Z', 'DE']:
+    region(g)
+def _split(t, key):
+    """(stream, index) of a key lane * span + index into a per-stream region."""
+    sp = _PSPAN[t]
+    if key[0] == 'add':
+        a, b = key[1], key[2]
+        if isinstance(b, tuple) and b[0] == 'mul' and b[2] == sp:
+            return b[1], a
+        if isinstance(a, tuple) and a[0] == 'mul' and a[2] == sp:
+            return a[1], b
+    raise ValueError((t, key))
+def _gkey(t, w, key):
+    g = GROUP[t]
+    if g == 'PL':
+        lane, idx = _split(t, key)
+        return add(add(mul(lane, PB // w), PO[t] // w), idx)
+    if g == 'Z':
+        return add(mul(key, ZW // w), ZO[t] // w)
+    return add(mul(key, DW // w), DO[t] // w)
+def _pe(e):
+    if not isinstance(e, tuple):
+        return e
+    if e[0] == 'ld' and e[1] in GROUP:
+        return ('ld', GROUP[e[1]], e[2], _gkey(e[1], e[2], _pe(e[3])))
+    return (e[0],) + tuple(_pe(a) for a in e[1:])
+def _ps(ss):
+    out = []
+    for st in ss:
+        if st[0] == 'store' and st[1] in GROUP:
+            out.append(('store', GROUP[st[1]], st[2], _gkey(st[1], st[2], _pe(st[3])), _pe(st[4])))
+        elif st[0] == 'call':
+            out.append(('call', st[1], [_pe(a) for a in st[2]]))
+        else:
+            out.append((st[0],) + tuple(_ps(a) if isinstance(a, list) else _pe(a) for a in st[1:]))
+    return out
+for _f, (_fp, _body) in list(P.funcs.items()):
+    P.funcs[_f] = (_fp, _ps(_body))
 
 
 def word(prof, k, epoch):
