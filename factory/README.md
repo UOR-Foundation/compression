@@ -101,3 +101,22 @@ node scripts/factory.mjs export-check      # is generated/rust exported from the
 node scripts/client-export.mjs             # exits at once when it is; --force exports anyway
 node --test scripts/factory.test.mjs
 ```
+
+## Release
+
+Merging a workspace version bump to the default branch is the release. After
+each receipts run, factory.yml's `release` job runs `factory.mjs release-step`
+on the default branch's head:
+
+- **done**: `v<version>` is already tagged.
+- **wait**: the bootstrap gate is not proved on the head yet (or a release run
+  finished without proving every stage; fix it, then dispatch factory.yml).
+- **rehearse**: the gate is proved but `native-*`, `wasm`, `bench` or
+  `frontier` is not; it dispatches a release rehearsal of the head.
+- **tag**: everything is proved; it creates the annotated tag `v<version>` on
+  the head and dispatches release.yml from the default branch with
+  `ref=v<version> mode=publish`, which only packages, publishes and deploys
+  Pages from the rehearsal's artifacts.
+
+Only a run that is not itself a release starts a rehearsal, so a failing
+rehearsal is not retried in a loop. Pushing a `v*` tag by hand still works.

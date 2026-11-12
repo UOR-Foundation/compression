@@ -24,6 +24,7 @@
 //   node scripts/factory.mjs materialize NAME     (CI: delete what NAME does not declare)
 //   node scripts/factory.mjs outcome NAME IDENTITY success|failure DIR
 //   node scripts/factory.mjs publish DIR          (factory.yml only: needs GH_TOKEN)
+//   node scripts/factory.mjs release-step --context trigger=WORKFLOW   (factory.yml: tag a proved version)
 //   node scripts/factory.mjs export-check | export-record
 import fs from 'node:fs';
 import os from 'node:os';
@@ -197,6 +198,25 @@ export function reweigh(weights, outcomes) {
   return next;
 }
 
+// The release stages a tag publishes from: built and decided on the exact tree
+// by a rehearsal (or an earlier release run) before the tag exists.
+export const RELEASE_STAGES = ['native-x86_64-unknown-linux-gnu', 'native-aarch64-unknown-linux-gnu', 'wasm', 'bench', 'frontier'];
+
+/// What the default branch's head needs next to ship its workspace version.
+/// Merging a version bump is the release: once the bootstrap gate and every
+/// release stage are proved on that tree, the tag is made and published. Only
+/// a run that is not itself a release starts a rehearsal, so a rehearsal that
+/// fails does not start another.
+export function releaseStep({version, tagged, routes, trigger}) {
+  const tag = `v${version}`;
+  if (tagged) return {step: 'done', tag, why: `${tag} is already tagged`};
+  if (routes.gate.route !== 'proved') return {step: 'wait', tag, why: `the bootstrap gate is not proved on this tree yet`};
+  const open = RELEASE_STAGES.filter(n => routes[n].route !== 'proved');
+  if (!open.length) return {step: 'tag', tag, why: `the gate and every release stage are proved on this tree`};
+  if (trigger === 'release') return {step: 'wait', tag, why: `a release run finished without proving ${open.join(', ')}; fix it and dispatch a rehearsal`};
+  return {step: 'rehearse', tag, why: `${open.join(', ')} not proved on this tree`};
+}
+
 function exportRoute(graph, ids, dir) {
   const o = graph.obligations.find(x => x.name === 'export');
   const file = path.join(dir, o.record);
@@ -318,6 +338,17 @@ function main(argv) {
       return;
     }
     case 'publish': return publish(graph, dir, opts.names[0]);
+    case 'release-step': {
+      // factory.yml, on the default branch's head: tag, rehearse, wait or done.
+      checkWorkflows(graph, dir);
+      const version = fs.readFileSync(path.join(dir, 'Cargo.toml'), 'utf8').match(/^\[workspace\.package\][^[]*?^version = "([^"]+)"/m)?.[1] ?? fail('Cargo.toml: no [workspace.package] version');
+      const tagged = git(['rev-parse', '--verify', '--quiet', `refs/tags/v${version}`], {cwd: dir, allowFail: true}) !== null;
+      const routes = route(graph, identities(graph, tree('HEAD', dir), {}), parseStore(fetchStore(dir)), {inRun: false});
+      const r = releaseStep({version, tagged, routes, trigger: opts.contexts.trigger});
+      console.error(`::notice title=release ${r.tag}: ${r.step}::${r.why}`);
+      process.stdout.write(`step=${r.step}\ntag=${r.tag}\nsha=${git(['rev-parse', 'HEAD'], {cwd: dir}).toString().trim()}\n`);
+      return;
+    }
     case 'export-check': {
       const ids = identities(graph, tree('HEAD', dir), plannedContexts);
       const r = exportRoute(graph, ids, dir);
