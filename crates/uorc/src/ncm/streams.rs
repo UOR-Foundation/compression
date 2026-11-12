@@ -1063,8 +1063,14 @@ fn encode_frame<K: Kernel, const W: usize>(
     }
     let mut out = Vec::new();
     out.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    for c in &mut coders {
+    for (j, c) in coders.iter_mut().enumerate() {
         c.out.push((c.x1 >> 24) as u8);
+        // a stream's coder abandons the encoding past twice its length and
+        // 64 bytes, as a frame's coder does (`ncm::encode`)
+        let len = ((j + 1) * r).min(f.n) - (j * r).min(f.n);
+        if c.out.len() > 2 * len + 64 {
+            return None;
+        }
     }
     for c in &coders[..k - 1] {
         out.extend_from_slice(&(c.out.len() as u32).to_be_bytes());
