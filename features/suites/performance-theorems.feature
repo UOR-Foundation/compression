@@ -48,3 +48,15 @@ Feature: performance-theorems
     Given the Uorc.Performance module and the native consolidation in uorc::performance
     When the locked SDK verifies the module and the native test consolidates every pair and sequence of small trials
     Then the potential theorems are kernel-checked and every native consolidation lowers bytes plus steps by exactly its gain
+
+  @UC-PERF-16 @build
+  Scenario: A frame's window facets step on its chosen archive (Client.stepWindow): its coding is recoded over one more earlier frame of its block at a time, then with one more match table bit at a time, and each step is kept only while the archive gets strictly shorter and the decoder fits the declared decode host; each facet stops at the first step that does not pay or does not fit, so no depth or table size is fixed. A frame is therefore the portfolio's archive byte for byte or a strictly shorter one, and it decodes to the frame.
+    Given the native client's window step and its decoders
+    When the native test compresses a frame that repeats the oldest frame of its block and a frame no earlier frame holds
+    Then the first is coded over all three earlier frames and is strictly smaller than over the last two, the second is the portfolio's archive or a strictly shorter one, and both decode
+
+  @UC-PERF-17 @build
+  Scenario: The profiled window entry over k earlier frames is one form for every k of at least 1 (Archive.profilePrefix, Archive.profileTail): three graph nodes per frame concatenate basis roots 1 to k in order, and the call to the coder reaches its payload and profile word three nodes further back per frame. For one and two frames it is the fixed entry byte for byte, and the decoder reads k from the entry, so window depth is a facet of the archive rather than a constant of the format.
+    Given the native window entry template and the native window decoder
+    When the native test builds entries over 1 to 6 frames, with and without the x86 filter
+    Then the one- and two-frame entries equal the fixed ones, and every deeper entry names its depth and decodes to its frame
