@@ -216,7 +216,17 @@ fn compress_pieces_on(
     host: performance::Host,
 ) -> Result<Vec<u8>, Error> {
     if steps > 0 {
-        let archive = on_reference_stack(|| reference_compress(frame, window, steps))?;
+        // `Client.compress` with steps: the smaller of the portfolio's archive
+        // (native, the model's bytes) and the program search's (the exported
+        // search, `Client.search`), the search kept only when strictly shorter
+        // (`Client.smaller`); as one object, then relabelled
+        let n = [frame.len() as u64];
+        let quick = compress_pieces(frame, &n, window, 0, side_by_side)?;
+        let found = on_reference_stack(|| reference_search(frame, steps))?;
+        let archive = match found {
+            Some(f) if f.len() < quick.len() => f,
+            _ => quick,
+        };
         return if lengths.len() == 1 {
             Ok(archive)
         } else {
@@ -938,6 +948,14 @@ pub fn model_compress_frame(frame: &[u8]) -> Result<Vec<u8>, Error> {
 #[doc(hidden)]
 pub fn model_decompress_frame(archive: &[u8]) -> Result<Vec<u8>, Error> {
     on_reference_stack(|| reference_decompress(archive, &[], DEFAULT_DECODE_WORK))
+}
+
+/// The exported program search (`Client.search input steps`).
+fn reference_search(input: &[u8], steps: u64) -> Result<Option<Vec<u8>>, Error> {
+    match uorc_search::run(uorc_search::Bytes::lit(input), steps) {
+        Ok(found) => Ok(found.map(|a| a.octets().to_vec())),
+        Err(_) => Err(Error::Overflow),
+    }
 }
 
 fn reference_compress(input: &[u8], window: &[&[u8]], steps: u64) -> Result<Vec<u8>, Error> {
@@ -2034,6 +2052,16 @@ mod tests {
             decompress(&archive, DEFAULT_DECODE_WORK).expect("decodes"),
             vec![0u8; 200]
         );
+    }
+
+    /// With steps, native compress is the model's: its own portfolio archive
+    /// and the exported search, the smaller kept.
+    #[test]
+    fn searched_archives_are_the_model_archives() {
+        for (input, steps) in [(vec![0u8; 200], 10_000), (text(300, 4), 20_000)] {
+            let model = on_reference_stack(|| reference_compress(&input, &[], steps));
+            assert_eq!(compress_frame(&input, steps), model);
+        }
     }
 
     #[test]
