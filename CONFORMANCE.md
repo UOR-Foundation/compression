@@ -122,7 +122,7 @@ The three honesty levels (R2):
 
 | ID | Level | Statement |
 | --- | --- | --- |
-| `UC-OPT-01` | `build` | Compress returns the smallest of the archives it checked, which are the raw archive, the ncm archive (over the x86 branch filter for x86 code) and any search candidate within the step budget; no minimum beyond that candidate set is claimed. |
+| `UC-OPT-01` | `build` | For each frame, compress returns the least of the archives it checked, by bytes and then by decode steps: the raw archive, the trials its frame's portfolio schedules (coder profiles, named model states, and the x86 branch filter where the filter changes the input) and any search candidate within the step budget; no minimum beyond that candidate set is claimed. |
 
 ## source-authority
 
@@ -172,7 +172,7 @@ The three honesty levels (R2):
 | `UC-INT-01` | `build` | `build_evidence` | `not_measured` | Every archive the client decodes is checked against its UORC-SHA256-CHAIN-v1 integrity trailer, so changing any single bit of an archive makes it fail to decode. |
 | `UC-BAS-01` | `build` | `build_evidence` | `not_measured` | Conditional archives name the client's standard basis, the ulz and ncm decoder libraries, by its UORC-BASIS-V1 identity and decode only against that actual basis. |
 | `UC-SYN-01` | `build` | `build_evidence` | `not_measured` | Program search under a step budget keeps a candidate only as a fully checked archive: more effort can change which archive wins, never whether the result decodes to the input. |
-| `UC-OPT-01` | `build` | `build_evidence` | `not_measured` | Compress returns the smallest of the archives it checked, which are the raw archive, the ncm archive (over the x86 branch filter for x86 code) and any search candidate within the step budget; no minimum beyond that candidate set is claimed. |
+| `UC-OPT-01` | `build` | `build_evidence` | `not_measured` | For each frame, compress returns the least of the archives it checked, by bytes and then by decode steps: the raw archive, the trials its frame's portfolio schedules (coder profiles, named model states, and the x86 branch filter where the filter changes the input) and any search candidate within the step budget; no minimum beyond that candidate set is claimed. |
 | `UC-API-01` | `build` | `build_evidence` | `not_measured` | The uorc library, CLI and WebAssembly exports run the same compress, decompress, inspect and verify operations over arbitrary bytes, with typed budget, overflow, decode and mismatch failures. |
 | `UC-REAL-01` | `build` | `fixture_result` | `not_measured` | Real archives that uorc compress writes for text, structured binary, noise and edge-case inputs are independently decoded and compared against every original byte. |
 | `UC-SHA-01` | `build` | `fixture_result` | `not_measured` | Incremental SHA-256 and the separately named bounded chain have source-owned streaming semantics, typed failures and independently locked byte-oriented CAVP oracle evidence. |
