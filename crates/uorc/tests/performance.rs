@@ -430,6 +430,20 @@ fn a_shared_pass_writes_each_twins_own_payload_uc_perf_11() {
             (full.clone(), None)
         );
     }
+    // both twins learning in one pass: each payload and learned profile is
+    // the one its own learning pass finds, in both directions, after a window
+    for (history, data) in [
+        (Vec::new(), text(30_000)),
+        (text(9_000), text(20_000)),
+        (Vec::new(), noise(30_000, 3)),
+    ] {
+        for profile in [ncm::FULL, mid] {
+            let own = |p: u32| ncm::encode_learn_below(&history, &data, p, usize::MAX);
+            let (a, b) = ncm::encode_pairs_learn_below(&history, &data, profile, [usize::MAX; 2]);
+            assert_eq!(a, own(profile), "{profile:#x}");
+            assert_eq!(b, own(profile ^ ncm::F_SEL), "{profile:#x}");
+        }
+    }
     // the client codes twins in one pass when no core is spare: the archives
     // are the same at every thread count
     let input: Vec<u8> = text(300_000).into_iter().chain(noise(200_000, 5)).collect();

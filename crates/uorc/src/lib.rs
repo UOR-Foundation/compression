@@ -240,6 +240,36 @@ fn portfolio_trials(
     // encoder stops once the payload passes `bound` less that form: an
     // archive it would have finished could not have been chosen, and every
     // archive it does finish is the one it always wrote.
+    let prepared = |x86: bool| -> Option<Prepared<'_>> {
+        let (data, past) = if x86 {
+            let (data, hits) = x86::filter(frame, false, history.len() as u64);
+            if hits == 0 {
+                return None;
+            }
+            (
+                std::borrow::Cow::Owned(data),
+                std::borrow::Cow::Owned(x86::filter(&history, false, 0).0),
+            )
+        } else {
+            (
+                std::borrow::Cow::Borrowed(frame),
+                std::borrow::Cow::Borrowed(&history[..]),
+            )
+        };
+        Some(Prepared {
+            data,
+            past,
+            codec: if x86 {
+                archive::Codec::NcmX86
+            } else {
+                archive::Codec::Ncm
+            },
+            lengths,
+            window,
+            identity: identity.as_ref(),
+            n,
+        })
+    };
     let code = |strategy: portfolio::Strategy, learn: bool, bound: u64| -> Option<(Vec<u8>, u64)> {
         if strategy.state != 0 {
             // A state strategy (`Archive.stateCandidate`): the frame coded as
@@ -275,60 +305,44 @@ fn portfolio_trials(
                 })
                 .map(|a| (a, steps));
         }
-        let filtered;
-        let (data, past) = if strategy.x86 {
-            let (data, hits) = x86::filter(frame, false, history.len() as u64);
-            if hits == 0 {
-                return None;
-            }
-            filtered = (data, x86::filter(&history, false, 0).0);
-            (&filtered.0[..], &filtered.1[..])
-        } else {
-            (frame, &history[..])
-        };
-        let codec = if strategy.x86 {
-            archive::Codec::NcmX86
-        } else {
-            archive::Codec::Ncm
-        };
-        // The native ncm encoder is byte-identical to the model
-        // (`native_archives_are_the_model_archives`) and every encoder output
-        // decodes to its input, so a self-decode would only repeat its cost.
-        let frame_of = |profile: u32, payload: &[u8]| {
-            match &identity {
-                None => archive::linked_archive_profile(codec, profile, lengths, payload),
-                Some(identity) => archive::window_archive_profile(
-                    codec, profile, window, identity, lengths, payload,
-                ),
-            }
-            .map(|a| (a, performance::trial_steps(profile, n)))
-        };
-        let stop = |profile: u32, bound: u64| -> usize {
-            let form = frame_of(profile, &[]).map_or(0, |a| a.0.len() as u64);
-            usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX)
-        };
+        let at = prepared(strategy.x86)?;
         if !learn {
-            return ncm::encode_below(past, data, strategy.profile, stop(strategy.profile, bound))
-                .and_then(|payload| frame_of(strategy.profile, &payload));
+            return ncm::encode_below(
+                &at.past,
+                &at.data,
+                strategy.profile,
+                at.stop(strategy.profile, bound),
+            )
+            .and_then(|payload| at.frame_of(strategy.profile, &payload));
         }
-        // The learned profile (`Client.learnedTrial`): the strategy's profile
-        // without the contexts that saved nothing on this frame, coded too and
-        // kept when fewer bytes, or as many bytes and fewer steps. The learning
-        // pass is bounded by the raw archive only: the learned profile can be
-        // shorter than a bound its own pass exceeds, and stopping that pass
-        // would lose it (the model always codes both).
-        let (payload, learned) =
-            ncm::encode_learn_below(past, data, strategy.profile, stop(strategy.profile, raw))?;
-        let plain = frame_of(strategy.profile, &payload);
-        if learned == strategy.profile {
-            return plain;
-        }
-        let keep = plain
-            .as_ref()
-            .map_or(bound, |p| bound.min(p.0.len() as u64 + 1));
-        let pruned = ncm::encode_below(past, data, learned, stop(learned, keep))
-            .and_then(|p| frame_of(learned, &p));
-        pick_trial(pruned, plain)
+        // The learned profile (`Client.learnedTrial`): the learning pass is
+        // bounded by the raw archive only: the learned profile can be shorter
+        // than a bound its own pass exceeds, and stopping that pass would lose
+        // it (the model always codes both).
+        let coded = ncm::encode_learn_below(
+            &at.past,
+            &at.data,
+            strategy.profile,
+            at.stop(strategy.profile, raw),
+        );
+        at.settle(strategy.profile, coded, bound)
+    };
+    // Twins without a state (the same transform, profiles that differ only in
+    // mixer selection, `ncm::F_SEL`) learn in one shared pass: the same two
+    // learning passes, each bounded by the raw archive, for one pass of the
+    // work they share (`ncm::encode_pairs_learn_below`).
+    let twins = |f: portfolio::Strategy, s: portfolio::Strategy| {
+        f.state == 0 && s.state == 0 && f.x86 == s.x86 && f.profile ^ s.profile == ncm::F_SEL
+    };
+    let code_twins = |f: portfolio::Strategy, s: portfolio::Strategy| {
+        let at = prepared(f.x86)?;
+        let (a, b) = ncm::encode_pairs_learn_below(
+            &at.past,
+            &at.data,
+            f.profile,
+            [at.stop(f.profile, raw), at.stop(s.profile, raw)],
+        );
+        Some((at, a, b))
     };
     // The scheduled strategies: each one without a state also learns its
     // context mask (a state strategy codes its profile as given). With cores
@@ -355,16 +369,120 @@ fn portfolio_trials(
                 .collect()
         })
     } else {
-        let mut bound = raw;
-        let mut found = Vec::with_capacity(plan.len());
-        for (k, &st) in plan.iter().enumerate() {
-            let a = code(st, learns(k), bound);
-            if let Some(a) = &a {
-                bound = bound.min(a.0.len() as u64 + 1);
+        // each state-free strategy codes with the first later twin of the
+        // plan in one pass; a twin's trial is coded under the bound of its
+        // mate's place, which can only let a trial finish that the fold of
+        // `pick` would not keep (a bound never changes an archive)
+        let mut mate: Vec<Option<usize>> = vec![None; plan.len()];
+        let mut paired = vec![false; plan.len()];
+        for k in 0..plan.len() {
+            if paired[k] {
+                continue;
             }
-            found.push(a);
+            if let Some(j) = (k + 1..plan.len()).find(|&j| !paired[j] && twins(plan[k], plan[j])) {
+                mate[k] = Some(j);
+                paired[k] = true;
+                paired[j] = true;
+            }
         }
-        found
+        let mut bound = raw;
+        let mut found: Vec<Option<Trial>> = vec![None; plan.len()];
+        for k in 0..plan.len() {
+            if found[k].is_some() {
+                continue;
+            }
+            let a = match mate[k] {
+                Some(j) => {
+                    let (s, t) = (plan[k], plan[j]);
+                    match code_twins(s, t) {
+                        None => {
+                            found[j] = Some(None);
+                            None
+                        }
+                        Some((at, ca, cb)) => {
+                            let a = at.settle(s.profile, ca, bound);
+                            let b = at.settle(t.profile, cb, bound);
+                            found[j] = Some(b);
+                            a
+                        }
+                    }
+                }
+                None => code(plan[k], learns(k), bound),
+            };
+            for t in std::iter::once(&a)
+                .chain(mate[k].and_then(|j| found[j].as_ref()))
+                .flatten()
+            {
+                bound = bound.min(t.0.len() as u64 + 1);
+            }
+            found[k] = Some(a);
+        }
+        found.into_iter().map(Option::flatten).collect()
+    }
+}
+
+/// A coded trial: the archive and its decode steps.
+type Trial = Option<(Vec<u8>, u64)>;
+
+/// A frame prepared for one transform: the bytes the coder reads (the frame
+/// and its window, through the x86 filter or not) and how a payload becomes
+/// the frame's archive.
+struct Prepared<'a> {
+    data: std::borrow::Cow<'a, [u8]>,
+    past: std::borrow::Cow<'a, [u8]>,
+    codec: archive::Codec,
+    lengths: &'a [u64],
+    window: &'a [&'a [u8]],
+    identity: Option<&'a [u8; 32]>,
+    n: u64,
+}
+
+impl Prepared<'_> {
+    // The native ncm encoder is byte-identical to the model
+    // (`native_archives_are_the_model_archives`) and every encoder output
+    // decodes to its input, so a self-decode would only repeat its cost.
+    fn frame_of(&self, profile: u32, payload: &[u8]) -> Option<(Vec<u8>, u64)> {
+        match self.identity {
+            None => archive::linked_archive_profile(self.codec, profile, self.lengths, payload),
+            Some(identity) => archive::window_archive_profile(
+                self.codec,
+                profile,
+                self.window,
+                identity,
+                self.lengths,
+                payload,
+            ),
+        }
+        .map(|a| (a, performance::trial_steps(profile, self.n)))
+    }
+
+    /// The payload length at which a frame of `profile` reaches `bound`.
+    fn stop(&self, profile: u32, bound: u64) -> usize {
+        let form = self.frame_of(profile, &[]).map_or(0, |a| a.0.len() as u64);
+        usize::try_from(bound.saturating_sub(form)).unwrap_or(usize::MAX)
+    }
+
+    /// The learned trial (`Client.learnedTrial`) from a learning pass: the
+    /// strategy's profile without the contexts that saved nothing on this
+    /// frame, coded too and kept when fewer bytes, or as many bytes and fewer
+    /// steps.
+    fn settle(
+        &self,
+        profile: u32,
+        coded: Option<(Vec<u8>, u32)>,
+        bound: u64,
+    ) -> Option<(Vec<u8>, u64)> {
+        let (payload, learned) = coded?;
+        let plain = self.frame_of(profile, &payload);
+        if learned == profile {
+            return plain;
+        }
+        let keep = plain
+            .as_ref()
+            .map_or(bound, |p| bound.min(p.0.len() as u64 + 1));
+        let pruned = ncm::encode_below(&self.past, &self.data, learned, self.stop(learned, keep))
+            .and_then(|p| self.frame_of(learned, &p));
+        pick_trial(pruned, plain)
     }
 }
 

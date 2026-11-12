@@ -1153,6 +1153,7 @@ impl Model {
             let c1 = (self.c0 + 256 * if tw.sel { mstate } else { 0 }) as usize;
             tw.s1 = c1 * W;
             let a = K::dot1::<W>(row(&self.st, 0), row(&tw.w1, tw.s1));
+            tw.dot1 = a;
             let d1 = (a >> 16).clamp(-2047, 2047) as i32;
             tw.pm1 = sq(d1);
             let p = sq((((d1 + d2 + d3 + 6144) * 21846) >> 16) - 2048).clamp(1, 4095) as u32;
@@ -1175,25 +1176,49 @@ impl Model {
             sq((((c(d[0]) + c(d[1]) + c(d[2]) + 6144) * 21846) >> 16) - 2048).clamp(1, 4095)
         };
         let cost = |p: i32| i64::from(t.cost[if y { p } else { 4096 - p } as usize]);
-        let base = cost(mean(self.dots));
-        let Some(gain) = self.gain.as_mut() else {
-            return;
-        };
-        for j in 0..self.na {
-            let x = i64::from(self.st[j]);
-            let without = [
-                self.dots[0] - i64::from(self.w1[self.s1 + j]) * x,
-                self.dots[1] - i64::from(self.w2[self.s2 + j]) * x,
-                self.dots[2] - i64::from(self.w3[self.s3 + j]) * x,
-            ];
-            gain[self.act[j]] += cost(mean(without)) - base;
+        if let Some(gain) = self.gain.as_mut() {
+            let base = cost(mean(self.dots));
+            for j in 0..self.na {
+                let x = i64::from(self.st[j]);
+                let without = [
+                    self.dots[0] - i64::from(self.w1[self.s1 + j]) * x,
+                    self.dots[1] - i64::from(self.w2[self.s2 + j]) * x,
+                    self.dots[2] - i64::from(self.w3[self.s3 + j]) * x,
+                ];
+                gain[self.act[j]] += cost(mean(without)) - base;
+            }
+        }
+        // the twin's mixer 1 in place of this profile's, mixers 2 and 3 shared
+        if let Some(tw) = self.twin.as_deref_mut() {
+            if let Some(gain) = tw.gain.as_mut() {
+                let dots = [tw.dot1, self.dots[1], self.dots[2]];
+                let base = cost(mean(dots));
+                for j in 0..self.na {
+                    let x = i64::from(self.st[j]);
+                    let without = [
+                        dots[0] - i64::from(tw.w1[tw.s1 + j]) * x,
+                        dots[1] - i64::from(self.w2[self.s2 + j]) * x,
+                        dots[2] - i64::from(self.w3[self.s3 + j]) * x,
+                    ];
+                    gain[self.act[j]] += cost(mean(without)) - base;
+                }
+            }
         }
     }
 
     /// The profile without the contexts that saved nothing (gain <= 0).
     fn learned(&self) -> u32 {
-        let mut profile = self.profile;
-        if let Some(gain) = &self.gain {
+        self.pruned(self.profile, self.gain.as_deref())
+    }
+
+    /// The twin's profile without the contexts that saved nothing under it.
+    fn twin_learned(&self) -> u32 {
+        let twin = self.twin.as_deref();
+        self.pruned(self.profile ^ F_SEL, twin.and_then(|t| t.gain.as_deref()))
+    }
+
+    fn pruned(&self, mut profile: u32, gain: Option<&[i64; NC]>) -> u32 {
+        if let Some(gain) = gain {
             for j in 0..self.na {
                 if gain[self.act[j]] <= 0 {
                     profile &= !(1 << self.act[j]);
@@ -1290,6 +1315,11 @@ struct Twin {
     s1: usize,
     pm1: i32,
     pr: u32,
+    /// mixer 1's dot product for the bit being coded
+    dot1: i64,
+    /// With the twin learning: what each context saved under the twin's
+    /// mixer 1 (see [`Model::learn`]).
+    gain: Option<Box<[i64; NC]>>,
 }
 
 /// Fresh mixer weights for `rows` contexts in rows of `stride`: 1/4 on the
@@ -1446,9 +1476,9 @@ mod x86 {
         history: &[u8],
         data: &[u8],
         profile: u32,
-        learn: bool,
+        learn: [bool; 2],
         stops: [usize; 2],
-    ) -> super::Pair {
+    ) -> super::Pairs {
         super::encoder_pair::<Avx2>(history, data, profile, learn, stops)
     }
 
@@ -1829,6 +1859,30 @@ pub fn encode_pair_below(
     learn: bool,
     stops: [usize; 2],
 ) -> Pair {
+    let (a, b) = encode_pairs(history, data, profile, [learn, false], stops);
+    (a, b.map(|(payload, _)| payload))
+}
+
+/// [`encode_pair_below`] with both profiles learning their masks, as
+/// [`encode_learn_below`] does for each: the twin learns from its own mixer 1
+/// over the shared mixers 2 and 3, so each learned profile is the one its own
+/// learning pass finds.
+pub fn encode_pairs_learn_below(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    stops: [usize; 2],
+) -> Pairs {
+    encode_pairs(history, data, profile, [true, true], stops)
+}
+
+fn encode_pairs(
+    history: &[u8],
+    data: &[u8],
+    profile: u32,
+    learn: [bool; 2],
+    stops: [usize; 2],
+) -> Pairs {
     if !valid_profile(profile) {
         return (None, None);
     }
@@ -1857,14 +1911,18 @@ fn encoder<K: Kernel>(
 /// [`F_SEL`] twin, from one pass, each abandoned at its own stop.
 pub type Pair = (Option<(Vec<u8>, u32)>, Option<Vec<u8>>);
 
+/// The payloads and learned profiles of a profile and of its [`F_SEL`] twin
+/// (see [`encode_pairs_learn_below`]).
+pub type Pairs = (Option<(Vec<u8>, u32)>, Option<(Vec<u8>, u32)>);
+
 #[inline(always)]
 fn encoder_pair<K: Kernel>(
     history: &[u8],
     data: &[u8],
     profile: u32,
-    learn: bool,
+    learn: [bool; 2],
     stops: [usize; 2],
-) -> Pair {
+) -> Pairs {
     let Ok(n) = u32::try_from(data.len()) else {
         return (None, None);
     };
@@ -1877,12 +1935,14 @@ fn encoder_pair<K: Kernel>(
         s1: 0,
         pm1: 0,
         pr: 2048,
+        dot1: 0,
+        gain: learn[1].then(|| Box::new([0; NC])),
     }));
-    run_encoder::<K>(m, data, learn, stops)
+    run_encoder::<K>(m, data, learn[0], stops)
 }
 
 #[inline(always)]
-fn run_encoder<K: Kernel>(mut m: Model, data: &[u8], learn: bool, stops: [usize; 2]) -> Pair {
+fn run_encoder<K: Kernel>(mut m: Model, data: &[u8], learn: bool, stops: [usize; 2]) -> Pairs {
     if learn {
         m.gain = Some(Box::new([0; NC]));
     }
@@ -1951,8 +2011,9 @@ impl Coder {
 }
 
 #[inline(always)]
-fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8], stops: [usize; 2]) -> Pair {
+fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8], stops: [usize; 2]) -> Pairs {
     let twin = m.twin.is_some();
+    let learning = m.gain.is_some() || m.twin.as_ref().is_some_and(|t| t.gain.is_some());
     let mut main = Coder::new(data.len(), stops[0], true);
     let mut other = Coder::new(data.len(), stops[1], twin);
     for (i, &byte) in data.iter().enumerate() {
@@ -1972,14 +2033,17 @@ fn encode_bits<K: Kernel, const W: usize>(mut m: Model, data: &[u8], stops: [usi
                 let q = m.twin.as_deref().map_or(2048, |t| t.pr);
                 other.code(y, q);
             }
-            if m.gain.is_some() {
+            if learning {
                 m.learn::<W>(y);
             }
             m.update::<K, W>(y);
         }
     }
-    let learned = m.learned();
-    (main.finish().map(|p| (p, learned)), other.finish())
+    let (learned, twin_learned) = (m.learned(), m.twin_learned());
+    (
+        main.finish().map(|p| (p, learned)),
+        other.finish().map(|p| (p, twin_learned)),
+    )
 }
 
 /// [`encode_profile`] from the κ-named model state `state` (`Ncm.runWarm`):
