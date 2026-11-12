@@ -73,7 +73,13 @@ pub mod x86;
 pub use frame::{frame_length, frames, inspect, object_lengths, Info, Representation, HEADER_HINT};
 
 /// Input bytes per frame. Each frame becomes one self-contained archive.
-pub const FRAME: usize = 8 << 20;
+///
+/// Unit tests cut frames at 1 MiB: every framing rule (cuts, references,
+/// windows, blocks) reads the frame length only through this constant and
+/// holds the same at any length well above [`chunk::MAX_UNIT`], while coding
+/// full 8 MiB frames through the whole portfolio cost most of the acceptance
+/// leg's time.
+pub const FRAME: usize = if cfg!(test) { 1 << 20 } else { 8 << 20 };
 
 /// Coded frames per block, the encoder's schedule: the first frame of every
 /// block reads no window, and the others read up to [`archive::WINDOW`]
@@ -1850,7 +1856,7 @@ mod tests {
     /// library) and an ncm window frame over the two frames before.
     #[test]
     fn released_streams_decode() {
-        let frame: Vec<u8> = (0..FRAME)
+        let frame: Vec<u8> = (0..8 << 20)
             .map(|i| ((((i >> 4) * 7 + (i >> 12)) & 0x3f) + 0x20) as u8)
             .collect();
         let input = [&frame[..], &frame[..], &frame[1000..5096]].concat();
@@ -2130,7 +2136,10 @@ mod tests {
     /// damaged encoder output, resealed, so most leave the encoder's language.
     #[test]
     fn native_decoder_agrees_with_the_reference_where_it_accepts() {
-        let input = text(64, 11);
+        // The reference semantics runs the kernel graph at seconds per output
+        // byte (64 bytes: 265 s, 16 bytes: 97 s); 16 bytes keeps both an
+        // accepted and a declined mutation within the rounds.
+        let input = text(16, 11);
         let payload = ulz::encode(&input);
         let (mut accepted, mut declined) = (0, 0);
         let mut x = 0x9e37_79b9_7f4a_7c15u64;
