@@ -50,6 +50,7 @@ const ROW_TYPES: &[&str] = &[
     "Link",
     "QualityRequirement",
     "QualityMeasure",
+    "DecodeHost",
 ];
 
 /// The triggers `web/app.js` raises; a transition names one of them.
@@ -484,6 +485,26 @@ impl PageModel {
                 return Err(inconsistent(format!(
                     "measure `{}` is neither a gate nor measured",
                     measure.name
+                )));
+            }
+        }
+        // One host rule, and the memory gate is its worker's share.
+        let hosts = self.of("DecodeHost");
+        let [host] = hosts else {
+            return Err(inconsistent("the page states one DecodeHost".to_string()));
+        };
+        let per_gib = host.nat("workersPerGiB");
+        if per_gib == 0 || host.nat("coreLimit") == 0 || host.nat("unreportedGiB") == 0 {
+            return Err(inconsistent(
+                "the page's host rule starts no worker".to_string(),
+            ));
+        }
+        let share = 1024 / per_gib;
+        for measure in self.of("QualityMeasure") {
+            if measure.name == "workerMemory" && measure.nat("threshold") != share {
+                return Err(inconsistent(format!(
+                    "workerMemory gates {} MiB, the host rule gives a worker {share} MiB",
+                    measure.nat("threshold")
                 )));
             }
         }

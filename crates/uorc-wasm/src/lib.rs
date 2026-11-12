@@ -147,6 +147,13 @@ pub extern "C" fn decompress_frame() -> i32 {
     finish(INPUT.with(|input| DECODER.with(|decoder| decoder.borrow_mut().push(&input.borrow()))))
 }
 
+/// Most frames before it a frame may read ([`uorc::REACH`]): the page keeps
+/// that many frames to hand each frame its window.
+#[no_mangle]
+pub extern "C" fn reach() -> usize {
+    uorc::REACH
+}
+
 /// Input bytes per frame.
 #[no_mangle]
 pub extern "C" fn frame_size() -> usize {
@@ -454,6 +461,43 @@ pub extern "C" fn choose_frame() -> i32 {
     }))
 }
 
+/// The frame's archive with its context table stepped (`Client.stepTable`)
+/// from the archive [`choose_frame`] kept: the input buffer holds a
+/// [`code_frame`] request (pieces, window, frame) and then `u64
+/// chosenLength, chosen`. Every archive the page writes is stepped for the
+/// page's own worker ([`uorc::performance::PAGE_WORKER`]), so it decodes there.
+#[no_mangle]
+pub extern "C" fn step_frame() -> i32 {
+    finish(INPUT.with(|input| {
+        let input = input.borrow();
+        let mut f = Fields {
+            bytes: &input,
+            at: 0,
+        };
+        let pieces = f.pieces()?;
+        let lengths: Vec<usize> = (0..f.u32()?).map(|_| f.len()).collect::<Result<_, _>>()?;
+        let window: Vec<&[u8]> = lengths
+            .iter()
+            .map(|&n| f.take(n))
+            .collect::<Result<_, _>>()?;
+        let n = usize::try_from(pieces.iter().sum::<u64>()).map_err(|_| uorc::Error::Decode)?;
+        let frame = f.take(n)?;
+        let c = f.len()?;
+        let chosen = f.take(c)?.to_vec();
+        f.end()?;
+        // the window facets, then the table facet, as compress does
+        let host = uorc::performance::PAGE_WORKER;
+        let (stepped, k) = uorc::step_window(frame, &pieces, &window, chosen, host);
+        Ok(uorc::step_table(
+            frame,
+            &pieces,
+            &window[window.len() - k..],
+            stepped,
+            host,
+        ))
+    }))
+}
+
 #[cfg(target_arch = "wasm32")]
 #[link(wasm_import_module = "uorc")]
 extern "C" {
@@ -567,6 +611,28 @@ mod tests {
         (code, OUTPUT.with(|output| output.borrow().clone()))
     }
 
+    /// A frame, the same frame again (a reference frame), then a short tail,
+    /// with the library's stream for it: both frame-export tests drive the
+    /// page's paths over this input, so the library codes it once.
+    fn repeated_frame() -> &'static (Vec<u8>, Vec<u8>) {
+        static SHARED: std::sync::OnceLock<(Vec<u8>, Vec<u8>)> = std::sync::OnceLock::new();
+        SHARED.get_or_init(|| {
+            let noise = |n: usize, seed: u32| -> Vec<u8> {
+                let mut x = seed;
+                (0..n)
+                    .map(|_| {
+                        x = x.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+                        b"abcdefgh  \n"[(x >> 24) as usize % 11]
+                    })
+                    .collect()
+            };
+            let a = noise(uorc::FRAME, 1);
+            let input = [&a[..], &a[..], &noise(70_000, 3)].concat();
+            let stream = uorc::compress(&input, 0).expect("library stream");
+            (input, stream)
+        })
+    }
+
     /// The page's exports run the library's compress and decompress unchanged.
     #[test]
     fn wasm_exports_match_the_library_uc_api_01() {
@@ -599,20 +665,8 @@ mod tests {
     /// the page writes the native client's stream however input is pieced.
     #[test]
     fn frame_exports_stream_reference_frames() {
-        let mut state = 7u64;
-        let mut noise = |n: usize| -> Vec<u8> {
-            (0..n)
-                .map(|_| {
-                    state ^= state << 13;
-                    state ^= state >> 7;
-                    state ^= state << 17;
-                    (state >> 24) as u8
-                })
-                .collect()
-        };
         // A repeated whole frame, pieced unlike the frames.
-        let x = noise(uorc::FRAME);
-        let input = [&x[..], &x, &noise(12_345)].concat();
+        let (input, library) = repeated_frame();
         window_reset();
         let mut stream = Vec::new();
         for piece in input.chunks(3_000_000) {
@@ -623,7 +677,7 @@ mod tests {
         let (code, archives) = run(&[], || compress_end(0));
         assert_eq!(code, OK);
         stream.extend(archives);
-        assert_eq!(stream, uorc::compress(&input, 0).expect("library stream"));
+        assert_eq!(&stream, library);
         let archives = uorc::frames(&stream).expect("frames");
         assert!(archives.iter().any(|a| {
             uorc::inspect(a).expect("inspect").representation == uorc::Representation::Reference
@@ -643,7 +697,7 @@ mod tests {
             assert_eq!(code, OK);
             back.extend(output);
         }
-        assert!(back == input);
+        assert!(back == *input);
     }
 
     /// A tree streamed a piece at a time writes the library's bytes, and its
@@ -752,18 +806,7 @@ mod tests {
     /// time, write the library's stream: what the page's workers do.
     #[test]
     fn planned_frames_coded_by_strategy_are_the_library_stream() {
-        let noise = |n: usize, seed: u32| -> Vec<u8> {
-            let mut x = seed;
-            (0..n)
-                .map(|_| {
-                    x = x.wrapping_mul(1_103_515_245).wrapping_add(12_345);
-                    b"abcdefgh  \n"[(x >> 24) as usize % 11]
-                })
-                .collect()
-        };
-        let a = noise(uorc::FRAME, 1);
-        // a frame, the same frame again (a reference frame), then a short tail
-        let input = [&a[..], &a[..], &noise(70_000, 3)].concat();
+        let (input, library) = repeated_frame();
         window_reset();
         let mut records = Vec::new();
         for piece in input.chunks(5_000_000) {
@@ -815,9 +858,20 @@ mod tests {
                         choice.extend((part.len() as u64).to_le_bytes());
                         choice.extend(part);
                     }
-                    let (code, archive) = run(&choice, || choose_frame());
+                    let (code, chosen) = run(&choice, || choose_frame());
                     assert_eq!(code, OK);
-                    assert_eq!(archive, run(&request, || code_frame(-1, 0)).1);
+                    // then the window and table facets, as the page does (`stepRequest`)
+                    let mut step = request.clone();
+                    step.extend((chosen.len() as u64).to_le_bytes());
+                    step.extend(chosen);
+                    let (code, archive) = run(&step, || step_frame());
+                    assert_eq!(code, OK);
+                    // The whole-frame export over the same request: the tail
+                    // shows it (the library stream checks the chosen archive
+                    // of the large frame already; coding it again adds nothing).
+                    if at + n == input.len() {
+                        assert_eq!(archive, run(&request, || code_frame(-1, 0)).1);
+                    }
                     stream.extend(archive);
                 }
                 frames.push(frame);
@@ -826,7 +880,7 @@ mod tests {
         }
         assert!(references > 0);
         assert_eq!(at, input.len());
-        assert_eq!(stream, uorc::compress(&input, 0).expect("library stream"));
+        assert_eq!(&stream, library);
         let archives = uorc::frames(&stream).expect("frames");
         assert!(archives.iter().any(|a| {
             uorc::inspect(a).expect("inspect").representation == uorc::Representation::Reference
@@ -846,6 +900,6 @@ mod tests {
             assert_eq!(code, OK);
             back.extend(output);
         }
-        assert!(back == input);
+        assert!(back == *input);
     }
 }

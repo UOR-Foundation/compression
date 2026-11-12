@@ -303,14 +303,23 @@ fn basis_at(archive: &[u8], basis: &[u8; 32]) -> usize {
 
 #[test]
 fn conditional_archives_bind_the_actual_basis_uc_bas_01() {
-    // A small text takes the v0.3-era entry, a large one a later basis (the
-    // v0.4 one for a frame without a state, or the basis [library, S] of the
-    // state it continues): each archive names the basis it was coded over
-    // and is bound to it.
+    // A small text takes the v0.3-era entry; the full-model strategy codes a
+    // large one over a later basis (the v0.4 one for a frame without a
+    // state). Each archive names the basis it was coded over and is bound to
+    // it. (Which strategy the portfolio keeps for the large text is the
+    // portfolio's choice, so its later basis is coded by that strategy.)
     let (_, text) = &corpus()[2];
     let large = text.repeat(3);
+    let full = uorc::portfolio::plan(&large)
+        .iter()
+        .position(|s| !s.x86 && s.state == 0 && s.profile == uorc::ncm::FULL)
+        .expect("the full model is planned");
     for (input, era) in [(text, Some(V03_BASIS_ID)), (&large, None)] {
-        let archive = uorc::compress(input, DEFAULT_STEPS).expect("archive");
+        let archive = match era {
+            Some(_) => uorc::compress(input, DEFAULT_STEPS).expect("archive"),
+            None => uorc::compress_strategy(input, &[input.len() as u64], &[], full)
+                .expect("the full model's archive"),
+        };
         let info = inspect(&archive).expect("header");
         let basis = info.basis.expect("a conditional archive");
         match era {

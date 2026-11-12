@@ -92,7 +92,25 @@ const NINP: usize = 24;
 /// The narrow row stride, one 64-byte line per mixer row, for a profile with
 /// at most 16 inputs.
 const NINP_NARROW: usize = 16;
+/// The largest table [`Model::sized`] gives by length alone: index bits plus
+/// the 8-bit check byte span the 32-bit context hash, so a larger table is
+/// a facet the frame records ([`TABLE_SHIFT`]) once stepping it pays.
 const TB_MAX: u32 = 24;
+/// Where a profile word's table field starts: bits 0-19 name the contexts and
+/// features, bits 20-25 the context table's bits when the frame records them
+/// (0: the length's own size, [`default_table_bits`]), and bits 26-30 the
+/// match tables' bits when the frame records them ([`MATCH_SHIFT`]).
+pub const TABLE_SHIFT: u32 = 20;
+/// Where a profile word's match table field starts (0: the match tables
+/// follow the context table's default size, `Model::sized`).
+pub const MATCH_SHIFT: u32 = 26;
+const TABLE_FIELD: u32 = 63;
+/// The largest value the match tables' field holds (five bits).
+pub const MATCH_FIELD: u32 = 31;
+/// Fewest table bits a frame may record: one bucket pair (two 16-slot buckets).
+pub const TABLE_MIN: u32 = 5;
+/// Most table bits a frame may record: a slot index is a 32-bit hash's low bits.
+pub const TABLE_MAX: u32 = 32;
 const SQT: [i32; 33] = [
     1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747, 1101, 1546, 2047, 2549, 2994, 3348,
     3607, 3785, 3901, 3975, 4022, 4050, 4068, 4079, 4085, 4089, 4092, 4093, 4094,
@@ -352,12 +370,21 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
 struct Bucket([u32; 16]);
 
 /// A model table. In WebAssembly, whose memory never shrinks, a dropped
-/// table is kept for the next frame's model of the same size: allocating
-/// ~100 MiB of fresh tables per frame left the allocator's free space in
-/// pieces, and the memory grew with the number of frames.
+/// table is kept, as many as one model holds, and the next model's table of
+/// that size or smaller uses it: allocating ~100 MiB of fresh tables per
+/// frame, or per table size the table facet tries, left the allocator's free
+/// space in pieces, and the memory grew with every frame and size.
 struct Table<T: Spare>(Vec<T>);
 
+impl<T: Spare> Clone for Table<T> {
+    fn clone(&self) -> Self {
+        Table(self.0.clone())
+    }
+}
+
 trait Spare: Copy + 'static {
+    /// Tables of this type one model holds, so the spares a worker keeps.
+    const HELD: usize;
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>>;
 }
 
@@ -367,12 +394,16 @@ thread_local! {
 }
 
 impl Spare for Bucket {
+    // the context table
+    const HELD: usize = 1;
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
         &SPARE_BUCKETS
     }
 }
 
 impl Spare for u32 {
+    // the match table and the short match table
+    const HELD: usize = 2;
     fn spares() -> &'static std::thread::LocalKey<std::cell::RefCell<Vec<Vec<Self>>>> {
         &SPARE_WORDS
     }
@@ -382,15 +413,26 @@ impl<T: Spare> Table<T> {
     /// `len` entries of `value`.
     fn new(len: usize, value: T) -> Table<T> {
         if cfg!(target_family = "wasm") && len > 0 {
+            // the least spare that holds `len` entries; a larger one is
+            // used in part, so stepping a table's size down allocates
+            // nothing and the heap is never left with a freed table that
+            // its next, larger allocation cannot reuse
             let kept = T::spares().with(|s| {
                 let mut s = s.borrow_mut();
-                let at = s.iter().position(|t| t.len() == len)?;
+                let at = (0..s.len())
+                    .filter(|&i| s[i].capacity() >= len)
+                    .min_by_key(|&i| s[i].capacity())?;
                 Some(s.swap_remove(at))
             });
             if let Some(mut t) = kept {
-                t.fill(value);
+                t.clear();
+                t.resize(len, value);
                 return Table(t);
             }
+            // No spare holds it: the spares are smaller, and are released
+            // before this one is allocated, so the worker keeps one set of
+            // tables, not one per size the table facet tried.
+            T::spares().with(|s| s.borrow_mut().clear());
         }
         Table(vec![value; len])
     }
@@ -402,18 +444,16 @@ impl<T: Spare> Drop for Table<T> {
             let t = std::mem::take(&mut self.0);
             T::spares().with(|s| {
                 let mut s = s.borrow_mut();
-                // a model holds one bucket table and two word tables
-                if s.len() < 2 {
+                // the largest ones are kept
+                if s.len() < T::HELD {
                     s.push(t);
+                } else if let Some(at) = (0..s.len()).min_by_key(|&i| s[i].capacity()) {
+                    if s[at].capacity() < t.capacity() {
+                        s[at] = t;
+                    }
                 }
             });
         }
-    }
-}
-
-impl<T: Spare> Clone for Table<T> {
-    fn clone(&self) -> Table<T> {
-        Table(self.0.clone())
     }
 }
 
@@ -444,14 +484,26 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
     *s = (p & 0xffff) | ((n + u32::from(n < 127)) << 16);
 }
 
-/// Warmed models kept for reuse (state bytes, profile, table mask, model):
-/// the most recently used last. Each holds full-size tables (about 100 MiB),
-/// so the WebAssembly page, which runs under a memory bound, keeps none.
-type Warmed = Vec<(Box<[u8]>, u32, u32, Model)>;
+/// Warmed models kept for reuse (state bytes, profile, table mask, bytes
+/// held, model): the most recently used last. What the process keeps is the
+/// declared decode host's rule ([`crate::performance::Host::warmed_kept`]):
+/// the most recent ones whose bytes ([`warmed_bytes`]), whatever table size
+/// each was warmed for, fit the room the frame's decoder leaves
+/// ([`crate::performance::Host::warmed_room`]), so a later frame continuing
+/// the same state replays nothing and decodes the same bytes.
+/// Decoders keep them; an encoder reads them and keeps none.
+type Warmed = Vec<(Box<[u8]>, u32, u32, u64, Model)>;
 static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
-const WARMED_KEEP: usize = if cfg!(target_family = "wasm") { 0 } else { 2 };
+
+/// Bytes a warmed model kept for reuse holds: the tables sized for the state
+/// and the frame, and the state's bytes in its history.
+pub fn warmed_bytes(n: u64, state: u64, profile: u32) -> u64 {
+    table_bytes(n, state, true, profile).saturating_add(state)
+}
 
 #[derive(Clone)]
+// streams of a frame keep their models side by side: no cache line spans two
+#[repr(align(128))]
 struct Model {
     t: &'static Tables,
     /// The profile's contexts, in order (`act[..na]`): the mixers read them as
@@ -477,6 +529,13 @@ struct Model {
     /// preceding outputs): the match model reaches into them.
     hoff: u32,
     pos: u32,
+    /// Bytes the model has learned from (its plasticity's clock): `pos` for
+    /// one stream; for a stream of a laned frame, every stream's bytes merged
+    /// into the shared state plus its own since.
+    seen: u32,
+    /// A stream of a laned frame: the shared state it reads and its own
+    /// changes since the epoch began (`None` for one stream).
+    lane: Option<Box<streams::Lane>>,
     c4: u32,
     c8: u32,
     wordh: u32,
@@ -550,7 +609,14 @@ impl Model {
     /// pieces (a window decodes without first joining its frames).
     fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
         let before: usize = history.iter().map(|h| h.len()).sum();
-        let (mask, mb) = Model::sized(n);
+        let (mut mask, mut mb) = Model::sized(n);
+        if let Some(tb) = recorded_table_bits(profile) {
+            mask = ((1u64 << tb) - 1) as u32;
+        }
+        if let Some(bits) = recorded_match_bits(profile) {
+            mb = bits;
+        }
+        let profile = profile & FULL;
         let mut act = [0; NC];
         let mut na = 0;
         for k in 0..NC {
@@ -578,9 +644,11 @@ impl Model {
             mask,
             mb,
             sl: Table::new((mask as usize + 1) / 16, Bucket([SLOT_FRESH; 16])),
-            hist: Vec::with_capacity(before + n as usize),
+            hist: vec![0; before + n as usize],
             hoff: before as u32,
             pos: 0,
+            seen: 0,
+            lane: None,
             c4: 0,
             c8: 0,
             wordh: 0,
@@ -637,8 +705,10 @@ impl Model {
             a2: Apm::new(1 << APM2_BITS),
             twin: None,
         };
+        let mut at = 0;
         for piece in history {
-            m.hist.extend_from_slice(piece);
+            m.hist[at..at + piece.len()].copy_from_slice(piece);
+            at += piece.len();
         }
         for p in 7..m.hoff {
             let k = m.match_key(p);
@@ -660,20 +730,47 @@ impl Model {
     /// is coded as their continuation. The tables are sized for `w + n` bytes,
     /// which for a state of 16 KiB or more is the largest size whatever `n`,
     /// so the warmed model is computed once per state and profile and cloned.
-    fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32) -> Option<Model> {
+    fn warmed<K: Kernel>(n: u32, state: &[u8], profile: u32, keep: bool) -> Option<Model> {
         let total = n.checked_add(u32::try_from(state.len()).ok()?)?;
-        let (mask, _) = Model::sized(total);
+        let (mut mask, _) = Model::sized(total);
+        if let Some(tb) = recorded_table_bits(profile) {
+            mask = ((1u64 << tb) - 1) as u32;
+        }
         let mut cache = WARMED
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(i) = cache
             .iter()
-            .position(|(s, p, k, _)| *p == profile && *k == mask && s[..] == *state)
+            .position(|(s, p, k, _, _)| *p == profile && *k == mask && s[..] == *state)
         {
             let hit = cache.remove(i);
-            let m = hit.3.clone();
+            let m = hit.4.clone();
             cache.push(hit);
             return Some(m);
+        }
+        let (n, w) = (u64::from(n), state.len() as u64);
+        let room = crate::performance::declared_host().warmed_room(n, w, profile);
+        let each = warmed_bytes(n, w, profile);
+        // A decoder keeps its warmed model; an encoder's model is one trial
+        // of a portfolio or a facet, kept by nobody, so it neither keeps one
+        // nor evicts the decoders'.
+        if keep {
+            // before the model is allocated, least recently used first out,
+            // until this one fits beside those kept (or, when it does not fit
+            // at all, until none is held): the models kept for other frame or
+            // table sizes count by their bytes
+            let mut held = each.min(room);
+            let mut kept = cache.len();
+            while kept > 0 {
+                match held.checked_add(cache[kept - 1].3) {
+                    Some(b) if b <= room => {
+                        held = b;
+                        kept -= 1;
+                    }
+                    _ => break,
+                }
+            }
+            cache.drain(..kept);
         }
         let mut m = Model::new(total, &[], profile);
         if m.stride == NINP_NARROW {
@@ -681,11 +778,8 @@ impl Model {
         } else {
             m.warm::<K, NINP>(state);
         }
-        if WARMED_KEEP > 0 {
-            if cache.len() >= WARMED_KEEP {
-                cache.remove(0);
-            }
-            cache.push((state.into(), profile, mask, m.clone()));
+        if keep && each <= room {
+            cache.push((state.into(), profile, mask, each, m.clone()));
         }
         Some(m)
     }
@@ -716,13 +810,51 @@ impl Model {
     /// The byte at coded position `i`.
     #[inline]
     fn at(&self, i: u32) -> u32 {
-        u32::from(self.hist[(self.hoff + i) as usize])
+        self.abs(self.hoff + i)
     }
 
     /// The byte at absolute position `i` (history first).
     #[inline]
     fn abs(&self, i: u32) -> u32 {
         u32::from(self.hist[i as usize])
+    }
+
+    /// The match table entry `k`.
+    #[inline]
+    fn mt(&self, k: usize) -> u32 {
+        match (&self.lane, self.mtab[k]) {
+            (Some(l), 0) => l.shared().mtab[k],
+            (_, v) => v,
+        }
+    }
+
+    #[inline]
+    fn set_mt(&mut self, k: usize, v: u32) {
+        if let Some(l) = &mut self.lane {
+            if self.mtab[k] == 0 {
+                l.mt.push(k as u32);
+            }
+        }
+        self.mtab[k] = v;
+    }
+
+    /// The short match table entry `k`.
+    #[inline]
+    fn mt2(&self, k: usize) -> u32 {
+        match (&self.lane, self.m2tab[k]) {
+            (Some(l), 0) => l.shared().m2tab[k],
+            (_, v) => v,
+        }
+    }
+
+    #[inline]
+    fn set_mt2(&mut self, k: usize, v: u32) {
+        if let Some(l) = &mut self.lane {
+            if self.m2tab[k] == 0 {
+                l.m2t.push(k as u32);
+            }
+        }
+        self.m2tab[k] = v;
     }
 
     /// The match-model key of absolute position `p`: the hash of the 7 bytes before it.
@@ -786,8 +918,10 @@ impl Model {
         if pa >= 7 {
             let k = self.match_key(pa);
             if self.mlen == 0 {
-                let cand = self.mtab[k];
-                if cand > 0 {
+                let cand = self.mt(k);
+                // a stream of a laned frame may read a later stream's
+                // position: a match points only into the past
+                if cand > 0 && cand < pa {
                     let l = self.agree(cand, pa);
                     if l >= 7 {
                         self.mptr = cand;
@@ -799,7 +933,7 @@ impl Model {
                     }
                 }
             }
-            self.mtab[k] = pa;
+            self.set_mt(k, pa);
         }
         if self.profile & F_SHORT != 0 {
             if self.m2len > 0 {
@@ -811,8 +945,8 @@ impl Model {
             if pa >= 4 {
                 let k = self.short_key(pa);
                 if self.m2len == 0 {
-                    let cand = self.m2tab[k];
-                    if cand > 0 {
+                    let cand = self.mt2(k);
+                    if cand > 0 && cand < pa {
                         let l = self.agree(cand, pa);
                         if l >= 4 {
                             self.m2ptr = cand;
@@ -824,7 +958,7 @@ impl Model {
                         }
                     }
                 }
-                self.m2tab[k] = pa;
+                self.set_mt2(k, pa);
             }
             if self.m2len > 0 {
                 self.m2exp = self.abs(self.m2ptr);
@@ -960,7 +1094,11 @@ impl Model {
             });
             self.prefetch_buckets(&hb, 0);
             if pa + 1 >= 7 {
-                prefetch(&self.mtab[self.match_key_by(pa + 1, abs)]);
+                let k = self.match_key_by(pa + 1, abs);
+                prefetch(&self.mtab[k]);
+                if let Some(l) = &self.lane {
+                    prefetch(&l.shared().mtab[k]);
+                }
             }
             self.spec_key = key;
             self.spec_hb = hb;
@@ -996,6 +1134,10 @@ impl Model {
             let b = ((hh & self.mask) & !31) as usize;
             prefetch(&self.sl[b >> 4]);
             prefetch(&self.sl[(b >> 4) + 1]);
+            if let Some(l) = &self.lane {
+                prefetch(&l.shared().sl[b >> 4]);
+                prefetch(&l.shared().sl[(b >> 4) + 1]);
+            }
         }
     }
 
@@ -1004,6 +1146,9 @@ impl Model {
     /// (by slot 1's count), cleared and tagged.
     #[inline]
     fn bucket(&mut self, hh: u32) -> u32 {
+        if let Some(l) = &mut self.lane {
+            return l.bucket(hh, self.mask, &mut self.sl);
+        }
         let ck = ((hh >> 24) | 1) as u8;
         let b0 = (hh & self.mask) & !15;
         let alt = b0 ^ 16;
@@ -1246,7 +1391,7 @@ impl Model {
         if self.m2len > 0 {
             adapt(&mut self.m2sp[self.m2i], &mut self.m2sn[self.m2i], y, rate);
         }
-        let lr = standard::plasticity(self.pos);
+        let lr = standard::plasticity(self.seen);
         let yb = i32::from(y) << 12;
         // |err| <= 4096 and lr <= 128, so err * lr <= 2^19 and x * err * lr
         // (|x| <= 2047) stays inside i32 (`laneFitHolds`): the kernels learn
@@ -1276,8 +1421,15 @@ impl Model {
         self.bit += 1;
         if self.bit == 8 {
             let b = self.c0 & 255;
-            self.hist.push(b as u8);
+            // a laned stream writes its range of the frame in place; a model
+            // that codes past the length it was sized for (a warm state's
+            // continuation) grows its history
+            match self.hist.get_mut((self.hoff + self.pos) as usize) {
+                Some(at) => *at = b as u8,
+                None => self.hist.push(b as u8),
+            }
             self.pos += 1;
+            self.seen += 1;
             self.c8 = (self.c8 << 8) | (self.c4 >> 24);
             self.c4 = (self.c4 << 8) | b;
             if (b as u8).is_ascii_alphabetic() || b >= 128 {
@@ -1450,6 +1602,8 @@ macro_rules! dispatch {
     }};
 }
 
+pub mod streams;
+
 #[cfg(target_arch = "x86_64")]
 mod x86 {
     use super::{Kernel, WEIGHT_LIMIT};
@@ -1474,12 +1628,13 @@ mod x86 {
     #[target_feature(enable = "avx2")]
     pub(super) fn encoder_pair(
         history: &[u8],
+        state: &[u8],
         data: &[u8],
         profile: u32,
         learn: [bool; 2],
         stops: [usize; 2],
     ) -> super::Pairs {
-        super::encoder_pair::<Avx2>(history, data, profile, learn, stops)
+        super::encoder_pair::<Avx2>(history, state, data, profile, learn, stops)
     }
 
     /// The decoder loop compiled for AVX2.
@@ -1788,9 +1943,86 @@ pub fn encode_with(history: &[u8], data: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// Whether `profile` names an ncm profile: a set of the 17 contexts and the
-/// [`F_SHORT`] and [`F_REP`] features.
+/// [`F_SHORT`], [`F_REP`] and [`F_SEL`] features, and a table field that is 0
+/// or records [`TABLE_MIN`] to [`TABLE_MAX`] bits.
 pub fn valid_profile(profile: u32) -> bool {
-    profile & !FULL == 0
+    let tb = (profile >> TABLE_SHIFT) & TABLE_FIELD;
+    profile >> 31 == 0 && (tb == 0 || (TABLE_MIN..=TABLE_MAX).contains(&tb))
+}
+
+/// The context table bits a profile word records, if it records them.
+pub fn recorded_table_bits(profile: u32) -> Option<u32> {
+    let tb = (profile >> TABLE_SHIFT) & TABLE_FIELD;
+    (tb != 0).then_some(tb)
+}
+
+/// The match tables' bits a profile word records, if it records them.
+pub fn recorded_match_bits(profile: u32) -> Option<u32> {
+    let mb = (profile >> MATCH_SHIFT) & MATCH_FIELD;
+    (mb != 0).then_some(mb)
+}
+
+/// Whether a profile word records any table field (only the current
+/// library's ncm blocks read them).
+pub fn records_tables(profile: u32) -> bool {
+    profile >> TABLE_SHIFT != 0
+}
+
+/// The context table bits of a model coding `modelled` bytes (the frame, or
+/// a state and the frame) with no recorded table field: the least `tb` with
+/// 2^tb >= 1024 `modelled`, from 16 to 24 (`Model::sized`).
+pub fn default_table_bits(modelled: u64) -> u32 {
+    let mut tb = 16;
+    while tb < TB_MAX && (1u64 << tb) < modelled.saturating_mul(1024) {
+        tb += 1;
+    }
+    tb
+}
+
+/// The table bits a model coding `modelled` bytes under `profile` uses.
+pub fn table_bits(modelled: u64, profile: u32) -> u32 {
+    recorded_table_bits(profile).unwrap_or_else(|| default_table_bits(modelled))
+}
+
+/// `profile` with the context table field set to `tb` bits (0 clears it);
+/// the other fields are kept.
+pub fn with_table_bits(profile: u32, tb: u32) -> u32 {
+    (profile & !(TABLE_FIELD << TABLE_SHIFT)) | ((tb & TABLE_FIELD) << TABLE_SHIFT)
+}
+
+/// `profile` with the match tables' field set to `mb` bits (0 clears it);
+/// the other fields are kept.
+pub fn with_match_bits(profile: u32, mb: u32) -> u32 {
+    (profile & !(MATCH_FIELD << MATCH_SHIFT)) | ((mb & MATCH_FIELD) << MATCH_SHIFT)
+}
+
+/// The match tables' bits a model coding `n` bytes after `history` bytes
+/// under `profile` uses: the recorded field, else the size the coded length
+/// alone gives (`Model::sized`).
+pub fn match_bits(n: u64, profile: u32) -> u32 {
+    recorded_match_bits(profile)
+        .unwrap_or_else(|| Model::sized(u32::try_from(n).unwrap_or(u32::MAX)).1)
+}
+
+/// Bytes a decoder of this coder holds for a frame of `n` bytes after
+/// `history` bytes (a window's frames, or with `warm` a model state the
+/// model codes first) under `profile`: the context table (4 bytes a slot),
+/// the match table and, with [`F_SHORT`], the short match table (4 bytes an
+/// entry), and the history and frame bytes themselves. The client compares
+/// it with the declared decode host before it allocates.
+pub fn decoder_bytes(n: u64, history: u64, warm: bool, profile: u32) -> u64 {
+    table_bytes(n, history, warm, profile).saturating_add(n.saturating_add(history))
+}
+
+/// The tables' part of [`decoder_bytes`]: the context table and the match
+/// tables.
+pub fn table_bytes(n: u64, history: u64, warm: bool, profile: u32) -> u64 {
+    let modelled = if warm { n.saturating_add(history) } else { n };
+    let tb = table_bits(modelled, profile);
+    let mb = recorded_match_bits(profile)
+        .unwrap_or_else(|| Model::sized(u32::try_from(modelled).unwrap_or(u32::MAX)).1);
+    let matches = 1 + u64::from(profile & F_SHORT != 0);
+    (4u64 << tb).saturating_add((4u64 << mb) * matches)
 }
 
 /// [`encode_with`] under the model `profile` (a [`valid_profile`]; [`V03`] is
@@ -1886,7 +2118,36 @@ fn encode_pairs(
     if !valid_profile(profile) {
         return (None, None);
     }
-    dispatch!(encoder_pair(history, data, profile, learn, stops))
+    dispatch!(encoder_pair(history, &[], data, profile, learn, stops))
+}
+
+/// The payloads of `profile` and of its [`F_SEL`] twin, each coded as the
+/// continuation of the model state `state` ([`encode_warm_below`]), from one
+/// pass: one replay of the state through the work the twins share, then one
+/// pass over `data`, each abandoned at its own stop. Each payload is the one
+/// [`encode_warm_below`] writes for its profile.
+pub fn encode_pair_warm_below(
+    state: &[u8],
+    data: &[u8],
+    profile: u32,
+    stops: [usize; 2],
+) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
+    if !valid_profile(profile) || state.is_empty() {
+        return (None, None);
+    }
+    let (a, b) = warm_pair(state, data, profile, stops);
+    (a.map(|(p, _)| p), b.map(|(p, _)| p))
+}
+
+fn warm_pair(state: &[u8], data: &[u8], profile: u32, stops: [usize; 2]) -> Pairs {
+    dispatch!(encoder_pair(
+        &[],
+        state,
+        data,
+        profile,
+        [false, false],
+        stops
+    ))
 }
 
 #[inline(always)]
@@ -1902,7 +2163,7 @@ fn encoder<K: Kernel>(
     let m = if state.is_empty() {
         Model::new(n, &[history], profile)
     } else {
-        Model::warmed::<K>(n, state, profile)?
+        Model::warmed::<K>(n, state, profile, false)?
     };
     run_encoder::<K>(m, data, learn, [stop, 0]).0
 }
@@ -1918,15 +2179,26 @@ pub type Pairs = (Option<(Vec<u8>, u32)>, Option<(Vec<u8>, u32)>);
 #[inline(always)]
 fn encoder_pair<K: Kernel>(
     history: &[u8],
+    state: &[u8],
     data: &[u8],
     profile: u32,
     learn: [bool; 2],
     stops: [usize; 2],
 ) -> Pairs {
-    let Ok(n) = u32::try_from(data.len()) else {
+    let modelled = u32::try_from(data.len())
+        .ok()
+        .zip(u32::try_from(state.len()).ok())
+        .and_then(|(n, w)| n.checked_add(w).map(|total| (n, total)));
+    let Some((n, total)) = modelled else {
         return (None, None);
     };
-    let mut m = Model::new(n, &[history], profile);
+    // with a state, the model `Model::warmed` builds, sized for the state and
+    // the frame; the twin replays the state with it below
+    let mut m = if state.is_empty() {
+        Model::new(n, &[history], profile)
+    } else {
+        Model::new(total, &[], profile)
+    };
     m.twin = Some(Box::new(Twin {
         sel: profile & F_SEL == 0,
         w1: weights(256 * 9, m.na + 3, m.stride),
@@ -1938,6 +2210,13 @@ fn encoder_pair<K: Kernel>(
         dot1: 0,
         gain: learn[1].then(|| Box::new([0; NC])),
     }));
+    if !state.is_empty() {
+        if m.stride == NINP_NARROW {
+            m.warm::<K, NINP_NARROW>(state);
+        } else {
+            m.warm::<K, NINP>(state);
+        }
+    }
     run_encoder::<K>(m, data, learn[0], stops)
 }
 
@@ -2207,7 +2486,7 @@ fn decoder<K: Kernel>(
         let before = m.hoff as usize;
         (m, before)
     } else {
-        (Model::warmed::<K>(n, state, profile)?, state.len())
+        (Model::warmed::<K>(n, state, profile, true)?, state.len())
     };
     if m.stride == NINP_NARROW {
         decode_bits::<K, NINP_NARROW>(m, ahead, payload, canonical)
@@ -2271,6 +2550,8 @@ fn decode_bits<K: Kernel, const W: usize>(
     }
     let mut out = m.hist;
     out.drain(..history);
+    // a warmed model kept for reuse was sized for the frame it first coded
+    out.truncate(n as usize);
     // Give back the history's share of the buffer: the output outlives the
     // model (the next frame's window holds it).
     out.shrink_to_fit();
@@ -2428,6 +2709,50 @@ mod tests {
         }
         assert!(valid_profile(0) && !valid_profile(FULL + 1));
         assert_eq!(encode_profile(&[], &text, FULL + 1), None);
+    }
+
+    #[test]
+    fn recorded_tables_are_the_tables_the_frame_codes_with() {
+        let text: Vec<u8> = (0..40_000u32)
+            .flat_map(|i| format!("row {} of {}\n", i % 977, i % 31).into_bytes())
+            .take(60_000)
+            .collect();
+        let n = text.len() as u64;
+        assert_eq!(default_table_bits(n), 24);
+        assert!(valid_profile(with_table_bits(FULL, TABLE_MIN)));
+        assert!(!valid_profile(with_table_bits(FULL, TABLE_MIN - 1)));
+        assert!(!valid_profile(with_table_bits(FULL, TABLE_MAX + 1)));
+        assert!(!valid_profile(FULL | 1 << 31));
+        // recording the default size is the default frame; another size codes differently
+        let plain = encode_profile(&[], &text, FULL).expect("fits");
+        assert_eq!(
+            encode_profile(&[], &text, with_table_bits(FULL, 24)),
+            Some(plain.clone())
+        );
+        for word in [
+            with_table_bits(FULL, 12),
+            with_table_bits(FULL, 25),
+            FULL | 9 << MATCH_SHIFT,
+            with_table_bits(V03, 20) | 18 << MATCH_SHIFT,
+        ] {
+            let p = encode_profile(&[], &text, word).expect("fits");
+            assert_ne!(p, plain);
+            assert_eq!(
+                decode_canonical_profile(&[], &p, n, word).as_deref(),
+                Some(&text[..])
+            );
+            assert_ne!(
+                decode_canonical_profile(&[], &p, n, FULL).as_deref(),
+                Some(&text[..])
+            );
+        }
+        // the footprint counts the tables the word names
+        let base = decoder_bytes(n, 0, false, FULL);
+        assert_eq!(
+            decoder_bytes(n, 0, false, with_table_bits(FULL, 25)) - base,
+            4 << 24
+        );
+        assert_eq!(base, (4 << 24) + 2 * (4 << 22) + n);
     }
 
     /// A bounded encode returns exactly the unbounded payload when that is

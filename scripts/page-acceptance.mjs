@@ -153,6 +153,7 @@ const violations = [];
 const gates = {};
 const measured = {};
 let longTasksSeen = 0;
+const workerMiB = async () => Number((await evaluate("document.querySelector('#result .memory').textContent")).match(/([\d,]+) MiB/)[1].replace(/,/g, ''));
 const raise = (key, value) => { gates[key] = Math.max(gates[key] ?? 0, value); };
 
 async function harvest() {
@@ -274,6 +275,9 @@ const cases = {
     const [restored] = await downloads();
     expect(restored.name === 'large.txt' && sha(restored.bytes) === sha(fs.readFileSync(inputs.large)), `decompress restored ${restored.name} with other bytes`);
     measured.decompressThroughput = Math.round(fs.statSync(inputs.large).size / big.ms);
+    // The large archive's frames step their tables to the page worker's
+    // share (Uorc.Page::pageWorker), so the worker's memory is gated here too.
+    raise('workerMemory', await workerMiB());
   },
   async 'decompress-reference-frames'() {
     await need('compress-matches-library');
@@ -283,8 +287,7 @@ const cases = {
     expect(r.state === 'done', `decompress frames: ${await text('status')}`);
     const [out] = await downloads();
     expect(sha(out.bytes) === sha(fs.readFileSync(inputs.frames)), 'reference frames restored other bytes');
-    const mib = Number((await evaluate("document.querySelector('#result .memory').textContent")).match(/([\d,]+) MiB/)[1].replace(/,/g, ''));
-    raise('workerMemory', mib);
+    raise('workerMemory', await workerMiB());
   },
   // Archives the released v0.2.0 and v0.3.0 binaries wrote (crates/uorc/tests/compat).
   async 'decompress-released'() {
