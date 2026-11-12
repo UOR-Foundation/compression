@@ -7,7 +7,7 @@ A lossless compression system whose compressed object is an exact executable Uni
 
 ## Current status
 
-The first product generation is v0.1 and includes the complete compression product. Current development source composes framing, reference and runtime semantics, deterministic synthesis, accounting, evidence, and user operations. Release acceptance requires the complete current graph and generated products to pass their declared checks. Source presence or a partial diagnostic pass is not completed product evidence.
+The shipped product is the uorc command-line client, the uorc Rust library and the WebAssembly client on the project's GitHub Pages site, released from v0.1 to v0.4 with v0.5 in release. Compress codes each frame with the context-mixing coder chosen per frame by outcome from a portfolio of coder profiles, consolidated model states and the x86 branch filter, stores repeated runs once as reference frames, and keeps the raw archive when it is not larger. The coding rules are LexLean definitions exported to certified Rust, and the native ports write byte-identical archives. Release acceptance requires the complete current graph and generated products to pass their declared checks. Source presence or a partial diagnostic pass is not completed product evidence.
 
 ## Authority
 
@@ -19,7 +19,7 @@ Product semantics, claim distinctions, test and report intent, and generated pro
 
 ## Scope
 
-Lossless arbitrary byte objects and ordered object collections; exact executable model plus parameters and residuals; explicit self-contained or conditional-basis accounting; deterministic compositional synthesis and resumable search; independent reconstruction, scoped certification, measured frontiers and comparisons; native, library, Wasm, and accessible file-oriented user interfaces. Product generation0.1 does not defer compression capabilities to later generations.
+Lossless arbitrary byte objects, ordered object collections and file trees; self-contained archives and conditional archives over the standard basis; context-mixing coding chosen per frame by outcome, named model states and reference frames; optional program search under an explicit step budget; streaming compress, decompress, inspect and verify in memory bounded by a few frames per core; closed performance claims decided over named corpora; the native command-line client, the Rust library and the WebAssembly page. No compression capability is deferred to a later generation.
 
 ### Non-scope
 

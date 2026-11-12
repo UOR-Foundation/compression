@@ -8,7 +8,7 @@ authority graph. It does not replace the template-owned `VERIFICATION.md`.
 
 ## Current status
 
-The first product generation is v0.1 and includes the complete compression product. Current development source composes framing, reference and runtime semantics, deterministic synthesis, accounting, evidence, and user operations. Release acceptance requires the complete current graph and generated products to pass their declared checks. Source presence or a partial diagnostic pass is not completed product evidence.
+The shipped product is the uorc command-line client, the uorc Rust library and the WebAssembly client on the project's GitHub Pages site, released from v0.1 to v0.4 with v0.5 in release. Compress codes each frame with the context-mixing coder chosen per frame by outcome from a portfolio of coder profiles, consolidated model states and the x86 branch filter, stores repeated runs once as reference frames, and keeps the raw archive when it is not larger. The coding rules are LexLean definitions exported to certified Rust, and the native ports write byte-identical archives. Release acceptance requires the complete current graph and generated products to pass their declared checks. Source presence or a partial diagnostic pass is not completed product evidence.
 
 ## Claim boundaries
 
