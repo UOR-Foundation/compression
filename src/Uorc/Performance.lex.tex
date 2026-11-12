@@ -1,0 +1,1905 @@
+\begin{lexlean}{Uorc.Performance}
+\title{Parameters}
+\begin{semanticmodule}
+definition{name: bitsPerByte, parameters: [], result: Nat, body: 8}
+
+definition{name: contextBits, parameters: [], result: Nat, body: 17}
+
+definition{name: fixedInputs, parameters: [], result: Nat, body: 3}
+
+definition{name: featureInputs, parameters: [], result: Nat, body: 2}
+
+definition{name: maxInputs, parameters: [], result: Nat, body: 24}
+
+definition{name: maxStepsPerByte, parameters: [], result: Nat, body: 192}
+
+definition{name: ulebLimit, parameters: [], result: Nat, body: 10}
+
+definition{name: rawFixed, parameters: [], result: Nat, body: 41}
+
+definition{name: rawOverhead, parameters: [], result: Nat, body: 61}
+
+inductive{
+  name: Trial,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: failed, fields: []}, {name: coded, fields: [Nat, Nat, Nat]}]
+}
+
+definition{
+  name: keep,
+  parameters: [left : Trial, right : Trial],
+  result: Trial,
+  body: (match left
+    | Trial.failed => right
+    | Trial.coded lb ls ld => (match right
+      | Trial.failed => left
+      | Trial.coded rb rs rd => (ctor Trial.coded (prim subtract lb (prim subtract lb rb : Nat) : Nat) (if (rb <? lb) then rs else ls) (if (rb <? lb) then rd else ld))))
+}
+
+definition{
+  name: best,
+  parameters: [trials : (List Trial)],
+  result: Trial,
+  body: (match trials
+    | List.nil => (ctor Trial.failed)
+    | List.cons head tail => (keep head (best tail))),
+  recursive_argument: trials
+}
+
+definition{
+  name: weight,
+  parameters: [trial : Trial],
+  result: Nat,
+  body: (match trial | Trial.failed => 0 | Trial.coded b s d => (b + 1))
+}
+
+definition{
+  name: excess,
+  parameters: [kept : Nat, candidate : Trial],
+  result: Nat,
+  body: (match candidate
+    | Trial.failed => 0
+    | Trial.coded b s d => ((prim subtract 1 kept : Nat) + (prim subtract kept (b + 1) : Nat)))
+}
+
+definition{
+  name: exceed,
+  parameters: [kept : Nat, trials : (List Trial)],
+  result: Nat,
+  body: (match trials
+    | List.nil => 0
+    | List.cons head tail => ((excess kept head) + (exceed kept tail))),
+  recursive_argument: trials
+}
+
+theorem{
+  name: keepStaysNoLarger,
+  parameters: [trials : (List Trial), head : Trial, kept : Trial],
+  statement: (((exceed (weight kept) trials) = 0) -> ((exceed (weight (keep head kept)) trials) = 0)),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: induction{
+                branches: [
+                  {
+                    proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                    binders: [],
+                    constructor: nil
+                  },
+                  {
+                    proof: cases{
+                      branches: [
+                        {
+                          proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                          binders: [],
+                          constructor: failed
+                        },
+                        {
+                          proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                          binders: [xB, xS, xD],
+                          constructor: coded
+                        }
+                      ],
+                      scrutinee: x
+                    },
+                    binders: [x, others, ih],
+                    constructor: cons
+                  }
+                ],
+                scrutinee: trials
+              },
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: induction{
+                branches: [
+                  {
+                    proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                    binders: [],
+                    constructor: nil
+                  },
+                  {
+                    proof: cases{
+                      branches: [
+                        {
+                          proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                          binders: [],
+                          constructor: failed
+                        },
+                        {
+                          proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                          binders: [xB, xS, xD],
+                          constructor: coded
+                        }
+                      ],
+                      scrutinee: x
+                    },
+                    binders: [x, others, ih],
+                    constructor: cons
+                  }
+                ],
+                scrutinee: trials
+              },
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: induction{
+                branches: [
+                  {
+                    proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                    binders: [],
+                    constructor: nil
+                  },
+                  {
+                    proof: cases{
+                      branches: [
+                        {
+                          proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                          binders: [],
+                          constructor: failed
+                        },
+                        {
+                          proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                          binders: [xB, xS, xD],
+                          constructor: coded
+                        }
+                      ],
+                      scrutinee: x
+                    },
+                    binders: [x, others, ih],
+                    constructor: cons
+                  }
+                ],
+                scrutinee: trials
+              },
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: induction{
+                branches: [
+                  {
+                    proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                    binders: [],
+                    constructor: nil
+                  },
+                  {
+                    proof: cases{
+                      branches: [
+                        {
+                          proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                          binders: [],
+                          constructor: failed
+                        },
+                        {
+                          proof: linear_arithmetic{definitions: [exceed, excess, keep, weight]},
+                          binders: [xB, xS, xD],
+                          constructor: coded
+                        }
+                      ],
+                      scrutinee: x
+                    },
+                    binders: [x, others, ih],
+                    constructor: cons
+                  }
+                ],
+                scrutinee: trials
+              },
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [headB, headS, headD],
+        constructor: coded
+      }
+    ],
+    scrutinee: head
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: keepNoLargerThanHead,
+  parameters: [head : Trial, kept : Trial],
+  statement: ((excess (weight (keep head kept)) head) = 0),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [excess, keep, weight]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [excess, keep, weight]},
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [excess, keep, weight]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [excess, keep, weight]},
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [headB, headS, headD],
+        constructor: coded
+      }
+    ],
+    scrutinee: head
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: keepNoLargerThanKept,
+  parameters: [head : Trial, kept : Trial],
+  statement: ((excess (weight (keep head kept)) kept) = 0),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [excess, keep, weight]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [excess, keep, weight]},
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [excess, keep, weight]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [excess, keep, weight]},
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [headB, headS, headD],
+        constructor: coded
+      }
+    ],
+    scrutinee: head
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: bestNoLargerThanEvery,
+  parameters: [trials : (List Trial)],
+  statement: ((exceed (weight (best trials)) trials) = 0),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{definitions: [best, exceed, ih, keepNoLargerThanHead, keepStaysNoLarger]},
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: trials
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: defect,
+  parameters: [trial : Trial],
+  result: Nat,
+  body: (match trial | Trial.failed => 0 | Trial.coded b s d => d)
+}
+
+definition{
+  name: admitted,
+  parameters: [trial : Trial],
+  result: Trial,
+  body: (match trial
+    | Trial.failed => (ctor Trial.failed)
+    | Trial.coded b s d => (match d
+      | Nat.zero => (ctor Trial.coded b s 0)
+      | Nat.succ k => (ctor Trial.failed)))
+}
+
+definition{
+  name: admitAll,
+  parameters: [trials : (List Trial)],
+  result: (List Trial),
+  body: (match trials
+    | List.nil => (nil Trial)
+    | List.cons head tail => (cons (admitted head) (admitAll tail))),
+  recursive_argument: trials
+}
+
+theorem{
+  name: admittedIsExact,
+  parameters: [trial : Trial],
+  statement: ((defect (admitted trial)) = 0),
+  proof: cases{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: failed},
+      {
+        proof: cases{
+          branches: [
+            {proof: reflexivity{}, binders: [], constructor: zero},
+            {proof: reflexivity{}, binders: [k], constructor: succ}
+          ],
+          scrutinee: d
+        },
+        binders: [b, s, d],
+        constructor: coded
+      }
+    ],
+    scrutinee: trial
+  }
+}
+
+theorem{
+  name: keepPreservesExact,
+  parameters: [left : Trial, right : Trial],
+  statement: (((defect left) = 0) -> (((defect right) = 0) -> ((defect (keep left right)) = 0))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [defect, keep]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [defect, keep]},
+              binders: [rightB, rightS, rightD],
+              constructor: coded
+            }
+          ],
+          scrutinee: right
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [defect, keep]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [defect, keep]},
+              binders: [rightB, rightS, rightD],
+              constructor: coded
+            }
+          ],
+          scrutinee: right
+        },
+        binders: [leftB, leftS, leftD],
+        constructor: coded
+      }
+    ],
+    scrutinee: left
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: bestOfAdmittedIsExact,
+  parameters: [trials : (List Trial)],
+  statement: ((defect (best (admitAll trials))) = 0),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{definitions: [admitAll, admittedIsExact, best, ih, keepPreservesExact]},
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: trials
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: ulebLength,
+  parameters: [n : Nat],
+  result: Nat,
+  body: (if (n <? 128) then 1 else (if (n <? 16384) then 2 else (if (n <? 2097152) then 3 else (if (n <? 268435456) then 4 else (if (n <? 34359738368) then 5 else (if (n <? 4398046511104) then 6 else (if (n <? 562949953421312) then 7 else (if (n <? 72057594037927936) then 8 else (if (n <? 9223372036854775808) then 9 else 10)))))))))
+}
+
+definition{
+  name: rawLength,
+  parameters: [n : Nat],
+  result: Nat,
+  body: (((prim multiply 2 (ulebLength n) : Nat) + n) + (rawFixed))
+}
+
+definition{
+  name: settle,
+  parameters: [kernel : Trial, raw : Nat],
+  result: Nat,
+  body: (match kernel
+    | Trial.failed => raw
+    | Trial.coded b s d => (prim subtract b (prim subtract b raw : Nat) : Nat))
+}
+
+theorem{
+  name: ulebLengthBound,
+  parameters: [n : Nat],
+  statement: ((ulebLength n) <= (ulebLimit)),
+  proof: linear_arithmetic{definitions: [ulebLength, ulebLimit]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: rawLengthBound,
+  parameters: [n : Nat],
+  statement: ((rawLength n) <= (n + (rawOverhead))),
+  proof: linear_arithmetic{definitions: [rawFixed, rawLength, rawOverhead, ulebLength]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: settleNoLargerThanRaw,
+  parameters: [kernel : Trial, raw : Nat],
+  statement: ((settle kernel raw) <= raw),
+  proof: cases{
+    branches: [
+      {proof: linear_arithmetic{definitions: [settle]}, binders: [], constructor: failed},
+      {proof: linear_arithmetic{definitions: [settle]}, binders: [b, s, d], constructor: coded}
+    ],
+    scrutinee: kernel
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: settleNoLargerThanKernel,
+  parameters: [b : Nat, s : Nat, d : Nat, raw : Nat],
+  statement: ((settle (ctor Trial.coded b s d) raw) <= b),
+  proof: linear_arithmetic{definitions: [settle]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: archiveBound,
+  parameters: [kernel : Trial, n : Nat],
+  statement: ((settle kernel (rawLength n)) <= (n + (rawOverhead))),
+  proof: cases{
+    branches: [
+      {
+        proof: linear_arithmetic{
+          definitions: [rawFixed, rawLength, rawOverhead, settle, ulebLength]
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: linear_arithmetic{
+          definitions: [rawFixed, rawLength, rawOverhead, settle, ulebLength]
+        },
+        binders: [b, s, d],
+        constructor: coded
+      }
+    ],
+    scrutinee: kernel
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: pow2,
+  parameters: [k : Nat],
+  result: Nat,
+  body: (match k | Nat.zero => 1 | Nat.succ m => (prim multiply 2 (pow2 m) : Nat)),
+  recursive_argument: k
+}
+
+definition{
+  name: countBits,
+  parameters: [fuel : Nat, word : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => 0
+    | Nat.succ m => ((prim remainder (prim quotient word (pow2 m) 0 : Nat) 2 0 : Nat) + (countBits m word))),
+  recursive_argument: fuel
+}
+
+definition{name: contexts, parameters: [profile : Nat], result: Nat, body: (countBits 17 profile)}
+
+definition{
+  name: inputs,
+  parameters: [profile : Nat],
+  result: Nat,
+  body: ((((contexts profile) + (fixedInputs)) + (prim multiply (featureInputs) (prim remainder (prim quotient profile 131072 0 : Nat) 2 0 : Nat) : Nat)) + (prim multiply (featureInputs) (prim remainder (prim quotient profile 262144 0 : Nat) 2 0 : Nat) : Nat))
+}
+
+definition{
+  name: frameSteps,
+  parameters: [profile : Nat, n : Nat],
+  result: Nat,
+  body: (match n
+    | Nat.zero => 0
+    | Nat.succ k => ((frameSteps profile k) + (prim multiply (bitsPerByte) (inputs profile) : Nat))),
+  recursive_argument: n
+}
+
+theorem{
+  name: countBitsBound,
+  parameters: [fuel : Nat, word : Nat],
+  statement: ((countBits fuel word) <= fuel),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [countBits]}, binders: [], constructor: zero},
+      {proof: linear_arithmetic{definitions: [countBits]}, binders: [k, ih], constructor: succ}
+    ],
+    scrutinee: fuel
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: contextsBound,
+  parameters: [profile : Nat],
+  statement: ((contexts profile) <= 17),
+  proof: simplify{definitions: [contexts, countBitsBound]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: inputsUnder,
+  parameters: [profile : Nat],
+  statement: (((contexts profile) <= 17) -> ((inputs profile) <= 24)),
+  proof: linear_arithmetic{definitions: [featureInputs, fixedInputs, inputs, maxInputs]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: inputsBound,
+  parameters: [profile : Nat],
+  statement: ((inputs profile) <= 24),
+  proof: simplify{definitions: [contextsBound, inputsUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: inputsFloor,
+  parameters: [profile : Nat],
+  statement: (3 <= (inputs profile)),
+  proof: linear_arithmetic{definitions: [featureInputs, fixedInputs, inputs, maxInputs]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: frameStepsUnder,
+  parameters: [profile : Nat, n : Nat],
+  statement: (((inputs profile) <= 24) -> ((frameSteps profile n) <= (prim multiply 192 n : Nat))),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [frameSteps]}, binders: [], constructor: zero},
+      {
+        proof: linear_arithmetic{definitions: [bitsPerByte, frameSteps]},
+        binders: [k, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: n
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: frameStepsBound,
+  parameters: [profile : Nat, n : Nat],
+  statement: ((frameSteps profile n) <= (prim multiply 192 n : Nat)),
+  proof: simplify{definitions: [frameStepsUnder, inputsBound]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+inductive{
+  name: Frame,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: raw, fields: []},
+    {name: reference, fields: []},
+    {name: ncm, fields: [Nat]},
+    {name: warm, fields: [Nat, Nat]}
+  ]
+}
+
+definition{
+  name: decodeSteps,
+  parameters: [frame : Frame, n : Nat],
+  result: Nat,
+  body: (match frame
+    | Frame.raw => n
+    | Frame.reference => 0
+    | Frame.ncm profile => (frameSteps profile n)
+    | Frame.warm profile state => (frameSteps profile (n + state)))
+}
+
+definition{
+  name: modelled,
+  parameters: [frame : Frame, n : Nat],
+  result: Nat,
+  body: (match frame
+    | Frame.raw => n
+    | Frame.reference => n
+    | Frame.ncm profile => n
+    | Frame.warm profile state => (n + state))
+}
+
+theorem{
+  name: decodeStepsBound,
+  parameters: [frame : Frame, n : Nat],
+  statement: ((decodeSteps frame n) <= (prim multiply 192 (modelled frame n) : Nat)),
+  proof: cases{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [decodeSteps, modelled]},
+        binders: [],
+        constructor: raw
+      },
+      {
+        proof: linear_arithmetic{definitions: [decodeSteps, modelled]},
+        binders: [],
+        constructor: reference
+      },
+      {
+        proof: simplify{definitions: [decodeSteps, frameStepsBound, modelled]},
+        binders: [profile],
+        constructor: ncm
+      },
+      {
+        proof: simplify{definitions: [decodeSteps, frameStepsBound, modelled]},
+        binders: [profile, state],
+        constructor: warm
+      }
+    ],
+    scrutinee: frame
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: fullModelSteps,
+  parameters: [],
+  statement: ((frameSteps 1048575 10) = 1920),
+  proof: reflexivity{}
+}
+
+theorem{
+  name: releasedModelSteps,
+  parameters: [],
+  statement: ((frameSteps 131071 10) = 1600),
+  proof: reflexivity{}
+}
+
+definition{
+  name: cost,
+  parameters: [trial : Trial],
+  result: Nat,
+  body: (match trial | Trial.failed => 0 | Trial.coded b s d => (b + s))
+}
+
+definition{
+  name: gainOf,
+  parameters: [cb : Nat, cs : Nat, ib : Nat, it : Nat],
+  result: Nat,
+  body: (if ((cb <=? ib) && (cs <=? it)) then (prim subtract (ib + it) (cb + cs) : Nat) else 0)
+}
+
+definition{
+  name: gain,
+  parameters: [candidate : Trial, incumbent : Trial],
+  result: Nat,
+  body: (match candidate
+    | Trial.failed => 0
+    | Trial.coded cb cs cd => (match incumbent
+      | Trial.failed => 0
+      | Trial.coded ib it ix => (gainOf cb cs ib it)))
+}
+
+theorem{
+  name: dominanceLowersCost,
+  parameters: [candidate : Trial, incumbent : Trial],
+  statement: ((gain candidate incumbent) <= (prim subtract (cost incumbent) (cost candidate) : Nat)),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [cost, gain, gainOf]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [cost, gain, gainOf]},
+              binders: [incumbentB, incumbentS, incumbentD],
+              constructor: coded
+            }
+          ],
+          scrutinee: incumbent
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [cost, gain, gainOf]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [cost, gain, gainOf]},
+              binders: [incumbentB, incumbentS, incumbentD],
+              constructor: coded
+            }
+          ],
+          scrutinee: incumbent
+        },
+        binders: [candidateB, candidateS, candidateD],
+        constructor: coded
+      }
+    ],
+    scrutinee: candidate
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: dominanceIsIrreflexive,
+  parameters: [trial : Trial],
+  statement: ((gain trial trial) = 0),
+  proof: cases{
+    branches: [
+      {proof: linear_arithmetic{definitions: [gain, gainOf]}, binders: [], constructor: failed},
+      {
+        proof: linear_arithmetic{definitions: [gain, gainOf]},
+        binders: [trialB, trialS, trialD],
+        constructor: coded
+      }
+    ],
+    scrutinee: trial
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: dominanceIsTransitive,
+  parameters: [ab : Nat, as : Nat, bb : Nat, bs : Nat, cb : Nat, cs : Nat],
+  statement: (((((gainOf ab as bb bs) =? 0) || ((gainOf bb bs cb cs) =? 0)) || (((gainOf ab as bb bs) + (gainOf bb bs cb cs)) <=? (gainOf ab as cb cs))) = true),
+  proof: linear_arithmetic{definitions: [gainOf]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: dominanceNeverGrows,
+  parameters: [cb : Nat, cs : Nat, ib : Nat, it : Nat],
+  statement: ((((gainOf cb cs ib it) =? 0) || ((cb <=? ib) && (cs <=? it))) = true),
+  proof: linear_arithmetic{definitions: [gainOf]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+definition{
+  name: bounded,
+  parameters: [bound : Nat, trial : Trial],
+  result: Trial,
+  body: (match trial
+    | Trial.failed => (ctor Trial.failed)
+    | Trial.coded b s d => (ctor Trial.coded (prim subtract b (prim subtract b bound : Nat) : Nat) s d))
+}
+
+definition{
+  name: boundAll,
+  parameters: [bound : Nat, trials : (List Trial)],
+  result: (List Trial),
+  body: (match trials
+    | List.nil => (nil Trial)
+    | List.cons head tail => (cons (bounded bound head) (boundAll bound tail))),
+  recursive_argument: trials
+}
+
+theorem{
+  name: boundedSettlesTheSame,
+  parameters: [trial : Trial, bound : Nat, raw : Nat],
+  statement: ((raw <= bound) -> ((settle (bounded bound trial) raw) = (settle trial raw))),
+  proof: cases{
+    branches: [
+      {proof: linear_arithmetic{definitions: [bounded, settle]}, binders: [], constructor: failed},
+      {
+        proof: linear_arithmetic{definitions: [bounded, settle]},
+        binders: [trialB, trialS, trialD],
+        constructor: coded
+      }
+    ],
+    scrutinee: trial
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: settleOfKeep,
+  parameters: [left : Trial, right : Trial, raw : Nat],
+  statement: ((settle (keep left right) raw) = (settle left (settle right raw))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [keep, settle]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [keep, settle]},
+              binders: [rightB, rightS, rightD],
+              constructor: coded
+            }
+          ],
+          scrutinee: right
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [keep, settle]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [keep, settle]},
+              binders: [rightB, rightS, rightD],
+              constructor: coded
+            }
+          ],
+          scrutinee: right
+        },
+        binders: [leftB, leftS, leftD],
+        constructor: coded
+      }
+    ],
+    scrutinee: left
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: boundedPortfolioSettlesTheSame,
+  parameters: [trials : (List Trial), raw : Nat],
+  statement: ((settle (best (boundAll raw trials)) raw) = (settle (best trials) raw)),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [
+            best,
+            boundAll,
+            boundedSettlesTheSame,
+            ih,
+            settleNoLargerThanRaw,
+            settleOfKeep
+          ]
+        },
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: trials
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: skippedTrialKeepsBytes,
+  parameters: [lb : Nat, ls : Nat, ld : Nat, rb : Nat, rs : Nat, rd : Nat],
+  statement: ((lb <= rb) -> ((weight (keep (ctor Trial.coded lb ls ld) (ctor Trial.coded rb rs rd))) = (lb + 1))),
+  proof: linear_arithmetic{definitions: [cost, keep, weight]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: skippedTrialKeepsSteps,
+  parameters: [lb : Nat, ls : Nat, ld : Nat, rb : Nat, rs : Nat, rd : Nat],
+  statement: ((lb <= rb) -> ((cost (keep (ctor Trial.coded lb ls ld) (ctor Trial.coded rb rs rd))) = (lb + ls))),
+  proof: linear_arithmetic{definitions: [cost, keep, weight]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: lexGap,
+  parameters: [ab : Nat, as : Nat, cb : Nat, cs : Nat],
+  result: Nat,
+  body: ((prim subtract ab cb : Nat) + (prim subtract (prim subtract (prim subtract as cs : Nat) (prim subtract (prim subtract as cs : Nat) 1 : Nat) : Nat) (prim subtract cb ab : Nat) : Nat))
+}
+
+definition{
+  name: trialGap,
+  parameters: [kb : Nat, ks : Nat, trial : Trial],
+  result: Nat,
+  body: (match trial | Trial.failed => 0 | Trial.coded b s d => (lexGap kb ks b s))
+}
+
+definition{
+  name: gapAll,
+  parameters: [kb : Nat, ks : Nat, trials : (List Trial)],
+  result: Nat,
+  body: (match trials
+    | List.nil => 0
+    | List.cons head tail => ((trialGap kb ks head) + (gapAll kb ks tail))),
+  recursive_argument: trials
+}
+
+definition{
+  name: bytesOf,
+  parameters: [trial : Trial],
+  result: Nat,
+  body: (match trial | Trial.failed => 0 | Trial.coded b s d => b)
+}
+
+definition{
+  name: stepsOf,
+  parameters: [trial : Trial],
+  result: Nat,
+  body: (match trial | Trial.failed => 0 | Trial.coded b s d => s)
+}
+
+definition{
+  name: pick,
+  parameters: [head : Trial, kept : Trial],
+  result: Trial,
+  body: (match head
+    | Trial.failed => kept
+    | Trial.coded b s d => (match kept
+      | Trial.failed => kept
+      | Trial.coded kb ks kd => (ctor Trial.coded (if ((b <? kb) || ((b =? kb) && (s <? ks))) then b else kb) (if ((b <? kb) || ((b =? kb) && (s <? ks))) then s else ks) (if ((b <? kb) || ((b =? kb) && (s <? ks))) then d else kd))))
+}
+
+definition{
+  name: chosen,
+  parameters: [raw : Trial, trials : (List Trial)],
+  result: Trial,
+  body: (match trials | List.nil => raw | List.cons head tail => (pick head (chosen raw tail))),
+  recursive_argument: trials
+}
+
+theorem{
+  name: pickIsLeastOfKept,
+  parameters: [head : Trial, kept : Trial],
+  statement: ((lexGap (bytesOf (pick head kept)) (stepsOf (pick head kept)) (bytesOf kept) (stepsOf kept)) = 0),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [headB, headS, headD],
+        constructor: coded
+      }
+    ],
+    scrutinee: head
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: pickIsLeastOfHead,
+  parameters: [head : Trial, kept : Trial],
+  statement: ((trialGap (bytesOf (pick head kept)) (stepsOf (pick head kept)) head) = 0),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [headB, headS, headD],
+        constructor: coded
+      }
+    ],
+    scrutinee: head
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: pickBytesAreSettled,
+  parameters: [head : Trial, kept : Trial],
+  statement: ((bytesOf (pick head kept)) = (settle head (bytesOf kept))),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{
+                definitions: [bytesOf, lexGap, pick, settle, stepsOf, trialGap]
+              },
+              binders: [keptB, keptS, keptD],
+              constructor: coded
+            }
+          ],
+          scrutinee: kept
+        },
+        binders: [headB, headS, headD],
+        constructor: coded
+      }
+    ],
+    scrutinee: head
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: pickStaysLeast,
+  parameters: [trials : (List Trial), head : Trial, kept : Trial],
+  statement: (((lexGap (bytesOf (pick head kept)) (stepsOf (pick head kept)) (bytesOf kept) (stepsOf kept)) = 0) -> (((gapAll (bytesOf kept) (stepsOf kept) trials) = 0) -> ((gapAll (bytesOf (pick head kept)) (stepsOf (pick head kept)) trials) = 0))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [gapAll, lexGap, trialGap]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [gapAll, lexGap, trialGap]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [gapAll, lexGap, trialGap]},
+              binders: [xB, xS, xD],
+              constructor: coded
+            }
+          ],
+          scrutinee: x
+        },
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: trials
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: chosenIsLeast,
+  parameters: [trials : (List Trial), raw : Trial],
+  statement: ((gapAll (bytesOf (chosen raw trials)) (stepsOf (chosen raw trials)) trials) = 0),
+  proof: induction{
+    branches: [
+      {proof: reflexivity{}, binders: [], constructor: nil},
+      {
+        proof: simplify{
+          definitions: [chosen, gapAll, ih, pickIsLeastOfHead, pickIsLeastOfKept, pickStaysLeast]
+        },
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: trials
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: pickStaysUnderRaw,
+  parameters: [head : Trial, kept : Trial, raw : Trial],
+  statement: (((lexGap (bytesOf (pick head kept)) (stepsOf (pick head kept)) (bytesOf kept) (stepsOf kept)) = 0) -> (((lexGap (bytesOf kept) (stepsOf kept) (bytesOf raw) (stepsOf raw)) = 0) -> ((lexGap (bytesOf (pick head kept)) (stepsOf (pick head kept)) (bytesOf raw) (stepsOf raw)) = 0))),
+  proof: linear_arithmetic{definitions: [lexGap]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: chosenIsNoWorseThanRaw,
+  parameters: [trials : (List Trial), raw : Trial],
+  statement: ((lexGap (bytesOf (chosen raw trials)) (stepsOf (chosen raw trials)) (bytesOf raw) (stepsOf raw)) = 0),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [chosen, lexGap]}, binders: [], constructor: nil},
+      {
+        proof: simplify{definitions: [chosen, ih, pickIsLeastOfKept, pickStaysUnderRaw]},
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: trials
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: chosenKeepsTheSize,
+  parameters: [trials : (List Trial), raw : Trial],
+  statement: ((bytesOf (chosen raw trials)) = (settle (best trials) (bytesOf raw))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [best, chosen, settle]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: simplify{definitions: [best, chosen, ih, pickBytesAreSettled, settleOfKeep]},
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: trials
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: leastIsUndominated,
+  parameters: [ab : Nat, as : Nat, cb : Nat, cs : Nat],
+  statement: (((0 <? (lexGap ab as cb cs)) || ((gainOf cb cs ab as) =? 0)) = true),
+  proof: linear_arithmetic{definitions: [gainOf, lexGap]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: excludedTrialKeepsBytes,
+  parameters: [b : Nat, s : Nat, d : Nat, kb : Nat, ks : Nat, kd : Nat],
+  statement: (((lexGap kb ks b s) = 0) -> ((bytesOf (pick (ctor Trial.coded b s d) (ctor Trial.coded kb ks kd))) = kb)),
+  proof: linear_arithmetic{definitions: [bytesOf, lexGap, pick]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: excludedTrialKeepsSteps,
+  parameters: [b : Nat, s : Nat, d : Nat, kb : Nat, ks : Nat, kd : Nat],
+  statement: (((lexGap kb ks b s) = 0) -> ((stepsOf (pick (ctor Trial.coded b s d) (ctor Trial.coded kb ks kd))) = ks)),
+  proof: linear_arithmetic{definitions: [lexGap, pick, stepsOf]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consolidate,
+  parameters: [candidate : Trial, incumbent : Trial],
+  result: Trial,
+  body: (match candidate
+    | Trial.failed => incumbent
+    | Trial.coded cb cs cd => (match incumbent
+      | Trial.failed => incumbent
+      | Trial.coded ib it ix => (ctor Trial.coded (if (0 <? (gainOf cb cs ib it)) then cb else ib) (if (0 <? (gainOf cb cs ib it)) then cs else it) (if (0 <? (gainOf cb cs ib it)) then cd else ix))))
+}
+
+theorem{
+  name: consolidationSpendsItsGain,
+  parameters: [candidate : Trial, incumbent : Trial],
+  statement: (((cost (consolidate candidate incumbent)) + (gain candidate incumbent)) = (cost incumbent)),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [consolidate, cost, gain, gainOf]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [consolidate, cost, gain, gainOf]},
+              binders: [incumbentB, incumbentS, incumbentD],
+              constructor: coded
+            }
+          ],
+          scrutinee: incumbent
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [consolidate, cost, gain, gainOf]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [consolidate, cost, gain, gainOf]},
+              binders: [incumbentB, incumbentS, incumbentD],
+              constructor: coded
+            }
+          ],
+          scrutinee: incumbent
+        },
+        binders: [candidateB, candidateS, candidateD],
+        constructor: coded
+      }
+    ],
+    scrutinee: candidate
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: consolidationStaysUnder,
+  parameters: [candidate : Trial, incumbent : Trial, bound : Nat],
+  statement: (((cost incumbent) <= bound) -> ((cost (consolidate candidate incumbent)) <= bound)),
+  proof: cases{
+    branches: [
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [consolidate, cost, gain, gainOf]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [consolidate, cost, gain, gainOf]},
+              binders: [incumbentB, incumbentS, incumbentD],
+              constructor: coded
+            }
+          ],
+          scrutinee: incumbent
+        },
+        binders: [],
+        constructor: failed
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: linear_arithmetic{definitions: [consolidate, cost, gain, gainOf]},
+              binders: [],
+              constructor: failed
+            },
+            {
+              proof: linear_arithmetic{definitions: [consolidate, cost, gain, gainOf]},
+              binders: [incumbentB, incumbentS, incumbentD],
+              constructor: coded
+            }
+          ],
+          scrutinee: incumbent
+        },
+        binders: [candidateB, candidateS, candidateD],
+        constructor: coded
+      }
+    ],
+    scrutinee: candidate
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: consolidated,
+  parameters: [incumbent : Trial, candidates : (List Trial)],
+  result: Trial,
+  body: (match candidates
+    | List.nil => incumbent
+    | List.cons head tail => (consolidate head (consolidated incumbent tail))),
+  recursive_argument: candidates
+}
+
+theorem{
+  name: potentialNeverRises,
+  parameters: [candidates : (List Trial), incumbent : Trial],
+  statement: ((cost (consolidated incumbent candidates)) <= (cost incumbent)),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [consolidated]}, binders: [], constructor: nil},
+      {
+        proof: simplify{definitions: [consolidated, consolidationStaysUnder, ih]},
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: candidates
+  },
+  axioms: [Quot.sound, propext]
+}
+
+structure{
+  name: Requirement,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: characteristic, type: String},
+    {name: subcharacteristic, type: String},
+    {name: text, type: String}
+  ]
+}
+
+structure{
+  name: Measure,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: requirement, type: String},
+    {name: quantity, type: String},
+    {name: unit, type: String},
+    {name: sense, type: String},
+    {name: threshold, type: Nat},
+    {name: command, type: String},
+    {name: disposition, type: String}
+  ]
+}
+
+definition{
+  name: excessOver,
+  parameters: [threshold : Nat, observed : Nat],
+  result: Nat,
+  body: (prim subtract observed threshold : Nat)
+}
+
+definition{
+  name: lackUnder,
+  parameters: [threshold : Nat, observed : Nat],
+  result: Nat,
+  body: (prim subtract threshold observed : Nat)
+}
+
+theorem{
+  name: noExcessIsMet,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: (((excessOver threshold observed) = 0) -> (observed <= threshold)),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: metHasNoExcess,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: ((observed <= threshold) -> ((excessOver threshold observed) = 0)),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: noLackIsMet,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: (((lackUnder threshold observed) = 0) -> (threshold <= observed)),
+  proof: linear_arithmetic{definitions: [lackUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: metHasNoLack,
+  parameters: [threshold : Nat, observed : Nat],
+  statement: ((threshold <= observed) -> ((lackUnder threshold observed) = 0)),
+  proof: linear_arithmetic{definitions: [lackUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: excessFallsWithTheObservation,
+  parameters: [threshold : Nat, before : Nat, after : Nat],
+  statement: ((after <= before) -> ((excessOver threshold after) <= (excessOver threshold before))),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: lackFallsAsTheObservationRises,
+  parameters: [threshold : Nat, before : Nat, after : Nat],
+  statement: ((before <= after) -> ((lackUnder threshold after) <= (lackUnder threshold before))),
+  proof: linear_arithmetic{definitions: [lackUnder]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: frameStepsOver,
+  parameters: [profile : Nat, n : Nat],
+  statement: ((3 <= (inputs profile)) -> ((prim multiply 24 n : Nat) <= (frameSteps profile n))),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [frameSteps]}, binders: [], constructor: zero},
+      {
+        proof: linear_arithmetic{definitions: [bitsPerByte, frameSteps]},
+        binders: [k, ih],
+        constructor: succ
+      }
+    ],
+    scrutinee: n
+  },
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: frameStepsFloor,
+  parameters: [profile : Nat, n : Nat],
+  statement: ((prim multiply 24 n : Nat) <= (frameSteps profile n)),
+  proof: simplify{definitions: [frameStepsOver, inputsFloor]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: budgetUnderTheFloorIsExceeded,
+  parameters: [profile : Nat, n : Nat, budget : Nat],
+  statement: ((3 <= (inputs profile)) -> (((prim multiply 24 n : Nat) <= (frameSteps profile n)) -> ((budget < (prim multiply 24 n : Nat)) -> (0 < (excessOver budget (frameSteps profile n)))))),
+  proof: linear_arithmetic{definitions: [excessOver]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: leastArchive,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "capacity", text := "For every input the archive is the least over the whole modelled codec space, not over a schedule drawn from it, and its length is the information the chosen model assigns to the input plus a proved constant."})
+}
+
+definition{
+  name: wholeHost,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "On a host with any number of threads the steps of compressing and of decompressing are spread over all of them: the longest chain of dependent steps is the total divided by the threads, up to one unit of work, and the total does not grow with the threads."})
+}
+
+definition{
+  name: hostCeiling,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "resource utilization", text := "Throughput on a host is that host's ceiling for the steps the chosen point costs: the bound is derived from the host's model (cores, vector width, memory rate), and the measure is the distance to it."})
+}
+
+definition{
+  name: width,
+  parameters: [low : Nat, high : Nat],
+  result: Nat,
+  body: (prim subtract (high + 1) low : Nat)
+}
+
+definition{name: cut, parameters: [low : Nat, part : Nat], result: Nat, body: (low + part)}
+
+theorem{
+  name: splitSpendsTheWidth,
+  parameters: [low : Nat, span : Nat, part : Nat],
+  statement: (((width low (cut low part)) + (width ((cut low part) + 1) (low + span))) = ((width low (low + span)) + (prim subtract part span : Nat))),
+  proof: linear_arithmetic{definitions: [cut, width]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: shiftMultipliesTheWidth,
+  parameters: [top : Nat, low : Nat, high : Nat],
+  statement: ((width (prim multiply 256 low : Nat) ((prim multiply 256 high : Nat) + 255)) = (prim multiply 256 (width ((prim multiply 16777216 top : Nat) + low) ((prim multiply 16777216 top : Nat) + high)) : Nat)),
+  proof: linear_arithmetic{definitions: [width]},
+  axioms: [Quot.sound, propext]
+}
+
+inductive{
+  name: CoderEvent,
+  type_parameters: [],
+  parameters: [],
+  constructors: [{name: bit, fields: []}, {name: byte, fields: []}]
+}
+
+definition{
+  name: emittedBytes,
+  parameters: [events : (List CoderEvent)],
+  result: Nat,
+  body: (match events
+    | List.nil => 0
+    | List.cons head tail => (match head
+      | CoderEvent.bit => (emittedBytes tail)
+      | CoderEvent.byte => ((emittedBytes tail) + 1))),
+  recursive_argument: events
+}
+
+definition{
+  name: saturate,
+  parameters: [count : Nat, limit : Nat],
+  result: Nat,
+  body: (prim subtract count (prim subtract count limit : Nat) : Nat)
+}
+
+definition{
+  name: seenBelow,
+  parameters: [cap : Nat, events : (List CoderEvent)],
+  result: Nat,
+  body: (match events
+    | List.nil => 0
+    | List.cons head tail => (match head
+      | CoderEvent.bit => (seenBelow cap tail)
+      | CoderEvent.byte => (saturate ((seenBelow cap tail) + 1) (cap + 1)))),
+  recursive_argument: events
+}
+
+theorem{
+  name: saturateStep,
+  parameters: [count : Nat, limit : Nat],
+  statement: ((saturate ((saturate count limit) + 1) limit) = (saturate (count + 1) limit)),
+  proof: linear_arithmetic{definitions: [saturate]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: ledgerSaturatesAtTheCap,
+  parameters: [cap : Nat, events : (List CoderEvent)],
+  statement: ((seenBelow cap events) = (saturate (emittedBytes events) (cap + 1))),
+  proof: induction{
+    branches: [
+      {
+        proof: linear_arithmetic{definitions: [emittedBytes, saturate, seenBelow]},
+        binders: [],
+        constructor: nil
+      },
+      {
+        proof: cases{
+          branches: [
+            {
+              proof: simplify{definitions: [emittedBytes, ih, seenBelow]},
+              binders: [],
+              constructor: bit
+            },
+            {
+              proof: simplify{definitions: [emittedBytes, ih, saturateStep, seenBelow]},
+              binders: [],
+              constructor: byte
+            }
+          ],
+          scrutinee: x
+        },
+        binders: [x, others, ih],
+        constructor: cons
+      }
+    ],
+    scrutinee: events
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: encodedPayload,
+  parameters: [cap : Nat, count : Nat],
+  result: Nat,
+  body: (if (count <? cap) then (count + 5) else 0)
+}
+
+theorem{
+  name: stopKeepsEveryPayloadBelowTheCap,
+  parameters: [cap : Nat, emitted : Nat],
+  statement: ((emitted < cap) -> ((encodedPayload cap (saturate emitted (cap + 1))) = (emitted + 5))),
+  proof: linear_arithmetic{definitions: [encodedPayload, saturate]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: stopAbandonsExactlyAtTheCap,
+  parameters: [cap : Nat, emitted : Nat],
+  statement: ((cap <= emitted) -> ((encodedPayload cap (saturate emitted (cap + 1))) = 0)),
+  proof: linear_arithmetic{definitions: [encodedPayload, saturate]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{name: oneSide, parameters: [w : Nat, part : Nat], result: Nat, body: (part + 1)}
+
+definition{
+  name: zeroSide,
+  parameters: [w : Nat, part : Nat],
+  result: Nat,
+  body: (prim subtract (prim subtract w 1 : Nat) part : Nat)
+}
+
+theorem{
+  name: aOneNarrowsTheWidth,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> (((prim multiply 4096 part : Nat) <= (prim multiply 4095 (prim subtract w 1 : Nat) : Nat)) -> ((oneSide w part) < w))),
+  proof: linear_arithmetic{definitions: [oneSide]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: aOneSpendsAFraction,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> (((prim multiply 4096 part : Nat) <= (prim multiply 4095 (prim subtract w 1 : Nat) : Nat)) -> ((prim subtract w 1 : Nat) <= (prim multiply 4096 (prim subtract w (oneSide w part) : Nat) : Nat)))),
+  proof: linear_arithmetic{definitions: [oneSide]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: aZeroNarrowsTheWidth,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> ((zeroSide w part) < w)),
+  proof: linear_arithmetic{definitions: [zeroSide]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: aZeroSpendsAFraction,
+  parameters: [w : Nat, part : Nat],
+  statement: ((2 <= w) -> (((prim subtract w 1 : Nat) < (prim multiply 4096 (part + 1) : Nat)) -> ((prim subtract w 1 : Nat) < (prim multiply 4096 (prim subtract w (zeroSide w part) : Nat) : Nat)))),
+  proof: linear_arithmetic{definitions: [zeroSide]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: exactRawDecision,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "A frame is stored raw exactly when every scheduled candidate's coder ledger reaches the raw archive less the candidate's form; the encoder abandons a candidate at that byte and at no other (stopKeepsEveryPayloadBelowTheCap, stopAbandonsExactlyAtTheCap), so no decision is made from a statistic of the input. No exact rule decides earlier: until the ledger reaches the cap, a continuation the model codes in few bytes still makes the coded frame the smaller. A coded bit narrows the width by at least one part in 4096 (the spend theorems), so the rest of a frame costs at least that much; measured, every profile codes random bytes to 0.28 to 0.30 percent over raw, so the earliest exact stop on random input is at about 99.7 percent of the frame. The cost of input the model cannot shrink is therefore the cost of the coder's pass over it, and is lowered only by passes that write the same bytes in less time."})
+}
+
+structure{
+  name: Facet,
+  type_parameters: [],
+  parameters: [],
+  fields: [
+    {name: quantity, type: String},
+    {name: fixedAt, type: String},
+    {name: standing, type: String},
+    {name: measured, type: String}
+  ]
+}
+
+definition{
+  name: contextTableSlots,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "context table slots", fixedAt := "2^24 for every input over 16 KiB", standing := "binding", measured := "8 MiB Python: 2^26 slots 2.1 percent smaller, 2^28 slots 2.9 percent smaller; 4 MiB ELF 0.6 and 0.7 percent smaller"})
+}
+
+definition{
+  name: observationCountLimit,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "observations after which a slot is consolidated", fixedAt := "127", standing := "at boundary", measured := "a limit of 40 is 0.05 percent larger on 8 MiB Python"})
+}
+
+definition{
+  name: refinementMapRows,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "rows of the second probability map", fixedAt := "2^16", standing := "at boundary", measured := "2^20 rows change 8 MiB Python by 0.05 percent"})
+}
+
+definition{
+  name: plasticityHalfLife,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes after which the mixers' plasticity above the floor has halved", fixedAt := "4096", standing := "near boundary", measured := "65536 is 0.16 percent smaller on 8 MiB Python and 0.23 percent on 4 MiB ELF"})
+}
+
+definition{
+  name: frameBytes,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes coded as one frame", fixedAt := "8 MiB", standing := "binding", measured := "32 MiB Python tar: one 32 MiB frame is 2.1 percent smaller than four 8 MiB frames, and 5.3 percent smaller with 2^28 table slots; 2^28 slots alone are 1.8 percent smaller"})
+}
+
+definition{
+  name: windowFrames,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "earlier frames a frame's model reads", fixedAt := "2", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: blockFrames,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "frames in a block that decodes on one thread", fixedAt := "4", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: stateBytes,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bytes of a named warm state", fixedAt := "256 KiB", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: streamsPerFrame,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "contiguous streams a frame is coded as", fixedAt := "1", standing := "binding for threads", measured := "with ideal sharing, 4 streams of 2 MiB cost 0.8 percent on Python; 16 streams of 128 KiB cost 5.8 percent"})
+}
+
+definition{
+  name: probabilityBits,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "bits of a coded probability", fixedAt := "12", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: contextCount,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "hashed contexts", fixedAt := "17", standing := "unmeasured", measured := ""})
+}
+
+definition{
+  name: scheduleBudget,
+  parameters: [],
+  result: Facet,
+  body: (record Facet {quantity := "strategies tried per frame", fixedAt := "2 to 4 by family", standing := "unmeasured", measured := ""})
+}
+\end{semanticmodule}
+\end{lexlean}

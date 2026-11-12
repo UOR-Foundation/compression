@@ -25,6 +25,7 @@ that orders remaining work. Here the decisions are a small Node host
 | `gate` | gate | the identities of the seven bootstrap legs and `pages` | proved when all eight are |
 | `native-<target>` (2), `wasm` | fetch | the client set (+ `crates/uorc-wasm/`) | release `native`, `wasm` |
 | `bench` | fetch | `scripts/bench.mjs`, release.yml, `native-x86_64` | release `bench` |
+| `frontier` | hermetic | the client set, `crates/frontier/`, `frontier.toml`, release.yml; needs `native-x86_64` | release `frontier`: decides the closed claims of the release's codec point over every κ-named corpus in `frontier.toml` |
 | `publish` | fetch | everything, `@mode`, `@run` | release `publish`, `pages` |
 
 The formal set is the tree without the product client and the release plumbing.

@@ -38,7 +38,7 @@ definition{
   name: ucPerf01,
   parameters: [],
   result: ConformanceRow,
-  body: (record ConformanceRow {id := "UC-PERF-01", level := "open", suite := "source-authority", statement := "measured public-corpus compression: every release runs scripts/bench.mjs on the Canterbury and Silesia corpora against gzip, bzip2, xz, zstd, brotli, zpaq and 7-Zip PPMd, reports each throughput against the host's measured core count and memory copy rate, and publishes archive sizes and times in the release notes, the release's bench.json and the Pages site; open because the measurement sets no target", given := "the registered public-corpus performance claim", when := "the honesty gate reads its disposition", expected := "the claim remains open with its measurements reported, rather than becoming implementation evidence", evidenceKind := "benchmark_measurement", researchDisposition := "measured_no_target"})
+  body: (record ConformanceRow {id := "UC-PERF-01", level := "open", suite := "source-authority", statement := "closed public-corpus claims with a target: every release runs crates/frontier over the Canterbury and Silesia corpora, each pinned by its κ in frontier.toml, records the exact archive bytes and decode steps of its codec point as closed claims the factory decides, and publishes them in the release notes and the release's frontier.toml; the target is that on every public corpus the archive is no larger than each pinned comparator's (gzip, bzip2, xz, zstd, brotli, zpaq and 7-Zip PPMd from the v0.3.0 release run), decided per comparator as a bound claim; open with the target unmet while any bound is refuted (Silesia against zpaq -m5, 41726363 against 39112562 bytes at v0.3.0); scripts/bench.mjs still reports times against the host's core count and memory copy rate", given := "the registered public-corpus performance claim", when := "the honesty gate reads its disposition", expected := "the claim remains open with its target unmet and its closed claims reported, rather than becoming implementation evidence", evidenceKind := "benchmark_target_unmet", researchDisposition := "measured_target_unmet"})
 }
 
 definition{
@@ -182,10 +182,94 @@ definition{
 }
 
 definition{
+  name: codecEngine,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-ENG-01", level := "build", suite := "codec-engine", statement := "The uorc engine moves the codec through its space without an LLM in the loop, under the laws of Uorc.Engine, which are kernel-checked: rule 30 on a 64-cell ring stays in the ring, search and portfolio weights stay within 1..16 under the bounded Hebbian rule (+2, -1), the winner of a proved dominance is scheduled before the incumbent it beat, dominance in bytes and steps is irreflexive, asymmetric and transitive and never costs bytes, a claim whose kappa is decided is never minted again, and the generated workflow's schedule and budgets are valid. Each tick mints candidates next to each family's incumbent by the rule 30 register and the search weights, decides them over the kappa-named corpus, and ships a moved portfolio only when it dominates the shipped one; the shipped table and the workflow are generated from the engine state and the model.", given := "the Uorc.Engine module, model/engine.toml and the engine crate", when := "the locked SDK verifies the module and the engine's tests read the module's constants, closed vectors and theorem inventory and run ticks over a corpus", expected := "every law is kernel-checked, the native transitions equal the model's, no decided kappa is decided twice, every consolidated portfolio dominates the one it replaced, and weights.rs and engine.yml equal what the engine state and the model generate", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
   name: pagesClient,
   parameters: [],
   result: ConformanceRow,
   body: (record ConformanceRow {id := "UC-WEB-01", level := "build", suite := "pages-client", statement := "The Pages client is generated from and conforms to its Prism product model in Uorc.Page: stakeholders, features with their calls and acceptance cases, journeys, the page's UML state machine, operations, fields, controls, examples, error hints, sections, usage, links and quality measures. The generated page holds exactly the modeled elements, and a real browser walks every journey, takes every modeled transition, checks every control's enabled state in every state it reaches and holds every gated quality measure.", given := "the Uorc.Page module, the generated web/index.html and the site built from the release wasm", when := "the model gate checks and renders the model and the browser acceptance drives the built site in headless Chromium", expected := "every Prism check holds, the committed page equals the rendered model, every acceptance case passes, every transition is taken and every gated measure is within its threshold", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceSizeBound,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-02", level := "build", suite := "performance-theorems", statement := "For every input length n, the settled frame of Uorc.Performance is no larger than the raw frame and no larger than a coded kernel candidate, and the raw frame is two length varints of at most 10 bytes each, the n input bytes and 41 fixed bytes, so no frame of one object exceeds n + 61 bytes (archiveBound), and a stream of k such frames is within n + 61 * k bytes; the native client keeps the same rule and the same constants.", given := "the Uorc.Performance module and the native client's frame writer", when := "the locked SDK verifies the module and the native test compresses inputs of several lengths and kinds, including incompressible ones", expected := "archiveBound and its lemmas are kernel-checked, every native raw frame has the model's length, and every native frame is within n + 61 bytes", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performancePortfolio,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-03", level := "build", suite := "performance-theorems", statement := "For every list of trials, the trial the portfolio keeps (Uorc.Performance best) is no larger in bytes than any coded trial in the list (bestNoLargerThanEvery), so a portfolio archive is no larger than the archive of any strategy it scheduled.", given := "the Uorc.Performance module and the native client's strategy portfolio", when := "the locked SDK verifies the module and the native test codes sample frames under each scheduled strategy and under the portfolio", expected := "bestNoLargerThanEvery is kernel-checked and the native portfolio frame is no larger than the frame of every strategy it scheduled", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceDecodeSteps,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-04", level := "build", suite := "performance-theorems", statement := "A step is one model input evaluated for one coded bit. For every profile word the input count lies between 3 and 24 (17 context bits, 3 fixed inputs, 2 for each of the short-match and repeat features), a frame of n bytes costs 8 * n * inputs steps, and for every frame kind (raw, reference, ncm, ncm from a named state) decode takes at most 192 steps per modelled byte (decodeStepsBound); the full profile costs 192 steps per byte and the v0.3 profile 160. The measure counts model inputs, not machine time.", given := "the Uorc.Performance module and the native step measure in uorc::performance", when := "the locked SDK verifies the module and the native test compares the native measure with the model's constants and closed vectors for sample profiles", expected := "the step bound theorems are kernel-checked, every native constant equals the model's, and the native step count of every sampled frame is within 192 steps per byte", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceMeaning,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-05", level := "build", suite := "performance-theorems", statement := "A trial carries its defect, the count of bytes at which its decode differs from the input. Admission fails every trial with a nonzero defect, keeping never raises a defect above its operands', and the trial kept from any admitted list has defect 0 (bestOfAdmittedIsExact): whatever codec point or named model state produced a trial, it can change the archive's size and never its meaning.", given := "the Uorc.Performance module and the native client's candidate admission", when := "the locked SDK verifies the module and the native test decodes every frame it produced under each strategy", expected := "bestOfAdmittedIsExact and its lemmas are kernel-checked and every native frame decodes to its input", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceDominance,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-06", level := "build", suite := "performance-theorems", statement := "A candidate dominates an incumbent when it is no larger in bytes and no larger in steps, and its gain is the drop in bytes plus steps. The gain never exceeds the drop in cost (dominanceLowersCost), no trial gains over itself, gains compose (a positive gain of a over b and of b over c gives at least their sum of a over c), and a positive gain implies no growth in bytes or in steps: dominance is a strict partial order, so consolidating winners cannot cycle.", given := "the Uorc.Performance module", when := "the locked SDK verifies the module and the native test reads the module's theorem inventory", expected := "the four dominance theorems are kernel-checked and present", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceBoundedSearch,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-07", level := "build", suite := "performance-theorems", statement := "A trial abandoned at a bound is modelled as a trial of at most the bound's bytes. For every list of trials and every raw length, the portfolio of trials abandoned at the raw length settles to the same size as the portfolio of complete trials (boundedPortfolioSettlesTheSame), and a trial no smaller than one already kept changes neither the kept bytes nor the kept steps (skippedTrial theorems): a search that stops a candidate once it cannot win, or skips one known to be no smaller, writes an archive of the same size for fewer compress steps.", given := "the Uorc.Performance module and the native encoder's bound", when := "the locked SDK verifies the module and the native test abandons each scheduled strategy at several bounds", expected := "the bounded search theorems are kernel-checked, a native payload abandoned at a bound is the complete payload or is absent only when the complete payload reaches the bound, and the native frame is no larger than any complete scheduled frame or the raw frame", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceUndominatedChoice,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-08", level := "build", suite := "performance-theorems", statement := "Choosing by fewer bytes and then fewer steps, from the raw frame and any list of trials, keeps a trial that is no later in that order than every trial in the list and than the raw frame (chosenIsLeast, chosenIsNoWorseThanRaw), has exactly the size the bytes-only rule settles to (chosenKeepsTheSize), and is dominated by no trial it is no later than (leastIsUndominated); a trial no earlier than the kept one changes nothing (excludedTrial theorems). The rule lowers decode steps on byte ties at no cost in size. The released client breaks byte ties by schedule order until its model export adopts this rule.", given := "the Uorc.Performance module and the native choice functions in uorc::performance", when := "the locked SDK verifies the module and the native test runs the native choice over every list of three small trials", expected := "the choice theorems are kernel-checked and the native choice is least in bytes then steps, has the bytes-only size, and is dominated by no listed trial", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performancePotential,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-09", level := "build", suite := "performance-theorems", statement := "The potential of a codec point is its bytes plus its steps. Consolidating a candidate into an incumbent lowers the potential by exactly the candidate's gain (consolidationSpendsItsGain), which is positive exactly when the candidate dominates, and over any sequence of candidates the potential never rises (potentialNeverRises). The potential is a natural number, so an engine that consolidates only dominating candidates never regresses and consolidates at most as many times as its first potential.", given := "the Uorc.Performance module and the native consolidation in uorc::performance", when := "the locked SDK verifies the module and the native test consolidates every pair and sequence of small trials", expected := "the potential theorems are kernel-checked and every native consolidation lowers bytes plus steps by exactly its gain", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceCoderLedger,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-10", level := "build", suite := "performance-theorems", statement := "The encoder's stop is a ledger over its coder events: its count of emitted bytes saturates at the cap (ledgerSaturatesAtTheCap), so a payload below the cap is exactly the unbounded payload, four header bytes, the emitted bytes and one final byte (stopKeepsEveryPayloadBelowTheCap), and a candidate is abandoned exactly when its emitted bytes reach the cap and at no other point (stopAbandonsExactlyAtTheCap). A coded bit at a 12-bit probability narrows the coder's width by at least one and by at least one part in 4096 (aOneNarrowsTheWidth, aOneSpendsAFraction, aZeroNarrowsTheWidth, aZeroSpendsAFraction). No exact rule decides a raw frame earlier than its ledger does (exactRawDecision): until a candidate's ledger reaches the cap, a continuation the model codes in few bytes can still make the coded frame the smaller one. Measured: random bytes code to 0.28 to 0.30 percent over raw under every shipped profile, so on random input the earliest exact stop comes at about 99.7 percent of the frame.", given := "the Uorc.Performance module and the native ncm encoder", when := "the locked SDK verifies the module and the native test abandons each shipped profile at every stop around its payload length and codes random bytes", expected := "the ledger theorems are kernel-checked, the native encoder returns the unbounded payload below the cap and nothing at or past it, and random bytes code to more than raw", evidenceKind := "kernel_theorem", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: performanceSharedPass,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-PERF-11", level := "build", suite := "performance-theorems", statement := "Input the model cannot shrink costs one coder pass per scheduled candidate, so that cost falls only through passes that write the same bytes in less time. Strategies whose profiles differ only in mixer selection read the same contexts, slots, match and repeat state and mixers 2 and 3, so when no core is spare they are coded in one shared pass that writes each strategy's own payload (ncm::encode_pair_below). It changes no byte: the shared pass equals the two separate passes in both directions of the pair and when either side is abandoned, and the client's archives do not depend on the thread count.", given := "the native ncm encoder and the client's portfolio", when := "the native test codes text and random bytes under each twin pair in one shared pass and in separate passes, with each side abandoned in turn, and compresses with one thread and with several", expected := "every shared-pass payload equals its separate pass and the archives are the same at every thread count", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
+}
+
+definition{
+  name: pagesModelState,
+  parameters: [],
+  result: ConformanceRow,
+  body: (record ConformanceRow {id := "UC-WEB-02", level := "build", suite := "pages-client", statement := "The product shows the codec as a point of its modelled space: uorc inspect, the library's Info JSON and the Pages client name each frame's codec point (basis, ncm profile word, consolidated model state, lanes and its κ) and the exact steps its decode takes, as Uorc.Performance defines them, from the header alone; the page's model view shows the release's performance theorems, its closed claims with codec point, corpus κ, bytes, steps and the factory's decision, and the engine's tick, rule30 register and weights, exactly as the release publishes them in model.json.", given := "an archive written by uorc, the Uorc.Page module and the site built with model.json from the claim ledger, frontier.toml and model/engine.toml", when := "uorc inspect reads the archive and the browser acceptance inspects it on the page and reads the model view", expected := "the codec point κ and steps equal the library's for every frame, and every theorem, claim and engine value on the page equals model.json", evidenceKind := "build_evidence", researchDisposition := "not_measured"})
 }
 \end{semanticmodule}
 \end{lexlean}

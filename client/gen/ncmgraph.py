@@ -82,6 +82,33 @@ def profile_library(g, prefix='ncmP'):
     return b
 
 
+
+def warm_library(g):
+    """ncmRunWarm(payload, state, profile), appended after the profiled blocks: the decode of the current coder
+    (ncm_model) from a kappa-named model state, basis root 1. H starts holding the state, which the model codes
+    first without a coder; only the n bytes after it are the output."""
+    c = irgraph.Compiler(ncm_model.P, g)
+    roms = c.load_roms()
+    inp = c.input_loader()
+    H = ncm_model.P.tables['H']
+    b = c.g.block('ncmWStateByte', [N, T, S], T)
+    b.returns(b.swrite(b.arg(1), b.add(H, b.arg(0)), b.sidx(b.arg(2), b.arg(0))))
+    hb = b
+    b = c.g.block('ncmWOutAt', [N, T, N], Y)
+    b.returns(b.sread(b.arg(1), b.add(b.add(H, b.arg(2)), b.arg(0))))
+    oat = b
+    decw = c.function('decodeWarm')
+    b = c.g.block('ncmRunWarm', [S, S, N], S)
+    pl, ws, pf = b.arg(0), b.arg(1), b.arg(2)
+    st = b.fold(b.slen(pl), b.snew(b.byte(0)), inp, [pl])
+    st = b.apply(roms, [st])
+    w = b.slen(ws)
+    st = b.fold(w, st, hb, [ws])
+    st = b.apply(decw, [st, w, pf])
+    n = c.get(b, st, c.gkey['n'], ncm_model.P.globals['n'])
+    b.returns(b.tabulate(n, oat, [st, w]))
+    return b
+
 def build(payload):
     g, run = library()
     e = g.block('entry', [], S)

@@ -1,0 +1,344 @@
+\begin{lexlean}{Uorc.Engine}
+\title{Parameters}
+\begin{semanticmodule}
+inductive{
+  name: MintVerdict,
+  type_parameters: [],
+  parameters: [],
+  constructors: [
+    {name: minted, fields: [Nat]},
+    {name: refusedKnown, fields: []},
+    {name: refusedBudget, fields: []}
+  ]
+}
+
+definition{name: weightMin, parameters: [], result: Nat, body: 1}
+
+definition{name: weightMax, parameters: [], result: Nat, body: 16}
+
+definition{name: weightInitial, parameters: [], result: Nat, body: 8}
+
+definition{name: potentiation, parameters: [], result: Nat, body: 2}
+
+definition{name: depression, parameters: [], result: Nat, body: 1}
+
+definition{name: consolidation, parameters: [], result: Nat, body: 12}
+
+definition{name: hypothesisBudget, parameters: [], result: Nat, body: 6}
+
+definition{name: portfolioCapacity, parameters: [], result: Nat, body: 12}
+
+definition{name: tickHistory, parameters: [], result: Nat, body: 32}
+
+definition{name: cells, parameters: [], result: Nat, body: 64}
+
+definition{name: ring, parameters: [], result: Nat, body: 18446744073709551616}
+
+definition{name: seed, parameters: [], result: Nat, body: 11400714819323198485}
+
+definition{name: cronFirst, parameters: [], result: Nat, body: 23}
+
+definition{name: cronSecond, parameters: [], result: Nat, body: 53}
+
+definition{name: setupMinutes, parameters: [], result: Nat, body: 10}
+
+definition{name: tickMinutes, parameters: [], result: Nat, body: 45}
+
+definition{name: timeoutMinutes, parameters: [], result: Nat, body: 60}
+
+definition{
+  name: pow2,
+  parameters: [n : Nat],
+  result: Nat,
+  body: (match n | Nat.zero => 1 | Nat.succ k => ((pow2 k) + (pow2 k))),
+  axioms: [],
+  recursive_argument: n
+}
+
+definition{
+  name: cell,
+  parameters: [s : Nat, i : Nat],
+  result: Nat,
+  body: (prim remainder (prim quotient s (pow2 i) 0 : Nat) 2 0 : Nat)
+}
+
+definition{
+  name: rule,
+  parameters: [l : Nat, c : Nat, r : Nat],
+  result: Nat,
+  body: (if ((c =? 1) || (r =? 1)) then (if (l =? 0) then 1 else 0) else (if (l =? 1) then 1 else 0))
+}
+
+definition{
+  name: nextCell,
+  parameters: [s : Nat, i : Nat],
+  result: Nat,
+  body: (rule (cell s (prim remainder (i + 1) (cells) 0 : Nat)) (cell s i) (cell s (prim remainder (i + 63) (cells) 0 : Nat)))
+}
+
+definition{
+  name: stepFrom,
+  parameters: [s : Nat, fuel : Nat],
+  result: Nat,
+  body: (match fuel
+    | Nat.zero => 0
+    | Nat.succ m => ((stepFrom s m) + (if ((nextCell s m) =? 1) then (pow2 m) else 0))),
+  axioms: [],
+  recursive_argument: fuel
+}
+
+definition{
+  name: rule30Step,
+  parameters: [s : Nat],
+  result: Nat,
+  body: (stepFrom (if (s =? 0) then (seed) else s) (cells))
+}
+
+theorem{
+  name: stepFromBelowPow2,
+  parameters: [s : Nat, fuel : Nat],
+  statement: ((stepFrom s fuel) < (pow2 fuel)),
+  proof: induction{
+    branches: [
+      {proof: linear_arithmetic{definitions: [pow2, stepFrom]}, binders: [], constructor: zero},
+      {proof: linear_arithmetic{definitions: [pow2, stepFrom]}, binders: [m, ih], constructor: succ}
+    ],
+    scrutinee: fuel
+  },
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: ringIsPow2Cells,
+  parameters: [],
+  statement: ((pow2 (cells)) = (ring)),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: rule30FromZeroIsSeedStep,
+  parameters: [],
+  statement: ((rule30Step 0) = 8170733857868071477),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: rule30OfSeed,
+  parameters: [],
+  statement: ((rule30Step (seed)) = 8170733857868071477),
+  proof: decide{},
+  axioms: []
+}
+
+theorem{
+  name: rule30OfOne,
+  parameters: [],
+  statement: ((rule30Step 1) = 9223372036854775811),
+  proof: decide{},
+  axioms: []
+}
+
+definition{
+  name: select,
+  parameters: [s : Nat, n : Nat],
+  result: Nat,
+  body: (prim remainder s n 0 : Nat)
+}
+
+definition{
+  name: potentiate,
+  parameters: [w : Nat],
+  result: Nat,
+  body: (if ((weightMax) <? (w + (potentiation))) then (weightMax) else (w + (potentiation)))
+}
+
+definition{
+  name: depress,
+  parameters: [w : Nat],
+  result: Nat,
+  body: (if (w <=? ((weightMin) + (depression))) then (weightMin) else (prim subtract w (depression) : Nat))
+}
+
+definition{
+  name: learn,
+  parameters: [w : Nat, success : Bool],
+  result: Nat,
+  body: (if success then (potentiate w) else (depress w))
+}
+
+theorem{
+  name: potentiationStaysBounded,
+  parameters: [w : Nat],
+  statement: ((((weightMin) <= w) /\ (w <= (weightMax))) -> (((weightMin) <= (potentiate w)) /\ ((potentiate w) <= (weightMax)))),
+  proof: linear_arithmetic{definitions: [potentiate, potentiation, weightMax, weightMin]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: depressionStaysBounded,
+  parameters: [w : Nat],
+  statement: ((((weightMin) <= w) /\ (w <= (weightMax))) -> (((weightMin) <= (depress w)) /\ ((depress w) <= (weightMax)))),
+  proof: linear_arithmetic{definitions: [depress, depression, weightMax, weightMin]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: potentiationNeverLowers,
+  parameters: [w : Nat],
+  statement: ((w <= (weightMax)) -> (w <= (potentiate w))),
+  proof: linear_arithmetic{definitions: [depress, learn, potentiate, potentiation, weightMax]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: depressionNeverRaises,
+  parameters: [w : Nat],
+  statement: (((weightMin) <= w) -> ((depress w) <= w)),
+  proof: linear_arithmetic{definitions: [depress, depression, learn, potentiate, weightMin]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: larger,
+  parameters: [a : Nat, b : Nat],
+  result: Nat,
+  body: (if (a <? b) then b else a)
+}
+
+definition{
+  name: winnerWeight,
+  parameters: [candidate : Nat, incumbent : Nat],
+  result: Nat,
+  body: (potentiate (larger candidate incumbent))
+}
+
+definition{name: loserWeight, parameters: [incumbent : Nat], result: Nat, body: (depress incumbent)}
+
+theorem{
+  name: winnerIsScheduledFirst,
+  parameters: [candidate : Nat, incumbent : Nat],
+  statement: ((((weightMin) <= incumbent) /\ ((incumbent <= (weightMax)) /\ (candidate <= (weightMax)))) -> ((loserWeight incumbent) < (winnerWeight candidate incumbent))),
+  proof: linear_arithmetic{
+    definitions: [
+      depress,
+      depression,
+      larger,
+      learn,
+      loserWeight,
+      potentiate,
+      potentiation,
+      weightMax,
+      weightMin,
+      winnerWeight
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{name: consolidated, parameters: [w : Nat], result: Bool, body: ((consolidation) <=? w)}
+
+theorem{
+  name: winnerAtCeilingIsConsolidated,
+  parameters: [incumbent : Nat],
+  statement: ((((consolidation) <= incumbent) /\ (incumbent <= (weightMax))) -> ((consolidated (winnerWeight 0 incumbent)) = true)),
+  proof: linear_arithmetic{
+    definitions: [
+      consolidated,
+      consolidation,
+      depress,
+      larger,
+      learn,
+      potentiate,
+      potentiation,
+      weightMax,
+      winnerWeight
+    ]
+  },
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: dominates,
+  parameters: [
+    candidateBytes : Nat,
+    candidateSteps : Nat,
+    incumbentBytes : Nat,
+    incumbentSteps : Nat
+  ],
+  result: Bool,
+  body: (((candidateBytes <=? incumbentBytes) && (candidateSteps <=? incumbentSteps)) && ((candidateBytes <? incumbentBytes) || (candidateSteps <? incumbentSteps)))
+}
+
+theorem{
+  name: dominanceIsIrreflexive,
+  parameters: [b : Nat, s : Nat],
+  statement: ((dominates b s b s) = false),
+  proof: linear_arithmetic{definitions: [dominates]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: dominanceIsAsymmetric,
+  parameters: [ab : Nat, as : Nat, bb : Nat, bs : Nat],
+  statement: (((dominates ab as bb bs) = true) -> ((dominates bb bs ab as) = false)),
+  proof: linear_arithmetic{definitions: [dominates]},
+  axioms: [Quot.sound, propext]
+}
+
+theorem{
+  name: dominanceIsTransitive,
+  parameters: [ab : Nat, as : Nat, bb : Nat, bs : Nat, cb : Nat, cs : Nat],
+  statement: (((dominates ab as bb bs) = true) -> (((dominates bb bs cb cs) = true) -> ((dominates ab as cb cs) = true))),
+  proof: linear_arithmetic{definitions: [dominates]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: dominanceNeverCostsBytes,
+  parameters: [ab : Nat, as : Nat, bb : Nat, bs : Nat],
+  statement: (((dominates ab as bb bs) = true) -> ((ab <= bb) /\ (as <= bs))),
+  proof: linear_arithmetic{definitions: [dominates]},
+  axioms: [Classical.choice, Quot.sound, propext]
+}
+
+theorem{
+  name: dominanceLowersPotential,
+  parameters: [ab : Nat, as : Nat, bb : Nat, bs : Nat],
+  statement: (((dominates ab as bb bs) = true) -> ((ab + as) < (bb + bs))),
+  proof: linear_arithmetic{definitions: [dominates]},
+  axioms: [Quot.sound, propext]
+}
+
+definition{
+  name: admitMint,
+  parameters: [known : Bool, remaining : Nat],
+  result: MintVerdict,
+  body: (if known then (ctor MintVerdict.refusedKnown) else (if (remaining =? 0) then (ctor MintVerdict.refusedBudget) else (ctor MintVerdict.minted (prim subtract remaining 1 : Nat))))
+}
+
+theorem{
+  name: knownResultIsNeverRerun,
+  parameters: [remaining : Nat],
+  statement: ((admitMint true remaining) = (ctor MintVerdict.refusedKnown)),
+  proof: reflexivity{},
+  axioms: []
+}
+
+definition{
+  name: validWorkflow,
+  parameters: [early : Nat, late : Nat, setup : Nat, tick : Nat, timeout : Nat],
+  result: Bool,
+  body: ((((0 <? early) && (early <? 30)) && (late =? (early + 30))) && ((setup + tick) <=? timeout))
+}
+
+theorem{
+  name: shippedWorkflowIsValid,
+  parameters: [],
+  statement: ((validWorkflow (cronFirst) (cronSecond) (setupMinutes) (tickMinutes) (timeoutMinutes)) = true),
+  proof: decide{},
+  axioms: []
+}
+\end{semanticmodule}
+\end{lexlean}
