@@ -25,6 +25,7 @@
 //   node scripts/factory.mjs outcome NAME IDENTITY success|failure DIR
 //   node scripts/factory.mjs publish DIR          (factory.yml only: needs GH_TOKEN)
 //   node scripts/factory.mjs release-step --context trigger=WORKFLOW   (factory.yml: tag a proved version)
+//   node scripts/factory.mjs merge-train          (factory.yml: update, test and merge the head of the merge train)
 //   node scripts/factory.mjs export-check | export-record
 import fs from 'node:fs';
 import os from 'node:os';
@@ -217,6 +218,57 @@ export function releaseStep({version, tagged, routes, trigger}) {
   return {step: 'rehearse', tag, why: `${open.join(', ')} not proved on this tree`};
 }
 
+// The merge train. A non-draft pull request into the default branch that
+// carries the `merge-train` label rides it, in the order the label was applied
+// (then by number). Only the head of the train moves. Branch protection is
+// strict: a request merges only when its head contains the default branch and
+// the required checks passed on that head, so each merge makes the next rider
+// stale; the train updates it, tests it, and merges it, with no one waiting.
+export const TRAIN_LABEL = 'merge-train';
+export const REQUIRED_CHECKS = ['acceptance / ubuntu-24.04', 'acceptance / ubuntu-24.04-arm'];
+const PASSING = ['success', 'neutral', 'skipped'];
+
+/// The riders in order, and the labelled requests that wait off the train:
+/// drafts, and stacked requests until they are retargeted.
+export function trainQueue(prs, {base}) {
+  const riders = [], skipped = [];
+  for (const pr of prs) {
+    if (!pr.labels.includes(TRAIN_LABEL)) continue;
+    if (pr.draft) skipped.push({number: pr.number, why: 'it is a draft'});
+    else if (pr.base !== base) skipped.push({number: pr.number, why: `it is stacked on ${pr.base}; retarget it to ${base}`});
+    else riders.push(pr);
+  }
+  const at = pr => { const t = Date.parse(pr.labeledAt ?? ''); return Number.isNaN(t) ? Infinity : t; };
+  riders.sort((a, b) => at(a) - at(b) || a.number - b.number);
+  return {riders, skipped};
+}
+
+/// The next move for the head of the train, from how many commits of the
+/// default branch its head lacks, the bootstrap runs on its head commit, and
+/// the newest run of each required check there:
+///   update    merge the default branch into it, then test the new head
+///   dispatch  no bootstrap run has tested the head: start one
+///   wait      a bootstrap run on the head is still going
+///   merge     it contains the default branch and every required check passed
+///   drop      it cannot merge as it is: take the label off and say why
+/// A workflow token's push starts no workflow, so the train dispatches every
+/// bootstrap run it needs; it dispatches only when none ran on the head, so a
+/// run that never reports cannot loop.
+export function trainStep({pr, base, repository, behind, runs, checks}) {
+  if (pr.headRepo !== repository) return {action: 'drop', why: `its branch is in ${pr.headRepo ?? 'a deleted repository'}; the train updates and tests only branches of ${repository}`};
+  if (behind > 0) {
+    if (pr.mergeable === false) return {action: 'drop', why: `it conflicts with ${base}; merge ${base} into it by hand`};
+    return {action: 'update', why: `it is ${behind} commit(s) behind ${base}`};
+  }
+  if (runs.some(r => r.status !== 'completed')) return {action: 'wait', why: `bootstrap is still running on ${pr.headSha}`};
+  const failed = REQUIRED_CHECKS.filter(n => checks[n]?.status === 'completed' && !PASSING.includes(checks[n].conclusion));
+  if (failed.length) return {action: 'drop', why: `${failed.map(n => `${n} is ${checks[n].conclusion}`).join(', ')} on ${pr.headSha}`};
+  if (REQUIRED_CHECKS.every(n => checks[n]?.status === 'completed')) return {action: 'merge', why: `it contains ${base} and every required check passed on ${pr.headSha}`};
+  if (REQUIRED_CHECKS.some(n => checks[n])) return {action: 'wait', why: `the required checks are still running on ${pr.headSha}`};
+  if (!runs.length) return {action: 'dispatch', why: `no bootstrap run has tested ${pr.headSha}`};
+  return {action: 'drop', why: `bootstrap ran on ${pr.headSha} without reporting ${REQUIRED_CHECKS.join(' and ')}`};
+}
+
 function exportRoute(graph, ids, dir) {
   const o = graph.obligations.find(x => x.name === 'export');
   const file = path.join(dir, o.record);
@@ -349,6 +401,13 @@ function main(argv) {
       process.stdout.write(`step=${r.step}\ntag=${r.tag}\nsha=${git(['rev-parse', 'HEAD'], {cwd: dir}).toString().trim()}\n`);
       return;
     }
+    case 'merge-train':
+      return mergeTrain({
+        repository: process.env.GITHUB_REPOSITORY ?? fail('GITHUB_REPOSITORY is required'),
+        base: process.env.DEFAULT_BRANCH ?? fail('DEFAULT_BRANCH is required'),
+        token: process.env.GH_TOKEN ?? fail('GH_TOKEN is required'),
+        run: process.env.GITHUB_RUN_ID ?? '',
+      });
     case 'export-check': {
       const ids = identities(graph, tree('HEAD', dir), plannedContexts);
       const r = exportRoute(graph, ids, dir);
@@ -450,6 +509,94 @@ export async function publish(graph, dir, outcomes) {
     await new Promise(r => setTimeout(r, tries * 5000));
   }
   fail(`could not push receipts to ${BRANCH}`);
+}
+
+/// Moves the merge train as far as it can without waiting: a merge or a drop
+/// goes on to the next rider; an update, a dispatch or a wait ends the run, and
+/// the bootstrap run it waits for moves the train again when it completes.
+export async function mergeTrain({repository, base, token, run = '', sleep = ms => new Promise(r => setTimeout(r, ms)), log = console.log}) {
+  const call = async (method, route, body) => {
+    const response = await (globalThis.factoryFetch ?? fetch)(`https://api.github.com/repos/${repository}/${route}`, {method, headers: {authorization: `Bearer ${token}`, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28'}, ...(body === undefined ? {} : {body: JSON.stringify(body)})});
+    const text = await response.text();
+    let data = null; try { data = text ? JSON.parse(text) : null; } catch { data = {message: text}; }
+    return {status: response.status, ok: response.ok, data};
+  };
+  const get = async route => { const r = await call('GET', route); return r.ok ? r.data : fail(`GET ${route}: ${r.status} ${r.data?.message ?? ''}`); };
+  const all = async route => {
+    const out = [];
+    for (let page = 1; page <= 10; page++) {
+      const items = await get(`${route}${route.includes('?') ? '&' : '?'}per_page=100&page=${page}`);
+      out.push(...items); if (items.length < 100) break;
+    }
+    return out;
+  };
+  const dispatch = async ref => {
+    const r = await call('POST', 'actions/workflows/bootstrap.yml/dispatches', {ref});
+    if (!r.ok) fail(`dispatching bootstrap on ${ref}: ${r.status} ${r.data?.message ?? ''}`);
+    log(`merge-train: dispatched bootstrap on ${ref}`);
+  };
+  const where = run ? ` ([run](https://github.com/${repository}/actions/runs/${run}))` : '';
+  const drop = async (pr, why) => {
+    log(`merge-train: #${pr.number} leaves the train: ${why}`);
+    const unlabeled = await call('DELETE', `issues/${pr.number}/labels/${encodeURIComponent(TRAIN_LABEL)}`);
+    if (!unlabeled.ok && unlabeled.status !== 404) fail(`removing ${TRAIN_LABEL} from #${pr.number}: ${unlabeled.status}`);
+    const r = await call('POST', `issues/${pr.number}/comments`, {body: `Left the merge train${where}: ${why}. Add the \`${TRAIN_LABEL}\` label again to rejoin at the back.`});
+    if (!r.ok) fail(`commenting on #${pr.number}: ${r.status}`);
+  };
+  for (let moves = 0; moves < 50; moves++) {
+    const open = (await all('pulls?state=open')).filter(p => p.labels.some(l => l.name === TRAIN_LABEL));
+    const prs = [];
+    for (const p of open) {
+      const labeled = (await all(`issues/${p.number}/events`)).filter(e => e.event === 'labeled' && e.label?.name === TRAIN_LABEL).at(-1);
+      prs.push({number: p.number, title: p.title, body: p.body ?? '', draft: p.draft, base: p.base.ref, headRef: p.head.ref, headSha: p.head.sha, headRepo: p.head.repo?.full_name ?? null, labels: p.labels.map(l => l.name), labeledAt: labeled?.created_at});
+    }
+    const {riders, skipped} = trainQueue(prs, {base});
+    for (const s of skipped) log(`merge-train: #${s.number} waits off the train: ${s.why}`);
+    if (!riders.length) { log('merge-train: no rider'); return {action: 'idle'}; }
+    log(`merge-train: ${riders.map(p => `#${p.number}`).join(' ')}`);
+    const head = riders[0];
+    const detail = await get(`pulls/${head.number}`);
+    const pr = {...head, headSha: detail.head.sha, mergeable: detail.mergeable};
+    const behind = (await get(`compare/${encodeURIComponent(base)}...${pr.headSha}`)).behind_by;
+    const runs = (await get(`actions/workflows/bootstrap.yml/runs?head_sha=${pr.headSha}&per_page=100`)).workflow_runs;
+    const checks = {};
+    for (const name of REQUIRED_CHECKS) {
+      const found = (await get(`commits/${pr.headSha}/check-runs?check_name=${encodeURIComponent(name)}&per_page=100`)).check_runs;
+      if (found.length) checks[name] = found.reduce((a, b) => (b.id > a.id ? b : a));
+    }
+    const step = trainStep({pr, base, repository, behind, runs, checks});
+    log(`merge-train: #${pr.number} ${step.action}: ${step.why}`);
+    if (step.action === 'wait') return step;
+    if (step.action === 'dispatch') { await dispatch(pr.headRef); return step; }
+    if (step.action === 'drop') { await drop(pr, step.why); continue; }
+    if (step.action === 'update') {
+      const r = await call('PUT', `pulls/${pr.number}/update-branch`, {expected_head_sha: pr.headSha});
+      if (!r.ok) {
+        const message = r.data?.message ?? `status ${r.status}`;
+        if (/expected head sha/i.test(message)) { log(`merge-train: #${pr.number} moved while updating; its push starts its own run`); return {action: 'wait', why: message}; }
+        await drop(pr, /conflict/i.test(message) ? `it conflicts with ${base}; merge ${base} into it by hand` : `updating it from ${base} failed: ${message}`);
+        continue;
+      }
+      for (let tries = 0; tries < 24; tries++) {
+        await sleep(5000);
+        if ((await get(`pulls/${pr.number}`)).head.sha !== pr.headSha) { await dispatch(pr.headRef); return step; }
+      }
+      log(`merge-train: #${pr.number}'s updated head has not appeared yet; the next train run dispatches its bootstrap`);
+      return step;
+    }
+    // merge: the workflow token's merge starts no push run, and the default
+    // branch's receipts and release step follow from that run, so dispatch it.
+    const r = await call('PUT', `pulls/${pr.number}/merge`, {merge_method: 'squash', sha: pr.headSha, commit_title: `${pr.title} (#${pr.number})`, commit_message: pr.body});
+    if (!r.ok) {
+      const message = r.data?.message ?? `status ${r.status}`;
+      if (r.status === 409) { log(`merge-train: #${pr.number} moved while merging: ${message}`); return {action: 'wait', why: message}; }
+      await drop(pr, `merging it failed: ${message}`);
+      continue;
+    }
+    log(`merge-train: merged #${pr.number} as ${r.data?.sha}`);
+    await dispatch(base);
+  }
+  return {action: 'wait', why: 'move limit reached'};
 }
 
 function parentIndex(dir, env) {
