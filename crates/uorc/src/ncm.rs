@@ -776,7 +776,9 @@ impl Model {
             let k = self.match_key(pa);
             if self.mlen == 0 {
                 let cand = self.mt(k);
-                if cand > 0 {
+                // a stream of a laned frame may read a later stream's
+                // position: a match points only into the past
+                if cand > 0 && cand < pa {
                     let l = self.agree(cand, pa);
                     if l >= 7 {
                         self.mptr = cand;
@@ -801,7 +803,7 @@ impl Model {
                 let k = self.short_key(pa);
                 if self.m2len == 0 {
                     let cand = self.mt2(k);
-                    if cand > 0 {
+                    if cand > 0 && cand < pa {
                         let l = self.agree(cand, pa);
                         if l >= 4 {
                             self.m2ptr = cand;
