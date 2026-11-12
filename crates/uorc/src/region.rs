@@ -47,6 +47,9 @@ pub struct Host {
     pub line: u64,
     /// The data cache levels, innermost first.
     pub caches: Vec<Cache>,
+    /// Where the host keeps what outlives a process (stored warmed models):
+    /// the user's cache directory, `None` where the host has none.
+    pub store: Option<std::path::PathBuf>,
 }
 
 impl Host {
@@ -94,13 +97,14 @@ impl Host {
             .map(|c| format!("{{\"level\":{},\"bytes\":{}}}", c.level, c.bytes))
             .collect();
         format!(
-            "{{\"threads\":{},\"memory\":{},\"page\":{},\"largePage\":{},\"line\":{},\"caches\":[{}]}}",
+            "{{\"threads\":{},\"memory\":{},\"page\":{},\"largePage\":{},\"line\":{},\"caches\":[{}],\"store\":{}}}",
             self.threads,
             self.memory,
             self.page,
             self.large_page,
             self.line,
-            caches.join(",")
+            caches.join(","),
+            self.store.as_ref().map_or("null".to_owned(), |d| format!("{:?}", d.to_string_lossy()))
         )
     }
 }
@@ -178,6 +182,15 @@ fn probe() -> Host {
         }
     }
     caches.sort_by_key(|c| c.level);
+    let store = std::env::var_os("XDG_CACHE_HOME")
+        .filter(|d| !d.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .filter(|d| !d.is_empty())
+                .map(|h| std::path::PathBuf::from(h).join(".cache"))
+        })
+        .map(|d| d.join("uorc"));
     Host {
         threads,
         memory,
@@ -185,6 +198,7 @@ fn probe() -> Host {
         large_page,
         line,
         caches,
+        store,
     }
 }
 
@@ -379,6 +393,7 @@ mod tests {
             large_page: 2 << 20,
             line: 64,
             caches: vec![],
+            store: None,
         };
         assert_eq!(h.granule(4 << 20), 2 << 20);
         assert_eq!(h.granule(2 << 20), 2 << 20);

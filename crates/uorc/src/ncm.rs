@@ -813,12 +813,29 @@ impl Model {
             }
             cache.drain(..kept);
         }
-        let mut m = Model::new(total, &[], profile);
-        if m.stride == NINP_NARROW {
-            m.warm::<K, NINP_NARROW>(state);
-        } else {
-            m.warm::<K, NINP>(state);
-        }
+        // A host with a persistent store reads the model an earlier process
+        // replayed (`Uorc.Host`, field store): the same model, value for
+        // value, so the same bytes.
+        #[cfg(not(target_family = "wasm"))]
+        let stored = image::read::<K>(state, profile, mask);
+        #[cfg(target_family = "wasm")]
+        let stored: Option<Model> = None;
+        let m = match stored {
+            Some(m) => m,
+            None => {
+                #[cfg(not(target_family = "wasm"))]
+                let t = std::time::Instant::now();
+                let mut m = Model::new(total, &[], profile);
+                if m.stride == NINP_NARROW {
+                    m.warm::<K, NINP_NARROW>(state);
+                } else {
+                    m.warm::<K, NINP>(state);
+                }
+                #[cfg(not(target_family = "wasm"))]
+                image::write::<K>(&m, state, profile, mask, t.elapsed());
+                m
+            }
+        };
         if keep && each <= room {
             cache.push((state.into(), profile, mask, each, m.clone()));
         }
@@ -1643,6 +1660,8 @@ macro_rules! dispatch {
     }};
 }
 
+#[cfg(not(target_family = "wasm"))]
+mod image;
 pub mod streams;
 
 #[cfg(target_arch = "x86_64")]

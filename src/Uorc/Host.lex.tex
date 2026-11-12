@@ -20,7 +20,8 @@ structure{
     {name: page, type: Nat},
     {name: largePage, type: Nat},
     {name: line, type: Nat},
-    {name: caches, type: (List Cache)}
+    {name: caches, type: (List Cache)},
+    {name: store, type: Bool}
   ]
 }
 
@@ -118,6 +119,13 @@ definition{
   parameters: [],
   result: Requirement,
   body: (record Requirement {characteristic := "compatibility", subcharacteristic := "interoperability", text := "One Host structure has two values in the client. The declared decode host (uorc performance::Host, PAGE_WORKER by default, --host-memory otherwise; Uorc.Page::pageWorker) sets threads, memory, workers and keepsTables, and is the only host an archive's facets are derived from: the archive never depends on the machine that compressed it. The running host (uorc region::Host::current, printed by uorc host) fills every field from the machine and only places regions, which moves where a table's entries live and never their values."})
+}
+
+definition{
+  name: storedWarmedModels,
+  parameters: [],
+  result: Requirement,
+  body: (record Requirement {characteristic := "performance efficiency", subcharacteristic := "time behaviour", text := "A host with a persistent store (field store: the user's cache directory) keeps the image of each warmed model state it replays, keyed by the build that wrote it, the kernel, the state's bytes, the profile and the table mask, and every later process of that build reads the image instead of replaying the state. The image holds every field of the model, so a read model is the replayed model value for value and the frame coded or decoded after it is the same to the byte (uorc stored_warm_keeps_bytes). Whether the host keeps an image is decided by outcome there: it is kept when writing it took less time than the replay, so reading it back is the cheaper way to the same model."})
 }
 
 definition{

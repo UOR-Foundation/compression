@@ -1,0 +1,459 @@
+//! Stored warmed models: a model state replayed once per host, kept as an
+//! image in the running host's persistent store (`Uorc.Host`, field
+//! `store`), and read back instead of replayed by every later process.
+//!
+//! An image is the warmed model's every field, written and read in one order
+//! fixed by an exhaustive destructuring of [`Model`], so a field added to the
+//! model and left out here does not compile. It is keyed by the build that
+//! wrote it (the executable's identity and the kernel), the state's bytes,
+//! the profile and the table mask, and is used only by a process of the same
+//! build: a read model is the replayed model, value for value, so it changes
+//! the time a frame takes and never its bytes (`stored_warm_keeps_bytes`).
+//!
+//! Whether a host keeps an image is decided by outcome on that host: the
+//! image is kept when writing it took less time than replaying the state,
+//! so reading it back is the cheaper way to the same model there.
+
+use super::{Apm, Bucket, Kernel, Model, Table};
+use sha2::{Digest, Sha256};
+use std::io::{self, Read, Write};
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
+
+const TAG: &[u8] = b"uorc/warmed-image/1";
+
+/// Plain data an image stores by its bytes.
+trait Raw: Copy {}
+impl Raw for u8 {}
+impl Raw for u16 {}
+impl Raw for u32 {}
+impl Raw for i32 {}
+impl Raw for i64 {}
+impl Raw for Bucket {}
+
+fn bytes<T: Raw>(s: &[T]) -> &[u8] {
+    // SAFETY: `T` is plain data without padding (integers, or a bucket of
+    // sixteen u32), so its bytes are initialized.
+    unsafe { std::slice::from_raw_parts(s.as_ptr().cast::<u8>(), std::mem::size_of_val(s)) }
+}
+
+fn bytes_mut<T: Raw>(s: &mut [T]) -> &mut [u8] {
+    // SAFETY: as in `bytes`; every byte pattern is a valid `T`.
+    unsafe { std::slice::from_raw_parts_mut(s.as_mut_ptr().cast::<u8>(), std::mem::size_of_val(s)) }
+}
+
+struct Out<W: Write>(W);
+
+impl<W: Write> Out<W> {
+    fn u(&mut self, v: u64) -> io::Result<()> {
+        self.0.write_all(&v.to_le_bytes())
+    }
+    fn s<T: Raw>(&mut self, s: &[T]) -> io::Result<()> {
+        self.u(s.len() as u64)?;
+        self.0.write_all(bytes(s))
+    }
+}
+
+struct In<R: Read>(R);
+
+impl<R: Read> In<R> {
+    fn u(&mut self) -> io::Result<u64> {
+        let mut b = [0; 8];
+        self.0.read_exact(&mut b)?;
+        Ok(u64::from_le_bytes(b))
+    }
+    fn us(&mut self) -> io::Result<usize> {
+        usize::try_from(self.u()?).map_err(|_| bad())
+    }
+    fn u32(&mut self) -> io::Result<u32> {
+        u32::try_from(self.u()?).map_err(|_| bad())
+    }
+    fn i32(&mut self) -> io::Result<i32> {
+        Ok(self.u()? as i64 as i32)
+    }
+    fn b(&mut self) -> io::Result<bool> {
+        Ok(self.u()? != 0)
+    }
+    fn len(&mut self) -> io::Result<usize> {
+        self.us()
+    }
+    fn into<T: Raw>(&mut self, dst: &mut [T]) -> io::Result<()> {
+        if self.len()? != dst.len() {
+            return Err(bad());
+        }
+        self.0.read_exact(bytes_mut(dst))
+    }
+    fn arr<T: Raw + Default, const N: usize>(&mut self) -> io::Result<[T; N]> {
+        let mut a = [T::default(); N];
+        self.into(&mut a)?;
+        Ok(a)
+    }
+    fn vec<T: Raw + Default>(&mut self) -> io::Result<Vec<T>> {
+        let n = self.len()?;
+        let mut v = vec![T::default(); n];
+        self.0.read_exact(bytes_mut(&mut v))?;
+        Ok(v)
+    }
+    fn table<T: Raw + super::Spare + Default>(&mut self) -> io::Result<Table<T>> {
+        let n = self.len()?;
+        let mut t = Table::new(n, T::default());
+        self.0.read_exact(bytes_mut(&mut t))?;
+        Ok(t)
+    }
+    fn apm(&mut self) -> io::Result<Apm> {
+        let idx = self.us()?;
+        Ok(Apm {
+            t: self.table()?,
+            idx,
+        })
+    }
+}
+
+impl Default for Bucket {
+    fn default() -> Bucket {
+        Bucket([0; 16])
+    }
+}
+
+fn bad() -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, "warmed image does not match")
+}
+
+fn usizes<const N: usize>(a: &[usize; N]) -> [u32; N] {
+    a.map(|v| v as u32)
+}
+
+/// Writes every field of a warmed model (one with no lane, learning or twin).
+fn save(m: &Model, w: impl Write) -> io::Result<()> {
+    let Model {
+        t: _,
+        act,
+        na,
+        stride,
+        mask,
+        mb,
+        sl,
+        hist,
+        hoff,
+        pos,
+        seen,
+        lane,
+        c4,
+        c8,
+        wordh,
+        word1,
+        c0,
+        bit,
+        mtab,
+        profile,
+        m2tab,
+        m2ptr,
+        m2len,
+        m2exp,
+        m2b,
+        m2sp,
+        m2sn,
+        m2i,
+        rd,
+        rrun,
+        rexp,
+        rok,
+        ra,
+        rsp,
+        rsn,
+        ri,
+        mptr,
+        mlen,
+        mexp,
+        mbucket,
+        msp,
+        msn,
+        lastp,
+        lastd,
+        rcnt,
+        r,
+        hb,
+        spec_key,
+        spec_hb,
+        bb,
+        ix,
+        st,
+        mi,
+        w1,
+        w2,
+        w3,
+        s1,
+        s2,
+        s3,
+        pm1,
+        pm2,
+        pm3,
+        dots,
+        gain,
+        a1,
+        a2,
+        twin,
+    } = m;
+    if lane.is_some() || gain.is_some() || twin.is_some() {
+        return Err(bad());
+    }
+    let mut o = Out(w);
+    o.s(&usizes(act))?;
+    for v in [*na, *stride, *m2i, *ri, *mi, *s1, *s2, *s3] {
+        o.u(v as u64)?;
+    }
+    for v in [
+        *mask, *mb, *hoff, *pos, *seen, *c4, *c8, *wordh, *word1, *c0, *bit, *profile, *m2ptr,
+        *m2len, *m2exp, *m2b, *rd, *rrun, *rexp, *mptr, *mlen, *mexp, *mbucket, *r,
+    ] {
+        o.u(u64::from(v))?;
+    }
+    for v in [*rok, *ra] {
+        o.u(u64::from(v))?;
+    }
+    for v in [*pm1, *pm2, *pm3] {
+        o.u(v as i64 as u64)?;
+    }
+    o.s(dots)?;
+    o.s(m2sp)?;
+    o.s(m2sn)?;
+    o.s(rsp)?;
+    o.s(rsn)?;
+    o.s(msp)?;
+    o.s(msn)?;
+    o.s(lastp)?;
+    o.s(lastd)?;
+    o.s(hb)?;
+    o.s(spec_key)?;
+    o.s(spec_hb)?;
+    o.s(bb)?;
+    o.s(ix)?;
+    o.s(st)?;
+    o.s(hist)?;
+    o.s(rcnt)?;
+    o.s(w1)?;
+    o.s(w2)?;
+    o.s(w3)?;
+    o.u(a1.idx as u64)?;
+    o.s(&a1.t)?;
+    o.u(a2.idx as u64)?;
+    o.s(&a2.t)?;
+    o.s(sl)?;
+    o.s(mtab)?;
+    o.s(m2tab)?;
+    o.0.flush()
+}
+
+/// Reads a model [`save`] wrote, every field in the same order.
+fn load(r: impl Read) -> io::Result<Model> {
+    let mut i = In(r);
+    let act = i.arr::<u32, { super::NC }>()?.map(|v| v as usize);
+    let mut sz = [0usize; 8];
+    for v in &mut sz {
+        *v = i.us()?;
+    }
+    let [na, stride, m2i, ri, mi, s1, s2, s3] = sz;
+    let mut w = [0u32; 24];
+    for v in &mut w {
+        *v = i.u32()?;
+    }
+    let [mask, mb, hoff, pos, seen, c4, c8, wordh, word1, c0, bit, profile, m2ptr, m2len, m2exp, m2b, rd, rrun, rexp, mptr, mlen, mexp, mbucket, r] =
+        w;
+    let (rok, ra) = (i.b()?, i.b()?);
+    let (pm1, pm2, pm3) = (i.i32()?, i.i32()?, i.i32()?);
+    Ok(Model {
+        t: super::tables(),
+        act,
+        na,
+        stride,
+        mask,
+        mb,
+        dots: i.arr()?,
+        m2sp: i.arr()?,
+        m2sn: i.arr()?,
+        rsp: i.arr()?,
+        rsn: i.arr()?,
+        msp: i.arr()?,
+        msn: i.arr()?,
+        lastp: i.arr()?,
+        lastd: i.arr()?,
+        hb: i.arr()?,
+        spec_key: i.arr()?,
+        spec_hb: i.arr()?,
+        bb: i.arr()?,
+        ix: i.arr()?,
+        st: i.arr()?,
+        hist: i.vec()?,
+        rcnt: i.vec()?,
+        w1: i.vec()?,
+        w2: i.vec()?,
+        w3: i.vec()?,
+        a1: i.apm()?,
+        a2: i.apm()?,
+        sl: i.table()?,
+        mtab: i.table()?,
+        m2tab: i.table()?,
+        hoff,
+        pos,
+        seen,
+        lane: None,
+        c4,
+        c8,
+        wordh,
+        word1,
+        c0,
+        bit,
+        profile,
+        m2ptr,
+        m2len,
+        m2exp,
+        m2b,
+        m2i,
+        rd,
+        rrun,
+        rexp,
+        rok,
+        ra,
+        ri,
+        mptr,
+        mlen,
+        mexp,
+        mbucket,
+        r,
+        mi,
+        s1,
+        s2,
+        s3,
+        pm1,
+        pm2,
+        pm3,
+        gain: None,
+        twin: None,
+    })
+}
+
+/// The identity of the running build: the executable's path, length and
+/// modification time, so a rebuilt or replaced client never reads an image
+/// another build wrote.
+fn build() -> Option<&'static [u8]> {
+    static BUILD: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+    BUILD
+        .get_or_init(|| {
+            let exe = std::env::current_exe().ok()?;
+            let meta = std::fs::metadata(&exe).ok()?;
+            let since = meta
+                .modified()
+                .ok()?
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()?;
+            let mut b = exe.to_string_lossy().into_owned().into_bytes();
+            b.extend_from_slice(&meta.len().to_le_bytes());
+            b.extend_from_slice(&since.as_nanos().to_le_bytes());
+            b.extend_from_slice(env!("CARGO_PKG_VERSION").as_bytes());
+            Some(b)
+        })
+        .as_deref()
+}
+
+/// The image's path in the store and its key, for a model warmed by kernel
+/// `K` from `state` under `profile` with table mask `mask`.
+fn place<K: Kernel>(state: &[u8], profile: u32, mask: u32) -> Option<(PathBuf, [u8; 32])> {
+    let store = crate::region::Host::current().store.as_ref()?;
+    let mut h = Sha256::new();
+    h.update(TAG);
+    h.update(build()?);
+    h.update(std::any::type_name::<K>().as_bytes());
+    h.update(profile.to_le_bytes());
+    h.update(mask.to_le_bytes());
+    h.update(Sha256::digest(state));
+    let key: [u8; 32] = h.finalize().into();
+    let name: String = key.iter().map(|b| format!("{b:02x}")).collect();
+    Some((store.join(format!("{name}.warm")), key))
+}
+
+/// The warmed model the store holds for this key, if any.
+pub(super) fn read<K: Kernel>(state: &[u8], profile: u32, mask: u32) -> Option<Model> {
+    let (path, key) = place::<K>(state, profile, mask)?;
+    let f = std::fs::File::open(&path).ok()?;
+    let mut r = io::BufReader::with_capacity(1 << 20, f);
+    let mut head = [0u8; 32];
+    r.read_exact(&mut head).ok()?;
+    if head != key {
+        return None;
+    }
+    let m = load(&mut r).ok()?;
+    // the whole file was read: a trailing byte means another writer's image
+    let mut rest = [0u8; 1];
+    if r.read(&mut rest).ok()? != 0 || m.profile != profile || m.mask != mask {
+        return None;
+    }
+    Some(m)
+}
+
+/// Stores `m`, replayed in `replay`, when writing it takes less time than
+/// the replay did on this host; otherwise leaves the store as it was.
+pub(super) fn write<K: Kernel>(m: &Model, state: &[u8], profile: u32, mask: u32, replay: Duration) {
+    let Some((path, key)) = place::<K>(state, profile, mask) else {
+        return;
+    };
+    let Some(dir) = path.parent() else {
+        return;
+    };
+    if std::fs::create_dir_all(dir).is_err() {
+        return;
+    }
+    let tmp = path.with_extension(format!("{}.tmp", std::process::id()));
+    let t = Instant::now();
+    let written = (|| -> io::Result<()> {
+        let f = std::fs::File::create(&tmp)?;
+        let mut w = io::BufWriter::with_capacity(1 << 20, f);
+        w.write_all(&key)?;
+        save(m, &mut w)?;
+        w.into_inner()
+            .map_err(io::IntoInnerError::into_error)?
+            .sync_data()
+    })();
+    if written.is_ok() && t.elapsed() < replay && std::fs::rename(&tmp, &path).is_ok() {
+        return;
+    }
+    let _ = std::fs::remove_file(&tmp);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::*;
+
+    /// A model read back from its image is the replayed model: the frame
+    /// coded after it, and decoded after it, is the same to the byte.
+    #[test]
+    fn stored_warm_keeps_bytes() {
+        let state: Vec<u8> = (0..40_000u32)
+            .map(|i| b"the quick brown fox; "[i as usize % 21] ^ (i >> 9) as u8)
+            .collect();
+        let data: Vec<u8> = (0..30_000u32)
+            .map(|i| b"jumps over the lazy dog. "[i as usize % 25] ^ (i >> 11) as u8)
+            .collect();
+        let profile = FULL;
+        let n = data.len() as u32;
+        let total = n + state.len() as u32;
+        let mut m = Model::new(total, &[], profile);
+        if m.stride == NINP_NARROW {
+            m.warm::<Scalar, NINP_NARROW>(&state);
+        } else {
+            m.warm::<Scalar, NINP>(&state);
+        }
+        let mut img = Vec::new();
+        super::save(&m, &mut img).expect("saves");
+        let back = super::load(&img[..]).expect("loads");
+        let mut again = Vec::new();
+        super::save(&back, &mut again).expect("saves");
+        assert_eq!(img, again, "an image reads back to the same fields");
+        let a = run_encoder::<Scalar>(m, &data, false, [usize::MAX, 0])
+            .0
+            .expect("codes");
+        let b = run_encoder::<Scalar>(back, &data, false, [usize::MAX, 0])
+            .0
+            .expect("codes");
+        assert_eq!(a, b);
+    }
+}
