@@ -263,11 +263,19 @@ export async function load(source) {
       return new Blob(parts);
     },
     // Decode in memory and check; with an original, also compare. Returns one
-    // description per archive in the stream; throws on any failure.
-    verify: (archive, original) => json(call(archive, () => {
-      if (original) put(x.original_buffer, original);
-      return x.verify(original ? 1 : 0);
-    })),
+    // description per archive in the stream; throws on any failure. `progress`
+    // hears the decoding passes as they run (bytes of the archive, an
+    // estimate that only grows).
+    verify: (archive, original, progress = () => {}) => {
+      const share = frameShare();
+      onPass = (done, total) => progress(Math.floor(archive.length * share(done, total)), archive.length);
+      try {
+        return json(call(archive, () => {
+          if (original) put(x.original_buffer, original);
+          return x.verify(original ? 1 : 0);
+        }));
+      } finally { onPass = () => {}; }
+    },
     // entries: [{ path: "dir/a.txt", kind: "file" | "executable" | "directory", data: Uint8Array }]
     compressFiles: (entries, steps = 0n) => call(packEntries(entries), () => x.compress_tree(BigInt(steps))),
     decompressFiles: (archive) => unpackEntries(call(archive, () => x.decompress_tree())),
@@ -410,7 +418,7 @@ async function serve() {
       return { kind: "table", input: archive.size, rows: uorc.inspect(await bytesOf(archive)) };
     },
     async verify({ archive, original }) {
-      const rows = uorc.verify(await bytesOf(archive), original ? await bytesOf(original) : undefined);
+      const rows = uorc.verify(await bytesOf(archive), original ? await bytesOf(original) : undefined, progress);
       return { kind: "verified", input: archive.size, compared: Boolean(original), rows };
     },
     async example({ input, bytes, seed }) {
