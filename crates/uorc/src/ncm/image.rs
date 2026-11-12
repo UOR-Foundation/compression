@@ -14,7 +14,7 @@
 //! image is kept when writing it took less time than replaying the state,
 //! so reading it back is the cheaper way to the same model there.
 
-use super::{Apm, Bucket, Kernel, Model, Table};
+use super::{Apm, Bucket, Kernel, Model, Table, Twin, NC};
 use sha2::{Digest, Sha256};
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
@@ -45,6 +45,13 @@ fn bytes_mut<T: Raw>(s: &mut [T]) -> &mut [u8] {
 struct Out<W: Write>(W);
 
 impl<W: Write> Out<W> {
+    fn gain(&mut self, g: Option<&[i64; NC]>) -> io::Result<()> {
+        self.u(u64::from(g.is_some()))?;
+        match g {
+            Some(g) => self.s(g),
+            None => Ok(()),
+        }
+    }
     fn u(&mut self, v: u64) -> io::Result<()> {
         self.0.write_all(&v.to_le_bytes())
     }
@@ -100,18 +107,41 @@ impl<R: Read> In<R> {
         self.0.read_exact(bytes_mut(&mut t))?;
         Ok(t)
     }
+    fn gain(&mut self) -> io::Result<Option<Box<[i64; NC]>>> {
+        Ok(if self.b()? {
+            Some(Box::new(self.arr()?))
+        } else {
+            None
+        })
+    }
+    fn twin(&mut self) -> io::Result<Option<Box<Twin>>> {
+        if !self.b()? {
+            return Ok(None);
+        }
+        let sel = self.b()?;
+        let s1 = self.us()?;
+        let pm1 = self.i32()?;
+        let pr = self.u32()?;
+        let dot1 = self.u()? as i64;
+        let gain = self.gain()?;
+        Ok(Some(Box::new(Twin {
+            sel,
+            w1: self.vec()?,
+            a1: self.apm()?,
+            a2: self.apm()?,
+            s1,
+            pm1,
+            pr,
+            dot1,
+            gain,
+        })))
+    }
     fn apm(&mut self) -> io::Result<Apm> {
         let idx = self.us()?;
         Ok(Apm {
             t: self.table()?,
             idx,
         })
-    }
-}
-
-impl Default for Bucket {
-    fn default() -> Bucket {
-        Bucket([0; 16])
     }
 }
 
@@ -194,10 +224,36 @@ fn save(m: &Model, w: impl Write) -> io::Result<()> {
         a2,
         twin,
     } = m;
-    if lane.is_some() || gain.is_some() || twin.is_some() {
+    if lane.is_some() {
         return Err(bad());
     }
     let mut o = Out(w);
+    o.gain(gain.as_deref())?;
+    o.u(u64::from(twin.is_some()))?;
+    if let Some(t) = twin {
+        let Twin {
+            sel,
+            w1,
+            a1,
+            a2,
+            s1,
+            pm1,
+            pr,
+            dot1,
+            gain,
+        } = &**t;
+        o.u(u64::from(*sel))?;
+        o.u(*s1 as u64)?;
+        o.u(*pm1 as i64 as u64)?;
+        o.u(u64::from(*pr))?;
+        o.u(*dot1 as u64)?;
+        o.gain(gain.as_deref())?;
+        o.s(w1)?;
+        o.u(a1.idx as u64)?;
+        o.s(&a1.t)?;
+        o.u(a2.idx as u64)?;
+        o.s(&a2.t)?;
+    }
     o.s(&usizes(act))?;
     for v in [*na, *stride, *m2i, *ri, *mi, *s1, *s2, *s3] {
         o.u(v as u64)?;
@@ -247,6 +303,8 @@ fn save(m: &Model, w: impl Write) -> io::Result<()> {
 /// Reads a model [`save`] wrote, every field in the same order.
 fn load(r: impl Read) -> io::Result<Model> {
     let mut i = In(r);
+    let gain = i.gain()?;
+    let twin = i.twin()?;
     let act = i.arr::<u32, { super::NC }>()?.map(|v| v as usize);
     let mut sz = [0usize; 8];
     for v in &mut sz {
@@ -327,8 +385,8 @@ fn load(r: impl Read) -> io::Result<Model> {
         pm1,
         pm2,
         pm3,
-        gain: None,
-        twin: None,
+        gain,
+        twin,
     })
 }
 
@@ -357,7 +415,12 @@ fn build() -> Option<&'static [u8]> {
 
 /// The image's path in the store and its key, for a model warmed by kernel
 /// `K` from `state` under `profile` with table mask `mask`.
-fn place<K: Kernel>(state: &[u8], profile: u32, mask: u32) -> Option<(PathBuf, [u8; 32])> {
+fn place<K: Kernel>(
+    state: &[u8],
+    profile: u32,
+    (mask, mb): (u32, u32),
+    form: u8,
+) -> Option<(PathBuf, [u8; 32])> {
     let store = crate::region::Host::current().store.as_ref()?;
     let mut h = Sha256::new();
     h.update(TAG);
@@ -365,6 +428,8 @@ fn place<K: Kernel>(state: &[u8], profile: u32, mask: u32) -> Option<(PathBuf, [
     h.update(std::any::type_name::<K>().as_bytes());
     h.update(profile.to_le_bytes());
     h.update(mask.to_le_bytes());
+    h.update(mb.to_le_bytes());
+    h.update([form]);
     h.update(Sha256::digest(state));
     let key: [u8; 32] = h.finalize().into();
     let name: String = key.iter().map(|b| format!("{b:02x}")).collect();
@@ -372,8 +437,15 @@ fn place<K: Kernel>(state: &[u8], profile: u32, mask: u32) -> Option<(PathBuf, [
 }
 
 /// The warmed model the store holds for this key, if any.
-pub(super) fn read<K: Kernel>(state: &[u8], profile: u32, mask: u32) -> Option<Model> {
-    let (path, key) = place::<K>(state, profile, mask)?;
+/// `form` names what was warmed beside the model: 0 nothing, otherwise a
+/// shared pass's twin (1 not learning, 2 learning).
+pub(super) fn read<K: Kernel>(
+    state: &[u8],
+    profile: u32,
+    dims: (u32, u32),
+    form: u8,
+) -> Option<Model> {
+    let (path, key) = place::<K>(state, profile, dims, form)?;
     let f = std::fs::File::open(&path).ok()?;
     let mut r = io::BufReader::with_capacity(1 << 20, f);
     let mut head = [0u8; 32];
@@ -384,7 +456,7 @@ pub(super) fn read<K: Kernel>(state: &[u8], profile: u32, mask: u32) -> Option<M
     let m = load(&mut r).ok()?;
     // the whole file was read: a trailing byte means another writer's image
     let mut rest = [0u8; 1];
-    if r.read(&mut rest).ok()? != 0 || m.profile != profile || m.mask != mask {
+    if r.read(&mut rest).ok()? != 0 || (m.mask, m.mb) != dims {
         return None;
     }
     Some(m)
@@ -392,8 +464,15 @@ pub(super) fn read<K: Kernel>(state: &[u8], profile: u32, mask: u32) -> Option<M
 
 /// Stores `m`, replayed in `replay`, when writing it takes less time than
 /// the replay did on this host; otherwise leaves the store as it was.
-pub(super) fn write<K: Kernel>(m: &Model, state: &[u8], profile: u32, mask: u32, replay: Duration) {
-    let Some((path, key)) = place::<K>(state, profile, mask) else {
+pub(super) fn write<K: Kernel>(
+    m: &Model,
+    state: &[u8],
+    profile: u32,
+    dims: (u32, u32),
+    form: u8,
+    replay: Duration,
+) {
+    let Some((path, key)) = place::<K>(state, profile, dims, form) else {
         return;
     };
     let Some(dir) = path.parent() else {
@@ -434,13 +513,31 @@ mod tests {
             .map(|i| b"jumps over the lazy dog. "[i as usize % 25] ^ (i >> 11) as u8)
             .collect();
         let profile = FULL;
-        let n = data.len() as u32;
-        let total = n + state.len() as u32;
+        let total = (data.len() + state.len()) as u32;
+        for twin in [false, true] {
+            same_after_image(&state, &data, total, profile, twin);
+        }
+    }
+
+    fn same_after_image(state: &[u8], data: &[u8], total: u32, profile: u32, twin: bool) {
         let mut m = Model::new(total, &[], profile);
+        if twin {
+            m.twin = Some(Box::new(Twin {
+                sel: profile & F_SEL == 0,
+                w1: weights(256 * 9, m.na + 3, m.stride),
+                a1: Apm::new(256 * 9),
+                a2: Apm::new(1 << APM2_BITS),
+                s1: 0,
+                pm1: 0,
+                pr: 2048,
+                dot1: 0,
+                gain: Some(Box::new([0; NC])),
+            }));
+        }
         if m.stride == NINP_NARROW {
-            m.warm::<Scalar, NINP_NARROW>(&state);
+            m.warm::<Scalar, NINP_NARROW>(state);
         } else {
-            m.warm::<Scalar, NINP>(&state);
+            m.warm::<Scalar, NINP>(state);
         }
         let mut img = Vec::new();
         super::save(&m, &mut img).expect("saves");
@@ -448,12 +545,11 @@ mod tests {
         let mut again = Vec::new();
         super::save(&back, &mut again).expect("saves");
         assert_eq!(img, again, "an image reads back to the same fields");
-        let a = run_encoder::<Scalar>(m, &data, false, [usize::MAX, 0])
-            .0
-            .expect("codes");
-        let b = run_encoder::<Scalar>(back, &data, false, [usize::MAX, 0])
-            .0
-            .expect("codes");
+        // with a twin, both coders' payloads
+        let stops = [usize::MAX, if twin { usize::MAX } else { 0 }];
+        let a = run_encoder::<Scalar>(m, data, false, stops);
+        let b = run_encoder::<Scalar>(back, data, false, stops);
+        assert!(a.0.is_some());
         assert_eq!(a, b);
     }
 }

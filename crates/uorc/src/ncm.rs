@@ -365,7 +365,7 @@ fn adapt(p: &mut u16, n: &mut u8, y: bool, rate: &[i32; 128]) {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 #[repr(C, align(64))]
 struct Bucket([u32; 16]);
 
@@ -648,8 +648,9 @@ impl Model {
     /// position, and every other model starts fresh.
     /// A model for `n` bytes coded after `history`, the concatenation of its
     /// pieces (a window decodes without first joining its frames).
-    fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
-        let before: usize = history.iter().map(|h| h.len()).sum();
+    /// (table mask, match table bits) of a model for `n` bytes under
+    /// `profile`: [`Model::sized`], unless the profile word records them.
+    fn dims(n: u32, profile: u32) -> (u32, u32) {
         let (mut mask, mut mb) = Model::sized(n);
         if let Some(tb) = recorded_table_bits(profile) {
             mask = ((1u64 << tb) - 1) as u32;
@@ -657,6 +658,12 @@ impl Model {
         if let Some(bits) = recorded_match_bits(profile) {
             mb = bits;
         }
+        (mask, mb)
+    }
+
+    fn new(n: u32, history: &[&[u8]], profile: u32) -> Model {
+        let before: usize = history.iter().map(|h| h.len()).sum();
+        let (mask, mb) = Model::dims(n, profile);
         let profile = profile & FULL;
         let mut act = [0; NC];
         let mut na = 0;
@@ -817,7 +824,7 @@ impl Model {
         // replayed (`Uorc.Host`, field store): the same model, value for
         // value, so the same bytes.
         #[cfg(not(target_family = "wasm"))]
-        let stored = image::read::<K>(state, profile, mask);
+        let stored = image::read::<K>(state, profile, Model::dims(total, profile), 0);
         #[cfg(target_family = "wasm")]
         let stored: Option<Model> = None;
         let m = match stored {
@@ -832,7 +839,7 @@ impl Model {
                     m.warm::<K, NINP>(state);
                 }
                 #[cfg(not(target_family = "wasm"))]
-                image::write::<K>(&m, state, profile, mask, t.elapsed());
+                image::write::<K>(&m, state, profile, (m.mask, m.mb), 0, t.elapsed());
                 m
             }
         };
@@ -2254,6 +2261,18 @@ fn encoder_pair<K: Kernel>(
     };
     // with a state, the model `Model::warmed` builds, sized for the state and
     // the frame; the twin replays the state with it below
+    // A shared pass warmed from a state on an earlier run of this build is
+    // read from the host's store (`image`): the same model and twin.
+    #[cfg(not(target_family = "wasm"))]
+    let form = 1 + u8::from(learn[1]);
+    #[cfg(not(target_family = "wasm"))]
+    if !state.is_empty() {
+        if let Some(m) = image::read::<K>(state, profile, Model::dims(total, profile), form) {
+            return run_encoder::<K>(m, data, learn[0], stops);
+        }
+    }
+    #[cfg(not(target_family = "wasm"))]
+    let t = std::time::Instant::now();
     let mut m = if state.is_empty() {
         Model::new(n, &[history], profile)
     } else {
@@ -2276,6 +2295,8 @@ fn encoder_pair<K: Kernel>(
         } else {
             m.warm::<K, NINP>(state);
         }
+        #[cfg(not(target_family = "wasm"))]
+        image::write::<K>(&m, state, profile, (m.mask, m.mb), form, t.elapsed());
     }
     run_encoder::<K>(m, data, learn[0], stops)
 }
