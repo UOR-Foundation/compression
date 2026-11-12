@@ -2615,7 +2615,9 @@ mod tests {
         assert_eq!(totals.frames, 3);
         assert_eq!(totals.read, input.len() as u64);
         assert_eq!(frames(&stream).expect("frames").len(), 3);
-        assert_eq!(stream, compress(&input, 0).expect("in memory"));
+        // That the stream is the in-memory one for any thread count is
+        // identical_frames_are_stored_once's check (window and reference
+        // frames alike): coding these 16 MiB again checks nothing more.
         let mut back = Vec::new();
         let totals = decompress_stream(
             io::Cursor::new(&stream[..]),
@@ -2626,7 +2628,6 @@ mod tests {
         .expect("decompress");
         assert_eq!(totals.frames, 3);
         assert!(back == input);
-        assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("in memory") == input);
     }
 
     #[test]
@@ -2708,10 +2709,13 @@ mod tests {
                 2
             );
         }
-        // One object is a plain stream.
+        // One object is a plain stream: a header property, so a frame-sized
+        // object checks nothing a small one does not (frame plans for one
+        // object are frame_plans_continue_objects_across_frames).
+        let one = text(5_000, 8);
         assert_eq!(
-            compress_objects(&[&big], 0).expect("one"),
-            compress(&big, 0).expect("plain")
+            compress_objects(&[&one], 0).expect("one"),
+            compress(&one, 0).expect("plain")
         );
     }
 
@@ -2808,7 +2812,6 @@ mod tests {
     #[test]
     fn windows_carry_matches_across_frames() {
         let block = text(FRAME, 61);
-        let alone = compress_frame(&block, 0).expect("one frame").len();
         // Not repeated runs (those become reference frames): a byte differs
         // every few hundred.
         let mut input = block.repeat(3);
@@ -2816,23 +2819,19 @@ mod tests {
             input[at] ^= 1;
         }
         let stream = compress(&input, 0).expect("stream");
-        assert_eq!(frames(&stream).expect("frames").len(), 3);
+        let archives = frames(&stream).expect("frames");
+        assert_eq!(archives.len(), 3);
+        // The first frame reads no window: it is the block's archive alone.
+        assert_eq!(archive::window_len(archives[0]), Some(0));
+        let alone = archives[0].len();
         assert!(
             stream.len() < alone + alone / 16,
             "{} vs {alone}",
             stream.len()
         );
+        // Every decode path over window frames is identical_frames_are_stored_once's
+        // check; one decode here shows these matches resolve.
         assert!(decompress(&stream, DEFAULT_DECODE_WORK).expect("decodes") == input);
-        let mut back = Vec::new();
-        decompress_stream(
-            io::Cursor::new(&stream[..]),
-            &mut back,
-            DEFAULT_DECODE_WORK,
-            1,
-        )
-        .expect("streams");
-        assert!(back == input);
-        verify(&stream, Some(&input), DEFAULT_DECODE_WORK).expect("verifies");
     }
 
     /// The decoder finds blocks from the frame headers alone, whatever block
