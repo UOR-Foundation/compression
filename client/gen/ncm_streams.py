@@ -69,6 +69,10 @@ LANE_G += ['seen', 'iend', 'obase']
 LGSPAN = len(LANE_G)   # saved scalars per stream
 for t in MERGED:
     P.glob('z' + t, 8)
+# merge steps: for a site two or more streams changed, one per stream that changed it (a site one
+# stream changed is a copy, ncm::streams::merge_steps)
+def shared_steps(c): return ('set', 'msteps', add(G('msteps'), sel(le(2, c), c, 0)))
+P.glob('mc', 4)
 for name in ['zs', 'osp', 'msteps', 'ofin']:
     P.glob(name, 8)
 # entries of the merged tables the model sizes by the frame (tb, mb, the history); the others at
@@ -329,7 +333,7 @@ ms += acc_reset('a')
 ms += [('loop', G('sk'), 'j', [('call', 'verZ', [V('tid'), V('j'), V('mk')]), ('let', 'sv', G('zv'))]
         + acc_add_call(V('spb'), V('snb'), div(V('sv'), 256), mod(V('sv'), 256)))]
 acc_done_call(V('spb'), V('snb'), 'sp2', 'sn2', ms)
-ms += [('call', 'wrZ', [V('tid'), V('mk'), add(mul(256, V('sp2')), V('sn2'))]), ('set', 'msteps', add(G('msteps'), G('ach')))]
+ms += [('call', 'wrZ', [V('tid'), V('mk'), add(mul(256, V('sp2')), V('sn2'))]), shared_steps(G('ach'))]
 P.func('mergeSlot', ['tid', 'mk'], ms)
 
 # the mean change over the streams that changed the entry, in the entry's actual value (stored + init,
@@ -345,16 +349,17 @@ _mean = sel(le(OFF, G('adp')), add(V('wx'), div(monus(G('adp'), OFF), _ch)),
             monus(V('wx'), div(monus(OFF, G('adp')), _ch)))
 mw += [('if', lt(0, G('ach')), [('let', 'wn', mn(_mean, V('hi'))),
                                 ('call', 'wrZ', [V('tid'), V('mk'), mod(sub(add(V('wn'), V('m')), V('init')), V('m'))])], []),
-       ('set', 'msteps', add(G('msteps'), G('ach')))]
+       shared_steps(G('ach'))]
 P.func('mergeWeight', ['tid', 'mk', 'init', 'm', 'hi'], mw)
 
 # match tables and history: the streams' values in stream order (a step each, the history's free)
 P.func('mergeLast', ['tid', 'mk'],
-       [('call', 'zbase', [V('tid')]),
+       [('call', 'zbase', [V('tid')]), ('set', 'mc', 0),
         ('loop', G('sk'), 'j', [('let', 'dk', add(mul(V('j'), G('zs')), add(G('zb'), V('mk')))),
                                 ('if', eq(ld('E', 8, V('dk')), G('estamp')),
                                  [('call', 'wrZ', [V('tid'), V('mk'), ld('D', 4, V('dk'))]),
-                                  ('if', ne(V('tid'), TID['H']), [('set', 'msteps', add(G('msteps'), 1))], [])], [])])])
+                                  ('set', 'mc', add(G('mc'), 1))], [])]),
+        ('if', ne(V('tid'), TID['H']), [shared_steps(G('mc'))], [])])
 
 
 # ---- a context bucket ----
@@ -391,10 +396,10 @@ hbl = [('call', 'bucketOf', [V('j')]), ('let', 'hs', eq(tag_of(bslot(V('j'), 0))
 mb += [('loop', G('sk'), 'j', hbl)]
 mb += [('loop', G('sk'), 'j', [('if', eq(ld('GR', 1, hold(V('j'))), 1), [('set', 'anyb', 1)], [])])]
 # a step for every stream that wrote the bucket
-mb += [('loop', G('sk'), 'j', [('set', 'isb', 0),
+mb += [('set', 'mc', 0), ('loop', G('sk'), 'j', [('set', 'isb', 0),
                                ('loop', 16, 's', [('if', eq(ld('E', 8, add(mul(V('j'), G('zs')), eid('T', add(G('bkey'), V('s'))))), G('estamp')),
                                                    [('set', 'isb', 1)], [])]),
-                               ('set', 'msteps', add(G('msteps'), G('isb')))])]
+                               ('set', 'mc', add(G('mc'), G('isb')))]), shared_steps(G('mc'))]
 
 
 def new_group(fr, origin_slot):

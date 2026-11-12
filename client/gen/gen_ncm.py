@@ -39,6 +39,8 @@ def lean_of(e, leaf):
     if isinstance(e, str):
         return leaf[e]
     op, a, b = e
+    if isinstance(b, int) and not isinstance(a, int):
+        a, b = b, a      # Nat.add and Nat.mul recurse on their second argument: a literal goes first
     if op == 'add':
         return f"({lean_of(a, leaf)} + {lean_of(b, leaf)})"
     return f"(prim multiply {lean_of(a, leaf)} {lean_of(b, leaf)} : Nat)"
@@ -47,20 +49,21 @@ def lean_of(e, leaf):
 STREAM_T = list(ncm_streams.regions(lambda x: x))
 
 
-def stream_tables(n, h, word):
-    """The streams regions sized for a frame of n bytes after h under word; with word < 2^37 (one
-    stream) each is one entry."""
+def stream_tables(n, h, word, streams):
+    """The streams regions sized for a frame of n bytes after h under word (streams), or for the serial
+    coder, which is stream 0 of one and uses only its private block. The serial roots never size them
+    by the word: a size that branches on it makes the certificate kernel evaluate both sizes."""
     leaf = {'zs': f'(spaceOf {n} {h} {word})', 'sk': f'(streamsOf {word})', 'sr': f'(strideOf {n} (streamsOf {word}))'}
     out = {}
     for t, (w, entries) in ncm_streams.regions(lambda x: x).items():
         # a frame of one stream (the serial coder) uses only its private block
-        one = f"(depthFor 64 {lean_of(entries, leaf)} 0)" if t == 'PL' else f"(prim multiply 0 {n} : Nat)"
-        out[t] = (f"({TB}::fill {w} (if ({word} <? {1 << ncm_streams.STREAMS_AT}) then {one} else "
-                  f"(depthFor 64 {lean_of(entries, leaf)} 0)) 0)")
+        one = (f"({(ncm_streams.PB // 8 - 1).bit_length()} + (prim multiply 0 {n} : Nat))" if t == 'PL'
+               else f"(prim multiply 0 {n} : Nat)")
+        out[t] = f"({TB}::fill {w} {f'(depthFor 64 {lean_of(entries, leaf)} 0)' if streams else one} 0)"
     return out
 
 
-def tables(L, n, extra, history='0x', profile='profile', h='0'):
+def tables(L, n, extra, history='0x', profile='profile', h='0', streams=False):
     # Every table's depth names n: the certificate kernel evaluates whatever is closed, and a closed state
     # would have it run the model's whole setup (thousands of table writes) at check time.
     t = {'glob': f'(zeros ({GDEPTH} + (prim multiply 0 {n} : Nat)))', 'mem': f'(zeros (22 + (prim multiply 0 {n} : Nat)))', 'T': f'({TB}::fill 3 (tbOf {n} {profile}) 0)', 'MT': f'({TB}::fill 4 (mbOf {n} {profile}) 0)',
@@ -68,7 +71,7 @@ def tables(L, n, extra, history='0x', profile='profile', h='0'):
          # the short match table, and the short match and repeat models' 64 and 128 slots
          'M2T': f'({TB}::fill 4 (mbOf {n} {profile}) 0)', 'M2S': f'({TB}::fill 3 (6 + (prim multiply 0 {n} : Nat)) 0)',
          'RS': f'({TB}::fill 3 (7 + (prim multiply 0 {n} : Nat)) 0)'}
-    t.update(stream_tables(n, h, profile))
+    t.update(stream_tables(n, h, profile, streams))
     t.update(extra)
     return t
 
@@ -101,7 +104,7 @@ wbody = (n + "(let w : Nat := (prim length state : Nat); "
 dec.D('runWarm', ['state : Bytes', 'input : Bytes', 'profile : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4) then 0x else {wbody})")
 # a streams frame (ncm::streams::decode): the payload's streams decoded over the shared state
 sbody = (n + "(let h : Nat := (prim length history : Nat); "
-         f"(let s0 : {dec.St} := {dec.L.make(tables(dec.L, 'n', {}, 'history', 'word', 'h'), scalars(dec.L, 'input'))}; "
+         f"(let s0 : {dec.St} := {dec.L.make(tables(dec.L, 'n', {}, 'history', 'word', 'h', True), scalars(dec.L, 'input'))}; "
          f"(let s1 : {dec.St} := (decodeStreams s0 h word); (match (prim slice {dec.L.P('s1', 'H')} h n : (Option Bytes))\n    | Option.none => 0x\n    | Option.some b => b)))))")
 dec.D('runStreams', ['history : Bytes', 'input : Bytes', 'word : Nat'], 'Bytes', f"(if ((prim length input : Nat) <? 4) then 0x else {sbody})")
 open(os.path.join(OUTDIR, 'NcmDecode.lex.tex'), 'w').write(dec.source([TB]))
@@ -135,7 +138,7 @@ enc.D('run', ['input : Bytes'], 'Bytes', "(runWith 0x input)")
 # passes its bound (twice its length and 64 bytes), as the frame's coder does
 # the payload's room, then every stream's output
 cap = "((prim multiply 4 (streamsOf word) : Nat) + (prim multiply (prim multiply 2 (streamsOf word) : Nat) ((prim multiply 2 (strideOf n (streamsOf word)) : Nat) + 64) : Nat))"
-st = enc.L.make(tables(enc.L, 'n', {'OUT': f'(zeros (depthFor 64 {cap} 0))'}, 'history', 'word', 'h'), scalars(enc.L, 'input'))
+st = enc.L.make(tables(enc.L, 'n', {'OUT': f'(zeros (depthFor 64 {cap} 0))'}, 'history', 'word', 'h', True), scalars(enc.L, 'input'))
 senc = ("(let n : Nat := (prim length input : Nat); (let h : Nat := (prim length history : Nat); "
         f"(let s1 : {enc.St} := (encodeStreams {st} n h word); "
         f"(if (0 <? {enc.gread('s1', 'ovf')}) then 0x else (match (prim slice {enc.L.P('s1', 'OUT')} 0 {enc.gread('s1', 'flen')} : (Option Bytes))\n    | Option.none => 0x\n"
