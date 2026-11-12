@@ -1,7 +1,7 @@
 // node --test scripts/factory.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {covered, route, reweigh, schedule, parseStore} from './factory.mjs';
+import {covered, route, reweigh, schedule, parseStore, releaseStep, RELEASE_STAGES} from './factory.mjs';
 
 const graph = {obligations: [
   {name: 'leg', kind: 'hermetic', needs: [], inputs: []},
@@ -66,4 +66,15 @@ test('a manifest input covers only that manifest, even under an exclusion', () =
   assert.equal(covered(inputs, 'crates/uorc/Cargo.toml', new Set()), true);
   assert.equal(covered(inputs, 'crates/uorc/src/lib.rs', new Set()), false);
   assert.equal(covered(inputs, 'crates/model/src/lib.rs', new Set()), true);
+});
+
+test('a version bump on the default branch is tagged once its gate and release stages are proved', () => {
+  const routes = (gate, stage) => Object.fromEntries([['gate', {route: gate}], ...RELEASE_STAGES.map(n => [n, {route: stage}])]);
+  const step = (tagged, gate, stage, trigger = 'bootstrap') => releaseStep({version: '0.5.0', tagged, routes: routes(gate, stage), trigger}).step;
+  assert.equal(step(true, 'proved', 'proved'), 'done');
+  assert.equal(step(false, 'blocked', 'proved'), 'wait');
+  assert.equal(step(false, 'proved', 'observe'), 'rehearse');
+  assert.equal(step(false, 'proved', 'observe', 'release'), 'wait');
+  assert.equal(step(false, 'proved', 'proved', 'release'), 'tag');
+  assert.equal(releaseStep({version: '0.5.0', tagged: false, routes: routes('proved', 'proved')}).tag, 'v0.5.0');
 });
