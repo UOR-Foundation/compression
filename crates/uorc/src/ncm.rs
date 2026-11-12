@@ -463,11 +463,18 @@ fn adapt_slot(s: &mut u32, y: bool, rate: &[i32; 128]) {
 }
 
 /// Warmed models kept for reuse (state bytes, profile, table mask, model):
-/// the most recently used last. Each holds full-size tables (about 100 MiB),
-/// so the WebAssembly page, which runs under a memory bound, keeps none.
+/// the most recently used last. How many the process keeps is the declared
+/// decode host's rule ([`crate::performance::Host::warmed_kept`]): every one
+/// the frame's decoder leaves room for, so a later frame continuing the same
+/// state replays nothing and decodes the same bytes.
 type Warmed = Vec<(Box<[u8]>, u32, u32, Model)>;
 static WARMED: std::sync::Mutex<Warmed> = std::sync::Mutex::new(Vec::new());
-const WARMED_KEEP: usize = if cfg!(target_family = "wasm") { 0 } else { 2 };
+
+/// Bytes a warmed model kept for reuse holds: the tables sized for the state
+/// and the frame, and the state's bytes in its history.
+pub fn warmed_bytes(n: u64, state: u64, profile: u32) -> u64 {
+    table_bytes(n, state, true, profile).saturating_add(state)
+}
 
 #[derive(Clone)]
 // streams of a frame keep their models side by side: no cache line spans two
@@ -722,10 +729,18 @@ impl Model {
         } else {
             m.warm::<K, NINP>(state);
         }
-        if WARMED_KEEP > 0 {
-            if cache.len() >= WARMED_KEEP {
-                cache.remove(0);
-            }
+        let keep = crate::performance::declared_host().warmed_kept(
+            u64::from(n),
+            state.len() as u64,
+            profile,
+        );
+        let keep = usize::try_from(keep).unwrap_or(usize::MAX);
+        // least recently used first out, until this one fits (or, keeping
+        // none, until none is held)
+        let held = cache.len().min(keep.saturating_sub(1));
+        let over = cache.len() - held;
+        cache.drain(..over);
+        if keep > 0 {
             cache.push((state.into(), profile, mask, m.clone()));
         }
         Some(m)

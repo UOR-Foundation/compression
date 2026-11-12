@@ -75,6 +75,21 @@ impl Host {
         }
     }
 
+    /// Warmed models (a model state replayed through the coder, kept so a
+    /// later frame continuing the same state replays nothing) this host keeps
+    /// beside the decoder of a frame of `n` bytes coded after a state of
+    /// `state` bytes under `profile`: as many as the memory the frame's
+    /// decoders leave fits, each holding [`crate::ncm::warmed_bytes`]; none
+    /// where nothing is left (`Uorc.Performance::warmedKept`). Keeping one changes
+    /// the time a decode takes, never its bytes.
+    pub fn warmed_kept(self, n: u64, state: u64, profile: u32) -> u64 {
+        let decoders = self
+            .footprint(n, state, true, profile)
+            .saturating_mul(self.threads.max(1));
+        let each = crate::ncm::warmed_bytes(n, state, profile).max(1);
+        self.memory.saturating_sub(decoders) / each
+    }
+
     /// Whether this host holds the frame's decoder.
     pub fn holds(self, n: u64, history: u64, warm: bool, profile: u32) -> bool {
         self.footprint(n, history, warm, profile)
@@ -356,6 +371,43 @@ mod tests {
     }
 
     use super::*;
+
+    /// The kept warmed models are the page's rule (`Uorc.Performance::warmedKept`):
+    /// the host's memory less the frame's decoders, over one warmed model.
+    #[test]
+    fn warmed_models_kept_are_the_hosts_room() {
+        let state = crate::states::STATE_1.len() as u64;
+        for tb in [0, 22, 24, 25, 26] {
+            let profile = ncm::with_table_bits(ncm::FULL, tb);
+            for host in [
+                PAGE_WORKER,
+                Host {
+                    memory: 1 << 33,
+                    keeps_tables: false,
+                    threads: 1,
+                },
+            ] {
+                let n = 4096;
+                let kept = host.warmed_kept(n, state, profile);
+                let decoders = host.footprint(n, state, true, profile) * host.threads;
+                let each = ncm::warmed_bytes(n, state, profile);
+                assert_eq!(kept, host.memory.saturating_sub(decoders) / each);
+                eprintln!(
+                    "tb {tb} host {} MiB: decoder {} MiB, warmed {} MiB, kept {kept}",
+                    host.memory >> 20,
+                    decoders >> 20,
+                    each >> 20
+                );
+            }
+        }
+        // a host the frame's decoder fills keeps none
+        let full = Host {
+            memory: 1 << 20,
+            keeps_tables: false,
+            threads: 1,
+        };
+        assert_eq!(full.warmed_kept(4096, state, ncm::FULL), 0);
+    }
 
     #[test]
     fn steps_follow_the_profile_word() {
