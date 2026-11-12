@@ -54,7 +54,7 @@ for t in PRIVATE:
 # stamp of the run that logged an entry, U the epoch stamp of a merged unit (by its first entry), and
 # stream j's value of entry i and its epoch stamp are D and E at j * zs + i. UT/UK/UO is a run's log
 # (table, key, old value), LT/LK the epoch's merged units, OUTL stream j's output at j * osp.
-for name in ['K', 'U', 'D', 'E', 'LG', 'UT', 'UK', 'UO', 'LT', 'LK', 'OUTL', 'GR']:
+for name in ['K', 'U', 'D', 'E', 'LG', 'UT', 'UK', 'UO', 'LT', 'LK', 'GR']:
     region(name)
 GSPAN = 17 + 5 * 15    # words per merge group (see gr)
 
@@ -64,11 +64,12 @@ for name, w in [('seen', 4), ('lane', 2), ('sk', 3), ('ep', 4), ('sr', 4), ('sta
                 ('ul', 8), ('iend', 8), ('before', 4), ('coded', 4), ('at', 4), ('ng', 2), ('bg', 2),
                 ('bkey', 8), ('flen', 8), ('lc', 8)]:
     P.glob(name, w)
-LANE_G += ['seen', 'iend']
+P.glob('obase', 8)
+LANE_G += ['seen', 'iend', 'obase']
 LGSPAN = len(LANE_G)   # saved scalars per stream
 for t in MERGED:
     P.glob('z' + t, 8)
-for name in ['zs', 'osp', 'msteps']:
+for name in ['zs', 'osp', 'msteps', 'ofin']:
     P.glob(name, 8)
 # entries of the merged tables the model sizes by the frame (tb, mb, the history); the others at
 # their fixed extent
@@ -114,10 +115,7 @@ def lane_ex(e):
 
 def log(t, w, key):
     """The first write of a run to entry key of merged table t keeps the old value."""
-    return [('if', ne(ld('K', 8, eid(t, key)), G('stamp')),
-             [('store', 'K', 8, eid(t, key), G('stamp')),
-              ('store', 'UT', 1, G('ul'), TID[t]), ('store', 'UK', 8, G('ul'), key),
-              ('store', 'UO', 4, G('ul'), ld(t, w, key)), ('set', 'ul', add(G('ul'), 1))], [])]
+    return [('call', 'logZ', [TID[t], key, ld(t, w, key)])]
 
 
 def lane_st(ss, fn):
@@ -142,7 +140,7 @@ def lane_st(ss, fn):
                 kv, vv = fresh('lk'), fresh('lv')
                 out += [('let', kv, key), ('let', vv, val)] + log(t, w, V(kv)) + [('store', t, w, V(kv), V(vv))]
             elif t == 'OUT':
-                out.append(('store', 'OUTL', w, add(key, mul(G('lane'), G('osp'))), val))
+                out.append(('store', 'OUT', w, add(G('obase'), key), val))
             elif t == 'GN':
                 out.append(('store', t, w, key, val))   # the encoder's learning, never on with streams
             else:
@@ -158,8 +156,7 @@ def lane_st(ss, fn):
         elif k == 'loopw':
             out.append(('loopw', lane_ex(s[1]), lane_ex(s[2]), s[3], lane_st(s[4], fn)))
         elif k == 'call':
-            f = s[1] + 'L' if s[1] in LANE_FN else s[1]
-            out.append(('call', f, [lane_ex(a) for a in s[2]]))
+            out.append(('call', s[1], [lane_ex(a) for a in s[2]]))
         else:
             raise KeyError(k)
     return out
@@ -175,18 +172,23 @@ def subst_pos(e):
 
 
 fresh = nm.fresh
+# One coder: the serial functions become a stream's, and the serial coder is stream 0 of one (stamp 0
+# logs nothing, its input ends nowhere, its output starts at 0).
 for f in LANE_FN:
     params, body = P.funcs[f]
-    P.func(f + 'L', params, lane_st(body, f))
+    P.funcs[f] = (params, lane_st(body, f))
+for f in ('decodeProfile', 'decodeWarm', 'encodeProfile', 'encodeWarm'):
+    params, body = P.funcs[f]
+    P.funcs[f] = (params, [('set', 'iend', 1 << 60), ('set', 'stamp', 0), ('set', 'lane', 0), ('set', 'obase', 0)] + body)
 
 
 # ---- a stream's scalars ----
 def save(lane):
-    return [('store', 'LG', 8, add(mul(lane, LGSPAN), i), G(g)) for i, g in enumerate(LANE_G)]
+    return [('gcopy', 'save', lane)]
 
 
 def load(lane):
-    return [('set', g, ld('LG', 8, add(mul(lane, LGSPAN), i))) for i, g in enumerate(LANE_G)]
+    return [('gcopy', 'load', lane)]
 
 
 P.func('laneSave', ['j'], save(V('j')))
@@ -196,7 +198,7 @@ cp = []
 for t, span in PRIVATE.items():
     if span <= 256:
         w = {'HB': 4, 'BB': 4, 'IX': 4, 'ST': 2, 'LP': 4, 'LD': 4}[t]
-        cp.append(('loop', span, 'q', [('store', t + 'L', w, add(mul(V('j'), span), V('q')), ld(t, w, V('q')))]))
+        cp.append(('loop', span, 'q', [('store', t + 'L', w, add(mul(V('j'), span), V('q')), ld(t + 'L', w, add(V('q'), mul(0, span))))]))
 P.func('laneInit', ['j'], cp)
 
 
@@ -209,26 +211,39 @@ def dispatch(tid_e, f):
     return out
 
 
-def commit_one(t):
-    w = MERGED[t][0]
-    dk = add(mul(G('lane'), G('zs')), eid(t, V('ck')))
-    u = unit_of(t, V('ck'))
-    return [('store', 'E', 8, dk, G('estamp')),
-            ('store', 'D', 4, dk, ld(t, w, V('ck'))),
-            ('store', t, w, V('ck'), V('co')),
-            # the epoch's units, each once
-            ('if', ne(ld('U', 8, eid(t, u)), G('estamp')),
-             [('store', 'U', 8, eid(t, u), G('estamp')),
-              ('store', 'LT', 1, G('lc'), TID[t]), ('store', 'LK', 8, G('lc'), u),
-              ('set', 'lc', add(G('lc'), 1))], [])]
-
-
 def unit_of(t, key):
     return sub(key, mod(key, 16)) if MERGED[t][1] == 'bucket' else key
 
 
-cm_ = [('let', 'ct', ld('UT', 1, V('u'))), ('let', 'ck', ld('UK', 8, V('u'))), ('let', 'co', ld('UO', 4, V('u')))]
-cm_ += dispatch(V('ct'), commit_one)
+# entry (tid, key) of the merged entry space: the table's first entry (zbase) and the key
+P.glob('zv', 8)
+P.glob('zb', 8)
+P.func('zbase', ['tid'], dispatch(V('tid'), lambda t: [('set', 'zb', G('z' + t))]))
+P.func('rdZ', ['tid', 'key'], dispatch(V('tid'), lambda t: [('set', 'zv', ld(t, MERGED[t][0], V('key')))]))
+P.func('wrZ', ['tid', 'key', 'val'], dispatch(V('tid'), lambda t: [('store', t, MERGED[t][0], V('key'), V('val'))]))
+# the first write of a run to an entry keeps its old value (stamp 0, the serial coder's, logs nothing)
+P.func('logZ', ['tid', 'key', 'old'],
+       [('if', lt(0, G('stamp')),
+         [('call', 'zbase', [V('tid')]),
+          ('if', ne(ld('K', 8, add(G('zb'), V('key'))), G('stamp')),
+           [('store', 'K', 8, add(G('zb'), V('key')), G('stamp')),
+            ('store', 'UT', 1, G('ul'), V('tid')), ('store', 'UK', 8, G('ul'), V('key')),
+            ('store', 'UO', 4, G('ul'), V('old')), ('set', 'ul', add(G('ul'), 1))], [])], [])])
+
+
+cm_ = [('let', 'ct', ld('UT', 1, V('u'))), ('let', 'ck', ld('UK', 8, V('u'))), ('let', 'co', ld('UO', 4, V('u'))),
+       ('call', 'zbase', [V('ct')]),
+       ('let', 'dk', add(mul(G('lane'), G('zs')), add(G('zb'), V('ck')))),
+       ('call', 'rdZ', [V('ct'), V('ck')]),
+       ('store', 'E', 8, V('dk'), G('estamp')),
+       ('store', 'D', 4, V('dk'), G('zv')),
+       ('call', 'wrZ', [V('ct'), V('ck'), V('co')]),
+       # the epoch's units, each once
+       ('let', 'cu', sel(eq(V('ct'), TID['T']), sub(V('ck'), mod(V('ck'), 16)), V('ck'))),
+       ('if', ne(ld('U', 8, add(G('zb'), V('cu'))), G('estamp')),
+        [('store', 'U', 8, add(G('zb'), V('cu')), G('estamp')),
+         ('store', 'LT', 1, G('lc'), V('ct')), ('store', 'LK', 8, G('lc'), V('cu')),
+         ('set', 'lc', add(G('lc'), 1))], [])]
 P.func('laneCommit', [], [('loop', G('ul'), 'u', cm_), ('set', 'ul', 0), ('set', 'stamp', add(G('stamp'), 1))])
 
 
@@ -238,6 +253,14 @@ def version(t, j, key):
     w = MERGED[t][0]
     dk = add(mul(j, G('zs')), eid(t, key))
     return sel(eq(ld('E', 8, dk), G('estamp')), ld('D', 4, dk), ld(t, w, key))
+
+
+# stream j's value of entry key of table tid, in zv
+P.func('verZ', ['tid', 'j', 'key'],
+       [('call', 'zbase', [V('tid')]),
+        ('let', 'dk', add(mul(V('j'), G('zs')), add(G('zb'), V('key')))),
+        ('if', eq(ld('E', 8, V('dk')), G('estamp')), [('set', 'zv', ld('D', 4, V('dk')))],
+         [('call', 'rdZ', [V('tid'), V('key')])])])
 
 
 def acc_add(pb, nb, p, n, pre):
@@ -265,6 +288,22 @@ def acc_done(pb, nb, pre, outp, outn, body):
              ('let', outn, sel(eq(s('ch'), 0), nb, mn(tot0, 127)))]
 
 
+P.glob('rp', 4)
+P.glob('rn', 4)
+_ad = []
+acc_done(V('pb'), V('nb'), 'a', 'op1', 'on1', _ad)
+P.func('accDone', ['pb', 'nb'], _ad + [('set', 'rp', V('op1')), ('set', 'rn', V('on1'))])
+P.func('accAdd', ['pb', 'nb', 'p', 'n'], acc_add(V('pb'), V('nb'), V('p'), V('n'), 'a'))
+
+
+def acc_done_call(pb, nb, outp, outn, body):
+    body += [('call', 'accDone', [pb, nb]), ('let', outp, G('rp')), ('let', outn, G('rn'))]
+
+
+def acc_add_call(pb, nb, p, n):
+    return [('call', 'accAdd', [pb, nb, p, n])]
+
+
 def acc_reset(pre):
     return [('set', pre + 'ch', 0), ('set', pre + 'sat', 0), ('set', pre + 'sum', OFF), ('set', pre + 'dn', OFF),
             ('set', pre + 'dp', OFF)]
@@ -283,40 +322,39 @@ def pn_slot(p, n):
     return add(mul(256, mod(add(p, 32768), 65536)), n)
 
 
-# merge of a match model slot (p * 256 + count) of table t at key
-def merge_small(t):
-    b = [('let', 'sb', ld(t, 3, V('mk'))), ('let', 'spb', div(V('sb'), 256)), ('let', 'snb', mod(V('sb'), 256))]
-    b += acc_reset('a')
-    b += [('loop', G('sk'), 'j', [('let', 'sv', version(t, V('j'), V('mk'))),
-                                  ] + acc_add(V('spb'), V('snb'), div(V('sv'), 256), mod(V('sv'), 256), 'a'))]
-    acc_done(V('spb'), V('snb'), 'a', 'sp2', 'sn2', b)
-    b += [('store', t, 3, V('mk'), add(mul(256, V('sp2')), V('sn2'))), ('set', 'msteps', add(G('msteps'), G('ach')))]
-    return b
+# merge of a match model slot (p * 256 + count) of table tid at key mk
+ms = [('call', 'rdZ', [V('tid'), V('mk')]), ('let', 'sb', G('zv')), ('let', 'spb', div(V('sb'), 256)),
+      ('let', 'snb', mod(V('sb'), 256))]
+ms += acc_reset('a')
+ms += [('loop', G('sk'), 'j', [('call', 'verZ', [V('tid'), V('j'), V('mk')]), ('let', 'sv', G('zv'))]
+        + acc_add_call(V('spb'), V('snb'), div(V('sv'), 256), mod(V('sv'), 256)))]
+acc_done_call(V('spb'), V('snb'), 'sp2', 'sn2', ms)
+ms += [('call', 'wrZ', [V('tid'), V('mk'), add(mul(256, V('sp2')), V('sn2'))]), ('set', 'msteps', add(G('msteps'), G('ach')))]
+P.func('mergeSlot', ['tid', 'mk'], ms)
 
+# the mean change over the streams that changed the entry, in the entry's actual value (stored + init,
+# modulo m), clamped to hi
+mw = [('call', 'rdZ', [V('tid'), V('mk')]), ('let', 'wx', mod(add(G('zv'), V('init')), V('m'))),
+      ('set', 'ach', 0), ('set', 'adp', OFF)]
+mw += [('loop', G('sk'), 'j', [('call', 'verZ', [V('tid'), V('j'), V('mk')]),
+                               ('let', 'wv', mod(add(G('zv'), V('init')), V('m'))),
+                               ('if', ne(V('wv'), V('wx')), [('set', 'ach', add(G('ach'), 1)),
+                                                             ('set', 'adp', sub(add(G('adp'), V('wv')), V('wx')))], [])])]
+_ch = mx(G('ach'), 1)
+_mean = sel(le(OFF, G('adp')), add(V('wx'), div(monus(G('adp'), OFF), _ch)),
+            monus(V('wx'), div(monus(OFF, G('adp')), _ch)))
+mw += [('if', lt(0, G('ach')), [('let', 'wn', mn(_mean, V('hi'))),
+                                ('call', 'wrZ', [V('tid'), V('mk'), mod(sub(add(V('wn'), V('m')), V('init')), V('m'))])], []),
+       ('set', 'msteps', add(G('msteps'), G('ach')))]
+P.func('mergeWeight', ['tid', 'mk', 'init', 'm', 'hi'], mw)
 
-def merge_weight(t, init, lo_, hi_):
-    """Mean change over the streams that changed the entry, in the entry's actual value (stored + init)."""
-    w = MERGED[t][0]
-    M = 1 << (8 * w)
-    b = [('let', 'wx', mod(add(ld(t, w, V('mk')), init), M)), ('set', 'ach', 0), ('set', 'adp', OFF)]
-    b += [('loop', G('sk'), 'j', [('let', 'wv', mod(add(version(t, V('j'), V('mk')), init), M)),
-                                  ('if', ne(V('wv'), V('wx')), [('set', 'ach', add(G('ach'), 1)),
-                                                                ('set', 'adp', sub(add(G('adp'), V('wv')), V('wx')))], [])])]
-    ch = mx(G('ach'), 1)
-    mean = sel(le(OFF, G('adp')), add(V('wx'), div(monus(G('adp'), OFF), ch)),
-               monus(V('wx'), div(monus(OFF, G('adp')), ch)))
-    b += [('if', lt(0, G('ach')), [('let', 'wn', mx(mn(mean, hi_), lo_)),
-                                   ('store', t, w, V('mk'), mod(sub(add(V('wn'), M), init), M))], []),
-          ('set', 'msteps', add(G('msteps'), G('ach')))]
-    return b
-
-
-def merge_last(t):
-    w = MERGED[t][0]
-    count = [] if t == 'H' else [('set', 'msteps', add(G('msteps'), 1))]
-    return [('loop', G('sk'), 'j', [('let', 'dk', add(mul(V('j'), G('zs')), eid(t, V('mk')))),
-                                    ('if', eq(ld('E', 8, V('dk')), G('estamp')),
-                                     [('store', t, w, V('mk'), ld('D', 4, V('dk')))] + count, [])])]
+# match tables and history: the streams' values in stream order (a step each, the history's free)
+P.func('mergeLast', ['tid', 'mk'],
+       [('call', 'zbase', [V('tid')]),
+        ('loop', G('sk'), 'j', [('let', 'dk', add(mul(V('j'), G('zs')), add(G('zb'), V('mk')))),
+                                ('if', eq(ld('E', 8, V('dk')), G('estamp')),
+                                 [('call', 'wrZ', [V('tid'), V('mk'), ld('D', 4, V('dk'))]),
+                                  ('if', ne(V('tid'), TID['H']), [('set', 'msteps', add(G('msteps'), 1))], [])], [])])])
 
 
 # ---- a context bucket ----
@@ -326,7 +364,7 @@ def gr(g, i): return add(mul(g, GSPAN), i)
 def gacc(g, s, f): return gr(g, add(17, add(mul(5, sub(s, 1)), f)))
 
 
-def bslot(j, s):
+def bslot_v(j, s):
     """Stream j's slot s of the bucket at bkey."""
     return version('T', j, add(G('bkey'), s))
 
@@ -335,12 +373,18 @@ def base_slot(s): return ld('T', 3, add(G('bkey'), s))
 def tag_of(v0): return mod(v0, 256)
 
 
+def bslot(j, s):
+    """Stream j's slot s of the bucket at bkey (bucketOf j put it in GR, past the hold flags)."""
+    return ld('GR', 8, add(div(add(hold(G('sk')), 8), 8), s))
+
+
 mb = [('set', 'ng', 0)]
 mb += [('set', 'anyb', 0)]
 # Machine/graph-friendly: compute "holds" per stream into GR scratch region above the groups
 # a stream's hold flag, past the groups (k + 1 at most)
 def hold(j): return add(mul(8, mul(add(G('sk'), 1), GSPAN)), j)
-hbl = [('let', 'hs', eq(tag_of(bslot(V('j'), 0)), tag_of(base_slot(0)))),
+P.func('bucketOf', ['j'], [('loop', 16, 's', [('store', 'GR', 8, add(div(add(hold(G('sk')), 8), 8), V('s')), bslot_v(V('j'), V('s')))])])
+hbl = [('call', 'bucketOf', [V('j')]), ('let', 'hs', eq(tag_of(bslot(V('j'), 0)), tag_of(base_slot(0)))),
        ('store', 'GR', 1, hold(V('j')), sel(V('hs'), 1, 0)),
        ('loop', 15, 'q', [('if', lt(mod(bslot(V('j'), add(V('q'), 1)), 256), mod(base_slot(add(V('q'), 1)), 256)),
                           [('store', 'GR', 1, hold(V('j')), 0)], [])])]
@@ -366,7 +410,8 @@ def new_group(fr, origin_slot):
     return b
 
 
-mb += [('if', eq(G('anyb'), 1), new_group(0, lambda s: base_slot(s)), [])]
+P.func('newGroup', ['fr', 'tg'], new_group(V('fr'), lambda s: sel(eq(V('fr'), 0), base_slot(s), sel(eq(s, 0), V('tg'), 0))))
+mb += [('if', eq(G('anyb'), 1), [('call', 'newGroup', [0, 0])], [])]
 # each stream's bucket into its group
 same = [('set', 'bg', 0)]
 # a stream whose bucket is the base's adds nothing
@@ -377,7 +422,7 @@ find = [('set', 'bg', G('ng')),
                                                eq(G('bg'), G('ng')))),
                                  [('set', 'bg', V('g'))], [])]),
         ('if', eq(G('bg'), G('ng')),
-         new_group(1, lambda s: sel(eq(s, 0), tag_of(bslot(V('j'), 0)), 0)), [])]
+         [('call', 'newGroup', [1, tag_of(bslot(V('j'), 0))])], [])]
 addacc = []
 for f, gname in enumerate(['ch', 'sat', 'sum', 'dn', 'dp']):
     addacc.append(('set', 'a' + gname, ld('GR', 8, gacc(G('bg'), V('s1'), f))))
@@ -385,10 +430,10 @@ og = ld('GR', 8, gr(G('bg'), add(1, V('s1'))))
 opb, onb = slot_pn(og)
 lp_, ln_ = slot_pn(bslot(V('j'), V('s1')))
 addacc += [('let', 'opb', opb), ('let', 'onb', onb), ('let', 'lpv', lp_), ('let', 'lnv', ln_)]
-addacc += acc_add(V('opb'), V('onb'), V('lpv'), V('lnv'), 'a')
+addacc += acc_add_call(V('opb'), V('onb'), V('lpv'), V('lnv'))
 for f, gname in enumerate(['ch', 'sat', 'sum', 'dn', 'dp']):
     addacc.append(('store', 'GR', 8, gacc(G('bg'), V('s1'), f), G('a' + gname)))
-each = eqb + [('if', eq(G('isb'), 0),
+each = [('call', 'bucketOf', [V('j')])] + eqb + [('if', eq(G('isb'), 0),
                [('if', eq(ld('GR', 1, hold(V('j'))), 1), [('set', 'bg', 0)], find),
                 ('loop', 15, 's', [('let', 's1', add(V('s'), 1))] + addacc)], [])]
 mb += [('loop', G('sk'), 'j', each)]
@@ -400,7 +445,7 @@ for f, gname in enumerate(['ch', 'sat', 'sum', 'dn', 'dp']):
     win.append(('set', 'a' + gname, ld('GR', 8, gacc(V('g'), 1, f))))
 o1p, o1n = slot_pn(ld('GR', 8, gr(V('g'), 2)))
 win += [('let', 'o1p', o1p), ('let', 'o1n', o1n)]
-acc_done(V('o1p'), V('o1n'), 'a', 'm1p', 'm1n', win)
+acc_done_call(V('o1p'), V('o1n'), 'm1p', 'm1n', win)
 win += [('let', 'gkey', add(mul(V('m1n'), 256), sub(255, tag_of(ld('GR', 8, gr(V('g'), 1)))))),
         ('if', OR(eq(V('g'), 0), lt(G('bestk'), V('gkey'))), [('set', 'bestk', V('gkey')), ('set', 'bestg', V('g'))], [])]
 mb += [('if', lt(0, G('ng')), [('loop', G('ng'), 'g', win)], [])]
@@ -409,7 +454,7 @@ for f, gname in enumerate(['ch', 'sat', 'sum', 'dn', 'dp']):
     wr.append(('set', 'a' + gname, ld('GR', 8, gacc(G('bestg'), V('s1'), f))))
 ops, ons = slot_pn(ld('GR', 8, gr(G('bestg'), add(1, V('s1')))))
 wr += [('let', 'ops', ops), ('let', 'ons', ons)]
-acc_done(V('ops'), V('ons'), 'a', 'mp', 'mn', wr)
+acc_done_call(V('ops'), V('ons'), 'mp', 'mn', wr)
 wr += [('store', 'T', 3, add(G('bkey'), V('s1')), pn_slot(V('mp'), V('mn')))]
 mb += [('if', lt(0, G('ng')),
         [('store', 'T', 3, G('bkey'), ld('GR', 8, gr(G('bestg'), 1))),
@@ -418,30 +463,32 @@ P.func('mergeBucket', [], mb)
 
 
 # ---- the epoch's merge: every unit some stream changed, once ----
-def merge_unit(t):
-    kind = MERGED[t][1]
-    u = unit_of(t, V('lk'))
-    b = [('let', 'mk', u)]
-    body = []
+def merge_kind(kind):
     if kind == 'bucket':
-        body = [('set', 'bkey', V('mk')), ('call', 'mergeBucket', [])]
-    elif kind == 'weight':
-        body = merge_weight(t, nm.winit(mod(V('mk'), NIN)), 0, 1 << 23)
-    elif kind == 'apm':
-        sq = fresh('sq')
+        return [('set', 'bkey', V('mk')), ('call', 'mergeBucket', [])]
+    if kind == 'weight':
+        return [('call', 'mergeWeight', [V('lt_'), V('mk'), nm.winit(mod(V('mk'), NIN)), 1 << 24, 1 << 23])]
+    if kind == 'apm':
         j = mod(V('mk'), 33)
-        body = [('let', sq, ('squash', mn(mul(128, j), 4095)))]
-        init = sel(eq(j, 0), 0, sel(eq(j, 32), 4095 * 16, mul(16, V(sq))))
-        body += merge_weight(t, init, 0, 65535)
-    elif kind == 'slot':
-        body = merge_small(t)
-    else:
-        body = merge_last(t)
-    return b + body
+        return [('let', 'sq', ('squash', mn(mul(128, j), 4095))),
+                ('call', 'mergeWeight', [V('lt_'), V('mk'), sel(eq(j, 0), 0, sel(eq(j, 32), 4095 * 16, mul(16, V('sq')))),
+                                         1 << 16, 65535])]
+    if kind == 'slot':
+        return [('call', 'mergeSlot', [V('lt_'), V('mk')])]
+    return [('call', 'mergeLast', [V('lt_'), V('mk')])]
 
 
-ml = [('let', 'lt_', ld('LT', 1, V('q'))), ('let', 'lk', ld('LK', 8, V('q')))]
-ml += dispatch(V('lt_'), merge_unit)
+def of_kind(kind):
+    ids = [TID[t] for t in MERGED if MERGED[t][1] == kind]
+    c = eq(V('lt_'), ids[0])
+    for i in ids[1:]:
+        c = OR(c, eq(V('lt_'), i))
+    return c
+
+
+ml = [('let', 'lt_', ld('LT', 1, V('q'))), ('let', 'mk', ld('LK', 8, V('q')))]
+for kind in dict.fromkeys(k for _, k in MERGED.values()):
+    ml.append(('if', of_kind(kind), merge_kind(kind), []))
 P.func('merge', [], [('loop', G('lc'), 'q', ml), ('set', 'lc', 0), ('set', 'estamp', add(G('estamp'), 1))])
 
 
@@ -473,8 +520,7 @@ def regions(entries):
     frame's quantities: 'zs' (the merged entry space), 'sk' (streams), 'sr' (stride)."""
     zs, sk, sr = entries('zs'), entries('sk'), entries('sr')
     return {'PL': (8, ('mul', sk, PB // 8)), 'Z': (8, ('mul', zs, ZW // 8)), 'DE': (8, ('mul', ('mul', sk, zs), DW // 8)),
-            'OUTL': (1, ('mul', sk, ('add', ('mul', 2, sr), 64))),
-            'GR': (1, ('add', ('mul', 8, ('mul', ('add', sk, 1), GSPAN)), sk))}
+            'GR': (1, ('add', ('mul', 8, ('mul', ('add', sk, 1), GSPAN)), ('add', sk, 144)))}
 
 
 # ---- the frame ----
@@ -496,9 +542,10 @@ def lanes_start(decoding):
     """Every stream's scalars from the base's, its private tables, its first byte's model (streams after the first)."""
     b = [('set', 'seen', 0)]
     b += spaces() + [('set', 'osp', add(mul(2, G('sr')), 64))]
+    b += [('set', 'ofin', add(mul(4, G('sk')), mul(G('sk'), G('osp'))))]
     b += [('loop', G('sk'), 'j', [('call', 'laneSave', [V('j')]), ('call', 'laneInit', [V('j')])])]
     st = [('let', 'jj', add(V('j'), 1)), ('call', 'laneLoad', [V('jj')]), ('set', 'lane', V('jj')),
-          ('set', 'hoff', add(G('before'), stream_start(V('jj')))), ('call', 'newByteL', []), ('call', 'laneCommit', []),
+          ('set', 'hoff', add(G('before'), stream_start(V('jj')))), ('call', 'newByte', []), ('call', 'laneCommit', []),
           ('call', 'laneSave', [V('jj')])]
     b += [('loop', sub(G('sk'), 1), 'j', st)]
     if decoding:
@@ -515,7 +562,7 @@ def lanes_start(decoding):
               ('set', 'flen', sel(lt(V('j'), sub(G('sk'), 1)), G('iend'), G('flen')))]
         b += [('loop', G('sk'), 'j', co)]
     else:
-        b += [('loop', G('sk'), 'j', [('call', 'laneLoad', [V('j')]), ('set', 'op', 0), ('set', 'x1', 0), ('set', 'iend', 1 << 60),
+        b += [('loop', G('sk'), 'j', [('call', 'laneLoad', [V('j')]), ('set', 'op', 0), ('set', 'x1', 0), ('set', 'iend', 1 << 60), ('set', 'obase', add(G('ofin'), mul(V('j'), G('osp')))),
                                       ('set', 'x2', M32), ('call', 'laneSave', [V('j')])])]
     return b
 
@@ -529,7 +576,7 @@ def epochs(byte_call):
            ('call', 'laneCommit', []), ('call', 'laneSave', [V('j')]),
            ('set', 'coded', add(G('coded'), sub(V('phi'), V('plo'))))]
     ep = [('loop', G('sk'), 'j', run), ('call', 'merge', []),
-          ('loop', G('sk'), 'j', [('store', 'LG', 8, add(mul(V('j'), LGSPAN), LANE_G.index('seen')), G('coded'))]),
+          ('loop', G('sk'), 'j', [('call', 'laneLoad', [V('j')]), ('set', 'seen', G('coded')), ('call', 'laneSave', [V('j')])]),
           ('set', 'at', add(G('at'), G('ep')))]
     return [('set', 'at', 0), ('loop', div(add(G('sr'), sub(G('ep'), 1)), G('ep')), 'e', ep)]
 
@@ -537,24 +584,24 @@ def epochs(byte_call):
 # decodeStreams h pf: the frame after the h history bytes H holds, from a streams payload, under frame word pf
 dec = [('set', 'n', be32(0))] + plan + [('set', 'hoff', V('h')), ('set', 'before', V('h')), ('call', 'setup', [])]
 dec += lanes_start(True)
-dec += epochs(lambda i: [('call', 'decodeByteL', [])])
+dec += epochs(lambda i: [('call', 'decodeByte', [])])
 P.func('decodeStreams', ['h', 'pf'], dec)
 
 # encodeStreams size h pf: the streams payload of the size input bytes after h history bytes, in OUT
 enc = [('set', 'n', V('size')), ('set', 'cap', M32)] + plan + [('set', 'hoff', V('h')), ('set', 'before', V('h')),
                                                                    ('call', 'setup', [])]
 enc += lanes_start(False)
-enc += epochs(lambda i: [('call', 'encodeByteL', [i])])
+enc += epochs(lambda i: [('call', 'encodeByte', [i])])
 # every coder's last byte, then the payload: n, the lengths of every stream's output but the last, the outputs
-fin = [('call', 'laneLoad', [V('j')]), ('set', 'lane', V('j')), ('set', 'cap', lane_cap(V('j'))), ('call', 'emitL', [div(G('x1'), 1 << 24)]),
+fin = [('call', 'laneLoad', [V('j')]), ('set', 'lane', V('j')), ('set', 'cap', lane_cap(V('j'))), ('call', 'emit', [div(G('x1'), 1 << 24)]),
        ('call', 'laneSave', [V('j')])]
 enc += [('loop', G('sk'), 'j', fin)]
 put = [('loop', 4, 'q', [('store', 'OUT', 1, add(V('at_'), V('q')), mod(div(V('val'), rom('POW2', P.roms['POW2'][0], mul(8, sub(3, V('q'))))), 256))])]
 enc += [('let', 'at_', 0), ('let', 'val', G('n'))] + put
-lens = [('let', 'at_', add(4, mul(4, V('j')))), ('let', 'val', ld('LG', 8, add(mul(V('j'), LGSPAN), LANE_G.index('op'))))] + put
+lens = [('let', 'at_', add(4, mul(4, V('j')))), ('call', 'laneLoad', [V('j')]), ('let', 'val', G('op'))] + put
 enc += [('loop', sub(G('sk'), 1), 'j', lens), ('set', 'flen', add(4, mul(4, sub(G('sk'), 1))))]
-cpo = [('let', 'oj', ld('LG', 8, add(mul(V('j'), LGSPAN), LANE_G.index('op')))),
-       ('loop', V('oj'), 'q', [('store', 'OUT', 1, add(G('flen'), V('q')), ld('OUTL', 1, add(mul(V('j'), G('osp')), V('q'))))]),
+cpo = [('call', 'laneLoad', [V('j')]), ('let', 'oj', G('op')),
+       ('loop', V('oj'), 'q', [('store', 'OUT', 1, add(G('flen'), V('q')), ld('OUT', 1, add(add(G('ofin'), mul(V('j'), G('osp'))), V('q'))))]),
        ('set', 'flen', add(G('flen'), V('oj')))]
 enc += [('loop', G('sk'), 'j', cpo)]
 P.func('encodeStreams', ['size', 'h', 'pf'], enc)
@@ -622,6 +669,18 @@ def _ps(ss):
     return out
 for _f, (_fp, _body) in list(P.funcs.items()):
     P.funcs[_f] = (_fp, _ps(_body))
+
+
+# a stream's scalars: the lane's globals (first in glob, one run of bytes) copied to and from its PL block
+P.funcs['laneSave'] = (['j'], [('gcopy', 'save', add(mul(V('j'), PB), PO['LG']))])
+P.funcs['laneLoad'] = (['j'], [('gcopy', 'load', add(mul(V('j'), PB), PO['LG']))])
+_g = dict(P.globals)
+P.globals.clear()
+for _n in LANE_G + [g for g in _g if g not in LANE_G]:
+    P.globals[_n] = _g[_n]
+P.lane_globals = len(LANE_G)
+P.lane_table = 'PL'
+assert sum(_g[g] for g in LANE_G) <= 8 * LGSPAN
 
 
 def word(prof, k, epoch):
